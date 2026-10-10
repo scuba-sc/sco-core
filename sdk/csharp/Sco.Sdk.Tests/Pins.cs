@@ -1,5 +1,5 @@
 // Pins.cs: the SIZE / AT / PIN lines of tests/abi_v1.c, tests/abi_storage.c, tests/abi_ui.c,
-// tests/abi_settings.c, tests/abi_datacore.c, tests/abi_game_actors.c, tests/abi_game_vehicles.c, tests/abi_game_world.c and tests/abi_game_events.c, copied so the test runs from the SDK zip, where tests/ isn't shipped. Given
+// tests/abi_settings.c, tests/abi_datacore.c, tests/abi_game_actors.c, tests/abi_game_vehicles.c, tests/abi_game_world.c, tests/abi_game_events.c and tests/abi_game_entities.c, copied so the test runs from the SDK zip, where tests/ isn't shipped. Given
 // those files on the command line, the test also fails unless this copy equals them line for line.
 //
 // Part of the sco SDK. GPL-3.0, like sco-core.
@@ -312,6 +312,27 @@ namespace Sco.Sdk.Tests
             ("tests/abi_game_events.c", "AT(sc_game_vehicle_seat, size, 0);"),
             ("tests/abi_game_events.c", "AT(sc_game_vehicle_seat, seat_index, 4);"),
             ("tests/abi_game_events.c", "AT(sc_game_vehicle_seat, vehicle_entity_id, 8);"),
+            ("tests/abi_game_entities.c", "PIN(sizeof(void*) == 8);"),
+            ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_VERSION_1_0 == 0x00010000u);"),
+            ("tests/abi_game_entities.c", "PIN(sizeof(SC_ENTITIES_NAME) == 14); /* \"game.entities\" */"),
+            ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_MAX_OWNED == 1024u);"),
+            ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_MAX_WATCHES == 64u);"),
+            ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_MAX_TYPE_LEN == 63u);"),
+            ("tests/abi_game_entities.c", "PIN(SC_ENTITY_STREAMED_IN == 1u);"),
+            ("tests/abi_game_entities.c", "PIN(SC_ENTITY_STREAMED_OUT == 2u);"),
+            ("tests/abi_game_entities.c", "SIZE(sc_entities_v1, 88);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, size, 0);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, _pad, 4);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, alive, 8);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, class_of, 16);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, get_transform, 24);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, set_transform, 32);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, spawn, 40);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, despawn, 48);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, watch, 56);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, unwatch, 64);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, query_radius, 72);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, last_error, 80);"),
         };
     }
 }

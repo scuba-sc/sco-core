@@ -467,6 +467,42 @@ static void on_died(const char* event, const void* data, void* ctx) {
 api->subscribe(self, SC_GAME_EVENT_PLAYER_DIED, on_died, NULL);
 ```
 
+### `game.entities` 1.0 (game pack)
+
+[`sc_entities.h`](../include/sc_entities.h), pinned by [`tests/abi_game_entities.c`](../tests/abi_game_entities.c) (88 bytes): ask about any entity, spawn and despawn entities of your own anywhere, move what you may move, and watch entities stream in and out. The game pack publishes it under the owner `game` before any plugin loads (when the product sets `Platform::gameServices`; [game services](game-services.md)). Positions are `teleport.spatial`'s: metres as doubles in a zone's local frame, rotations `x, y, z, w`.
+
+| Capability | Functions | Rows (besides the `teleport.*` reads) |
+|---|---|---|
+| `game.entities.transform` | `get_transform`, `set_transform`, `alive` | none |
+| `game.entities.spawn` | `spawn`, `despawn` | `spawn.helpers`, `npc.clear` (and `game.actors`' removal, and the release hook) |
+| `game.entities.class_of` | `class_of` | `entities.dump`, `entities.class_site` |
+| `game.entities.query_radius` | `query_radius` | `entities.dump`, `.index`, `.for_each`, `.class_site`; **off until the in-game check (B3)** |
+| `game.entities.watch` | `watch`, `unwatch` | `entities.spawn_sinks`, `.delete_entity`, `.class_site`; **off until the in-game check (B9)** |
+
+A function whose capability isn't ready answers `SCO_UNAVAILABLE`, and `last_error` says why.
+
+| Function | What |
+|---|---|
+| `alive(id)` | 1 when the entity is streamed in, else 0 |
+| `class_of(id, out, &size)` | The class name (the name `spawn` takes), with the size handshake. `SCO_NOT_FOUND`: not streamed in |
+| `get_transform(id, pos[3], rot[4], &zone)` | Position and rotation in the entity's zone's frame, and the zone's id. Any out pointer may be `NULL`, not all |
+| `set_transform(self, id, zone, pos, rot)` | Moves and turns an entity you may move: what you spawned (here, `spawn_as` or `game.actors`) and the player's own vehicles (any plugin, once sc-offline registered them). Anything else is `SCO_FAILED` ("not yours") |
+| `spawn(self, class, zone, pos, rot, &id)` | Spawns anywhere, in any streamed-in zone. The entity is yours: removed when you unload or crash. `SCO_TOO_MANY` at 1024 alive |
+| `despawn(self, id)` | Removes an entity you spawned here (the removal `game.actors` uses) |
+| `watch(self, what, type, fn, ctx, &watch_id)` | `fn(ctx, what, id, class)` on the game thread for each entity of `type` (a class name, or `PREFIX*`) that streams in or out. Refused: empty, a lone `*`, `A*B`, `**`, overlong, non-ASCII. The host matches first. Ends at `unwatch` or unload |
+| `unwatch(self, watch_id)` | Ends a watch (from inside its callback too) |
+| `query_radius(zone, pos, radius, class_filter, ids, max, &count, &more)` | Ids of streamed-in entities within `radius` metres of `pos` in the zone's frame, optionally of one class or prefix |
+| `last_error(self, out, &size)` | The reason for `self`'s last failure (`self` `NULL`: the last read failure: `class_of`, `get_transform`, `query_radius`), with the size handshake. Any thread |
+
+```c
+const sc_entities_v1* ent = NULL;
+if (api->size > offsetof(sco_api, query_service) &&
+    api->query_service(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, (const void**)&ent) == SCO_OK &&
+    api->has("game.entities.spawn")) { ... }
+```
+
+Rows are in [entities rows](game/entities.md). Wrappers: C++ [`scosdk/game/entities.hpp`](../include/scosdk/game/entities.hpp), C# `Sco.Sdk.Game.Entities`, Lua `sco.game.entities` (read-only: `alive`, `class_of`, `get_transform`).
+
 ## Raw handlers (1.1)
 
 A raw handler is a call that takes and returns bytes: for data that doesn't fit a command's typed arguments and 256-byte reply (a list of entities, a transform, a buffer). The bytes' layout is the handler's contract, as a service table's is; put a size or version field first.
