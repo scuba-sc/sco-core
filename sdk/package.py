@@ -6,7 +6,7 @@
 The zip holds one folder, sco-sdk-<version>/, with everything a modder needs and nothing else:
 sco_api.h, sco_storage.h, sco_datacore.h, sco_ui.h, sco_settings.h, sc_spatial.h, sc_spawn.h, sc_actors.h, sc_vehicles.h, sc_world.h, sc_game_events.h, sc_entities.h, the game pack's version sc_game_pack.h, sco_ipc.h and its MIT wire sc_ipc.h, sco_net.h and its MIT wire sc_net.h, the MIT bridge layouts sc_titanlink.h and sc_voxel_bridge.h, the C++20 headers
 (include/scosdk/), the C# library (csharp/), the CMake helper, the template, the examples, sco-plugin-check, the docs,
-ImGui's public headers (third_party/imgui/), LICENSE and SHA256SUMS. It needs only Python 3 (no zip tool), and the same sources always give the same
+ImGui's public headers (third_party/imgui/), LICENSE, VERSIONS.txt (the kernel version, the plugin ABI, the game pack's version and the game builds it was verified on) and SHA256SUMS. It needs only Python 3 (no zip tool), and the same sources always give the same
 bytes: entries are sorted and carry a fixed timestamp.
 
 Run by .github/workflows/sdk.yml; CI then builds the examples from the unpacked zip alone.
@@ -47,6 +47,7 @@ CONTENT = [
     ("include/sc_game_pack.h", "include/sc_game_pack.h"),
     ("docs/game-pack.md", "docs/game-pack.md"),
     ("docs/game-services.md", "docs/game-services.md"),
+    ("docs/game/status.md", "docs/game/status.md"),  # what is on, and how far each table has been checked
     ("include/scosdk", "include/scosdk"),
     ("LICENSE", "LICENSE"),
     ("sdk/VERSION", "VERSION"),
@@ -80,6 +81,39 @@ def files_under(src):
                 continue
             full = os.path.join(dirpath, name)
             yield full, os.path.relpath(full, src).replace(os.sep, "/")
+
+
+def define(text, name, pattern, where):
+    m = re.search(rf'#define {name} "({pattern})"', text)
+    if not m:
+        sys.exit(f"{where}: no {name}")
+    return m.group(1)
+
+
+def make_versions_txt(version, game_pack):
+    """VERSIONS.txt: the three version lines of the release and the game builds the rows were checked on.
+    Everything comes from the headers the zip ships, so it can't drift from them."""
+    with open(os.path.join(ROOT, "include", "sc_game_pack.h"), encoding="utf-8") as f:
+        pack = f.read()
+    with open(os.path.join(ROOT, "include", "sco_api.h"), encoding="utf-8") as f:
+        api = f.read()
+    build = define(pack, "SCO_GAME_PACK_VERIFIED_BUILD", r"[0-9]+(?:\.[0-9]+)+", "include/sc_game_pack.h")
+    stamp = define(pack, "SCO_GAME_PACK_VERIFIED_PE_TIMESTAMP", r"0x[0-9a-f]+", "include/sc_game_pack.h")
+    how = define(pack, "SCO_GAME_PACK_VERIFICATION", r"[^\"]+", "include/sc_game_pack.h")
+    major = re.search(r"#define SCO_API_MAJOR ([0-9]+)", api)
+    minor = re.search(r"#define SCO_API_MINOR ([0-9]+)", api)
+    if not (major and minor):
+        sys.exit("include/sco_api.h: no SCO_API_MAJOR / SCO_API_MINOR")
+    return (
+        f"sco SDK {version}\n"
+        f"\n"
+        f"kernel (sdk/VERSION, tag sdk-v{version}): {version}\n"
+        f"plugin ABI (sco_api.h): {major.group(1)}.{minor.group(1)}\n"
+        f"game pack (SCO_GAME_PACK_VERSION, Star Citizen): {game_pack}\n"
+        f"\n"
+        f"verified game builds:\n"
+        f"  {build} (StarCitizen.exe PE timestamp {stamp}): {how}\n"
+    )
 
 
 LINK = re.compile(r"\]\(([^)#\s]+)((?:#[^)]*)?)\)")
@@ -131,6 +165,7 @@ def main():
     if not game_pack:
         sys.exit("include/sc_game_pack.h: no SCO_GAME_PACK_VERSION")
     print(f"kernel (sdk) {version}, game pack {game_pack.group(1)}")
+    versions_txt = make_versions_txt(version, game_pack.group(1))
 
     entries = {}
     for src_rel, dst_rel in CONTENT:
@@ -143,6 +178,8 @@ def main():
                 sys.exit(f"two sources for {dst}")
             with open(full, "rb") as f:
                 entries[dst] = (fix_links(full, dst, f.read()), os.access(full, os.X_OK))
+
+    entries["VERSIONS.txt"] = (versions_txt.encode("ascii"), False)
 
     sums = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n"
                    for name, (data, _) in sorted(entries.items()))

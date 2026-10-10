@@ -10,6 +10,7 @@ Start with the [README](../README.md) for what sco-core is. Pick your path below
 | [Plugin API v1](api-v1.md) | `sco_api.h`: exports, the host table, commands, events, capabilities, threading, compatibility, layout |
 | [C++ SDK](sdk-cpp.md) | `include/scosdk/`: the C++20 layer over `sco_api.h`: plugin class, commands, services, raw handlers, storage, lifetimes, the exception boundary |
 | [C# SDK](sdk-csharp.md) | `sdk/csharp/Sco.Sdk`: the C# layer, published with NativeAOT: setup, plugin class, commands, services, raw handlers, storage, DataCore, UI, lifetimes, threads, the exception boundary, AOT and trimming rules |
+| [Game services](game-services.md) | The Star Citizen game pack's services under the owner `game`: versions, capabilities, events, what a product turns on; [status of every game.* table](game/status.md) says what is on and how far it has been checked |
 | [Storage](storage.md) | The host service `sco.storage`: per-plugin key-value and SQL over SQLite, transactions, crash safety, what SQL may run, limits |
 | [UI](ui.md) | The host service `sco.ui`: tabs, overlays and badges in the product's menu, hotkeys bound to commands, chords, conflicts, hosting it |
 | [plugin.ini](../sdk/docs/plugin-ini.md) | Every key of the plugin manifest |
@@ -36,22 +37,25 @@ Start with the [README](../README.md) for what sco-core is. Pick your path below
 | Doc | What |
 |---|---|
 | [How it works](architecture.md) | Signature rows, results, resolving, the report, startup |
+| [The game pack](game-pack.md) | The Star Citizen game pack: its version line and the game builds it was verified on |
+| [Status of every game.* table](game/status.md) | Per service table and capability: version, ON or OFF by default, and the evidence (rows resolved by sigcheck, verified in game, off pending an in-game check, blocked); nothing is verified in game yet |
 | [Adding a signature](adding-signatures.md) | Moving a feature's addresses into a table, and the rules rows follow |
-  | [ASOP, hangar and ATC rows](game/asop.md) | The 62 rows behind ship terminals, lifts, hangars and ATC, their capabilities and root causes |
-  | [Building, missions, cvars and quantum rows](game/world.md) | The 36 rows behind build mode, the mission system, cvar storage and quantum boost, their capabilities |
-  | [Contracts rows](game/contracts.md) | The 83 rows and 15 capabilities behind sc-offline's contracts feature |
-  | [Features rows](game/features.md) | The rows moved out of sc-offline's five FindPattern scans, and their capabilities |
-  | [Offline patches and startup rows](game/offline.md) | The 60 rows and 19 capabilities behind sc-offline's offline patches, boot and startup hooks |
-  | [Mining row](game/mining.md) | The row behind natural mining: the biome builder's cell function, its checks and capability |
-  | [Actors rows](game/actors.md) | The 33 rows behind spawning, NPCs, ammo and the player loadout |
-  | [Entities rows](game/entities.md) | The 6 rows behind `game.entities`: the class name, the entity walk and the two streaming hooks |
+| [ASOP, hangar and ATC rows](game/asop.md) | The 62 rows behind ship terminals, lifts, hangars and ATC, their capabilities and root causes |
+| [Building, missions, cvars and quantum rows](game/world.md) | The 37 rows behind build mode, the mission system, cvar storage and quantum boost, their capabilities |
+| [Contracts rows](game/contracts.md) | The 83 rows and 15 capabilities behind sc-offline's contracts feature |
+| [Features rows](game/features.md) | The rows moved out of sc-offline's five FindPattern scans, and their capabilities |
+| [Offline patches and startup rows](game/offline.md) | The 60 rows and 19 capabilities behind sc-offline's offline patches, boot and startup hooks |
+| [Mining row](game/mining.md) | The row behind natural mining: the biome builder's cell function, its checks and capability |
+| [Actors rows](game/actors.md) | The 36 rows behind spawning, seats, NPCs, ammo and the player loadout |
+| [Entities rows](game/entities.md) | The 6 rows behind `game.entities`: the class name, the entity walk and the two streaming hooks |
+| [Actor status and event rows](game/events.md) | The 9 rows behind `game.actors` health and state and the player, death and seat events |
 | [Checking a game build](sigcheck.md) | `sco-sigcheck`: output, exit codes, the patch-day routine |
 | [DataCore files and packs](datacore.md) | `sco-dcb info`, `records`, `lint`, `check`, `show` and `diff`: extracting `Game2.dcb`, the layout check, the `.toml` pack format, the `sco.datacore` service, exit codes |
-| [Design: multiplayer and cross-game bridges](design/multiplayer.md) | The scope change of 2026-10-09, what the fork's multiplayer code does, the `sco.net` and `sco.ipc` services, the `sco::game::net` rows, sc-offline's built-ins and the PR plan; in review |
-| [Design: game-file overrides and DataCore patches](design/vfs-datacore.md) | `sco::vfs`, `sco::game::pak`, the DataCore layout, a semantic patcher (with `AddRecord`), `.toml` overrides in data packs and the `sco.datacore` service; decisions of 2026-10-09 |
-| [Design: service calls that fault, and providers that unload](design/service-safety.md) | Audit item M1: blame by faulting address (no ABI change), an opt-in provider-side `guard_call` (1.2), pinning provider modules now and a counted `ServiceRef` once hot reload exists; proposal of 2026-10-10 |
-| [Design: game services](design/game-services.md) | The SDK as the platform every plugin builds on: `game.*` services in the game pack (entities, vehicles, actors, world, events), their own version line, the move of `teleport.spatial` and `spawn.entities` out of sc-offline, and the PR plan; decisions of 2026-10-10 |
-| [Design: game.world and event spikes (Appendix B)](design/game-world-spikes.md) | Raycast, camera, entity enumeration, actor health and state, and the player, zone, vehicle and streaming events: locator, byte checks, arguments and uniqueness evidence on 4.10.196.36804, or blocked with evidence; spike results of 2026-10-10 |
+| [Design: multiplayer and cross-game bridges](design/multiplayer.md) | The scope change of 2026-10-09, what the fork's multiplayer code does, the `sco.net` and `sco.ipc` services, the `sco::game::net` rows, sc-offline's built-ins and the PR plan; partly implemented (`sco.net`, `sco.ipc`, the bridge layouts), the rest a historical plan |
+| [Design: game-file overrides and DataCore patches](design/vfs-datacore.md) | `sco::vfs`, `sco::game::pak`, the DataCore layout, a semantic patcher (with `AddRecord`), `.toml` overrides in data packs and the `sco.datacore` service; decisions of 2026-10-09; implemented, a historical record |
+| [Design: service calls that fault, and providers that unload](design/service-safety.md) | Audit item M1: blame by faulting address (no ABI change), an opt-in provider-side `guard_call` (1.2), pinning provider modules now and a counted `ServiceRef` once hot reload exists; proposal of 2026-10-10; Parts 1 and 3 implemented, Part 2 and `ServiceRef` not built |
+| [Design: game services](design/game-services.md) | The SDK as the platform every plugin builds on: `game.*` services in the game pack (entities, vehicles, actors, world, events), their own version line, the move of `teleport.spatial` and `spawn.entities` out of sc-offline, and the PR plan; decisions of 2026-10-10; implemented, a historical record (as built: [game services](game-services.md)) |
+| [Design: game.world and event spikes (Appendix B)](design/game-world-spikes.md) | Raycast, camera, entity enumeration, actor health and state, and the player, zone, vehicle and streaming events: locator, byte checks, arguments and uniqueness evidence on 4.10.196.36804, or blocked with evidence; spike results of 2026-10-10; the code they gated is built, this stays the evidence record |
 
 ## Working on sco-core
 
@@ -60,3 +64,4 @@ Start with the [README](../README.md) for what sco-core is. Pick your path below
 | [Building and testing](building.md) | `tools/test.sh`, CMake and CTest, the Windows run, the SDK zip, CI |
 | [Contributing](../CONTRIBUTING.md) | What fits, how to make a change, how it reaches sc-offline, how lessons come back |
 | [Changelog](../CHANGELOG.md) | What changed |
+| [Release notes: sdk-v1.2.0](releases/sdk-v1.2.0.md) | The draft notes for the next SDK release (prepared; the tag is the maintainer's) |

@@ -1,25 +1,25 @@
 # Framework plan: sco-core as the heart, sc-offline on the SDK
 
-**Status: Phases 1 to 3 done; Phase 4 in review (sc-offline PRs #63 to #66, waiting on the in-game run); most of Phases 5 and 6 landed; the SDK is released as `sdk-v1.1.0`.** This page records where sco-core and sc-offline stand, the decisions taken so far, what the finished phases taught ([Lessons](#lessons)), and the order of work that makes sco-core the core of a framework for mods of any kind, with sc-offline as the first product built on it. Each phase lands as its own pull requests; this page changes as decisions are made.
+**Status: a planning record, last reconciled 2026-10-10. Phases 1 to 3 are done; Phase 4 is sc-offline's work and was in review on 2026-10-09 (its state lives in sc-offline's repository); sco-core's side of Phases 5 and 6 has landed (settings, `requires` order, hot reload, the game services); the SDK is released as `sdk-v1.1.0` and `sdk-v1.2.0` is prepared.** For what is built now, read [architecture](architecture.md), [game services](game-services.md) and [status](game/status.md). This page records where sco-core and sc-offline stand, the decisions taken so far, what the finished phases taught ([Lessons](#lessons)), and the order of work that makes sco-core the core of a framework for mods of any kind, with sc-offline as the first product built on it. Each phase lands as its own pull requests; this page changes as decisions are made.
 
 | Phase | State | Landed in |
 |---|---|---|
 | [1. sc-offline builds with CMake](#phase-1-sc-offline-builds-with-cmake) | Done | sc-offline PR #55, merged as `88e7830` |
 | [2. The host kit in sco-core](#phase-2-the-host-kit-in-sco-core) | Done | sco-core PR #8, merged as `94ba952` |
 | [3. sc-offline runs on the host kit](#phase-3-sc-offline-runs-on-the-host-kit) | Done, played in game 2026-10-09 | sc-offline PR #56, merged as `78756af` |
-| [4. Features become built-in plugins](#phase-4-sc-offlines-features-become-built-in-plugins) | In review: teleport and spawn merged; the other features, storage, the menu shell and the quantum drive on `sco::game::pak` in sc-offline PRs #63 to #66 | sc-offline PRs #57, #60 (merged), #63 to #66 (open) |
-| [5. Services and storage](#phase-5-services-and-storage) | Mostly landed: `sco_api` 1.1 services and raw handlers, host-owned services, `sco.storage` (C, C++, C#, Lua). Open: settings. Load order by `requires` landed (names a capability, a service or a plugin id) | sco-core PRs #14, #15, #24, #32 |
-| [6. The framework grows](#phase-6-the-framework-grows) | Partly landed: `sco.ui` (panels, hotkeys), game-file overrides and DataCore patches (`sco::vfs`, `sco::datacore`, `sco::game::pak`, data packs, `sco.datacore`), the C# layer. Open: lists, declarative widgets, more events, dependencies, developer reload, mod manager | sco-core PRs #21 to #31, #33, #34 |
+| [4. Features become built-in plugins](#phase-4-sc-offlines-features-become-built-in-plugins) | As of 2026-10-09, in review: teleport and spawn merged; the other features, storage, the menu shell and the quantum drive on `sco::game::pak` in sc-offline PRs #63 to #66 | sc-offline PRs #57, #60 (merged), #63 to #66 (open) |
+| [5. Services and storage](#phase-5-services-and-storage) | Landed: `sco_api` 1.1 services and raw handlers, host-owned services, `sco.storage` (C, C++, C#, Lua), `sco.settings` (#69), load order by `requires` (#68; names a capability, a service or a plugin id) | sco-core PRs #14, #15, #24, #32 |
+| [6. The framework grows](#phase-6-the-framework-grows) | Partly landed: `sco.ui` (panels, hotkeys), game-file overrides and DataCore patches (`sco::vfs`, `sco::datacore`, `sco::game::pak`, data packs, `sco.datacore`), the C# layer. Landed since: the `game.*` events (#67), `requires` order (#68), typed settings (#69), hot reload (#70). Open: lists, declarative widgets, mod manager | sco-core PRs #21 to #31, #33, #34 |
 
 ## Goal
 
 sco-core is the heart: the runtime, the plugin system, the services and the SDK that every mod is built from. A product such as sc-offline is a thin **bootstrap** (inject, patch the game offline, find the main thread, draw a menu) plus a set of **plugins**. sc-offline's own features become plugins built into its DLL, using the same plain-C API ([`sco_api.h`](api-v1.md)) as third-party plugins, so the API is exercised by the code that ships. Another mod suite is another set of plugins on the same core, with sc-offline's bootstrap or its own.
 
-The [scope rules](../sdk/docs/plugin-rules.md) changed on 2026-10-09 (maintainer's decision): offline play stays the default and the game never connects to Cloud Imperium Games' servers; local IPC with other processes on the same PC and private LAN/VPN co-presence between sc-offline players through `sco.net` are allowed. The bans (online play, getting around anti-cheat, signature-check bypass, forcing the game's host type, unauthenticated remote commands, telemetry, anything that helps cheating) are permanent. The design is `docs/design/multiplayer.md` ([PR #37](https://github.com/scubamount/sco-core/pull/37), in review).
+The [scope rules](../sdk/docs/plugin-rules.md) changed on 2026-10-09 (maintainer's decision): offline play stays the default and the game never connects to Cloud Imperium Games' servers; local IPC with other processes on the same PC and private LAN/VPN co-presence between sc-offline players through `sco.net` are allowed. The bans (online play, getting around anti-cheat, signature-check bypass, forcing the game's host type, unauthenticated remote commands, telemetry, anything that helps cheating) are permanent. The design is `docs/design/multiplayer.md` ([PR #37](https://github.com/scubamount/sco-core/pull/37), merged; `sco.net` 1.0 and `sco.ipc` 1.0 are built).
 
 ## Where things stand
 
-**sco-core** (released as `sdk-v1.1.0`):
+**sco-core** (as of `sdk-v1.1.0`, 2026-10-09; what came after is in the CHANGELOG's `sdk-v1.2.0` section):
 
 - Plugin ABI: `sco_api.h` 1.1 (commands, events, tasks, capabilities, services, raw handlers, `SCO_FAILED`), pinned by `tests/abi_v1.c`; stable, version 1 only grows.
 - Language layers over it: C, C++20 (`include/scosdk/`), C# (`sdk/csharp/Sco.Sdk`, NativeAOT), Lua 5.4 (sco-lua, sandboxed), data packs.
@@ -30,7 +30,7 @@ The [scope rules](../sdk/docs/plugin-rules.md) changed on 2026-10-09 (maintainer
 - SDK: `sco-sdk-1.1.0.zip` with the headers, a template, seven examples, the CMake helper and `sco-plugin-check`; every example built and checked from the zip on Linux and Windows in CI.
 - Builds: `tools/test.sh` and CMake; CI on Linux (ASan, UBSan, TSan) and Windows MSVC x64; tag-triggered releases (`release` workflow).
 
-**sc-offline** (`main` runs on sco-core; last release 0.7.0):
+**sc-offline** (as of 2026-10-09; its current state is in its own repository; `main` ran on sco-core, last release 0.7.0):
 
 - sco-core is a submodule at `external/sco-core`. Every detour runs on `sco::hook`; teleport (with the `teleport.spatial` service) and spawn (`spawn.ship`, `spawn.entities`) are built-in plugins; the game's own quit path stops the host kit. Played in game 2026-10-09.
 - In review (PRs #63 to #66, tested together through the do-not-merge build #67): crew, NPCs, loadout, ammo, quantum and travel, build mode and contracts as built-ins; saved spots, bookmarks and the wallet on `sco.storage`; the menu as a shell over `sco.ui` with each built-in drawing its own tab and the keys on the hotkey registry; the quantum drive's game data through `sco::game::pak`.
@@ -143,7 +143,7 @@ Done when: `mod.log` shows `[core] signatures: N/N OK` and `[plugin] N found, ..
 
 ## Phase 4: sc-offline's features become built-in plugins
 
-**Status: in review.** Teleport (#57) and spawn (#60) are merged and played in game; every other feature is a built-in in sc-offline PR #63, with storage (#64), the quantum drive on `sco::game::pak` (#65) and the menu shell (#66) stacked on it, waiting on one in-game run of their combined build (#67). Still open after that: step 1 (feature signatures as sco-core rows). History: First come the two Phase 3 fixes: the `system.quit` signature row for `CSystem::Quit` (sco-core PR #9, merged), which sc-offline hooks to call `sco::app::Stop` (sc-offline PR #58), and starting the host kit whatever teleport does (sc-offline PR #57, which also makes teleport the first built-in plugin). Then the features, in the order below.
+**Status (as of 2026-10-09; sc-offline's repository has the current state): in review.** Teleport (#57) and spawn (#60) are merged and played in game; every other feature is a built-in in sc-offline PR #63, with storage (#64), the quantum drive on `sco::game::pak` (#65) and the menu shell (#66) stacked on it, waiting on one in-game run of their combined build (#67). Still open after that: step 1 (feature signatures as sco-core rows). History: First come the two Phase 3 fixes: the `system.quit` signature row for `CSystem::Quit` (sco-core PR #9, merged), which sc-offline hooks to call `sco::app::Stop` (sc-offline PR #58), and starting the host kit whatever teleport does (sc-offline PR #57, which also makes teleport the first built-in plugin). Then the features, in the order below.
 
 One feature per pull request, each the same moves:
 

@@ -8,15 +8,17 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | `data` | Files only: missions, rules, scripts, lists and game-data overrides (`datacore\*.toml`). Runs no code | [`examples/travel_pack`](examples/travel_pack), [`examples/quantum_pack`](examples/quantum_pack) |
 | `lua` | A Lua 5.4 script, run in a sandbox by sc-offline's bundled Lua runtime | [`examples/greeter`](examples/greeter), [`examples/notebook`](examples/notebook) (storage) |
 
-> **Version 1.1** (`sdk-v1.1.0`). The API is stable: version 1 only grows, so a plugin built with this SDK keeps loading in later 1.x hosts. In sc-offline, plugin loading is switched off by default; `plugins = on` in `sc-offline.ini` turns it on.
+> **SDK 1.2.0** (tag `sdk-v1.2.0`; the plugin ABI is **1.1**, unchanged since `sdk-v1.1.0`; Star Citizen game pack 0.2.0; `VERSIONS.txt` in the zip says so, with the verified game build). The API is stable: version 1 only grows, so a plugin built with this SDK keeps loading in later 1.x hosts. In sc-offline, plugin loading is switched off by default; `plugins = on` in `sc-offline.ini` turns it on.
 
-**Native plugins run with the game's full rights.** Only install plugins you trust; sc-offline doesn't review them. Plugins never connect to Cloud Imperium Games' servers; the only connections allowed are local IPC and private LAN/VPN co-presence through `sco.net`, both planned and not shipped yet: see [Plugin rules](docs/plugin-rules.md).
+**Native plugins run with the game's full rights.** Only install plugins you trust; sc-offline doesn't review them. Plugins never connect to Cloud Imperium Games' servers; the only connections allowed are local IPC (`sco.ipc`) and private LAN/VPN co-presence through `sco.net`, both host services: see [Plugin rules](docs/plugin-rules.md).
 
 ## What's in the SDK
 
 | Path | What |
 |---|---|
 | `include/sco_api.h` | The only header a native C plugin includes |
+| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_settings.h`, `sco_datacore.h`, `sco_ipc.h`, `sco_net.h` |
+| `include/sc_*.h` | The Star Citizen game pack's service tables and events (`sc_spatial.h`, `sc_spawn.h`, `sc_actors.h`, `sc_vehicles.h`, `sc_world.h`, `sc_entities.h`, `sc_game_events.h`; [game services](../docs/game-services.md), [status](../docs/game/status.md)), its version (`sc_game_pack.h`) and the MIT wires and bridge layouts |
 | `include/scosdk/` | The C++20 layer over `sco_api.h`, header-only: [C++ plugins](#c-plugins) |
 | `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins-1) |
 | `cmake/sco-plugin.cmake` | `sco_add_plugin()` and `sco_add_pack()`: build a plugin and lay it out |
@@ -25,6 +27,7 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | `tools/sco-plugin-check.c` | Checks a built plugin folder on your machine, without the game |
 | `tools/lua-check.lua` | Runs a Lua plugin against a stand-in `sco` table, without the game |
 | `docs/` | [plugin.ini](docs/plugin-ini.md), [data packs](docs/data-packs.md), [Lua](docs/lua.md), [plugin rules](docs/plugin-rules.md), [API reference](../docs/api-v1.md), [C++ SDK](../docs/sdk-cpp.md), [C# SDK](../docs/sdk-csharp.md) |
+| `VERSIONS.txt` | The kernel, plugin ABI and game-pack versions and the verified game builds (in the zip only) |
 | `SHA256SUMS` | The SHA-256 of every other file (in the zip only) |
 
 ## Build the examples

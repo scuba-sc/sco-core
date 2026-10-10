@@ -1,6 +1,6 @@
 # Design: game services, the SDK as the platform every plugin builds on
 
-Status: decided 2026-10-10 (maintainer decisions 1 to 8 below). No code yet.
+Status: **decided 2026-10-10 and implemented** (sco-core `main` `17e2620`, game pack 0.2.0; maintainer decisions 1 to 8 below). This page is the historical design record. What is built, with versions and capabilities, is in [game services](../game-services.md), [API v1](../api-v1.md#game-pack-services) and, per table, [status](../game/status.md); where this page and those differ, they win. Not built from this plan: the camera's field of view (blocked); built but off until an in-game check: `game.entities.watch`, `game.entities.query_radius`, `game.events.vehicle_seat` and `game.actors.state`.
 
 Maintainer decisions of 2026-10-10 that this page builds on:
 
