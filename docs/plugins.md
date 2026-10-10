@@ -107,6 +107,18 @@ This limits damage. It is not a sandbox: stack corruption, `__fastfail` and `/GS
 
 `LoadNative` passes the plugin path to `LoadLibraryExW` as an absolute path, so the host may discover from a relative root such as `data/plugins`.
 
+### Hot reload
+
+`sco::app::Reload(id)` (the host command `sco.reload <id>`, [API](api.md#scoapph-the-host-kit)) unloads one plugin and loads it again while the game runs, on the game thread:
+
+1. **Native:** the entry DLL is copied to `<folder>/.reload-<n>-<entry>`. The copy sits next to the original, so its dependencies still resolve from the plugin folder, and the original can be rebuilt while the copy is mapped. (`Platform::loadFromCopies` makes `Start` map every native from a copy too; without it a native's own file is mapped, and locked on Windows, until its first reload.) A copy that can't be made changes nothing: the plugin keeps running.
+2. **Unload:** the normal path (`UnloadOne`, what `UnloadAll` does for each plugin): `sco_plugin_unload` guarded, then `Release(self)`, which withdraws the plugin's commands, subscriptions, tasks and services and runs the release hooks (so the game pack despawns what it spawned for the plugin, and `sco.storage` closes its database). The old module is closed, unless a service table of it was handed out: then it stays mapped, as for any unload ([M1](design/service-safety.md)), is never reused, and a fault inside it is still blamed on the plugin. Callers that kept a table must query it again.
+3. **Load:** a new `sco_plugin` handle, then `LoadNative` on the copy, or `LoadScript` (the script is read and run again). `plugin.ini` is not read again, so a changed `[settings]` declaration, `requires` or `entry` needs a restart. The handle comes from the same path as at `Start`, which declares the plugin's [`[settings]`](#typed-settings-settings) again before its code runs: the values belong to the plugin id and are kept (in `sco.storage` when the product has a data folder; in memory only, and so reset, without one). The plugin gets the newest `loadOrder`.
+
+Refused (`Reload` returns `BadArg`, nothing changes): built-in plugins and data packs. `Failed` with nothing changed: the plugin is not `loaded`; it is **busy** (one of its own callouts is on the stack, say a command that asks for its own reload; retry from outside, for example from another plugin's command or the host); another reload is running; a plugin it `requires` is no longer loaded; the copy failed. If the unload crashes the plugin stays `crashed`; if the new load is refused or crashes the plugin ends `refused` or `crashed` (`why` and `mod.log` say why) and nothing of the old instance remains. Two reloads in one tick are two complete reloads, one after the other.
+
+Limits: handles are never reused and `host::kMaxPlugins` (256) counts every handle for the life of the process, reloads included; at the limit the plugin is left `unloaded`. Command slots are recycled on release (L5), so reloads do not use them up; plugin handles are not recycled, so the 256 are the per-session limit on loads plus reloads (and raw handler records, 1,024 registrations for the process, are not recycled either). Copies are deleted when the next reload (or `Stop`) can; on Windows a copy that is still mapped stays, and `Start` removes every `.reload-*` file of a native plugin folder before it loads, so a run that died leaves nothing behind. The plugin's own state (a file it wrote, its `sco.storage` database) survives; anything it kept in memory does not.
+
 ## Lua plugins
 
 `LoadScript(plugin, api, self, runtime)`, on the game thread, with the script runtime the host links in (sc-offline: [sco-lua](../plugins/lua/README.md)):

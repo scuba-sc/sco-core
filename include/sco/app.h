@@ -46,10 +46,13 @@
 // host::WithdrawHostServices (host and game services outlive every plugin),
 // ContainCallouts(nullptr).
 #include "sco/plugins.h"
+#include "sco/runtime.h"
 #include "sco/scan.h"
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace sco::app {
@@ -88,6 +91,11 @@ struct Platform {
     // turns it on once it no longer publishes those names itself. Builds without the game pack's
     // services (SCO_GAME_SC off, or not Windows) log "[app] game services not built" and go on.
     bool gameServices = false;
+    // Start maps each native plugin from a copy of its DLL (<folder>/.reload-<n>-<entry>), as Reload
+    // does, so the original can be rebuilt while the game runs. Off: a native is mapped from its own
+    // file until its first Reload (on Windows that file is locked until then). A product turns it on
+    // for a developer switch. A failed copy logs and falls back to the original.
+    bool loadFromCopies = false;
 };
 
 // Starts the host kit (see above). Game thread: it becomes the game thread. False, and nothing
@@ -112,6 +120,32 @@ void Stop();
 // Every plugin of the last Start: built-ins first, then discovered folders. Stable from Start
 // to the next Start (never resized in between).
 const std::vector<plugins::Plugin>& Plugins();
+
+// Hot reload of one plugin, on the game thread (the host command "sco.reload <plugin id>", which
+// Start registers with no capability, calls this; so can the product's UI).
+//   1. natives: the entry DLL is copied to <folder>/.reload-<n>-<entry> (a failed copy changes nothing)
+//   2. the plugin unloads as at game exit (UnloadOne: sco_plugin_unload guarded, then Release(self),
+//      which withdraws its commands, subscriptions and services, runs the release hooks, so the game
+//      pack despawns what it spawned for it; the old module is closed unless a service table of it was
+//      handed out, in which case it stays mapped, M1)
+//   3. a new handle (the one Start makes: [settings] declared again, kept values read) and LoadNative
+//      from the copy / LoadScript again (a script is re-read from disk); plugin.ini is not re-read
+// Result (why, when given, says more; "reloaded" is logged only when it is Ok):
+//   Ok          the plugin is Loaded again (new Plugin::self; loadOrder is the newest)
+//   NotFound    no plugin with that folder id
+//   BadArg      a built-in (never reloaded) or a data pack
+//   Unavailable not started; WrongThread: not the game thread
+//   Failed      not Loaded (Refused, Crashed, ...); busy (a callout of the plugin is running, so its code
+//               is on the stack: "busy:" in why; nothing changed, retry from outside it; also a reload
+//               started from inside another reload); a required plugin is no longer Loaded; the copy
+//               failed; unload crashed or could not release (the plugin stays Crashed); no handle left
+//               (host::kMaxPlugins counts every load, reloads too: 256 for the life of the process; the
+//               plugin stays Unloaded); the new load was refused or crashed (state Refused / Crashed)
+// Two reloads in one tick are two full reloads, one after the other. Other plugins that use this
+// one's services must query them again (their old tables stay valid only while the old module is
+// mapped). Command slots are recycled on release (L5), so reloads do not use them up; plugin handles are not
+// recycled: host::kMaxPlugins (256) bounds loads plus reloads for the whole process.
+Result Reload(std::string_view id, std::string* why = nullptr);
 
 // The data-pack content index of the last Start.
 const plugins::ContentIndex& Content();

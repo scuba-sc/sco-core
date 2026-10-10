@@ -112,6 +112,8 @@ Features tell the player what happened through `sco::Status("Spawning %s...", na
 
 The runtime is C++ and internal (version 0). The plain-C [`sco_api.h`](../include/sco_api.h) is a thin layer over it: `Result` and `ArgType` share their numbers with `sco_result` and `sco_arg_type`, and `Arg` and `ArgDef` share their layout with `sco_arg` and `sco_arg_def` (checked at compile time). `Command` is not `sco_command`: the host table ([`sco/host.h`](../include/sco/host.h)) builds `sco_command` views of registered commands for `list_commands`.
 
+**Hot reload.** `sco::app::Reload(id)` (also the host command `sco.reload`) unloads one plugin through the same path as shutdown and loads it again under a new handle: a native from a fresh copy of its DLL, a Lua plugin by running its script again. It is refused for built-ins and while a callout of the plugin is on the stack. Details: [Plugins: hot reload](plugins.md#hot-reload).
+
 ## Limits
 
 | Limit | Value | What happens at the limit |
@@ -124,6 +126,7 @@ The runtime is C++ and internal (version 0). The plain-C [`sco_api.h`](../includ
 | Queued tasks | 65,536 in all (`kMaxQueuedTasksHard`); the first 256 (`kMaxQueuedTasks`) in an allocation-free ring, the rest in an overflow | `Post` returns `TooMany` |
 | Event subscriptions | 512 (`kMaxSubscriptions`) | `Subscribe` returns `TooMany` |
 | Commands | 512 live (`kMaxCommands`); `Release(owner)` frees its owner's slots, so loading and unloading plugins any number of times never exhausts them | `RegisterCommand` returns `TooMany` |
+| Plugin handles | 256 (`host::kMaxPlugins`) for the life of the process; every load counts, reloads too | `NewPlugin` returns null; a reload leaves the plugin unloaded |
 | Command strings | name, title, capability 63; help 255; arg name 31; arg help 127 | `RegisterCommand` returns `BadArg` |
 | Arguments per command | 16 (`kMaxCommandArgs`) | `RegisterCommand` / `Invoke` return `BadArg` |
 | Command reply | 255 characters | Truncated |
