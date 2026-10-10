@@ -8,6 +8,7 @@
 #include "sco/game/pak.h"
 #include "sco/game/signatures.h"
 #include "sco/game/system.h"
+#include "sco/game/mining.h"
 #include "sco/game/world.h"
 #endif
 #include "sco/log.h"
@@ -475,6 +476,14 @@ static void TestWorldRows() {
     CHECK(rows == 36);
 }
 
+static void TestMiningRows() {
+    CHECK(sco::game::RegisterGameSignatures());
+    size_t n = 0;
+    const sco::game::mining::Capability* caps = sco::game::mining::Capabilities(n);
+    CHECK(caps && n == 1 && strcmp(caps[0].name, "game.mining") == 0 && caps[0].count == 1);
+    CHECK(sco::SigLookup("mining.cell") != nullptr);
+}
+
 static void TestFeatureRows() {
     CHECK(sco::game::RegisterGameSignatures());
     size_t n = 0;
@@ -587,6 +596,7 @@ int main() {
     TestContractsRows();
     TestActorsRows();
     TestWorldRows();
+    TestMiningRows();
 #endif
     std::printf("sco-core tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
