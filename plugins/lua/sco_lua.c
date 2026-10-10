@@ -22,6 +22,7 @@
 #include "sco_ui.h"
 #include "sc_entities.h"
 #include "sc_vehicles.h"
+#include "sc_creative.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1593,6 +1594,39 @@ static int L_veh_seat_occupant(lua_State* L) {
 }
 
 
+/* ---- sco.game.creative: the game pack's game.creative, read-only (only state(); no toggles) -------- */
+
+static const sc_creative_v1* Creative(const Script* s) {
+    const void* t = NULL;
+    if (s->api->size <= offsetof(sco_api, query_service) || !s->api->query_service) return NULL;
+    if (s->api->query_service(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, &t) != SCO_OK) return NULL;
+    return (const sc_creative_v1*)t;
+}
+
+/* state(): { god_mode, fly, infinite_ammo, infinite_ship_ammo } (booleans: which toggles are on,
+ * whoever switched them on), or nil, err, message. */
+static int L_creative_state(lua_State* L) {
+    Script* s = Of(L);
+    const sc_creative_v1* c = Creative(s);
+    uint32_t flags = 0;
+    const sco_result r = c ? c->state(s->self, &flags) : SCO_UNAVAILABLE;
+    if (r != SCO_OK) {
+        char msg[256];
+        uint32_t size = sizeof(msg);
+        lua_pushnil(L);
+        lua_pushstring(L, ResultName(r));
+        if (!c) { lua_pushliteral(L, "game.creative is not available on this host"); return 3; }
+        if (c->last_error(s->self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
+        return 2;
+    }
+    lua_createtable(L, 0, 4);
+    lua_pushboolean(L, (flags & SC_CREATIVE_GOD_MODE) != 0);          lua_setfield(L, -2, "god_mode");
+    lua_pushboolean(L, (flags & SC_CREATIVE_FLY) != 0);               lua_setfield(L, -2, "fly");
+    lua_pushboolean(L, (flags & SC_CREATIVE_INFINITE_AMMO) != 0);     lua_setfield(L, -2, "infinite_ammo");
+    lua_pushboolean(L, (flags & SC_CREATIVE_INFINITE_SHIP_AMMO) != 0); lua_setfield(L, -2, "infinite_ship_ammo");
+    return 1;
+}
+
 /* ---- sco.game.world: the game pack's game.world, read-only queries (no self) ---------------------- */
 
 static const sc_world_v1* WorldTable(const Script* s) {
@@ -1743,7 +1777,8 @@ static int SetupBody(lua_State* L) {
     }
     {                                                 /* sco.game: the game pack's services, read-only, each only when published */
         const int actors = ActorsTable(s) != NULL, vehicles = Vehicles(s) != NULL, world = WorldTable(s) != NULL, entities = Entities(s) != NULL;
-        if (actors || vehicles || world || entities) {
+        const int creative = Creative(s) != NULL;
+        if (actors || vehicles || world || entities || creative) {
             lua_newtable(L);
             if (actors) {                             /* sco.game.actors */
                 static const luaL_Reg gafns[] = { { "local_player", L_actors_local_player }, { "health", L_actors_health }, { NULL, NULL } };
@@ -1756,6 +1791,11 @@ static int SetupBody(lua_State* L) {
                     { "seat_occupant", L_veh_seat_occupant }, { NULL, NULL } };
                 luaL_newlib(L, vehfns);
                 lua_setfield(L, -2, "vehicles");
+            }
+            if (creative) {                           /* sco.game.creative */
+                static const luaL_Reg crfns[] = { { "state", L_creative_state }, { NULL, NULL } };
+                luaL_newlib(L, crfns);
+                lua_setfield(L, -2, "creative");
             }
             if (world) {                              /* sco.game.world */
                 static const luaL_Reg wfns[] = { { "camera", L_world_camera }, { "raycast", L_world_raycast }, { NULL, NULL } };

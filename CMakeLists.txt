@@ -255,7 +255,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/events.cpp
-                                       src/game/services/entities.cpp)
+                                       src/game/services/entities.cpp src/game/services/creative.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
@@ -439,6 +439,29 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_game_entities
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ge_targets})
+
+  # The game.creative table pin (tests/abi_game_creative.c, sc_creative.h), the same three ways. Header
+  # only, so the kernel-only build checks it too.
+  set(_abi_gc_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_creative.cpp")
+  file(CONFIGURE OUTPUT "${_abi_gc_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_creative.c\"\n")
+  add_library(sco_abi_game_creative_c OBJECT tests/abi_game_creative.c)
+  add_library(sco_abi_game_creative_cxx OBJECT "${_abi_gc_cxx}")
+  set(_abi_gc_targets sco_abi_game_creative_c sco_abi_game_creative_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_game_creative_short_enums OBJECT tests/abi_game_creative.c)
+    target_compile_options(sco_abi_game_creative_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_gc_targets sco_abi_game_creative_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_gc_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_game_creative
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_gc_targets})
 
   # The sco.ui table pin (tests/abi_ui.c), the same three ways.
   set(_abi_ui_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_ui.cpp")

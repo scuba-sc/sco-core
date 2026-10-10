@@ -25,6 +25,7 @@
 #include "sc_entities.h"
 #include "sc_spawn.h"
 #include "sc_vehicles.h"
+#include "sc_creative.h"
 #include "sc_world.h"
 #include <thread>
 #endif
@@ -591,6 +592,37 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
         }).join();
         CHECK(off == SCO_WRONG_THREAD && offErr == SCO_OK && std::strcmp(offMsg, "game thread only") == 0);
     }
+    // game.creative: published with them. No game image, so none of its capabilities is ready: every
+    // function answers SCO_UNAVAILABLE with a reason, state() too (no capability at all), and off the
+    // game thread it refuses before anything else.
+    CHECK(api->query_service(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, &table) == SCO_OK && table);
+    if (table) {
+        const auto* c = static_cast<const sc_creative_v1*>(table);
+        sco_plugin* self = reinterpret_cast<sco_plugin*>(&table);
+        CHECK(c->size == sizeof(sc_creative_v1));
+        CHECK(c->set_god_mode(self, 1) == SCO_UNAVAILABLE && c->set_fly_mode(self, 1) == SCO_UNAVAILABLE);
+        CHECK(c->set_fly_speed(self, 100.0f) == SCO_UNAVAILABLE);
+        CHECK(c->set_infinite_ammo(self, 1) == SCO_UNAVAILABLE && c->set_infinite_ship_ammo(self, 1) == SCO_UNAVAILABLE);
+        char msg[160] = {};
+        uint32_t n = sizeof(msg);
+        CHECK(c->last_error(self, msg, &n) == SCO_OK && std::strstr(msg, "game.creative.ship_ammo") && n == std::strlen(msg) + 1);
+        n = 0;
+        CHECK(c->last_error(self, nullptr, &n) == SCO_TOO_MANY && n == std::strlen(msg) + 1);
+        uint32_t flags = 9;   // state() has no capability to name: the reason says so (a query: it's the newer error)
+        CHECK(c->state(self, &flags) == SCO_UNAVAILABLE && flags == 0);
+        n = sizeof(msg);
+        CHECK(c->last_error(self, msg, &n) == SCO_OK && std::strstr(msg, "no game.creative capability is ready"));
+        CHECK(!sco::caps::Has("game.creative.god_mode") && !sco::caps::Has("game.creative.fly") &&
+              !sco::caps::Has("game.creative.ammo") && !sco::caps::Has("game.creative.ship_ammo"));
+        sco_result off = SCO_OK, offErr = SCO_OK;
+        char offMsg[64] = {};
+        std::thread([&] {
+            off = c->set_god_mode(self, 1);
+            uint32_t size = sizeof(offMsg);
+            offErr = c->last_error(self, offMsg, &size);
+        }).join();
+        CHECK(off == SCO_WRONG_THREAD && offErr == SCO_OK && std::strcmp(offMsg, "game thread only") == 0);
+    }
     // game.actors: published with them. No game image, so none of its capabilities is ready:
     // every function answers SCO_UNAVAILABLE and last_error says why; off the game thread
     // SCO_WRONG_THREAD; a handle NewPlugin didn't return is SCO_BAD_ARG.
@@ -752,6 +784,7 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
         CHECK(!sco::caps::Has(cap));
     CHECK(api->query_service(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &table) == SCO_NOT_FOUND);
     CHECK(api->query_service(SC_VEHICLES_SERVICE_NAME, SC_VEHICLES_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
+    CHECK(api->query_service(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
     CHECK(api->query_service("teleport.spatial", 0x00010000, &table) == SCO_NOT_FOUND);
     CHECK(api->query_service(SC_SPAWN_SERVICE_NAME, SC_SPAWN_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
     CHECK(api->query_service(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_0, &table) == SCO_NOT_FOUND);

@@ -9,6 +9,7 @@
 #include "spawn.h"
 #include "actors.h"
 #include "entities.h"
+#include "creative.h"
 #include "sco/game/actors.h"
 #include "sco/game/reads.h"
 #include "sco/game/services.h"
@@ -257,11 +258,13 @@ bool MayMove(const void* owner, uint64_t id) {
 // A plugin unloaded or crashed (sco::AddReleaseHook): its spawns are nobody's now, so a later
 // plugin given the same handle can't move them. The NPCs it spawned through game.actors leave
 // the world (decision 6), and so do the entities it spawned through game.entities, whose
-// watches end: one hook for all three services.
+// watches end; and the game.creative toggles it switched on go off (god mode, fly, fly speed,
+// ammo): one hook for all four services.
 void OnRelease(const void* owner) {
     ForgetOwner(owner);
     ReleaseActorsOwner(owner);
     ReleaseEntitiesOwner(owner);
+    ReleaseCreativeOwner(owner);
 }
 
 // ---- spawn.entities (sc_spawn.h) ---------------------------------------------------------------

@@ -58,6 +58,9 @@ namespace Sco.Sdk.Tests
         private static ScActorsV1* _actors;  // a stand-in game.actors
         private static ScEntitiesV1* _entities;  // a stand-in game.entities
         private static ScWorldV1* _world;    // a stand-in game.world
+        private static ScCreativeV1* _creative;  // a stand-in game.creative
+        private static uint _creativeFlags;      // its toggles
+        private static float _creativeSpeed;
         private static void* _self;
         private static int _failures;
 
@@ -143,6 +146,7 @@ namespace Sco.Sdk.Tests
             if (S(name) == GameAbi.ActorsName) { *o = _actors; return ScoResult.Ok; }
             if (S(name) == GameAbi.EntitiesName) { *o = _entities; return ScoResult.Ok; }
             if (S(name) == GameAbi.WorldName) { *o = _world; return ScoResult.Ok; }
+            if (S(name) == GameAbi.CreativeName) { *o = _creative; return ScoResult.Ok; }
             if (S(name) != "other.small") return ScoResult.NotFound;
             *o = _smallTable;
             return ScoResult.Ok;
@@ -307,6 +311,51 @@ namespace Sco.Sdk.Tests
             return ScoResult.Ok;
         }
 
+        private static ScoResult CrToggle(void* self, int on, uint bit)
+        {
+            if (self == null) return ScoResult.BadArg;
+            _creativeFlags = on != 0 ? _creativeFlags | bit : _creativeFlags & ~bit;
+            return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult CrGod(void* self, int on) => CrToggle(self, on, 0x1);
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult CrFly(void* self, int on) => CrToggle(self, on, 0x2);
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult CrSpeed(void* self, float mps)
+        {
+            if (!(mps > 0 && mps <= GameAbi.CreativeFlySpeedMax)) return ScoResult.BadArg;
+            _creativeSpeed = mps;
+            return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult CrAmmo(void* self, int on) => CrToggle(self, on, 0x4);
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult CrShipAmmo(void* self, int on) => CrToggle(self, on, 0x8);
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult CrState(void* self, uint* flags)
+        {
+            *flags = _creativeFlags;
+            return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult CrLastError(void* self, byte* o, uint* io)
+        {
+            byte[] why = System.Text.Encoding.UTF8.GetBytes("speed must be above 0\0");
+            uint cap = *io;
+            *io = (uint)why.Length;
+            if (cap < why.Length) return ScoResult.TooMany;
+            for (int i = 0; i < why.Length; ++i) o[i] = why[i];
+            return ScoResult.Ok;
+        }
+
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult ReleaseService(void* self, byte* name) => ScoResult.Ok;
 
@@ -450,6 +499,15 @@ namespace Sco.Sdk.Tests
             _world->raycast = &WorldRaycast;
             _world->camera = &WorldCamera;
             _world->last_error = &WorldLastError;
+            _creative = (ScCreativeV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScCreativeV1));
+            _creative->size = (uint)sizeof(ScCreativeV1);
+            _creative->set_god_mode = &CrGod;
+            _creative->set_fly_mode = &CrFly;
+            _creative->set_fly_speed = &CrSpeed;
+            _creative->set_infinite_ammo = &CrAmmo;
+            _creative->set_infinite_ship_ammo = &CrShipAmmo;
+            _creative->state = &CrState;
+            _creative->last_error = &CrLastError;
 
             var p = new TestPlugin();
             Expect(PluginExports.LoadPlugin(p, api, self, "test") == ScoResult.Ok, "load");
@@ -501,6 +559,21 @@ namespace Sco.Sdk.Tests
             Expect(actors.Health(6, out _, out _) == ScoResult.Unavailable && actors.State(6, out _) == ScoResult.Unavailable,
                    "a 1.0 table answers Unavailable for the 1.1 functions");
             _actors->size = savedSize;
+
+            var creative = new Creative();
+            Expect(creative.Open(p) == ScoResult.Ok && creative.IsOpen, "game.creative opens");
+            Expect(creative.SetGodMode(true) == ScoResult.Ok && creative.SetFlyMode(true) == ScoResult.Ok &&
+                   creative.SetInfiniteAmmo(true) == ScoResult.Ok && creative.SetInfiniteShipAmmo(true) == ScoResult.Ok,
+                   "Creative toggles on");
+            Expect(creative.State(out ScCreativeFlag cf) == ScoResult.Ok &&
+                   cf == (ScCreativeFlag.GodMode | ScCreativeFlag.Fly | ScCreativeFlag.InfiniteAmmo | ScCreativeFlag.InfiniteShipAmmo),
+                   "Creative.State reads the toggles back");
+            Expect(creative.SetFlyMode(false) == ScoResult.Ok && creative.SetInfiniteAmmo(false) == ScoResult.Ok &&
+                   creative.State(out cf) == ScoResult.Ok && cf == (ScCreativeFlag.GodMode | ScCreativeFlag.InfiniteShipAmmo),
+                   "Creative toggles off");
+            Expect(creative.SetFlySpeed(250f) == ScoResult.Ok && _creativeSpeed == 250f, "Creative.SetFlySpeed");
+            Expect(creative.SetFlySpeed(0f) == ScoResult.BadArg && creative.LastError() == "speed must be above 0", "Creative.LastError");
+            Expect(new Creative().SetGodMode(true) == ScoResult.Unavailable, "a Creative that isn't open answers Unavailable");
 
             var world = new World();
             Expect(world.Open(p) == ScoResult.Ok && world.IsOpen, "game.world opens");

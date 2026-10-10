@@ -172,6 +172,16 @@ Present only when the Star Citizen game pack publishes [`game.vehicles`](../../d
 
 On failure each returns `nil, err, message` (`err` as for `sco.store`: `"unavailable"`, `"not_found"`, ...; `message` from the game pack's `last_error`).
 
+## `sco.game.creative`
+
+Present only when the Star Citizen game pack publishes [`game.creative`](../../docs/api-v1.md#gamecreative-10-game-pack) (check `if sco.game and sco.game.creative then`); `lua-check.lua` has no stand-in for it. Read-only: scripts can see which toggles are on but can't switch any (those take `self` and change the game; use C, C++ or C#).
+
+| Function | Returns |
+|---|---|
+| `sco.game.creative.state()` | A table `{ god_mode, fly, infinite_ammo, infinite_ship_ammo }` of booleans: the toggles that are on, whoever switched them on |
+
+On failure it returns `nil, err, message` (`err` as for `sco.store`: `"unavailable"`, ...; `message` from the game pack's `last_error`).
+
 ## `sco.game.entities`
 
 Present only when the Star Citizen game pack publishes [`game.entities`](../../docs/api-v1.md#gameentities-11-game-pack) (check `if sco.game and sco.game.entities then`); `lua-check.lua` has no stand-in for it. Read-only: a Lua plugin owns no entities, so there is no spawn, despawn, move or watch.

@@ -7,6 +7,7 @@
 //   tools/test.sh   (ASan+UBSan and ThreadSanitizer)
 #include "scosdk/scosdk.hpp"
 #include "scosdk/game/actors.hpp"
+#include "scosdk/game/creative.hpp"
 #include "scosdk/game/events.hpp"
 #include "scosdk/game/world.hpp"
 
@@ -230,6 +231,65 @@ static void TestGameActors(const sco_api* api) {
     CHECK(old.Open(api, g_gaSelf) == SCO_OK);
     CHECK(old.LocalPlayer(a, e) == SCO_OK && old.Health(6, hp, hpMax) == SCO_UNAVAILABLE && old.State(6, st) == SCO_UNAVAILABLE);
     CHECK(sco::host::WithdrawGameService(SC_ACTORS_NAME) == sco::Result::Ok);
+}
+
+// ---- scosdk/game/creative.hpp over a stand-in game.creative --------------------------------------
+
+static sco_plugin* g_gcSelf = nullptr;
+static uint32_t g_gcFlags = 0;
+static float g_gcSpeed = 0;
+static sco_result GcToggle(sco_plugin* self, int on, uint32_t bit) {
+    if (self != g_gcSelf) return SCO_BAD_ARG;
+    g_gcFlags = on ? (g_gcFlags | bit) : (g_gcFlags & ~bit);
+    return SCO_OK;
+}
+static sco_result GcGod(sco_plugin* self, int on) { return GcToggle(self, on, SC_CREATIVE_GOD_MODE); }
+static sco_result GcFly(sco_plugin* self, int on) { return GcToggle(self, on, SC_CREATIVE_FLY); }
+static sco_result GcAmmo(sco_plugin* self, int on) { return GcToggle(self, on, SC_CREATIVE_INFINITE_AMMO); }
+static sco_result GcShip(sco_plugin* self, int on) { return GcToggle(self, on, SC_CREATIVE_INFINITE_SHIP_AMMO); }
+static sco_result GcSpeed(sco_plugin* self, float mps) {
+    if (self != g_gcSelf || !(mps > 0 && mps <= SC_CREATIVE_FLY_SPEED_MAX)) return SCO_BAD_ARG;
+    g_gcSpeed = mps;
+    return SCO_OK;
+}
+static sco_result GcState(sco_plugin* self, uint32_t* flags) {
+    if (self != g_gcSelf) return SCO_BAD_ARG;
+    *flags = g_gcFlags;
+    return SCO_OK;
+}
+static sco_result GcLastError(sco_plugin* self, char* out, uint32_t* io) {
+    static const char kWhy[] = "speed must be above 0";
+    if (self != g_gcSelf) return SCO_BAD_ARG;
+    const uint32_t cap = *io;
+    *io = sizeof(kWhy);
+    if (cap < sizeof(kWhy)) return SCO_TOO_MANY;
+    std::memcpy(out, kWhy, sizeof(kWhy));
+    return SCO_OK;
+}
+
+static void TestGameCreative(const sco_api* api) {
+    g_gcSelf = sco::host::NewPlugin("gctest");
+    sdk::game::Creative none;
+    CHECK(none.Open(api, g_gcSelf) == SCO_NOT_FOUND && !none);
+    uint32_t flags = 7;
+    CHECK(none.SetGodMode(true) == SCO_UNAVAILABLE && none.State(flags) == SCO_UNAVAILABLE && flags == 0);
+    static const sc_creative_v1 kFake = { sizeof(sc_creative_v1), 0, GcGod, GcFly, GcSpeed, GcAmmo, GcShip, GcState, GcLastError };
+    CHECK(sco::host::ProvideGameService(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, &kFake) == sco::Result::Ok);
+    sdk::game::Creative cr;
+    CHECK(cr.Open(api, g_gcSelf) == SCO_OK && cr && cr.Table() == &kFake);
+    CHECK(cr.SetGodMode(true) == SCO_OK && cr.SetFlyMode(true) == SCO_OK && cr.SetInfiniteAmmo(true) == SCO_OK &&
+          cr.SetInfiniteShipAmmo(true) == SCO_OK);
+    CHECK(cr.State(flags) == SCO_OK &&
+          flags == (SC_CREATIVE_GOD_MODE | SC_CREATIVE_FLY | SC_CREATIVE_INFINITE_AMMO | SC_CREATIVE_INFINITE_SHIP_AMMO));
+    CHECK(cr.SetFlyMode(false) == SCO_OK && cr.SetGodMode(false) == SCO_OK && cr.State(flags) == SCO_OK &&
+          flags == (SC_CREATIVE_INFINITE_AMMO | SC_CREATIVE_INFINITE_SHIP_AMMO));
+    CHECK(cr.SetFlySpeed(250.0f) == SCO_OK && g_gcSpeed == 250.0f);
+    CHECK(cr.SetFlySpeed(0.0f) == SCO_BAD_ARG && g_gcSpeed == 250.0f);
+    char why[64] = {};
+    CHECK(cr.LastError(why) == SCO_OK && std::strcmp(why, "speed must be above 0") == 0);
+    char tiny[4] = { 'x', 0, 0, 0 };
+    CHECK(cr.LastError(tiny) == SCO_TOO_MANY && tiny[0] == '\0');
+    CHECK(sco::host::WithdrawGameService(SC_CREATIVE_SERVICE_NAME) == sco::Result::Ok);
 }
 
 // ---- scosdk/game/world.hpp over a stand-in game.world --------------------------------------------
@@ -589,6 +649,7 @@ int main() {
     sdk::UnloadPlugin(cons);   // a second unload does nothing
 
     TestGameActors(api);
+    TestGameCreative(api);
     TestGameWorld(api);
     TestGameEvents(api);
 

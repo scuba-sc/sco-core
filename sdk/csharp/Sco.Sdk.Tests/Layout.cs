@@ -53,6 +53,8 @@ namespace Sco.Sdk.Tests
             ["sc_vehicle_seat_flag"] = typeof(ScVehicleSeatFlag),
             ["sc_vehicle_seat"] = typeof(ScVehicleSeat),
             ["sc_vehicles_v1"] = typeof(ScVehiclesV1),
+            ["sc_creative_flag"] = typeof(ScCreativeFlag),
+            ["sc_creative_v1"] = typeof(ScCreativeV1),
         };
 
         private static readonly Dictionary<string, long> Constants = new()
@@ -146,6 +148,13 @@ namespace Sco.Sdk.Tests
             ["SC_SEAT_OCCUPIED"] = (long)ScVehicleSeatFlag.Occupied,
             ["SC_SEAT_PILOT"] = (long)ScVehicleSeatFlag.Pilot,
             ["SC_SEAT_FLAG_FORCE32"] = (long)ScVehicleSeatFlag.Force32,
+            ["SC_CREATIVE_SERVICE_VERSION"] = GameAbi.CreativeVersion1_0,
+            ["SC_CREATIVE_FLY_SPEED_MAX"] = GameAbi.CreativeFlySpeedMax,
+            ["SC_CREATIVE_GOD_MODE"] = (long)ScCreativeFlag.GodMode,
+            ["SC_CREATIVE_FLY"] = (long)ScCreativeFlag.Fly,
+            ["SC_CREATIVE_INFINITE_AMMO"] = (long)ScCreativeFlag.InfiniteAmmo,
+            ["SC_CREATIVE_INFINITE_SHIP_AMMO"] = (long)ScCreativeFlag.InfiniteShipAmmo,
+            ["SC_CREATIVE_FLAG_FORCE32"] = (long)ScCreativeFlag.Force32,
         };
 
         private static readonly Dictionary<string, string> Strings = new()
@@ -165,6 +174,7 @@ namespace Sco.Sdk.Tests
             ["SC_GAME_EVENT_VEHICLE_EXITED"] = GameAbi.EventVehicleExited,
             ["SC_ENTITIES_NAME"] = GameAbi.EntitiesName,
             ["SC_VEHICLES_SERVICE_NAME"] = GameAbi.VehiclesName,
+            ["SC_CREATIVE_SERVICE_NAME"] = GameAbi.CreativeName,
         };
 
         private static readonly Regex Size = new(@"^SIZE\((\w+),\s*(\d+)\);");
@@ -255,6 +265,7 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScEntitiesV1)) return Unsafe.SizeOf<ScEntitiesV1>();
             if (t == typeof(ScVehicleSeat)) return Unsafe.SizeOf<ScVehicleSeat>();
             if (t == typeof(ScVehiclesV1)) return Unsafe.SizeOf<ScVehiclesV1>();
+            if (t == typeof(ScCreativeV1)) return Unsafe.SizeOf<ScCreativeV1>();
             return -1;
         }
     }

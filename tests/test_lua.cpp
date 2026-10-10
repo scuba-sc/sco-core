@@ -17,6 +17,7 @@
 #include "sco/ui.h"
 #include "../plugins/lua/sco_lua.h"
 #include "sc_actors.h"
+#include "sc_creative.h"
 #include "sc_entities.h"
 #include "sc_game_events.h"
 #include "sc_world.h"
@@ -697,6 +698,54 @@ static sco_result FakeWorldLastError(sco_plugin*, char* out, uint32_t* io) {
     return SCO_OK;
 }
 
+// ---- sco.game.creative (read-only: state() only; a stand-in table) -------------------------------
+
+static uint32_t g_creativeFlags = 0;
+static sco_result FakeCrToggle(sco_plugin*, int) { return SCO_FAILED; }
+static sco_result FakeCrSpeed(sco_plugin*, float) { return SCO_FAILED; }
+static sco_result FakeCrState(sco_plugin* self, uint32_t* flags) {
+    if (!self || !flags) return SCO_BAD_ARG;
+    *flags = g_creativeFlags;
+    return g_creativeFlags == 0x80000000u ? SCO_UNAVAILABLE : SCO_OK;
+}
+static sco_result FakeCrLastError(sco_plugin*, char* out, uint32_t* io) {
+    static const char kWhy[] = "no game.creative capability is ready";
+    const uint32_t cap = *io;
+    *io = sizeof(kWhy);
+    if (cap < sizeof(kWhy)) return SCO_TOO_MANY;
+    std::memcpy(out, kWhy, sizeof(kWhy));
+    return SCO_OK;
+}
+
+static void TestGameCreative() {
+    static const sc_creative_v1 kFake = { sizeof(sc_creative_v1), 0, FakeCrToggle, FakeCrToggle, FakeCrSpeed, FakeCrToggle,
+                                          FakeCrToggle, FakeCrState, FakeCrLastError };
+    CHECK(sco::host::ProvideGameService(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, &kFake) == Result::Ok);
+    Write("gacreate", R"(
+local c = assert(sco.game and sco.game.creative, "sco.game.creative")
+assert(c.set_god_mode == nil and c.set_fly_mode == nil and c.set_fly_speed == nil and c.set_infinite_ammo == nil
+       and c.set_infinite_ship_ammo == nil and c.last_error == nil, "read-only")
+sco.register_command{ name = "gacreate.state", title = "State", fn = function()
+  local s, err, msg = c.state()
+  if not s then return err .. ": " .. tostring(msg) end
+  return string.format("%s %s %s %s", tostring(s.god_mode), tostring(s.fly), tostring(s.infinite_ammo), tostring(s.infinite_ship_ammo))
+end }
+)");
+    Loaded l = Load("gacreate");
+    CHECK(l.p && l.p->state == State::Loaded);
+    if (l.p && l.p->state != State::Loaded) std::printf("  gacreate: %s\n", l.p->reason.c_str());
+    g_creativeFlags = SC_CREATIVE_GOD_MODE | SC_CREATIVE_INFINITE_SHIP_AMMO;
+    Reply r = Invoke(g_caller, "gacreate.state");
+    CHECK(r.r == SCO_OK && r.text == "true false false true");
+    if (r.text != "true false false true") std::printf("  gacreate.state -> %s\n", r.text.c_str());
+    g_creativeFlags = 0x80000000u;
+    r = Invoke(g_caller, "gacreate.state");
+    CHECK(r.r == SCO_OK && r.text == "unavailable: no game.creative capability is ready");
+    if (r.text != "unavailable: no game.creative capability is ready") std::printf("  gacreate.state -> %s\n", r.text.c_str());
+    Unload(l);
+    CHECK(sco::host::WithdrawGameService(SC_CREATIVE_SERVICE_NAME) == Result::Ok);
+}
+
 static void TestGameEntities() {
     static const sc_entities_v1 kFake = { sizeof(sc_entities_v1), 0, FakeEntAlive, FakeEntClassOf, FakeEntGet, FakeEntSet,
                                           FakeEntSpawn, FakeEntDespawn, FakeEntWatch, FakeEntUnwatch, FakeEntQuery, FakeEntLastError,
@@ -1049,6 +1098,7 @@ int main(int argc, char** argv) {
     TestDataCore();
 #endif
     TestGameActors();
+    TestGameCreative();
     TestGameWorld();
     TestGameEntities();
     TestSettings();

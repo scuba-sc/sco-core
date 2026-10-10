@@ -52,6 +52,10 @@ Fields a published table leaves empty, because nothing in the game's code pins t
 | camera field of view | `game.world.camera` | BLOCKED (spike B2: one candidate, `CalculateFOV`, whose returned value is not pinned) |
 | the entity and normal of a hit | `game.world.raycast`'s `sc_world_hit` (`entity_id` and `normal` stay 0, `flags` has neither bit) | BLOCKED (the game's hit record doesn't pin where they are) |
 | the killer | `game.player.died`'s `killer_id` (always 0) | BLOCKED (the death record doesn't pin it) |
+| `game.creative` ([`sc_creative.h`](../../include/sc_creative.h)) | 1.0 | `game.creative.god_mode` (`set_god_mode`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.creative` | 1.0 | `game.creative.fly` (`set_fly_mode`, `set_fly_speed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.creative` | 1.0 | `game.creative.ammo` (`set_infinite_ammo`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.creative` | 1.0 | `game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 
 An actor's maximum health (`game.actors.health`'s `max`, 0) is not read yet; that is unfinished work, not a spike verdict.
 
@@ -86,6 +90,7 @@ Every address below is the `OK` line of the sigcheck report named in [Sources](#
 | `game.entities.class_of` | `entities.dump` 0x688c918, `entities.class_site` 0x6858880 |
 | `game.entities.query_radius` (off) | `entities.dump`, `entities.index` 0x11cad080, `entities.for_each` 0x68926e0, `entities.class_site` |
 | `game.entities.watch` (off) | `entities.spawn_sinks` 0x687d950, `entities.delete_entity` 0x6886c20, `entities.class_site` |
+| `game.creative.*` (existing rows, none added) | `spawn.set_god_mode` 0x59fcdd0, `spawn.god_mode_call` 0x2e23e4c, `spawn.request_fly_mode` 0x5be07f0, `spawn.fly_speed_scaler` 0x2ec9eb2, `spawn.game_cvars` 0xa1ae200, `ammo.set_ammo` 0x5b48f50, `spawn.actor_link` 0x2475010, `spawn.handle_to_id` 0x3d5410; per-capability mapping in [creative.md](creative.md) |
 
 The rows of the older capabilities are on the pages of their groups: [actors](actors.md), [world](world.md), [entities](entities.md) and [events](events.md).
 

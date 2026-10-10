@@ -29,6 +29,7 @@ Plugins built with sdk-v1.1.0 keep loading: nothing in `sco_api.h` or in a relea
 | `game.vehicles` | 1.0 | `sc_vehicles.h` |
 | `game.world` | 1.0 | `sc_world.h` |
 | `game.entities` | 1.1 | `sc_entities.h` |
+| `game.creative` | 1.0 | `sc_creative.h` |
 | `game.*` events | bus | `sc_game_events.h` |
 
 Wrappers: C++ (`scosdk/game/`), C# (`Sco.Sdk.Game`) and read-only Lua (`sco.game.*`). `teleport.spatial` and `spawn.entities` were sc-offline's built-in tables and keep their names and layouts.
