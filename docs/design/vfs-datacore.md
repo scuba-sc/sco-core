@@ -1,6 +1,6 @@
 # Design: game-file overrides (`sco::vfs`) and a semantic DataCore patcher
 
-**Status: design accepted with the maintainer's decisions of 2026-10-09 ([Decisions](#decisions-maintainer-2026-10-09)). No code yet.** Phase 6 item ([Framework plan](../framework.md#phase-6-the-framework-grows)). Scope ([plugin rules](../../sdk/docs/plugin-rules.md)): local only; this is about the game's local data files as the game reads them, nothing else.
+**Status: design accepted with the maintainer's decisions of 2026-10-09 ([Decisions](#decisions-maintainer-2026-10-09)), and implemented in sco-core** (`sco::vfs`, `sco::datacore` with `AddRecord`, data packs, the `sco.datacore` 1.1 service, `sco::game::pak`; see the sdk-v1.1.0 section of the [CHANGELOG](../../CHANGELOG.md)). A historical record: where it differs from [DataCore files and packs](../datacore.md), that page wins. Phase 6 item ([Framework plan](../framework.md#phase-6-the-framework-grows)). Scope ([plugin rules](../../sdk/docs/plugin-rules.md)): local only; this is about the game's local data files as the game reads them, nothing else.
 
 ## Why
 

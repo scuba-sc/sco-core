@@ -1,5 +1,7 @@
 # Actor status and game event rows
 
+Which of these capabilities are on, and how far each has been checked: [status](status.md) (`game.actors.state` and `game.events.vehicle_seat` are off until an in-game run).
+
 The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come from the spikes in [game world spikes](../design/game-world-spikes.md) (B4, B5, B6, B8), each locator and byte check as written there and proven unique in the .text of 4.10.196.36804. Accessor: [`sco/game/events.h`](../../include/sco/game/events.h).
 
 | Capability | Rows |

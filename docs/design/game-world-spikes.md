@@ -1,6 +1,6 @@
 # Design: game.world and event spikes (Appendix B)
 
-Status: spike results of 2026-10-10. No code yet. This is the "Appendix B" that [game services](game-services.md) PR 6 requires before any `game.world` or `game.*` event code: for each item, what to read or hook, how it is located, the byte checks that pin what the code relies on, the arguments, and proof that the locator is unique.
+Status: spike results of 2026-10-10. The code they gated is built since (`game.world`, `game.actors` health and state, the `game.*` events, `game.entities`: [status](../game/status.md)); this page stays the evidence record, written before that code. This is the "Appendix B" that [game services](game-services.md) PR 6 requires before any `game.world` or `game.*` event code: for each item, what to read or hook, how it is located, the byte checks that pin what the code relies on, the arguments, and proof that the locator is unique.
 
 **Build checked:** StarCitizen.exe 4.10.196.36804, `E:/Games/Star Citizen/StarCitizen/LIVE/Bin64/StarCitizen.exe`, **PE timestamp `0x6ac64e6f`** (printed by both tools below). `.text` is `0x7e8ae9c` bytes. Every count below comes from that file, on sco-core `029c5b3`.
 

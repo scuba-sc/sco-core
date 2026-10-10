@@ -1,5 +1,7 @@
 # Entities rows
 
+Which capabilities are on, and how far each has been checked: [status](status.md) (`game.entities.query_radius` and `.watch` are off until an in-game run).
+
 The addresses `game.entities` uses, from Appendix B of [game world spikes](../design/game-world-spikes.md) (B3 and B9). Rows are in [`src/game/entities_sigs.cpp`](../../src/game/entities_sigs.cpp), the accessor constants and capability groups in [`include/sco/game/entities.h`](../../include/sco/game/entities.h). Checked against 4.10.196.36804.
 
 | Row | Finds | Checks |

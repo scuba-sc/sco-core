@@ -13,6 +13,9 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 - [Services](#services)
 - [Raw handlers](#raw-handlers)
 - [Storage](#storage)
+- [DataCore](#datacore)
+- [UI](#ui)
+- [Settings](#settings)
 - [Lifetimes](#lifetimes)
 - [The exception boundary](#the-exception-boundary)
 - [Threads](#threads)
@@ -36,7 +39,7 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 | [`scosdk/game/actors.hpp`](../include/scosdk/game/actors.hpp) | `sco::sdk::game::Actors`: `LocalPlayer`, `SpawnNpc`, `Despawn`, `Health`, `State` (game.actors 1.1; `Health`'s `max` is 0, `State` is `SCO_UNAVAILABLE` until `game.actors.state` is ready), `LastError`, `LastReadError` (the game pack's service `game.actors`, [`sc_actors.h`](../include/sc_actors.h); [game services](game-services.md)); not in `scosdk.hpp` |
 | [`scosdk/game/world.hpp`](../include/scosdk/game/world.hpp) | `sco::sdk::game::World`: `Raycast(zone, from, dir, maxDist, hit)`, `Camera(pos, rot, zone)` (world frame; no field of view), `LastError` (the game pack's service `game.world`, [`sc_world.h`](../include/sc_world.h); [API](api-v1.md#gameworld-10-game-pack)); not in `scosdk.hpp` |
 | [`scosdk/game/events.hpp`](../include/scosdk/game/events.hpp) | `sco::sdk::game::OnPlayerSpawned`, `OnPlayerDied`, `OnZoneChanged`: `Plugin::Subscribe` helpers for the game pack's bus events ([`sc_game_events.h`](../include/sc_game_events.h); [game services](game-services.md#events)) that hand your function a copy of the payload and drop one shorter than the struct; not in `scosdk.hpp` |
-| [`scosdk/game/entities.hpp`](../include/scosdk/game/entities.hpp) | `sco::sdk::game::Entities`: `Alive`, `ClassOf`, `GetTransform`, `SetTransform`, `Spawn`, `Despawn`, `Keep` (1.1), `Watch`, `Unwatch`, `QueryRadius`, `LastError`, `LastReadError` (the game service `game.entities`, [`sc_entities.h`](../include/sc_entities.h); [API](api-v1.md#gameentities-10-game-pack)); not in `scosdk.hpp` |
+| [`scosdk/game/entities.hpp`](../include/scosdk/game/entities.hpp) | `sco::sdk::game::Entities`: `Alive`, `ClassOf`, `GetTransform`, `SetTransform`, `Spawn`, `Despawn`, `Keep` (1.1), `Watch`, `Unwatch`, `QueryRadius`, `LastError`, `LastReadError` (the game service `game.entities`, [`sc_entities.h`](../include/sc_entities.h); [API](api-v1.md#gameentities-11-game-pack)); not in `scosdk.hpp` |
 | [`scosdk/scosdk.hpp`](../include/scosdk/scosdk.hpp) | All of the above |
 
 Put the SDK's `include/` folder on the include path; the headers find `sco_api.h` there.
@@ -117,7 +120,7 @@ if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK) g
 - `Release(plugin, name)` withdraws one of your services. The host withdraws the rest when you unload.
 - A provider's table goes away when it unloads: query when you need it, and don't keep a `ServiceRef` across ticks.
 - Entity ids, never pointers: a service that deals with game objects takes and returns entity and zone ids (opaque `uint64_t` values, as the game's are), resolves them on every call on the game thread, and answers `SCO_NOT_FOUND` or `SCO_UNAVAILABLE` once the entity has streamed out. Never return a pointer into the game: objects stream out and a stored pointer dangles. See [the API rule](api-v1.md#services-11).
-- Zone ids (`zone_id`, as in [`teleport.spatial`](api-v1.md#built-in-services)) are volatile streaming handles: the same place gets another id after it streams out and back in. Anything you persist or send keeps the zone name string plus `double` x, y, z in that zone, never the raw id; resolve the name back to an id when you need it.
+- Zone ids (`zone_id`, as in [`teleport.spatial`](api-v1.md#game-pack-services)) are volatile streaming handles: the same place gets another id after it streams out and back in. Anything you persist or send keeps the zone name string plus `double` x, y, z in that zone, never the raw id; resolve the name back to an id when you need it.
 
 ## Raw handlers
 

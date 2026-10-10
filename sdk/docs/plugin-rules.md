@@ -9,7 +9,7 @@ Only these two, and only through the host's services:
 - **Other processes on the same PC, by local IPC** (shared memory), for example a bridge to Titanfall 2 (Northstar) or Minecraft.
 - **Other players running sc-offline, privately, over a LAN or a VPN they choose** (Tailscale, ZeroTier), through sco-core's `sco.net` service: co-presence. Each player runs their own offline game. Peers exchange their own authenticated messages (poses, spawn announcements), and each game shows remote players as "ghost" entities it spawns itself. Co-presence doesn't use or change the game's own netcode or servers.
 
-Neither service has shipped yet; the design is in review in [sco-core PR #37](https://github.com/scubamount/sco-core/pull/37). Until they ship, a plugin connects to nothing. A native plugin can technically open its own sockets or shared memory (it runs with the game's rights), so this is a review rule, not a sandbox.
+Both are host services, `sco.ipc` 1.0 ([IPC](../../docs/ipc.md)) and `sco.net` 1.0 ([multiplayer messages](../../docs/net.md)); a plugin can't open or join a session, only use the channels the product's session gives it. The design is [design/multiplayer.md](../../docs/design/multiplayer.md). A native plugin can technically open its own sockets or shared memory (it runs with the game's rights), so this is a review rule, not a sandbox.
 
 ## What a plugin may not do
 
