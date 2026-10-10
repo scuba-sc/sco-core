@@ -441,6 +441,38 @@ Seat flags: `SC_SEAT_USABLE` (the game's own seat picker takes the seat: its own
 
 Whose actors and ships: `seat` and `eject` take your player's own actor, or an actor your plugin spawned through `spawn.entities`' `spawn_as` or `game.actors`' `spawn_npc` while your plugin is loaded. `power_on` takes the ship you're aboard, the player's registered vehicles (`RegisterPlayerVehicle`) and ships your plugin spawned through `spawn_as`. Anything else is `SCO_BAD_ARG`. Seat indexes are positions in the list `seats` returns; they hold while the ship stays streamed in, and `seat` / `seat_occupant` read the list afresh each call. Ids are session handles: never store one.
 
+### `game.creative` 1.0 (game pack)
+
+[`sc_creative.h`](../include/sc_creative.h), pinned by [`tests/abi_game_creative.c`](../tests/abi_game_creative.c): the local player's god mode, fly (noclip) and its speed, and infinite ammo for the weapons you carry and for the ship you're aboard. The Star Citizen game pack publishes it under the owner `game` before any plugin loads (when the product sets `Platform::gameServices`; [game services](game-services.md)). Each feature has its own capability, set from the rows it reads ([creative rows](game/creative.md)), so a game patch that breaks one leaves the others:
+
+| Capability | Functions | Rows |
+|---|---|---|
+| `game.creative.god_mode` | `set_god_mode` | `teleport.entity_system`, `spawn.landing_helper`, `spawn.god_mode_call`, `spawn.set_god_mode` (and the `teleport.*` reads) |
+| `game.creative.fly` | `set_fly_mode`, `set_fly_speed` | `teleport.entity_system`, `spawn.landing_helper`, `spawn.request_fly_mode`, `spawn.actor_link`; `set_fly_speed` also `spawn.game_cvars` and `spawn.fly_speed_scaler` |
+| `game.creative.ammo` | `set_infinite_ammo` | `teleport.entity_system`, `spawn.handle_to_id`, `ammo.set_ammo` |
+| `game.creative.ship_ammo` | `set_infinite_ship_ammo` | the ammo rows and `spawn.landing_helper` |
+
+```c
+const sc_creative_v1* cr = NULL;
+if (api->size > offsetof(sco_api, query_service) &&
+    api->query_service(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, (const void**)&cr) == SCO_OK &&
+    api->has("game.creative.god_mode")) { ... }
+```
+
+Every function returns `sco_result`, takes `self` first, and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`, and the game pack logs each change with your plugin id (`[game] creative: <plugin>: ...`).
+
+| Function | What |
+|---|---|
+| `set_god_mode(self, on)` | God mode on or off. `SCO_OK` also before you've spawned: it is held on every half second, so it applies once you spawn and again after a respawn |
+| `set_fly_mode(self, on)` | Fly (noclip) on or off. `SCO_FAILED` before you've spawned or without a fly handler on your actor. Off when it isn't on is `SCO_OK` and does nothing |
+| `set_fly_speed(self, mps)` | Metres per second: finite, above 0, at most `SC_CREATIVE_FLY_SPEED_MAX` (10000), else `SCO_BAD_ARG`. `SCO_UNAVAILABLE` when the game's fly speed field wasn't found on this build |
+| `set_infinite_ammo(self, on)` | A magazine of a weapon you carry that you fire from is topped up to its maximum |
+| `set_infinite_ship_ammo(self, on)` | The same for every weapon on the ship you're aboard; weapons that drain without the magazine setter are topped up twice a second |
+| `state(self, &flags)` | The `sc_creative_flag` bits that are on (`SC_CREATIVE_GOD_MODE`, `_FLY`, `_INFINITE_AMMO`, `_INFINITE_SHIP_AMMO`), whoever switched them on. `SCO_UNAVAILABLE` only when no capability is ready |
+| `last_error(self, out, &size)` | The reason for your last failed call, with `sco.storage`'s size handshake; on another thread the refusal on that thread |
+
+Whose toggle: a toggle belongs to the plugin that last switched it on. When that plugin unloads or crashes, the host switches it off (god mode off, fly off, the fly speed back to the game's, ammo as the game left it); `spawn.cpp`'s one release hook does this together with the other game services' per-plugin state. Another plugin may switch a toggle off or on again and then owns it. When the host has no release hook left, switching anything on answers `SCO_FAILED` ("couldn't switch this off when your plugin unloads"). The ammo toggles install one `sco::hook` detour on the magazine setter the first time either is switched on; it stays in place (passing calls through when both are off) until the game services stop.
+
 ### `game.world` 1.0 (game pack)
 
 [`sc_world.h`](../include/sc_world.h), pinned by [`tests/abi_game_world.c`](../tests/abi_game_world.c): ray casts into the game's physics and the camera you see through. Published by the game pack under the owner `game` (when the product sets `Platform::gameServices`; [game services](game-services.md)). Both functions are read-only queries: no `self`, no change to the game. Game thread only (`SCO_WRONG_THREAD` elsewhere, without touching the game; `last_error` works from any thread), every failure leaves a reason for `last_error`. Capabilities `game.world.raycast` (`build.ground_ray` rows plus the `teleport.*` reads) and `game.world.camera` (`build.camera` rows plus the reads); a function whose capability isn't ready answers `SCO_UNAVAILABLE`.

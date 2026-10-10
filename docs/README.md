@@ -45,6 +45,7 @@ Start with the [README](../README.md) for what sco-core is. Pick your path below
   | [Mining row](game/mining.md) | The row behind natural mining: the biome builder's cell function, its checks and capability |
   | [Actors rows](game/actors.md) | The 33 rows behind spawning, NPCs, ammo and the player loadout |
   | [Entities rows](game/entities.md) | The 6 rows behind `game.entities`: the class name, the entity walk and the two streaming hooks |
+  | [Creative rows](game/creative.md) | The existing rows behind `game.creative`: god mode, fly and its speed, the magazine setter, and the capability each feature has |
 | [Checking a game build](sigcheck.md) | `sco-sigcheck`: output, exit codes, the patch-day routine |
 | [DataCore files and packs](datacore.md) | `sco-dcb info`, `records`, `lint`, `check`, `show` and `diff`: extracting `Game2.dcb`, the layout check, the `.toml` pack format, the `sco.datacore` service, exit codes |
 | [Design: multiplayer and cross-game bridges](design/multiplayer.md) | The scope change of 2026-10-09, what the fork's multiplayer code does, the `sco.net` and `sco.ipc` services, the `sco::game::net` rows, sc-offline's built-ins and the PR plan; in review |

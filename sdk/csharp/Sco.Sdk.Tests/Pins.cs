@@ -1,5 +1,5 @@
 // Pins.cs: the SIZE / AT / PIN lines of tests/abi_v1.c, tests/abi_storage.c, tests/abi_ui.c,
-// tests/abi_settings.c, tests/abi_datacore.c, tests/abi_game_actors.c, tests/abi_game_vehicles.c, tests/abi_game_world.c, tests/abi_game_events.c and tests/abi_game_entities.c, copied so the test runs from the SDK zip, where tests/ isn't shipped. Given
+// tests/abi_settings.c, tests/abi_datacore.c, tests/abi_game_actors.c, tests/abi_game_vehicles.c, tests/abi_game_world.c, tests/abi_game_events.c, tests/abi_game_entities.c and tests/abi_game_creative.c, copied so the test runs from the SDK zip, where tests/ isn't shipped. Given
 // those files on the command line, the test also fails unless this copy equals them line for line.
 //
 // Part of the sco SDK. GPL-3.0, like sco-core.
@@ -335,6 +335,26 @@ namespace Sco.Sdk.Tests
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, query_radius, 72);"),
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, last_error, 80);"),
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, keep, 88);"),
+            ("tests/abi_game_creative.c", "PIN(sizeof(void*) == 8);"),
+            ("tests/abi_game_creative.c", "PIN(SC_CREATIVE_SERVICE_VERSION == 0x00010000u);"),
+            ("tests/abi_game_creative.c", "PIN(sizeof(SC_CREATIVE_SERVICE_NAME) == 14); /* \"game.creative\" */"),
+            ("tests/abi_game_creative.c", "PIN(SC_CREATIVE_FLY_SPEED_MAX == 10000);"),
+            ("tests/abi_game_creative.c", "SIZE(sc_creative_flag, 4);"),
+            ("tests/abi_game_creative.c", "PIN(SC_CREATIVE_GOD_MODE == 0x1);"),
+            ("tests/abi_game_creative.c", "PIN(SC_CREATIVE_FLY == 0x2);"),
+            ("tests/abi_game_creative.c", "PIN(SC_CREATIVE_INFINITE_AMMO == 0x4);"),
+            ("tests/abi_game_creative.c", "PIN(SC_CREATIVE_INFINITE_SHIP_AMMO == 0x8);"),
+            ("tests/abi_game_creative.c", "PIN(SC_CREATIVE_FLAG_FORCE32 == 0x7fffffff);"),
+            ("tests/abi_game_creative.c", "SIZE(sc_creative_v1, 64);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, size, 0);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, _pad, 4);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, set_god_mode, 8);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, set_fly_mode, 16);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, set_fly_speed, 24);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, set_infinite_ammo, 32);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, set_infinite_ship_ammo, 40);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, state, 48);"),
+            ("tests/abi_game_creative.c", "AT(sc_creative_v1, last_error, 56);"),
         };
     }
 }

@@ -10,8 +10,10 @@
 // spawn.entities answers "the spawner isn't available on this game build" (and 0) unless the
 // spawn.helpers rows (sco/game/actors.h) were OK at Start too; game.actors sets the capabilities
 // game.actors.local_player, .spawn_npc and .despawn, and game.vehicles game.vehicles.seats, .seat
-// and .flight_ready, from their rows at Start; each answers SCO_UNAVAILABLE for a function whose
-// capability isn't ready.
+// and .flight_ready, and game.creative game.creative.god_mode, .fly, .ammo and .ship_ammo, from
+// their rows at Start; each answers SCO_UNAVAILABLE for a function whose capability isn't ready.
+// game.creative 1.0 (sc_creative.h) is the local player's god mode, fly and infinite ammo; the
+// toggles a plugin switched on go off when it unloads (spawn.cpp's release hook).
 #include "sco/runtime.h"
 #include <cstdint>
 
