@@ -1,6 +1,6 @@
 # Status of every game.* table
 
-As of sco-core `main` at `17e2620` (2026-10-10), game pack **0.2.0**, Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, whether it is on by default, and how far it has been checked.
+As of sco-core `main` at `31cf53a` (2026-10-10, with `game.creative` 1.0), game pack **0.2.0**, Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, whether it is on by default, and how far it has been checked.
 
 > **Nothing has been verified in game since these services landed.** Every "ON" below means the signature rows behind it resolve on the build and the code is allowed to run; it does not mean anyone has seen it work in a game session. The maintainer deferred the in-game runs to one batch after the conversion ([ledger](#sources), 2026-10-10). Nothing on this page says "verified in game" for that reason; when a run happens, this page is where its date goes.
 
@@ -96,6 +96,6 @@ The rows of the older capabilities are on the pages of their groups: [actors](ac
 
 ## Sources
 
-- **Sigcheck reports** (kept outside the repository, `sc-baseline/4.10.196.36804/` on the maintainer's machine; [game pack](../game-pack.md#verified-game-builds)), all on PE timestamp `0x6ac64e6f`: `sigcheck-entities-merged.txt`, 316 of 316 rows OK (the tree with every game service merged except mining); `sigcheck-mining.txt`, 311 of 311 OK (the mining branch, the only report with `mining.cell`). Together they name 317 distinct rows, all `OK`. **No single report covers `17e2620` itself:** a one-line run of `tools/sigcheck.sh` on the release commit would close that.
+- **Sigcheck report** (kept outside the repository, `sc-baseline/4.10.196.36804/` on the maintainer's machine; [game pack](../game-pack.md#verified-game-builds)): `sigcheck-main-17e2620.txt`, one run of sco-core `main` at `17e2620` (every game service and the mining row) on PE timestamp `0x6ac64e6f`: **317 of 317 rows OK**, none failed. `game.creative` (#74, in `31cf53a`) added no rows, so the same 317 rows back every capability on this page.
 - **Ledger:** `.omo/ulw-execute/ledger.jsonl` on the maintainer's machine (plan `game-services-sdk`): the merge of each service, its CI and its sigcheck count, and the maintainer override of 2026-10-10 that deferred in-game acceptance to one run after the conversion.
 - **Spikes:** [game world spikes](../design/game-world-spikes.md) (Appendix B), whose verdicts decide the BLOCKED and OFF lines.
