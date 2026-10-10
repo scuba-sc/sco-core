@@ -106,6 +106,22 @@ Every call fails with `nil, err, message`: `err` is the result name (`"bad_arg"`
 
 `lua-check.lua` has an in-memory `sco.store` (key-value and transactions; `exec` and `sql` answer `unavailable`, since a stock Lua has no SQLite).
 
+## `sco.settings`
+
+The values of the `[settings]` your `plugin.ini` declares ([format](plugin-ini.md#settings)), read-only: the player changes them in the game menu (the host service `sco.settings`).
+
+```lua
+local speed = sco.settings.get("speed")      -- an integer, 5 until the player changes it
+local mode  = sco.settings.get("mode")       -- an enum's choice, as a string
+local v, err, msg = sco.settings.get("nope") -- nil, "not_found", "this plugin declares no setting 'nope'"
+```
+
+| Call | Returns |
+|---|---|
+| `sco.settings.get(name)` | A boolean, integer, number or string (`bool`, `int`, `float`, `string` or `enum`), or `nil, err, message`: `"not_found"` (no such setting), `"bad_arg"` (a NUL in the name), `"unavailable"` (a host without the service) |
+
+There is no setter. Read again when you need the value (it follows the player's changes), for example inside a command or a tick handler. A failed read can leave a `last_error` note for the C++ and C# wrappers; ignore it from Lua. `lua-check` doesn't provide `sco.settings` yet.
+
 ## `sco.datacore`
 
 Present only when the product publishes the host service [`sco.datacore`](../../docs/datacore.md#the-scodatacore-service) (check `if sco.datacore then`); `lua-check.lua` has no stand-in for it. It queues DataCore overrides, the operations of a data pack's `.toml`, from a script. In sc-offline the game loads DataCore before scripts run, so a committed patch is saved and **applies from the next launch**; overrides that never change belong in a [data pack](data-packs.md#game-data-datacore).
@@ -140,6 +156,7 @@ Present only when the Star Citizen game pack publishes [`game.actors`](../../doc
 | Call | Returns |
 |---|---|
 | `sco.game.actors.local_player()` | Your actor id and entity id (integers; the game's 64-bit ids, which can come back negative), or `nil, err, message` (`"not_found"` before you've spawned, `"unavailable"` when `game.actors.local_player` isn't ready) |
+| `sco.game.actors.health(entity_id)` | The actor's health pool and its maximum (numbers; the maximum is 0, not read yet), or `nil, err, message` (`"not_found"` when it isn't streamed in or isn't an actor, `"unavailable"` when `game.actors.health` isn't ready or the host has only `game.actors` 1.0). `state` isn't in Lua: it isn't available yet |
 
 Ids are session handles: use them on the same tick, never store them.
 
@@ -164,6 +181,36 @@ Present only when the Star Citizen game pack publishes [`game.entities`](../../d
 | `sco.game.entities.alive(id)` | `true` when the entity is streamed in |
 | `sco.game.entities.class_of(id)` | The class name, or `nil, err, message` (`"not_found"` when the entity isn't streamed in, `"unavailable"` when `game.entities.class_of` isn't ready) |
 | `sco.game.entities.get_transform(id)` | `x, y, z, qx, qy, qz, qw, zone_id` in the entity's zone's local frame, or `nil, err, message`. Ids are the game's 64-bit integers, which can come back negative |
+
+
+## `sco.game.world`
+
+Present only when the Star Citizen game pack publishes [`game.world`](../../docs/api-v1.md#gameworld-10-game-pack) (check `if sco.game and sco.game.world then`). Read-only queries (they take no `self`). Ids are the game's 64-bit ids in Lua integers bit for bit; positions are metres.
+
+| Function | Returns |
+|---|---|
+| `sco.game.world.camera()` | `{ x, y, z, qx, qy, qz, qw, zone }`: the camera's position and rotation in the world frame, and the zone your player is in. No field of view (the game doesn't pin one) |
+| `sco.game.world.raycast(zone, fx, fy, fz, dx, dy, dz, max_dist)` | `{ x, y, z, distance }` where a ray from `f` along `d` (any length, normalised) hit, in zone `zone`'s local frame (`max_dist` is clamped to 20,000 m). The hit entity and normal aren't available |
+
+On failure each returns `nil, err, message` (`"not_found"` with the message "no hit within ..." when nothing was hit; `"bad_arg"`; `"unavailable"` when the capability `game.world.raycast` / `game.world.camera` isn't ready).
+
+## `game.*` events
+
+When the Star Citizen game pack publishes them, `sco.subscribe` also takes the game's low-volume events; the handler's second argument is a table (nil for any other event, and for a payload shorter than this runtime knows):
+
+| Event | Table |
+|---|---|
+| `"game.player.spawned"` | `{ entity_id, zone_id }` (`zone_id` is 0 if it couldn't be read yet) |
+| `"game.player.died"` | `{ entity_id, killer_id }` (`killer_id` is always 0) |
+| `"game.zone.changed"` | `{ old_zone_id, new_zone_id }` |
+
+```lua
+sco.subscribe("game.player.died", function(event, d)
+  sco.log("info", "you died: entity " .. d.entity_id)
+end)
+```
+
+Handlers run on the game thread, a frame or two after the game did it. An event whose capability (`game.events.player_spawned`, `.player_died`, `.zone_changed`) isn't ready never fires, so subscribing is harmless. `game.vehicle.boarded` / `exited` are reserved: not published yet. Ids are session handles: use them at once, never store them.
 
 ## Check a script
 

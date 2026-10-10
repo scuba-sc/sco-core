@@ -4,7 +4,7 @@
     sdk/package.py [--out DIR]          # writes DIR/sco-sdk-<version>.zip (default: sdk/out)
 
 The zip holds one folder, sco-sdk-<version>/, with everything a modder needs and nothing else:
-sco_api.h, sco_storage.h, sco_datacore.h, sco_ui.h, sc_spatial.h, sc_spawn.h, sc_actors.h, sc_vehicles.h, sc_entities.h, the game pack's version sc_game_pack.h, sco_ipc.h and its MIT wire sc_ipc.h, sco_net.h and its MIT wire sc_net.h, the MIT bridge layouts sc_titanlink.h and sc_voxel_bridge.h, the C++20 headers
+sco_api.h, sco_storage.h, sco_datacore.h, sco_ui.h, sco_settings.h, sc_spatial.h, sc_spawn.h, sc_actors.h, sc_vehicles.h, sc_world.h, sc_game_events.h, sc_entities.h, the game pack's version sc_game_pack.h, sco_ipc.h and its MIT wire sc_ipc.h, sco_net.h and its MIT wire sc_net.h, the MIT bridge layouts sc_titanlink.h and sc_voxel_bridge.h, the C++20 headers
 (include/scosdk/), the C# library (csharp/), the CMake helper, the template, the examples, sco-plugin-check, the docs,
 ImGui's public headers (third_party/imgui/), LICENSE and SHA256SUMS. It needs only Python 3 (no zip tool), and the same sources always give the same
 bytes: entries are sorted and carry a fixed timestamp.
@@ -28,6 +28,7 @@ CONTENT = [
     ("include/sco_api.h", "include/sco_api.h"),
     ("include/sco_storage.h", "include/sco_storage.h"),
     ("include/sco_ui.h", "include/sco_ui.h"),
+    ("include/sco_settings.h", "include/sco_settings.h"),
     ("include/sco_datacore.h", "include/sco_datacore.h"),
     ("include/sco_ipc.h", "include/sco_ipc.h"),
     ("include/sc_ipc.h", "include/sc_ipc.h"),
@@ -39,6 +40,8 @@ CONTENT = [
     ("include/sc_spawn.h", "include/sc_spawn.h"),
     ("include/sc_actors.h", "include/sc_actors.h"),
     ("include/sc_vehicles.h", "include/sc_vehicles.h"),
+    ("include/sc_world.h", "include/sc_world.h"),
+    ("include/sc_game_events.h", "include/sc_game_events.h"),
     ("include/sc_entities.h", "include/sc_entities.h"),
     # The Star Citizen game pack: its version and the builds it was verified on (docs/game-pack.md).
     ("include/sc_game_pack.h", "include/sc_game_pack.h"),

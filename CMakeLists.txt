@@ -141,7 +141,7 @@ sco_project_target(sco_datacore)
 endif()
 
 add_library(sco_plugins STATIC
-  src/plugins/manifest.cpp src/plugins/discover.cpp src/plugins/loader.cpp src/plugins/content.cpp)
+  src/plugins/manifest.cpp src/plugins/settings_ini.cpp src/plugins/discover.cpp src/plugins/loader.cpp src/plugins/content.cpp)
 if(WIN32)
   target_sources(sco_plugins PRIVATE src/plugins/guard_win.cpp)
 endif()
@@ -189,6 +189,13 @@ add_library(sco_ui STATIC src/ui/ui.cpp)
 target_link_libraries(sco_ui PUBLIC sco_host)
 sco_project_target(sco_ui)
 
+# sco.settings (sco/settings.h, include/sco_settings.h): the typed [settings] of plugin.ini, their
+# values (kept in the plugin's sco.storage namespace) and what the product's menu draws; a host-owned
+# service, read-only to plugins.
+add_library(sco_settings STATIC src/settings/settings.cpp)
+target_link_libraries(sco_settings PUBLIC sco_host sco_plugins sco_storage sco_ui)
+sco_project_target(sco_settings)
+
 # sco.ipc (sco/ipc.h, include/sco_ipc.h over the MIT wire include/sc_ipc.h): named shared-memory
 # channels to another program on the same PC, a host-owned service. The platform half is
 # shm_win.cpp (the real target) or shm_posix.cpp (the host tests); the ring logic is platform-free.
@@ -234,7 +241,7 @@ endif()
 
 # The host kit (sco/app.h): Start / Tick / Stop over the host table, caps, signatures and loader.
 add_library(sco_app STATIC src/app/sco_app.cpp)
-target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_ipc sco_net_service)
+target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_settings sco_ipc sco_net_service)
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
   # Platform::registerSignatures (sco::game::RegisterGameSignatures).
@@ -247,6 +254,7 @@ if(SCO_GAME_SC AND WIN32)
   add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
+                                       src/game/services/world.cpp src/game/services/events.cpp
                                        src/game/services/entities.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
@@ -363,6 +371,28 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_storage
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_storage_targets})
+
+  # The sco.settings table pin (tests/abi_settings.c), the same three ways.
+  set(_abi_settings_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_settings.cpp")
+  file(CONFIGURE OUTPUT "${_abi_settings_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_settings.c\"\n")
+  add_library(sco_abi_settings_c OBJECT tests/abi_settings.c)
+  add_library(sco_abi_settings_cxx OBJECT "${_abi_settings_cxx}")
+  set(_abi_settings_targets sco_abi_settings_c sco_abi_settings_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_settings_short_enums OBJECT tests/abi_settings.c)
+    target_compile_options(sco_abi_settings_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_settings_targets sco_abi_settings_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_settings_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_settings
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_settings_targets})
 
   # The game.vehicles table pin (tests/abi_game_vehicles.c), the same three ways. Header only, so the
   # kernel-only build checks it too.
@@ -522,8 +552,9 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_net
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_net_targets})
   # The MIT bridge layouts (tests/abi_titanlink.c, tests/abi_voxel_bridge.c: sc_titanlink.h and
-  # sc_voxel_bridge.h, every size, offset and constant), the same three ways.
-  foreach(_b IN ITEMS titanlink voxel_bridge)
+  # sc_voxel_bridge.h, every size, offset and constant), and the game pack's game.world table and
+  # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
+  foreach(_b IN ITEMS titanlink voxel_bridge game_world game_events)
     set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")
     file(CONFIGURE OUTPUT "${_abi_b_cxx}"
          CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_${_b}.c\"\n")
@@ -596,6 +627,13 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_storage PRIVATE sco_storage)
   sco_project_target(test_storage)
   add_test(NAME test_storage COMMAND test_storage "${SCO_TEST_OUT}")
+
+  # sco.settings: the declarations' values, the service over the real host table and storage,
+  # persistence across a restart, settings.changed. Host build, no game.
+  add_executable(test_settings tests/test_settings.cpp)
+  target_link_libraries(test_settings PRIVATE sco_settings)
+  sco_project_target(test_settings)
+  add_test(NAME test_settings COMMAND test_settings "${SCO_TEST_OUT}")
 
   # sc_ipc.h over plain memory (wrap, rollover, hostile peers) and sco.ipc over real shared memory,
   # with a second mapping and a second process (it spawns itself) as the peer.
@@ -746,7 +784,7 @@ if(SCO_BUILD_TESTS)
            COMMAND test_plugins "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/plugins" "${SCO_TEST_OUT}")
 
   add_executable(test_lua tests/test_lua.cpp)
-  target_link_libraries(test_lua PRIVATE sco_plugins sco_host sco_lua sco_ui sco_storage)
+  target_link_libraries(test_lua PRIVATE sco_plugins sco_host sco_lua sco_ui sco_storage sco_settings)
   if(SCO_GAME_SC)
     target_link_libraries(test_lua PRIVATE sco_datacore_service)   # TestDataCore
   endif()

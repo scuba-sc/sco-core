@@ -16,6 +16,7 @@
 #include "sco/plugins.h"
 #include "sco/runtime.h"
 #include "sco/scan.h"
+#include "sco/settings.h"
 #include "sco/ui.h"
 #include "sco_api.h"
 #include "sco_lua.h"
@@ -24,6 +25,7 @@
 #include "sc_entities.h"
 #include "sc_spawn.h"
 #include "sc_vehicles.h"
+#include "sc_world.h"
 #include <thread>
 #endif
 #include <csetjmp>
@@ -525,7 +527,7 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     fs::remove_all(root / "a_needs_bad", ec);
 
 #ifdef SCO_GAME_SERVICES
-    // gameServices: the game pack publishes teleport.spatial, spawn.entities and game.vehicles under "game" before
+    // gameServices: the game pack publishes teleport.spatial, spawn.entities, game.vehicles, game.actors and game.world under "game" before
     // plugins load and withdraws them after. With no game image the teleport.* and spawn.* rows
     // aren't OK, so teleport.spatial answers 0 and spawn.entities says the spawner isn't available.
     pf.gameServices = true;
@@ -617,6 +619,22 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
         CHECK(ga->last_error(me, buf, &n) == SCO_OK && n == need &&
               std::strstr(buf, "despawn: game.actors.despawn isn't available on this game build"));
         CHECK(ga->last_error(me, buf, nullptr) == SCO_BAD_ARG);
+        // 1.1: health and state answer SCO_UNAVAILABLE with a reason (no game image), zeroing their outputs.
+        float hp = 7, hpMax = 7;
+        uint32_t st = 7;
+        CHECK(ga->size > offsetof(sc_actors_v1, state));
+        CHECK(!sco::caps::Has("game.actors.health") && !sco::caps::Has("game.actors.state"));
+        CHECK(ga->health(1, &hp, &hpMax) == SCO_UNAVAILABLE && hp == 0 && hpMax == 0);
+        CHECK(ga->last_error(nullptr, buf, &(n = sizeof(buf))) == SCO_OK &&
+              std::strstr(buf, "health: game.actors.health isn't available on this game build"));
+        CHECK(ga->state(1, &st) == SCO_UNAVAILABLE && st == 0);
+        CHECK(ga->last_error(nullptr, buf, &(n = sizeof(buf))) == SCO_OK &&
+              std::strstr(buf, "state: game.actors.state isn't available on this game build"));
+        CHECK(ga->health(1, nullptr, nullptr) == SCO_BAD_ARG && ga->state(1, nullptr) == SCO_BAD_ARG);
+        std::thread([&] { off = ga->health(1, &hp, &hpMax); }).join();
+        CHECK(off == SCO_WRONG_THREAD);
+        CHECK(api->query_service(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_1, &table) == SCO_OK);   // 1.0 callers asked for 1.0 and still work
+        CHECK(api->query_service(SC_ACTORS_NAME, 0x00010002u, &table) == SCO_UNAVAILABLE);   // not published
         CHECK(me && sco::Release(me) == sco::Result::Ok);   // through the release hook: no NPCs to remove
         n = sizeof(buf);
         CHECK(ga->last_error(me, buf, &n) == SCO_BAD_ARG);   // released
@@ -678,11 +696,51 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
         n = sizeof(buf);
         CHECK(ge->last_error(me, buf, &n) == SCO_BAD_ARG);   // released
     }
+    // game.world: published with them. No game image, so neither capability (nor any game.* event's)
+    // is ready: both queries answer SCO_UNAVAILABLE and zero what they'd fill, last_error says why;
+    // a bad argument is SCO_BAD_ARG before anything else; off the game thread SCO_WRONG_THREAD.
+    CHECK(api->query_service(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &table) == SCO_OK && table);
+    CHECK(!sco::caps::Has("game.world.raycast") && !sco::caps::Has("game.world.camera"));
+    CHECK(!sco::caps::Has("game.events.player_spawned") && !sco::caps::Has("game.events.player_died") &&
+          !sco::caps::Has("game.events.zone_changed") && !sco::caps::Has("game.events.vehicle_seat"));
+    if (table) {
+        const auto* w = static_cast<const sc_world_v1*>(table);
+        const double from[3] = { 0, 0, 1 }, dir[3] = { 0, 0, -1 };
+        char msg[256];
+        uint32_t n = sizeof(msg);
+        CHECK(w->size == sizeof(sc_world_v1));
+        sc_world_hit hit;
+        std::memset(&hit, 0x5A, sizeof(hit));
+        hit.size = sizeof(hit);
+        CHECK(w->raycast(9, from, dir, 100.0, &hit) == SCO_UNAVAILABLE && hit.size == sizeof(hit) && hit.flags == 0 &&
+              hit.entity_id == 0 && hit.pos[2] == 0 && hit.normal[0] == 0 && hit.distance == 0);
+        CHECK(w->last_error(nullptr, msg, &n) == SCO_OK && n == std::strlen(msg) + 1 &&
+              std::strstr(msg, "raycast: game.world.raycast isn't available on this game build"));
+        double pos[3] = { 7, 7, 7 }, rot[4] = { 7, 7, 7, 7 };
+        uint64_t zone = 7;
+        CHECK(w->camera(pos, rot, &zone) == SCO_UNAVAILABLE && pos[0] == 0 && rot[3] == 0 && zone == 0);
+        n = sizeof(msg);
+        CHECK(w->last_error(nullptr, msg, &n) == SCO_OK && std::strstr(msg, "camera: game.world.camera isn't available on this game build"));
+        CHECK(w->raycast(9, from, dir, 100.0, nullptr) == SCO_BAD_ARG && w->camera(nullptr, nullptr, nullptr) == SCO_BAD_ARG);
+        sc_world_hit small = {};
+        small.size = 8;   // an older caller's struct: refused, nothing written
+        CHECK(w->raycast(9, from, dir, 100.0, &small) == SCO_BAD_ARG && small.size == 8);
+        sco_result off = SCO_OK;
+        std::thread([&] { off = w->raycast(9, from, dir, 100.0, &hit); }).join();
+        CHECK(off == SCO_WRONG_THREAD && hit.entity_id == 0);
+        n = sizeof(msg);
+        CHECK(w->last_error(nullptr, msg, &n) == SCO_OK && std::strstr(msg, "raycast: game thread only"));
+        n = 4;   // the size handshake
+        CHECK(w->last_error(nullptr, msg, &n) == SCO_TOO_MANY && n > 4);
+        CHECK(w->last_error(nullptr, msg, nullptr) == SCO_BAD_ARG);
+        CHECK(w->last_error(reinterpret_cast<sco_plugin*>(&table), msg, &(n = sizeof(msg))) == SCO_BAD_ARG);   // not a plugin handle
+    }
     sco::app::Stop();
     CHECK(api->query_service(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, &table) == SCO_NOT_FOUND);
     for (const char* cap : { "game.entities.transform", "game.entities.spawn", "game.entities.class_of",
                              "game.entities.query_radius", "game.entities.watch" })
         CHECK(!sco::caps::Has(cap));
+    CHECK(api->query_service(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &table) == SCO_NOT_FOUND);
     CHECK(api->query_service(SC_VEHICLES_SERVICE_NAME, SC_VEHICLES_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
     CHECK(api->query_service("teleport.spatial", 0x00010000, &table) == SCO_NOT_FOUND);
     CHECK(api->query_service(SC_SPAWN_SERVICE_NAME, SC_SPAWN_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
@@ -690,6 +748,84 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     pf.gameServices = false;
 #endif
     fs::remove_all(out / "app", ec);
+}
+
+// ---- [settings]: declared in plugin.ini, read by a script, set by the product, kept across a restart ----
+
+static std::vector<std::string> g_setEvents;
+static void OnSettingsChanged(const char*, const void* data, void*) {
+    const auto* c = static_cast<const sco_settings_changed*>(data);
+    g_setEvents.push_back(std::string(c->plugin) + "." + c->name);
+}
+
+static void WriteSettingsPlugin(const fs::path& dir, const char* speedDecl) {
+    fs::create_directories(dir);
+    std::FILE* f = std::fopen((dir / "plugin.ini").string().c_str(), "wb");
+    std::fputs("id = setdemo\nname = Settings demo\nversion = 1.0.0\napi = 1.0\nkind = lua\nentry = main.lua\n[settings]\n", f);
+    std::fputs(speedDecl, f);
+    std::fputs("\nmode = enum(easy,normal,hard) default normal\ngod_mode = bool\n", f);
+    std::fclose(f);
+    f = std::fopen((dir / "main.lua").string().c_str(), "wb");
+    std::fputs("sco.register_command{ name = 'setdemo.show', title = 'Show', fn = function()\n"
+               "  return tostring(sco.settings.get('speed')) .. ' ' .. sco.settings.get('mode') .. ' ' .. tostring(sco.settings.get('god_mode'))\n"
+               "end }\n", f);
+    std::fclose(f);
+}
+
+static void TestAppSettings(const fs::path& out) {
+    const fs::path base = out / "app_settings";
+    std::error_code ec;
+    fs::remove_all(base, ec);
+    WriteSettingsPlugin(base / "plugins" / "setdemo", "speed = int default 5 min 1 max 10");
+
+    sco::app::Platform pf;
+    pf.hostVersion = "test-app 1.0";
+    pf.pluginRoot = base / "plugins";
+    pf.dataRoot = base / "data";
+    pf.pluginsEnabled = true;
+    pf.scripts = &kLua;
+    static int token;   // the owner of the test's own subscription
+
+    // First run: the script reads the declared defaults; the product's sets change them, once each.
+    g_log.clear();
+    g_setEvents.clear();
+    CHECK(sco::app::Start(pf));
+    CHECK(StateOf("setdemo") == State::Loaded);
+    CHECK(sco::Subscribe(&token, SCO_SETTINGS_CHANGED_EVENT, OnSettingsChanged, nullptr) == sco::Result::Ok);
+    CHECK(Invoke("setdemo.show").text == "5 normal false");
+    const auto pages = sco::settings::Pages();
+    CHECK(pages.size() == 1 && pages[0].plugin == "setdemo" && pages[0].entries.size() == 3 && pages[0].tab.empty());
+    CHECK(sco::settings::SetInt("setdemo", "speed", 8) == sco::Result::Ok);
+    CHECK(sco::settings::SetString("setdemo", "mode", "hard") == sco::Result::Ok);
+    CHECK(sco::settings::SetBool("setdemo", "god_mode", true) == sco::Result::Ok);
+    CHECK(sco::settings::SetInt("setdemo", "speed", 8) == sco::Result::Ok);          // unchanged: silent
+    CHECK(sco::settings::SetInt("setdemo", "speed", 99) == sco::Result::BadArg);     // refused: silent
+    CHECK((g_setEvents == std::vector<std::string>{ "setdemo.speed", "setdemo.mode", "setdemo.god_mode" }));
+    CHECK(Invoke("setdemo.show").text == "8 hard true");
+    sco::app::Stop();
+    CHECK(sco::settings::Entries("setdemo").empty() && !sco::settings::Started());
+
+    // Second run over the same data folder: the values are still there.
+    g_log.clear();
+    CHECK(sco::app::Start(pf));
+    CHECK(Invoke("setdemo.show").text == "8 hard true");
+    CHECK(!Logged("kept value dropped"));
+    sco::app::Stop();
+
+    // The plugin updates and speed becomes a string: its kept int is dropped, with a log line,
+    // the other two settings are kept.
+    WriteSettingsPlugin(base / "plugins" / "setdemo", "speed = string default fast");
+    g_log.clear();
+    CHECK(sco::app::Start(pf));
+    CHECK(Invoke("setdemo.show").text == "fast hard true");
+    CHECK(Logged("[settings] setdemo.speed: kept value dropped (it was saved as int, the setting is string now); the default applies"));
+    sco::app::Stop();
+    g_log.clear();
+    CHECK(sco::app::Start(pf));                    // the dropped value was deleted: nothing to say twice
+    CHECK(Invoke("setdemo.show").text == "fast hard true" && !Logged("kept value dropped"));
+    sco::app::Stop();
+    CHECK(sco::Release(&token) == sco::Result::Ok);
+    fs::remove_all(base, ec);
 }
 
 int main(int argc, char** argv) {
@@ -700,6 +836,7 @@ int main(int argc, char** argv) {
     P::SetCallGuard(SignalGuard);
 #endif
     TestApp(argv[1], argv[2]);
+    TestAppSettings(argv[2]);
     TestBuiltinLoader(sco::host::BuildApi({ "test-app 1.0" }), fs::path(argv[2]) / "plugins");
     P::SetCallGuard(nullptr);
     std::printf("sco-core app tests: %d passed, %d failed\n", g_pass, g_fail);

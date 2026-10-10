@@ -33,12 +33,22 @@ namespace Sco.Sdk.Tests
             ["sco_sql_value"] = typeof(ScoSqlValue),
             ["sco_storage_v1"] = typeof(ScoStorageV1),
             ["sco_ui_v1"] = typeof(ScoUiV1),
+            ["sco_settings_changed"] = typeof(ScoSettingsChanged),
+            ["sco_settings_v1"] = typeof(ScoSettingsV1),
             ["sco_dc_type"] = typeof(ScoDcType),
             ["sco_dc_value"] = typeof(ScoDcValue),
             ["sco_dc_report"] = typeof(ScoDcReport),
             ["sco_dc_applied"] = typeof(ScoDcApplied),
             ["sco_datacore_v1"] = typeof(ScoDatacoreV1),
             ["sc_actors_v1"] = typeof(ScActorsV1),
+            ["sc_actor_state"] = typeof(ScActorState),
+            ["sc_world_hit_flag"] = typeof(ScWorldHitFlag),
+            ["sc_world_hit"] = typeof(ScWorldHit),
+            ["sc_world_v1"] = typeof(ScWorldV1),
+            ["sc_game_player_spawned"] = typeof(ScGamePlayerSpawned),
+            ["sc_game_player_died"] = typeof(ScGamePlayerDied),
+            ["sc_game_zone_changed"] = typeof(ScGameZoneChanged),
+            ["sc_game_vehicle_seat"] = typeof(ScGameVehicleSeat),
             ["sc_entities_v1"] = typeof(ScEntitiesV1),
             ["sc_vehicle_seat_flag"] = typeof(ScVehicleSeatFlag),
             ["sc_vehicle_seat"] = typeof(ScVehicleSeat),
@@ -84,6 +94,9 @@ namespace Sco.Sdk.Tests
             ["SCO_UI_MAX_CHORD"] = Abi.UiMaxChord,
             ["SCO_UI_MAX_HOTKEY_ARGS"] = Abi.UiMaxHotkeyArgs,
             ["SCO_UI_MAX_ARG_STRING"] = Abi.UiMaxArgString,
+            ["SCO_SETTINGS_VERSION_1_0"] = Abi.SettingsVersion1_0,
+            ["SCO_SETTINGS_MAX_NAME"] = Abi.SettingsMaxName,
+            ["SCO_SETTINGS_MAX_STRING"] = Abi.SettingsMaxString,
             ["SCO_DATACORE_VERSION_1_0"] = Abi.DataCoreVersion1_0,
             ["SCO_DATACORE_VERSION_1_1"] = Abi.DataCoreVersion1_1,
             ["SCO_DC_OPEN"] = Abi.DcOpen,
@@ -108,6 +121,16 @@ namespace Sco.Sdk.Tests
             ["SCO_DC_REF"] = (long)ScoDcType.Ref,
             ["SCO_DC_TYPE_FORCE32"] = (long)ScoDcType.Force32,
             ["SC_ACTORS_VERSION_1_0"] = GameAbi.ActorsVersion1_0,
+            ["SC_ACTORS_VERSION_1_1"] = GameAbi.ActorsVersion1_1,
+            ["SC_ACTOR_ALIVE"] = (long)ScActorState.Alive,
+            ["SC_ACTOR_INCAPACITATED"] = (long)ScActorState.Incapacitated,
+            ["SC_ACTOR_DEAD"] = (long)ScActorState.Dead,
+            ["SC_ACTOR_STATE_FORCE32"] = (long)ScActorState.Force32,
+            ["SC_WORLD_VERSION_1_0"] = GameAbi.WorldVersion1_0,
+            ["SC_WORLD_RAY_MAX_DISTANCE"] = GameAbi.WorldRayMaxDistance,
+            ["SC_WORLD_HIT_ENTITY"] = (long)ScWorldHitFlag.Entity,
+            ["SC_WORLD_HIT_NORMAL"] = (long)ScWorldHitFlag.Normal,
+            ["SC_WORLD_HIT_FLAG_FORCE32"] = (long)ScWorldHitFlag.Force32,
             ["SC_ACTORS_MAX_NPCS"] = GameAbi.ActorsMaxNpcs,
             ["SC_ENTITIES_VERSION_1_0"] = GameAbi.EntitiesVersion1_0,
             ["SC_ENTITIES_MAX_OWNED"] = GameAbi.EntitiesMaxOwned,
@@ -128,9 +151,17 @@ namespace Sco.Sdk.Tests
         {
             ["SCO_STORAGE_NAME"] = Abi.StorageName,
             ["SCO_UI_NAME"] = Abi.UiName,
+            ["SCO_SETTINGS_NAME"] = Abi.SettingsName,
+            ["SCO_SETTINGS_CHANGED_EVENT"] = Abi.SettingsChangedEvent,
             ["SCO_DATACORE_NAME"] = Abi.DataCoreName,
             ["SCO_DC_APPLIED_EVENT"] = Abi.DataCoreAppliedEvent,
             ["SC_ACTORS_NAME"] = GameAbi.ActorsName,
+            ["SC_WORLD_NAME"] = GameAbi.WorldName,
+            ["SC_GAME_EVENT_PLAYER_SPAWNED"] = GameAbi.EventPlayerSpawned,
+            ["SC_GAME_EVENT_PLAYER_DIED"] = GameAbi.EventPlayerDied,
+            ["SC_GAME_EVENT_ZONE_CHANGED"] = GameAbi.EventZoneChanged,
+            ["SC_GAME_EVENT_VEHICLE_BOARDED"] = GameAbi.EventVehicleBoarded,
+            ["SC_GAME_EVENT_VEHICLE_EXITED"] = GameAbi.EventVehicleExited,
             ["SC_ENTITIES_NAME"] = GameAbi.EntitiesName,
             ["SC_VEHICLES_SERVICE_NAME"] = GameAbi.VehiclesName,
         };
@@ -207,11 +238,19 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScoSqlValue)) return Unsafe.SizeOf<ScoSqlValue>();
             if (t == typeof(ScoStorageV1)) return Unsafe.SizeOf<ScoStorageV1>();
             if (t == typeof(ScoUiV1)) return Unsafe.SizeOf<ScoUiV1>();
+            if (t == typeof(ScoSettingsChanged)) return Unsafe.SizeOf<ScoSettingsChanged>();
+            if (t == typeof(ScoSettingsV1)) return Unsafe.SizeOf<ScoSettingsV1>();
             if (t == typeof(ScoDcValue)) return Unsafe.SizeOf<ScoDcValue>();
             if (t == typeof(ScoDcReport)) return Unsafe.SizeOf<ScoDcReport>();
             if (t == typeof(ScoDcApplied)) return Unsafe.SizeOf<ScoDcApplied>();
             if (t == typeof(ScoDatacoreV1)) return Unsafe.SizeOf<ScoDatacoreV1>();
             if (t == typeof(ScActorsV1)) return Unsafe.SizeOf<ScActorsV1>();
+            if (t == typeof(ScWorldHit)) return Unsafe.SizeOf<ScWorldHit>();
+            if (t == typeof(ScWorldV1)) return Unsafe.SizeOf<ScWorldV1>();
+            if (t == typeof(ScGamePlayerSpawned)) return Unsafe.SizeOf<ScGamePlayerSpawned>();
+            if (t == typeof(ScGamePlayerDied)) return Unsafe.SizeOf<ScGamePlayerDied>();
+            if (t == typeof(ScGameZoneChanged)) return Unsafe.SizeOf<ScGameZoneChanged>();
+            if (t == typeof(ScGameVehicleSeat)) return Unsafe.SizeOf<ScGameVehicleSeat>();
             if (t == typeof(ScEntitiesV1)) return Unsafe.SizeOf<ScEntitiesV1>();
             if (t == typeof(ScVehicleSeat)) return Unsafe.SizeOf<ScVehicleSeat>();
             if (t == typeof(ScVehiclesV1)) return Unsafe.SizeOf<ScVehiclesV1>();

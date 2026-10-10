@@ -11,12 +11,15 @@
 #include "sco/log.h"
 #include "sco/plugins.h"
 #include "sco/runtime.h"
+#include "sco/settings.h"
 #include "sco/status.h"
 #include "sco/storage.h"
 #include "sco/ui.h"
 #include "../plugins/lua/sco_lua.h"
 #include "sc_actors.h"
 #include "sc_entities.h"
+#include "sc_game_events.h"
+#include "sc_world.h"
 #include <csignal>
 #include <cstddef>
 #include <cstdio>
@@ -46,10 +49,10 @@ static const sco_api* g_api;
 static fs::path g_root;
 
 // Writes data/plugins/<id>/{plugin.ini,main.lua} under the test root.
-static void Write(const std::string& id, const std::string& lua) {
+static void Write(const std::string& id, const std::string& lua, const std::string& extraIni = "") {
     const fs::path dir = g_root / id;
     fs::create_directories(dir);
-    std::ofstream(dir / "plugin.ini") << "id = " << id << "\nname = " << id << "\nversion = 1.0\napi = 1.0\nkind = lua\nentry = main.lua\n";
+    std::ofstream(dir / "plugin.ini") << "id = " << id << "\nname = " << id << "\nversion = 1.0\napi = 1.0\nkind = lua\nentry = main.lua\n" << extraIni;
     std::ofstream(dir / "main.lua", std::ios::binary) << lua;
 }
 
@@ -65,7 +68,11 @@ static Loaded Load(const std::string& id, const sco_api* api = nullptr) {
     opts.enabled = true;
     l.list = P::Discover(g_root, opts);
     for (auto& p : l.list) if (p.folder == id) l.p = &p;
-    if (l.p && l.p->state == State::Ready) P::LoadScript(*l.p, api ? api : g_api, sco::host::NewPlugin(id.c_str()), kLua);
+    if (l.p && l.p->state == State::Ready) {
+        sco_plugin* self = sco::host::NewPlugin(id.c_str());
+        if (!l.p->manifest.settings.empty()) sco::settings::Declare(self, l.p->manifest.settings);   // as sco::app::Start does
+        P::LoadScript(*l.p, api ? api : g_api, self, kLua);
+    }
     return l;
 }
 
@@ -571,6 +578,13 @@ static sco_result FakeLocalPlayer(uint64_t* actor, uint64_t* entity) {
     if (entity) *entity = 0x8000000000000016ull;   // past INT64_MAX: comes back as a negative integer
     return SCO_OK;
 }
+static sco_result FakeHealth(uint64_t id, float* cur, float* max) {
+    if (id != 6) return SCO_NOT_FOUND;
+    *cur = 50.5f;
+    *max = 0;
+    return SCO_OK;
+}
+static sco_result FakeState(uint64_t, uint32_t*) { return SCO_UNAVAILABLE; }
 static sco_result FakeSpawnNpc(sco_plugin*, const char*, uint64_t, const double*, uint64_t*) { return SCO_FAILED; }
 static sco_result FakeDespawn(sco_plugin*, uint64_t) { return SCO_FAILED; }
 static sco_result FakeLastError(sco_plugin* self, char* out, uint32_t* io) {
@@ -589,15 +603,22 @@ static void TestGameActors() {
     CHECK(none.p && none.p->state == State::Loaded);
     Unload(none);
 
-    static const sc_actors_v1 kFake = { sizeof(sc_actors_v1), 0, FakeLocalPlayer, FakeSpawnNpc, FakeDespawn, FakeLastError };
-    CHECK(sco::host::ProvideGameService(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_0, &kFake) == Result::Ok);
+    static const sc_actors_v1 kFake = { sizeof(sc_actors_v1), 0, FakeLocalPlayer, FakeSpawnNpc, FakeDespawn, FakeLastError,
+                                        FakeHealth, FakeState };
+    CHECK(sco::host::ProvideGameService(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_1, &kFake) == Result::Ok);
     Write("gaplay", R"(
 local a = assert(sco.game and sco.game.actors, "sco.game.actors")
-assert(a.spawn_npc == nil and a.despawn == nil and a.last_error == nil, "read-only")
+assert(a.spawn_npc == nil and a.despawn == nil and a.last_error == nil and a.state == nil, "read-only")
 sco.register_command{ name = "gaplay.ids", title = "Ids", fn = function()
   local actor, entity, msg = sco.game.actors.local_player()
   if not actor then return entity .. ": " .. tostring(msg) end
   return actor .. " " .. entity
+end }
+sco.register_command{ name = "gaplay.hp", title = "Hp", fn = function()
+  local cur, max, msg = sco.game.actors.health(6)
+  if not cur then return max .. ": " .. tostring(msg) end
+  local _, err, why = sco.game.actors.health(7)
+  return string.format("%.1f %.1f / %s %s", cur, max, err, tostring(why))
 end }
 )");
     Loaded l = Load("gaplay");
@@ -609,6 +630,9 @@ end }
     r = Invoke(g_caller, "gaplay.ids");
     CHECK(r.r == SCO_OK && r.text == "11 -9223372036854775786");
     if (r.text != "11 -9223372036854775786") std::printf("  gaplay.ids -> %s\n", r.text.c_str());
+    r = Invoke(g_caller, "gaplay.hp");
+    CHECK(r.r == SCO_OK && r.text == "50.5 0.0 / not_found local_player: you're not spawned yet");
+    if (r.text != "50.5 0.0 / not_found local_player: you're not spawned yet") std::printf("  gaplay.hp -> %s\n", r.text.c_str());
     Unload(l);
     CHECK(sco::host::WithdrawGameService(SC_ACTORS_NAME) == Result::Ok);
 }
@@ -648,6 +672,31 @@ static sco_result FakeEntLastError(sco_plugin* self, char* out, uint32_t* io) {
     return SCO_OK;
 }
 
+// ---- sco.game.world and the game.* events (read-only; a stand-in table, published as the game pack does) --
+
+static sco_result FakeRaycast(uint64_t zone, const double* from, const double* dir, double max, sc_world_hit* hit) {
+    if (zone != 9) return SCO_NOT_FOUND;
+    if (!hit || hit->size < sizeof(sc_world_hit) || max <= 0) return SCO_BAD_ARG;
+    for (int i = 0; i < 3; ++i) hit->pos[i] = from[i] + dir[i] * 10.0;
+    hit->distance = 10.0;
+    return SCO_OK;
+}
+static sco_result FakeCamera(double* pos, double* rot, uint64_t* zone) {
+    if (pos) { pos[0] = 1; pos[1] = 2; pos[2] = 3; }
+    if (rot) { rot[0] = 0; rot[1] = 0; rot[2] = 0; rot[3] = 1; }
+    if (zone) *zone = 9;
+    return SCO_OK;
+}
+static sco_result FakeWorldLastError(sco_plugin*, char* out, uint32_t* io) {
+    static const char kWhy[] = "raycast: no hit within 50.0 m";
+    if (!io) return SCO_BAD_ARG;
+    const uint32_t cap = *io;
+    *io = sizeof(kWhy);
+    if (cap < sizeof(kWhy)) return SCO_TOO_MANY;
+    std::memcpy(out, kWhy, sizeof(kWhy));
+    return SCO_OK;
+}
+
 static void TestGameEntities() {
     static const sc_entities_v1 kFake = { sizeof(sc_entities_v1), 0, FakeEntAlive, FakeEntClassOf, FakeEntGet, FakeEntSet,
                                           FakeEntSpawn, FakeEntDespawn, FakeEntWatch, FakeEntUnwatch, FakeEntQuery, FakeEntLastError };
@@ -677,6 +726,66 @@ end }
     CHECK(sco::host::WithdrawGameService(SC_ENTITIES_NAME) == Result::Ok);
 }
 
+static void TestGameWorld() {
+    Write("gwnone", "assert(sco.game == nil, 'not published')\n");
+    Loaded none = Load("gwnone");
+    CHECK(none.p && none.p->state == State::Loaded);
+    Unload(none);
+
+    static const sc_world_v1 kFake = { sizeof(sc_world_v1), 0, FakeRaycast, FakeCamera, FakeWorldLastError };
+    CHECK(sco::host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &kFake) == Result::Ok);
+    Write("gwplay", R"(
+local w = assert(sco.game and sco.game.world, "sco.game.world")
+assert(w.last_error == nil, "queries only")
+local seen = {}
+sco.subscribe("game.player.died", function(ev, d) seen.died = d and (d.entity_id .. ":" .. d.killer_id) or "nil" end)
+sco.subscribe("game.zone.changed", function(ev, d) seen.zone = d and (d.old_zone_id .. ">" .. d.new_zone_id) or "nil" end)
+sco.subscribe("game.player.spawned", function(ev, d) seen.spawn = d and (d.entity_id .. "@" .. d.zone_id) or "nil" end)
+sco.register_command{ name = "gwplay.cam", title = "Cam", fn = function()
+  local c, e, m = sco.game.world.camera()
+  if not c then return e .. ": " .. tostring(m) end
+  return string.format("%.1f %.1f %.1f %.1f %d", c.x, c.y, c.z, c.qw, c.zone)
+end }
+sco.register_command{ name = "gwplay.ray", title = "Ray", fn = function()
+  local h = sco.game.world.raycast(9, 0, 0, 1, 0, 0, -1, 50)
+  local none, e, m = sco.game.world.raycast(8, 0, 0, 1, 0, 0, -1, 50)
+  return string.format("%.1f %.1f %.1f %.1f / %s %s", h.x, h.y, h.z, h.distance, tostring(e), tostring(m))
+end }
+sco.register_command{ name = "gwplay.seen", title = "Seen", fn = function()
+  return tostring(seen.died) .. "," .. tostring(seen.zone) .. "," .. tostring(seen.spawn)
+end }
+)");
+    Loaded l = Load("gwplay");
+    CHECK(l.p && l.p->state == State::Loaded);
+    if (l.p && l.p->state != State::Loaded) std::printf("  gwplay: %s\n", l.p->reason.c_str());
+    Reply r = Invoke(g_caller, "gwplay.cam");
+    CHECK(r.r == SCO_OK && r.text == "1.0 2.0 3.0 1.0 9");
+    if (r.text != "1.0 2.0 3.0 1.0 9") std::printf("  gwplay.cam -> %s\n", r.text.c_str());
+    r = Invoke(g_caller, "gwplay.ray");
+    CHECK(r.r == SCO_OK && r.text == "0.0 0.0 -9.0 10.0 / not_found raycast: no hit within 50.0 m");
+    if (r.text != "0.0 0.0 -9.0 10.0 / not_found raycast: no hit within 50.0 m") std::printf("  gwplay.ray -> %s\n", r.text.c_str());
+
+    // The game.* events reach sco.subscribe handlers as tables; a payload shorter than the struct is nil.
+    r = Invoke(g_caller, "gwplay.seen");
+    CHECK(r.r == SCO_OK && r.text == "nil,nil,nil");
+    const sc_game_player_died died = { sizeof(died), 0, 0x8000000000000016ull, 0 };   // past INT64_MAX: reads as negative
+    const sc_game_zone_changed zone = { sizeof(zone), 0, 5, 6 };
+    const sc_game_player_spawned spawned = { sizeof(spawned), 0, 3, 4 };
+    size_t called = 0;
+    CHECK(sco::Dispatch(SC_GAME_EVENT_PLAYER_DIED, &died, &called) == Result::Ok && called == 1);
+    CHECK(sco::Dispatch(SC_GAME_EVENT_ZONE_CHANGED, &zone, &called) == Result::Ok && called == 1);
+    CHECK(sco::Dispatch(SC_GAME_EVENT_PLAYER_SPAWNED, &spawned, &called) == Result::Ok && called == 1);
+    r = Invoke(g_caller, "gwplay.seen");
+    CHECK(r.r == SCO_OK && r.text == "-9223372036854775786:0,5>6,3@4");
+    if (r.text != "-9223372036854775786:0,5>6,3@4") std::printf("  gwplay.seen -> %s\n", r.text.c_str());
+    const sc_game_player_died shortDied = { 8, 0, 1, 1 };   // size 8: shorter than sc_game_player_died
+    CHECK(sco::Dispatch(SC_GAME_EVENT_PLAYER_DIED, &shortDied, &called) == Result::Ok && called == 1);
+    r = Invoke(g_caller, "gwplay.seen");
+    CHECK(r.r == SCO_OK && r.text == "nil,5>6,3@4");
+    Unload(l);
+    CHECK(sco::host::WithdrawGameService(SC_WORLD_NAME) == Result::Ok);
+}
+
 // ---- sco.store (over the host service sco.storage) ---------------------------------------------
 
 // Opens and closes SCO_STORAGE_MAX_CURSORS cursors as `self`: true when none was refused, so the
@@ -692,6 +801,57 @@ static bool AllCursorsFree(sco_plugin* self) {
     }
     for (uint64_t id : ids) st->close(self, id);
     return ok;
+}
+
+static void TestSettings() {
+    // Without the service: sco.settings is there, get answers unavailable.
+    Write("setnone", R"lua(
+        local v, err, msg = sco.settings.get("speed")
+        assert(v == nil and err == "unavailable" and msg == "sco.settings is not available on this host", tostring(msg))
+        sco.log("info", "no settings: clean")
+    )lua");
+    Loaded none = Load("setnone");
+    CHECK(none.p && none.p->state == State::Loaded && Logged("[setnone] no settings: clean"));
+    Unload(none);
+
+    CHECK(sco::settings::Start() == Result::Ok);
+    Write("setting", R"lua(
+        assert(sco.settings.set == nil and sco.settings.put == nil, "read-only")
+        local speed = sco.settings.get("speed")
+        assert(speed == 5 and math.type(speed) == "integer", tostring(speed))
+        local fov = sco.settings.get("fov")
+        assert(fov == 90.5 and math.type(fov) == "float", tostring(fov))
+        assert(sco.settings.get("god_mode") == false)
+        assert(sco.settings.get("nick") == "Pilot")
+        assert(sco.settings.get("mode") == "normal")
+        local v, err, msg = sco.settings.get("nope")
+        assert(v == nil and err == "not_found" and msg == "this plugin declares no setting 'nope'", tostring(msg))
+        v, err, msg = sco.settings.get("bad\0name")
+        assert(v == nil and err == "bad_arg" and msg == "a setting name with a NUL byte", tostring(msg))
+        assert(not pcall(sco.settings.get))        -- a name is required
+        sco.register_command{ name = "setting.speed", title = "Speed",
+          fn = function() return tostring(sco.settings.get("speed")) .. " " .. sco.settings.get("mode") end }
+        sco.log("info", "settings: clean")
+    )lua", "[settings]\nspeed = int default 5 min 1 max 10\nfov = float default 90.5\ngod_mode = bool\n"
+           "nick = string default \"Pilot\"\nmode = enum(easy,normal,hard) default normal\n");
+    Loaded l = Load("setting");
+    CHECK(l.p && l.p->state == State::Loaded && Logged("[setting] settings: clean"));
+    if (l.p && l.p->state != State::Loaded) std::printf("  setting: %s\n", l.p->reason.c_str());
+    // The script reads what the host keeps now.
+    CHECK(Invoke(g_caller, "setting.speed").text == "5 normal");
+    CHECK(sco::settings::SetInt("setting", "speed", 8) == Result::Ok && sco::settings::SetString("setting", "mode", "hard") == Result::Ok);
+    CHECK(Invoke(g_caller, "setting.speed").text == "8 hard");
+    Unload(l);
+    // A plugin that declares nothing finds nothing, with the service up.
+    Write("setempty", R"lua(
+        local v, err = sco.settings.get("speed")
+        assert(v == nil and err == "not_found")
+        sco.log("info", "no declarations: clean")
+    )lua");
+    Loaded e = Load("setempty");
+    CHECK(e.p && e.p->state == State::Loaded && Logged("[setempty] no declarations: clean"));
+    Unload(e);
+    sco::settings::Stop();
 }
 
 static void TestStore(const fs::path& sdk) {
@@ -888,7 +1048,9 @@ int main(int argc, char** argv) {
     TestDataCore();
 #endif
     TestGameActors();
+    TestGameWorld();
     TestGameEntities();
+    TestSettings();
     TestStore(argv[1]);
     std::printf("sco-lua tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

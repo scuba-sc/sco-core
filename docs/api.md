@@ -109,8 +109,8 @@ See [The runtime](architecture.md#the-runtime) for the model. Every call returns
 | `Result Subscribe(const void* owner, const char* event, EventFn fn, void* ctx)` | Adds a subscriber from the next dispatch; the name is copied. `BadArg` for a null/empty event, null `fn` or the same (owner, event, fn) twice; `TooMany` at 512 |
 | `Result Unsubscribe(const void* owner, const char* event, EventFn fn)` | Removes it at once (a running dispatch skips it); `NotFound` if absent. From another thread, free `ctx` in a task posted after it returns |
 | `Result Dispatch(const char* event, const void* data, size_t* called)` | Calls the event's subscribers in subscription order; `called` gets the count. Game thread only (`WrongThread`) |
-| `Result RegisterCommand(const void* owner, const char* prefix, const Command& cmd)` | Adds a command. Copies every string and the arg defs; only `fn` and `ctx` are borrowed until `Release(owner)`. Names are `<x>.<y>` in lowercase, digits, `_`. With `prefix` (a plugin's name, no dot) the name must start `<prefix>.`, the prefix can't be reserved (`sco`, `host`, `menu`, `game`) or used by another owner's live command. `BadArg` for a bad or too-long name or string, a live duplicate, null `fn` or more than 16 args; `TooMany` after 512 registrations (released slots still count) |
-| `size_t ListCommands(const Command** out, size_t max)` | Writes up to `max` live commands in registration order; returns how many are live. Pointers and their strings stay readable for the life of the process |
+| `Result RegisterCommand(const void* owner, const char* prefix, const Command& cmd)` | Adds a command. Copies every string and the arg defs; only `fn` and `ctx` are borrowed until `Release(owner)`. Names are `<x>.<y>` in lowercase, digits, `_`. With `prefix` (a plugin's name, no dot) the name must start `<prefix>.`, the prefix can't be reserved (`sco`, `host`, `menu`, `game`) or used by another owner's live command. `BadArg` for a bad or too-long name or string, a live duplicate, null `fn` or more than 16 args; `TooMany` with 512 commands live (`Release` frees an owner's slots, so total registrations over the process's life are unlimited) |
+| `size_t ListCommands(const Command** out, size_t max)` | Writes up to `max` live commands in registration order; returns how many are live. A pointer and its strings describe their command until its owner is released; the slot is then reused |
 | `void SetCapabilityCheck(CapabilityCheck check)` | Answers `Command::capability`. With none installed, commands that name a capability are `Unavailable` |
 | `Result Invoke(const char* name, const Arg* args, uint32_t nargs, InvokeDone done, void* ctx, const void* owner)` | Runs a command; see below |
 
@@ -245,6 +245,22 @@ The host side of [`sco.ui`](ui.md) (library `sco_ui`): the registry of plugin ta
 | `Result ui::Dispatch(chord, std::string* reply)` | Invokes the bound command with its stored args and the binding's plugin as the caller (`sco::Invoke`). On the game thread it runs now and fills `reply`; elsewhere it is queued. `NotFound`: no binding, a reserved chord, or no such command |
 
 Limits: `kMaxTabs` and `kMaxOverlays` 256, `kMaxHotkeys` 512, `kMaxReserved` 256.
+
+## `sco/settings.h`: the `sco.settings` service
+
+The host side of [`sco.settings`](api-v1.md#scosettings-10) (library `sco_settings`): the typed `[settings]` a plugin declares in `plugin.ini` ([grammar](plugins.md#typed-settings-settings)), their values, and what the product's menu draws. `sco::app::Start` starts it after storage and declares each plugin's settings before its code runs; other hosts call it themselves. Plugins only read. [UI § Settings](ui.md#settings) has a draw sketch.
+
+| Function | Does |
+|---|---|
+| `Result settings::Start()` | Publishes `sco.settings` 1.0 with `host::ProvideHostService` and installs a release hook, so `Release(self)` withdraws the plugin's settings. `BadArg`: already started |
+| `void settings::Stop()` | Withdraws the service and forgets every declaration; the table then answers `SCO_UNAVAILABLE`. No-op unless started. Call before `storage::Stop` |
+| `bool settings::Started()`, `const sco_settings_v1* settings::Table()` | State, and the table `query_service` hands out |
+| `Result settings::Declare(sco_plugin* self, const std::vector<plugins::Setting>& decls)` | Declares `Manifest::settings` for a handle and reads each kept value from the plugin's storage (a stale one is dropped, with a log line). `BadArg`: unknown or released handle, no or too many settings, declared twice, a default outside its own range |
+| `std::vector<Page> settings::Pages()`, `std::vector<Entry> settings::Entries(plugin)` | The declarations with their current values, one page per plugin (`tab`: its first `sco.ui` tab id, or empty). Any thread |
+| `Result settings::SetBool / SetInt / SetFloat / SetString(plugin, name, v)` | Checks the value against the declaration, stores it (the plugin's `sco.storage` namespace, key `sco.settings.<name>`) and dispatches `settings.changed` once. `Ok` for the current value too (silent). `BadArg`, `NotFound`, `WrongThread`, or storage's error with nothing changed. Game thread |
+| `std::string settings::StorageKey(name)` | The key a value is kept under |
+
+`plugins::ParseSettingValue`, `CheckSettingValue` and `FormatSettingValue` (`sco/plugins.h`) read, check and write one value of a declaration; the same rules parse a default, a kept value and what a product's widget sends.
 
 ## `sco/hook.h`: detours and near-code memory
 
