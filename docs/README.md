@@ -42,6 +42,7 @@ Start with the [README](../README.md) for what sco-core is. Pick your path below
   | [Contracts rows](game/contracts.md) | The 83 rows and 15 capabilities behind sc-offline's contracts feature |
   | [Features rows](game/features.md) | The rows moved out of sc-offline's five FindPattern scans, and their capabilities |
   | [Offline patches and startup rows](game/offline.md) | The 60 rows and 19 capabilities behind sc-offline's offline patches, boot and startup hooks |
+  | [Mining row](game/mining.md) | The row behind natural mining: the biome builder's cell function, its checks and capability |
   | [Actors rows](game/actors.md) | The 33 rows behind spawning, NPCs, ammo and the player loadout |
   | [Entities rows](game/entities.md) | The 6 rows behind `game.entities`: the class name, the entity walk and the two streaming hooks |
 | [Checking a game build](sigcheck.md) | `sco-sigcheck`: output, exit codes, the patch-day routine |
