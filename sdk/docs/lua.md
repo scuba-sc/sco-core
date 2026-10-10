@@ -172,6 +172,17 @@ Present only when the Star Citizen game pack publishes [`game.vehicles`](../../d
 
 On failure each returns `nil, err, message` (`err` as for `sco.store`: `"unavailable"`, `"not_found"`, ...; `message` from the game pack's `last_error`).
 
+## `sco.game.entities`
+
+Present only when the Star Citizen game pack publishes [`game.entities`](../../docs/api-v1.md#gameentities-10-game-pack) (check `if sco.game and sco.game.entities then`); `lua-check.lua` has no stand-in for it. Read-only: a Lua plugin owns no entities, so there is no spawn, despawn, move or watch.
+
+| Function | Returns |
+|---|---|
+| `sco.game.entities.alive(id)` | `true` when the entity is streamed in |
+| `sco.game.entities.class_of(id)` | The class name, or `nil, err, message` (`"not_found"` when the entity isn't streamed in, `"unavailable"` when `game.entities.class_of` isn't ready) |
+| `sco.game.entities.get_transform(id)` | `x, y, z, qx, qy, qz, qw, zone_id` in the entity's zone's local frame, or `nil, err, message`. Ids are the game's 64-bit integers, which can come back negative |
+
+
 ## `sco.game.world`
 
 Present only when the Star Citizen game pack publishes [`game.world`](../../docs/api-v1.md#gameworld-10-game-pack) (check `if sco.game and sco.game.world then`). Read-only queries (they take no `self`). Ids are the game's 64-bit ids in Lua integers bit for bit; positions are metres.

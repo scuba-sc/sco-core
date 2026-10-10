@@ -49,6 +49,7 @@ namespace Sco.Sdk.Tests
             ["sc_game_player_died"] = typeof(ScGamePlayerDied),
             ["sc_game_zone_changed"] = typeof(ScGameZoneChanged),
             ["sc_game_vehicle_seat"] = typeof(ScGameVehicleSeat),
+            ["sc_entities_v1"] = typeof(ScEntitiesV1),
             ["sc_vehicle_seat_flag"] = typeof(ScVehicleSeatFlag),
             ["sc_vehicle_seat"] = typeof(ScVehicleSeat),
             ["sc_vehicles_v1"] = typeof(ScVehiclesV1),
@@ -131,6 +132,12 @@ namespace Sco.Sdk.Tests
             ["SC_WORLD_HIT_NORMAL"] = (long)ScWorldHitFlag.Normal,
             ["SC_WORLD_HIT_FLAG_FORCE32"] = (long)ScWorldHitFlag.Force32,
             ["SC_ACTORS_MAX_NPCS"] = GameAbi.ActorsMaxNpcs,
+            ["SC_ENTITIES_VERSION_1_0"] = GameAbi.EntitiesVersion1_0,
+            ["SC_ENTITIES_MAX_OWNED"] = GameAbi.EntitiesMaxOwned,
+            ["SC_ENTITIES_MAX_WATCHES"] = GameAbi.EntitiesMaxWatches,
+            ["SC_ENTITIES_MAX_TYPE_LEN"] = GameAbi.EntitiesMaxTypeLen,
+            ["SC_ENTITY_STREAMED_IN"] = GameAbi.EntityStreamedIn,
+            ["SC_ENTITY_STREAMED_OUT"] = GameAbi.EntityStreamedOut,
             ["SC_VEHICLES_SERVICE_VERSION"] = GameAbi.VehiclesVersion1_0,
             ["SC_VEHICLE_SEAT_NAME_MAX"] = GameAbi.VehicleSeatNameMax,
             ["SC_SEAT_USABLE"] = (long)ScVehicleSeatFlag.Usable,
@@ -155,6 +162,7 @@ namespace Sco.Sdk.Tests
             ["SC_GAME_EVENT_ZONE_CHANGED"] = GameAbi.EventZoneChanged,
             ["SC_GAME_EVENT_VEHICLE_BOARDED"] = GameAbi.EventVehicleBoarded,
             ["SC_GAME_EVENT_VEHICLE_EXITED"] = GameAbi.EventVehicleExited,
+            ["SC_ENTITIES_NAME"] = GameAbi.EntitiesName,
             ["SC_VEHICLES_SERVICE_NAME"] = GameAbi.VehiclesName,
         };
 
@@ -243,6 +251,7 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScGamePlayerDied)) return Unsafe.SizeOf<ScGamePlayerDied>();
             if (t == typeof(ScGameZoneChanged)) return Unsafe.SizeOf<ScGameZoneChanged>();
             if (t == typeof(ScGameVehicleSeat)) return Unsafe.SizeOf<ScGameVehicleSeat>();
+            if (t == typeof(ScEntitiesV1)) return Unsafe.SizeOf<ScEntitiesV1>();
             if (t == typeof(ScVehicleSeat)) return Unsafe.SizeOf<ScVehicleSeat>();
             if (t == typeof(ScVehiclesV1)) return Unsafe.SizeOf<ScVehiclesV1>();
             return -1;
