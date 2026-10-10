@@ -13,6 +13,7 @@
 #include "sco/log.h"
 #include "sco/net/session.h"
 #include "sco/runtime.h"
+#include "sco/settings.h"
 #include "sco/signatures.h"
 #include "sco/storage.h"
 #include "sco/ui.h"
@@ -60,6 +61,16 @@ void RegisterReloadCommand() {
     else Log("[app] sco.reload not registered: %s", ResultName(r));
 }
 
+// A plugin's handle, with its [settings] declared (and their kept values read) before its code runs.
+sco_plugin* NewSelf(const plugins::Plugin& p) {
+    sco_plugin* self = host::NewPlugin(p.manifest.id.c_str());
+    if (self && !p.manifest.settings.empty()) {
+        const Result r = settings::Declare(self, p.manifest.settings);
+        if (r != Result::Ok) Log("[app] %s: settings not declared: %s", p.manifest.id.c_str(), ResultName(r));
+    }
+    return self;
+}
+
 }  // namespace
 
 bool Start(const Platform& platform) {
@@ -97,6 +108,8 @@ bool Start(const Platform& platform) {
     }
     const Result ur = ui::Start();
     if (ur != Result::Ok) Log("[app] ui not started: %s", ResultName(ur));
+    const Result str = settings::Start();   // after storage: kept values are read from it
+    if (str != Result::Ok) Log("[app] settings not started: %s", ResultName(str));
     const Result ir = ipc::Start();
     if (ir != Result::Ok) Log("[app] sco.ipc not started: %s", ResultName(ir));
     const Result nr = net::Start();   // inert until the product calls net::Host or net::Join
@@ -160,10 +173,10 @@ bool Start(const Platform& platform) {
             std::string copyError;
             if (pf.loadFromCopies && !plugins::CopyForReload(p, p.reloadCopy, copyError))
                 Log("[plugin] %s: %s; loading the original", p.manifest.id.c_str(), copyError.c_str());
-            plugins::LoadNative(p, api, host::NewPlugin(p.manifest.id.c_str()), opts, pf.moduleOps);
+            plugins::LoadNative(p, api, NewSelf(p), opts, pf.moduleOps);
         } else if (p.manifest.kind == plugins::Kind::Lua) {
             if (pf.scripts) {
-                plugins::LoadScript(p, api, host::NewPlugin(p.manifest.id.c_str()), *pf.scripts);
+                plugins::LoadScript(p, api, NewSelf(p), *pf.scripts);
             } else {
                 p.state = plugins::State::Refused;
                 p.reason = "no script runtime";
@@ -197,6 +210,7 @@ void Stop() {
     plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts);
     for (auto& p : g_list)
         if (p.manifest.kind == plugins::Kind::Native) { plugins::RemoveReloadCopies(p); p.reloadCopy.clear(); }
+    settings::Stop();   // before storage: it reads and writes through it
     storage::Stop();
     net::Stop();   // leaves any session
     ipc::Stop();
@@ -248,7 +262,7 @@ Result Reload(std::string_view id, std::string* why) {
         p->exports = {};
         p->state = plugins::State::Ready;
         p->reason.clear();
-        if (sco_plugin* self = host::NewPlugin(p->manifest.id.c_str())) {
+        if (sco_plugin* self = NewSelf(*p)) {   // [settings] declared again, kept values read
             const bool ok = native ? plugins::LoadNative(*p, g_api, self, g_opts, g_platform.moduleOps)
                                    : g_platform.scripts && plugins::LoadScript(*p, g_api, self, *g_platform.scripts);
             if (ok) {

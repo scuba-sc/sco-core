@@ -128,8 +128,8 @@ const std::vector<plugins::Plugin>& Plugins();
 //      which withdraws its commands, subscriptions and services, runs the release hooks, so the game
 //      pack despawns what it spawned for it; the old module is closed unless a service table of it was
 //      handed out, in which case it stays mapped, M1)
-//   3. a new handle (host::NewPlugin) and LoadNative from the copy / LoadScript again (a script is
-//      re-read from disk); plugin.ini is not re-read
+//   3. a new handle (the one Start makes: [settings] declared again, kept values read) and LoadNative
+//      from the copy / LoadScript again (a script is re-read from disk); plugin.ini is not re-read
 // Result (why, when given, says more; "reloaded" is logged only when it is Ok):
 //   Ok          the plugin is Loaded again (new Plugin::self; loadOrder is the newest)
 //   NotFound    no plugin with that folder id
