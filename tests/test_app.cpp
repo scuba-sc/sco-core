@@ -28,10 +28,12 @@
 #include "sc_world.h"
 #include <thread>
 #endif
+#include <algorithm>
 #include <csetjmp>
 #include <csignal>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -758,6 +760,194 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     fs::remove_all(out / "app", ec);
 }
 
+// ---- hot reload -----------------------------------------------------------------------------
+
+static std::vector<std::string> g_opened;   // file names the loader opened, in order
+static int g_closed = 0;
+static void* RlOpen(const fs::path& f, std::string& e) {
+    g_opened.push_back(f.filename().string());
+    return P::PlatformModuleOps().open(f, e);
+}
+static void* RlSymbol(void* m, const char* n) { return P::PlatformModuleOps().symbol(m, n); }
+static void RlClose(void* m) { ++g_closed; P::PlatformModuleOps().close(m); }
+
+static void WriteText(const fs::path& f, const std::string& text) {
+    std::ofstream(f, std::ios::binary) << text;
+}
+static size_t CountCommands(const char* name) {
+    std::vector<const sco::Command*> v(sco::kMaxCommands);
+    const size_t n = sco::ListCommands(v.data(), v.size());
+    size_t c = 0;
+    for (size_t i = 0; i < n && i < v.size(); ++i) c += std::strcmp(v[i]->name, name) == 0;
+    return c;
+}
+static size_t CountLog(const char* line) {
+    size_t c = 0;
+    for (const auto& l : g_log) c += l == line;
+    return c;
+}
+static size_t ReloadFiles(const fs::path& dir) {   // .reload-* files in a plugin folder
+    size_t c = 0;
+    for (const auto& e : fs::directory_iterator(dir)) c += e.path().filename().string().rfind(".reload-", 0) == 0;
+    return c;
+}
+
+static const char* const kRlScript =
+    "sco.log('info', 'rl run')\n"
+    "sco.register_command{ name = 'rl.ping', title = 'Ping', fn = function() return 'pong' end }\n"
+    "sco.register_command{ name = 'rl.self', title = 'Self', fn = function()\n"
+    "  local ok, name, reply = sco.invoke('sco.reload', 'rl')\n"   // a reload from inside the plugin's own command
+    "  return tostring(ok) .. ' ' .. tostring(name) .. ' ' .. tostring(reply)\n"
+    "end }\n";
+
+// Hot reload (sco::app::Reload, the host command sco.reload) through the real loader, host table
+// and sco-lua: Lua re-run, natives from a copy, built-ins refused, busy refused. No timing anywhere:
+// every check is on the result of a call.
+static void TestReload(const fs::path& out) {
+    const fs::path root = out / "reload" / "plugins";
+    std::error_code ec;
+    fs::remove_all(out / "reload", ec);
+    fs::create_directories(root);
+    for (const char* id : { "m0", "m11", "svc_provider", "svc_caller" }) {
+        if (!fs::is_directory(out / "plugins" / id)) {
+            std::printf("FAIL: %s missing (tools/test.sh or the CMake build makes it)\n", (out / "plugins" / id).string().c_str());
+            ++g_fail;
+            return;
+        }
+        fs::copy(out / "plugins" / id, root / id, fs::copy_options::recursive);
+    }
+    fs::create_directories(root / "rl");
+    WriteText(root / "rl" / "plugin.ini", "id = rl\nname = rl\nversion = 1.0.0\napi = 1.0\nkind = lua\nentry = main.lua\n");
+    WriteText(root / "rl" / "main.lua", kRlScript);
+    WriteText(root / "m0" / ".reload-99-stale", "left by a run that died");   // cleaned at Start
+
+    sco::app::Platform pf;
+    pf.hostVersion = "test-app 1.0";
+    pf.pluginRoot = root;
+    pf.pluginsEnabled = true;
+    pf.builtins = kBuiltins;
+    pf.nBuiltins = 2;
+    pf.scripts = &kLua;
+    pf.moduleOps = P::ModuleOps{ RlOpen, RlSymbol, RlClose };
+    const sco_api* api = sco::host::BuildApi({ "test-app 1.0" });
+
+    std::string why;
+    CHECK(sco::app::Reload("rl", &why) == sco::Result::Unavailable && why == "the host kit is not started");
+    g_log.clear();
+    g_opened.clear();
+    CHECK(sco::app::Start(pf));
+    CHECK(!fs::exists(root / "m0" / ".reload-99-stale"));                    // stale copy removed at Start
+    CHECK(StateOf("rl") == State::Loaded && StateOf("m0") == State::Loaded && StateOf("svc_provider") == State::Loaded);
+    CHECK(std::find(g_opened.begin(), g_opened.end(), std::string(Find("m0")->manifest.entry)) != g_opened.end());
+    CHECK(Find("m0")->reloadCopy.empty() && CountCommands("sco.reload") == 1);   // no copy yet; the host command exists
+
+    // Lua: the script runs again under a new handle; its commands are registered again, not doubled.
+    const size_t liveBefore = sco::ListCommands(nullptr, 0);
+    const sco_plugin* s0 = Find("rl")->self;
+    g_log.clear();
+    Reply r = Invoke("sco.reload", { Str("rl") });
+    CHECK(r.called && r.r == sco::Result::Ok && r.text == "reloaded rl");
+    const sco_plugin* s1 = Find("rl")->self;
+    CHECK(StateOf("rl") == State::Loaded && s1 && s1 != s0);
+    CHECK(CountCommands("rl.ping") == 1 && CountCommands("rl.self") == 1 && sco::ListCommands(nullptr, 0) == liveBefore);
+    CHECK(Invoke("rl.ping").text == "pong" && CountLog("[rl] rl run") == 1 && Logged("[app] reloaded rl"));
+    CHECK(sco::Release(s0) == sco::Result::BadArg);                          // the old handle was released
+    // A second reload, straight after the first (same tick): a third handle.
+    CHECK(sco::app::Reload("rl") == sco::Result::Ok);
+    const sco_plugin* s2 = Find("rl")->self;
+    CHECK(s2 && s2 != s1 && s2 != s0 && CountCommands("rl.ping") == 1 && CountLog("[rl] rl run") == 2);
+    CHECK(Find("rl")->loadOrder > Find("m0")->loadOrder);
+
+    // Busy: the plugin's own command asks for its reload, with its code on the stack. Refused;
+    // nothing changed.
+    r = Invoke("rl.self");
+    CHECK(r.r == sco::Result::Ok && r.text == "false failed busy: a callout of rl is running");
+    CHECK(Find("rl")->self == s2 && StateOf("rl") == State::Loaded && CountLog("[rl] rl run") == 2);
+
+    // Refusals: built-ins, unknown ids, a plugin that is not Loaded.
+    const sco_plugin* core = Find("core1")->self;
+    CHECK(sco::app::Reload("core1", &why) == sco::Result::BadArg && why == "core1 is built in and cannot be reloaded");
+    CHECK(Find("core1")->self == core && StateOf("core1") == State::Loaded && Invoke("core1.count").r == sco::Result::Ok);
+    CHECK(sco::app::Reload("nope", &why) == sco::Result::NotFound && why == "no plugin 'nope'");
+    r = Invoke("sco.reload", { Str("nope") });
+    CHECK(r.r == sco::Result::NotFound && r.text == "no plugin 'nope'");
+    CHECK(Invoke("sco.reload").r == sco::Result::BadArg);                    // the argument is required
+    CHECK(sco::app::Reload("faulty", &why) == sco::Result::BadArg);
+
+    // Native: loaded from a copy next to the DLL; the module is fresh (its counters start again).
+    sco::app::Tick(1);
+    sco::app::Tick(2);
+    CHECK(FakeTicks("m0") == 2);
+    g_opened.clear();
+    const int closedBefore = g_closed;
+    const sco_plugin* m0 = Find("m0")->self;
+    CHECK(sco::app::Reload("m0") == sco::Result::Ok);
+    CHECK(g_opened.size() == 1 && g_opened[0].rfind(".reload-", 0) == 0 && g_closed == closedBefore + 1);
+    const fs::path copy1 = Find("m0")->reloadCopy;
+    CHECK(Find("m0")->self != m0 && StateOf("m0") == State::Loaded && !copy1.empty() && fs::exists(copy1));
+    CHECK(fs::exists(root / "m0" / Find("m0")->manifest.entry));             // the original is left alone
+    CHECK(FakeTicks("m0") == 0);
+    sco::app::Tick(3);
+    CHECK(FakeTicks("m0") == 1);
+    CHECK(Find("m0")->pinned.empty());                                       // closed, not kept
+    // The next reload closes that copy and deletes it; a third copy is mapped.
+    CHECK(sco::app::Reload("m0") == sco::Result::Ok);
+    const fs::path copy2 = Find("m0")->reloadCopy;
+    CHECK(copy2 != copy1 && fs::exists(copy2) && !fs::exists(copy1) && ReloadFiles(root / "m0") == 1);
+
+    // A native that registers commands: re-registered, not doubled.
+    const size_t live = sco::ListCommands(nullptr, 0);
+    const sco_plugin* c0 = Find("svc_caller")->self;
+    CHECK(CountCommands("svc_caller.self") == 1 && sco::app::Reload("svc_caller") == sco::Result::Ok);
+    CHECK(Find("svc_caller")->self != c0 && CountCommands("svc_caller.self") == 1 && sco::ListCommands(nullptr, 0) == live);
+
+    // A provider whose service table was handed out stays mapped (M1): never closed, never reused.
+    struct Svc { uint32_t size; int (*ok)(); int (*boom)(); };
+    const void* t0 = nullptr;
+    const void* t1 = nullptr;
+    CHECK(api->query_service("svc_provider.svc", 1u << 16, &t0) == SCO_OK && t0);
+    const int closed = g_closed;
+    CHECK(sco::app::Reload("svc_provider") == sco::Result::Ok);
+    CHECK(g_closed == closed && Find("svc_provider")->pinned.size() == 1 && Logged("kept mapped: its service table was handed out"));
+    CHECK(api->query_service("svc_provider.svc", 1u << 16, &t1) == SCO_OK && t1 && t1 != t0);   // republished, new module
+    if (t0) CHECK(static_cast<const Svc*>(t0)->ok() == 7);                   // the old table still runs
+    if (t1) CHECK(static_cast<const Svc*>(t1)->ok() == 7);
+
+    // A copy that can't be made changes nothing: the plugin keeps running.
+    const fs::path entry = root / "m11" / Find("m11")->manifest.entry;
+    const sco_plugin* m11 = Find("m11")->self;
+    fs::rename(entry, entry.string() + ".bak");
+    CHECK(sco::app::Reload("m11", &why) == sco::Result::Failed && why.rfind("cannot copy ", 0) == 0);
+    CHECK(Find("m11")->self == m11 && StateOf("m11") == State::Loaded);
+    fs::rename(entry.string() + ".bak", entry);
+
+    // A script that no longer loads: the plugin ends Refused, its commands are gone, a retry says so.
+    WriteText(root / "rl" / "main.lua", "this is not lua (\n");
+    CHECK(sco::app::Reload("rl", &why) == sco::Result::Failed && why.rfind("main.lua:", 0) == 0);
+    CHECK(StateOf("rl") == State::Refused && CountCommands("rl.ping") == 0 && Logged("[app] reload rl failed: main.lua:"));
+    CHECK(sco::app::Reload("rl", &why) == sco::Result::Failed && why == "rl is not loaded (refused)");
+
+    // Stop removes the copies it can (a kept-mapped provider's stays on Windows), and is Unavailable after.
+    sco::app::Stop();
+    CHECK(ReloadFiles(root / "m0") == 0 && Find("m0")->reloadCopy.empty());
+    CHECK(sco::app::Reload("m0") == sco::Result::Unavailable);
+    CHECK(Invoke("sco.reload", { Str("m0") }).r == sco::Result::Unavailable);
+
+    // Platform::loadFromCopies: every native is mapped from a copy from the start.
+    WriteText(root / "rl" / "main.lua", kRlScript);
+    pf.loadFromCopies = true;
+    g_opened.clear();
+    CHECK(sco::app::Start(pf));
+    CHECK(StateOf("m0") == State::Loaded && StateOf("m11") == State::Loaded && StateOf("rl") == State::Loaded);
+    size_t fromCopy = 0;
+    for (const auto& name : g_opened) fromCopy += name.rfind(".reload-", 0) == 0;
+    CHECK(fromCopy == 4 && g_opened.size() == 4);                            // m0, m11, svc_caller, svc_provider
+    CHECK(!Find("m0")->reloadCopy.empty() && sco::app::Reload("m0") == sco::Result::Ok);
+    sco::app::Stop();
+    CHECK(ReloadFiles(root / "m0") == 0 && ReloadFiles(root / "m11") == 0);
+    fs::remove_all(out / "reload", ec);
+}
+
 // ---- [settings]: declared in plugin.ini, read by a script, set by the product, kept across a restart ----
 
 static std::vector<std::string> g_setEvents;
@@ -778,6 +968,33 @@ static void WriteSettingsPlugin(const fs::path& dir, const char* speedDecl) {
                "  return tostring(sco.settings.get('speed')) .. ' ' .. sco.settings.get('mode') .. ' ' .. tostring(sco.settings.get('god_mode'))\n"
                "end }\n", f);
     std::fclose(f);
+}
+
+// A reloaded plugin gets its [settings] declared again, through the same path as at Start (plugin.ini
+// is not read again), and the kept values are still there: they belong to the plugin id.
+static void TestReloadSettings(const fs::path& out) {
+    const fs::path base = out / "reload_settings";
+    std::error_code ec;
+    fs::remove_all(base, ec);
+    WriteSettingsPlugin(base / "plugins" / "setdemo", "speed = int default 5 min 1 max 10");
+    sco::app::Platform pf;
+    pf.hostVersion = "test-app 1.0";
+    pf.pluginRoot = base / "plugins";
+    pf.dataRoot = base / "data";
+    pf.pluginsEnabled = true;
+    pf.scripts = &kLua;
+    CHECK(sco::app::Start(pf));
+    CHECK(Invoke("setdemo.show").text == "5 normal false");
+    CHECK(sco::settings::SetInt("setdemo", "speed", 8) == sco::Result::Ok);
+    CHECK(sco::settings::SetString("setdemo", "mode", "hard") == sco::Result::Ok);
+    const sco_plugin* before = Find("setdemo")->self;
+    CHECK(sco::app::Reload("setdemo") == sco::Result::Ok);
+    CHECK(Find("setdemo")->self != before && StateOf("setdemo") == State::Loaded);
+    CHECK(sco::settings::Entries("setdemo").size() == 3 && sco::settings::Pages().size() == 1);   // declared once, not twice
+    CHECK(Invoke("setdemo.show").text == "8 hard false");                    // read by the new script from the kept values
+    CHECK(sco::settings::SetInt("setdemo", "speed", 9) == sco::Result::Ok && Invoke("setdemo.show").text == "9 hard false");
+    sco::app::Stop();
+    fs::remove_all(base, ec);
 }
 
 static void TestAppSettings(const fs::path& out) {
@@ -844,7 +1061,9 @@ int main(int argc, char** argv) {
     P::SetCallGuard(SignalGuard);
 #endif
     TestApp(argv[1], argv[2]);
+    TestReload(argv[2]);
     TestAppSettings(argv[2]);
+    TestReloadSettings(argv[2]);
     TestBuiltinLoader(sco::host::BuildApi({ "test-app 1.0" }), fs::path(argv[2]) / "plugins");
     P::SetCallGuard(nullptr);
     std::printf("sco-core app tests: %d passed, %d failed\n", g_pass, g_fail);

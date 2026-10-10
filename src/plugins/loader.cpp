@@ -273,7 +273,7 @@ bool LoadNative(Plugin& p, const sco_api* api, sco_plugin* self, const Options& 
     // Not guarded: mapping runs the plugin's DllMain under the OS loader lock, and unwinding out
     // of it would leave that lock held. Plugins keep DllMain empty (docs/plugins.md).
     std::string error;
-    p.module = ops.open(p.dir / detail::FromUtf8(p.manifest.entry), error);
+    p.module = ops.open(p.reloadCopy.empty() ? p.dir / detail::FromUtf8(p.manifest.entry) : p.reloadCopy, error);
     if (!p.module) return RefuseLoad(p, "cannot load " + p.manifest.entry + ": " + error, &ops);
 
     p.exports.query  = reinterpret_cast<sco_plugin_query_fn>(ops.symbol(p.module, "sco_plugin_query"));
@@ -341,8 +341,11 @@ static std::vector<Plugin>* g_contained = nullptr;   // game thread only
 static Plugin* FindCulprit(const Plugin& owner, const detail::FaultTrace& trace) {
     if (!g_contained) return nullptr;
     for (uint32_t i = 0; i < trace.n; ++i)
-        for (Plugin& q : *g_contained)
-            if (q.module && q.module == trace.modules[i]) return &q == &owner ? nullptr : &q;
+        for (Plugin& q : *g_contained) {
+            bool in = q.module && q.module == trace.modules[i];
+            for (void* m : q.pinned) in = in || m == trace.modules[i];   // an earlier load, kept mapped
+            if (in) return &q == &owner ? nullptr : &q;
+        }
     return nullptr;
 }
 
@@ -381,7 +384,10 @@ static void BlameProvider(Plugin& culprit, const Plugin& caller, uint32_t code) 
 bool CallPlugin(Plugin& p, const char* where, void (*thunk)(void*), void* ctx) {
     if (p.state != State::Loaded || !thunk) return false;
     detail::FaultTrace trace;
-    if (const uint32_t code = GuardedTraced(thunk, ctx, trace)) {
+    ++p.running;
+    const uint32_t code = GuardedTraced(thunk, ctx, trace);
+    --p.running;
+    if (code) {
         if (Plugin* culprit = FindCulprit(p, trace)) BlameProvider(*culprit, p, code);   // p's callout was aborted; p is fine
         else MarkCrashed(p, where, code);
         return false;
@@ -492,6 +498,42 @@ static void UnloadScript(Plugin& p, const ScriptRuntime* runtime) {
     sco::Log("[plugin] unloaded %s", IdOf(p));
 }
 
+void UnloadOne(Plugin& p, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    if (p.state != State::Loaded) return;
+    switch (p.manifest.kind) {
+        case Kind::Native:  UnloadCode(p, &ops); break;
+        case Kind::Builtin: UnloadCode(p, nullptr); break;
+        case Kind::Lua:     UnloadScript(p, runtime); break;
+        case Kind::Data:    break;
+    }
+}
+
+// ---- hot reload -----------------------------------------------------------------------------
+
+static const char kReloadPrefix[] = ".reload-";
+
+bool CopyForReload(const Plugin& p, fs::path& copy, std::string& error) {
+    if (p.manifest.kind != Kind::Native || p.dir.empty()) { error = "not a native plugin"; return false; }
+    static std::atomic<uint32_t> counter{ 0 };   // a name per copy for the life of the process
+    const fs::path to = p.dir / detail::FromUtf8(kReloadPrefix + std::to_string(counter.fetch_add(1) + 1) + "-" + p.manifest.entry);
+    std::error_code ec;
+    fs::copy_file(p.dir / detail::FromUtf8(p.manifest.entry), to, fs::copy_options::overwrite_existing, ec);
+    if (ec) { error = "cannot copy " + p.manifest.entry + ": " + ec.message(); return false; }
+    copy = to;
+    return true;
+}
+
+void RemoveReloadCopies(const Plugin& p) {
+    if (p.dir.empty()) return;
+    std::vector<fs::path> stale;
+    std::error_code ec;
+    fs::directory_iterator it(p.dir, ec);
+    const fs::directory_iterator end;
+    for (; !ec && it != end; it.increment(ec))
+        if (detail::ToUtf8(it->path().filename()).rfind(kReloadPrefix, 0) == 0) stale.push_back(it->path());
+    for (const fs::path& f : stale) { std::error_code rc; fs::remove(f, rc); }   // a mapped one stays on Windows
+}
+
 void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
     std::vector<Plugin*> loaded;
     for (auto& p : list)
@@ -504,13 +546,7 @@ void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRunt
     for (size_t i = 1; i < loaded.size(); ++i)         // insertion sort
         for (size_t j = i; j > 0 && before(loaded[j], loaded[j - 1]); --j) std::swap(loaded[j - 1], loaded[j]);
     for (Plugin* p : loaded) {
-        if (p->state != State::Loaded) continue;       // crashed while an earlier one unloaded
-        switch (p->manifest.kind) {
-            case Kind::Native:  UnloadCode(*p, &ops); break;
-            case Kind::Builtin: UnloadCode(*p, nullptr); break;
-            case Kind::Lua:     UnloadScript(*p, runtime); break;
-            case Kind::Data:    break;
-        }
+        UnloadOne(*p, ops, runtime);                   // no-op when it crashed while an earlier one unloaded
     }
 }
 

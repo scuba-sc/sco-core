@@ -17,7 +17,11 @@
 #include "sco/signatures.h"
 #include "sco/storage.h"
 #include "sco/ui.h"
+#include <cstdio>
+#include <system_error>
 #include <utility>
+
+namespace fs = std::filesystem;
 
 namespace sco::app {
 
@@ -27,11 +31,35 @@ bool                         g_started = false;
 Platform                     g_platform;
 std::vector<plugins::Plugin> g_list;     // never resized while ContainCallouts points at it
 plugins::ContentIndex        g_index;
+const sco_api*               g_api = nullptr;   // what Reload loads with
+plugins::Options             g_opts;
+bool                         g_reloading = false;
+bool                         g_reloadCommand = false;   // sco.reload is registered (once per process)
 
 // What a plugin's `requires` may name that is already there at discovery: a capability, or a
 // service the host or the game pack published (sco.storage, game.vehicles). Plugin services are
 // not: no plugin has loaded yet, so those are ordered instead (plugins::Discover).
 int HasCap(const char* name) { return caps::Has(name) || ServiceExists(name) ? 1 : 0; }
+
+// sco.reload <plugin>: the host command over Reload. Owned by the host, no capability, lives for the
+// process (the owner is never released); between Stop and the next Start it answers Unavailable.
+Result ReloadCommand(const Arg* args, uint32_t, void*, char* reply, uint32_t replySize) {
+    std::string why;
+    const Result r = Reload(args[0].v.s, &why);
+    const std::string text = r == Result::Ok ? std::string("reloaded ") + args[0].v.s : why;
+    std::snprintf(reply, replySize, "%s", text.c_str());
+    return r;
+}
+
+void RegisterReloadCommand() {
+    if (g_reloadCommand) return;
+    static const ArgDef arg{ "plugin", ArgType::String, "The plugin's id" };
+    const Command c{ "sco.reload", "Reload plugin", "Unloads one plugin and loads it again (native: from a fresh copy of its DLL; Lua: the script runs again)",
+                     nullptr, &arg, 1, ReloadCommand, nullptr };
+    const Result r = RegisterCommand(host::HostOwner(), nullptr, c);
+    if (r == Result::Ok) g_reloadCommand = true;
+    else Log("[app] sco.reload not registered: %s", ResultName(r));
+}
 
 // A plugin's handle, with its [settings] declared (and their kept values read) before its code runs.
 sco_plugin* NewSelf(const plugins::Plugin& p) {
@@ -116,7 +144,12 @@ bool Start(const Platform& platform) {
         const plugins::Plugin& b = list.back();
         if (b.state == plugins::State::Refused) Log("[plugin] refused %s: %s", b.folder.c_str(), b.reason.c_str());
     }
-    for (auto& p : found) list.push_back(std::move(p));
+    for (auto& p : found) {
+        if (p.manifest.kind == plugins::Kind::Native) plugins::RemoveReloadCopies(p);   // left by a run that died
+        list.push_back(std::move(p));
+    }
+    g_api = api;
+    g_opts = opts;
     g_list = std::move(list);
     g_index.Clear();
     plugins::ContainCallouts(&g_list);
@@ -137,6 +170,9 @@ bool Start(const Platform& platform) {
             continue;
         }
         if (p.manifest.kind == plugins::Kind::Native) {
+            std::string copyError;
+            if (pf.loadFromCopies && !plugins::CopyForReload(p, p.reloadCopy, copyError))
+                Log("[plugin] %s: %s; loading the original", p.manifest.id.c_str(), copyError.c_str());
             plugins::LoadNative(p, api, NewSelf(p), opts, pf.moduleOps);
         } else if (p.manifest.kind == plugins::Kind::Lua) {
             if (pf.scripts) {
@@ -149,6 +185,7 @@ bool Start(const Platform& platform) {
         }
     }
     g_index.Build(g_list);
+    RegisterReloadCommand();
 
     if (pf.image) LogSignatureReport(false);
     plugins::LogReport(g_list, pf.pluginsEnabled);
@@ -171,6 +208,8 @@ void Stop() {
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
     plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts);
+    for (auto& p : g_list)
+        if (p.manifest.kind == plugins::Kind::Native) { plugins::RemoveReloadCopies(p); p.reloadCopy.clear(); }
     settings::Stop();   // before storage: it reads and writes through it
     storage::Stop();
     net::Stop();   // leaves any session
@@ -186,6 +225,66 @@ void Stop() {
     host::WithdrawHostServices();
     plugins::ContainCallouts(nullptr);
     g_started = false;
+}
+
+Result Reload(std::string_view id, std::string* why) {
+    std::string note;
+    std::string& w = why ? *why : note;
+    w.clear();
+    if (!g_started) { w = "the host kit is not started"; return Result::Unavailable; }
+    if (!OnGameThread()) { w = "reload runs on the game thread only"; return Result::WrongThread; }
+    const std::string name(id);
+    if (g_reloading) { w = "busy: another reload is running"; return Result::Failed; }
+    plugins::Plugin* p = nullptr;
+    for (auto& q : g_list) if (q.folder == name) { p = &q; break; }
+    if (!p) { w = "no plugin '" + name + "'"; return Result::NotFound; }
+    if (p->manifest.kind == plugins::Kind::Builtin) { w = name + " is built in and cannot be reloaded"; return Result::BadArg; }
+    if (!p->manifestOk || p->manifest.kind == plugins::Kind::Data) { w = name + " has no code to reload"; return Result::BadArg; }
+    if (p->state != plugins::State::Loaded) { w = name + " is not loaded (" + plugins::StateName(p->state) + ")"; return Result::Failed; }
+    if (p->running) { w = "busy: a callout of " + name + " is running"; return Result::Failed; }
+    if (const std::string unmet = plugins::UnmetRequires(*p, g_list); !unmet.empty()) { w = unmet; return Result::Failed; }
+
+    const bool native = p->manifest.kind == plugins::Kind::Native;
+    fs::path copy;   // before anything changes: a failed copy leaves the plugin running
+    if (native && !plugins::CopyForReload(*p, copy, w)) return Result::Failed;
+
+    g_reloading = true;
+    const fs::path oldCopy = p->reloadCopy;
+    plugins::UnloadOne(*p, g_platform.moduleOps, g_platform.scripts);
+    Result result = Result::Failed;
+    if (p->state != plugins::State::Unloaded) {
+        w = "unload failed: " + p->reason;   // Crashed; its module stays mapped
+    } else {
+        std::error_code ec;
+        if (p->module) { p->pinned.push_back(p->module); p->module = nullptr; }   // kept mapped (M1): never reused
+        if (!oldCopy.empty()) fs::remove(oldCopy, ec);   // Windows keeps a mapped one; Start removes it later
+        p->reloadCopy = copy;
+        p->exports = {};
+        p->state = plugins::State::Ready;
+        p->reason.clear();
+        if (sco_plugin* self = NewSelf(*p)) {   // [settings] declared again, kept values read
+            const bool ok = native ? plugins::LoadNative(*p, g_api, self, g_opts, g_platform.moduleOps)
+                                   : g_platform.scripts && plugins::LoadScript(*p, g_api, self, *g_platform.scripts);
+            if (ok) {
+                result = Result::Ok;
+                Log("[app] reloaded %s", name.c_str());
+            } else {
+                w = p->state == plugins::State::Ready ? "no script runtime" : p->reason;
+                p->state = p->state == plugins::State::Ready ? plugins::State::Refused : p->state;
+            }
+        } else {
+            p->state = plugins::State::Unloaded;
+            w = "no plugin handles left (" + std::to_string(host::kMaxPlugins) + " per process, every load counts)";
+        }
+    }
+    if (result != Result::Ok && !p->module && !copy.empty()) {   // the copy was never mapped, or is closed
+        std::error_code ec;
+        fs::remove(copy, ec);
+        p->reloadCopy.clear();
+    }
+    g_reloading = false;
+    if (result != Result::Ok) Log("[app] reload %s failed: %s", name.c_str(), w.c_str());
+    return result;
 }
 
 const std::vector<plugins::Plugin>& Plugins() { return g_list; }
