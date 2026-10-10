@@ -85,6 +85,9 @@ constexpr size_t kMaxServiceNameLen = 63;
 Result ProvideService(const void* owner, const char* prefix, const char* name, uint32_t version,
                       const void* table);
 
+// True when a service by that name is published, whatever its version. Hands nothing out.
+bool ServiceExists(const char* name);
+
 // Finds a published service. Ok: *out = its table. NotFound: no service by that name.
 // Unavailable: its major version differs from minVersion's, or it is older than minVersion.
 // BadArg: null name or out. TooMany: out of memory (nothing handed out). *out is null unless Ok.
@@ -197,7 +200,7 @@ struct Command {
     void* ctx;
 };
 
-constexpr size_t   kMaxCommands = 512;    // registrations for the life of the process
+constexpr size_t   kMaxCommands = 512;    // live registrations; a released one frees its slot
 constexpr uint32_t kMaxCommandArgs = 16;
 constexpr uint32_t kReplySize = 256;
 // Longest copied strings, NUL excluded. Longer is BadArg.
@@ -216,13 +219,14 @@ constexpr const char* kReservedPrefixes[] = { "sco", "host", "menu", "game" };
 // broken, a string too long, a capability that isn't a capability name (lowercase letters,
 // digits and '_' segments joined by '.', as caps::Set requires), nargs > kMaxCommandArgs, an arg
 // def with a null name or unknown type, a live command with the same name, or owner released.
-// TooMany: kMaxCommands registrations used (released ones still count: slots never move), or
+// TooMany: kMaxCommands commands are live (Release(owner) frees its owner's slots for reuse), or
 // out of memory.
 Result RegisterCommand(const void* owner, const char* prefix, const Command& cmd);
 
 // Writes up to max live commands (registration order) to out; returns the number live.
-// Pointers and the strings they point at stay readable for the life of the process; a released
-// command drops out of later lists.
+// A pointer and its strings describe their command until Release(its owner): after that the
+// registry reuses the slot, so the memory stays mapped but may describe a later command. Copy
+// what you need, or keep only the name, before releasing the owner.
 size_t ListCommands(const Command** out, size_t max);
 
 // Answers a command's `capability`. Until a check is installed (sco::host::BuildApi installs
