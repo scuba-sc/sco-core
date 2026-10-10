@@ -194,3 +194,7 @@ Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua, which wait
 | Badge | 15 bytes |
 | Chord | 31 bytes normalized (63 as given) |
 | Hotkey arguments | 16, strings up to 255 bytes |
+
+## Developer reload
+
+There is no renderer change for it. A product that wants a "Reload" button next to a plugin's tab calls `sco::app::Reload(id, &why)` on the game thread (or invokes the host command `sco.reload <id>`, [API v1](api-v1.md#host-commands)) and redraws from the next `sco::app::Plugins()`: the plugin gets a new handle, so a tab, overlay, badge or hotkey it registered is released with the old one and registered again by the new instance. A hotkey a plugin bound to a command is released with it too. `Reload` refuses built-ins and answers `Failed` "busy" from inside the plugin's own callout ([Plugins: hot reload](plugins.md#hot-reload)).

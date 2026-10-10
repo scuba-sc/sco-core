@@ -292,6 +292,14 @@ Some services are published by the host itself rather than by a plugin. They liv
 
 The host side is `sco::host::ProvideHostService` ([API: sco/host.h](api.md#scohosth-the-hosts-sco_api-table)).
 
+### Host commands
+
+The host also registers commands of its own, under the reserved prefix `sco`, with no capability. A plugin runs one with `invoke` like any other and sees it in `list_commands`; `sco_api.h` does not change.
+
+| Command | Arguments | What |
+|---|---|---|
+| `sco.reload` | `plugin` (string): a plugin's id | Unloads the plugin and loads it again (a native from a fresh copy of its DLL, a Lua plugin by running its script again). The reply is `reloaded <id>`, or why not. `NOT_FOUND` for an unknown id, `BAD_ARG` for a built-in or a data pack, `UNAVAILABLE` before the host kit starts, `FAILED` for anything else, including **busy**: a command that reloads its own plugin is refused because its code is on the stack. Everything the plugin registered goes away and is registered again by the new instance, so don't keep a service table or a command pointer across a reload. [Plugins: hot reload](plugins.md#hot-reload) |
+
 ## Built-in services
 
 Services a product's built-in plugins publish, under the built-in's id. Their headers ship with the SDK; the product, not sco-core, implements them, so on another host `query_service` answers `SCO_NOT_FOUND`.

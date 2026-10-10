@@ -101,6 +101,13 @@ struct Plugin {
                                                   // left it mapped: see UnloadNative); null for a builtin
     sco_plugin*   self = nullptr;                 // the owner handle the host passed to load
     NativeExports exports;
+    // Hot reload (sco::app::Reload). reloadCopy: the file LoadNative maps instead of <dir>/<entry>
+    // (empty: the original). pinned: modules of earlier loads that stayed mapped because a service
+    // table was handed out; a fault in one is still blamed on this plugin. running: callouts of
+    // this plugin on the stack now (CallPlugin); a reload is refused while it is not 0.
+    fs::path          reloadCopy;
+    std::vector<void*> pinned;
+    uint32_t          running = 0;
     uint32_t      loadOrder = 0;                  // 1-based among loaded natives, builtins and scripts; 0 = never
     // Ids of the plugins this one must load after: the built-ins and discovered plugins its `requires`
     // name, directly or through one of their services ("<id>.<name>"). Set by Discover (Ready
@@ -189,6 +196,14 @@ uint32_t  Guarded(void (*thunk)(void* ctx), void* ctx);
 bool LoadNative(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts,
                 const ModuleOps& ops = PlatformModuleOps());
 
+// Hot reload helpers (sco::app::Reload; the load itself is LoadNative / LoadScript again).
+// CopyForReload copies a native's entry file to <dir>/.reload-<n>-<entry> (next to the original, so
+// its dependencies still resolve from the plugin folder) and sets `copy`; false with `error` set
+// and `copy` untouched when it can't. Set Plugin::reloadCopy to it before LoadNative. RemoveReloadCopies
+// deletes every .reload-* file in p.dir that it can (Windows keeps a mapped one: a later call gets it).
+bool CopyForReload(const Plugin& p, fs::path& copy, std::string& error);
+void RemoveReloadCopies(const Plugin& p);
+
 // Calls into a loaded plugin's code (an event callback, a command, a task, a done callback):
 // the runtime guard ContainCallouts installs routes every callout of a Loaded plugin through
 // this. Skips the call and returns false unless p is Loaded; runs thunk(ctx) under Guarded(); on
@@ -276,6 +291,11 @@ constexpr size_t kMaxScriptBytes = 1024 * 1024;   // entry script size
 // Loaded (true), or Refused with everything self registered released ("cannot read main.lua",
 // "script too big", "main.lua:3: ..." from the runtime). A fault in the runtime: Crashed.
 bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRuntime& runtime);
+
+// Unloads one Loaded plugin of any kind the way UnloadAll does (natives: UnloadNative; built-ins:
+// without a module; scripts: Release then runtime.unload). No-op unless Loaded. The state is
+// Unloaded afterwards, or Crashed when unload() faulted or Release failed.
+void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const ScriptRuntime* runtime = nullptr);
 
 // Unloads every Loaded plugin, last loaded first, built-ins after every other plugin (they are
 // the host's own features, which other plugins may still call while unloading): natives as
