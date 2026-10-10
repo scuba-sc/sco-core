@@ -220,6 +220,9 @@ namespace Sco.Sdk.Tests
         private static ScoResult EntDespawn(void* self, ulong id) => self == _self && id == 88 ? ScoResult.Ok : ScoResult.NotFound;
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult EntKeep(void* self, ulong id) => self == _self && id == 89 ? ScoResult.Ok : ScoResult.NotFound;
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult EntWatch(void* self, uint what, byte* type, delegate* unmanaged[Cdecl]<void*, uint, ulong, byte*, void> fn, void* ctx, ulong* id)
         {
             string t = S(type);
@@ -439,6 +442,7 @@ namespace Sco.Sdk.Tests
             _entities->unwatch = &EntUnwatch;
             _entities->query_radius = &EntQuery;
             _entities->last_error = &EntLastError;
+            _entities->keep = &EntKeep;
             _actors->health = &ActHealth;
             _actors->state = &ActState;
             _world = (ScWorldV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScWorldV1));
@@ -533,6 +537,7 @@ namespace Sco.Sdk.Tests
             Expect(ent.Spawn("DRAK_Cutlass_Black", 9, ePos, eRot, out ulong eId) == ScoResult.Ok && eId == 88, "Entities.Spawn");
             Expect(ent.Spawn("DRAK_Cutlass_Black", 9, new double[] { 1, 2 }, eRot, out eId) == ScoResult.BadArg && eId == 0, "Spawn wants 3 and 4 doubles");
             Expect(ent.Despawn(88) == ScoResult.Ok && ent.Despawn(89) == ScoResult.NotFound, "Entities.Despawn");
+            Expect(ent.Keep(89) == ScoResult.Ok && ent.Keep(88) == ScoResult.NotFound, "Entities.Keep (1.1)");
             Expect(ent.Watch(GameAbi.EntityStreamedIn, "AEGS_*", &WatchFn, _self, out _watchId) == ScoResult.Ok && _watchId == 3 && _watchHits == 1,
                    "Entities.Watch calls fn(ctx, what, id, class)");
             Expect(ent.Watch(GameAbi.EntityStreamedIn, "*", &WatchFn, _self, out ulong badWatch) == ScoResult.BadArg && badWatch == 0, "Watch refuses a lone '*'");

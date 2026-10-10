@@ -133,6 +133,7 @@ namespace Sco.Sdk.Tests
             ["SC_WORLD_HIT_FLAG_FORCE32"] = (long)ScWorldHitFlag.Force32,
             ["SC_ACTORS_MAX_NPCS"] = GameAbi.ActorsMaxNpcs,
             ["SC_ENTITIES_VERSION_1_0"] = GameAbi.EntitiesVersion1_0,
+            ["SC_ENTITIES_VERSION_1_1"] = GameAbi.EntitiesVersion1_1,
             ["SC_ENTITIES_MAX_OWNED"] = GameAbi.EntitiesMaxOwned,
             ["SC_ENTITIES_MAX_WATCHES"] = GameAbi.EntitiesMaxWatches,
             ["SC_ENTITIES_MAX_TYPE_LEN"] = GameAbi.EntitiesMaxTypeLen,

@@ -1,4 +1,4 @@
-// Entities.cs: the game pack's service "game.entities" 1.0 (sc_entities.h): ask about any entity,
+// Entities.cs: the game pack's service "game.entities" 1.1 (sc_entities.h): ask about any entity,
 // spawn and despawn entities of your own anywhere, move what you may move, and watch entities
 // stream in and out. Sco.Sdk.Game holds the game pack's services (docs/game-services.md).
 //
@@ -14,6 +14,7 @@ namespace Sco.Sdk.Game
     {
         public const string EntitiesName = "game.entities";      // SC_ENTITIES_NAME
         public const uint EntitiesVersion1_0 = 0x00010000u;     // SC_ENTITIES_VERSION_1_0
+        public const uint EntitiesVersion1_1 = 0x00010001u;     // SC_ENTITIES_VERSION_1_1 (+ keep)
         public const uint EntitiesMaxOwned = 1024u;             // SC_ENTITIES_MAX_OWNED
         public const uint EntitiesMaxWatches = 64u;             // SC_ENTITIES_MAX_WATCHES
         public const uint EntitiesMaxTypeLen = 63u;             // SC_ENTITIES_MAX_TYPE_LEN
@@ -21,7 +22,7 @@ namespace Sco.Sdk.Game
         public const uint EntityStreamedOut = 2u;               // SC_ENTITY_STREAMED_OUT
     }
 
-    /// <summary>sc_entities_v1, the table of the game service "game.entities": 88 bytes.</summary>
+    /// <summary>sc_entities_v1, the table of the game service "game.entities": 96 bytes (1.0 is the first 88).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct ScEntitiesV1
     {
@@ -37,6 +38,7 @@ namespace Sco.Sdk.Game
         public delegate* unmanaged[Cdecl]<void*, ulong, ScoResult> unwatch;
         public delegate* unmanaged[Cdecl]<ulong, double*, double, byte*, ulong*, uint, uint*, uint*, ScoResult> query_radius;
         public delegate* unmanaged[Cdecl]<void*, byte*, uint*, ScoResult> last_error;
+        public delegate* unmanaged[Cdecl]<void*, ulong, ScoResult> keep;   // 1.1
     }
 
     /// <summary>
@@ -44,7 +46,7 @@ namespace Sco.Sdk.Game
     /// pack: Open answers NotFound on a host without it. Game thread only (a command, a tick or a
     /// RunOnGameThread task); from another thread every call answers WrongThread. An entity you
     /// spawn is yours: only you may despawn it, and the host removes it, and ends your watches,
-    /// when your plugin unloads or crashes. Ids are the game's session handles, never keys to
+    /// when your plugin unloads or crashes, unless you Keep (1.1) the entity. Ids are the game's session handles, never keys to
     /// store. Positions are teleport.spatial's: metres in a zone's local frame, rotations
     /// x, y, z, w. Capabilities: game.entities.transform, .spawn, .class_of, .query_radius and
     /// .watch; the last two stay off until an in-game check has confirmed them.
@@ -56,7 +58,7 @@ namespace Sco.Sdk.Game
 
         public bool IsOpen => _t != null;
 
-        /// <summary>Queries game.entities 1.0. NotFound without the game pack's services;
+        /// <summary>Queries game.entities 1.0 (a 1.1 table answers it too; Keep checks the size). NotFound without the game pack's services;
         /// Unavailable on a 1.0 host.</summary>
         public ScoResult Open(Plugin plugin)
         {
@@ -133,6 +135,12 @@ namespace Sco.Sdk.Game
         /// <summary>Removes an entity this plugin spawned; it leaves the world within a few seconds.</summary>
         public ScoResult Despawn(ulong id) => _t == null ? ScoResult.Unavailable : _t->despawn(Self, id);
 
+        /// <summary>1.1. Releases this plugin's ownership of an entity it spawned: it stays in the world
+        /// when the plugin unloads or crashes, and SetTransform and Despawn refuse it from now on.
+        /// Unavailable on a 1.0 table; NotFound: not an entity this plugin spawned and still owns.</summary>
+        public ScoResult Keep(ulong id) =>
+            _t == null || !new ServiceRef<ScEntitiesV1>(_t).Covers(88) ? ScoResult.Unavailable : _t->keep(Self, id);
+
         /// <summary>Calls fn(ctx, what, id, className) on the game thread for every entity of
         /// <paramref name="type"/> (a class name, or "PREFIX*") that streams in or out (what:
         /// GameAbi.EntityStreamedIn, EntityStreamedOut or both ORed), until Unwatch or until this
@@ -173,8 +181,8 @@ namespace Sco.Sdk.Game
             return r;
         }
 
-        /// <summary>The reason for this plugin's last failed SetTransform, Spawn, Despawn, Watch or
-        /// Unwatch ("" if none).</summary>
+        /// <summary>The reason for this plugin's last failed SetTransform, Spawn, Despawn, Keep, Watch
+        /// or Unwatch ("" if none).</summary>
         public string LastError() => Error((nint)Self);
 
         /// <summary>The reason for the last failed ClassOf, GetTransform or QueryRadius, which take no

@@ -667,6 +667,13 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
         CHECK(ge->set_transform(me, 1, 2, pos, rot) == SCO_UNAVAILABLE);
         CHECK(ge->spawn(me, "Human_NPC", 1, pos, rot, &id) == SCO_UNAVAILABLE && id == 0);
         CHECK(ge->despawn(me, 1) == SCO_UNAVAILABLE);
+        // 1.1: the table is published as 1.1 (a 1.0 query still gets it) and keep is in it; no spawn capability, so it is unavailable.
+        const void* table11 = nullptr;
+        CHECK(api->query_service(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_1, &table11) == SCO_OK && table11 == table);
+        CHECK(ge->size > offsetof(sc_entities_v1, keep));
+        CHECK(ge->keep(me, 1) == SCO_UNAVAILABLE);
+        n = sizeof(buf);
+        CHECK(ge->last_error(me, buf, &n) == SCO_OK && std::strstr(buf, "keep: game.entities.spawn isn't available"));
         CHECK(ge->watch(me, SC_ENTITY_STREAMED_IN, "AEGS_*", [](void*, uint32_t, uint64_t, const char*) {}, nullptr, &watchId) ==
                   SCO_UNAVAILABLE &&
               watchId == 0);
@@ -677,7 +684,8 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
         CHECK(ge->query_radius(1, nullptr, 100.0, nullptr, &id, 1, &found, &more) == SCO_BAD_ARG);
         sco_plugin* stranger = reinterpret_cast<sco_plugin*>(&table);
         CHECK(ge->spawn(stranger, "Human_NPC", 1, pos, rot, &id) == SCO_BAD_ARG);
-        CHECK(ge->set_transform(stranger, 1, 2, pos, rot) == SCO_BAD_ARG && ge->despawn(stranger, 1) == SCO_BAD_ARG);
+        CHECK(ge->set_transform(stranger, 1, 2, pos, rot) == SCO_BAD_ARG && ge->despawn(stranger, 1) == SCO_BAD_ARG &&
+              ge->keep(stranger, 1) == SCO_BAD_ARG);
         CHECK(ge->watch(stranger, SC_ENTITY_STREAMED_IN, "AEGS_*", nullptr, nullptr, &watchId) == SCO_BAD_ARG);
         sco_result off = SCO_OK;
         int offAlive = 1;

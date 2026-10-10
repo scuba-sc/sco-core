@@ -314,13 +314,14 @@ namespace Sco.Sdk.Tests
             ("tests/abi_game_events.c", "AT(sc_game_vehicle_seat, vehicle_entity_id, 8);"),
             ("tests/abi_game_entities.c", "PIN(sizeof(void*) == 8);"),
             ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_VERSION_1_0 == 0x00010000u);"),
+            ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_VERSION_1_1 == 0x00010001u);"),
             ("tests/abi_game_entities.c", "PIN(sizeof(SC_ENTITIES_NAME) == 14); /* \"game.entities\" */"),
             ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_MAX_OWNED == 1024u);"),
             ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_MAX_WATCHES == 64u);"),
             ("tests/abi_game_entities.c", "PIN(SC_ENTITIES_MAX_TYPE_LEN == 63u);"),
             ("tests/abi_game_entities.c", "PIN(SC_ENTITY_STREAMED_IN == 1u);"),
             ("tests/abi_game_entities.c", "PIN(SC_ENTITY_STREAMED_OUT == 2u);"),
-            ("tests/abi_game_entities.c", "SIZE(sc_entities_v1, 88);"),
+            ("tests/abi_game_entities.c", "SIZE(sc_entities_v1, 96);"),
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, size, 0);"),
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, _pad, 4);"),
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, alive, 8);"),
@@ -333,6 +334,7 @@ namespace Sco.Sdk.Tests
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, unwatch, 64);"),
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, query_radius, 72);"),
             ("tests/abi_game_entities.c", "AT(sc_entities_v1, last_error, 80);"),
+            ("tests/abi_game_entities.c", "AT(sc_entities_v1, keep, 88);"),
         };
     }
 }
