@@ -9,6 +9,7 @@
 #include "spawn.h"
 #include "actors.h"
 #include "vehicles.h"
+#include "entities.h"
 #include "world.h"
 #include "events.h"
 #include "sco/engine/zone.h"
@@ -16,6 +17,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include <sc_actors.h>
+#include <sc_entities.h>
 #include <sc_spatial.h>
 #include <sc_spawn.h>
 #include <sc_vehicles.h>
@@ -272,7 +274,7 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
-    r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
+    r = StartEntities();
     if (r != Result::Ok) {
         StopEvents();
         StopWorld();
@@ -282,15 +284,27 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
+    if (r != Result::Ok) {
+        StopEntities();
+        StopEvents();
+        StopWorld();
+        StopVehicles();
+        StopActors();
+        StopSpawn();
+        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
     g_started = true;
-    Log("[game] game services published: %s 1.0, %s 1.2, %s 1.1, %s 1.0, %s 1.0 (+ the game.* events)", SC_SPATIAL_SERVICE_NAME,
-        SC_SPAWN_SERVICE_NAME, SC_ACTORS_NAME, SC_VEHICLES_SERVICE_NAME, SC_WORLD_NAME);
+    Log("[game] game services published: %s 1.0, %s 1.2, %s 1.1, %s 1.0, %s 1.0, %s 1.0 (+ the game.* events)", SC_SPATIAL_SERVICE_NAME,
+        SC_SPAWN_SERVICE_NAME, SC_ACTORS_NAME, SC_VEHICLES_SERVICE_NAME, SC_WORLD_NAME, SC_ENTITIES_NAME);
     return Result::Ok;
 }
 
 void Stop() {
     if (!g_started) return;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
+    StopEntities();
     StopEvents();
     StopWorld();
     StopVehicles();
