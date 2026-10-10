@@ -1,5 +1,5 @@
 /*
- * abi_game_entities.c: pins the layout of sc_entities.h (the game pack's service "game.entities", 1.0).
+ * abi_game_entities.c: pins the layout of sc_entities.h (the game pack's service "game.entities", 1.0, 1.1).
  *
  * Compile-only, like abi_v1.c: if anything here fails, the service table changed and every
  * plugin built against the old header would break. Version 1 only grows at the end of
@@ -27,6 +27,7 @@ PIN(sizeof(void*) == 8);
 
 /* ---- name, version, limits, event bits ---- */
 PIN(SC_ENTITIES_VERSION_1_0 == 0x00010000u);
+PIN(SC_ENTITIES_VERSION_1_1 == 0x00010001u);
 PIN(sizeof(SC_ENTITIES_NAME) == 14); /* "game.entities" */
 PIN(SC_ENTITIES_MAX_OWNED == 1024u);
 PIN(SC_ENTITIES_MAX_WATCHES == 64u);
@@ -34,8 +35,8 @@ PIN(SC_ENTITIES_MAX_TYPE_LEN == 63u);
 PIN(SC_ENTITY_STREAMED_IN == 1u);
 PIN(SC_ENTITY_STREAMED_OUT == 2u);
 
-/* ---- sc_entities_v1 ---- */
-SIZE(sc_entities_v1, 88);
+/* ---- sc_entities_v1: 1.0 is the first 88 bytes, 1.1 appends keep ---- */
+SIZE(sc_entities_v1, 96);
 AT(sc_entities_v1, size, 0);
 AT(sc_entities_v1, _pad, 4);
 AT(sc_entities_v1, alive, 8);
@@ -48,6 +49,7 @@ AT(sc_entities_v1, watch, 56);
 AT(sc_entities_v1, unwatch, 64);
 AT(sc_entities_v1, query_radius, 72);
 AT(sc_entities_v1, last_error, 80);
+AT(sc_entities_v1, keep, 88);
 
 /* ---- signatures: a changed parameter list fails to convert ---- */
 static void pin_entities_signatures(const sc_entities_v1* e) {
@@ -61,9 +63,10 @@ static void pin_entities_signatures(const sc_entities_v1* e) {
     sco_result (*unwatch)(sco_plugin*, uint64_t) = e->unwatch;
     sco_result (*query_radius)(uint64_t, const double*, double, const char*, uint64_t*, uint32_t, uint32_t*, uint32_t*) = e->query_radius;
     sco_result (*last_error)(sco_plugin*, char*, uint32_t*) = e->last_error;
+    sco_result (*keep)(sco_plugin*, uint64_t) = e->keep;
     void (*fn)(void*, uint32_t, uint64_t, const char*) = (sc_entity_watch_fn)0;
     (void)alive; (void)class_of; (void)get_transform; (void)set_transform; (void)spawn; (void)despawn;
-    (void)watch; (void)unwatch; (void)query_radius; (void)last_error; (void)fn;
+    (void)watch; (void)unwatch; (void)query_radius; (void)last_error; (void)keep; (void)fn;
 }
 
 /* Keeps the pins referenced so -Wunused does not fire. */

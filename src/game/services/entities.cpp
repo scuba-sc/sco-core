@@ -1,4 +1,4 @@
-// game.entities 1.0 (sc_entities.h) from the game pack. New in this service: the entity class name
+// game.entities 1.1 (sc_entities.h) from the game pack. New in this service: the entity class name
 // and id reads, query_radius, and the streamed_in / streamed_out watch (docs/design/game-world-spikes.md
 // B3 and B9). The rest reuses what the game pack has: the spawner and the mover (spawn.cpp), the
 // removal game.actors uses for its NPCs (actors.cpp), the teleport.* reads (reads.h) and
@@ -8,7 +8,9 @@
 // Ownership (decision 6): every entity a plugin spawns here is recorded with its handle.
 // spawn.cpp's release hook (one sco::AddReleaseHook for all three services) calls
 // ReleaseEntitiesOwner when the plugin unloads or crashes: its entities are removed like a
-// despawn and its watches end.
+// despawn and its watches end. 1.1's keep takes an entity out of that list without removing it: a
+// kept entity has no owner, so neither the release hook nor StopEntities touches it, and
+// despawn / set_transform refuse it like any entity the caller doesn't own.
 //
 // Two capabilities stay off until the maintainer's in-game run (sco::game::entities::
 // kQueryRadiusConfirmed, kWatchConfirmed): the spike found where the game's entity walk and its
@@ -846,6 +848,25 @@ sco_result SvcDespawn(sco_plugin* self, uint64_t id) {
                 static_cast<unsigned long long>(id));
 }
 
+// 1.1: the caller gives up an entity it spawned here; the entity stays in the world. Same rules as
+// despawn (game thread, list only touched here), without the removal.
+sco_result SvcKeep(sco_plugin* self, uint64_t id) {
+    const void* who = LivePlugin(self) ? self : nullptr;
+    if (!OnGameThread()) return Fail(who, Result::WrongThread, "keep: game thread only");
+    if (!who) return Fail(nullptr, Result::BadArg, "keep: self is not a loaded plugin's handle");
+    if (!g_started || !g_canSpawn) return Unavailable(self, "keep", kCapSpawn, g_whySpawn);
+    if (!id) return Fail(self, Result::BadArg, "keep: id 0");
+    for (size_t i = 0; i < g_owned.size(); ++i) {
+        if (g_owned[i].owner != self || g_owned[i].id != id) continue;
+        g_owned[i] = g_owned.back();
+        g_owned.pop_back();
+        Log("[game] game.entities: %s kept %llu: it stays when the plugin unloads", host::PluginId(self), static_cast<unsigned long long>(id));
+        return SCO_OK;
+    }
+    return Fail(self, Result::NotFound, "keep: %llu is not an entity this plugin spawned with game.entities and still owns (kept or despawned already?)",
+                static_cast<unsigned long long>(id));
+}
+
 sco_result SvcWatch(sco_plugin* self, uint32_t what, const char* type, sc_entity_watch_fn fn, void* ctx, uint64_t* outId) {
     if (outId) *outId = 0;
     const void* who = LivePlugin(self) ? self : nullptr;
@@ -975,6 +996,7 @@ sco_result SvcLastError(sco_plugin* self, char* out, uint32_t* inoutSize) {
 const sc_entities_v1 kEntities = {
     sizeof(sc_entities_v1), 0,        SvcAlive, SvcClassOf, SvcGetTransform, SvcSetTransform,
     SvcSpawn,               SvcDespawn, SvcWatch, SvcUnwatch, SvcQueryRadius,  SvcLastError,
+    SvcKeep,
 };
 
 void LogCap(const char* cap, bool ready, const char* why) {
@@ -1006,7 +1028,7 @@ Result StartEntities() {
         std::lock_guard<std::mutex> hold(g_collectLock);
         g_collected.reserve(kMaxCollect);
     }
-    Result r = host::ProvideGameService(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, &kEntities);
+    Result r = host::ProvideGameService(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_1, &kEntities);
     if (r == Result::Ok) {
         r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
         if (r != Result::Ok) host::WithdrawGameService(SC_ENTITIES_NAME);

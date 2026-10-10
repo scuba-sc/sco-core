@@ -12,6 +12,8 @@
  * The version is the query_service argument, never a field: query_service answers SCO_UNAVAILABLE
  * when the published table is older than the version asked for. A later 1.x minor only appends
  * functions; check size before calling one: ent->size > offsetof(sc_entities_v1, <function>).
+ * 1.1 appends keep (the table is 96 bytes; a 1.0 caller asked for 1.0 and never reads past
+ * last_error). Check ent->size > offsetof(sc_entities_v1, keep) before calling keep.
  *
  * Rules (docs/design/game-services.md):
  *  - Game thread only (a command, a tick or a run_on_game_thread task). From another thread every
@@ -25,6 +27,13 @@
  *  - Moving: set_transform moves entities you spawned (here, with spawn.entities' spawn_as, or as
  *    an NPC with game.actors) and the player's own vehicles, which sc-offline registers once
  *    they are retrieved or delivered (any plugin may move those). Nothing else.
+ *  - Keeping (1.1): keep gives up your ownership of an entity you spawned here, so that it stays
+ *    in the world when your plugin unloads or crashes (a build mode's props must outlive a
+ *    reload of the build plugin). A kept entity is nobody's: the host never despawns it, and
+ *    despawn and set_transform by anyone are refused like any entity the caller doesn't own.
+ *    Removing it is then the product's business (a plugin may still remove it by other means,
+ *    for example sc-offline's own entity removal). It stops counting against
+ *    SC_ENTITIES_MAX_OWNED.
  *  - Ids are the game's 64-bit entity ids: session handles that name something only while it is
  *    streamed in, never keys to store. Store the class name instead.
  *  - Nothing is allocated across the boundary; text and ids come back through caller buffers.
@@ -50,6 +59,7 @@ extern "C" {
 
 #define SC_ENTITIES_NAME        "game.entities"
 #define SC_ENTITIES_VERSION_1_0 0x00010000u
+#define SC_ENTITIES_VERSION_1_1 0x00010001u /* + keep */
 
 /* Entities spawned through game.entities and not yet despawned, all plugins together. */
 #define SC_ENTITIES_MAX_OWNED 1024u
@@ -142,6 +152,14 @@ typedef struct sc_entities_v1 {
      * self NULL: the last failure of a call made without a plugin handle (alive's neighbours:
      * class_of, get_transform, query_radius). Any thread. */
     sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);
+    /* 1.1. Releases your ownership of an entity you spawned here (see Keeping above): the host no
+     * longer despawns it when your plugin unloads or crashes, and set_transform and despawn by
+     * you are refused from now on, as for any entity you don't own. The entity itself is
+     * untouched. SCO_OK, once. SCO_BAD_ARG: a null or released self, id 0. SCO_NOT_FOUND: not an
+     * entity you spawned here and still own (kept or despawned already, or spawned another way),
+     * with a reason for last_error. SCO_UNAVAILABLE: no "game.entities.spawn". Call it right
+     * after spawn succeeds: the id is final at once, the entity needn't have streamed in. */
+    sco_result (*keep)(sco_plugin* self, uint64_t entity_id);
 } sc_entities_v1;
 
 #ifdef __cplusplus

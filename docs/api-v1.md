@@ -477,7 +477,7 @@ api->subscribe(self, SC_GAME_EVENT_PLAYER_DIED, on_died, NULL);
 
 ### `game.entities` 1.0 (game pack)
 
-[`sc_entities.h`](../include/sc_entities.h), pinned by [`tests/abi_game_entities.c`](../tests/abi_game_entities.c) (88 bytes): ask about any entity, spawn and despawn entities of your own anywhere, move what you may move, and watch entities stream in and out. The game pack publishes it under the owner `game` before any plugin loads (when the product sets `Platform::gameServices`; [game services](game-services.md)). Positions are `teleport.spatial`'s: metres as doubles in a zone's local frame, rotations `x, y, z, w`.
+[`sc_entities.h`](../include/sc_entities.h), pinned by [`tests/abi_game_entities.c`](../tests/abi_game_entities.c) (96 bytes; 1.0 was the first 88): ask about any entity, spawn and despawn entities of your own anywhere, move what you may move, and watch entities stream in and out. The game pack publishes it under the owner `game` before any plugin loads (when the product sets `Platform::gameServices`; [game services](game-services.md)). Positions are `teleport.spatial`'s: metres as doubles in a zone's local frame, rotations `x, y, z, w`.
 
 | Capability | Functions | Rows (besides the `teleport.*` reads) |
 |---|---|---|
@@ -488,6 +488,8 @@ api->subscribe(self, SC_GAME_EVENT_PLAYER_DIED, on_died, NULL);
 | `game.entities.watch` | `watch`, `unwatch` | `entities.spawn_sinks`, `.delete_entity`, `.class_site`; **off until the in-game check (B9)** |
 
 A function whose capability isn't ready answers `SCO_UNAVAILABLE`, and `last_error` says why.
+
+**1.1** (`SC_ENTITIES_VERSION_1_1`, `0x00010001`) appends `keep` at the end of the table (offset 88; `tests/abi_game_entities.c` pins every offset): a 1.0 caller asked for 1.0, still gets the table, and never reads past `last_error`. Check `ent->size > offsetof(sc_entities_v1, keep)` before calling `keep` against a host that may only have 1.0. `keep` is the one way an entity outlives its spawner (build-mode props).
 
 | Function | What |
 |---|---|
@@ -501,6 +503,7 @@ A function whose capability isn't ready answers `SCO_UNAVAILABLE`, and `last_err
 | `unwatch(self, watch_id)` | Ends a watch (from inside its callback too) |
 | `query_radius(zone, pos, radius, class_filter, ids, max, &count, &more)` | Ids of streamed-in entities within `radius` metres of `pos` in the zone's frame, optionally of one class or prefix |
 | `last_error(self, out, &size)` | The reason for `self`'s last failure (`self` `NULL`: the last read failure: `class_of`, `get_transform`, `query_radius`), with the size handshake. Any thread |
+| `keep(self, id)` (1.1) | Releases your ownership of an entity you spawned here: it stays when you unload or crash, and `set_transform` and `despawn` by you are refused afterwards, as for any entity you don't own. It stops counting against the 1024. `SCO_NOT_FOUND` (a reason for `last_error`): not an entity you spawned here and still own (kept or despawned already). Call it right after `spawn` succeeds; the entity needn't have streamed in. `SCO_UNAVAILABLE` without `game.entities.spawn` |
 
 ```c
 const sc_entities_v1* ent = NULL;

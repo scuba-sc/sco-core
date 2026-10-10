@@ -7,7 +7,7 @@
 
 namespace sco::game::services {
 
-// Publishes game.entities 1.0, sets its capabilities and subscribes its tick (the watch events and
+// Publishes game.entities 1.1, sets its capabilities and subscribes its tick (the watch events and
 // the diagnostics). BadArg when the name is taken; nothing is left published then.
 Result StartEntities();
 // Removes every entity still owned (a plugin whose release failed), removes the stream hooks and
@@ -15,7 +15,8 @@ Result StartEntities();
 void   StopEntities();
 
 // spawn.cpp's release hook: owner unloaded or crashed, so every entity it spawned through
-// game.entities leaves the world (decision 6), its watches end and its last error is forgotten.
+// game.entities and still owns leaves the world (decision 6; 1.1's keep releases an entity from this,
+// and a kept one stays), its watches end and its last error is forgotten.
 // Game thread; may run inside one of the owner's own watch callbacks.
 void ReleaseEntitiesOwner(const void* owner);
 

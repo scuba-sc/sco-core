@@ -15,7 +15,7 @@
 //
 // Game thread only, like the table. Every call answers sco_result and is noexcept. The service is
 // host-owned, so an open Entities may be kept for the plugin's life. The entities a plugin spawns
-// are its own, and its watches end, when it unloads or crashes. Capabilities:
+// are its own, and its watches end, when it unloads or crashes (Keep, 1.1, lets an entity outlive that). Capabilities:
 // has("game.entities.transform"), has("game.entities.spawn"), has("game.entities.class_of"),
 // has("game.entities.query_radius") and has("game.entities.watch"); the last two stay off until
 // an in-game check has confirmed them. Reference: docs/game-services.md, docs/sdk-cpp.md.
@@ -94,6 +94,13 @@ public:
     }
     // Removes an entity this plugin spawned (it leaves the world within a few seconds).
     sco_result Despawn(uint64_t id) const noexcept { return t_ ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }
+    // 1.1. Releases this plugin's ownership of an entity it spawned: it stays in the world when the
+    // plugin unloads or crashes, and SetTransform and Despawn refuse it from now on. SCO_UNAVAILABLE
+    // on a 1.0 table; SCO_NOT_FOUND: not an entity this plugin spawned and still owns.
+    sco_result Keep(uint64_t id) const noexcept {
+        if (!t_ || !Covers(t_->size, offsetof(sc_entities_v1, keep))) return SCO_UNAVAILABLE;
+        return t_->keep(self_, id);
+    }
 
     // Calls fn(ctx, what, id, class) on the game thread for every entity of `type` (a class name,
     // or "PREFIX*") that streams in or out (what: SC_ENTITY_STREAMED_IN, SC_ENTITY_STREAMED_OUT or
@@ -115,7 +122,7 @@ public:
         return t_ ? t_->query_radius(zoneId, pos, radius, classFilter, ids, max, &count, &more) : SCO_UNAVAILABLE;
     }
 
-    // The reason for this plugin's last failed SetTransform, Spawn, Despawn, Watch or Unwatch.
+    // The reason for this plugin's last failed SetTransform, Spawn, Despawn, Keep, Watch or Unwatch.
     std::string LastError() const noexcept { return Error(self_); }
     // The reason for the last failed ClassOf, GetTransform or QueryRadius (they take no plugin handle).
     std::string LastReadError() const noexcept { return Error(nullptr); }

@@ -11,4 +11,4 @@ The addresses `game.entities` uses, from Appendix B of [game world spikes](../de
 | `entities.spawn_sinks` | `CEntitySystem::CallOnSpawnSinks`: its label's `lea` (count 1) at +0x17 of `FunctionStart` | the prologue, the sink list at +0x70, the sink call at +0xF0 |
 | `entities.delete_entity` | `CEntitySystem::DeleteEntity`: both of its labels (count 1 each, +0x6C and +0x16B) lead to the same `FunctionStart` | the prologue, +0x26, the handle mask at +0xBB |
 
-Capability groups (`sco::game::entities::Capabilities`): `entities.class_name` (class_of), `entities.enumerate` (query_radius), `entities.stream_hooks` (watch). What the rows can't pin, and the constants that stay `false` until an in-game run: [game services](../game-services.md).
+Capability groups (`sco::game::entities::Capabilities`): `entities.class_name` (class_of), `entities.enumerate` (query_radius), `entities.stream_hooks` (watch). `keep` (1.1) reads no game memory and needs no row of its own: it is the `game.entities.spawn` capability's, like `despawn`. What the rows can't pin, and the constants that stay `false` until an in-game run: [game services](../game-services.md).

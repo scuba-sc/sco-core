@@ -699,7 +699,8 @@ static sco_result FakeWorldLastError(sco_plugin*, char* out, uint32_t* io) {
 
 static void TestGameEntities() {
     static const sc_entities_v1 kFake = { sizeof(sc_entities_v1), 0, FakeEntAlive, FakeEntClassOf, FakeEntGet, FakeEntSet,
-                                          FakeEntSpawn, FakeEntDespawn, FakeEntWatch, FakeEntUnwatch, FakeEntQuery, FakeEntLastError };
+                                          FakeEntSpawn, FakeEntDespawn, FakeEntWatch, FakeEntUnwatch, FakeEntQuery, FakeEntLastError,
+                                          nullptr /* keep: Lua is read-only */ };
     CHECK(sco::host::ProvideGameService(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, &kFake) == Result::Ok);
     Write("gaent", R"(
 local e = assert(sco.game and sco.game.entities, "sco.game.entities")
