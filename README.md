@@ -9,12 +9,12 @@ sco-core is the engine abstraction layer and mod framework under [sc-offline](ht
 It gives mod authors:
 
 - **One stable ABI, several languages.** [`sco_api.h`](include/sco_api.h) is the contract. Write a plugin in C, in C++20 with [`scosdk/`](docs/sdk-cpp.md), in C# with [`Sco.Sdk`](docs/sdk-csharp.md) (published with NativeAOT, so players need no .NET), in sandboxed [Lua](sdk/docs/lua.md), or as a [data pack](sdk/docs/data-packs.md) with no code at all.
-- **Host services.** Per-plugin [storage](docs/storage.md) (`sco.storage`: key-value and SQL over SQLite), [UI](docs/ui.md) (`sco.ui`: menu tabs, overlays, hotkeys bound to commands), [typed settings](docs/plugins.md#typed-settings-settings) (`sco.settings`: a `[settings]` section in `plugin.ini` becomes values the player edits in the plugin's menu page and the plugin reads) and [game-data patches](docs/datacore.md) (`sco.datacore`: DataCore overrides and new records that survive game patches). Plugins also provide services and raw handlers to each other.
-- **Game services.** The Star Citizen game pack publishes services under the owner `game` ([game services](docs/game-services.md)): today `teleport.spatial` 1.0 and `spawn.entities` 1.2, moved from sc-offline, `game.actors` 1.1 (your player, NPCs a plugin spawns and despawns, removed when it unloads, and an actor's health), `game.vehicles` 1.0 (ship seats, seating your own actors and NPCs, Flight Ready), `game.world` 1.0 (ray casts and the camera), `game.creative` 1.0 (your player's god mode, fly and infinite ammo, switched off when the plugin unloads) and `game.entities` 1.1 (any entity's class and transform, spawning and despawning entities anywhere, all removed when the plugin unloads unless it `keep`s them; the type-filtered `watch` of entities streaming in and out and `query_radius` are in the table but stay off until an in-game check), plus the `game.player.spawned`, `game.player.died` and `game.zone.changed` events on the event bus, with C++, C# and read-only Lua wrappers. The game pack also holds internal helpers such as `sco::game::missions::ScriptLibrary`, the mission script library lookup sc-offline calls. The game pack has its own version line (`SCO_GAME_PACK_VERSION` in `sc_game_pack.h`, tags `game-sc-vX.Y`) and a list of the game builds it was verified on ([game pack](docs/game-pack.md)).
+- **Host services.** Per-plugin [storage](docs/storage.md) (`sco.storage`: key-value and SQL over SQLite), [UI](docs/ui.md) (`sco.ui`: menu tabs, overlays, hotkeys bound to commands), [typed settings](docs/plugins.md#typed-settings-settings) (`sco.settings`: a `[settings]` section in `plugin.ini` becomes values the player edits in the plugin's menu page and the plugin reads) and [game-data patches](docs/datacore.md) (`sco.datacore`: DataCore overrides and new records that survive game patches), and, for bridges and multiplayer, [local IPC](docs/ipc.md) (`sco.ipc`: shared-memory channels to a bridge on the same PC) and [session messages](docs/net.md) (`sco.net`: typed channels between the players of a private session the product opened). Plugins also provide services and raw handlers to each other.
+- **Game services.** The Star Citizen game pack publishes services under the owner `game` ([game services](docs/game-services.md)): `teleport.spatial` 1.0 and `spawn.entities` 1.2 (moved from sc-offline), `game.actors` 1.1 (your player, NPCs a plugin spawns and despawns, removed when it unloads, and an actor's health), `game.vehicles` 1.0 (ship seats, seating your own actors and NPCs, Flight Ready), `game.world` 1.0 (ray casts and the camera's position and rotation; no field of view) and `game.entities` 1.1 (any entity's class and transform, spawning and despawning entities anywhere, all removed when the plugin unloads unless it `keep`s them), plus the `game.player.spawned`, `game.player.died` and `game.zone.changed` events on the event bus and the `game.mining` capability (the biome builder's cell function, for sc-offline's mining). C++, C# and read-only Lua wrappers. **Not yet verified in game:** the rows resolve on 4.10.196.36804, but no service has run in a game session since it landed, and `game.entities.watch`, `game.entities.query_radius`, `game.events.vehicle_seat` and `game.actors.state` are off until an in-game check: [status of every game.* table](docs/game/status.md). The game pack also holds internal helpers such as `sco::game::missions::ScriptLibrary`. It has its own version line (`SCO_GAME_PACK_VERSION` in `sc_game_pack.h`, 0.2.0, tags `game-sc-vX.Y`) and a list of the game builds it was verified on ([game pack](docs/game-pack.md)). `game.creative` 1.0 gives your own player god mode, fly and infinite ammo, each behind its own capability (`game.creative.*`).
 - **A crash-contained runtime.** Commands, events and game-thread tasks are owned by the plugin that made them; a plugin that faults is unloaded, and everything it registered goes with it. A fault inside a service call is blamed on the provider whose code faulted, not on its caller, and a provider whose service table was handed out is never unmapped ([design](docs/design/service-safety.md)).
 - **Hot reload.** `sco::app::Reload(id)` and the host command `sco.reload <plugin>` unload one plugin and load it again while the game runs: a native from a fresh copy of its DLL (so the original can be rebuilt), a Lua plugin by running its script again, everything it registered replaced and what it spawned despawned ([plugins](docs/plugins.md#hot-reload)).
 
-> **Release: `sdk-v1.1.0`.** The plugin ABI is version 1.1 and stable: version 1 only grows at the end of structs, so a plugin built against this SDK keeps loading in every later 1.x host. The C++ headers in `include/sco/` are the host-side API for products (sc-offline) and are not part of the plugin ABI. What changed: [CHANGELOG](CHANGELOG.md). Where it goes next: [Framework plan](docs/framework.md).
+> **SDK 1.2.0** (`sdk/VERSION`, tag `sdk-v1.2.0`, game pack 0.2.0; the tag is the maintainer's to push, and until then the latest published release is `sdk-v1.1.0`). The plugin ABI is version 1.1 and stable, and `sco_api.h` is unchanged since sdk-v1.1.0: version 1 only grows at the end of structs, so a plugin built against this SDK keeps loading in every later 1.x host. The zip's `VERSIONS.txt` states the kernel, ABI and game-pack versions and the verified game build (4.10.196.36804: rows verified by sigcheck; in-game verification pending). The C++ headers in `include/sco/` are the host-side API for products (sc-offline) and are not part of the plugin ABI. What changed: [CHANGELOG](CHANGELOG.md), [release notes](docs/releases/sdk-v1.2.0.md). History and decisions: [Framework plan](docs/framework.md).
 
 ## How it fits together
 
@@ -22,8 +22,10 @@ It gives mod authors:
  plugins     C / C++20 (scosdk) / C# (Sco.Sdk, NativeAOT)   Lua (sco-lua sandbox)   data packs
                         |                                         |                    |
  ABI         ---------- sco_api.h 1.1: plain C, versioned, size-prefixed ----------------
-                        |              service tables: sco_storage.h, sco_ui.h, sco_settings.h, sco_datacore.h
- services    sco.storage (SQLite)   sco.ui (tabs, overlays, hotkeys)   sco.datacore (patches)
+                        |              service tables: sco_*.h (host) and sc_*.h (game pack)
+ game pack   game.* services (owner "game"): actors, vehicles, world, entities, events;
+             teleport.spatial, spawn.entities; signature rows (SCO_GAME_SC)
+ services    sco.storage   sco.ui   sco.settings   sco.ipc   sco.net   sco.datacore (patches)
              plugin-provided services, raw handlers
  host kit    sco/app.h      Start / Tick / Stop, built-in plugins, host-owned services
  host        sco/host.h     the sco_api table, per-plugin handles     sco/caps.h  capabilities
@@ -43,7 +45,7 @@ A plugin only ever sees `sco_api.h` and the service headers. Everything it adds 
 
 ### Write a plugin
 
-Download `sco-sdk-1.1.0.zip` from the [release](https://github.com/scubamount/sco-core/releases/tag/sdk-v1.1.0), or build it from this repository (`python3 sdk/package.py`). It holds the headers, a template, a CMake helper, two checkers and these examples:
+Download `sco-sdk-<version>.zip` from the [releases](https://github.com/scubamount/sco-core/releases) (the first is `sdk-v1.1.0`; this tree builds 1.2.0), or build it from this repository (`python3 sdk/package.py`). It holds the headers, a template, a CMake helper, two checkers and these examples:
 
 | Example | Language | Shows |
 |---|---|---|
@@ -56,7 +58,7 @@ Download `sco-sdk-1.1.0.zip` from the [release](https://github.com/scubamount/sc
 | `quantum_pack` | Data | DataCore overrides in `.toml` |
 
 ```sh
-cd sco-sdk-1.1.0
+cd sco-sdk-<version>
 cmake -S . -B build && cmake --build build && cmake --install build --prefix out
 out/bin/sco-plugin-check out/data/plugins/hello --invoke hello.wave "Pilot One"
 ```
@@ -102,13 +104,14 @@ On patch day these say what still resolves and which data packs still apply, bef
 | Path | What |
 |---|---|
 | [`include/sco_api.h`](include/sco_api.h) | The plugin ABI: the one header every native plugin includes |
-| `include/sco_storage.h`, `sco_ui.h`, `sco_settings.h`, `sco_datacore.h` | The host services' tables, each pinned by its own `tests/abi_*.c` |
+| `include/sco_storage.h`, `sco_ui.h`, `sco_settings.h`, `sco_datacore.h`, `sco_ipc.h`, `sco_net.h` | The host services' tables, each pinned by its own `tests/abi_*.c` |
+| `include/sc_*.h` | The game pack's service tables and events (`sc_spatial.h`, `sc_spawn.h`, `sc_actors.h`, `sc_vehicles.h`, `sc_world.h`, `sc_entities.h`, `sc_game_events.h`), its version (`sc_game_pack.h`) and the MIT wires and bridge layouts (`sc_ipc.h`, `sc_net.h`, `sc_titanlink.h`, `sc_voxel_bridge.h`) |
 | [`include/scosdk/`](docs/sdk-cpp.md) | The C++20 SDK layer (header-only) |
 | [`sdk/csharp/`](docs/sdk-csharp.md) | The C# SDK layer (`Sco.Sdk`, .NET 8, no package references) |
 | [`plugins/lua/`](plugins/lua/README.md) | sco-lua: Lua 5.4.8 (vendored, MIT) in a sandbox, built only on `sco_api.h` |
 | [`sdk/`](sdk/README.md) | The SDK: template, examples, CMake helper, checkers, packaging (`sdk/VERSION`) |
 | [`include/sco/`](docs/api.md) | The host-side C++ API for products: host kit, runtime, hooks, engine math, vfs, DataCore, game tables |
-| `src/` | The core, the runtime (`api/`), the host table (`host/`), the host kit (`app/`), the loader (`plugins/`), services (`storage/`, `ui/`, `datacore/`), `hook/`, `engine/`, `vfs/`, game tables (`game/`) |
+| `src/` | The core, the runtime (`api/`), the host table (`host/`), the host kit (`app/`), the loader (`plugins/`), services (`storage/`, `ui/`, `settings/`, `ipc/`, `net/`, `datacore/`), `hook/`, `engine/`, `vfs/`, game tables and game services (`game/`, `game/services/`) |
 | `third_party/` | SQLite (public domain) and toml++ (MIT), vendored and untouched |
 | `tests/` | Unit tests, the ABI pins (`abi_*.c`) and fixtures |
 | `tools/` | `test.sh`, `sco-sigcheck`, `sco-host-sim`, `sco-dcb` |
@@ -123,7 +126,8 @@ Only the image reader, the loader's and crash guard's Windows halves and the det
 | [Docs index](docs/README.md) | Every document, by audience |
 | [Plugin API v1](docs/api-v1.md) | `sco_api.h`: every function, struct and rule of the ABI |
 | [C++ SDK](docs/sdk-cpp.md), [C# SDK](docs/sdk-csharp.md), [Lua](sdk/docs/lua.md), [Data packs](sdk/docs/data-packs.md) | Writing a plugin in each language |
-| [Storage](docs/storage.md), [UI](docs/ui.md), [DataCore](docs/datacore.md) | The host services |
+| [Storage](docs/storage.md), [UI](docs/ui.md), [DataCore](docs/datacore.md), [IPC](docs/ipc.md), [Multiplayer messages](docs/net.md) | The host services |
+| [Game services](docs/game-services.md), [Status of every game.* table](docs/game/status.md), [Game pack](docs/game-pack.md) | The Star Citizen game pack: services, what is on and how far it has been checked, versions and verified builds |
 | [Plugins](docs/plugins.md) | Discovery, `plugin.ini`, the loader and crash containment |
 | [How it works](docs/architecture.md) | Signature rows, startup, threading, the runtime, limits |
 | [C++ API reference](docs/api.md) | Every function and type in `include/sco/` |
@@ -137,7 +141,7 @@ A product (sc-offline today) builds sco-core into its own DLL (`add_subdirectory
 
 ## Scope
 
-sco-core is for an offline mod: the game never connects to Cloud Imperium Games' servers. It finds addresses and reports on them, and gives plugins a bounded way to use the game. Two kinds of connection are allowed, both planned and not shipped yet: local IPC with other processes on the same PC (bridges to other games), and private co-presence between sc-offline players over a LAN or VPN through `sco.net` (design: [PR #37](https://github.com/scubamount/sco-core/pull/37)). Online play, cheating, getting around anti-cheat and the other bans in the [plugin rules](sdk/docs/plugin-rules.md) are out of scope for good, as in [sc-offline](https://github.com/scubamount/sc-offline/blob/main/CONTRIBUTING.md#what-fits-this-project) and the [plugin rules](sdk/docs/plugin-rules.md).
+sco-core is for an offline mod: the game never connects to Cloud Imperium Games' servers. It finds addresses and reports on them, and gives plugins a bounded way to use the game. Two kinds of connection are allowed, both through host services: local IPC with other processes on the same PC (bridges to other games; `sco.ipc` 1.0), and private co-presence between sc-offline players over a LAN or VPN (`sco.net` 1.0, the message channels; opening a session is the product's; the co-presence built on it belongs to the product: [design](docs/design/multiplayer.md)). Online play, cheating, getting around anti-cheat and the other bans in the [plugin rules](sdk/docs/plugin-rules.md) are out of scope for good, as in [sc-offline](https://github.com/scubamount/sc-offline/blob/main/CONTRIBUTING.md#what-fits-this-project) and the [plugin rules](sdk/docs/plugin-rules.md).
 
 ## License
 

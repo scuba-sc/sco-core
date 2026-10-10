@@ -18,7 +18,7 @@ Plugins are native DLLs and run with the game's full rights. Only install plugin
 - [Capabilities](#capabilities)
 - [Services (1.1)](#services-11)
 - [Host-owned services](#host-owned-services)
-- [Built-in services](#built-in-services)
+- [Game pack services](#game-pack-services)
 - [Raw handlers (1.1)](#raw-handlers-11)
 - [Threading](#threading)
 - [Compatibility](#compatibility)
@@ -285,7 +285,7 @@ Some services are published by the host itself rather than by a plugin. They liv
 | Service | Version | Header | What |
 |---|---|---|---|
 | `sco.storage` | 1.0 | [`sco_storage.h`](../include/sco_storage.h) | Per-plugin persistent storage: key-value and SQL over SQLite, in the plugin's own database. [Storage](storage.md) |
-| `sco.datacore` | 1.0 | [`sco_datacore.h`](../include/sco_datacore.h) | DataCore overrides from code: the operations of a data pack's `.toml` files, queued call by call; after the game's DataCore load they are saved and apply from the next launch. Published only when the product enables it (`sco::app::Platform::dataCore`; sc-offline will in design plan PR 8). [The sco.datacore service](datacore.md#the-scodatacore-service) |
+| `sco.datacore` | 1.1 | [`sco_datacore.h`](../include/sco_datacore.h) | DataCore overrides from code: the operations of a data pack's `.toml` files, queued call by call (`add_record` needs 1.1); after the game's DataCore load they are saved and apply from the next launch. A game-pack service published under `sco` only when the product enables it (`sco::app::Platform::dataCore`). [The sco.datacore service](datacore.md#the-scodatacore-service) |
 | `sco.ipc` | 1.0 | [`sco_ipc.h`](../include/sco_ipc.h) | Local shared-memory channels to another program on the same PC (a bridge): `Local\SCO_<plugin id>.<name>`, the current user only, rings and seqlock blocks laid out with the MIT wire [`sc_ipc.h`](../include/sc_ipc.h), which the other program includes alone. [IPC](ipc.md) |
 | `sco.net` | 1.0 | [`sco_net.h`](../include/sco_net.h) | Typed message channels between the players of a private session the product opened (`<plugin id>.<name>`, unreliable or reliable, per-plugin send quotas); callbacks on the game thread, `net.state` / `net.peer` events. Published with the capability `sco.net` (`requires = sco.net`); plugins can't open or join sessions. [Multiplayer messages](net.md) |
 | `sco.settings` | 1.0 | [`sco_settings.h`](../include/sco_settings.h) | The typed `[settings]` of the plugin's `plugin.ini`, read-only: `get_bool` / `get_int` / `get_float` / `get_string`, and the event `settings.changed`. [Below](#scosettings-10), [plugin.ini](plugins.md#typed-settings-settings) |
@@ -330,9 +330,19 @@ The host also registers commands of its own, under the reserved prefix `sco`, wi
 |---|---|---|
 | `sco.reload` | `plugin` (string): a plugin's id | Unloads the plugin and loads it again (a native from a fresh copy of its DLL, a Lua plugin by running its script again). The reply is `reloaded <id>`, or why not. `NOT_FOUND` for an unknown id, `BAD_ARG` for a built-in or a data pack, `UNAVAILABLE` before the host kit starts, `FAILED` for anything else, including **busy**: a command that reloads its own plugin is refused because its code is on the stack. Everything the plugin registered goes away and is registered again by the new instance, so don't keep a service table or a command pointer across a reload. [Plugins: hot reload](plugins.md#hot-reload) |
 
-## Built-in services
+## Game pack services
 
-Services a product's built-in plugins publish, under the built-in's id. Their headers ship with the SDK; the product, not sco-core, implements them, so on another host `query_service` answers `SCO_NOT_FOUND`.
+Services the Star Citizen game pack publishes under the reserved owner `game` (`sco::host::ProvideGameService`, when the product sets `Platform::gameServices`; [game services](game-services.md)). Their headers ship with the SDK and sco-core implements them in the game pack (`SCO_GAME_SC`), so on a host without the game pack, or on a game build whose rows don't resolve, `query_service` answers `SCO_NOT_FOUND` or a function answers `SCO_UNAVAILABLE`. **None of them has run in a game session since it landed:** [status of every game.* table](game/status.md) says per capability what is on and how far it has been checked.
+
+| Service | Version | Header | Pin | Capabilities |
+|---|---|---|---|---|
+| `teleport.spatial` | 1.0 | [`sc_spatial.h`](../include/sc_spatial.h) | `abi_spatial.c` | the product's `teleport` |
+| `spawn.entities` | 1.2 | [`sc_spawn.h`](../include/sc_spawn.h) | `abi_spawn.c` | the product's `spawn.ship` |
+| `game.actors` | 1.1 | [`sc_actors.h`](../include/sc_actors.h) | `abi_game_actors.c` | `game.actors.local_player`, `.spawn_npc`, `.despawn`, `.health`, `.state` (off) |
+| `game.vehicles` | 1.0 | [`sc_vehicles.h`](../include/sc_vehicles.h) | `abi_game_vehicles.c` | `game.vehicles.seats`, `.seat`, `.flight_ready` |
+| `game.world` | 1.0 | [`sc_world.h`](../include/sc_world.h) | `abi_game_world.c` | `game.world.raycast`, `.camera` |
+| `game.entities` | 1.1 | [`sc_entities.h`](../include/sc_entities.h) | `abi_game_entities.c` | `game.entities.transform`, `.spawn`, `.class_of`, `.query_radius` (off), `.watch` (off) |
+| `game.*` events | bus | [`sc_game_events.h`](../include/sc_game_events.h) | `abi_game_events.c` | `game.events.player_spawned`, `.player_died`, `.zone_changed`, `.vehicle_seat` (off) |
 
 ### `teleport.spatial` 1.0 (game pack)
 
@@ -380,9 +390,9 @@ To also run on an older sc-offline, ask for `0x00010000` and check `sp->size > o
 | `set_entity_transform(self, id, zone_id, pos[3], rot[4])` | 1.2 | Moves and turns an entity to `pos` / `rot` (unit quaternion, x y z w) in zone `zone_id`'s frame, 0 = the world; the entity stays in its zone. 1 on success, 0 on failure |
 | `spawn_as(self, class, offset[3], &id)` | 1.2 | `spawn_near_player`, recorded as the calling plugin's (`self` as `sco_plugin_load` received it) |
 
-`set_entity_transform` moves only an entity spawned through `spawn_as` with the same `self` while that plugin is loaded (unloading forgets them; `spawn_near_player` and the `spawn.ship` command count for nobody), or the player's own vehicle once the product has registered it as retrieved or delivered by ATC (`sco::game::services::RegisterPlayerVehicle`; no build does yet). Anything else answers 0. A spawn's id is final at once, but the entity streams in seconds later (up to a minute for a big ship), and until then `set_entity_transform` answers 0: check `entity_alive(id)` first, and try again on a later tick. The game pack logs why a call answered 0 (`[game] warning: set_entity_transform(<id>) -> 0: <reason>`), once per id and reason.
+`set_entity_transform` moves only an entity spawned through `spawn_as` with the same `self` while that plugin is loaded (unloading forgets them; `spawn_near_player` and the `spawn.ship` command count for nobody), or the player's own vehicle once the product has registered it as retrieved or delivered by ATC (`sco::game::services::RegisterPlayerVehicle`; sc-offline's change to do so merged on 2026-10-10, sc-offline #95). Anything else answers 0. A spawn's id is final at once, but the entity streams in seconds later (up to a minute for a big ship), and until then `set_entity_transform` answers 0: check `entity_alive(id)` first, and try again on a later tick. The game pack logs why a call answered 0 (`[game] warning: set_entity_transform(<id>) -> 0: <reason>`), once per id and reason.
 
-### `game.actors` 1.0 (game pack)
+### `game.actors` 1.1 (game pack)
 
 [`sc_actors.h`](../include/sc_actors.h), pinned by [`tests/abi_game_actors.c`](../tests/abi_game_actors.c): your player, and NPCs a plugin spawns and despawns. The game pack publishes it under the owner `game` next to `spawn.entities` (when the product sets `Platform::gameServices`; [game services](game-services.md)). Each function has a capability set from its rows at start: `game.actors.local_player`, `game.actors.spawn_npc`, `game.actors.despawn`; a function whose capability isn't ready answers `SCO_UNAVAILABLE`. Frames, units and ids are `teleport.spatial`'s; ids are session handles, never keys to store.
 
@@ -507,7 +517,7 @@ static void on_died(const char* event, const void* data, void* ctx) {
 api->subscribe(self, SC_GAME_EVENT_PLAYER_DIED, on_died, NULL);
 ```
 
-### `game.entities` 1.0 (game pack)
+### `game.entities` 1.1 (game pack)
 
 [`sc_entities.h`](../include/sc_entities.h), pinned by [`tests/abi_game_entities.c`](../tests/abi_game_entities.c) (96 bytes; 1.0 was the first 88): ask about any entity, spawn and despawn entities of your own anywhere, move what you may move, and watch entities stream in and out. The game pack publishes it under the owner `game` before any plugin loads (when the product sets `Platform::gameServices`; [game services](game-services.md)). Positions are `teleport.spatial`'s: metres as doubles in a zone's local frame, rotations `x, y, z, w`.
 

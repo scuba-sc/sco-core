@@ -168,9 +168,9 @@ Every workflow pins its actions to commit SHAs and has `contents: read` permissi
 
 ## Releases
 
-The SDK is released as `sco-sdk-<version>.zip` under a tag `sdk-v<version>` (`sdk-v1.1.0` was the first). The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
+The SDK is released as `sco-sdk-<version>.zip` under a tag `sdk-v<version>` (`sdk-v1.1.0` was the first; `sdk-v1.2.0` is prepared, and the tag is the maintainer's to push). The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
 
-1. Set `sdk/VERSION`, and rename `## Unreleased` in [CHANGELOG.md](../CHANGELOG.md) to `## sdk-v<version> (<date>)` with a short summary on top. Merge it with `test`, `cmake` and `sdk` green.
+1. Set `sdk/VERSION` (and `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` if the game pack's public surface grew, with its verified build there; `sdk/package.py` writes the kernel, ABI and game-pack versions and the verified builds into the zip's `VERSIONS.txt`), draft the release notes in `docs/releases/sdk-v<version>.md`, and rename `## Unreleased` in [CHANGELOG.md](../CHANGELOG.md) to `## sdk-v<version> (<date>)` with a short summary on top. Merge it with `test`, `cmake` and `sdk` green.
 2. Tag that commit on `main` and push the tag: `git tag sdk-v<version> && git push origin sdk-v<version>`.
 3. The [`release`](../.github/workflows/release.yml) workflow refuses a tag that doesn't match `sdk/VERSION` or has no `CHANGELOG` section, packages and checks the zip, and publishes the release with the zip, `sco-sdk-<version>.zip.sha256` and the `CHANGELOG` section as notes.
 

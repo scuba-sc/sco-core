@@ -2,7 +2,7 @@
 
 A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`) and its scripts. sc-offline's bundled `sco-lua` runtime runs the entry script once at load, in a sandbox. The script registers commands and subscribes to events; those callbacks run on the game thread.
 
-> **Version 1.1** (`sdk-v1.1.0`). This page matches the `sco-lua` runtime in sco-core (`plugins/lua/`), whose tests run [`examples/greeter`](../examples/greeter) and [`examples/notebook`](../examples/notebook). Version 1 only grows.
+> **SDK 1.2.0** (plugin ABI 1.1; `sdk-v1.2.0`). This page matches the `sco-lua` runtime in sco-core (`plugins/lua/`), whose tests run [`examples/greeter`](../examples/greeter) and [`examples/notebook`](../examples/notebook). Version 1 only grows.
 
 ## The sandbox
 
@@ -184,7 +184,7 @@ On failure it returns `nil, err, message` (`err` as for `sco.store`: `"unavailab
 
 ## `sco.game.entities`
 
-Present only when the Star Citizen game pack publishes [`game.entities`](../../docs/api-v1.md#gameentities-10-game-pack) (check `if sco.game and sco.game.entities then`); `lua-check.lua` has no stand-in for it. Read-only: a Lua plugin owns no entities, so there is no spawn, despawn, move or watch.
+Present only when the Star Citizen game pack publishes [`game.entities`](../../docs/api-v1.md#gameentities-11-game-pack) (check `if sco.game and sco.game.entities then`); `lua-check.lua` has no stand-in for it. Read-only: a Lua plugin owns no entities, so there is no spawn, despawn, move or watch.
 
 | Function | Returns |
 |---|---|
