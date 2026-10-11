@@ -367,7 +367,7 @@ for f in "$LUA_SRC"/*.c "$ROOT/plugins/lua/sco_lua.c" "$ROOT/plugins/lua/sco_lua
   "$CC" -std=c11 -O1 -g "${W[@]}" -fsanitize=address,undefined -I "$ROOT/include" -I "$LUA_SRC" -c "$f" -o "$o"
   LUA_OBJS+=("$o")
 done
-"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_lua.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" \
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -isystem "$LUA_SRC" "$ROOT/tests/test_lua.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" \
   "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" \
   "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}" "$ROOT/src/storage/storage.cpp" "$SQLITE_ASAN" \
   "${LUA_OBJS[@]}" -ldl -lm -o "$OUT/test_lua"
