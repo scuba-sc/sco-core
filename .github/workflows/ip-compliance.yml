@@ -29,29 +29,30 @@ jobs:
       - name: Install reuse and the SPDX validator
         run: python3 -m pip install --no-cache-dir "reuse[charset-normalizer]==6.2.0" "spdx-tools==0.8.3"
 
-      - name: Repository audit (Gates 1, 2, 4)
-        run: |
-          mkdir -p evidence
-          python3 tools/ip_audit.py repo --report evidence/repo-audit.json
-
+      # Before anything is written into the checkout: reuse lint reads every file in it.
       - name: REUSE specification
         run: reuse lint
+
+      - name: Repository audit (Gates 1, 2, 4)
+        run: |
+          mkdir -p "$RUNNER_TEMP/evidence"
+          python3 tools/ip_audit.py repo --report "$RUNNER_TEMP/evidence/repo-audit.json"
 
       - name: Package every profile twice; the bytes must match (Gate 6)
         run: |
           for p in core game-sc legacy; do
-            python3 sdk/package.py --profile $p --out dist-a
-            python3 sdk/package.py --profile $p --out dist-b
+            python3 sdk/package.py --profile $p --out "$RUNNER_TEMP/dist-a"
+            python3 sdk/package.py --profile $p --out "$RUNNER_TEMP/dist-b"
           done
-          (cd dist-a && sha256sum *.zip) > evidence/SHA256SUMS
-          (cd dist-b && sha256sum *.zip) | diff - evidence/SHA256SUMS
+          (cd "$RUNNER_TEMP/dist-a" && sha256sum *.zip) > $RUNNER_TEMP/evidence/SHA256SUMS
+          (cd "$RUNNER_TEMP/dist-b" && sha256sum *.zip) | diff - $RUNNER_TEMP/evidence/SHA256SUMS
 
       - name: Audit each zip and write its SBOM (Gates 3, 5, 6)
         run: |
-          python3 tools/ip_audit.py zip dist-a/sco-sdk-core-*.zip --profile core --sbom evidence/sco-sdk-core.spdx.json --report evidence/core-audit.json
-          python3 tools/ip_audit.py zip dist-a/sco-sdk-game-sc-*.zip --profile game-sc --sbom evidence/sco-sdk-game-sc.spdx.json --report evidence/game-sc-audit.json
-          python3 tools/ip_audit.py zip dist-a/sco-sdk-[0-9]*.zip --profile legacy --sbom evidence/sco-sdk-legacy.spdx.json --report evidence/legacy-audit.json
-          for s in evidence/*.spdx.json; do pyspdxtools -i "$s"; done
+          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-core-*.zip --profile core --sbom $RUNNER_TEMP/evidence/sco-sdk-core.spdx.json --report $RUNNER_TEMP/evidence/core-audit.json
+          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-game-sc-*.zip --profile game-sc --sbom $RUNNER_TEMP/evidence/sco-sdk-game-sc.spdx.json --report $RUNNER_TEMP/evidence/game-sc-audit.json
+          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-[0-9]*.zip --profile legacy --sbom $RUNNER_TEMP/evidence/sco-sdk-legacy.spdx.json --report $RUNNER_TEMP/evidence/legacy-audit.json
+          for s in $RUNNER_TEMP/evidence/*.spdx.json; do pyspdxtools -i "$s"; done
 
       - name: Negative tests (Gate 7)
         run: python3 tools/test_ip_audit.py
@@ -60,6 +61,6 @@ jobs:
         if: always()
         with:
           name: ip-compliance-evidence
-          path: evidence/
+          path: ${{ runner.temp }}/evidence/
           if-no-files-found: error
           retention-days: 90
