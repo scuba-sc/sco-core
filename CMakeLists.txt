@@ -282,13 +282,26 @@ if(UNIX)
   target_link_libraries(sco_lua_vendor PUBLIC m)
 endif()
 
-# sco-lua: the sandboxed runtime for kind = lua plugins.
+# sco-lua: the sandboxed runtime for kind = lua plugins. Game-neutral: sco_lua.c includes only
+# sco_api.h, the generic host services and Lua. Its optional adapters (plugins/lua/sco_lua_ext.h)
+# are separate targets a host links and registers.
 add_library(sco_lua STATIC plugins/lua/sco_lua.c)
 target_include_directories(sco_lua PUBLIC "${SCO_INCLUDE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/plugins/lua")
 target_link_libraries(sco_lua PUBLIC sco_lua_vendor)
 sco_project_target(sco_lua)
 if(NOT MSVC)
   target_compile_options(sco_lua PRIVATE -Wpedantic)
+endif()
+
+# The Star Citizen adapter: sco.datacore, the read-only sco.game.* tables and the game.* event
+# payloads. A host registers it: sco_lua_add_extension(&sco_lua_game_extension).
+if(SCO_GAME_SC)
+  add_library(sco_lua_game STATIC plugins/lua/sco_lua_game.c)
+  target_link_libraries(sco_lua_game PUBLIC sco_lua)
+  sco_project_target(sco_lua_game)
+  if(NOT MSVC)
+    target_compile_options(sco_lua_game PRIVATE -Wpedantic)
+  endif()
 endif()
 
 # ---- tools ------------------------------------------------------------------------------------
@@ -303,7 +316,7 @@ endif()
 add_executable(sco-host-sim tools/sco-host-sim.cpp)
 target_link_libraries(sco-host-sim PRIVATE sco_app sco_lua)
 if(SCO_GAME_SC)
-  target_link_libraries(sco-host-sim PRIVATE sco_datacore)   # the pack lint
+  target_link_libraries(sco-host-sim PRIVATE sco_datacore sco_lua_game)   # the pack lint; sco.game for scripts
 endif()
 sco_project_target(sco-host-sim)
 
@@ -809,7 +822,7 @@ if(SCO_BUILD_TESTS)
   add_executable(test_lua tests/test_lua.cpp)
   target_link_libraries(test_lua PRIVATE sco_plugins sco_host sco_lua sco_ui sco_storage sco_settings)
   if(SCO_GAME_SC)
-    target_link_libraries(test_lua PRIVATE sco_datacore_service)   # TestDataCore
+    target_link_libraries(test_lua PRIVATE sco_datacore_service sco_lua_game)   # TestDataCore, the sco.game tests
   endif()
   sco_project_target(test_lua)
   add_test(NAME test_lua COMMAND test_lua "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}")
@@ -817,6 +830,9 @@ if(SCO_BUILD_TESTS)
   # The host kit with built-ins, two fake plugins, greeter and travel_pack.
   add_executable(test_app tests/test_app.cpp)
   target_link_libraries(test_app PRIVATE sco_app sco_lua)
+  if(SCO_GAME_SC)
+    target_link_libraries(test_app PRIVATE sco_lua_game)
+  endif()
   add_dependencies(test_app ${_fake_targets})
   sco_project_target(test_app)
   add_test(NAME test_app COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}")

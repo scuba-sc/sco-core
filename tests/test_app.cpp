@@ -8,6 +8,7 @@
 #include "sco/app.h"
 #ifndef SCO_KERNEL_ONLY
 #include "sco/game/signatures.h"
+#include "sco_lua_game.h"
 #endif
 #include "sco/caps.h"
 #include "sco/host.h"
@@ -1090,6 +1091,9 @@ int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_app <sdk dir> <out dir>\n"); return 2; }
     sco::SetLogSink(Sink);
     sco::SetGameThread();   // Start sets it too; the loader tests below need it either way
+#ifndef SCO_KERNEL_ONLY
+    sco_lua_add_extension(&sco_lua_game_extension);   // as the product does, before scripts load
+#endif
 #ifndef _WIN32
     P::SetCallGuard(SignalGuard);
 #endif

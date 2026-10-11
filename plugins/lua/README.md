@@ -1,8 +1,10 @@
 # sco-lua
 
 The Lua runtime for `kind = lua` plugins: Lua 5.4.8 in a sandbox, talking to the host only
-through the plain-C plugin API ([`include/sco_api.h`](../../include/sco_api.h)). It includes no
-other sco-core header, so it is also the proof that a plugin can do everything through that table.
+through the plain-C plugin API ([`include/sco_api.h`](../../include/sco_api.h)). `sco_lua.c` is
+game-neutral: besides `sco_api.h` it includes only the generic host services (`sco_storage.h`,
+`sco_settings.h`, `sco_ui.h`), so it is also the proof that a plugin can do everything through that
+table. Game-specific tables come from an optional adapter the host registers (below).
 
 What a script sees and how to write one: [`sdk/docs/lua.md`](../../sdk/docs/lua.md).
 
@@ -12,6 +14,8 @@ What a script sees and how to write one: [`sdk/docs/lua.md`](../../sdk/docs/lua.
 |---|---|
 | `sco_lua.h` / `sco_lua.c` | Load and unload a script, the `sco` table, the sandbox and the limits |
 | `sco_lua_user.h` | `SCO_LUA_STEP`, included by the vendored `luaconf.h` |
+| `sco_lua_ext.h` | The private extension interface: how an adapter adds tables to `sco` and event payloads. Not part of the plugin SDK |
+| `sco_lua_game.h` / `sco_lua_game.c` | The Star Citizen adapter: `sco.datacore`, the read-only `sco.game.*` tables and the `game.*` event payloads. Built only with the game pack (`SCO_GAME_SC`, CMake target `sco_lua_game`) |
 | `third_party/lua/` | Lua 5.4.8 sources (MIT, [`LICENSE`](third_party/lua/LICENSE), [`VERSION`](third_party/lua/VERSION)); `lua.c`, `luac.c` and the Makefile left out |
 
 ## Host side
@@ -24,6 +28,18 @@ sco::plugins::LoadScript(plugin, api, sco::host::NewPlugin(id), kLua);   // game
 ...
 sco::plugins::UnloadAll(list, sco::plugins::PlatformModuleOps(), &kLua);
 ```
+
+A host built with the game pack also registers the game adapter once, before any script loads
+(sc-offline does; a host without it gives scripts no `sco.datacore` or `sco.game`, and the data of
+a `game.*` event is `nil`):
+
+```cpp
+#include "sco_lua_game.h"
+sco_lua_add_extension(&sco_lua_game_extension);   // CMake: link sco_lua_game
+```
+
+An adapter's functions run inside the script's protected call and under its step budget, like
+`sco_lua.c`'s own, and reach the host only through `sco_api` (`sco_lua_api`, `sco_lua_self`).
 
 Everything runs on the game thread. `LoadScript` reads the entry file (1 MiB at most) and calls
 `sco_lua_load`, guarded like a native plugin call. On unload the host releases the handle first,
