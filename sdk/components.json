@@ -576,6 +576,46 @@
    "license": "GPL-3.0-only"
   },
   {
+   "id": "csharp.Sco.Sdk.DataCoreInterop.cs",
+   "source": "sdk/csharp/Sco.Sdk/DataCoreInterop.cs",
+   "destination": "csharp/Sco.Sdk/DataCoreInterop.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Tests.GameFakeHost.cs",
+   "source": "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+   "destination": "csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Tests.GameLayout.cs",
+   "source": "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs",
+   "destination": "csharp/Sco.Sdk.Tests/GameLayout.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Tests.GamePins.cs",
+   "source": "sdk/csharp/Sco.Sdk.Tests/GamePins.cs",
+   "destination": "csharp/Sco.Sdk.Tests/GamePins.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
    "id": "csharp.Sco.Sdk.Internal.cs",
    "source": "sdk/csharp/Sco.Sdk/Internal.cs",
    "destination": "csharp/Sco.Sdk/Internal.cs",

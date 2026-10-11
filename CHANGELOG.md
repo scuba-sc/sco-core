@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **The core SDK zip builds and tests on its own; the Star Citizen extension unpacks over it** (release hardening PR 05, WP-04; no ABI or API change, the same C# types under the same names). C#: the DataCore declarations move out of `Interop.cs` into `DataCoreInterop.cs`; `Abi` becomes `partial`; the test's game half moves into `GamePins.cs`, `GameLayout.cs` and `GameFakeHost.cs`, joined by partial methods, so `Sco.Sdk.csproj` and `Sco.Sdk.Tests` compile with or without the extension (core: 153 pins; with it: 346, as before). `sdk/CMakeLists.txt` builds `travel_pack` and `quantum_pack` only when they're there. `sdk/test-zip.sh <core.zip> [<game-sc.zip>]` tests the core alone (and fails if it includes an extension header or names a game C# type), or the extension over it (no file may overwrite a core file); CI runs both on Linux and Windows, plus the legacy zip as before.
+
 ## sdk-v1.2.0 (2026-10-10)
 
 The second SDK release. **The plugin ABI is unchanged: `sco_api.h` is still 1.1, byte for byte as released in sdk-v1.1.0** (`tests/abi_v1.c` unchanged), so plugins built with sdk-v1.1.0 keep loading, and plugins built with this SDK load in a 1.1 host unless they use a service it doesn't publish. This release is additive: services, headers and kernel behaviour. The zip now carries `VERSIONS.txt` with the three version lines below.

@@ -144,6 +144,8 @@ For variable-size data use `RegisterRawBytes` (`ScoResult (ReadOnlySpan<byte> in
 
 ## Storage, DataCore and UI
 
+In the SDK zips: `Storage`, `Settings` and `Ui` are in the core SDK. `DataCore` and every `Sco.Sdk.Game` type come with the Star Citizen extension (`sco-sdk-game-sc`, `Sco.Sdk/DataCore*.cs` and `Sco.Sdk/Game/`); unpacked over the core SDK, `Sco.Sdk.csproj` compiles them with the rest. In this repository both are always there.
+
 The host-owned services each have a class. `Open(plugin)` queries the service once and checks its table size; a host service outlives every plugin, so keep the object for the plugin's life. Every call answers a `ScoResult`; nothing throws.
 
 | Class | Service | Does |

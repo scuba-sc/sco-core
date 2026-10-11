@@ -1,8 +1,8 @@
-// Interop.cs: the C ABI of sco_api.h 1.1, sco_storage.h 1.0, sco_ui.h 1.0, sco_settings.h 1.0 and sco_datacore.h 1.0,
-// as blittable C# structs.
+// Interop.cs: the C ABI of sco_api.h 1.1, sco_storage.h 1.0, sco_ui.h 1.0 and sco_settings.h 1.0, as
+// blittable C# structs. sco_datacore.h is in DataCoreInterop.cs, part of the Star Citizen extension.
 //
 // Field names are the C names, so the layout test (Sco.Sdk.Tests) can check every offset that
-// tests/abi_v1.c, tests/abi_storage.c, tests/abi_ui.c and tests/abi_datacore.c pin. Function pointers are
+// tests/abi_v1.c, tests/abi_storage.c, tests/abi_ui.c and tests/abi_settings.c pin. Function pointers are
 // delegate* unmanaged[Cdecl]: the headers declare no calling convention, and on x64 the platform
 // default and cdecl are one convention. 64-bit only, like the headers.
 //
@@ -55,24 +55,8 @@ namespace Sco.Sdk
         Force32 = 0x7fffffff,
     }
 
-    /// <summary>sco_dc_type (sco_datacore.h).</summary>
-    public enum ScoDcType : int
-    {
-        Bool = 0,
-        Int = 1,
-        UInt = 2,
-        Float = 3,
-        String = 4,
-        Guid = 5,
-        Enum = 6,
-        Null = 7,
-        Instance = 8,
-        Ref = 9,
-        Force32 = 0x7fffffff,
-    }
-
     /// <summary>The version numbers, names and limits the C headers define.</summary>
-    public static class Abi
+    public static partial class Abi
     {
         public const int ApiMajor = 1;                    // SCO_API_MAJOR
         public const int ApiMinor = 1;                    // SCO_API_MINOR
@@ -97,21 +81,6 @@ namespace Sco.Sdk
         public const uint SettingsMaxName = 31u;
         public const uint SettingsMaxString = 255u;
         public const string SettingsChangedEvent = "settings.changed"; // SCO_SETTINGS_CHANGED_EVENT
-
-        public const string DataCoreName = "sco.datacore";        // SCO_DATACORE_NAME
-        public const uint DataCoreVersion1_0 = 0x00010000u;
-        public const uint DataCoreVersion1_1 = 0x00010001u;
-        public const string DataCoreAppliedEvent = "datacore.applied"; // SCO_DC_APPLIED_EVENT
-        public const uint DcOpen = 1u;             // state()
-        public const uint DcLoaded = 2u;
-        public const uint DcNonAtomic = 0x1u;      // begin() flags
-        public const uint DcQueued = 1u;           // sco_dc_report.state
-        public const uint DcApplied = 2u;
-        public const uint DcSkipped = 3u;
-        public const uint DcRefused = 4u;
-        public const uint DcOpPatch = 0xFFFFFFFFu; // sco_dc_report.op_index of the patch's own entry
-        public const uint DcMaxOps = 65536u;
-        public const uint DcMaxPatches = 64u;
 
         /// <summary>A service version: (major &lt;&lt; 16) | minor.</summary>
         public static uint ServiceVersion(ushort major, ushort minor) => ((uint)major << 16) | minor;
@@ -292,55 +261,5 @@ namespace Sco.Sdk.Interop
         public delegate* unmanaged[Cdecl]<void*, byte*, double*, ScoResult> get_float;
         public delegate* unmanaged[Cdecl]<void*, byte*, byte*, uint*, ScoResult> get_string;
         public delegate* unmanaged[Cdecl]<void*, byte*, uint*, ScoResult> last_error;
-    }
-
-    /// <summary>sco_dc_value: 40 bytes.</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public unsafe struct ScoDcValue
-    {
-        public uint size;
-        public ScoDcType type;
-        public long i;
-        public ulong u;
-        public double f;
-        public byte* s;
-    }
-
-    /// <summary>sco_dc_report: 204 bytes.</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public unsafe struct ScoDcReport
-    {
-        public uint size;
-        public uint state;
-        public uint op_index;
-        public fixed byte reason[192];
-    }
-
-    /// <summary>sco_dc_applied, the data of the event datacore.applied: 16 bytes.</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public struct ScoDcApplied
-    {
-        public uint size;
-        public uint applied;
-        public uint skipped;
-        public uint refused;
-    }
-
-    /// <summary>sco_datacore_v1, the table of the host service "sco.datacore": 88 bytes.</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public unsafe struct ScoDatacoreV1
-    {
-        public uint size;
-        public uint _pad;
-        public delegate* unmanaged[Cdecl]<uint> state;
-        public delegate* unmanaged[Cdecl]<void*, uint, ulong*, ScoResult> begin;
-        public delegate* unmanaged[Cdecl]<ulong, byte*, byte*, ScoDcValue*, ScoResult> set;
-        public delegate* unmanaged[Cdecl]<ulong, byte*, byte*, byte*, ulong*, ScoResult> add_instance;
-        public delegate* unmanaged[Cdecl]<ulong, byte*, byte*, ulong, ScoResult> set_pointer;
-        public delegate* unmanaged[Cdecl]<ulong, byte*, byte*, ScoDcValue*, ScoResult> append;
-        public delegate* unmanaged[Cdecl]<ulong, byte*, byte*, byte*, byte*, byte*, ulong*, ScoResult> add_record;
-        public delegate* unmanaged[Cdecl]<ulong, ScoResult> commit;
-        public delegate* unmanaged[Cdecl]<ulong, ScoResult> discard;
-        public delegate* unmanaged[Cdecl]<ulong, uint, ScoDcReport*, ScoResult> report;
     }
 }
