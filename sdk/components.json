@@ -1,0 +1,1197 @@
+{
+ "schema_version": 1,
+ "about": "The SDK's files, their release profiles and their origin. sdk/package.py reads this and nothing else to decide what a zip holds; sc-offline's tools/sdk-headers.py reads public_header from it. Every file under the folders in 'covers' must be listed here or in 'excluded'.",
+ "profiles": {
+  "core": {
+   "zip": "sco-sdk-core-{version}",
+   "version_from": "sdk/VERSION",
+   "about": "The game-neutral plugin SDK: the sco_api ABI, the host services, the C, C++, C# and Lua layers, examples and tools."
+  },
+  "game-sc": {
+   "zip": "sco-sdk-game-sc-{game_pack_version}",
+   "version_from": "include/sc_game_pack.h",
+   "requires": "core",
+   "about": "The optional Star Citizen extension: the game pack's service tables and events, DataCore, their C++ and C# wrappers, game examples and docs. Unpack over the core SDK of the version it names."
+  },
+  "legacy": {
+   "zip": "sco-sdk-{version}",
+   "version_from": "sdk/VERSION",
+   "includes": [
+    "core",
+    "game-sc"
+   ],
+   "about": "Everything in one zip, as sdk-v1.1.0 shipped. Not game-neutral. Kept until consumers move to core + game-sc."
+  }
+ },
+ "covers": [
+  "include",
+  "sdk"
+ ],
+ "excluded": [
+  {
+   "path": "include/sco/",
+   "why": "the kernel's internal headers; not part of the plugin ABI"
+  },
+  {
+   "path": "sdk/package.py",
+   "why": "packaging tool"
+  },
+  {
+   "path": "sdk/components.json",
+   "why": "this manifest"
+  },
+  {
+   "path": "sdk/test-zip.sh",
+   "why": "packaging test"
+  },
+  {
+   "path": "sdk/.gitignore",
+   "why": "repository file"
+  },
+  {
+   "path": "sdk/test_package.py",
+   "why": "packaging test"
+  }
+ ],
+ "components": [
+  {
+   "id": "include.sco_api.h",
+   "source": "include/sco_api.h",
+   "destination": "include/sco_api.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sco_storage.h",
+   "source": "include/sco_storage.h",
+   "destination": "include/sco_storage.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sco_ui.h",
+   "source": "include/sco_ui.h",
+   "destination": "include/sco_ui.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sco_settings.h",
+   "source": "include/sco_settings.h",
+   "destination": "include/sco_settings.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sco_datacore.h",
+   "source": "include/sco_datacore.h",
+   "destination": "include/sco_datacore.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sco_ipc.h",
+   "source": "include/sco_ipc.h",
+   "destination": "include/sco_ipc.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_ipc.h",
+   "source": "include/sc_ipc.h",
+   "destination": "include/sc_ipc.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "MIT",
+   "public_header": true
+  },
+  {
+   "id": "include.sco_net.h",
+   "source": "include/sco_net.h",
+   "destination": "include/sco_net.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_net.h",
+   "source": "include/sc_net.h",
+   "destination": "include/sc_net.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "MIT",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_titanlink.h",
+   "source": "include/sc_titanlink.h",
+   "destination": "include/sc_titanlink.h",
+   "profiles": [
+    "core"
+   ],
+   "group": "bridges",
+   "origin": "project-authored",
+   "license": "MIT",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_voxel_bridge.h",
+   "source": "include/sc_voxel_bridge.h",
+   "destination": "include/sc_voxel_bridge.h",
+   "profiles": [
+    "core"
+   ],
+   "group": "bridges",
+   "origin": "project-authored",
+   "license": "MIT",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_spatial.h",
+   "source": "include/sc_spatial.h",
+   "destination": "include/sc_spatial.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_spawn.h",
+   "source": "include/sc_spawn.h",
+   "destination": "include/sc_spawn.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_actors.h",
+   "source": "include/sc_actors.h",
+   "destination": "include/sc_actors.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_vehicles.h",
+   "source": "include/sc_vehicles.h",
+   "destination": "include/sc_vehicles.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_creative.h",
+   "source": "include/sc_creative.h",
+   "destination": "include/sc_creative.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_world.h",
+   "source": "include/sc_world.h",
+   "destination": "include/sc_world.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_game_events.h",
+   "source": "include/sc_game_events.h",
+   "destination": "include/sc_game_events.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_entities.h",
+   "source": "include/sc_entities.h",
+   "destination": "include/sc_entities.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_game_pack.h",
+   "source": "include/sc_game_pack.h",
+   "destination": "include/sc_game_pack.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "docs.game-pack.md",
+   "source": "docs/game-pack.md",
+   "destination": "docs/game-pack.md",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.game-services.md",
+   "source": "docs/game-services.md",
+   "destination": "docs/game-services.md",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.game.status.md",
+   "source": "docs/game/status.md",
+   "destination": "docs/game/status.md",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "include.scosdk.command.hpp",
+   "source": "include/scosdk/command.hpp",
+   "destination": "include/scosdk/command.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.datacore.hpp",
+   "source": "include/scosdk/datacore.hpp",
+   "destination": "include/scosdk/datacore.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.ipc.hpp",
+   "source": "include/scosdk/ipc.hpp",
+   "destination": "include/scosdk/ipc.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.net.hpp",
+   "source": "include/scosdk/net.hpp",
+   "destination": "include/scosdk/net.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.plugin.hpp",
+   "source": "include/scosdk/plugin.hpp",
+   "destination": "include/scosdk/plugin.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.raw.hpp",
+   "source": "include/scosdk/raw.hpp",
+   "destination": "include/scosdk/raw.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.scosdk.hpp",
+   "source": "include/scosdk/scosdk.hpp",
+   "destination": "include/scosdk/scosdk.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.service.hpp",
+   "source": "include/scosdk/service.hpp",
+   "destination": "include/scosdk/service.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.settings.hpp",
+   "source": "include/scosdk/settings.hpp",
+   "destination": "include/scosdk/settings.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.storage.hpp",
+   "source": "include/scosdk/storage.hpp",
+   "destination": "include/scosdk/storage.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.ui.hpp",
+   "source": "include/scosdk/ui.hpp",
+   "destination": "include/scosdk/ui.hpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.game.actors.hpp",
+   "source": "include/scosdk/game/actors.hpp",
+   "destination": "include/scosdk/game/actors.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.game.creative.hpp",
+   "source": "include/scosdk/game/creative.hpp",
+   "destination": "include/scosdk/game/creative.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.game.entities.hpp",
+   "source": "include/scosdk/game/entities.hpp",
+   "destination": "include/scosdk/game/entities.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.game.events.hpp",
+   "source": "include/scosdk/game/events.hpp",
+   "destination": "include/scosdk/game/events.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.game.vehicles.hpp",
+   "source": "include/scosdk/game/vehicles.hpp",
+   "destination": "include/scosdk/game/vehicles.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.game.world.hpp",
+   "source": "include/scosdk/game/world.hpp",
+   "destination": "include/scosdk/game/world.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "LICENSE",
+   "source": "LICENSE",
+   "destination": "LICENSE",
+   "profiles": [
+    "core",
+    "game-sc"
+   ],
+   "origin": "third-party",
+   "license": "GPL-3.0-only",
+   "upstream": "GNU GPL v3 text, https://www.gnu.org/licenses/gpl-3.0.txt"
+  },
+  {
+   "id": "VERSION",
+   "source": "sdk/VERSION",
+   "destination": "VERSION",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "README.md",
+   "source": "sdk/README.md",
+   "destination": "README.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "CMakeLists.txt",
+   "source": "sdk/CMakeLists.txt",
+   "destination": "CMakeLists.txt",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "cmake.sco-plugin.cmake",
+   "source": "sdk/cmake/sco-plugin.cmake",
+   "destination": "cmake/sco-plugin.cmake",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp..gitignore",
+   "source": "sdk/csharp/.gitignore",
+   "destination": "csharp/.gitignore",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Commands.cs",
+   "source": "sdk/csharp/Sco.Sdk/Commands.cs",
+   "destination": "csharp/Sco.Sdk/Commands.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.DataCore.cs",
+   "source": "sdk/csharp/Sco.Sdk/DataCore.cs",
+   "destination": "csharp/Sco.Sdk/DataCore.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Internal.cs",
+   "source": "sdk/csharp/Sco.Sdk/Internal.cs",
+   "destination": "csharp/Sco.Sdk/Internal.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Interop.cs",
+   "source": "sdk/csharp/Sco.Sdk/Interop.cs",
+   "destination": "csharp/Sco.Sdk/Interop.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Plugin.cs",
+   "source": "sdk/csharp/Sco.Sdk/Plugin.cs",
+   "destination": "csharp/Sco.Sdk/Plugin.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Sco.Sdk.csproj",
+   "source": "sdk/csharp/Sco.Sdk/Sco.Sdk.csproj",
+   "destination": "csharp/Sco.Sdk/Sco.Sdk.csproj",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Services.cs",
+   "source": "sdk/csharp/Sco.Sdk/Services.cs",
+   "destination": "csharp/Sco.Sdk/Services.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Settings.cs",
+   "source": "sdk/csharp/Sco.Sdk/Settings.cs",
+   "destination": "csharp/Sco.Sdk/Settings.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Storage.cs",
+   "source": "sdk/csharp/Sco.Sdk/Storage.cs",
+   "destination": "csharp/Sco.Sdk/Storage.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Ui.cs",
+   "source": "sdk/csharp/Sco.Sdk/Ui.cs",
+   "destination": "csharp/Sco.Sdk/Ui.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Game.Actors.cs",
+   "source": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
+   "destination": "csharp/Sco.Sdk/Game/Actors.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Game.Creative.cs",
+   "source": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
+   "destination": "csharp/Sco.Sdk/Game/Creative.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Game.Entities.cs",
+   "source": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
+   "destination": "csharp/Sco.Sdk/Game/Entities.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Game.Events.cs",
+   "source": "sdk/csharp/Sco.Sdk/Game/Events.cs",
+   "destination": "csharp/Sco.Sdk/Game/Events.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Game.Vehicles.cs",
+   "source": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
+   "destination": "csharp/Sco.Sdk/Game/Vehicles.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Game.World.cs",
+   "source": "sdk/csharp/Sco.Sdk/Game/World.cs",
+   "destination": "csharp/Sco.Sdk/Game/World.cs",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Tests.FakeHost.cs",
+   "source": "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+   "destination": "csharp/Sco.Sdk.Tests/FakeHost.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Tests.Layout.cs",
+   "source": "sdk/csharp/Sco.Sdk.Tests/Layout.cs",
+   "destination": "csharp/Sco.Sdk.Tests/Layout.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Tests.Pins.cs",
+   "source": "sdk/csharp/Sco.Sdk.Tests/Pins.cs",
+   "destination": "csharp/Sco.Sdk.Tests/Pins.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Tests.Program.cs",
+   "source": "sdk/csharp/Sco.Sdk.Tests/Program.cs",
+   "destination": "csharp/Sco.Sdk.Tests/Program.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "csharp.Sco.Sdk.Tests.Sco.Sdk.Tests.csproj",
+   "source": "sdk/csharp/Sco.Sdk.Tests/Sco.Sdk.Tests.csproj",
+   "destination": "csharp/Sco.Sdk.Tests/Sco.Sdk.Tests.csproj",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "template.CMakeLists.txt",
+   "source": "sdk/template/CMakeLists.txt",
+   "destination": "template/CMakeLists.txt",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "template.plugin.c",
+   "source": "sdk/template/plugin.c",
+   "destination": "template/plugin.c",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "template.plugin.ini",
+   "source": "sdk/template/plugin.ini",
+   "destination": "template/plugin.ini",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.cpp_hello.CMakeLists.txt",
+   "source": "sdk/examples/cpp_hello/CMakeLists.txt",
+   "destination": "examples/cpp_hello/CMakeLists.txt",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.cpp_hello.cpp_hello.cpp",
+   "source": "sdk/examples/cpp_hello/cpp_hello.cpp",
+   "destination": "examples/cpp_hello/cpp_hello.cpp",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.cpp_hello.plugin.ini",
+   "source": "sdk/examples/cpp_hello/plugin.ini",
+   "destination": "examples/cpp_hello/plugin.ini",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.cs_hello..gitignore",
+   "source": "sdk/examples/cs_hello/.gitignore",
+   "destination": "examples/cs_hello/.gitignore",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.cs_hello.CsHello.cs",
+   "source": "sdk/examples/cs_hello/CsHello.cs",
+   "destination": "examples/cs_hello/CsHello.cs",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.cs_hello.README.md",
+   "source": "sdk/examples/cs_hello/README.md",
+   "destination": "examples/cs_hello/README.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.cs_hello.cs_hello.csproj",
+   "source": "sdk/examples/cs_hello/cs_hello.csproj",
+   "destination": "examples/cs_hello/cs_hello.csproj",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.cs_hello.plugin.ini",
+   "source": "sdk/examples/cs_hello/plugin.ini",
+   "destination": "examples/cs_hello/plugin.ini",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.greeter.CMakeLists.txt",
+   "source": "sdk/examples/greeter/CMakeLists.txt",
+   "destination": "examples/greeter/CMakeLists.txt",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.greeter.main.lua",
+   "source": "sdk/examples/greeter/main.lua",
+   "destination": "examples/greeter/main.lua",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.greeter.plugin.ini",
+   "source": "sdk/examples/greeter/plugin.ini",
+   "destination": "examples/greeter/plugin.ini",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.hello.CMakeLists.txt",
+   "source": "sdk/examples/hello/CMakeLists.txt",
+   "destination": "examples/hello/CMakeLists.txt",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.hello.hello.c",
+   "source": "sdk/examples/hello/hello.c",
+   "destination": "examples/hello/hello.c",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.hello.plugin.ini",
+   "source": "sdk/examples/hello/plugin.ini",
+   "destination": "examples/hello/plugin.ini",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.notebook.CMakeLists.txt",
+   "source": "sdk/examples/notebook/CMakeLists.txt",
+   "destination": "examples/notebook/CMakeLists.txt",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.notebook.main.lua",
+   "source": "sdk/examples/notebook/main.lua",
+   "destination": "examples/notebook/main.lua",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.notebook.plugin.ini",
+   "source": "sdk/examples/notebook/plugin.ini",
+   "destination": "examples/notebook/plugin.ini",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.quantum_pack.CMakeLists.txt",
+   "source": "sdk/examples/quantum_pack/CMakeLists.txt",
+   "destination": "examples/quantum_pack/CMakeLists.txt",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.quantum_pack.plugin.ini",
+   "source": "sdk/examples/quantum_pack/plugin.ini",
+   "destination": "examples/quantum_pack/plugin.ini",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.quantum_pack.datacore.eos.toml",
+   "source": "sdk/examples/quantum_pack/datacore/eos.toml",
+   "destination": "examples/quantum_pack/datacore/eos.toml",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "note": "Record names and GUIDs of Game2.dcb 4.10.193; distribution basis under review (release-hardening F-08)"
+  },
+  {
+   "id": "examples.travel_pack.CMakeLists.txt",
+   "source": "sdk/examples/travel_pack/CMakeLists.txt",
+   "destination": "examples/travel_pack/CMakeLists.txt",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.travel_pack.plugin.ini",
+   "source": "sdk/examples/travel_pack/plugin.ini",
+   "destination": "examples/travel_pack/plugin.ini",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.travel_pack.lists.locations.txt",
+   "source": "sdk/examples/travel_pack/lists/locations.txt",
+   "destination": "examples/travel_pack/lists/locations.txt",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "note": "Star Citizen entity names; distribution basis under review (release-hardening F-09)"
+  },
+  {
+   "id": "tools.lua-check.lua",
+   "source": "sdk/tools/lua-check.lua",
+   "destination": "tools/lua-check.lua",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "tools.sco-plugin-check.c",
+   "source": "sdk/tools/sco-plugin-check.c",
+   "destination": "tools/sco-plugin-check.c",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.data-packs.md",
+   "source": "sdk/docs/data-packs.md",
+   "destination": "docs/data-packs.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.lua.md",
+   "source": "sdk/docs/lua.md",
+   "destination": "docs/lua.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.plugin-ini.md",
+   "source": "sdk/docs/plugin-ini.md",
+   "destination": "docs/plugin-ini.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.plugin-rules.md",
+   "source": "sdk/docs/plugin-rules.md",
+   "destination": "docs/plugin-rules.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "third_party.imgui.LICENSE.txt",
+   "source": "sdk/third_party/imgui/LICENSE.txt",
+   "destination": "third_party/imgui/LICENSE.txt",
+   "profiles": [
+    "core"
+   ],
+   "origin": "third-party",
+   "license": "MIT",
+   "upstream": "Dear ImGui 1.92.8 WIP (IMGUI_VERSION_NUM 19277), https://github.com/ocornut/imgui"
+  },
+  {
+   "id": "third_party.imgui.README.md",
+   "source": "sdk/third_party/imgui/README.md",
+   "destination": "third_party/imgui/README.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "third-party",
+   "license": "MIT",
+   "upstream": "Dear ImGui 1.92.8 WIP (IMGUI_VERSION_NUM 19277), https://github.com/ocornut/imgui"
+  },
+  {
+   "id": "third_party.imgui.imconfig.h",
+   "source": "sdk/third_party/imgui/imconfig.h",
+   "destination": "third_party/imgui/imconfig.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "third-party",
+   "license": "MIT",
+   "upstream": "Dear ImGui 1.92.8 WIP (IMGUI_VERSION_NUM 19277), https://github.com/ocornut/imgui",
+   "public_header": true
+  },
+  {
+   "id": "third_party.imgui.imgui.h",
+   "source": "sdk/third_party/imgui/imgui.h",
+   "destination": "third_party/imgui/imgui.h",
+   "profiles": [
+    "core"
+   ],
+   "origin": "third-party",
+   "license": "MIT",
+   "upstream": "Dear ImGui 1.92.8 WIP (IMGUI_VERSION_NUM 19277), https://github.com/ocornut/imgui",
+   "public_header": true
+  },
+  {
+   "id": "docs.api-v1.md",
+   "source": "docs/api-v1.md",
+   "destination": "docs/api-v1.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.sdk-cpp.md",
+   "source": "docs/sdk-cpp.md",
+   "destination": "docs/sdk-cpp.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.sdk-csharp.md",
+   "source": "docs/sdk-csharp.md",
+   "destination": "docs/sdk-csharp.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.ipc.md",
+   "source": "docs/ipc.md",
+   "destination": "docs/ipc.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.net.md",
+   "source": "docs/net.md",
+   "destination": "docs/net.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.net-wire.md",
+   "source": "docs/net-wire.md",
+   "destination": "docs/net-wire.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  }
+ ]
+}

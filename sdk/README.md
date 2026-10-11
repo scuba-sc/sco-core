@@ -30,6 +30,18 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | `VERSIONS.txt` | The kernel, plugin ABI and game-pack versions and the verified game builds (in the zip only) |
 | `SHA256SUMS` | The SHA-256 of every other file (in the zip only) |
 
+### Zips
+
+`sdk/components.json` lists every SDK file with its profile, origin and licence; `sdk/package.py`
+builds a zip from it and nothing else (`--check` validates it, `--list-headers core` prints the
+public headers of a profile).
+
+| Zip | Holds |
+|---|---|
+| `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Its version is `sdk/VERSION` alone |
+| `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt` names |
+| `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
+
 ## Build the examples
 
 You need CMake 3.20 or newer (Visual Studio 2019 ships 3.20) and a C and C++20 compiler (Visual Studio 2019 16.11 or newer, clang 14, gcc 11). For plugins the game can load, that's Visual Studio 2019 or newer with the "Desktop development with C++" workload, on Windows. On macOS and Linux the same commands build plugins you can check with `sco-plugin-check`; the game needs the Windows DLL.

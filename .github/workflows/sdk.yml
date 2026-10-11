@@ -33,8 +33,19 @@ jobs:
       - name: C# SDK layout test against tests/abi_*.c
         run: dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c tests/abi_game_actors.c tests/abi_game_vehicles.c tests/abi_game_world.c tests/abi_game_events.c tests/abi_game_entities.c tests/abi_game_creative.c
 
+      # sdk/components.json: every file classified, profiles valid, each profile reproducible, core
+      # free of game files, and every refusal path refuses (sdk/test_package.py).
+      - name: Packaging tests (manifest, profiles, refusals)
+        run: python3 sdk/test_package.py
+
+      # legacy = core + game-sc in one zip, as sdk-v1.1.0 shipped; the examples below build from it.
+      # The core and game-sc zips are packaged and kept as artifacts; core is built on its own once
+      # its examples and C# tests no longer reach into game-sc (release hardening WP-04).
       - name: Package the SDK
-        run: python3 sdk/package.py --out dist
+        run: |
+          python3 sdk/package.py --profile legacy --out dist
+          python3 sdk/package.py --profile core --out dist-profiles
+          python3 sdk/package.py --profile game-sc --out dist-profiles
 
       - name: Build and check the examples from the zip
         env:
@@ -64,6 +75,13 @@ jobs:
         with:
           name: sco-sdk
           path: dist/sco-sdk-*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sco-sdk-profiles
+          path: dist-profiles/sco-sdk-*.zip
           if-no-files-found: error
           retention-days: 30
 
