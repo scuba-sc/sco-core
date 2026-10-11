@@ -44,4 +44,4 @@ These are permanent:
 
 ## License
 
-Plugins built against `sco_api.h` are GPL-3.0, like sco-core and sc-offline. There is no linking exception.
+sco-core is GPL-3.0-only. The project expects plugins that include its headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms. Whether the GPL applies to a particular plugin depends on how it is built and on applicable law; this is not legal advice. No linking exception is granted.

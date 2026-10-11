@@ -3,6 +3,6 @@
 format = 1
 
 [[record]]
-struct = "EntityClassDefinition"
-name   = "EntityClassDefinition.QDRV_SCO_Test_SCItem"
-clone  = { record = "EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem" }
+struct = "ExampleItem"
+name   = "ExampleItem.Drive_Test"
+clone  = { record = "ExampleItem.Drive_Beta" }

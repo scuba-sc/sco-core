@@ -127,11 +127,11 @@ There is no setter. Read again when you need the value (it follows the player's 
 Present only when the product publishes the host service [`sco.datacore`](../../docs/datacore.md#the-scodatacore-service) (check `if sco.datacore then`); `lua-check.lua` has no stand-in for it. It queues DataCore overrides, the operations of a data pack's `.toml`, from a script. In sc-offline the game loads DataCore before scripts run, so a committed patch is saved and **applies from the next launch**; overrides that never change belong in a [data pack](data-packs.md#game-data-datacore).
 
 ```lua
-local eos = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem"
+local eos = "ExampleItem.Drive_Alpha"
 local p = sco.datacore.begin()            -- or begin({ atomic = false }); nil, err on failure
-p:set(eos, "Components[SCItemQuantumDriveParams].params.spoolUpTime", 3.5)
-local fast = p:add_instance("SCItemQuantumDriveParams", eos, "Components[SCItemQuantumDriveParams]")
-p:set_pointer("EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem", "Components[SCItemQuantumDriveParams]", fast)
+p:set(eos, "Components[ExampleDriveParams].params.spoolUpTime", 3.5)
+local fast = p:add_instance("ExampleDriveParams", eos, "Components[ExampleDriveParams]")
+p:set_pointer("ExampleItem.Drive_Beta", "Components[ExampleDriveParams]", fast)
 assert(p:commit())
 for _, r in ipairs(p:report()) do print(r.op, r.state, r.reason) end
 ```

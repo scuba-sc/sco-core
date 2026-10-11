@@ -2,11 +2,11 @@
 format = 1
 
 [[set]]
-record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem"
-field  = "Components[SCItemQuantumDriveParams].params.spoolUpTime"
+record = "ExampleItem.Drive_Alpha"
+field  = "Components[ExampleDriveParams].params.spoolUpTime"
 value  = 3.5
 
 [[set]]
-record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem"
-field  = "Components[SCItemQuantumDriveParams].params.spoolTime"
+record = "ExampleItem.Drive_Alpha"
+field  = "Components[ExampleDriveParams].params.spoolTime"
 value  = 2.0

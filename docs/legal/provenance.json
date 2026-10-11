@@ -139,17 +139,6 @@
    "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
   },
   {
-   "path": "sdk/examples/quantum_pack/datacore/eos.toml",
-   "origin": "interoperability-derived",
-   "license": "GPL-3.0-only",
-   "copyright": "2026 the sco-core contributors",
-   "status": "needs-review",
-   "reviewer": "agent draft; maintainer approval pending",
-   "date": "2026-10-11",
-   "issue": "F-08",
-   "note": "Game2.dcb 4.10.193 record names, field paths and 3 record GUIDs. Basis for distributing them not yet recorded."
-  },
-  {
    "path": "sdk/examples/quantum_pack/**",
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -157,18 +146,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "Build file and plugin.ini: project-authored scaffolding. The game-derived names are in datacore/eos.toml."
-  },
-  {
-   "path": "sdk/examples/travel_pack/lists/locations.txt",
-   "origin": "interoperability-derived",
-   "license": "GPL-3.0-only",
-   "copyright": "2026 the sco-core contributors",
-   "status": "needs-review",
-   "reviewer": "agent draft; maintainer approval pending",
-   "date": "2026-10-11",
-   "issue": "F-09",
-   "note": "Star Citizen entity names (OOC_Stanton_*). Basis for distributing them not yet recorded."
+   "note": "Example data pack. Its names, paths and GUIDs are made up to show the format (maintainer decision 2026-10-11, F-08/F-09: replace the game-derived data with synthetic names)."
   },
   {
    "path": "sdk/examples/travel_pack/**",
@@ -178,7 +156,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "Build file and plugin.ini: project-authored scaffolding. The game-derived names are in lists/locations.txt."
+   "note": "Example data pack. Its names, paths and GUIDs are made up to show the format (maintainer decision 2026-10-11, F-08/F-09: replace the game-derived data with synthetic names)."
   },
   {
    "path": "src/game/**",

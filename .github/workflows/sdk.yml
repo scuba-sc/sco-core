@@ -60,7 +60,7 @@ jobs:
           sdk/test-zip.sh dist-profiles/sco-sdk-core-*.zip dist-profiles/sco-sdk-game-sc-*.zip
 
       # The sample DataCore pack, as the zip ships it: sco-dcb lint, and sco-dcb check against the
-      # fixture test_datacore_pack writes (the record and field names of 4.10.193 the pack uses).
+      # fixture test_datacore_pack writes (the made-up schema the pack uses).
       # A pack naming a missing field must be refused.
       - name: Check the sample DataCore pack with sco-dcb
         env:
@@ -73,8 +73,8 @@ jobs:
           python3 -m zipfile -e dist/sco-sdk-*.zip build-dcb/unpacked
           pack=$(ls -d build-dcb/unpacked/sco-sdk-*/examples/quantum_pack)
           build-dcb/sco-dcb lint "$pack"
-          build-dcb/sco-dcb check build-dcb/fixture/quantum_fixture.dcb "$pack"
-          if build-dcb/sco-dcb check build-dcb/fixture/quantum_fixture.dcb tests/fixtures/datacore/missing_field; then
+          build-dcb/sco-dcb check build-dcb/fixture/example_fixture.dcb "$pack"
+          if build-dcb/sco-dcb check build-dcb/fixture/example_fixture.dcb tests/fixtures/datacore/missing_field; then
             echo "sco-dcb check accepted a pack naming a missing field"; exit 1
           fi
 
