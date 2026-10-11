@@ -889,7 +889,7 @@ static void TestNoAdapter() {
     Write("noadapter", R"(
         assert(sco.game == nil, "sco.game without the adapter")
         assert(sco.datacore == nil, "sco.datacore without the adapter")
-        sco.subscribe("game.player_died", function(name, data) sco.log("info", "died " .. tostring(data)) end)
+        sco.subscribe("game.player.died", function(name, data) sco.log("info", "died " .. tostring(data)) end)
     )");
     Loaded l = Load("noadapter");
     CHECK(l.p && l.p->state == State::Loaded);
