@@ -58,10 +58,10 @@ jobs:
           if nm -C --defined-only build/*.a 2>/dev/null | grep -E 'RegisterGameSignatures|datacore::'; then
             echo "game pack symbols in a kernel library"; exit 1
           fi
-          # No test may compile game pack sources or headers either: the depfiles list every header
-          # each object was built from.
-          if find build -name '*.o.d' -print0 | xargs -0 -r grep -lE '/src/(game|datacore)/|/include/(sc_(actors|vehicles|entities|world|creative|spawn|spatial|game_events|game_pack)\.h|sco_datacore\.h)'; then
-            echo "an object in a kernel-only build includes game pack code"; exit 1
+          # No object may compile game pack implementation code, even header-only: the depfiles list
+          # every file each object was built from. (The public game headers' ABI pins still build here.)
+          if find build -name '*.o.d' -print0 | xargs -0 -r grep -lE '/src/(game|datacore)/'; then
+            echo "an object in a kernel-only build includes game pack implementation code"; exit 1
           fi
 
       - name: Test
