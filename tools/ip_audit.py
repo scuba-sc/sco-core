@@ -18,15 +18,22 @@
     tools/ip_audit.py reuse-toml
         Writes REUSE.toml from docs/legal/provenance.json (the repo audit fails when it is stale);
         `reuse lint` then checks the REUSE specification.
-    tools/ip_audit.py release --approval FILE
-        Gate G: the record says 'Decision: approve' for a named commit, which is this commit or an
-        ancestor with nothing but docs/legal/release-decisions/ changed since. CI never writes one.
+    tools/ip_audit.py release --approval FILE --tag TAG [--artifacts DIR]
+        Gate G: the JSON record (docs/legal/release-decisions/<tag>.json) validates against
+        docs/legal/release-approval.schema.json and the semantics hold too: decision 'approve',
+        distribution.status 'approved-for-publication', unexpired (approved_at < expires_at, now <
+        expires_at, every exception unexpired), release_tag == TAG, source.commit this commit or an
+        ancestor with only release decisions changed since, profiles covering every artifact role
+        (sdk-core -> core, sdk-game-sc -> game-sc, sdk-legacy -> legacy), unique artifact names, and
+        --artifacts DIR exactly the listed set (bytes and sha256). The record is not yet signed:
+        key_fingerprint is recorded, no signature is verified. CI never writes one.
 
 Exit 0 = every check passed; 1 = a check failed (each failure is printed with what to do);
 2 = the audit couldn't run (missing input). A check that can't run is a failure, never a pass.
 Tests: python3 tools/test_ip_audit.py
 """
 import argparse
+import datetime
 import fnmatch
 import hashlib
 import json
@@ -53,6 +60,17 @@ MAGIC = ((b"MZ", "a Windows executable (MZ)"), (b"\x7fELF", "an ELF executable")
          (b"MDMP", "a minidump"), (b"\x89PNG", "a PNG image"))
 GAME_REF = re.compile(r'#\s*include\s*[<"](sc_(actors|vehicles|entities|world|creative|spawn|spatial|game_events|game_pack)\.h'
                       r'|sco_datacore\.h|scosdk/(datacore\.hpp|game/[^>"]+))[>"]|\bSco\.Sdk\.Game\b|\bScoDatacoreV1\b|\bGameAbi\.')
+APPROVAL_SCHEMA = "docs/legal/release-approval.schema.json"
+# Artifact role -> the profile whose zip it must be listed under; profiles must cover every role.
+ROLE_PROFILE = {"sdk-core": "core", "sdk-game-sc": "game-sc", "sdk-legacy": "legacy"}
+# RFC 3339 date-time with a mandatory zone designator (Z or ±HH:MM). 'T' may be lowercase; seconds
+# may carry a fraction. A bare local time is refused: an expiry must be unambiguous.
+RFC3339 = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|z|[+-]\d{2}:\d{2})$")
+# The JSON Schema keywords tools/ip_audit.py implements for docs/legal/release-approval.schema.json
+# (a test walks the shipped schema and fails on any keyword not in this set).
+SCHEMA_KEYWORDS = {"$schema", "$id", "title", "type", "properties", "required", "additionalProperties",
+                   "items", "const", "enum", "pattern", "format", "minLength", "maxLength",
+                   "minimum", "maximum", "minItems", "maxItems", "uniqueItems"}
 
 
 class Report:
@@ -442,36 +460,215 @@ def write_sbom(path, archive, profile, top, names, content, expected, entries, r
         f.write("\n")
 
 
-def audit_release(approval, root=ROOT):
+def parse_rfc3339(text):
+    """An RFC 3339 date-time that names 'Z' or a numeric offset (never a bare local time), or None."""
+    if not isinstance(text, str):
+        return None
+    mt = RFC3339.match(text)
+    if not mt:
+        return None
+    y, mo, d, h, mi, s, off = mt.groups()
+    try:
+        if off in ("Z", "z"):
+            tz = datetime.timezone.utc
+        else:
+            oh, om = int(off[1:3]), int(off[4:6])
+            if oh > 23 or om > 59:
+                return None
+            delta = datetime.timedelta(hours=oh, minutes=om)
+            tz = datetime.timezone(-delta if off[0] == "-" else delta)
+        return datetime.datetime(int(y), int(mo), int(d), int(h), int(mi), int(s), tzinfo=tz)
+    except ValueError:
+        return None
+
+
+def parse_rfc3339_strict(text, what):
+    dt = parse_rfc3339(text)
+    if dt is None:
+        raise AuditError(f"{what}: {text!r} is not an RFC 3339 date-time with Z or an offset")
+    return dt
+
+
+def json_type_ok(instance, t):
+    if t == "object":
+        return isinstance(instance, dict)
+    if t == "array":
+        return isinstance(instance, list)
+    if t == "string":
+        return isinstance(instance, str)
+    if t == "integer":
+        return isinstance(instance, int) and not isinstance(instance, bool)
+    if t == "number":
+        return isinstance(instance, (int, float)) and not isinstance(instance, bool)
+    if t == "boolean":
+        return isinstance(instance, bool)
+    if t == "null":
+        return instance is None
+    raise AuditError(f"{APPROVAL_SCHEMA}: unknown type {t!r}")
+
+
+def validate_schema(instance, schema, where, fails):
+    """Check instance against the JSON Schema (draft 2020-12) subset this tool implements, in the
+    standard library: no jsonschema dependency in CI. Appends one message per failure to fails.
+    Raises AuditError on a keyword nothing implements, because a schema keyword no code checks is
+    a hole in the gate, not a pass."""
+    for kw in schema:
+        if kw not in SCHEMA_KEYWORDS:
+            raise AuditError(f"{APPROVAL_SCHEMA}: keyword {kw!r} at {where} is not implemented by this validator")
+    t = schema.get("type")
+    if t is not None and not json_type_ok(instance, t):
+        fails.append(f"{where}: {short_json(instance)} is not of type {t!r}")
+        return
+    if "const" in schema and instance != schema["const"]:
+        fails.append(f"{where}: {short_json(instance)} is not the const {short_json(schema['const'])}")
+    if "enum" in schema and instance not in schema["enum"]:
+        fails.append(f"{where}: {short_json(instance)} is not one of {short_json(schema['enum'])}")
+    if isinstance(instance, str):
+        if "minLength" in schema and len(instance) < schema["minLength"]:
+            fails.append(f"{where}: {short_json(instance)} is shorter than minLength {schema['minLength']}")
+        if "maxLength" in schema and len(instance) > schema["maxLength"]:
+            fails.append(f"{where}: {short_json(instance)} is longer than maxLength {schema['maxLength']}")
+        if "pattern" in schema and re.search(schema["pattern"], instance) is None:
+            fails.append(f"{where}: {short_json(instance)} does not match pattern {schema['pattern']}")
+        if schema.get("format") == "date-time" and parse_rfc3339(instance) is None:
+            fails.append(f"{where}: {short_json(instance)} is not an RFC 3339 date-time with Z or an offset")
+    elif isinstance(instance, bool):
+        pass   # bool is an int in Python; JSON Schema's integer excludes it (the type check above)
+    elif isinstance(instance, int):
+        if "minimum" in schema and instance < schema["minimum"]:
+            fails.append(f"{where}: {instance} is below minimum {schema['minimum']}")
+        if "maximum" in schema and instance > schema["maximum"]:
+            fails.append(f"{where}: {instance} is above maximum {schema['maximum']}")
+    if isinstance(instance, list):
+        if "minItems" in schema and len(instance) < schema["minItems"]:
+            fails.append(f"{where}: {len(instance)} item(s), fewer than minItems {schema['minItems']}")
+        if "maxItems" in schema and len(instance) > schema["maxItems"]:
+            fails.append(f"{where}: {len(instance)} item(s), more than maxItems {schema['maxItems']}")
+        if schema.get("uniqueItems"):
+            seen = []
+            for it in instance:
+                if it in seen:
+                    fails.append(f"{where}: {short_json(it)} appears more than once (uniqueItems)")
+                    break
+                seen.append(it)
+        for i, it in enumerate(instance):
+            validate_schema(it, schema["items"], f"{where}[{i}]", fails)
+    if isinstance(instance, dict):
+        for k in schema.get("required", []):
+            if k not in instance:
+                fails.append(f"{where}: required property {k!r} is missing")
+        if schema.get("additionalProperties") is False:
+            for k in instance:
+                if k not in schema.get("properties", {}):
+                    fails.append(f"{where}: unknown property {k!r} (additionalProperties is false)")
+        for k, sub in schema.get("properties", {}).items():
+            if k in instance:
+                validate_schema(instance[k], sub, f"{where}.{k}", fails)
+
+
+def schema_keywords(schema):
+    """Every keyword the shipped schema uses, nested subschemas included."""
+    out = set()
+    def walk(node):
+        out.update(node)
+        for sub in node.get("properties", {}).values():
+            walk(sub)
+        for group in ("$defs", "definitions"):
+            for sub in node.get(group, {}).values():
+                walk(sub)
+        items = node.get("items")
+        for sub in (items if isinstance(items, list) else [items] if isinstance(items, dict) else []):
+            walk(sub)
+    walk(schema)
+    return out
+
+
+def short_json(value, limit=70):
+    s = json.dumps(value, ensure_ascii=False)
+    return s if len(s) <= limit else s[:limit - 3] + "..."
+
+
+def audit_release(approval, tag, root=ROOT, artifacts_dir=None):
+    """Gate G: the JSON approval record (docs/legal/release-decisions/<tag>.json) validates against
+    docs/legal/release-approval.schema.json and holds its semantics. The record is not yet signed:
+    approver.key_fingerprint is recorded, but no signature is checked (that comes later); until then
+    the gate rests on the git history and the maintainer's own commit."""
     r = Report("release approval")
-    fails = []
     try:
         with open(approval, encoding="utf-8") as f:
-            text = f.read()
+            record = json.load(f)
     except OSError as e:
         raise AuditError(f"{approval}: can't read it ({e})")
-    head = git_head(root)
-    for field in ("Decision:", "Approved by:", "Date:", "Commit:"):
-        if field not in text:
-            fails.append(f"{approval}: no '{field}' line")
-    mt = re.search(r"^Commit:\s*([0-9a-f]{40})\s*$", text, re.M)
-    if mt and head and mt.group(1) != head:
-        # The record can't name the commit that adds it: the approved commit may be an ancestor,
-        # provided nothing but release decisions changed since.
-        approved = mt.group(1)
-        anc = subprocess.run(["git", "-C", root, "merge-base", "--is-ancestor", approved, head], capture_output=True)
+    except ValueError as e:
+        raise AuditError(f"{approval}: not valid JSON ({e})")
+    schema = load_json(ROOT, APPROVAL_SCHEMA)   # the validator's schema ships with the tool, not the repo under test
+    fails = []
+    validate_schema(record, schema, "$", fails)
+    r.check(f"record against {APPROVAL_SCHEMA}", 1, fails)
+    if fails:
+        return r   # semantics on a record that failed the schema would only read missing keys
+    sem, now = [], datetime.datetime.now(datetime.timezone.utc)
+    if record["decision"] != "approve":
+        sem.append(f"the decision is {record['decision']!r}, not 'approve'; CI never publishes on a hold")
+    if record["distribution"]["status"] != "approved-for-publication":
+        sem.append(f"distribution.status is {record['distribution']['status']!r}, not 'approved-for-publication'")
+    if record["release_tag"] != tag:
+        sem.append(f"release_tag is {record['release_tag']!r}, but the release tag is {tag!r}")
+    approved = parse_rfc3339_strict(record["approved_at"], f"{approval}: approved_at")
+    expires = parse_rfc3339_strict(record["expires_at"], f"{approval}: expires_at")
+    if approved >= expires:
+        sem.append(f"approved_at ({record['approved_at']}) is not before expires_at ({record['expires_at']})")
+    if now >= expires:
+        sem.append(f"the approval expired at {record['expires_at']} (now {now.isoformat()}); re-approve the release")
+    for i, ex in enumerate(record["exceptions"]):
+        if now >= parse_rfc3339_strict(ex["expires_at"], f"{approval}: exceptions[{i}].expires_at"):
+            sem.append(f"exceptions[{i}] ({ex['id']}) expired at {ex['expires_at']} (now {now.isoformat()})")
+    # The record can't name the commit that adds it: the approved commit may be an ancestor,
+    # provided nothing but release decisions changed since.
+    head, commit = git_head(root), record["source"]["commit"]
+    if head and commit != head:
+        anc = subprocess.run(["git", "-C", root, "merge-base", "--is-ancestor", commit, head], capture_output=True)
         if anc.returncode != 0:
-            fails.append(f"{approval}: approves {approved}, which isn't this commit ({head}) or an ancestor of it")
+            sem.append(f"source.commit {commit} is not this commit ({head}) or an ancestor of it")
         else:
-            changed = subprocess.run(["git", "-C", root, "diff", "--name-only", approved, head],
+            changed = subprocess.run(["git", "-C", root, "diff", "--name-only", commit, head],
                                      capture_output=True, text=True).stdout.split()
             other = [c for c in changed if not c.startswith("docs/legal/release-decisions/")]
             if other:
-                fails.append(f"{approval}: approves {approved}, but {len(other)} file(s) changed since outside "
-                             f"docs/legal/release-decisions/ ({', '.join(other[:5])}); approve the new commit")
-    if re.search(r"^Decision:\s*approve", text, re.M | re.I) is None:
-        fails.append(f"{approval}: the decision isn't 'approve'")
-    r.check("human approval (Gate G)", 1, fails)
+                sem.append(f"source.commit {commit}, but {len(other)} file(s) changed since outside "
+                           f"docs/legal/release-decisions/ ({', '.join(other[:5])}); approve the new commit")
+    for role in sorted({a["role"] for a in record["artifacts"]}):
+        profile = ROLE_PROFILE.get(role)
+        if profile and profile not in record["profiles"]:
+            sem.append(f"an artifact has role {role!r}, but profiles does not list {profile!r}")
+    names = [a["name"] for a in record["artifacts"]]
+    for n in sorted({x for x in names if names.count(x) > 1}):
+        sem.append(f"artifact name {n!r} is listed more than once")
+    if artifacts_dir:
+        if not os.path.isdir(artifacts_dir):
+            raise AuditError(f"{artifacts_dir}: can't read it (not a directory)")
+        on_disk = {}
+        for dirpath, _dirs, filenames in os.walk(artifacts_dir):
+            for fn in filenames:
+                rel = os.path.relpath(os.path.join(dirpath, fn), artifacts_dir).replace(os.sep, "/")
+                with open(os.path.join(dirpath, fn), "rb") as f:
+                    data = f.read()
+                on_disk[rel] = (len(data), sha256(data))
+        listed = {a["name"]: a for a in record["artifacts"]}
+        for name in sorted(set(on_disk) - set(listed)):
+            sem.append(f"{name}: in {artifacts_dir} but not listed in the record's artifacts")
+        for name in sorted(set(listed) - set(on_disk)):
+            sem.append(f"{name}: listed in the record but not in {artifacts_dir}")
+        for name in sorted(set(on_disk) & set(listed)):
+            nbytes, digest = on_disk[name]
+            a = listed[name]
+            if nbytes != a["bytes"]:
+                sem.append(f"{name}: {nbytes} bytes in {artifacts_dir}, the record says {a['bytes']}")
+            elif digest != a["sha256"]:
+                sem.append(f"{name}: sha256 {digest} in {artifacts_dir}, the record says {a['sha256']}")
+    r.check("release approval semantics (Gate G)", 1, sem)
+    r.notes.append("the record is not yet signed: approver.key_fingerprint is recorded, but no signature "
+                   "is checked; Gate G rests on the git history and the maintainer's own commit")
     return r
 
 
@@ -491,6 +688,8 @@ def main(argv=None):
     t.add_argument("--root", default=ROOT)
     c = sub.add_parser("release")
     c.add_argument("--approval", required=True)
+    c.add_argument("--tag", required=True, help="the release tag; must equal the record's release_tag")
+    c.add_argument("--artifacts", help="directory of the release artifacts; must match the record exactly")
     c.add_argument("--root", default=ROOT)
     args = ap.parse_args(argv)
     try:
@@ -504,7 +703,7 @@ def main(argv=None):
         elif args.cmd == "zip":
             r = audit_zip(args.archive, args.profile, args.root, args.sbom, args.report)
         else:
-            r = audit_release(args.approval, args.root)
+            r = audit_release(args.approval, args.tag, args.root, args.artifacts)
     except AuditError as e:
         print(f"ip_audit: can't run: {e}")
         return 2

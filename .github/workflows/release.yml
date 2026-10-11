@@ -6,10 +6,11 @@ name: release
 # the release job creates the GitHub release with the zip, its .sha256 file and the tag's CHANGELOG section as notes.
 #
 # Releasing: set sdk/VERSION, add a "## sdk-v<version> (<date>)" section to CHANGELOG.md, merge;
-# the maintainer then commits docs/legal/release-decisions/sdk-v<version>.md approving that commit
-# (docs/legal/release-checklist.md) and tags the commit that adds the record: git tag sdk-v<version>
-# && git push origin sdk-v<version>. The release job refuses unless the record approves the tagged
-# commit or its parent with only release decisions changed since.
+# the maintainer then commits docs/legal/release-decisions/sdk-v<version>.json approving that
+# commit (docs/legal/release-checklist.md) and tags the commit that adds the record: git tag
+# sdk-v<version> && git push origin sdk-v<version>. The release job refuses unless the record
+# validates against docs/legal/release-approval.schema.json and approves the tagged commit or its
+# parent with only release decisions changed since.
 
 on:
   push:
@@ -56,9 +57,10 @@ jobs:
         run: dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c tests/abi_game_actors.c tests/abi_game_vehicles.c tests/abi_game_world.c tests/abi_game_events.c tests/abi_game_entities.c tests/abi_game_creative.c
 
       # Release hardening Gate G: a person approved this exact commit
-      # (docs/legal/release-decisions/sdk-v<version>.md). CI never writes the record.
+      # (docs/legal/release-decisions/<tag>.json, validated against its JSON Schema). CI never
+      # writes the record.
       - name: The release is approved for this commit
-        run: python3 tools/ip_audit.py release --approval "docs/legal/release-decisions/$GITHUB_REF_NAME.md"
+        run: python3 tools/ip_audit.py release --approval "docs/legal/release-decisions/$GITHUB_REF_NAME.json" --tag "$GITHUB_REF_NAME"
 
       - name: Repository audit (Gates 1, 2, 4)
         run: python3 tools/ip_audit.py repo
