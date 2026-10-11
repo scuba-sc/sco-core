@@ -27,8 +27,8 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | `tools/sco-plugin-check.c` | Checks a built plugin folder on your machine, without the game |
 | `tools/lua-check.lua` | Runs a Lua plugin against a stand-in `sco` table, without the game |
 | `docs/` | [plugin.ini](docs/plugin-ini.md), [data packs](docs/data-packs.md), [Lua](docs/lua.md), [plugin rules](docs/plugin-rules.md), [API reference](../docs/api-v1.md), [C++ SDK](../docs/sdk-cpp.md), [C# SDK](../docs/sdk-csharp.md) |
-| `VERSIONS.txt` | The kernel, plugin ABI and game-pack versions and the verified game builds (in the zip only) |
-| `SHA256SUMS` | The SHA-256 of every other file (in the zip only) |
+| `VERSIONS.txt` | The kernel, plugin ABI and game-pack versions and the verified game builds (in the zip only). The extension zip keeps its own as `VERSIONS.txt.game-sc`, so unpacking it over the core overwrites nothing |
+| `SHA256SUMS` | The SHA-256 of every other file (in the zip only; `SHA256SUMS.game-sc` in the extension zip) |
 
 ### Zips
 
@@ -39,7 +39,7 @@ public headers of a profile).
 | Zip | Holds |
 |---|---|
 | `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Its version is `sdk/VERSION` alone |
-| `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt` names |
+| `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
 
 ## Build the examples

@@ -14,15 +14,19 @@ Profiles (sdk/components.json "profiles"):
   legacy   sco-sdk-<sdk/VERSION>.zip: core and game-sc in one zip, as sdk-v1.1.0 shipped. Not
            game-neutral; kept until the consumers move to core + game-sc.
 
-A zip holds one folder with the selected files, VERSIONS.txt and SHA256SUMS. The same sources
-always give the same bytes: entries are sorted and carry a fixed timestamp and fixed modes.
+A zip holds one folder with the selected files, VERSIONS.txt and SHA256SUMS. A profile that is
+unpacked over another one (game-sc, over core) names its own copies VERSIONS.txt.<profile> and
+SHA256SUMS.<profile>, so the overlay keeps both and overwrites nothing. The same sources always
+give the same bytes: entries are sorted and carry a fixed timestamp and fixed modes.
 
 The manifest is checked before anything is written, and any doubt stops the build:
   - every file under the folders in "covers" is a component or an "excluded" entry, and every
     component's source is a regular file in the repository (no folders, no symlinks);
-  - every component has an id, source, destination, profiles, origin and license; ids and
-    destinations are unique; destinations are safe relative paths;
-  - a profile names only known profiles in "includes" / "requires";
+  - every component has an id, source, destination, profiles, origin and license, and no key
+    beyond the known ones; ids and destinations are unique; destinations are safe relative paths;
+  - a profile names only known profiles in "includes" / "requires", and they form no cycle;
+  - within any profile's selection (its own, included and required profiles) each file is
+    written once;
   - the core profile contains no game-sc component.
 
 Run by .github/workflows/sdk.yml; CI then builds the examples from the unpacked zip alone.
@@ -45,6 +49,7 @@ REPO_URL = "https://github.com/scubamount/sco-core/blob/main/"
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 ORIGINS = {"project-authored", "third-party", "generated", "interoperability-derived"}
 REQUIRED = ("id", "source", "destination", "profiles", "origin", "license")
+COMPONENT_KEYS = REQUIRED + ("public_header", "group", "note", "upstream")
 
 
 class ManifestError(Exception):
@@ -67,6 +72,39 @@ def tracked_files(root):
 def safe_rel(path):
     return (isinstance(path, str) and path and not path.startswith("/") and "\\" not in path and ":" not in path
             and all(part not in ("", ".", "..") for part in path.split("/")))
+
+
+def profile_refs(m, name):
+    """A profile's 'includes' plus 'requires', as profile names."""
+    p = m["profiles"][name]
+    refs = []
+    for key in ("includes", "requires"):
+        r = p.get(key, [])
+        refs += [r] if isinstance(r, str) else list(r)
+    return refs
+
+
+def closure(m, name):
+    """Every profile a profile's zip touches: itself, what it includes and what it requires,
+    transitively. Refuses a cycle with the path that closes it."""
+    seen, path = set(), []
+
+    def walk(n):
+        if n in path:
+            cycle = path[path.index(n):] + [n]
+            raise ManifestError(f"profiles form a cycle: {' -> '.join(cycle)}")
+        if n in seen:
+            return
+        path.append(n)
+        for r in profile_refs(m, n):
+            if r not in m["profiles"]:
+                raise ManifestError(f"profile {n}: names unknown profile {r}")
+            walk(r)
+        path.pop()
+        seen.add(n)
+
+    walk(name)
+    return seen
 
 
 def load_manifest(path=MANIFEST, root=ROOT):
@@ -94,12 +132,16 @@ def load_manifest(path=MANIFEST, root=ROOT):
     if not isinstance(comps, list) or not comps:
         raise ManifestError("no components")
     ids, dsts, srcs = set(), {}, set()
+    reserved = {n for prof in profiles for n in metadata_names(m, prof)}   # written by package.py
     for i, c in enumerate(comps):
         if not isinstance(c, dict):
             raise ManifestError(f"component {i} is not an object")
         missing = [k for k in REQUIRED if not c.get(k)]
         if missing:
             raise ManifestError(f"component {c.get('id', i)}: missing {', '.join(missing)}")
+        unknown = [k for k in c if k not in COMPONENT_KEYS]
+        if unknown:
+            raise ManifestError(f"component {c['id']}: unknown key(s) {', '.join(sorted(unknown))}")
         cid = c["id"]
         if cid in ids:
             raise ManifestError(f"component {cid}: id used twice")
@@ -113,7 +155,7 @@ def load_manifest(path=MANIFEST, root=ROOT):
         for key in ("source", "destination"):
             if not safe_rel(c[key]):
                 raise ManifestError(f"component {cid}: {key} '{c[key]}' is not a safe relative path")
-        if c["destination"] in ("VERSIONS.txt", "SHA256SUMS"):
+        if c["destination"] in reserved:
             raise ManifestError(f"component {cid}: destination {c['destination']} is written by package.py")
         full = os.path.join(root, c["source"])
         if os.path.islink(full) or not os.path.isfile(full):
@@ -134,6 +176,18 @@ def load_manifest(path=MANIFEST, root=ROOT):
     for e in excluded:
         if not e.get("path") or not e.get("why"):
             raise ManifestError("an excluded entry needs path and why")
+    # Closure: within one profile's selection (itself, what it includes and what it requires) each
+    # destination is written once. A core file and a game-sc file with one destination would
+    # overwrite each other where the extension unpacks over the core.
+    closures = {name: closure(m, name) for name in profiles}   # also refuses a cycle, once per profile
+    for name, reached in closures.items():
+        written = {}
+        for c in comps:
+            if set(c["profiles"]) & reached:
+                other = written.get(c["destination"])
+                if other is not None and other != c["id"]:
+                    raise ManifestError(f"profile {name}: {other} and {c['id']} both write {c['destination']}")
+                written[c["destination"]] = c["id"]
     unclassified = [p for p in tracked_files(root)
                     if any(p == c or p.startswith(c + "/") for c in covers) and p not in srcs and not is_excluded(p)]
     if unclassified:
@@ -243,6 +297,13 @@ def fix_links(src, dst, data, zip_paths, dirs):
     return LINK.sub(repl, data.decode("utf-8")).encode("utf-8")
 
 
+def metadata_names(m, profile):
+    """The two files package.py writes itself. A profile that unpacks over another one (game-sc,
+    over core) keeps its own copies under distinct names, so the overlay overwrites nothing."""
+    suffix = f".{profile}" if m["profiles"][profile].get("requires") else ""
+    return f"VERSIONS.txt{suffix}", f"SHA256SUMS{suffix}"
+
+
 def build(m, profile, out):
     chosen = select(m, profile)
     p = m["profiles"][profile]
@@ -261,9 +322,10 @@ def build(m, profile, out):
         with open(full, "rb") as f:
             entries[c["destination"]] = (fix_links(c["source"], c["destination"], f.read(), zip_paths, dirs),
                                          os.access(full, os.X_OK))
-    entries["VERSIONS.txt"] = (versions_txt(profile, version).encode("ascii"), False)
+    versions_name, sums_name = metadata_names(m, profile)
+    entries[versions_name] = (versions_txt(profile, version).encode("ascii"), False)
     sums = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n" for name, (data, _) in sorted(entries.items()))
-    entries["SHA256SUMS"] = (sums.encode("ascii"), False)
+    entries[sums_name] = (sums.encode("ascii"), False)
 
     os.makedirs(out, exist_ok=True)
     zip_path = os.path.join(out, f"{top}.zip")
