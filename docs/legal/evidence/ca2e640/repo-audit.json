@@ -1,0 +1,26 @@
+{
+ "scope": "repository",
+ "commit": "ca2e64091f55c1965b985e109649e5fe5c3ca967",
+ "passed": true,
+ "checks": [
+  {
+   "check": "provenance coverage (Gate 1)",
+   "checked": 491,
+   "failed": 0
+  },
+  {
+   "check": "artifacts (Gate 2)",
+   "checked": 491,
+   "failed": 0
+  },
+  {
+   "check": "licences and vendored pins (Gate 4)",
+   "checked": 189,
+   "failed": 0
+  }
+ ],
+ "failures": [],
+ "notes": [
+  "89 files are needs-review (provenance recorded, a question open); a release that ships one needs its decision in docs/legal/release-decisions/"
+ ]
+}

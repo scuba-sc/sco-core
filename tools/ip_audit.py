@@ -391,7 +391,7 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
 
         if sbom_path:
             write_sbom(sbom_path, archive, profile, top, names, content, expected, entries, root)
-            r.notes.append(f"SBOM written to {sbom_path}")
+            r.notes.append(f"SBOM written: {os.path.basename(sbom_path)}")   # a name, never a local path
     r.write(report_path)
     return r
 

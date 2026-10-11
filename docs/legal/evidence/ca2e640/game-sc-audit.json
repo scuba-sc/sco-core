@@ -1,0 +1,43 @@
+{
+ "scope": "zip sco-sdk-game-sc-0.2.0.zip (game-sc)",
+ "commit": "ca2e64091f55c1965b985e109649e5fe5c3ca967",
+ "passed": true,
+ "checks": [
+  {
+   "check": "archive structure",
+   "checked": 40,
+   "failed": 0
+  },
+  {
+   "check": "archive = manifest selection",
+   "checked": 38,
+   "failed": 0
+  },
+  {
+   "check": "SHA256SUMS (Gate 6)",
+   "checked": 40,
+   "failed": 0
+  },
+  {
+   "check": "shipped provenance (Gate 1/B)",
+   "checked": 38,
+   "failed": 0
+  },
+  {
+   "check": "artifacts (Gate 2)",
+   "checked": 40,
+   "failed": 0
+  },
+  {
+   "check": "licences and notices (Gate C/D)",
+   "checked": 1,
+   "failed": 0
+  }
+ ],
+ "failures": [],
+ "notes": [
+  "examples/quantum_pack/datacore/eos.toml: needs-review (F-08); its release decision must exist before publication",
+  "examples/travel_pack/lists/locations.txt: needs-review (F-09); its release decision must exist before publication",
+  "SBOM written: sco-sdk-game-sc.spdx.json"
+ ]
+}
