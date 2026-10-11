@@ -13,9 +13,11 @@ matter, to qualified counsel.
   file): `include/sc_ipc.h`, `include/sc_net.h`, `include/sc_titanlink.h`,
   `include/sc_voxel_bridge.h`. See [CONTRIBUTING.md § License](CONTRIBUTING.md#license).
 - Vendored third-party code keeps its own licence and notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-- How the licence applies to plugins built against `sco_api.h` is an **open decision** for the
-  copyright holder and counsel: [docs/legal/plugin-licensing-options.md](docs/legal/plugin-licensing-options.md).
-  Until it is decided, the existing statements stand unchanged.
+- Plugins: no linking exception is granted. The project expects plugins that include sco-core's
+  headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms; whether the
+  GPL applies to a particular plugin depends on how it is built and on applicable law. This is option A
+  of [docs/legal/plugin-licensing-options.md](docs/legal/plugin-licensing-options.md), chosen by the
+  maintainer on 2026-10-11 and pending counsel's review ([decision](docs/legal/release-decisions/2026-10-11-plugin-licence.md)).
 
 ## Copyright holder
 

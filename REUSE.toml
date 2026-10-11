@@ -99,19 +99,7 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
-path = "sdk/examples/travel_pack/lists/locations.txt"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
 path = "sdk/examples/quantum_pack/**"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "sdk/examples/quantum_pack/datacore/eos.toml"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"

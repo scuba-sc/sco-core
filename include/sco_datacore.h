@@ -18,8 +18,8 @@
  *       dc->begin(self, 0, &patch) == SCO_OK) {
  *       sco_dc_value v = { sizeof v, SCO_DC_FLOAT };
  *       v.f = 3.5;
- *       dc->set(patch, "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem",
- *               "Components[SCItemQuantumDriveParams].params.spoolUpTime", &v);
+ *       dc->set(patch, "ExampleItem.Drive_Alpha",
+ *               "Components[ExampleDriveParams].params.spoolUpTime", &v);
  *       dc->commit(patch);
  *   }
  *

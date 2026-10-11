@@ -34,9 +34,9 @@ A pack can change the game's own data (`Data\Game2.dcb`, the DataCore database) 
 format = 1
 
 [[set]]
-record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem"
-guid   = "08a5bfdb-1972-421f-83fe-be03b7ac5222"
-field  = "Components[SCItemQuantumDriveParams].params.spoolUpTime"
+record = "ExampleItem.Drive_Alpha"
+guid   = "00000000-0000-4000-8000-00000000a001"
+field  = "Components[ExampleDriveParams].params.spoolUpTime"
 value  = 3.5
 ```
 
@@ -44,9 +44,9 @@ A new record is cloned from one of the same struct and then named like any other
 
 ```toml
 [[record]]
-struct = "EntityClassDefinition"
-name   = "EntityClassDefinition.QDRV_MyMod_S01_SCItem"
-clone  = { record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem" }
+struct = "ExampleItem"
+name   = "ExampleItem.Drive_MyMod"
+clone  = { record = "ExampleItem.Drive_Alpha" }
 ```
 
 Without a `guid`, it gets one derived from your plugin id and the record name, the same at every launch; without a `file`, it lives at `libs/foundry/records/sco/<plugin id>/<name>.xml`.

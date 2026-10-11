@@ -24,8 +24,11 @@
  *  - 64-bit only (x64 Windows is the target; the host tests build on
  *    64-bit macOS and Linux with the same layout).
  *
- * License: GPL-3.0, like the rest of sco-core. Plugins built against this
- * header are GPL-3.0; there is no linking exception.
+ * License: GPL-3.0-only, like the rest of sco-core. The project expects plugins
+ * that include its headers or compile its SDK sources to be distributed under
+ * GPL-3.0-compatible terms; whether the GPL applies to a particular plugin
+ * depends on how it is built and on applicable law. No linking exception is
+ * granted (docs/legal/release-decisions/2026-10-11-plugin-licence.md).
  */
 #ifndef SCO_API_H
 #define SCO_API_H

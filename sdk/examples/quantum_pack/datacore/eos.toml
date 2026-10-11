@@ -1,32 +1,33 @@
-# quantum_pack: a quicker RSI Eos quantum drive, and the Wetkah Beacon given a copy of the Eos's
-# drive settings with more top speed. Names are those of Game2.dcb 4.10.193; `sco-dcb show` lists a
-# record's fields as these paths. Format: docs/data-packs.md in the SDK.
+# quantum_pack: a quicker Drive_Alpha, and Drive_Beta given a copy of Drive_Alpha's settings with more
+# top speed. Every record, struct and field name and GUID here is made up to show the format; none
+# is a game's. For a real pack, `sco-dcb show` on your Game2.dcb lists a record's fields as these
+# paths. Format: docs/data-packs.md in the SDK.
 format = 1        # the pack file format, not a game version
 atomic = true     # all of this file applies, or none of it (the default)
 
 # Plain field overrides. The GUID is the record's identity; the name is what messages show.
 [[set]]
-record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem"
-guid   = "08a5bfdb-1972-421f-83fe-be03b7ac5222"
-field  = "Components[SCItemQuantumDriveParams].params.spoolUpTime"
+record = "ExampleItem.Drive_Alpha"
+guid   = "00000000-0000-4000-8000-00000000a001"
+field  = "Components[ExampleDriveParams].params.spoolUpTime"
 value  = 3.5
 
 [[set]]
-record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem"
-guid   = "08a5bfdb-1972-421f-83fe-be03b7ac5222"
-field  = "Components[SCItemQuantumDriveParams].params.cooldownTime"
+record = "ExampleItem.Drive_Alpha"
+guid   = "00000000-0000-4000-8000-00000000a001"
+field  = "Components[ExampleDriveParams].params.cooldownTime"
 value  = 8.0
 
-# A new object: a copy of the Eos drive's parameters, named "eos_fast" in this file...
+# A new object: a copy of Drive_Alpha's parameters, named "eos_fast" in this file...
 [[instance]]
 id     = "eos_fast"
-struct = "SCItemQuantumDriveParams"
-clone  = { record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem", field = "Components[SCItemQuantumDriveParams]" }
+struct = "ExampleDriveParams"
+clone  = { record = "ExampleItem.Drive_Alpha", field = "Components[ExampleDriveParams]" }
 set    = { "params.driveSpeed" = 2.5e8, "params.spoolUpTime" = 4.0 }
 
-# ...that the Beacon's drive component now points at.
+# ...that Drive_Beta's drive component now points at.
 [[set]]
-record  = "EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem"
-guid    = "b5cbef86-f37f-4e05-8aff-e0f61afe166e"
-field   = "Components[SCItemQuantumDriveParams]"
+record  = "ExampleItem.Drive_Beta"
+guid    = "00000000-0000-4000-8000-00000000b002"
+field   = "Components[ExampleDriveParams]"
 pointer = "@eos_fast"

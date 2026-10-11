@@ -26,8 +26,8 @@ A failed or skipped mandatory check blocks the release. Nothing in CI creates a 
 ## Needs a person
 
 - [ ] **F:** the CHANGELOG section and the README describe what ships (core vs. extension) and claim no more than the checks show.
-- [ ] **B:** every `needs-review` entry the release ships has a decision in `docs/legal/release-decisions/` (today: `quantum_pack/datacore/eos.toml` F-08, `travel_pack/lists/locations.txt` F-09, and the game pack). Or the release leaves that component out.
-- [ ] **D:** the plugin-licence decision is made and recorded ([options](plugin-licensing-options.md)) before any release text states a plugin licence.
+- [ ] **B:** every `needs-review` entry the release ships has a decision in `docs/legal/release-decisions/`, or the release leaves that component out. Since the synthetic example data (2026-10-11), no SDK zip ships one; the game pack's entries ship in none.
+- [ ] **D:** counsel has reviewed the plugin-licence wording ([option A, chosen 2026-10-11](release-decisions/2026-10-11-plugin-licence.md)), or the release states nothing stronger than it.
 - [ ] **G:** the maintainer checks the commit and the zip hashes from the CI run, and qualified counsel reviews any open material legal question.
 - [ ] **G:** the maintainer commits the approval record, then tags. Publishing is a separate act from CI going green.
 

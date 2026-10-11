@@ -86,42 +86,43 @@ sco-dcb diff a.dcb b.dcb > changes.toml   # what changed from a to b, as a pack
 
 A `<pack>` is a pack folder (its `datacore/*.toml` files in name order; the folder name is the plugin id) or one `.toml` file. Several packs are applied in the order given, which stands for plugin order, so `check` also shows conflicts between them. A `<record>` is its name or its GUID (`guid:` prefix optional).
 
-`check` is the patch-day routine for data mods. On 4.10.193 (`Game2.dcb` from the LIVE `Data.p4k`, 2026-10-09), the SDK's sample pack ([`sdk/examples/quantum_pack`](../sdk/examples/quantum_pack/datacore/eos.toml)):
+`check` is the patch-day routine for data mods: run it against the `Game2.dcb` of each new game build. The SDK's sample pack ([`sdk/examples/quantum_pack`](../sdk/examples/quantum_pack/datacore/eos.toml)) uses made-up record, struct and field names, so here it is checked against the small file `test_datacore_pack` writes with that schema (as `tests/dcb_pack.cmake` and the `sdk` workflow do); a real pack names the game's records and is checked against the game's file the same way:
 
 ```text
-$ sco-dcb check C:/dcb/Data/Game2.dcb sdk/examples/quantum_pack
-C:/dcb/Data/Game2.dcb: 331932921 bytes, 117022 records, layout OK
+$ sco-dcb check example_fixture.dcb sdk/examples/quantum_pack
+example_fixture.dcb: 848 bytes, 2 records, layout OK
 
 pack quantum_pack datacore/eos.toml (atomic): APPLIED 6/6
-  line 8: OK   OverrideField record "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem" field "Components[SCItemQuantumDriveParams].params.spoolUpTime"
-  line 14: OK   OverrideField record "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem" field "Components[SCItemQuantumDriveParams].params.cooldownTime"
-  line 21: OK   AddInstance struct "SCItemQuantumDriveParams"
-  line 21: OK   OverrideField instance 63 of SCItemQuantumDriveParams field "params.driveSpeed"
-  line 21: OK   OverrideField instance 63 of SCItemQuantumDriveParams field "params.spoolUpTime"
-  line 28: OK   SetPointer record "EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem" field "Components[SCItemQuantumDriveParams]"
+  line 9: OK   OverrideField record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.spoolUpTime"
+  line 15: OK   OverrideField record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.cooldownTime"
+  line 22: OK   AddInstance struct "ExampleDriveParams"
+  line 22: OK   OverrideField instance 2 of ExampleDriveParams field "params.driveSpeed"
+  line 22: OK   OverrideField instance 2 of ExampleDriveParams field "params.spoolUpTime"
+  line 29: OK   SetPointer record "ExampleItem.Drive_Beta" field "Components[ExampleDriveParams]"
 
 emit: OK, 5 splices, the patched file re-validated
 [datacore] 1 pack: quantum_pack 6/6 applied
 ```
 
-It took 0.37 s, parse and re-validation of the whole patched file included. A pack naming a field the struct doesn't have is refused as a whole (it is atomic), with the reason, and `check` exits 1:
+Against the full `Game2.dcb` of 4.10.193 (331,932,921 bytes, 117,022 records), the same check of the earlier, game-named version of this pack took 0.37 s, parse and re-validation of the patched file included. A pack naming a field the struct doesn't have is refused as a whole (it is atomic), with the reason, and `check` exits 1:
 
 ```text
 pack badpack datacore/typo.toml (atomic): REFUSED 0/2
-  line 3: OK   OverrideField record "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem" field "Components[SCItemQuantumDriveParams].params.spoolUpTime" (not applied: the pack is refused)
-  line 8: SKIP record "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem" field "Components[SCItemQuantumDriveParams].params.spoolTime": no property "spoolTime" in SQuantumDriveParams (field not found)
-  -> line 8: record "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem" field "Components[SCItemQuantumDriveParams].params.spoolTime": no property "spoolTime" in SQuantumDriveParams
+  line 4: OK   OverrideField record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.spoolUpTime" (not applied: the pack is refused)
+  line 9: SKIP record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.spoolTime": no property "spoolTime" in ExampleDriveValues (field not found)
+  -> line 9: record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.spoolTime": no property "spoolTime" in ExampleDriveValues
 ```
 
 `show` follows inline structs and strong pointers and lists arrays element by element. Values print in pack syntax (`2.5`, `"text"`, `{ enum = "QuantumDrive" }`, `{ guid = "..." }`), pointers as `-> Struct[index]`, `weak -> ...` or `null`, references as `{ ref = "guid:..." }` followed by the record's name as a comment:
 
 ```text
-$ sco-dcb show Game2.dcb EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem "Components[SCItemQuantumDriveParams]"
-Components[SCItemQuantumDriveParams] = -> SCItemQuantumDriveParams[6]
-  Components[SCItemQuantumDriveParams].params.driveSpeed = 1.992727e+08
-  Components[SCItemQuantumDriveParams].params.cooldownTime = 10.8
+$ sco-dcb show example_fixture.dcb ExampleItem.Drive_Alpha "Components[ExampleDriveParams]"
+Components[ExampleDriveParams] = -> ExampleDriveParams[0]
+  Components[ExampleDriveParams].params.driveSpeed = 2e+08
+  Components[ExampleDriveParams].params.cooldownTime = 10.0
+  Components[ExampleDriveParams].params.accelRate = 5e+06
+  Components[ExampleDriveParams].params.spoolUpTime = 5.0
   ...
-  Components[SCItemQuantumDriveParams].params.spoolUpTime = 5.1
 ```
 
 `diff` expects b to be a with values changed and things appended, as the patcher writes them: the same struct and property definitions. It walks every record of b from its root (matched to a by GUID), compares values by path, and prints `[[set]]`, `[[instance]]` and `[[append]]` blocks. New instances are written zero-filled and then fully set; arrays that grew get appends. A record only in b becomes a `[[record]]` (its name, GUID and file as in b) cloned from the record of a, of the same struct, whose values differ least (records in the same file tried first, at most 256), followed by `[[set]]`s for the values that still differ; new records come first in the output, so later operations can point at them. What it can't express (a new record of a struct a has no record of, a shrunk array, a reference field, an existing instance no record path reaches) is listed as `# not converted:` comments and makes it exit 1. Paths it writes are index-based (`Components[1]`), so edit them to `[Type]` selectors before keeping the pack. The output is checked to parse before it is printed.
@@ -135,20 +136,20 @@ format = 1                 # required: the file format, not a game version
 atomic = true              # default; false lets each operation apply on its own
 
 [[set]]                    # a value in place
-record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem"   # record name, and/or:
-guid   = "08a5bfdb-1972-421f-83fe-be03b7ac5222"           # preferred when given; the name is then for messages
-field  = "Components[SCItemQuantumDriveParams].params.spoolUpTime"
+record = "ExampleItem.Drive_Alpha"   # record name, and/or:
+guid   = "00000000-0000-4000-8000-00000000a001"           # preferred when given; the name is then for messages
+field  = "Components[ExampleDriveParams].params.spoolUpTime"
 value  = 3.5
 
 [[instance]]               # a new instance, named in this file
 id     = "eos_fast"
-struct = "SCItemQuantumDriveParams"
-clone  = { record = "...", field = "Components[SCItemQuantumDriveParams]" }   # optional; else zero-filled
+struct = "ExampleDriveParams"
+clone  = { record = "...", field = "Components[ExampleDriveParams]" }   # optional; else zero-filled
 set    = { "params.driveSpeed" = 2.5e8 }                                       # optional
 
 [[set]]
-record  = "EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem"
-field   = "Components[SCItemQuantumDriveParams]"
+record  = "ExampleItem.Drive_Beta"
+field   = "Components[ExampleDriveParams]"
 pointer = "@eos_fast"      # or "null", or { record = "...", field = "..." } for an existing instance
 
 [[append]]                 # one element at the end of an array
@@ -159,18 +160,18 @@ value  = { struct = "SEntityEffectSystem_ParticleTagEffect", clone = { record = 
 #    element = "@id" for an array of structs (the instance is copied in)
 
 [[record]]                 # a new top-level record (design "AddRecord")
-id     = "eos_sco"          # optional: "@eos_sco" is its root instance in later operations
-struct = "EntityClassDefinition"
-name   = "EntityClassDefinition.QDRV_SCO_Example_SCItem"   # unique among records
+id     = "mine"          # optional: "@mine" is its root instance in later operations
+struct = "ExampleItem"
+name   = "ExampleItem.Drive_Mine"   # unique among records
 guid   = "..."              # optional; default: derived from the plugin id and the name, stable
-clone  = { record = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem" }   # required: a record of the same struct
+clone  = { record = "ExampleItem.Drive_Alpha" }   # required: a record of the same struct
 file   = "libs/foundry/records/...xml"   # optional; default libs/foundry/records/sco/<plugin id>/<name>.xml
 set    = { "..." = 1.0 }    # optional: values on the new record's root
 
-[[set]]                    # later operations name it like any record (or use instance = "@eos_sco")
+[[set]]                    # later operations name it like any record (or use instance = "@mine")
 record = "..."
 field  = "someReference"
-value  = { ref = "EntityClassDefinition.QDRV_SCO_Example_SCItem" }
+value  = { ref = "ExampleItem.Drive_Mine" }
 ```
 
 | Key | In | Meaning |
@@ -204,14 +205,14 @@ if (api->query_service(SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_0, (const void*
     dc->begin(self, 0, &patch) == SCO_OK) {
     sco_dc_value v = { sizeof v, SCO_DC_FLOAT };
     v.f = 3.5;
-    dc->set(patch, "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem", "Components[SCItemQuantumDriveParams].params.spoolUpTime", &v);
-    dc->add_instance(patch, "SCItemQuantumDriveParams", "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem",
-                     "Components[SCItemQuantumDriveParams]", &fast);
+    dc->set(patch, "ExampleItem.Drive_Alpha", "Components[ExampleDriveParams].params.spoolUpTime", &v);
+    dc->add_instance(patch, "ExampleDriveParams", "ExampleItem.Drive_Alpha",
+                     "Components[ExampleDriveParams]", &fast);
     char at[24];
     snprintf(at, sizeof at, "@%llu", (unsigned long long)fast);  /* a field of the added instance */
     v.f = 2.5e8;
     dc->set(patch, at, "params.driveSpeed", &v);
-    dc->set_pointer(patch, "EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem", "Components[SCItemQuantumDriveParams]", fast);
+    dc->set_pointer(patch, "ExampleItem.Drive_Beta", "Components[ExampleDriveParams]", fast);
     dc->commit(patch);
 }
 ```
@@ -249,11 +250,11 @@ if (api->query_service(SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_0, (const void*
 sco::sdk::DataCore dc;
 if (dc.Open(*this) == SCO_OK) {
     sco::sdk::DataCorePatch p = dc.Begin();            // discarded on destruction unless committed
-    p.Set(eos, "Components[SCItemQuantumDriveParams].params.spoolUpTime", 3.5);
-    sco::sdk::DataCoreInstance fast = p.AddInstance("SCItemQuantumDriveParams", eos, "Components[SCItemQuantumDriveParams]");
+    p.Set(eos, "Components[ExampleDriveParams].params.spoolUpTime", 3.5);
+    sco::sdk::DataCoreInstance fast = p.AddInstance("ExampleDriveParams", eos, "Components[ExampleDriveParams]");
     p.Set(fast.Ref(), "params.driveSpeed", 2.5e8);
-    p.SetPointer(beacon, "Components[SCItemQuantumDriveParams]", fast);
-    sco::sdk::DataCoreInstance mine = p.AddRecord("EntityClassDefinition", "EntityClassDefinition.QDRV_SCO_Mine", eos);
+    p.SetPointer(beacon, "Components[ExampleDriveParams]", fast);
+    sco::sdk::DataCoreInstance mine = p.AddRecord("ExampleItem", "ExampleItem.Drive_Mine", eos);
     p.Commit();                                        // mine.Ref() and the name address the new record
 }
 ```
@@ -261,10 +262,10 @@ if (dc.Open(*this) == SCO_OK) {
 ```lua
 if sco.datacore then                                   -- nil when the product doesn't publish it
   local p = sco.datacore.begin()                       -- or begin({ atomic = false })
-  p:set(eos, "Components[SCItemQuantumDriveParams].params.spoolUpTime", 3.5)
-  local fast = p:add_instance("SCItemQuantumDriveParams", eos, "Components[SCItemQuantumDriveParams]")
-  p:set_pointer(beacon, "Components[SCItemQuantumDriveParams]", fast)
-  p:add_record("EntityClassDefinition", "EntityClassDefinition.QDRV_SCO_Mine", eos)   -- [, guid [, file]]
+  p:set(eos, "Components[ExampleDriveParams].params.spoolUpTime", 3.5)
+  local fast = p:add_instance("ExampleDriveParams", eos, "Components[ExampleDriveParams]")
+  p:set_pointer(beacon, "Components[ExampleDriveParams]", fast)
+  p:add_record("ExampleItem", "ExampleItem.Drive_Mine", eos)   -- [, guid [, file]]
   p:commit()
 end
 ```
