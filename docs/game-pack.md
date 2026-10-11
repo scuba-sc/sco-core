@@ -22,5 +22,6 @@ Every row OK in `sco-sigcheck` on the build's `StarCitizen.exe`. The full report
 |---|---|---|---|
 | 0.1.0 | 4.10.196.36804 (PE timestamp `0x6ac64e6f`) | 70/70 OK | `sc-baseline/4.10.196.36804/sigcheck-game-pack-0.1.0.txt` |
 | 0.2.0 | 4.10.196.36804 (PE timestamp `0x6ac64e6f`) | 317 distinct rows, all OK, from two reports (316/316 and 311/311; none covers the release commit alone) | `sigcheck-entities-merged.txt`, `sigcheck-mining.txt` |
+| 0.3.0 | 4.10.196.36804 (PE timestamp `0x6ac64e6f`) | 316 rows, all OK (316/316; the redundant `contracts.actor_kill` row was removed with the actor-death change) | the actor-death change's post-removal run, in `sc-baseline/4.10.196.36804/` |
 
 **What "verified" means here: rows verified by sigcheck; in-game verification pending.** `sco-sigcheck` runs the signature tables against the exe file, so a green row says the locator matches once and the byte checks pass, not that the service built on it has been seen working. No game service has been run in a game session since it landed; [Status of every game.* table](game/status.md) lists, per table and capability, what is on, what is off and why. The same words are in the SDK zip's `VERSIONS.txt` (`SCO_GAME_PACK_VERIFICATION` in `sc_game_pack.h`).
