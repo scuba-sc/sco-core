@@ -4,7 +4,7 @@ Version 1.1, released in `sdk-v1.1.0`. This is the plain-C interface a plugin us
 
 **Status: stable.** Since `sdk-v1.1.0` the header, this page and [`tests/abi_v1.c`](../tests/abi_v1.c) only grow: version 1 adds fields and functions at the end of structs and never changes what was released (see [Compatibility](#compatibility)). sco-core implements the table ([`sco::host::BuildApi`](api.md#scohosth-the-hosts-sco_api-table)) and the loader ([Plugins](plugins.md)); sc-offline hosts it.
 
-Plugins are native DLLs and run with the game's full rights. Only install plugins you trust. Plugins are GPL-3.0, like sco-core; there is no linking exception.
+Plugins are native DLLs and run with the game's full rights. Only install plugins you trust. sco-core is GPL-3.0-only; the project expects plugins that include its headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms. Whether the GPL applies to a particular plugin depends on how it is built and on applicable law. No linking exception is granted.
 
 ## Contents
 

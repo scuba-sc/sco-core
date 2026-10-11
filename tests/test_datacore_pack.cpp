@@ -4,7 +4,7 @@
 // tests/dcb_builder.h scene: every patcher refusal a pack can reach, plugin-order priority with
 // conflicts, per-pack atomicity and atomic = false, @id dependencies, and the summary line. It also
 // writes the fixture the sample pack (sdk/examples/quantum_pack) is checked against: a small file
-// with the record, struct and field names of 4.10.193 that the pack uses (tests/dcb_pack.cmake).
+// with the made-up record, struct and field names the pack uses (tests/dcb_pack.cmake).
 //   test_datacore_pack <repo root> <out dir>
 #include "dcb_builder.h"
 #include "sco/datacore.h"
@@ -442,21 +442,21 @@ value = 3.0
 
 // ---- the sample pack's fixture -----------------------------------------------------------------
 
-// The names sdk/examples/quantum_pack uses, as in 4.10.193: an EntityClassDefinition's Components
-// array of strong pointers to component params, one of them SCItemQuantumDriveParams with inline
-// `params` and `splineJumpParams`. Values are those `sco-dcb show` prints for the real Eos drive.
-static Bytes QuantumFixture() {
+// The made-up schema sdk/examples/quantum_pack uses: an ExampleItem's Components
+// array of strong pointers to component params, one of them ExampleDriveParams with inline
+// `params` and `altParams`, shaped like a DataCore item with component params. The values are arbitrary.
+static Bytes ExampleFixture() {
     using namespace dcb;
     Builder b;
     b.recordSize = 36;
     enum : uint32_t { kComp, kQParams, kQItem, kAttach, kEntity };
     b.structs = {
-        { "DataForgeComponentParams", -1, {} },
-        { "SQuantumDriveParams", -1,
-          { { "driveSpeed", t::Float }, { "cooldownTime", t::Float }, { "stageOneAccelRate", t::Float }, { "spoolUpTime", t::Float } } },
-        { "SCItemQuantumDriveParams", kComp, { { "params", t::Class, kQParams }, { "splineJumpParams", t::Class, kQParams } } },
-        { "SAttachableComponentParams", kComp, { { "Size", t::Int32 } } },
-        { "EntityClassDefinition", -1, { { "Components", t::Strong, kComp, kArray2 } } },
+        { "ExampleComponentParams", -1, {} },
+        { "ExampleDriveValues", -1,
+          { { "driveSpeed", t::Float }, { "cooldownTime", t::Float }, { "accelRate", t::Float }, { "spoolUpTime", t::Float } } },
+        { "ExampleDriveParams", kComp, { { "params", t::Class, kQParams }, { "altParams", t::Class, kQParams } } },
+        { "ExampleSizeParams", kComp, { { "Size", t::Int32 } } },
+        { "ExampleItem", -1, { { "Components", t::Strong, kComp, kArray2 } } },
     };
     b.mappings = { { kComp, 0 }, { kQParams, 0 }, { kQItem, 2 }, { kAttach, 2 }, { kEntity, 2 } };
     auto guid = [](const char* text) {
@@ -464,24 +464,24 @@ static Bytes QuantumFixture() {
         ParseGuid(text, g);
         return g.bytes;
     };
-    const char* dir = "libs/foundry/records/entities/scitem/ships/quantumdrive/";
+    const char* dir = "libs/foundry/records/example/drives/";
     b.records = {
-        { "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem", std::string(dir) + "qdrv_rsi_s01_eos_scitem.xml", kEntity,
-          guid("08a5bfdb-1972-421f-83fe-be03b7ac5222"), 0, 0 },
-        { "EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem", std::string(dir) + "qdrv_wetk_s01_beacon_scitem.xml", kEntity,
-          guid("b5cbef86-f37f-4e05-8aff-e0f61afe166e"), 1, 0 },
+        { "ExampleItem.Drive_Alpha", std::string(dir) + "drive_alpha.xml", kEntity,
+          guid("00000000-0000-4000-8000-00000000a001"), 0, 0 },
+        { "ExampleItem.Drive_Beta", std::string(dir) + "drive_beta.xml", kEntity,
+          guid("00000000-0000-4000-8000-00000000b002"), 1, 0 },
     };
     for (uint32_t i = 0; i < 2; ++i) {
         b.PushPointer(Strong, kAttach, i);
         b.PushPointer(Strong, kQItem, i);
         b.fills.push_back({ kEntity, i, "Components", Pair(2, 2 * i) });
         b.fills.push_back({ kAttach, i, "Size", Le(1, 4) });
-        for (const char* part : { "params", "splineJumpParams" }) {
+        for (const char* part : { "params", "altParams" }) {
             const std::string p = part;
-            b.fills.push_back({ kQItem, i, p + ".driveSpeed", F32(i ? 1.6e8f : 1.992727e8f) });
-            b.fills.push_back({ kQItem, i, p + ".cooldownTime", F32(10.8f) });
-            b.fills.push_back({ kQItem, i, p + ".stageOneAccelRate", F32(7685182.0f) });
-            b.fills.push_back({ kQItem, i, p + ".spoolUpTime", F32(5.1f) });
+            b.fills.push_back({ kQItem, i, p + ".driveSpeed", F32(i ? 1.5e8f : 2.0e8f) });
+            b.fills.push_back({ kQItem, i, p + ".cooldownTime", F32(10.0f) });
+            b.fills.push_back({ kQItem, i, p + ".accelRate", F32(5.0e6f) });
+            b.fills.push_back({ kQItem, i, p + ".spoolUpTime", F32(5.0f) });
         }
     }
     Bytes f = b.Build();
@@ -509,7 +509,7 @@ static bool LoadPackDir(const fs::path& dir, std::vector<Pack>& out) {
 }
 
 static void TestSamplePack() {
-    const Bytes base = QuantumFixture();
+    const Bytes base = ExampleFixture();
     Schema s;
     CHECK(s.Parse(base));
     std::vector<Pack> packs;
@@ -517,14 +517,14 @@ static void TestSamplePack() {
     const PackResult r = ApplyPacks(s, packs);
     CHECK(r.status.ok() && r.packs.size() == 1 && r.packs[0].state == PackState::Applied);
     const Bytes f = Applied(base, r);
-    const char* eos = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem";
-    const char* beacon = "EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem";
-    CHECK(Val(f, eos, "Components[SCItemQuantumDriveParams].params.spoolUpTime") == "3.5");
-    CHECK(Val(f, eos, "Components[SCItemQuantumDriveParams].params.cooldownTime") == "8.0");
-    CHECK(Val(f, beacon, "Components[SCItemQuantumDriveParams].params.driveSpeed") == "2.5e+08");
-    CHECK(Val(f, beacon, "Components[SCItemQuantumDriveParams].params.spoolUpTime") == "4.0");
-    CHECK(Val(f, beacon, "Components[SCItemQuantumDriveParams].params.cooldownTime") == "8.0");   // cloned after the Eos change
-    CHECK(Val(f, beacon, "Components[SCItemQuantumDriveParams]") == "-> SCItemQuantumDriveParams[2]");
+    const char* eos = "ExampleItem.Drive_Alpha";
+    const char* beacon = "ExampleItem.Drive_Beta";
+    CHECK(Val(f, eos, "Components[ExampleDriveParams].params.spoolUpTime") == "3.5");
+    CHECK(Val(f, eos, "Components[ExampleDriveParams].params.cooldownTime") == "8.0");
+    CHECK(Val(f, beacon, "Components[ExampleDriveParams].params.driveSpeed") == "2.5e+08");
+    CHECK(Val(f, beacon, "Components[ExampleDriveParams].params.spoolUpTime") == "4.0");
+    CHECK(Val(f, beacon, "Components[ExampleDriveParams].params.cooldownTime") == "8.0");   // cloned after the Drive_Alpha change
+    CHECK(Val(f, beacon, "Components[ExampleDriveParams]") == "-> ExampleDriveParams[2]");
 
     std::vector<Pack> bad;
     CHECK(LoadPackDir(g_root / "tests" / "fixtures" / "datacore" / "missing_field", bad));
@@ -532,9 +532,9 @@ static void TestSamplePack() {
     CHECK(rb.packs.size() == 1 && rb.packs[0].state == PackState::Refused && rb.packs[0].reason.find("no property \"spoolTime\"") != std::string::npos);
 
     // The files tests/dcb_pack.cmake runs sco-dcb on: the fixture, and the same with the sample applied (diff).
-    std::ofstream(g_out / "quantum_fixture.dcb", std::ios::binary).write(reinterpret_cast<const char*>(base.data()), static_cast<std::streamsize>(base.size()));
-    std::ofstream(g_out / "quantum_fixture_patched.dcb", std::ios::binary).write(reinterpret_cast<const char*>(f.data()), static_cast<std::streamsize>(f.size()));
-    CHECK(fs::file_size(g_out / "quantum_fixture.dcb") == base.size() && fs::file_size(g_out / "quantum_fixture_patched.dcb") == f.size());
+    std::ofstream(g_out / "example_fixture.dcb", std::ios::binary).write(reinterpret_cast<const char*>(base.data()), static_cast<std::streamsize>(base.size()));
+    std::ofstream(g_out / "example_fixture_patched.dcb", std::ios::binary).write(reinterpret_cast<const char*>(f.data()), static_cast<std::streamsize>(f.size()));
+    CHECK(fs::file_size(g_out / "example_fixture.dcb") == base.size() && fs::file_size(g_out / "example_fixture_patched.dcb") == f.size());
 
     // tests/fixtures/datacore/new_record: a [[record]] (sco-dcb show and diff run on the result).
     std::vector<Pack> rec;
@@ -543,8 +543,8 @@ static void TestSamplePack() {
     CHECK(rr.status.ok() && rr.packs.size() == 1 && rr.packs[0].state == PackState::Applied);
     const Bytes fr = Applied(base, rr);
     CHECK(!fr.empty());
-    std::ofstream(g_out / "quantum_fixture_record.dcb", std::ios::binary).write(reinterpret_cast<const char*>(fr.data()), static_cast<std::streamsize>(fr.size()));
-    CHECK(fs::file_size(g_out / "quantum_fixture_record.dcb") == fr.size());
+    std::ofstream(g_out / "example_fixture_record.dcb", std::ios::binary).write(reinterpret_cast<const char*>(fr.data()), static_cast<std::streamsize>(fr.size()));
+    CHECK(fs::file_size(g_out / "example_fixture_record.dcb") == fr.size());
 }
 
 int main(int argc, char** argv) {

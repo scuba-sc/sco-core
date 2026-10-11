@@ -1,7 +1,7 @@
 # Plugin licensing: options for decision
 
-**Status: open. Nothing here is in force.** The copyright holder chooses, with qualified counsel's
-advice; until then every existing statement stays as written. This document lays out the options;
+**Status: option A chosen by the maintainer on 2026-10-11, pending counsel's review**
+([decision](release-decisions/2026-10-11-plugin-licence.md)). The statements now use option A's wording. This document lays out the options;
 it is not legal advice, and none of its descriptions of how licences apply has been reviewed by a
 lawyer.
 

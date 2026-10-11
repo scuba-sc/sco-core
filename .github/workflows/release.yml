@@ -5,8 +5,11 @@ name: release
 # ABI pins, every example built and checked from the zip, cs_hello published with NativeAOT), then
 # the release job creates the GitHub release with the zip, its .sha256 file and the tag's CHANGELOG section as notes.
 #
-# Releasing: set sdk/VERSION, add a "## sdk-v<version> (<date>)" section to CHANGELOG.md, merge,
-# then tag that commit on main: git tag sdk-v<version> && git push origin sdk-v<version>.
+# Releasing: set sdk/VERSION, add a "## sdk-v<version> (<date>)" section to CHANGELOG.md, merge;
+# the maintainer then commits docs/legal/release-decisions/sdk-v<version>.md approving that commit
+# (docs/legal/release-checklist.md) and tags the commit that adds the record: git tag sdk-v<version>
+# && git push origin sdk-v<version>. The release job refuses unless the record approves the tagged
+# commit or its parent with only release decisions changed since.
 
 on:
   push:
@@ -52,8 +55,19 @@ jobs:
       - name: C# SDK layout test against tests/abi_*.c
         run: dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c tests/abi_game_actors.c tests/abi_game_vehicles.c tests/abi_game_world.c tests/abi_game_events.c tests/abi_game_entities.c tests/abi_game_creative.c
 
+      # Release hardening Gate G: a person approved this exact commit
+      # (docs/legal/release-decisions/sdk-v<version>.md). CI never writes the record.
+      - name: The release is approved for this commit
+        run: python3 tools/ip_audit.py release --approval "docs/legal/release-decisions/$GITHUB_REF_NAME.md"
+
+      - name: Repository audit (Gates 1, 2, 4)
+        run: python3 tools/ip_audit.py repo
+
       - name: Package the SDK
         run: python3 sdk/package.py --profile legacy --out dist   # the release zip keeps sdk-v1.1.0's shape until consumers move
+
+      - name: Audit the zip (Gates 3, 5, 6) and write its SBOM
+        run: python3 tools/ip_audit.py zip "dist/sco-sdk-$VERSION.zip" --profile legacy --sbom "dist/sco-sdk-$VERSION.spdx.json"
 
       - name: Build and check the examples from the zip
         env:
@@ -69,6 +83,7 @@ jobs:
           path: |
             dist/sco-sdk-${{ steps.tag.outputs.version }}.zip
             dist/sco-sdk-${{ steps.tag.outputs.version }}.zip.sha256
+            dist/sco-sdk-${{ steps.tag.outputs.version }}.spdx.json
             notes.md
           if-no-files-found: error
 
@@ -89,6 +104,7 @@ jobs:
           VERSION: ${{ needs.package.outputs.version }}
         run: |
           zip="dist/sco-sdk-$VERSION.zip"
-          test -f "$zip" && test -f "$zip.sha256" && test -s notes.md
-          gh release create "$GITHUB_REF_NAME" "$zip" "$zip.sha256" \
+          sbom="dist/sco-sdk-$VERSION.spdx.json"
+          test -f "$zip" && test -f "$zip.sha256" && test -f "$sbom" && test -s notes.md
+          gh release create "$GITHUB_REF_NAME" "$zip" "$zip.sha256" "$sbom" \
             --repo "$GITHUB_REPOSITORY" --title "sco-core SDK $VERSION" --notes-file notes.md --verify-tag

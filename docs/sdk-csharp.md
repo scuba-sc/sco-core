@@ -177,8 +177,8 @@ if (store.Open(this) == ScoResult.Ok)
 var dc = new DataCore();
 if (dc.Open(this) == ScoResult.Ok && dc.Begin(out DataCorePatch p) == ScoResult.Ok)
 {
-    p.Set("EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem",
-          "Components[SCItemQuantumDriveParams].params.spoolUpTime", 3.5);
+    p.Set("ExampleItem.Drive_Alpha",
+          "Components[ExampleDriveParams].params.spoolUpTime", 3.5);
     p.Commit();
 }
 ```

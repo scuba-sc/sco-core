@@ -1,0 +1,177 @@
+# Generated from docs/legal/provenance.json by tools/ip_audit.py reuse-toml; don't edit.
+# tools/ip_audit.py repo fails when this file is out of date. Checked by `reuse lint` in CI.
+version = 1
+
+[[annotations]]
+path = ".gitignore"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "CMakeLists.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "*.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "REUSE.toml"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = ".github/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "plugins/lua/*"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/fixtures/datacore/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/sco/game/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/examples/travel_pack/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/examples/quantum_pack/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/sc_voxel_bridge.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "include/sc_titanlink.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "include/sc_net.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "include/sc_ipc.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "LICENSES/GPL-3.0-only.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2007 Free Software Foundation, Inc. <https://fsf.org/>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "LICENSES/MIT.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "NONE (licence text)"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "LICENSES/blessing.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "NONE (licence text)"
+SPDX-License-Identifier = "blessing"
+
+[[annotations]]
+path = "LICENSE"
+precedence = "override"
+SPDX-FileCopyrightText = "2007 Free Software Foundation, Inc. <https://fsf.org/>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/third_party/imgui/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2014-2026 Omar Cornut"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "third_party/tomlplusplus/**"
+precedence = "override"
+SPDX-FileCopyrightText = "Mark Gillard <mark.gillard@outlook.com.au>"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "third_party/sqlite/**"
+precedence = "override"
+SPDX-FileCopyrightText = "NONE (public domain; SQLite blessing)"
+SPDX-License-Identifier = "blessing"
+
+[[annotations]]
+path = "plugins/lua/third_party/lua/**"
+precedence = "override"
+SPDX-FileCopyrightText = "1994-2025 Lua.org, PUC-Rio"
+SPDX-License-Identifier = "MIT"

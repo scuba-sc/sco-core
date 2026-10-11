@@ -506,6 +506,16 @@
    "upstream": "GNU GPL v3 text, https://www.gnu.org/licenses/gpl-3.0.txt"
   },
   {
+   "id": "THIRD_PARTY_NOTICES.md",
+   "source": "THIRD_PARTY_NOTICES.md",
+   "destination": "THIRD_PARTY_NOTICES.md",
+   "profiles": [
+    "core"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
    "id": "VERSION",
    "source": "sdk/VERSION",
    "destination": "VERSION",

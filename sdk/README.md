@@ -143,4 +143,4 @@ copy plugin.ini out\cs_hello\
 
 ## License
 
-GPL-3.0 ([LICENSE](../LICENSE)), like sco-core and sc-offline. Plugins built against `sco_api.h` are GPL-3.0 too; there is no linking exception.
+GPL-3.0-only ([LICENSE](../LICENSE)), like sco-core. The project expects plugins that include its headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms. Whether the GPL applies to a particular plugin depends on how it is built and on applicable law; this is not legal advice. No linking exception is granted. Third-party notices: [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).

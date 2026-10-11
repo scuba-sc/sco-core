@@ -99,5 +99,5 @@ The rows of the older capabilities are on the pages of their groups: [actors](ac
 ## Sources
 
 - **Sigcheck report** (kept outside the repository, `sc-baseline/4.10.196.36804/` on the maintainer's machine; [game pack](../game-pack.md#verified-game-builds)): `sigcheck-main-17e2620.txt`, one run of sco-core `main` at `17e2620` (every game service and the mining row) on PE timestamp `0x6ac64e6f`: **317 of 317 rows OK**, none failed. `game.creative` (#74, in `31cf53a`) added no rows, so the same 317 rows back every capability on this page.
-- **Ledger:** `.omo/ulw-execute/ledger.jsonl` on the maintainer's machine (plan `game-services-sdk`): the merge of each service, its CI and its sigcheck count, and the maintainer override of 2026-10-10 that deferred in-game acceptance to one run after the conversion.
+- **Integration record:** The merged game-service pull requests and their CI runs, plus the signature report above, document service integration and signature-check counts. The 2026-10-10 maintainer decision deferred in-game acceptance to a subsequent run after the conversion.
 - **Spikes:** [game world spikes](../design/game-world-spikes.md) (Appendix B), whose verdicts decide the BLOCKED and OFF lines.

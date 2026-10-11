@@ -4,11 +4,11 @@
 //   sco::sdk::DataCore dc;
 //   if (dc.Open(*this) == SCO_OK) {                          // SCO_NOT_FOUND: the product doesn't publish it
 //       sco::sdk::DataCorePatch p = dc.Begin();
-//       const char* eos = "EntityClassDefinition.QDRV_RSI_S01_Eos_SCItem";
-//       p.Set(eos, "Components[SCItemQuantumDriveParams].params.spoolUpTime", 3.5);
-//       sco::sdk::DataCoreInstance fast = p.AddInstance("SCItemQuantumDriveParams", eos, "Components[SCItemQuantumDriveParams]");
+//       const char* eos = "ExampleItem.Drive_Alpha";
+//       p.Set(eos, "Components[ExampleDriveParams].params.spoolUpTime", 3.5);
+//       sco::sdk::DataCoreInstance fast = p.AddInstance("ExampleDriveParams", eos, "Components[ExampleDriveParams]");
 //       p.Set(fast.Ref(), "params.driveSpeed", 2.5e8);         // "@<id>": a field of the added instance
-//       p.SetPointer("EntityClassDefinition.QDRV_WETK_S01_Beacon_SCItem", "Components[SCItemQuantumDriveParams]", fast);
+//       p.SetPointer("ExampleItem.Drive_Beta", "Components[ExampleDriveParams]", fast);
 //       p.Commit();                                            // after the load: saved, applies at the next launch
 //   }
 //   Subscribe("datacore.applied", ...);                        // then p.Reports() (keep the patch) for the results

@@ -8,7 +8,7 @@ Status: spike results of 2026-10-10. The code they gated is built since (`game.w
 
 Two tools, both run on this build. Every count quoted in a section is copied from their output.
 
-1. **sigcheck**, for rows that already exist: `bun ~/.omo/tmp/sigcheck-local.js <sco-core worktree> -v`. This builds `tools/sco-sigcheck` with Zig and runs it on the exe. Output: `image: timestamp 0x6ac64e6f ...` and `[core] signatures: 300/300 OK`. Saved as `~/sc-baseline/4.10.196.36804/sigcheck-spikes-029c5b3.txt`.
+1. **sigcheck**, for rows that already exist: a local, uncommitted helper built `tools/sco-sigcheck` with Zig and ran it on the executable. Output: `image: timestamp 0x6ac64e6f ...` and `[core] signatures: 300/300 OK`. Evidence was saved as `sigcheck-spikes-029c5b3.txt` in the maintainer's build-specific baseline records. The portable entry point for future checks is documented in [sigcheck](../sigcheck.md).
 2. **A throwaway probe** (not committed), built against sco-core's own scanners: `zig c++ -target x86_64-windows-gnu -std=c++20 -O2 -I include -o probe.exe probe.cpp src/sco_scan.cpp src/sco_pe_file.cpp`, then `probe.exe StarCitizen.exe script.txt`. It maps the exe with `sco::FileImage` and runs one command per script line:
    - `str <text>`: how many NUL-bounded copies of the string are in `.rdata`.
    - `lea <r0> <r1> <r2> <text>`: how many RIP-relative LEAs with that encoding point at the string. This is the `FindRipLea` match, counted over all of `.text`.
