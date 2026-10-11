@@ -53,7 +53,7 @@ jobs:
         run: dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c tests/abi_game_actors.c tests/abi_game_vehicles.c tests/abi_game_world.c tests/abi_game_events.c tests/abi_game_entities.c tests/abi_game_creative.c
 
       - name: Package the SDK
-        run: python3 sdk/package.py --out dist
+        run: python3 sdk/package.py --profile legacy --out dist   # the release zip keeps sdk-v1.1.0's shape until consumers move
 
       - name: Build and check the examples from the zip
         env:
