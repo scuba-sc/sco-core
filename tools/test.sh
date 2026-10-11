@@ -159,7 +159,7 @@ echo "sdk: template, hello, cpp_hello, include/scosdk and sco-plugin-check compi
 ( cd "$ROOT/third_party/tomlplusplus" && printf '%s\n' \
   "6b5172ad4dd6519aec67b919181fa7a38a2234131e5b2afa232dfe444819783e  toml.hpp" \
   "529bc3900a9571e49db285b0df432397e70b881cc3bf48de6667ae74ff4b06d8  LICENSE" | \
-  if command -v sha256sum >/dev/null; then sha256sum -c --quiet; else shasum -a 256 -c --quiet; fi )
+  if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet; else shasum -a 256 -c --quiet; fi )
 echo "toml++: 3.4.0, sha256 of toml.hpp and LICENSE match third_party/tomlplusplus/README.md"
 
 FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -I "$ROOT/include" -isystem "$ROOT/third_party/sqlite"

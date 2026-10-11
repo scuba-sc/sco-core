@@ -31,7 +31,7 @@ mkdir "$WORK/unpacked"
 ROOT=$(ls -d "$WORK"/unpacked/sco-sdk-*)
 
 # The zip's own manifest must match its files, and list every file.
-( cd "$ROOT" && if command -v sha256sum >/dev/null; then sha256sum -c --quiet SHA256SUMS; else shasum -a 256 -c --quiet SHA256SUMS; fi )
+( cd "$ROOT" && if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet SHA256SUMS; else shasum -a 256 -c --quiet SHA256SUMS; fi )
 listed=$(wc -l < "$ROOT/SHA256SUMS")
 actual=$(cd "$ROOT" && find . -type f ! -name SHA256SUMS | wc -l)
 [ "$listed" -eq "$actual" ] || { echo "SHA256SUMS lists $listed files, zip has $actual"; exit 1; }
