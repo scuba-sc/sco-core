@@ -60,3 +60,13 @@ A maintainer doesn't merge a PR whose answers are missing or unclear.
 - `docs/legal/provenance.json`: origin and review status by path, for the whole repository. Review is by path scope; individual files are re-reviewed when a PR changes them.
 - `docs/legal/third-party-inventory.md`: vendored code with versions and hashes.
 - `docs/legal/release-hardening-baseline.md`: the starting point of this work.
+- `REUSE.toml` and `LICENSES/`: the same record in the [REUSE](https://reuse.software/) format, generated from `provenance.json` (`tools/ip_audit.py reuse-toml`).
+
+## Checks
+
+`tools/ip_audit.py` checks these records against the repository and every SDK zip (coverage, unresolved
+entries, refused binaries, vendored-file hashes, licences and notices, core isolation, SPDX SBOMs);
+`.github/workflows/ip-compliance.yml` runs it with `reuse lint` and the negative tests
+(`tools/test_ip_audit.py`) on every pull request. A release also needs a person's approval record:
+[docs/legal/release-checklist.md](docs/legal/release-checklist.md). Passing checks are evidence for
+that decision, not a substitute for it.
