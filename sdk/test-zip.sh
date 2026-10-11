@@ -3,8 +3,13 @@
 # no file from the repository is used after packaging. CI runs this (.github/workflows/sdk.yml)
 # on Linux and Windows (Git Bash + MSVC); it also runs on macOS.
 #
-#   sdk/test-zip.sh                 # packages first (sdk/package.py), then tests that zip
-#   sdk/test-zip.sh <sco-sdk.zip>   # tests a zip built elsewhere, e.g. CI's artifact
+#   sdk/test-zip.sh                         # packages the legacy zip first (sdk/package.py), then tests it
+#   sdk/test-zip.sh <sco-sdk.zip>           # tests a zip built elsewhere, e.g. CI's artifact
+#   sdk/test-zip.sh <core.zip>              # the core SDK alone: no game file may be needed
+#   sdk/test-zip.sh <core.zip> <game-sc.zip> # the Star Citizen extension, unpacked over that core
+#
+# What it checks follows from what is unpacked: the game examples and the C# game tests run when
+# their files are there; the core SDK alone must build and pass without them.
 #
 # Needs python3, cmake, a C and C++20 compiler and Lua 5.4 (lua5.4). SCO_SDK_NO_LUA=1 skips the Lua
 # example's run (the Windows CI job, which has no Lua); the job that packages runs it.
@@ -26,16 +31,41 @@ else
   "$PY" "$SDK/package.py" --out "$WORK/dist"
   ZIP=$(ls "$WORK"/dist/sco-sdk-*.zip)
 fi
-mkdir "$WORK/unpacked"
-"$PY" -m zipfile -e "$ZIP" "$WORK/unpacked"
-ROOT=$(ls -d "$WORK"/unpacked/sco-sdk-*)
-
-# The zip's own manifest must match its files, and list every file.
-( cd "$ROOT" && if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet SHA256SUMS; else shasum -a 256 -c --quiet SHA256SUMS; fi )
-listed=$(wc -l < "$ROOT/SHA256SUMS")
-actual=$(cd "$ROOT" && find . -type f ! -name SHA256SUMS | wc -l)
-[ "$listed" -eq "$actual" ] || { echo "SHA256SUMS lists $listed files, zip has $actual"; exit 1; }
-echo "zip: $actual files, SHA256SUMS OK"
+verify_zip() {   # verify_zip <zip>: unpack into its own folder; its SHA256SUMS must match and list every file
+  local dir="$WORK/z$1" top listed actual
+  mkdir "$dir"
+  "$PY" -m zipfile -e "$2" "$dir"
+  top=$(ls -d "$dir"/sco-sdk-*)
+  ( cd "$top" && if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet SHA256SUMS; else shasum -a 256 -c --quiet SHA256SUMS; fi )
+  listed=$(wc -l < "$top/SHA256SUMS")
+  actual=$(cd "$top" && find . -type f ! -name SHA256SUMS | wc -l)
+  [ "$listed" -eq "$actual" ] || { echo "SHA256SUMS lists $listed files, $(basename "$2") has $actual"; exit 1; }
+  echo "zip: $(basename "$2"): $actual files, SHA256SUMS OK"
+  VERIFIED=$top
+}
+verify_zip 1 "$ZIP"
+ROOT=$VERIFIED
+if [ $# -ge 2 ]; then
+  # The extension goes over the core: no file of one may overwrite a file of the other.
+  verify_zip 2 "$2"
+  ( cd "$VERIFIED" && find . -type f ! -name SHA256SUMS ! -name VERSIONS.txt ! -name LICENSE ) | while read -r f; do
+    [ ! -e "$ROOT/$f" ] || { echo "$(basename "$2") overwrites $f of the core SDK"; exit 1; }
+  done
+  ( cd "$VERIFIED" && find . -type f ! -name SHA256SUMS ! -name VERSIONS.txt ! -name LICENSE -exec sh -c 'mkdir -p "$0/$(dirname "$1")" && cp "$1" "$0/$1"' "$ROOT" {} \; )
+  echo "zip: $(basename "$2") unpacked over $(basename "$ZIP")"
+fi
+GAME=0
+[ -e "$ROOT/include/sc_game_pack.h" ] && GAME=1
+if [ $GAME = 0 ]; then
+  # The core SDK alone: nothing in it may name a game header or wrapper it doesn't ship.
+  if grep -rlE '#include *[<"](sc_(actors|vehicles|entities|world|creative|spawn|spatial|game_events|game_pack)\.h|sco_datacore\.h|scosdk/(datacore|game/)[^>"]*)[>"]' "$ROOT" --include='*.h' --include='*.hpp' --include='*.c' --include='*.cpp'; then
+    echo "the core SDK includes a header of the Star Citizen extension"; exit 1
+  fi
+  if grep -rlE 'Sco\.Sdk\.Game|ScoDatacore|GameAbi' "$ROOT" --include='*.cs'; then
+    echo "the core SDK's C# names a type of the Star Citizen extension"; exit 1
+  fi
+  echo "core: no game header, wrapper or C# type referenced"
+fi
 
 # Build everything from the unpacked SDK, as a modder would.
 cmake -S "$ROOT" -B "$WORK/build" -DCMAKE_BUILD_TYPE=Release
@@ -55,9 +85,13 @@ grep -q 'invoke  cpp_hello.ticks -> ok "3 ticks"' "$WORK/cpp_hello.txt"
 grep -q 'service cpp_hello.greeter 1.0' "$WORK/cpp_hello.txt"
 "$CHECK" "$P/my_plugin" | tee "$WORK/template.txt"
 grep -q 'invoke  my_plugin.ping -> ok "pong"' "$WORK/template.txt"
-"$CHECK" "$P/travel_pack"
-"$CHECK" "$P/quantum_pack" | tee "$WORK/quantum_pack.txt"
-grep -q 'content datacore/eos.toml' "$WORK/quantum_pack.txt"
+if [ $GAME = 1 ]; then
+  "$CHECK" "$P/travel_pack"
+  "$CHECK" "$P/quantum_pack" | tee "$WORK/quantum_pack.txt"
+  grep -q 'content datacore/eos.toml' "$WORK/quantum_pack.txt"
+else
+  [ ! -e "$P/travel_pack" ] && [ ! -e "$P/quantum_pack" ] || { echo "the core SDK installed a game example"; exit 1; }
+fi
 "$CHECK" "$P/greeter"
 "$CHECK" "$P/notebook"
 
@@ -74,6 +108,9 @@ if [ "${SCO_SDK_CSHARP:-0}" = 1 ]; then
   esac
   dotnet run -c Release --project "$ROOT/csharp/Sco.Sdk.Tests" | tee "$WORK/cs_tests.txt"
   grep -q '^Sco.Sdk.Tests: OK' "$WORK/cs_tests.txt"
+  # The game half (GamePins.cs, GameFakeHost.cs) runs exactly when the extension is unpacked.
+  if [ $GAME = 1 ]; then grep -qE '^layout: 3[0-9]{2} pins' "$WORK/cs_tests.txt"
+  else grep -qE '^layout: 1[0-9]{2} pins' "$WORK/cs_tests.txt"; fi || { echo "C#: the pin count doesn't match the profile"; exit 1; }
   dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" -o "$WORK/cs_publish"
   mkdir -p "$WORK/cs/cs_hello"
   cp "$WORK/cs_publish/$LIB" "$WORK/cs/cs_hello/cs_hello.dll"
@@ -183,7 +220,9 @@ cmake --build "$WORK/mine/build" --config Release
 # no compiler is enabled and the 64-bit check must not fire. greeter builds in its own folder,
 # under a name other than build or out (those are always left out): that build folder must not be
 # installed with the pack, however the platform spells the temp path.
-for ex in greeter notebook travel_pack quantum_pack; do
+EXAMPLES="greeter notebook"
+[ $GAME = 1 ] && EXAMPLES="$EXAMPLES travel_pack quantum_pack"
+for ex in $EXAMPLES; do
   if [ $ex = greeter ]; then B="$ROOT/examples/$ex/my-build"; else B="$WORK/$ex-build"; fi
   cmake -S "$ROOT/examples/$ex" -B "$B"
   cmake --install "$B" --config Release --prefix "$WORK/$ex-out"
@@ -192,4 +231,4 @@ for ex in greeter notebook travel_pack quantum_pack; do
     [ ! -e "$WORK/$ex-out/data/plugins/$ex/$f" ] || { echo "sco_add_pack($ex) installed $f"; exit 1; }
   done
 done
-echo "sdk zip: every example built and checked from $(basename "$ZIP")"
+echo "sdk zip: every example built and checked from $(basename "$ZIP")${2:+ + $(basename "$2")}"

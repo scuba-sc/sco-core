@@ -12,13 +12,19 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using Sco.Sdk.Game;
 using Sco.Sdk.Interop;
 
 namespace Sco.Sdk.Tests
 {
-    internal static class Layout
+    internal static partial class Layout
     {
+        // The Star Citizen extension (GameLayout.cs, in sco-sdk-game-sc) adds its types and constants;
+        // without it, its pins are absent too (Pins.cs), so nothing is left unchecked.
+        static partial void AddGame(Dictionary<string, Type> types, Dictionary<string, long> constants, Dictionary<string, string> strings);
+        static partial void GameSizeOf(Type t, ref int size);
+
+        static Layout() => AddGame(Types, Constants, Strings);
+
         private static readonly Dictionary<string, Type> Types = new()
         {
             ["sco_result"] = typeof(ScoResult),
@@ -35,26 +41,6 @@ namespace Sco.Sdk.Tests
             ["sco_ui_v1"] = typeof(ScoUiV1),
             ["sco_settings_changed"] = typeof(ScoSettingsChanged),
             ["sco_settings_v1"] = typeof(ScoSettingsV1),
-            ["sco_dc_type"] = typeof(ScoDcType),
-            ["sco_dc_value"] = typeof(ScoDcValue),
-            ["sco_dc_report"] = typeof(ScoDcReport),
-            ["sco_dc_applied"] = typeof(ScoDcApplied),
-            ["sco_datacore_v1"] = typeof(ScoDatacoreV1),
-            ["sc_actors_v1"] = typeof(ScActorsV1),
-            ["sc_actor_state"] = typeof(ScActorState),
-            ["sc_world_hit_flag"] = typeof(ScWorldHitFlag),
-            ["sc_world_hit"] = typeof(ScWorldHit),
-            ["sc_world_v1"] = typeof(ScWorldV1),
-            ["sc_game_player_spawned"] = typeof(ScGamePlayerSpawned),
-            ["sc_game_player_died"] = typeof(ScGamePlayerDied),
-            ["sc_game_zone_changed"] = typeof(ScGameZoneChanged),
-            ["sc_game_vehicle_seat"] = typeof(ScGameVehicleSeat),
-            ["sc_entities_v1"] = typeof(ScEntitiesV1),
-            ["sc_vehicle_seat_flag"] = typeof(ScVehicleSeatFlag),
-            ["sc_vehicle_seat"] = typeof(ScVehicleSeat),
-            ["sc_vehicles_v1"] = typeof(ScVehiclesV1),
-            ["sc_creative_flag"] = typeof(ScCreativeFlag),
-            ["sc_creative_v1"] = typeof(ScCreativeV1),
         };
 
         private static readonly Dictionary<string, long> Constants = new()
@@ -99,62 +85,6 @@ namespace Sco.Sdk.Tests
             ["SCO_SETTINGS_VERSION_1_0"] = Abi.SettingsVersion1_0,
             ["SCO_SETTINGS_MAX_NAME"] = Abi.SettingsMaxName,
             ["SCO_SETTINGS_MAX_STRING"] = Abi.SettingsMaxString,
-            ["SCO_DATACORE_VERSION_1_0"] = Abi.DataCoreVersion1_0,
-            ["SCO_DATACORE_VERSION_1_1"] = Abi.DataCoreVersion1_1,
-            ["SCO_DC_OPEN"] = Abi.DcOpen,
-            ["SCO_DC_LOADED"] = Abi.DcLoaded,
-            ["SCO_DC_NON_ATOMIC"] = Abi.DcNonAtomic,
-            ["SCO_DC_QUEUED"] = Abi.DcQueued,
-            ["SCO_DC_APPLIED"] = Abi.DcApplied,
-            ["SCO_DC_SKIPPED"] = Abi.DcSkipped,
-            ["SCO_DC_REFUSED"] = Abi.DcRefused,
-            ["SCO_DC_OP_PATCH"] = Abi.DcOpPatch,
-            ["SCO_DC_MAX_OPS"] = Abi.DcMaxOps,
-            ["SCO_DC_MAX_PATCHES"] = Abi.DcMaxPatches,
-            ["SCO_DC_BOOL"] = (long)ScoDcType.Bool,
-            ["SCO_DC_INT"] = (long)ScoDcType.Int,
-            ["SCO_DC_UINT"] = (long)ScoDcType.UInt,
-            ["SCO_DC_FLOAT"] = (long)ScoDcType.Float,
-            ["SCO_DC_STRING"] = (long)ScoDcType.String,
-            ["SCO_DC_GUID"] = (long)ScoDcType.Guid,
-            ["SCO_DC_ENUM"] = (long)ScoDcType.Enum,
-            ["SCO_DC_NULL"] = (long)ScoDcType.Null,
-            ["SCO_DC_INSTANCE"] = (long)ScoDcType.Instance,
-            ["SCO_DC_REF"] = (long)ScoDcType.Ref,
-            ["SCO_DC_TYPE_FORCE32"] = (long)ScoDcType.Force32,
-            ["SC_ACTORS_VERSION_1_0"] = GameAbi.ActorsVersion1_0,
-            ["SC_ACTORS_VERSION_1_1"] = GameAbi.ActorsVersion1_1,
-            ["SC_ACTOR_ALIVE"] = (long)ScActorState.Alive,
-            ["SC_ACTOR_INCAPACITATED"] = (long)ScActorState.Incapacitated,
-            ["SC_ACTOR_DEAD"] = (long)ScActorState.Dead,
-            ["SC_ACTOR_STATE_FORCE32"] = (long)ScActorState.Force32,
-            ["SC_WORLD_VERSION_1_0"] = GameAbi.WorldVersion1_0,
-            ["SC_WORLD_RAY_MAX_DISTANCE"] = GameAbi.WorldRayMaxDistance,
-            ["SC_WORLD_HIT_ENTITY"] = (long)ScWorldHitFlag.Entity,
-            ["SC_WORLD_HIT_NORMAL"] = (long)ScWorldHitFlag.Normal,
-            ["SC_WORLD_HIT_FLAG_FORCE32"] = (long)ScWorldHitFlag.Force32,
-            ["SC_ACTORS_MAX_NPCS"] = GameAbi.ActorsMaxNpcs,
-            ["SC_ENTITIES_VERSION_1_0"] = GameAbi.EntitiesVersion1_0,
-            ["SC_ENTITIES_VERSION_1_1"] = GameAbi.EntitiesVersion1_1,
-            ["SC_ENTITIES_MAX_OWNED"] = GameAbi.EntitiesMaxOwned,
-            ["SC_ENTITIES_MAX_WATCHES"] = GameAbi.EntitiesMaxWatches,
-            ["SC_ENTITIES_MAX_TYPE_LEN"] = GameAbi.EntitiesMaxTypeLen,
-            ["SC_ENTITY_STREAMED_IN"] = GameAbi.EntityStreamedIn,
-            ["SC_ENTITY_STREAMED_OUT"] = GameAbi.EntityStreamedOut,
-            ["SC_VEHICLES_SERVICE_VERSION"] = GameAbi.VehiclesVersion1_0,
-            ["SC_VEHICLE_SEAT_NAME_MAX"] = GameAbi.VehicleSeatNameMax,
-            ["SC_SEAT_USABLE"] = (long)ScVehicleSeatFlag.Usable,
-            ["SC_SEAT_USABLE_KNOWN"] = (long)ScVehicleSeatFlag.UsableKnown,
-            ["SC_SEAT_OCCUPIED"] = (long)ScVehicleSeatFlag.Occupied,
-            ["SC_SEAT_PILOT"] = (long)ScVehicleSeatFlag.Pilot,
-            ["SC_SEAT_FLAG_FORCE32"] = (long)ScVehicleSeatFlag.Force32,
-            ["SC_CREATIVE_SERVICE_VERSION"] = GameAbi.CreativeVersion1_0,
-            ["SC_CREATIVE_FLY_SPEED_MAX"] = GameAbi.CreativeFlySpeedMax,
-            ["SC_CREATIVE_GOD_MODE"] = (long)ScCreativeFlag.GodMode,
-            ["SC_CREATIVE_FLY"] = (long)ScCreativeFlag.Fly,
-            ["SC_CREATIVE_INFINITE_AMMO"] = (long)ScCreativeFlag.InfiniteAmmo,
-            ["SC_CREATIVE_INFINITE_SHIP_AMMO"] = (long)ScCreativeFlag.InfiniteShipAmmo,
-            ["SC_CREATIVE_FLAG_FORCE32"] = (long)ScCreativeFlag.Force32,
         };
 
         private static readonly Dictionary<string, string> Strings = new()
@@ -163,18 +93,6 @@ namespace Sco.Sdk.Tests
             ["SCO_UI_NAME"] = Abi.UiName,
             ["SCO_SETTINGS_NAME"] = Abi.SettingsName,
             ["SCO_SETTINGS_CHANGED_EVENT"] = Abi.SettingsChangedEvent,
-            ["SCO_DATACORE_NAME"] = Abi.DataCoreName,
-            ["SCO_DC_APPLIED_EVENT"] = Abi.DataCoreAppliedEvent,
-            ["SC_ACTORS_NAME"] = GameAbi.ActorsName,
-            ["SC_WORLD_NAME"] = GameAbi.WorldName,
-            ["SC_GAME_EVENT_PLAYER_SPAWNED"] = GameAbi.EventPlayerSpawned,
-            ["SC_GAME_EVENT_PLAYER_DIED"] = GameAbi.EventPlayerDied,
-            ["SC_GAME_EVENT_ZONE_CHANGED"] = GameAbi.EventZoneChanged,
-            ["SC_GAME_EVENT_VEHICLE_BOARDED"] = GameAbi.EventVehicleBoarded,
-            ["SC_GAME_EVENT_VEHICLE_EXITED"] = GameAbi.EventVehicleExited,
-            ["SC_ENTITIES_NAME"] = GameAbi.EntitiesName,
-            ["SC_VEHICLES_SERVICE_NAME"] = GameAbi.VehiclesName,
-            ["SC_CREATIVE_SERVICE_NAME"] = GameAbi.CreativeName,
         };
 
         private static readonly Regex Size = new(@"^SIZE\((\w+),\s*(\d+)\);");
@@ -251,22 +169,9 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScoUiV1)) return Unsafe.SizeOf<ScoUiV1>();
             if (t == typeof(ScoSettingsChanged)) return Unsafe.SizeOf<ScoSettingsChanged>();
             if (t == typeof(ScoSettingsV1)) return Unsafe.SizeOf<ScoSettingsV1>();
-            if (t == typeof(ScoDcValue)) return Unsafe.SizeOf<ScoDcValue>();
-            if (t == typeof(ScoDcReport)) return Unsafe.SizeOf<ScoDcReport>();
-            if (t == typeof(ScoDcApplied)) return Unsafe.SizeOf<ScoDcApplied>();
-            if (t == typeof(ScoDatacoreV1)) return Unsafe.SizeOf<ScoDatacoreV1>();
-            if (t == typeof(ScActorsV1)) return Unsafe.SizeOf<ScActorsV1>();
-            if (t == typeof(ScWorldHit)) return Unsafe.SizeOf<ScWorldHit>();
-            if (t == typeof(ScWorldV1)) return Unsafe.SizeOf<ScWorldV1>();
-            if (t == typeof(ScGamePlayerSpawned)) return Unsafe.SizeOf<ScGamePlayerSpawned>();
-            if (t == typeof(ScGamePlayerDied)) return Unsafe.SizeOf<ScGamePlayerDied>();
-            if (t == typeof(ScGameZoneChanged)) return Unsafe.SizeOf<ScGameZoneChanged>();
-            if (t == typeof(ScGameVehicleSeat)) return Unsafe.SizeOf<ScGameVehicleSeat>();
-            if (t == typeof(ScEntitiesV1)) return Unsafe.SizeOf<ScEntitiesV1>();
-            if (t == typeof(ScVehicleSeat)) return Unsafe.SizeOf<ScVehicleSeat>();
-            if (t == typeof(ScVehiclesV1)) return Unsafe.SizeOf<ScVehiclesV1>();
-            if (t == typeof(ScCreativeV1)) return Unsafe.SizeOf<ScCreativeV1>();
-            return -1;
+            int size = -1;
+            GameSizeOf(t, ref size);
+            return size;
         }
     }
 }
