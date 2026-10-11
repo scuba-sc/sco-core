@@ -2,6 +2,8 @@
 
 sco-core is the game-facing core of [sc-offline](https://github.com/scubamount/sc-offline) and the home of its plugin platform (the `sco_api` ABI, the host, the loader, sco-lua and the SDK). Most changes start in sc-offline: a feature moving its addresses here, a game patch breaking a row, or a feature exposing a command to plugins. Read sc-offline's [CONTRIBUTING.md](https://github.com/scubamount/sc-offline/blob/main/CONTRIBUTING.md) first; its rules apply here too.
 
+See [AGENTS.md](AGENTS.md) for the design principles every change follows, from humans and AI agents alike.
+
 ## What fits
 
 - **Offline, never CIG's servers.** Two kinds of connection are allowed: local IPC with other processes on the same PC (bridges such as Titanfall 2/Northstar or Minecraft), and private co-presence between sc-offline players over a LAN or VPN through `sco.net`. Never: connecting to Star Citizen's servers or online services, public or official online play, getting around anti-cheat or skipping its steps, signature-check bypass, account or entitlement tampering, forcing the game's host type or network context, unauthenticated remote commands between peers, telemetry, or anything that helps cheating in the official game. Full list: [Plugin rules](sdk/docs/plugin-rules.md). PRs like that are closed.
