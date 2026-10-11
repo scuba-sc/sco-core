@@ -176,6 +176,12 @@ static int FakeTicks(const char* id) {
     const int* t = static_cast<const int*>(P::PlatformModuleOps().symbol(p->module, "fake_ticks"));
     return t ? *t : -1;
 }
+static int FakeUnloads(const char* id) {   // how often the plugin's sco_plugin_unload ran
+    const P::Plugin* p = Find(id);
+    if (!p || !p->module) return -1;
+    const int* u = static_cast<const int*>(P::PlatformModuleOps().symbol(p->module, "fake_unload_calls"));
+    return u ? *u : -1;
+}
 static std::vector<std::string> Unloaded() {   // "[plugin] unloaded <id>" lines, in order
     std::vector<std::string> ids;
     for (const auto& l : g_log) if (l.rfind("[plugin] unloaded ", 0) == 0) ids.push_back(l.substr(18));
@@ -835,8 +841,8 @@ static const char* const kRlScript =
     "end }\n";
 
 // Hot reload (sco::app::Reload, the host command sco.reload) through the real loader, host table
-// and sco-lua: Lua re-run, natives from a copy, built-ins refused, busy refused. No timing anywhere:
-// every check is on the result of a call.
+// and sco-lua: Lua re-run, natives from a copy, a handed-out provider refused, built-ins refused,
+// busy refused. No timing anywhere: every check is on the result of a call.
 static void TestReload(const fs::path& out) {
     const fs::path root = out / "reload" / "plugins";
     std::error_code ec;
@@ -935,17 +941,28 @@ static void TestReload(const fs::path& out) {
     CHECK(CountCommands("svc_caller.self") == 1 && sco::app::Reload("svc_caller") == sco::Result::Ok);
     CHECK(Find("svc_caller")->self != c0 && CountCommands("svc_caller.self") == 1 && sco::ListCommands(nullptr, 0) == live);
 
-    // A provider whose service table was handed out stays mapped (M1): never closed, never reused.
+    // A provider whose service table was handed out is session-lifetime: the reload is refused
+    // before anything is torn down — unload() never runs, Release never runs, no copy is made,
+    // its services keep resolving (the same table) and the consumer keeps working. Only a
+    // restart of the game reloads it.
     struct Svc { uint32_t size; int (*ok)(); int (*boom)(); };
     const void* t0 = nullptr;
-    const void* t1 = nullptr;
     CHECK(api->query_service("svc_provider.svc", 1u << 16, &t0) == SCO_OK && t0);
     const int closed = g_closed;
-    CHECK(sco::app::Reload("svc_provider") == sco::Result::Ok);
-    CHECK(g_closed == closed && Find("svc_provider")->pinned.size() == 1 && Logged("kept mapped: its service table was handed out"));
-    CHECK(api->query_service("svc_provider.svc", 1u << 16, &t1) == SCO_OK && t1 && t1 != t0);   // republished, new module
-    if (t0) CHECK(static_cast<const Svc*>(t0)->ok() == 7);                   // the old table still runs
-    if (t1) CHECK(static_cast<const Svc*>(t1)->ok() == 7);
+    const int unloads = FakeUnloads("svc_provider");
+    g_opened.clear();
+    CHECK(sco::app::Reload("svc_provider", &why) == sco::Result::Failed &&
+          why == "provides a service in use; restart the game to reload it");
+    CHECK(Find("svc_provider")->state == State::Loaded && Find("svc_provider")->pinned.empty());
+    CHECK(unloads == 0 && FakeUnloads("svc_provider") == unloads);            // unload() did not run
+    CHECK(g_closed == closed && g_opened.empty());                            // no module opened or closed
+    CHECK(ReloadFiles(root / "svc_provider") == 0);                           // no copy was made
+    const void* t1 = nullptr;
+    CHECK(api->query_service("svc_provider.svc", 1u << 16, &t1) == SCO_OK && t1 == t0);   // still resolves
+    if (t0) CHECK(static_cast<const Svc*>(t0)->ok() == 7);                    // the held table still runs
+    r = Invoke("sco.reload", { Str("svc_provider") });                        // the command surfaces the why
+    CHECK(r.r == sco::Result::Failed && r.text == "provides a service in use; restart the game to reload it");
+    CHECK(Invoke("svc_caller.ok").r == sco::Result::Ok);                      // the consumer still works
 
     // A copy that can't be made changes nothing: the plugin keeps running.
     const fs::path entry = root / "m11" / Find("m11")->manifest.entry;
@@ -961,8 +978,11 @@ static void TestReload(const fs::path& out) {
     CHECK(StateOf("rl") == State::Refused && CountCommands("rl.ping") == 0 && Logged("[app] reload rl failed: main.lua:"));
     CHECK(sco::app::Reload("rl", &why) == sco::Result::Failed && why == "rl is not loaded (refused)");
 
-    // Stop removes the copies it can (a kept-mapped provider's stays on Windows), and is Unavailable after.
+    // Stop still tears the refused provider down: host shutdown (UnloadAll) does not ask
+    // CanUnload. Its module stays mapped (the table was handed out), as for any unload.
     sco::app::Stop();
+    CHECK(StateOf("svc_provider") == State::Unloaded && FakeUnloads("svc_provider") == 1);
+    CHECK(Logged("[plugin] unloaded svc_provider") && Logged("kept mapped: its service table was handed out"));
     CHECK(ReloadFiles(root / "m0") == 0 && Find("m0")->reloadCopy.empty());
     CHECK(sco::app::Reload("m0") == sco::Result::Unavailable);
     CHECK(Invoke("sco.reload", { Str("m0") }).r == sco::Result::Unavailable);

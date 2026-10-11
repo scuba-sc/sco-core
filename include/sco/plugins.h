@@ -336,16 +336,31 @@ constexpr size_t kMaxScriptBytes = 1024 * 1024;   // entry script size
 // "script too big", "main.lua:3: ..." from the runtime). A fault in the runtime: Crashed.
 bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRuntime& runtime);
 
+// True when p may be unloaded while the game runs. False with `why` set
+// ("provides a service in use; restart the game to reload it") when p is a native plugin
+// whose service table was handed out by sco::QueryService, to another plugin or the host:
+// a caller may still hold that table, so p is session-lifetime and every mid-session
+// unload request (sco::app::Reload, the sco.reload command, UnloadOne) must be refused
+// before sco_plugin_unload or sco::Release runs — only a restart of the game reloads it.
+// Lua plugins, data packs, built-ins and natives nobody asked a service of always pass.
+// Host shutdown (UnloadAll) does not ask: it tears everything down, reverse load order.
+bool CanUnload(const Plugin& p, std::string& why);
+
 // Unloads one Loaded plugin of any kind the way UnloadAll does (natives: UnloadNative; built-ins:
 // without a module; scripts: Release then runtime.unload). No-op unless Loaded. The state is
-// Unloaded afterwards, or Crashed when unload() faulted or Release failed.
+// Unloaded afterwards, or Crashed when unload() faulted or Release failed. Asks CanUnload first:
+// a native whose service table was handed out is refused instead (one [plugin] log line, the
+// plugin stays Loaded and intact — session-lifetime). UnloadAll (host shutdown) bypasses that
+// refusal and unloads everything.
 void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const ScriptRuntime* runtime = nullptr);
 
 // Unloads every Loaded plugin, last loaded first, built-ins after every other plugin (they are
 // the host's own features, which other plugins may still call while unloading): natives as
 // UnloadNative; built-ins the same without a module to close; scripts by sco::Release(self)
 // then runtime.unload(self) (state Unloaded; if Release fails the script is kept and the
-// plugin Crashed, as for natives). runtime may be null when no script was loaded. Data packs
+// plugin Crashed, as for natives). This is the host shutdown path: it does not ask CanUnload,
+// so a provider whose service table was handed out is unloaded like any other (its module
+// stays mapped, as for any unload). runtime may be null when no script was loaded. Data packs
 // stay as they are.
 void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
                const ScriptRuntime* runtime = nullptr);

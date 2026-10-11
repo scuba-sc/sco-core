@@ -38,6 +38,7 @@ These are permanent:
 - Nothing loads unless the player sets `plugins = on`. Each plugin can be switched off on its own.
 - Every plugin is listed in `mod.log` and `sc-offline.exe status` with its state.
 - A native plugin that faults inside a callback is disabled and never called again; everything it registered is removed and the game keeps running. This limits damage; it is not a sandbox. A native plugin runs with the game's full rights.
+- A native plugin is session-lifetime once anything has queried one of its services: the host refuses to reload or unload it while the game runs (`sco.reload` answers `provides a service in use; restart the game to reload it`), because a caller may still hold the service table. Restart the game to pick up a new build of such a plugin; a provider nobody ever asked a service of reloads while the game runs.
 - A Lua plugin runs in a sandbox with no file, process or network access, and an instruction budget per callback. Once `sco.net` ships, one exception: a Lua plugin whose `plugin.ini` declares `requires = sco.net` may read the peer list and publish and subscribe to `<plugin-id>.<channel>` messages. It never gets a socket, an address or session control (hosting, joining, admitting or removing peers), and gets no IPC.
 - A data pack never runs code.
 - sc-offline's self-update never touches `data\plugins\`.

@@ -201,6 +201,21 @@ static bool KeepMapped(const Plugin& p) {
     return true;
 }
 
+// A native plugin whose service table was handed out is session-lifetime. True when p may be
+// unloaded while the game runs; false with `why` set when the request must be refused: a table of
+// p's was handed out by query_service (to another plugin or the host), so a caller may still hold
+// it and unloading p would tear its state down under that pointer. The refusal happens before
+// sco_plugin_unload and before sco::Release, so nothing of p's is touched. Only a restart of the
+// game reloads such a plugin. Lua plugins, data packs, built-ins and natives nobody asked a
+// service of always pass. Host shutdown (UnloadAll) does not ask: it tears everything down.
+bool CanUnload(const Plugin& p, std::string& why) {
+    why.clear();
+    if (p.manifest.kind != Kind::Native || !p.self) return true;
+    if (!sco::ServiceTableHandedOut(p.self)) return true;
+    why = "provides a service in use; restart the game to reload it";
+    return false;
+}
+
 // Closes p's module (natives) unless KeepMapped; p.module stays set while the module does, so a
 // fault inside it is still attributed to p.
 static void CloseOrKeep(Plugin& p, const ModuleOps* ops) {
@@ -498,14 +513,26 @@ static void UnloadScript(Plugin& p, const ScriptRuntime* runtime) {
     sco::Log("[plugin] unloaded %s", IdOf(p));
 }
 
-void UnloadOne(Plugin& p, const ModuleOps& ops, const ScriptRuntime* runtime) {
+// The teardown of one Loaded plugin, without the session-lifetime check: UnloadAll (host
+// shutdown) must unload everything, so it calls this directly; UnloadOne asks CanUnload first.
+static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* runtime) {
     if (p.state != State::Loaded) return;
     switch (p.manifest.kind) {
-        case Kind::Native:  UnloadCode(p, &ops); break;
+        case Kind::Native:  UnloadCode(p, ops); break;
         case Kind::Builtin: UnloadCode(p, nullptr); break;
         case Kind::Lua:     UnloadScript(p, runtime); break;
         case Kind::Data:    break;
     }
+}
+
+void UnloadOne(Plugin& p, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    if (p.state != State::Loaded) return;
+    std::string why;
+    if (!CanUnload(p, why)) {   // session-lifetime provider: refuse, leave it Loaded and intact
+        sco::Log("[plugin] %s: unload refused: %s", IdOf(p), why.c_str());
+        return;
+    }
+    UnloadOneNow(p, &ops, runtime);
 }
 
 // ---- hot reload -----------------------------------------------------------------------------
@@ -546,8 +573,8 @@ void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRunt
     for (size_t i = 1; i < loaded.size(); ++i)         // insertion sort
         for (size_t j = i; j > 0 && before(loaded[j], loaded[j - 1]); --j) std::swap(loaded[j - 1], loaded[j]);
     for (Plugin* p : loaded) {
-        UnloadOne(*p, ops, runtime);                   // no-op when it crashed while an earlier one unloaded
-    }
+        UnloadOneNow(*p, &ops, runtime);               // no refusal: host shutdown tears everything down
+    }                                                  // (no-op when one crashed while an earlier one unloaded)
 }
 
 // ---- status ---------------------------------------------------------------------------------
