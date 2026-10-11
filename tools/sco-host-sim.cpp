@@ -20,6 +20,7 @@
 #ifndef SCO_KERNEL_ONLY
 #include "sco/datacore_pack.h"      // the pack lint (game pack)
 #include "sco/game/signatures.h"    // --exe: Star Citizen's tables (game pack)
+#include "sco_lua_game.h"           // sco.datacore and sco.game for scripts (game pack)
 #endif
 #include "sco/log.h"
 #include "sco/pe_file.h"
@@ -214,6 +215,9 @@ int main(int argc, char** argv) {
     pf.builtins = kBuiltins;
     pf.nBuiltins = sizeof(kBuiltins) / sizeof(kBuiltins[0]);
     pf.scripts = lua ? &kLua : nullptr;
+#ifndef SCO_KERNEL_ONLY
+    if (lua) sco_lua_add_extension(&sco_lua_game_extension);
+#endif
     pf.image = exe ? &file.img : nullptr;
 #ifndef SCO_KERNEL_ONLY
     pf.registerSignatures = sco::game::RegisterGameSignatures;   // --exe: Star Citizen's tables

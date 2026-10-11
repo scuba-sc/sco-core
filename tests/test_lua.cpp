@@ -16,11 +16,15 @@
 #include "sco/storage.h"
 #include "sco/ui.h"
 #include "../plugins/lua/sco_lua.h"
+#include "../plugins/lua/sco_lua_ext.h"   // the extension registry (TestExtensions)
+#ifndef SCO_KERNEL_ONLY   // the game adapter (plugins/lua/sco_lua_game.c) and the tables it reads
+#include "../plugins/lua/sco_lua_game.h"
 #include "sc_actors.h"
 #include "sc_creative.h"
 #include "sc_entities.h"
 #include "sc_game_events.h"
 #include "sc_world.h"
+#endif
 #include <csignal>
 #include <cstddef>
 #include <cstdio>
@@ -507,6 +511,47 @@ static void TestTotalMemory() {
     Unload(l);
 }
 
+// ---- the extension registry (sco_lua_ext.h) ---------------------------------------------------
+
+static int g_extOpened = 0;
+static void ExtOpen(lua_State* L) {
+    ++g_extOpened;
+    lua_pushstring(L, "from an extension");
+    lua_setfield(L, -2, "ext_probe");
+}
+static int ExtEvent(lua_State* L, const char* event, const void*) {
+    if (std::strcmp(event, "probe.ping") != 0) return 0;
+    lua_pushstring(L, "probe payload");
+    return 1;
+}
+static const sco_lua_extension kProbeExt = { "probe", ExtOpen, ExtEvent };
+
+static void TestExtensions() {
+    CHECK(sco_lua_add_extension(nullptr) == SCO_BAD_ARG);
+    const sco_lua_extension noOpen = { "bad", nullptr, nullptr };
+    CHECK(sco_lua_add_extension(&noOpen) == SCO_BAD_ARG);
+    // A script loaded before the extension doesn't see it.
+    Write("extbefore", "assert(sco.ext_probe == nil)\n");
+    Loaded before = Load("extbefore");
+    CHECK(before.p && before.p->state == State::Loaded);
+    CHECK(sco_lua_add_extension(&kProbeExt) == SCO_OK);
+    CHECK(sco_lua_add_extension(&kProbeExt) == SCO_BAD_ARG);   // once only
+    Write("extafter", R"(
+        assert(sco.ext_probe == "from an extension")
+        sco.subscribe("probe.ping", function(name, data) sco.log("info", "ping " .. tostring(data)) end)
+        sco.subscribe("probe.other", function(name, data) sco.log("info", "other " .. tostring(data)) end)
+    )");
+    const int opened = g_extOpened;
+    Loaded after = Load("extafter");
+    CHECK(after.p && after.p->state == State::Loaded && g_extOpened == opened + 1);
+    sco::Dispatch("probe.ping", nullptr);
+    CHECK(Logged("[extafter] ping probe payload"));      // the extension's value
+    sco::Dispatch("probe.other", nullptr);
+    CHECK(Logged("[extafter] other nil"));               // no extension knows it: nil
+    Unload(after);
+    Unload(before);
+}
+
 #ifndef SCO_KERNEL_ONLY   // the Star Citizen game pack (SCO_GAME_SC)
 // ---- sco.datacore (published by the host only when the product enables it) --------------------
 
@@ -568,7 +613,6 @@ end }
     Unload(l);
     svc::Stop();
 }
-#endif   // SCO_KERNEL_ONLY
 
 // ---- sco.game.actors (read-only over game.actors; a stand-in table, published as the game pack does) --
 
@@ -836,6 +880,27 @@ end }
     CHECK(sco::host::WithdrawGameService(SC_WORLD_NAME) == Result::Ok);
 }
 
+// The core runtime alone: with no adapter registered, sco.datacore and sco.game never appear and
+// a game.* event's data is nil, even when the game services are published.
+static void TestNoAdapter() {
+    static const sc_actors_v1 kNone = { sizeof(sc_actors_v1), 0, FakeLocalPlayer, FakeSpawnNpc, FakeDespawn, FakeLastError,
+                                        FakeHealth, FakeState };
+    CHECK(sco::host::ProvideGameService(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_1, &kNone) == Result::Ok);
+    Write("noadapter", R"(
+        assert(sco.game == nil, "sco.game without the adapter")
+        assert(sco.datacore == nil, "sco.datacore without the adapter")
+        sco.subscribe("game.player_died", function(name, data) sco.log("info", "died " .. tostring(data)) end)
+    )");
+    Loaded l = Load("noadapter");
+    CHECK(l.p && l.p->state == State::Loaded);
+    const sc_game_player_died died = { sizeof(died), 0, 7, 0 };
+    sco::Dispatch(SC_GAME_EVENT_PLAYER_DIED, &died);
+    CHECK(Logged("[noadapter] died nil"));
+    Unload(l);
+    CHECK(sco::host::WithdrawGameService(SC_ACTORS_NAME) == Result::Ok);
+}
+#endif   // SCO_KERNEL_ONLY
+
 // ---- sco.store (over the host service sco.storage) ---------------------------------------------
 
 // Opens and closes SCO_STORAGE_MAX_CURSORS cursors as `self`: true when none was refused, so the
@@ -1094,13 +1159,16 @@ int main(int argc, char** argv) {
     TestSandbox();
     TestLimits();
     TestTotalMemory();
+    TestExtensions();
 #ifndef SCO_KERNEL_ONLY
+    TestNoAdapter();
+    CHECK(sco_lua_add_extension(&sco_lua_game_extension) == SCO_OK);   // as the product does
     TestDataCore();
-#endif
     TestGameActors();
     TestGameCreative();
     TestGameWorld();
     TestGameEntities();
+#endif
     TestSettings();
     TestStore(argv[1]);
     std::printf("sco-lua tests: %d passed, %d failed\n", g_pass, g_fail);

@@ -361,9 +361,9 @@ SETTINGS=("$ROOT/tests/test_settings.cpp" "$ROOT/src/settings/settings.cpp" "$RO
 LUA_SRC=$ROOT/plugins/lua/third_party/lua/src
 mkdir -p "$OUT/lua"
 LUA_OBJS=()
-for f in "$LUA_SRC"/*.c "$ROOT/plugins/lua/sco_lua.c"; do
+for f in "$LUA_SRC"/*.c "$ROOT/plugins/lua/sco_lua.c" "$ROOT/plugins/lua/sco_lua_game.c"; do
   o="$OUT/lua/$(basename "$f" .c).o"
-  if [ "$f" = "$ROOT/plugins/lua/sco_lua.c" ]; then W=(-Wall -Wextra -Wpedantic -Werror); else W=(-w); fi
+  case "$f" in "$ROOT"/plugins/lua/sco_lua*.c) W=(-Wall -Wextra -Wpedantic -Werror) ;; *) W=(-w) ;; esac
   "$CC" -std=c11 -O1 -g "${W[@]}" -fsanitize=address,undefined -I "$ROOT/include" -I "$LUA_SRC" -c "$f" -o "$o"
   LUA_OBJS+=("$o")
 done
