@@ -679,7 +679,7 @@ Interface exception: include/sc_ipc.h, include/sc_net.h,
 include/sc_titanlink.h and include/sc_voxel_bridge.h
 
 Everything in sco-core is licensed under the GNU General Public License
-version 3 above, except four files: include/sc_ipc.h, the shared-memory wire
+version 3 above (GPL-3.0-only), except four files: include/sc_ipc.h, the shared-memory wire
 format of sco.ipc bridges; include/sc_net.h, the datagram wire format of
 sco.net sessions; and include/sc_titanlink.h and include/sc_voxel_bridge.h,
 the channel layouts of the TitanLink and voxel-game bridges. Each carries the
@@ -689,3 +689,8 @@ plugin for another game, or another program speaking sco.net) may include it
 and speak the protocol. The exception covers those four files only:
 include/sco_ipc.h, include/sco_net.h, the services and the rest of sco-core
 remain GPL-3.0.
+
+Third-party code vendored in this repository (plugins/lua/third_party/lua,
+third_party/sqlite, third_party/tomlplusplus, sdk/third_party/imgui) is not
+sco-core's own code: it keeps its own license and notices, listed in
+THIRD_PARTY_NOTICES.md.

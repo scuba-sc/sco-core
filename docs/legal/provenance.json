@@ -1,0 +1,262 @@
+{
+ "schema_version": 1,
+ "about": "Origin, licence and review status of every tracked file, by path pattern. The first entry whose pattern matches a path applies ('dir/**' = everything under dir; other patterns are fnmatch, and a pattern without '/' matches top-level files only). tools/ip_audit.py checks that every tracked file matches an entry and that no release ships a file whose status is 'unresolved'. Policy: IP_POLICY.md.",
+ "statuses": {
+  "reviewed": "origin and licence recorded; nothing open",
+  "needs-review": "origin recorded; an open question (see issue / note) to settle before the release that ships it",
+  "unresolved": "origin or rights unknown: blocks any release that ships it"
+ },
+ "copyright_holder_statement": {
+  "statement": "The commit identity 'yerts' is the same person as the maintainer 'scubamount'.",
+  "by": "scubamount (maintainer)",
+  "date": "2026-10-11",
+  "recorded_by": "agent, from the maintainer's answer"
+ },
+ "entries": [
+  {
+   "path": "plugins/lua/third_party/lua/**",
+   "origin": "third-party",
+   "license": "MIT",
+   "copyright": "Lua.org, PUC-Rio",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "upstream": "https://www.lua.org/ftp/lua-5.4.8.tar.gz",
+   "modified": "SCO_LUA_STEP in lstrlib.c, ltablib.c; luaconf.h includes sco_lua_user.h; lines marked /* sco-lua */"
+  },
+  {
+   "path": "third_party/sqlite/**",
+   "origin": "third-party",
+   "license": "blessing",
+   "copyright": "public domain (SQLite)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "upstream": "https://sqlite.org/2026/sqlite-amalgamation-3530400.zip"
+  },
+  {
+   "path": "third_party/tomlplusplus/**",
+   "origin": "third-party",
+   "license": "MIT",
+   "copyright": "Mark Gillard",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "upstream": "https://github.com/marzer/tomlplusplus v3.4.0"
+  },
+  {
+   "path": "sdk/third_party/imgui/**",
+   "origin": "third-party",
+   "license": "MIT",
+   "copyright": "Omar Cornut",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "upstream": "https://github.com/ocornut/imgui 1.92.8 WIP; via sc-offline 1ee0727"
+  },
+  {
+   "path": "LICENSE",
+   "origin": "third-party",
+   "license": "GPL-3.0-only",
+   "copyright": "Free Software Foundation (licence text)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "upstream": "https://www.gnu.org/licenses/gpl-3.0.txt"
+  },
+  {
+   "path": "include/sc_ipc.h",
+   "origin": "project-authored",
+   "license": "MIT",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
+  },
+  {
+   "path": "include/sc_net.h",
+   "origin": "project-authored",
+   "license": "MIT",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
+  },
+  {
+   "path": "include/sc_titanlink.h",
+   "origin": "project-authored",
+   "license": "MIT",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
+  },
+  {
+   "path": "include/sc_voxel_bridge.h",
+   "origin": "project-authored",
+   "license": "MIT",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
+  },
+  {
+   "path": "sdk/examples/quantum_pack/**",
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "needs-review",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "issue": "F-08",
+   "note": "Game2.dcb 4.10.193 record names, field paths and 3 record GUIDs. Basis for distributing them not yet recorded."
+  },
+  {
+   "path": "sdk/examples/travel_pack/**",
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "needs-review",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "issue": "F-09",
+   "note": "Star Citizen entity names (OOC_Stanton_*). Basis for distributing them not yet recorded."
+  },
+  {
+   "path": "src/game/**",
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "needs-review",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "issue": "game-pack",
+   "note": "Signature rows: byte patterns and referenced string/function names found by the maintainer's own analysis (docs/adding-signatures.md). Separately assessed; outside the core SDK."
+  },
+  {
+   "path": "include/sco/game/**",
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "needs-review",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "issue": "game-pack",
+   "note": "Game pack internals; see src/game/**."
+  },
+  {
+   "path": "tests/fixtures/datacore/**",
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "needs-review",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11",
+   "issue": "game-pack",
+   "note": "Synthetic DataCore packs; some use real record names. Built fixture data only, no game bytes."
+  },
+  {
+   "path": "include/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": "src/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": "plugins/lua/*",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": "sdk/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": "tests/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": "tools/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": "docs/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": ".github/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": "*.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": "CMakeLists.txt",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  },
+  {
+   "path": ".gitignore",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "scubamount (maintainer; commit identities 'yerts' and 'scubamount', same person by the maintainer's statement of 2026-10-11)",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-11"
+  }
+ ]
+}
