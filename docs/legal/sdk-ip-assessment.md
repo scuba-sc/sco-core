@@ -12,6 +12,7 @@ rights or law are flagged for a person to decide; none is settled here.
 | Latest published release | `sdk-v1.1.0` (2026-10-09). **Nothing newer is tagged or published**, and this draft doesn't change that |
 | Evidence | [evidence/ca2e640/](evidence/ca2e640/): the ip-compliance run's reports, SBOMs and zip hashes |
 | Date | 2026-10-11 |
+| Since then | The maintainer decided F-08/F-09 (synthetic example data) and F-13 (option A). Both are carried out in sco-core #83; the gate table below shows the status **after #83 merges**. Re-run the evidence on #83's merge commit before relying on it |
 
 ## Scope
 
@@ -42,26 +43,19 @@ only once its reviewer accepts that evidence. Every gate below therefore still n
 | Gate | Core SDK | Game-sc extension | Evidence |
 |---|---|---|---|
 | **A** Architectural independence | **PASS (machine)**: kernel builds and tests with `SCO_GAME_SC=OFF` without game-pack objects or symbols; the core zip builds and passes alone with no extension header or game C# type (153 C# pins); ABI 1.1 pins unchanged | **PASS (machine)**: unpacked over the core it builds and passes (346 pins) and overwrites no core file; sc-offline builds against it on Windows | `cmake` 38113298326 (kernel-only), `sdk` 38113298231, `test` 38113298350, `core-audit.json`; sc-offline run 38112659589 |
-| **B** Source provenance | **PASS (machine), review pending**: every file shipped is `reviewed`; nothing is unresolved | **BLOCKED**: two shipped files are `needs-review` (F-08, F-09), with the basis for distributing their game-derived names, paths and three record GUIDs unrecorded | `provenance.json`, `*-audit.json` notes |
-| **C** Distribution rights | **PASS (machine), review pending**: the only third-party code shipped is Dear ImGui's two MIT headers, with their licence and notices; no binary or game asset | **BLOCKED** on B (F-08, F-09) | `THIRD_PARTY_NOTICES.md`, `third-party-inventory.md`, artifacts check |
-| **D** Licensing accuracy | **BLOCKED**: the plugin-licence statement (F-13) is undecided; the four existing "plugins are GPL-3.0" statements stand unchanged until it is. Everything else passes: GPL-3.0-only stated explicitly, REUSE 3.3 compliant (482/482 at `ca2e640`), SPDX on every file | Same as core | `plugin-licensing-options.md`, `reuse lint` |
+| **B** Source provenance | **PASS (machine), review pending**: every file shipped is `reviewed`; nothing is unresolved | **PASS (machine) after #83, review pending**: the two `needs-review` files (F-08, F-09) are replaced by synthetic data ([decision](release-decisions/2026-10-11-example-data.md)); at `ca2e640` they were BLOCKED | `provenance.json`, `*-audit.json` notes |
+| **C** Distribution rights | **PASS (machine), review pending**: the only third-party code shipped is Dear ImGui's two MIT headers, with their licence and notices; no binary or game asset | **PASS (machine) after #83, review pending**: no game-derived data left in the zip | `THIRD_PARTY_NOTICES.md`, `third-party-inventory.md`, artifacts check |
+| **D** Licensing accuracy | **PASS (machine) after #83, counsel review pending**: option A chosen ([decision](release-decisions/2026-10-11-plugin-licence.md)); the five statements now describe the project's expectation, not a legal result. Everything else passes: GPL-3.0-only stated explicitly, REUSE 3.3 compliant (482/482 at `ca2e640`), SPDX on every file | Same as core | `plugin-licensing-options.md`, `reuse lint` |
 | **E** Automated compliance | **PASS (machine)**: manifest, artifacts, isolation, licences, SBOM, SHA256SUMS, reproducibility, 24 negative tests; `release.yml` enforces the audit | Same | `ip-compliance.yml` run 38113298363 |
 | **F** Documentation accuracy | **Needs review**: README, SDK README and CHANGELOG describe core vs. extension; a person must confirm that no claim goes beyond the evidence | Same | this draft, `CHANGELOG.md` |
 | **G** Human authorization | **NOT STARTED**: no approval record exists; `release.yml` refuses to publish without one | Same | `release-decisions/` (empty) |
 
 ## Findings for a person to decide
 
-1. **F-13, the plugin licence** (Gate D, both zips). Options A and B are drafted in
-   [plugin-licensing-options.md](plugin-licensing-options.md). The engineering work doesn't depend
-   on the choice. Until it is made, a release should either keep the existing statement unchanged
-   or state no plugin licence beyond the GPL-3.0-only grant.
+1. **F-13, the plugin licence** (Gate D, both zips). **Decided 2026-10-11: option A**, carried
+   out in #83. Open: counsel's review of the wording.
 2. **F-08 and F-09, the game-derived example data** (Gates B, C, game-sc and legacy only).
-   `eos.toml` names Game2.dcb 4.10.193 records, field paths and three record GUIDs; `locations.txt`
-   names game entities. The repository records them as interoperability facts, but the basis for
-   distributing them isn't recorded. Options for the maintainer:
-   - record that basis in `release-decisions/`, with counsel where needed;
-   - replace them with synthetic names that only demonstrate the format;
-   - leave both packs out of the release (the manifest supports withholding them).
+   **Decided 2026-10-11: replaced with synthetic names**, carried out in #83. Nothing open.
 3. **Copyright holder** (Gate B). The maintainer has stated that the commit identity `yerts` is the
    maintainer. This is recorded in `provenance.json`, but no external evidence has been reviewed.
    The plan requires contributor-rights evidence for project-authored code; with a single
