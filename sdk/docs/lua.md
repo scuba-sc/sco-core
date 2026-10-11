@@ -212,6 +212,7 @@ When the Star Citizen game pack publishes them, `sco.subscribe` also takes the g
 |---|---|
 | `"game.player.spawned"` | `{ entity_id, zone_id }` (`zone_id` is 0 if it couldn't be read yet) |
 | `"game.player.died"` | `{ entity_id, killer_id }` (`killer_id` is always 0) |
+| `"game.actors.died"` | `{ entity_id, killer_id }` for any actor (unreadable `entity_id` and `killer_id` are 0) |
 | `"game.zone.changed"` | `{ old_zone_id, new_zone_id }` |
 
 ```lua

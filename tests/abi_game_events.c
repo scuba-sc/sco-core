@@ -29,6 +29,7 @@ PIN(sizeof(void*) == 8);
 /* ---- event names ---- */
 PIN(sizeof(SC_GAME_EVENT_PLAYER_SPAWNED) == 20);  /* "game.player.spawned" */
 PIN(sizeof(SC_GAME_EVENT_PLAYER_DIED) == 17);     /* "game.player.died" */
+PIN(sizeof(SC_GAME_EVENT_ACTOR_DIED) == 17);      /* "game.actors.died" */
 PIN(sizeof(SC_GAME_EVENT_ZONE_CHANGED) == 18);    /* "game.zone.changed" */
 PIN(sizeof(SC_GAME_EVENT_VEHICLE_BOARDED) == 21); /* "game.vehicle.boarded" */
 PIN(sizeof(SC_GAME_EVENT_VEHICLE_EXITED) == 20);  /* "game.vehicle.exited" */
@@ -46,6 +47,13 @@ AT(sc_game_player_died, size, 0);
 AT(sc_game_player_died, _pad, 4);
 AT(sc_game_player_died, entity_id, 8);
 AT(sc_game_player_died, killer_id, 16);
+
+/* ---- sc_game_actor_died (every actor's death, not only your player's) ---- */
+SIZE(sc_game_actor_died, 24);
+AT(sc_game_actor_died, size, 0);
+AT(sc_game_actor_died, _pad, 4);
+AT(sc_game_actor_died, entity_id, 8);
+AT(sc_game_actor_died, killer_id, 16);
 
 /* ---- sc_game_zone_changed ---- */
 SIZE(sc_game_zone_changed, 24);

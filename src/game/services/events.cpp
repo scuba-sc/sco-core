@@ -1,14 +1,21 @@
-// The game.* bus events (sc_game_events.h) from the game pack: game.player.spawned, game.player.died
-// and game.zone.changed, and the log-only seat probe behind game.vehicle.boarded / exited
-// (docs/design/game-world-spikes.md B5, B6, B7, B8).
+// The game.* bus events (sc_game_events.h) from the game pack: game.player.spawned, game.player.died,
+// game.actors.died and game.zone.changed, and the log-only seat probe behind
+// game.vehicle.boarded / exited (docs/design/game-world-spikes.md B5, B6, B7, B8).
+//
+// The death hook is owned here and only here. It is the game's own death path, so every actor's
+// death passes through it, and one hook is turned into two events on the tick: game.actors.died for
+// the death itself (any actor) and game.player.died when the actor was your player. A consumer that
+// needs every death subscribes to game.actors.died instead of detouring this function, which is what
+// a second detour on the same target would have needed (sco::hook allows one per target).
 //
 // The hooks never run plugin code and never wait on the game: a detour calls the game's own
-// function first, then writes one small record (which hook, the two pointers the game passed) into a
+// function first, then writes one small record (which hook, the pointers the game passed, and for a
+// death the dying entity's id read before the game ran) into a
 // fixed ring under a mutex held for a handful of stores (no allocation, no calls out while it is
 // held). Everything else happens on the game thread, in the host's tick: it takes the records out,
-// decides on the game thread whether the actor is your player (a read of game memory, so never in a
-// detour), reads the ids, and dispatches through the kernel event bus, which is where plugin code
-// runs. A hook thus costs the game one lock and a few stores, whichever thread it fires on.
+// identifies your player and dispatches through the kernel event bus. Only the death detour
+// captures a stable entity ID through a guarded game-memory read before the original runs;
+// plugin callbacks always run later on the game thread.
 //
 // game.zone.changed has no hook: the tick polls your player's zone id every kPollMs.
 //
@@ -17,6 +24,7 @@
 // in-game run confirms which actor a transition belongs to and that the link is a vehicle seat.
 #include "events.h"
 #include "actors.h"
+#include "death_events.h"
 #include "sco/caps.h"
 #include "sco/game/actors.h"
 #include "sco/game/events.h"
@@ -52,6 +60,7 @@ constexpr int      kSeatProbeMax = 100;     // log lines of the seat probe per s
 
 constexpr const char* kCapSpawned = "game.events.player_spawned";
 constexpr const char* kCapDied    = "game.events.player_died";
+constexpr const char* kCapActorDied = "game.events.actor_died";
 constexpr const char* kCapZone    = "game.events.zone_changed";
 constexpr const char* kCapSeat    = "game.events.vehicle_seat";
 constexpr const char* kTeleportRows[] = {   // the reads (sco/game/teleport.h)
@@ -59,8 +68,10 @@ constexpr const char* kTeleportRows[] = {   // the reads (sco/game/teleport.h)
 };
 constexpr const char* kIdRows[] = { "spawn.find_seat", "spawn.handle_to_id" };   // an actor's entity id
 
-enum class Kind : uint8_t { Spawn = 1, Death, SeatEnter, SeatExit };
-struct Record { Kind kind; uintptr_t a, b; };
+// Record (kind, a, b, id) is declared once, in death_events.h, so the tests and this file agree on
+// what one hook occurrence holds; `kind` there is the plain int this file's Kind casts to.
+enum class Kind : int { Spawn = 1, Death, SeatEnter, SeatExit };
+using Record = sco::game::services::Record;
 
 bool g_started = false;
 std::atomic<bool> g_active{ false };   // the detours record only while this is set
@@ -72,7 +83,7 @@ size_t     g_head = 0, g_count = 0;
 uint32_t   g_dropped = 0;
 
 // Game thread only.
-bool         g_capSpawned = false, g_capDied = false, g_capZone = false, g_capSeat = false;
+bool         g_capSpawned = false, g_capDied = false, g_capActorDied = false, g_capZone = false, g_capSeat = false;
 HandleToIdFn g_handleToId = nullptr;
 struct Local { uintptr_t actor; uint64_t entityId; uint64_t zoneId; };
 Local        g_cache = {};            // your player as of the last poll
@@ -130,8 +141,26 @@ void Push(Kind kind, void* a, void* b) noexcept {
     if (!g_active.load(std::memory_order_acquire)) return;
     std::lock_guard<std::mutex> hold(g_ringLock);
     if (g_count == kRing) { ++g_dropped; return; }
-    g_ring[(g_head + g_count) % kRing] = { kind, reinterpret_cast<uintptr_t>(a), reinterpret_cast<uintptr_t>(b) };
+    g_ring[(g_head + g_count) % kRing] = { static_cast<int>(kind), reinterpret_cast<uintptr_t>(a), reinterpret_cast<uintptr_t>(b), 0 };
     ++g_count;
+}
+
+void Push(Kind kind, void* a, void* b, uint64_t id) noexcept {
+    if (!g_active.load(std::memory_order_acquire)) return;
+    std::lock_guard<std::mutex> hold(g_ringLock);
+    if (g_count == kRing) { ++g_dropped; return; }
+    g_ring[(g_head + g_count) % kRing] = { static_cast<int>(kind), reinterpret_cast<uintptr_t>(a), reinterpret_cast<uintptr_t>(b), id };
+    ++g_count;
+}
+
+// The dying entity's id from an actor component pointer, the same read ReadLocal makes for your
+// player's id (the handle at component+8, through the game's handle_to_id). 0 when it can't be had.
+// Callers guard it with __try: it dereferences game memory.
+uint64_t DeathIdOfActor(void* actor) noexcept {
+    if (!g_handleToId || !actor) return 0;
+    uint64_t id = 0;
+    g_handleToId(reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(actor) + 8), &id);
+    return id;
 }
 
 // SCigEventDispatcher::QueueEvent<SPI_Player_OnSpawn>(actor*, bool, void*): the game's own queue
@@ -140,10 +169,26 @@ void __fastcall SpawnDetour(void* a, void* b, void* c) noexcept {
     reinterpret_cast<Detour3>(g_origSpawn)(a, b, c);
     Push(Kind::Spawn, a, nullptr);
 }
-// QueueEvent<SPI_Player_OnDeath>(actor*, const hit_info*, void*)
+// Death path containing the inline QueueEvent<SPI_Player_OnDeath> label (actor*, hit_info*, void*).
+//
+// The dying entity's id is read here, before the game's own code runs: this is the only moment the
+// actor's handle is known good, and a tick later the actor may already be gone (game.actors.died
+// exists so a consumer can name which entity died without detouring this function itself). The read
+// is a call into the game through the spawn.handle_to_id row, so it runs under __try like every
+// other read of game memory and costs 0 when the rows aren't OK; a failure leaves the id 0 and the
+// record still lands, so an occurrence is never lost for want of its name.
+//
+// The function takes three arguments (actor in rcx, hit info in rdx, a third in r8): the prologue
+// saves rdx and r8 into the shadow space, the hit-info value is re-materialised into a local, and no
+// fourth or fifth argument is ever read from the caller's stack. Detour3 forwards exactly those
+// three, which is what the game's own code expects.
 void __fastcall DeathDetour(void* a, void* b, void* c) noexcept {
+    uint64_t id = 0;
+    if (g_handleToId) {
+        __try { id = DeathIdOfActor(a); } __except (EXCEPTION_EXECUTE_HANDLER) { id = 0; }
+    }
     reinterpret_cast<Detour3>(g_origDeath)(a, b, c);
-    Push(Kind::Death, a, nullptr);
+    Push(Kind::Death, a, nullptr, id);
 }
 // CSCActorResultStateLinked::Enter / Exit (state*, host*, const SData*)
 void __fastcall EnterDetour(void* a, void* b, void* c) noexcept {
@@ -261,6 +306,37 @@ void PublishSpawned(const Local& l) {
     Publish(SC_GAME_EVENT_PLAYER_SPAWNED, &p);
 }
 
+// One death record, turned into the events it means. Both views come from this one record, so they
+// can never disagree about the occurrence: game.actors.died for the death itself (any actor), and
+// game.player.died when the actor that died is your player.
+//
+// `mine` is the caller's answer to "is this actor your player": the cached one (g_haveCache &&
+// r.a == g_cache.actor) or the fresh poll's (have && r.a == cur.actor). `entityId` is the id that
+// belongs with that answer. game.actors.died is published for the death either way, and it is
+// published even when the id couldn't be read (0): an occurrence is never dropped for want of a
+// name, and a subscriber that needs to know checks the id rather than assuming the event implies it.
+//
+// This is a pure function of its arguments (plus Publish), which is what the tests drive: the whole
+// rule "every death publishes game.actors.died; only mine also publishes game.player.died; a dead
+// capability publishes nothing" is decided here and nowhere else.
+void PublishDied(const Record& r, bool mine, uint64_t entityId) {
+    DeathDispatch(r, mine, entityId, g_capActorDied, g_capDied);
+    // The state probe is game-thread work over the actor the game handed us, so it stays here beside
+    // the read it needs; only your own death is worth a probe line.
+    if (mine && g_capDied) ProbeActorState(r.a, "died");
+}
+
+// Is the actor that died your player, and with which id? The cache is the last poll's answer and is
+// preferred: it is the read that was current when the death happened. False when your player can't
+// be identified at all (never spawned, or not readable this tick).
+bool MineDied(const Record& r, bool have, const Local& cur, uint64_t& entityId) {
+    const bool cached = g_haveCache && r.a == g_cache.actor;
+    if (cached) { entityId = g_cache.entityId; return true; }
+    if (have && r.a == cur.actor) { entityId = cur.entityId; return true; }
+    entityId = 0;
+    return false;
+}
+
 void SeatProbe(const Record& r) {
     if (g_seatLogged >= kSeatProbeMax) return;
     if (++g_seatLogged == kSeatProbeMax) Log("[game] vehicle_seat probe: %d lines logged; no more this session", kSeatProbeMax);
@@ -271,7 +347,7 @@ void SeatProbe(const Record& r) {
         const size_t used = strlen(chain);
         snprintf(chain + used, sizeof(chain) - used, "%s%llu '%s'", i ? " > " : "", static_cast<unsigned long long>(s.id[i]), s.name[i]);
     }
-    Log("[game] vehicle_seat probe: %s: state=%p host=%p localActor=%p parents: %s", r.kind == Kind::SeatEnter ? "Enter" : "Exit",
+    Log("[game] vehicle_seat probe: %s: state=%p host=%p localActor=%p parents: %s", static_cast<Kind>(r.kind) == Kind::SeatEnter ? "Enter" : "Exit",
         reinterpret_cast<void*>(r.a), reinterpret_cast<void*>(r.b), ok ? reinterpret_cast<void*>(s.actor) : nullptr,
         !ok ? "(your player couldn't be read)" : s.n ? chain : "(none)");
 }
@@ -302,19 +378,17 @@ void OnTick(const char*, const void* data, void*) {
 
     for (size_t i = 0; i < n; ++i) {
         const Record& r = batch[i];
-        switch (r.kind) {
+        switch (static_cast<Kind>(r.kind)) {
         case Kind::Spawn:
             if (!g_capSpawned) break;
             if (have && r.a == cur.actor) PublishSpawned(cur);
             else if (!have && g_nwait < kWaitMax) g_wait[g_nwait++] = { r.a, now };   // not readable yet: try again
             break;   // have, and another actor (an NPC, another player): not yours
         case Kind::Death: {
-            if (!g_capDied) break;
-            const bool cached = g_haveCache && r.a == g_cache.actor;
-            if (!cached && !(have && r.a == cur.actor)) break;   // not your player
-            sc_game_player_died p = { sizeof(p), 0, cached ? g_cache.entityId : cur.entityId, 0 };
-            Publish(SC_GAME_EVENT_PLAYER_DIED, &p);
-            ProbeActorState(r.a, "died");
+            if (!g_capActorDied && !g_capDied) break;
+            uint64_t entityId = 0;
+            const bool mine = MineDied(r, have, cur, entityId);
+            PublishDied(r, mine, entityId);
             break;
         }
         case Kind::SeatEnter:
@@ -356,24 +430,33 @@ void OnTick(const char*, const void* data, void*) {
 Result StartEvents() {
     if (g_started) return Result::Ok;
     const std::vector<const char*> teleport(std::begin(kTeleportRows), std::end(kTeleportRows));
-    std::vector<const char*> spawned = teleport, died = teleport, zone = teleport, seat = teleport;
-    for (const char* id : kIdRows) { spawned.push_back(id); died.push_back(id); }
+    std::vector<const char*> spawned = teleport, died = teleport, actorDied = teleport, zone = teleport, seat = teleport;
+    for (const char* id : kIdRows) { spawned.push_back(id); died.push_back(id); actorDied.push_back(id); }
     size_t ne = 0;
     const events::Capability* ec = events::Capabilities(ne);
     AddRows(ec, ne, kCapSpawned, spawned);
     AddRows(ec, ne, kCapDied, died);
+    AddRows(ec, ne, kCapActorDied, actorDied);
     AddRows(ec, ne, kCapSeat, seat);
 
     g_handleToId = RowsOk({ "spawn.find_seat", "spawn.handle_to_id" }) ? reinterpret_cast<HandleToIdFn>(Sig("spawn.handle_to_id")) : nullptr;
-    char whySpawned[128], whyDied[128], whyZone[128], whySeat[128];
+    char whySpawned[128], whyDied[128], whyActorDied[128], whyZone[128], whySeat[128];
     g_capSpawned = SetCap(kCapSpawned, spawned, whySpawned, sizeof(whySpawned));
     g_capDied    = SetCap(kCapDied, died, whyDied, sizeof(whyDied));
+    g_capActorDied = SetCap(kCapActorDied, actorDied, whyActorDied, sizeof(whyActorDied));
     g_capZone    = SetCap(kCapZone, zone, whyZone, sizeof(whyZone));
     const bool seatRows = SetCap(kCapSeat, seat, whySeat, sizeof(whySeat));
 
     g_active.store(true, std::memory_order_release);
     if (g_capSpawned && !InstallHook(g_hooks[0], whySpawned, sizeof(whySpawned))) g_capSpawned = false;
-    if (g_capDied && !InstallHook(g_hooks[1], whyDied, sizeof(whyDied))) g_capDied = false;
+    // One detour, two events: the death hook is installed when either view of it is ready, and
+    // whichever capability failed is what turns off, so a build with only one of the two rows OK
+    // still gets the event it can.
+    if ((g_capDied || g_capActorDied) && !InstallHook(g_hooks[1], whyDied, sizeof(whyDied))) {
+        g_capDied = false;
+        g_capActorDied = false;
+        if (!whyActorDied[0]) snprintf(whyActorDied, sizeof(whyActorDied), "%s", whyDied);
+    }
     // The seat hooks install for the probe (log only) when both rows are OK, and the capability
     // stays off whatever they say.
     if (seatRows && InstallHook(g_hooks[2], whySeat, sizeof(whySeat)) && !InstallHook(g_hooks[3], whySeat, sizeof(whySeat))) {
@@ -386,16 +469,18 @@ Result StartEvents() {
     if (r != Result::Ok) {
         g_active.store(false, std::memory_order_release);
         RemoveHooks();
-        for (const char* cap : { kCapSpawned, kCapDied, kCapZone, kCapSeat }) caps::Set(cap, false, "game events not started");
-        g_capSpawned = g_capDied = g_capZone = false;
+        for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat }) caps::Set(cap, false, "game events not started");
+        g_capSpawned = g_capDied = g_capActorDied = g_capZone = false;
         return r;
     }
     if (!g_capSpawned) caps::Set(kCapSpawned, false, whySpawned);
     if (!g_capDied) caps::Set(kCapDied, false, whyDied);
+    if (!g_capActorDied) caps::Set(kCapActorDied, false, whyActorDied);
     if (!g_capZone) caps::Set(kCapZone, false, whyZone);
     caps::Set(kCapSeat, false, "which actor a seat transition belongs to, and whether it is a vehicle seat, needs an in-game run");
     if (!g_capSpawned) Log("[game] %s not ready: %s", kCapSpawned, whySpawned);
     if (!g_capDied) Log("[game] %s not ready: %s", kCapDied, whyDied);
+    if (!g_capActorDied) Log("[game] %s not ready: %s", kCapActorDied, whyActorDied);
     if (!g_capZone) Log("[game] %s not ready: %s", kCapZone, whyZone);
     Log("[game] game.events.vehicle_seat is off until an in-game run confirms its payload; %s",
         g_hooks[2].at && g_hooks[3].at ? "the seat probe logs Enter and Exit" : "the seat hooks aren't installed (rows not OK)");
@@ -408,13 +493,13 @@ void StopEvents() {
     g_active.store(false, std::memory_order_release);
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     RemoveHooks();
-    for (const char* cap : { kCapSpawned, kCapDied, kCapZone, kCapSeat }) caps::Set(cap, false, "stopped");
+    for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat }) caps::Set(cap, false, "stopped");
     {
         std::lock_guard<std::mutex> hold(g_ringLock);
         g_head = g_count = 0;
         g_dropped = 0;
     }
-    g_capSpawned = g_capDied = g_capZone = g_capSeat = false;
+    g_capSpawned = g_capDied = g_capActorDied = g_capZone = g_capSeat = false;
     g_handleToId = nullptr;
     g_cache = {};
     g_haveCache = false;

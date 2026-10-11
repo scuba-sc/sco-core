@@ -9,7 +9,7 @@
 // after checking its size field covers the struct this header was built against (a payload from an
 // older game pack that is shorter is dropped, not read past its end). The handler runs on the game
 // thread, a frame or two after the game did it. An event whose capability isn't ready never fires
-// (has("game.events.player_spawned"), "game.events.player_died", "game.events.zone_changed").
+// (has("game.events.player_spawned"), "game.events.player_died", "game.events.actor_died", "game.events.zone_changed").
 // game.vehicle.boarded and game.vehicle.exited are reserved: the game pack doesn't publish them yet,
 // so there is no helper. Reference: docs/game-services.md, docs/sdk-cpp.md. GPL-3.0, like sco-core.
 #ifndef SCOSDK_GAME_EVENTS_HPP
@@ -49,6 +49,10 @@ Subscription SubscribeEvent(Plugin& plugin, const char* event, std::function<voi
 // game.player.died: your player died.
 [[nodiscard]] inline Subscription OnPlayerDied(Plugin& plugin, std::function<void(const sc_game_player_died&)> fn) noexcept {
     return detail::SubscribeEvent<sc_game_player_died>(plugin, SC_GAME_EVENT_PLAYER_DIED, std::move(fn));
+}
+// game.actors.died: any actor died; entity_id may be 0 when unreadable.
+[[nodiscard]] inline Subscription OnActorDied(Plugin& plugin, std::function<void(const sc_game_actor_died&)> fn) noexcept {
+    return detail::SubscribeEvent<sc_game_actor_died>(plugin, SC_GAME_EVENT_ACTOR_DIED, std::move(fn));
 }
 // game.zone.changed: your player's zone changed.
 [[nodiscard]] inline Subscription OnZoneChanged(Plugin& plugin, std::function<void(const sc_game_zone_changed&)> fn) noexcept {

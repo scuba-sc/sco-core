@@ -128,8 +128,14 @@ constexpr size_t kServiceEndHaulingSlot   = 0xC0;
 //   +kSendRewardsJnz.
 constexpr size_t kSendRewardsJnz = 8;
 // contracts.find_entry, contracts.find_entry_any: the function holding a unique pattern, prologue
-//   checked. contracts.total_reward, .update_balance, .async_update_balance, .em_module_finished,
-//   .actor_kill, .send_comms, .helper_spawned: string functions. contracts.end_mission: pattern.
+// checked. contracts.total_reward, .update_balance, .async_update_balance, .em_module_finished,
+// .send_comms, .helper_spawned: string functions. contracts.end_mission: pattern.
+//
+// Actor deaths are not a contracts row: the game's death path is owned by the game pack's
+// event.player_death hook (events_sigs.cpp), which publishes game.actors.died for every death.
+// contracts.actor_kill used to resolve "CActor::Kill" by string to the very same function, so the
+// product's detour and the game pack's collided on one target and the game pack lost
+// (sco::hook allows one detour per target). It was removed rather than chained.
 
 // ---- contracts.stream_radius --------------------------------------------------------------------
 // contracts.mission_settings: RIP at +3 of a unique pattern that also checks the radius load

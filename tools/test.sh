@@ -184,6 +184,16 @@ HOST=("$ROOT/tests/test_host.cpp" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/s
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${HOST[@]}" -o "$OUT/test_host"
 "$OUT/test_host"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "${HOST[@]}" -o "$OUT/test_host_tsan"
+# The death hook's one-owner rule (game.actors.died for every death, game.player.died only for your
+# player's), over the real bus with real subscribers. The decision is src/game/services/death_events.h,
+# which is portable on purpose: the hook itself is Windows-only (it reads game memory under SEH), so
+# this is the seam that exercises the rule without a game.
+# ASan+UBSan only, and deliberately single-threaded: the dispatch runs on one (game) thread, which is
+# how the game calls it, so a thread sanitizer has nothing to find here that the bus's own
+# cross-thread tests (test_runtime, test_host) don't already cover under both sets.
+DEATH=("$ROOT/tests/test_death_events.cpp" "${HOST[@]:1}")
+"$CXX" "${FLAGS[@]}" -I "$ROOT/src" -fsanitize=address,undefined "${DEATH[@]}" -o "$OUT/test_death_events"
+"$OUT/test_death_events"
 # Detours over small functions written into executable memory (x86-64 only; skipped elsewhere).
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_hook.cpp" "$ROOT/src/hook/sco_hook.cpp" -o "$OUT/test_hook"
 "$OUT/test_hook"

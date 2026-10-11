@@ -437,7 +437,6 @@ constexpr const char* kEndMission = "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 4
 constexpr StrFnSpec kEmFinished{
     "void __cdecl CEnvironmentalMissionManager::OnMissionModuleFinished(const class EntityId &,enum EMissionModuleStopReason)",
     "44 89 44 24 18 48 89 54 24 10 48 89 4C 24 08 55 53 56 57", nullptr, 0 };
-constexpr StrFnSpec kActorKill{ "CActor::Kill", "4C 89 44 24 18 48 89 54 24 10 55 53 57 41 54", nullptr, 0 };
 constexpr StrFnSpec kSendComms{ "SendCommsNotification Record GUID [$$] is invalid - Mission: [$$], Player: $$[$$]",
                                 "48 8B C4 4C 89 40 18 48 89 50 10 55 53 56 57 41 56 41 57", nullptr, 0 };
 constexpr StrFnSpec kHelperSpawned{ "Succeeded to spawn delivery mission helper. entityId: $$, missionId: $$",
@@ -519,7 +518,7 @@ constexpr const char* kRewards[] = {
 };
 constexpr const char* kShopPayments[] = { "contracts.update_balance", "contracts.async_update_balance" };
 constexpr const char* kSteps[] = {
-    "contracts.end_mission", "contracts.em_module_finished", "contracts.actor_kill", "contracts.send_comms", "contracts.helper_spawned",
+    "contracts.end_mission", "contracts.em_module_finished", "contracts.send_comms", "contracts.helper_spawned",
 };
 constexpr const char* kStreamRadiusRows[] = { "contracts.mission_settings" };
 constexpr const char* kPhases[] = {
@@ -631,7 +630,6 @@ extern const SigDef kContractsSignatures[] = {
     SCO_STR("contracts.async_update_balance", kAsyncUpdateBalance),
     SCO_PAT("contracts.end_mission", kEndMission),
     SCO_STR("contracts.em_module_finished", kEmFinished),
-    SCO_STR("contracts.actor_kill", kActorKill),
     SCO_STR("contracts.send_comms", kSendComms),
     SCO_STR("contracts.helper_spawned", kHelperSpawned),
     // stream radius

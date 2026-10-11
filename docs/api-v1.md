@@ -507,7 +507,7 @@ On the first cast the game pack compares a live entity's vtable slots `0x208` an
 
 ### `game.*` events (game pack)
 
-[`sc_game_events.h`](../include/sc_game_events.h), pinned by [`tests/abi_game_events.c`](../tests/abi_game_events.c): payload structs for the events the game pack puts on the kernel event bus. No service table: subscribe by name. Each payload starts with `uint32_t size` (check it before reading a field past the struct you were built against); the pointer is valid during the callback only; handlers run on the game thread from the host's tick, never from a game hook. Capabilities: `game.events.player_spawned`, `game.events.player_died`, `game.events.zone_changed`, `game.events.vehicle_seat` (off: reserved). The table of events, hooks and the vehicle-seat probe is in [game services](game-services.md#events).
+[`sc_game_events.h`](../include/sc_game_events.h), pinned by [`tests/abi_game_events.c`](../tests/abi_game_events.c): payload structs for the events the game pack puts on the kernel event bus. No service table: subscribe by name. Each payload starts with `uint32_t size` (check it before reading a field past the struct you were built against); the pointer is valid during the callback only; handlers run on the game thread from the host's tick, never from a game hook. Capabilities: `game.events.player_spawned`, `game.events.player_died`, `game.events.actor_died`, `game.events.zone_changed`, `game.events.vehicle_seat` (off: reserved). The table of events, hooks and the vehicle-seat probe is in [game services](game-services.md#events).
 
 ```c
 static void on_died(const char* event, const void* data, void* ctx) {

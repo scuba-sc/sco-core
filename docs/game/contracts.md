@@ -8,6 +8,8 @@ Terms used in the table:
 - **pattern**: unique in `.text`. **call +N** / **RIP +N**: the target of the call or RIP-relative operand at +N in the row named. **in range N**: the one match within the first N bytes of the row named.
 - **vtable**: the one `.rdata` slot holding a function, minus the slot offset. Slots are compared both as the loaded game holds them (relocated) and as the file holds them (the PE header's preferred base), so sco-sigcheck sees what the game sees.
 
+There is no `contracts.actor_kill` row. Actor deaths belong to the game's own death path, which the game pack's `event.player_death` hook owns and publishes as `game.actors.died` (see [events](status.md)); sc-offline subscribes to that instead of detouring the function a second time. A row here resolved `"CActor::Kill"` by string to that same function, so the two detours collided on one target and `sco::hook` (one detour per target) refused the game pack's, which silently took `game.player.died` down with it.
+
 | Row | RVA | How found | Checks | Capability |
 |---|---|---|---|---|
 | `contracts.query_reply` | 0x1b85920 | string fn "DebugAcceptGeneratorContract QueryAvailableContracts Success" | prologue | list |
@@ -68,7 +70,6 @@ Terms used in the table:
 | `contracts.async_update_balance` | 0x46a0db0 | string fn "CWallet::AsyncUpdateCurrencyBalance" | prologue | shop_payments |
 | `contracts.end_mission` | 0x1c30870 | pattern | | steps |
 | `contracts.em_module_finished` | 0x1ca8450 | string fn CEnvironmentalMissionManager::OnMissionModuleFinished | prologue | steps |
-| `contracts.actor_kill` | 0x2edb6d0 | string fn "CActor::Kill" | prologue | steps |
 | `contracts.send_comms` | 0x1d07190 | string fn "SendCommsNotification Record GUID ..." | prologue | steps |
 | `contracts.helper_spawned` | 0x1b84d50 | string fn "Succeeded to spawn delivery mission helper. ..." | prologue | steps |
 | `contracts.mission_settings` | 0xa065158 | RIP +3 of a pattern | the pattern holds `vmovss xmm1, [rax+0x174]` (the radius sc-offline writes) | stream_radius |

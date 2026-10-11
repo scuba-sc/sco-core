@@ -41,6 +41,7 @@ As of sco-core `main` at `31cf53a` (2026-10-10, with `game.creative` 1.0), game 
 | | | `game.entities.watch` (`watch`, `unwatch`) | OFF | OFF pending in-game confirmation |
 | `game.*` events ([`sc_game_events.h`](../../include/sc_game_events.h)) | bus | `game.events.player_spawned` (`game.player.spawned`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.events.player_died` (`game.player.died`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | `game.events.actor_died` (`game.actors.died`) | ON | row resolved on 4.10.196.36804 (sigcheck); the same row as player_died, one hook two events |
 | | | `game.events.zone_changed` (`game.zone.changed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`) | OFF | OFF pending in-game confirmation |
 | mining rows ([`mining.md`](mining.md)) | row | `game.mining` | ON | row resolved on 4.10.196.36804 (sigcheck) |
@@ -86,6 +87,7 @@ Every address below is the `OK` line of the sigcheck report named in [Sources](#
 | `game.actors.state` (off) | `actor.state_site` 0x400a702, `actor.status_accessor`, `actor.is_dead_confirmed` 0x3fec460 |
 | `game.events.player_spawned` | `event.player_spawn` 0x602a790 |
 | `game.events.player_died` | `event.player_death` 0x2edb6d0 |
+| `game.events.actor_died` | `event.player_death` 0x2edb6d0 (the same hook; it publishes both events) |
 | `game.events.vehicle_seat` (off) | `event.seat_enter` 0x6133960, `event.seat_exit` 0x6133e40 |
 | `game.entities.class_of` | `entities.dump` 0x688c918, `entities.class_site` 0x6858880 |
 | `game.entities.query_radius` (off) | `entities.dump`, `entities.index` 0x11cad080, `entities.for_each` 0x68926e0, `entities.class_site` |

@@ -10,7 +10,8 @@
  *   api->subscribe(self, SC_GAME_EVENT_PLAYER_DIED, on_died, NULL);
  *
  * Rules (docs/design/game-services.md, decision 8):
- *  - Low volume only: these are rare, local-player events. Entity streaming is not here (it is a
+ *  - Low volume only: these are rare events. game.actors.died is the widest, one per death of any
+ *    actor; it is a notification, not a stream, and entity streaming is not here (it is a
  *    type-filtered watch on game.entities).
  *  - Callbacks run on the game thread, from the host's tick, a moment (at most a frame or two)
  *    after the game did it. The game pack's hooks only record the occurrence; they never run
@@ -21,7 +22,9 @@
  *  - Ids are the game's 64-bit entity and zone ids: session handles, never keys to store.
  *  - Each event has a capability (sco_api has()); an event whose capability isn't ready never
  *    fires, so subscribing is harmless: "game.events.player_spawned", "game.events.player_died",
- *    "game.events.zone_changed", "game.events.vehicle_seat".
+ *    "game.events.actor_died", "game.events.zone_changed", "game.events.vehicle_seat".
+ *    Both views use one death detour. game.actors.died fires for every captured death and
+ *    game.player.died only for yours; a view whose capability is off never fires.
  */
 #ifndef SC_GAME_EVENTS_H
 #define SC_GAME_EVENTS_H
@@ -34,6 +37,7 @@ extern "C" {
 
 #define SC_GAME_EVENT_PLAYER_SPAWNED  "game.player.spawned"
 #define SC_GAME_EVENT_PLAYER_DIED     "game.player.died"
+#define SC_GAME_EVENT_ACTOR_DIED      "game.actors.died"
 #define SC_GAME_EVENT_ZONE_CHANGED    "game.zone.changed"
 #define SC_GAME_EVENT_VEHICLE_BOARDED "game.vehicle.boarded"
 #define SC_GAME_EVENT_VEHICLE_EXITED  "game.vehicle.exited"
@@ -53,6 +57,20 @@ typedef struct sc_game_player_died {
     uint64_t entity_id; /* your entity */
     uint64_t killer_id; /* always 0 in 1.0: the game's death record doesn't pin who did it */
 } sc_game_player_died;
+
+/* game.actors.died: an actor died, whichever actor it was: your player, an NPC, another player.
+ * This is the game's own death path seen once, by the one hook that owns it. It carries no
+ * judgement about whose death it was: game.player.died is the local-player view of the same
+ * occurrence, published alongside this one on the tick. Only the dying entity's id is stable
+ * enough to name here, so it is captured by the hook before the game's own code runs; when the
+ * id can't be read (the game build's rows aren't OK, or the actor's handle is unreadable) it is
+ * 0 and the event still fires, so a subscriber counts occurrences without trusting the id. */
+typedef struct sc_game_actor_died {
+    uint32_t size;
+    uint32_t _pad;
+    uint64_t entity_id; /* the dying entity, or 0 when the id couldn't be read */
+    uint64_t killer_id; /* always 0 in 1.0: the game's death record doesn't pin who did it */
+} sc_game_actor_died;
 
 /* game.zone.changed: your player's zone id changed from one zone to another. Not published while
  * you are not spawned (game.player.spawned carries the zone you spawn in). */

@@ -12,6 +12,7 @@ namespace Sco.Sdk.Game
     {
         public const string EventPlayerSpawned = "game.player.spawned";     // SC_GAME_EVENT_PLAYER_SPAWNED
         public const string EventPlayerDied = "game.player.died";           // SC_GAME_EVENT_PLAYER_DIED
+        public const string EventActorDied = "game.actors.died";            // SC_GAME_EVENT_ACTOR_DIED
         public const string EventZoneChanged = "game.zone.changed";         // SC_GAME_EVENT_ZONE_CHANGED
         public const string EventVehicleBoarded = "game.vehicle.boarded";   // SC_GAME_EVENT_VEHICLE_BOARDED (reserved)
         public const string EventVehicleExited = "game.vehicle.exited";     // SC_GAME_EVENT_VEHICLE_EXITED (reserved)
@@ -34,6 +35,16 @@ namespace Sco.Sdk.Game
         public uint size;
         public uint _pad;
         public ulong entity_id;   // your entity
+        public ulong killer_id;   // always 0 in 1.0
+    }
+
+    /// <summary>sc_game_actor_died: 24 bytes. game.actors.died, every actor's death.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ScGameActorDied
+    {
+        public uint size;
+        public uint _pad;
+        public ulong entity_id;   // the dying entity, 0 when the id couldn't be read
         public ulong killer_id;   // always 0 in 1.0
     }
 
@@ -70,6 +81,10 @@ namespace Sco.Sdk.Game
 
         public static Subscription OnPlayerDied(this Plugin plugin, Action<ScGamePlayerDied> handler) =>
             Sub(plugin, GameAbi.EventPlayerDied, handler);
+
+        /// <summary>game.actors.died: every actor's death, not only your player's.</summary>
+        public static Subscription OnActorDied(this Plugin plugin, Action<ScGameActorDied> handler) =>
+            Sub(plugin, GameAbi.EventActorDied, handler);
 
         public static Subscription OnZoneChanged(this Plugin plugin, Action<ScGameZoneChanged> handler) =>
             Sub(plugin, GameAbi.EventZoneChanged, handler);

@@ -345,6 +345,17 @@ static void TestGameEvents(const sco_api* api) {
     sco_plugin* self = sco::host::NewPlugin("gevtest");
     Consumer plugin;
     CHECK(sdk::LoadPlugin(plugin, api, self) == SCO_OK);
+    sc_game_actor_died actorSeen = {};
+    int actors = 0;
+    sdk::Subscription actorSub = sdk::game::OnActorDied(plugin, [&](const sc_game_actor_died& e) { actorSeen = e; ++actors; });
+    CHECK(actorSub.Result() == SCO_OK);
+    const sc_game_actor_died actorPayload = { sizeof(actorPayload), 0, 99, 0 };
+    CHECK(sco::Dispatch(SC_GAME_EVENT_ACTOR_DIED, &actorPayload) == sco::Result::Ok && actors == 1 && actorSeen.entity_id == 99);
+    const sc_game_actor_died actorShort = { 8, 0, 100, 0 };
+    CHECK(sco::Dispatch(SC_GAME_EVENT_ACTOR_DIED, &actorShort) == sco::Result::Ok && actors == 1);
+    CHECK(sco::Dispatch(SC_GAME_EVENT_ACTOR_DIED, nullptr) == sco::Result::Ok && actors == 1);
+    actorSub.Reset();
+    CHECK(sco::Dispatch(SC_GAME_EVENT_ACTOR_DIED, &actorPayload) == sco::Result::Ok && actors == 1);
     sc_game_player_died seen = {};
     sc_game_zone_changed zoneSeen = {};
     sc_game_player_spawned spawnSeen = {};

@@ -163,14 +163,17 @@ constexpr const char* kHealth[] = { "actor.health_site", "actor.status_accessor"
 constexpr const char* kState[] = { "actor.state_site", "actor.status_accessor", "actor.is_dead_confirmed" };
 constexpr const char* kSpawned[] = { "event.player_spawn" };
 constexpr const char* kDied[] = { "event.player_death" };
+// The same death row backs both views; StartEvents installs its detour once.
+constexpr const char* kActorDied[] = { "event.player_death" };
 constexpr const char* kSeat[] = { "event.seat_enter", "event.seat_exit" };
 
 constexpr Capability kCaps[] = {
-    { "game.actors.health",              kHealth,  std::size(kHealth) },
-    { "game.actors.state",               kState,   std::size(kState) },
-    { "game.events.player_spawned",      kSpawned, std::size(kSpawned) },
-    { "game.events.player_died",         kDied,    std::size(kDied) },
-    { "game.events.vehicle_seat",        kSeat,    std::size(kSeat) },
+    { "game.actors.health",              kHealth,    std::size(kHealth) },
+    { "game.actors.state",               kState,     std::size(kState) },
+    { "game.events.player_spawned",      kSpawned,   std::size(kSpawned) },
+    { "game.events.player_died",         kDied,      std::size(kDied) },
+    { "game.events.actor_died",          kActorDied, std::size(kActorDied) },
+    { "game.events.vehicle_seat",        kSeat,      std::size(kSeat) },
 };
 
 }  // namespace
