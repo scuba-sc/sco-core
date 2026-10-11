@@ -138,6 +138,7 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(void*) == 8);"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_PLAYER_SPAWNED) == 20);  /* \"game.player.spawned\" */"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_PLAYER_DIED) == 17);     /* \"game.player.died\" */"));
+            lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_ACTOR_DIED) == 17);      /* \"game.actors.died\" */"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_ZONE_CHANGED) == 18);    /* \"game.zone.changed\" */"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_VEHICLE_BOARDED) == 21); /* \"game.vehicle.boarded\" */"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_VEHICLE_EXITED) == 20);  /* \"game.vehicle.exited\" */"));
@@ -151,6 +152,11 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_player_died, _pad, 4);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_player_died, entity_id, 8);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_player_died, killer_id, 16);"));
+            lines.Add(("tests/abi_game_events.c", "SIZE(sc_game_actor_died, 24);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_actor_died, size, 0);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_actor_died, _pad, 4);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_actor_died, entity_id, 8);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_actor_died, killer_id, 16);"));
             lines.Add(("tests/abi_game_events.c", "SIZE(sc_game_zone_changed, 24);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_zone_changed, size, 0);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_zone_changed, _pad, 4);"));

@@ -652,6 +652,16 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_host)
   add_test(NAME test_host COMMAND test_host)
 
+  # The death hook's one-owner rule over the real bus: game.actors.died for every death,
+  # game.player.died only for your player's, each gated by its own capability. The rule lives in
+  # src/game/services/death_events.h, which is portable on purpose (the hook itself is Windows-only),
+  # so this runs on any host without a game.
+  add_executable(test_death_events tests/test_death_events.cpp)
+  target_include_directories(test_death_events PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_link_libraries(test_death_events PRIVATE sco_host)
+  sco_project_target(test_death_events)
+  add_test(NAME test_death_events COMMAND test_death_events)
+
   # The C++20 SDK layer (include/scosdk/): two SDK plugins over the real host table.
   add_executable(test_sdk tests/test_sdk.cpp)
   target_link_libraries(test_sdk PRIVATE sco_host)

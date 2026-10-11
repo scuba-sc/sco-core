@@ -38,6 +38,11 @@ static void PushGameEventTable(lua_State* L, const char* name, const void* data)
         lua_createtable(L, 0, 2);
         lua_pushinteger(L, (lua_Integer)e->entity_id); lua_setfield(L, -2, "entity_id");
         lua_pushinteger(L, (lua_Integer)e->killer_id); lua_setfield(L, -2, "killer_id");
+    } else if (strcmp(name, SC_GAME_EVENT_ACTOR_DIED) == 0 && size >= sizeof(sc_game_actor_died)) {
+        const sc_game_actor_died* e = (const sc_game_actor_died*)data;
+        lua_createtable(L, 0, 2);
+        lua_pushinteger(L, (lua_Integer)e->entity_id); lua_setfield(L, -2, "entity_id");
+        lua_pushinteger(L, (lua_Integer)e->killer_id); lua_setfield(L, -2, "killer_id");
     } else if (strcmp(name, SC_GAME_EVENT_ZONE_CHANGED) == 0 && size >= sizeof(sc_game_zone_changed)) {
         const sc_game_zone_changed* e = (const sc_game_zone_changed*)data;
         lua_createtable(L, 0, 2);

@@ -9,6 +9,7 @@
 #include "sco/game/pak.h"
 #include "sco/game/signatures.h"
 #include "sco/game/system.h"
+#include "sco/game/events.h"
 #include "sco/game/mining.h"
 #include "sco/game/world.h"
 #endif
@@ -485,6 +486,28 @@ static void TestMiningRows() {
     CHECK(sco::SigLookup("mining.cell") != nullptr);
 }
 
+// game.events.* (sco/game/events.h): one detour, two events. game.actors.died and game.player.died
+// are backed by the very same signature row, which is what makes the ownership fix sound: a consumer
+// needing every death subscribes to the new event instead of detouring the game's death function a
+// second time, which sco::hook would refuse (one detour per target) and which is exactly the
+// collision that took game.player.died down.
+static void TestEventRows() {
+    CHECK(sco::game::RegisterGameSignatures());
+    size_t n = 0;
+    const sco::game::events::Capability* caps = sco::game::events::Capabilities(n);
+    CHECK(caps && n == 6);
+    for (size_t c = 0; c < n; ++c)
+        for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
+    const sco::game::events::Capability* died = nullptr, *actorDied = nullptr;
+    for (size_t c = 0; c < n; ++c) {
+        if (strcmp(caps[c].name, "game.events.player_died") == 0) died = &caps[c];
+        if (strcmp(caps[c].name, "game.events.actor_died") == 0) actorDied = &caps[c];
+    }
+    CHECK(died && actorDied);
+    CHECK(died && died->count == 1 && strcmp(died->rows[0], "event.player_death") == 0);
+    CHECK(actorDied && actorDied->count == 1 && strcmp(actorDied->rows[0], "event.player_death") == 0);
+}
+
 static void TestFeatureRows() {
     CHECK(sco::game::RegisterGameSignatures());
     size_t n = 0;
@@ -566,7 +589,7 @@ static void TestContractsRows() {
             for (size_t j = 0; j < caps[c].count && !listed; ++j) listed = strcmp(caps[c].rows[j], id) == 0;
         CHECK(listed);
     }
-    CHECK(rows == 83);
+    CHECK(rows == 82);   // contracts.actor_kill is gone: deaths are the game pack's event now
     CHECK(autoAccept == static_cast<size_t>(sco::game::contracts::kAutoAcceptCallers));
 }
 // game.entities (sco/game/entities.h): its rows are registered and listed by a group, and the watch
@@ -665,6 +688,7 @@ int main() {
     TestActorsRows();
     TestWorldRows();
     TestMiningRows();
+    TestEventRows();
     TestEntitiesRows();
     TestEntityFilter();
 #endif

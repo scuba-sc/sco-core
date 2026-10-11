@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Actor-death hook ownership:** the game pack owns the death detour once and publishes `game.actors.died` for all actors alongside the existing local-only `game.player.died`. Products subscribe instead of installing a competing detour. The redundant `contracts.actor_kill` signature is removed; 316/316 rows resolve on 4.10.196.36804. Existing payloads and `sco_api.h` remain unchanged; the new 24-byte payload has C/C# layout pins (combined C# test: 352 pins). Portable event-bus regression tests exercise all/local dispatch; Windows gameplay validation remains required. This repairs event ownership, not the unresolved sc-offline #109 megamap crash.
+
 - **The core SDK zip builds and tests on its own; the Star Citizen extension unpacks over it** (release hardening PR 05, WP-04; no ABI or API change, the same C# types under the same names). C#: the DataCore declarations move out of `Interop.cs` into `DataCoreInterop.cs`; `Abi` becomes `partial`; the test's game half moves into `GamePins.cs`, `GameLayout.cs` and `GameFakeHost.cs`, joined by partial methods, so `Sco.Sdk.csproj` and `Sco.Sdk.Tests` compile with or without the extension (core: 153 pins; with it: 346, as before). `sdk/CMakeLists.txt` builds `travel_pack` and `quantum_pack` only when they're there. `sdk/test-zip.sh <core.zip> [<game-sc.zip>]` tests the core alone (and fails if it includes an extension header or names a game C# type), or the extension over it (no file may overwrite a core file); CI runs both on Linux and Windows, plus the legacy zip as before.
 
 ## sdk-v1.2.0 (2026-10-10)

@@ -40,6 +40,7 @@ The game pack puts low-volume events on the kernel event bus (design decision 8;
 |---|---|---|---|---|
 | `game.player.spawned` | `sc_game_player_spawned { entity_id, zone_id }` | `game.events.player_spawned` | hook on the game's `QueueEvent<SPI_Player_OnSpawn>` (`event.player_spawn`); published only for your player | on when its rows are OK |
 | `game.player.died` | `sc_game_player_died { entity_id, killer_id }` (`killer_id` is always 0: the death record doesn't pin it) | `game.events.player_died` | hook on `QueueEvent<SPI_Player_OnDeath>` (`event.player_death`); only your player | on when its rows are OK |
+| `game.actors.died` | `sc_game_actor_died { entity_id, killer_id }` (unknown ID and killer are 0) | `game.events.actor_died` | all-actor view of the same `event.player_death` hook; ID captured before original code runs | on when its rows and hook are OK; gameplay unverified |
 | `game.zone.changed` | `sc_game_zone_changed { old_zone_id, new_zone_id }` | `game.events.zone_changed` | the host's tick reads your zone id every 100 ms on the `teleport.*` rows (no hook); not published while you aren't spawned | on when the `teleport.*` rows are OK |
 | `game.vehicle.boarded` / `game.vehicle.exited` | `sc_game_vehicle_seat { seat_index, vehicle_entity_id }` (reserved) | `game.events.vehicle_seat` | hooks on `CSCActorResultStateLinked::Enter` / `::Exit` (`event.seat_enter`, `event.seat_exit`) | **off**: log-only until an in-game run confirms the payload |
 

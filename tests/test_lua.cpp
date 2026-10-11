@@ -832,6 +832,8 @@ static void TestGameWorld() {
 local w = assert(sco.game and sco.game.world, "sco.game.world")
 assert(w.last_error == nil, "queries only")
 local seen = {}
+sco.subscribe("game.actors.died", function(ev, d) seen.actor = d and (d.entity_id .. ":" .. d.killer_id) or "nil" end)
+sco.register_command{ name = "gwplay.actor", title = "Actor death", fn = function() return tostring(seen.actor) end }
 sco.subscribe("game.player.died", function(ev, d) seen.died = d and (d.entity_id .. ":" .. d.killer_id) or "nil" end)
 sco.subscribe("game.zone.changed", function(ev, d) seen.zone = d and (d.old_zone_id .. ">" .. d.new_zone_id) or "nil" end)
 sco.subscribe("game.player.spawned", function(ev, d) seen.spawn = d and (d.entity_id .. "@" .. d.zone_id) or "nil" end)
@@ -872,6 +874,17 @@ end }
     r = Invoke(g_caller, "gwplay.seen");
     CHECK(r.r == SCO_OK && r.text == "-9223372036854775786:0,5>6,3@4");
     if (r.text != "-9223372036854775786:0,5>6,3@4") std::printf("  gwplay.seen -> %s\n", r.text.c_str());
+    const sc_game_actor_died actor = { sizeof(actor), 0, 0x8000000000000016ull, 0 };
+    CHECK(sco::Dispatch(SC_GAME_EVENT_ACTOR_DIED, &actor, &called) == Result::Ok && called == 1);
+    r = Invoke(g_caller, "gwplay.actor");
+    CHECK(r.r == SCO_OK && r.text == "-9223372036854775786:0");
+    const sc_game_actor_died shortActor = { 8, 0, 1, 0 };
+    CHECK(sco::Dispatch(SC_GAME_EVENT_ACTOR_DIED, &shortActor, &called) == Result::Ok && called == 1);
+    r = Invoke(g_caller, "gwplay.actor");
+    CHECK(r.r == SCO_OK && r.text == "nil");
+    CHECK(sco::Dispatch(SC_GAME_EVENT_ACTOR_DIED, nullptr, &called) == Result::Ok && called == 1);
+    r = Invoke(g_caller, "gwplay.actor");
+    CHECK(r.r == SCO_OK && r.text == "nil");
     const sc_game_player_died shortDied = { 8, 0, 1, 1 };   // size 8: shorter than sc_game_player_died
     CHECK(sco::Dispatch(SC_GAME_EVENT_PLAYER_DIED, &shortDied, &called) == Result::Ok && called == 1);
     r = Invoke(g_caller, "gwplay.seen");

@@ -27,6 +27,7 @@ namespace Sco.Sdk.Tests
             types.Add("sc_world_v1", typeof(ScWorldV1));
             types.Add("sc_game_player_spawned", typeof(ScGamePlayerSpawned));
             types.Add("sc_game_player_died", typeof(ScGamePlayerDied));
+            types.Add("sc_game_actor_died", typeof(ScGameActorDied));
             types.Add("sc_game_zone_changed", typeof(ScGameZoneChanged));
             types.Add("sc_game_vehicle_seat", typeof(ScGameVehicleSeat));
             types.Add("sc_entities_v1", typeof(ScEntitiesV1));
@@ -97,6 +98,7 @@ namespace Sco.Sdk.Tests
             strings.Add("SC_WORLD_NAME", GameAbi.WorldName);
             strings.Add("SC_GAME_EVENT_PLAYER_SPAWNED", GameAbi.EventPlayerSpawned);
             strings.Add("SC_GAME_EVENT_PLAYER_DIED", GameAbi.EventPlayerDied);
+            strings.Add("SC_GAME_EVENT_ACTOR_DIED", GameAbi.EventActorDied);
             strings.Add("SC_GAME_EVENT_ZONE_CHANGED", GameAbi.EventZoneChanged);
             strings.Add("SC_GAME_EVENT_VEHICLE_BOARDED", GameAbi.EventVehicleBoarded);
             strings.Add("SC_GAME_EVENT_VEHICLE_EXITED", GameAbi.EventVehicleExited);
@@ -116,6 +118,7 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScWorldV1)) size = Unsafe.SizeOf<ScWorldV1>();
             if (t == typeof(ScGamePlayerSpawned)) size = Unsafe.SizeOf<ScGamePlayerSpawned>();
             if (t == typeof(ScGamePlayerDied)) size = Unsafe.SizeOf<ScGamePlayerDied>();
+            if (t == typeof(ScGameActorDied)) size = Unsafe.SizeOf<ScGameActorDied>();
             if (t == typeof(ScGameZoneChanged)) size = Unsafe.SizeOf<ScGameZoneChanged>();
             if (t == typeof(ScGameVehicleSeat)) size = Unsafe.SizeOf<ScGameVehicleSeat>();
             if (t == typeof(ScEntitiesV1)) size = Unsafe.SizeOf<ScEntitiesV1>();
