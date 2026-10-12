@@ -18,8 +18,8 @@ machine and which need a person. Machine checks collect evidence; they are not a
 | C, D, 4 | Vendored files match their pinned hashes; licence texts and notices present and shipped; `sdk/components.json` and `provenance.json` agree; REUSE 3.3 compliant | `ip-compliance.yml` (`ip_audit.py repo`, `reuse lint`) |
 | E, 5 | SPDX 2.3 SBOM per zip, bound to commit and zip hash, validated | `ip-compliance.yml`, `release.yml` |
 | E, 6 | Each profile packaged twice gives the same bytes; `SHA256SUMS` matches every entry | `ip-compliance.yml`, `sdk/test_package.py` |
-| E, 7 | Each check refuses a synthetic defect (24 cases) | `ip-compliance.yml` (`tools/test_ip_audit.py`) |
-| G | The release job refuses unless `docs/legal/release-decisions/sdk-v<version>.md` approves the tagged commit (or its parent, with only release decisions changed) | `release.yml` (`tools/ip_audit.py release`) |
+| E, 7 | Each check refuses a synthetic defect (35 cases) | `ip-compliance.yml` (`tools/test_ip_audit.py`) |
+| G | The release job refuses unless `docs/legal/release-decisions/<tag>.json` validates against `docs/legal/release-approval.schema.json`, names the tagged commit (or its parent, with only release decisions changed), is unexpired and approves publication | `release.yml` (`tools/ip_audit.py release --tag`) |
 
 A failed or skipped mandatory check blocks the release. Nothing in CI creates a tag.
 
@@ -33,14 +33,47 @@ A failed or skipped mandatory check blocks the release. Nothing in CI creates a 
 
 ## Approval record
 
-`docs/legal/release-decisions/sdk-v<version>.md`:
+`docs/legal/release-decisions/<tag>.json`, where `<tag>` is the tag being pushed (for example
+`sdk-v1.3.0.json`). It is a JSON object validated against
+[`release-approval.schema.json`](release-approval.schema.json) (JSON Schema draft 2020-12) plus
+semantic checks `tools/ip_audit.py release --tag <tag>` applies: the decision is `approve` and
+`distribution.status` is `approved-for-publication`; `approved_at` precedes `expires_at`, the record
+has not expired and no exception has; `release_tag` equals the tag; `source.commit` is the tagged
+commit or an ancestor with nothing but release decisions changed since; `profiles` covers every
+artifact role (`sdk-core` → `core`, `sdk-game-sc` → `game-sc`, `sdk-legacy` → `legacy`); artifact
+names are unique; and, with `--artifacts DIR`, the directory is exactly the listed set (bytes and
+sha256 per file).
 
-```
-Decision: approve
-Approved by: <name or handle>
-Date: <YYYY-MM-DD>
-Commit: <40-hex sha of the commit approved>
-Artifacts: <zip names and sha256, from the ip-compliance or sdk run>
-Scope: <what this approval covers, and what it doesn't (e.g. the game pack)>
-Open items: <none, or each with its disposition>
+The record is **not yet signed**: `approver.key_fingerprint` is recorded, but no signature is
+verified. Until that lands, Gate G rests on the git history and the maintainer's own commit.
+
+Synthetic example (every value fake: `a`*40 commits, `b`*64 hashes, identity `maintainer`):
+
+```json
+{
+ "schema_version": 1,
+ "decision": "approve",
+ "release_tag": "sdk-v1.3.0",
+ "approved_at": "2026-10-20T12:00:00Z",
+ "expires_at": "2026-11-20T12:00:00Z",
+ "approver": {"identity": "maintainer", "key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"},
+ "source": {"repository": "scubamount/sco-core", "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "components_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "dependencies": []},
+ "build": {"workflow_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "run_id": 1, "run_attempt": 1,
+           "artifact_ids": [1],
+           "evidence_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+ "profiles": ["core", "game-sc", "legacy"],
+ "artifacts": [
+  {"name": "sco-sdk-1.3.0.zip", "role": "sdk-legacy", "bytes": 123456,
+   "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+  {"name": "sco-sdk-1.3.0.zip.sha256", "role": "checksums", "bytes": 83,
+   "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+ ],
+ "distribution": {"status": "approved-for-publication", "scope": ["public GitHub release"],
+                  "rights_record_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "source_plan_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "external_counsel": "not_obtained"},
+ "exceptions": []
+}
 ```

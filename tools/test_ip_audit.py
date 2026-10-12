@@ -317,43 +317,201 @@ class Negative(unittest.TestCase):
         self.assertEqual(code, 2, out)
         self.assertIn("not a readable zip", out)
 
-    # Release approval.
+    # Release approval (Gate G): the JSON record, its schema and its semantics.
+    def base_record(self, **over):
+        """A synthetic valid record; every value is fake ('a'*40 commits, 'b'*64 hashes)."""
+        rec = {
+            "schema_version": 1,
+            "decision": "approve",
+            "release_tag": "sdk-v9.9.9",
+            "approved_at": "2026-10-11T00:00:00Z",
+            "expires_at": "2099-01-01T00:00:00Z",
+            "approver": {"identity": "maintainer", "key_fingerprint": "SHA256:" + "A" * 43},
+            "source": {"repository": "scubamount/sco-core", "commit": "a" * 40,
+                       "components_sha256": "b" * 64, "dependencies": []},
+            "build": {"workflow_commit": "a" * 40, "run_id": 1, "run_attempt": 1,
+                      "artifact_ids": [1], "evidence_sha256": "b" * 64},
+            "profiles": ["core", "game-sc", "legacy"],
+            "artifacts": [{"name": "sco-sdk-9.9.9.zip", "role": "sdk-legacy", "bytes": 4,
+                           "sha256": hashlib.sha256(b"zip!").hexdigest()}],
+            "distribution": {"status": "approved-for-publication", "scope": ["public"],
+                             "rights_record_digest": "b" * 64, "source_plan_digest": "b" * 64,
+                             "external_counsel": "not_obtained"},
+            "exceptions": [],
+        }
+        rec.update(over)
+        return rec
+
+    def refused_release(self, record, needle, artifacts=None, tag="sdk-v9.9.9"):
+        p = os.path.join(self.out, f"approval-{self.id().rsplit('.', 1)[-1]}.json")
+        with open(p, "w") as f:
+            json.dump(record, f)
+        argv = ["release", "--approval", p, "--tag", tag]
+        if artifacts:
+            argv += ["--artifacts", artifacts]
+        code, out = run(*argv)
+        self.assertEqual(code, 1, out)
+        self.assertIn(needle, out)
+
     def test_missing_approval_record(self):
-        code, out = run("release", "--approval", os.path.join(self.out, "none.md"))
+        code, out = run("release", "--approval", os.path.join(self.out, "none.json"), "--tag", "sdk-v9.9.9")
         self.assertEqual(code, 2, out)
         self.assertIn("can't read it", out)
 
-    def test_approval_for_another_commit(self):
-        p = os.path.join(self.out, "approval.md")
+    def test_approval_that_is_not_json(self):
+        p = os.path.join(self.out, "bad.json")
         with open(p, "w") as f:
-            f.write("Decision: approve\nApproved by: maintainer\nDate: 2026-10-11\nCommit: " + "a" * 40 + "\n")
-        code, out = run("release", "--approval", p)
-        self.assertEqual(code, 1, out)
-        self.assertIn("approves aaaa", out)
+            f.write("{ not json")
+        code, out = run("release", "--approval", p, "--tag", "sdk-v9.9.9")
+        self.assertEqual(code, 2, out)
+        self.assertIn("not valid JSON", out)
+
+    def test_a_valid_record_is_accepted(self):
+        s = self.scratch()
+        approved = audit.git_head(s.dir)
+        rec = self.base_record(source={"repository": "scubamount/sco-core", "commit": approved,
+                                       "components_sha256": "b" * 64, "dependencies": []})
+        path = "docs/legal/release-decisions/sdk-v9.9.9.json"
+        s.add(path, json.dumps(rec).encode())
+        env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
+                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
+        subprocess.run(["git", "-C", s.dir, "commit", "-q", "-m", "approve"], check=True, env=env)
+        code, out = run("release", "--approval", s.path(path), "--tag", "sdk-v9.9.9", root=s.dir)
+        self.assertEqual(code, 0, out)
+
+    def test_a_valid_record_checks_its_artifacts_directory(self):
+        s = self.scratch()
+        approved = audit.git_head(s.dir)
+        d = os.path.join(self.out, "artifacts-ok")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "sco-sdk-9.9.9.zip"), "wb") as f:
+            f.write(b"zip!")
+        rec = self.base_record(source={"repository": "scubamount/sco-core", "commit": approved,
+                                       "components_sha256": "b" * 64, "dependencies": []})
+        path = "docs/legal/release-decisions/sdk-v9.9.9.json"
+        s.add(path, json.dumps(rec).encode())
+        env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
+                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
+        subprocess.run(["git", "-C", s.dir, "commit", "-q", "-m", "approve"], check=True, env=env)
+        code, out = run("release", "--approval", s.path(path), "--tag", "sdk-v9.9.9",
+                        "--artifacts", d, root=s.dir)
+        self.assertEqual(code, 0, out)
+
+    def test_every_schema_keyword_is_implemented(self):
+        """A keyword the validator doesn't implement would silently pass; the shipped schema must
+        use only implemented ones."""
+        schema = json.loads(read(os.path.join(ROOT, audit.APPROVAL_SCHEMA), "r"))
+        self.assertEqual(audit.schema_keywords(schema) - audit.SCHEMA_KEYWORDS, set())
+
+    # Each defect must be refused with its reason (the old Markdown parser accepted all of these).
+    def test_empty_artifacts(self):
+        self.refused_release(self.base_record(artifacts=[]), "fewer than minItems 1")
+
+    def test_malformed_commit(self):
+        self.refused_release(self.base_record(source={"repository": "scubamount/sco-core", "commit": "zz",
+                                                       "components_sha256": "b" * 64, "dependencies": []}),
+                             "does not match pattern")
+
+    def test_empty_approver_identity(self):
+        self.refused_release(self.base_record(approver={"identity": "", "key_fingerprint": "SHA256:" + "A" * 43}),
+                             "shorter than minLength 1")
+
+    def test_missing_approved_at(self):
+        rec = self.base_record()
+        del rec["approved_at"]
+        self.refused_release(rec, "required property 'approved_at' is missing")
+
+    def test_decision_approve_ish(self):
+        self.refused_release(self.base_record(decision="approve-ish"), "is not one of")
+
+    def test_decision_hold(self):
+        self.refused_release(self.base_record(decision="hold"), "the decision is 'hold', not 'approve'")
+
+    def test_distribution_internal_only(self):
+        dist = self.base_record()["distribution"]
+        dist["status"] = "internal-only"
+        self.refused_release(self.base_record(distribution=dist),
+                             "distribution.status is 'internal-only'")
+
+    def test_expired_approval(self):
+        self.refused_release(self.base_record(approved_at="2026-01-01T00:00:00Z",
+                                              expires_at="2026-02-01T00:00:00Z"),
+                             "the approval expired at 2026-02-01T00:00:00Z")
+
+    def test_expired_exception(self):
+        self.refused_release(self.base_record(exceptions=[{"id": "EX-1", "scope": "docs", "reason": "r",
+                                                           "expires_at": "2026-02-01T00:00:00Z"}]),
+                             "exceptions[0] (EX-1) expired")
+
+    def test_approved_at_after_expires_at(self):
+        self.refused_release(self.base_record(approved_at="2027-01-01T00:00:00Z",
+                                              expires_at="2026-11-01T00:00:00Z"),
+                             "is not before expires_at")
+
+    def test_tag_mismatch(self):
+        self.refused_release(self.base_record(), "release_tag is 'sdk-v9.9.9', but the release tag is 'sdk-v1.0.0'",
+                             tag="sdk-v1.0.0")
+
+    def test_extra_unknown_field(self):
+        rec = self.base_record()
+        rec["not_a_field"] = 1
+        self.refused_release(rec, "unknown property 'not_a_field'")
+
+    def test_artifact_sha_mismatch(self):
+        d = os.path.join(self.out, "artifacts-bad-sha")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "sco-sdk-9.9.9.zip"), "wb") as f:
+            f.write(b"other")
+        rec = self.base_record()
+        rec["artifacts"][0]["bytes"] = 5   # the bytes match; only the sha256 is wrong
+        rec["artifacts"][0]["sha256"] = "c" * 64
+        self.refused_release(rec, "sha256", artifacts=d)
+
+    def test_extra_file_in_artifacts_dir(self):
+        d = os.path.join(self.out, "artifacts-extra")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "sco-sdk-9.9.9.zip"), "wb") as f:
+            f.write(b"zip!")
+        with open(os.path.join(d, "extra.txt"), "wb") as f:
+            f.write(b"x")
+        self.refused_release(self.base_record(), "extra.txt: in", artifacts=d)
+
+    def test_missing_file_in_artifacts_dir(self):
+        d = os.path.join(self.out, "artifacts-missing")
+        os.makedirs(d, exist_ok=True)
+        self.refused_release(self.base_record(), "listed in the record but not in", artifacts=d)
+
+    def test_duplicate_artifact_names(self):
+        a = {"name": "sco-sdk-9.9.9.zip", "role": "sdk-legacy", "bytes": 4,
+             "sha256": hashlib.sha256(b"zip!").hexdigest()}
+        self.refused_release(self.base_record(artifacts=[a, dict(a)]),
+                             "artifact name 'sco-sdk-9.9.9.zip' is listed more than once")
+
+    def test_profile_missing_for_a_role(self):
+        self.refused_release(self.base_record(profiles=["core"]),
+                             "an artifact has role 'sdk-legacy', but profiles does not list 'legacy'")
+
+    def test_approval_for_another_commit(self):
+        self.refused_release(self.base_record(), "is not this commit")
 
     def test_approval_of_an_ancestor_with_only_the_record_added(self):
         s = self.scratch()
         env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
                    GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
         approved = audit.git_head(s.dir)
-        rec = "docs/legal/release-decisions/sdk-v9.9.9.md"
-        s.add(rec, f"Decision: approve\nApproved by: maintainer\nDate: 2026-10-11\nCommit: {approved}\n".encode())
+        path = "docs/legal/release-decisions/sdk-v9.9.9.json"
+        s.add(path, json.dumps(self.base_record(source={"repository": "scubamount/sco-core",
+                                                        "commit": approved,
+                                                        "components_sha256": "b" * 64,
+                                                        "dependencies": []})).encode())
         subprocess.run(["git", "-C", s.dir, "commit", "-q", "-m", "approve"], check=True, env=env)
-        code, out = run("release", "--approval", s.path(rec), root=s.dir)
+        code, out = run("release", "--approval", s.path(path), "--tag", "sdk-v9.9.9", root=s.dir)
         self.assertEqual(code, 0, out)
         s.add("README.md", b"changed after approval\n")
         subprocess.run(["git", "-C", s.dir, "commit", "-q", "-m", "late change"], check=True, env=env)
-        code, out = run("release", "--approval", s.path(rec), root=s.dir)
+        code, out = run("release", "--approval", s.path(path), "--tag", "sdk-v9.9.9", root=s.dir)
         self.assertEqual(code, 1, out)
         self.assertIn("changed since outside", out)
-
-    def test_approval_that_is_not_approve(self):
-        p = os.path.join(self.out, "pending.md")
-        with open(p, "w") as f:
-            f.write(f"Decision: pending\nApproved by: -\nDate: -\nCommit: {audit.git_head(ROOT)}\n")
-        code, out = run("release", "--approval", p)
-        self.assertEqual(code, 1, out)
-        self.assertIn("isn't 'approve'", out)
 
 
 if __name__ == "__main__":
