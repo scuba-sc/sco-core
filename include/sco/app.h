@@ -126,8 +126,9 @@ const std::vector<plugins::Plugin>& Plugins();
 //   1. natives: the entry DLL is copied to <folder>/.reload-<n>-<entry> (a failed copy changes nothing)
 //   2. the plugin unloads as at game exit (UnloadOne: sco_plugin_unload guarded, then Release(self),
 //      which withdraws its commands, subscriptions and services, runs the release hooks, so the game
-//      pack despawns what it spawned for it; the old module is closed unless a service table of it was
-//      handed out, in which case it stays mapped, M1)
+//      pack despawns what it spawned for it; the old module is closed. A native whose service table
+//      was handed out never reaches this step: such a request is refused first, before anything of
+//      the plugin is torn down — see Failed below)
 //   3. a new handle (the one Start makes: [settings] declared again, kept values read) and LoadNative
 //      from the copy / LoadScript again (a script is re-read from disk); plugin.ini is not re-read
 // Result (why, when given, says more; "reloaded" is logged only when it is Ok):
@@ -137,13 +138,18 @@ const std::vector<plugins::Plugin>& Plugins();
 //   Unavailable not started; WrongThread: not the game thread
 //   Failed      not Loaded (Refused, Crashed, ...); busy (a callout of the plugin is running, so its code
 //               is on the stack: "busy:" in why; nothing changed, retry from outside it; also a reload
-//               started from inside another reload); a required plugin is no longer Loaded; the copy
-//               failed; unload crashed or could not release (the plugin stays Crashed); no handle left
+//               started from inside another reload); "provides a service in use; restart the game to
+//               reload it" (a native whose service table sco::QueryService handed out to another plugin
+//               or the host: session-lifetime, refused before unload() or Release, so nothing changed
+//               and its services keep resolving; only a restart of the game reloads it); a required
+//               plugin is no longer Loaded; the copy failed; unload crashed or could not release
+//               (the plugin stays Crashed); no handle left
 //               (host::kMaxPlugins counts every load, reloads too: 256 for the life of the process; the
 //               plugin stays Unloaded); the new load was refused or crashed (state Refused / Crashed)
-// Two reloads in one tick are two full reloads, one after the other. Other plugins that use this
-// one's services must query them again (their old tables stay valid only while the old module is
-// mapped). Command slots are recycled on release (L5), so reloads do not use them up; plugin handles are not
+// Two reloads in one tick are two full reloads, one after the other. Because a provider whose table
+// was ever handed out cannot be reloaded, no consumer can ever see a provider's table change
+// identity mid-session; a consumer that re-queries gets a new table only for a provider nobody
+// ever asked a service of. Command slots are recycled on release (L5), so reloads do not use them up; plugin handles are not
 // recycled: host::kMaxPlugins (256) bounds loads plus reloads for the whole process.
 Result Reload(std::string_view id, std::string* why = nullptr);
 

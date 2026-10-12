@@ -242,6 +242,7 @@ Result Reload(std::string_view id, std::string* why) {
     if (!p->manifestOk || p->manifest.kind == plugins::Kind::Data) { w = name + " has no code to reload"; return Result::BadArg; }
     if (p->state != plugins::State::Loaded) { w = name + " is not loaded (" + plugins::StateName(p->state) + ")"; return Result::Failed; }
     if (p->running) { w = "busy: a callout of " + name + " is running"; return Result::Failed; }
+    if (!plugins::CanUnload(*p, w)) return Result::Failed;   // session-lifetime provider: refused
     if (const std::string unmet = plugins::UnmetRequires(*p, g_list); !unmet.empty()) { w = unmet; return Result::Failed; }
 
     const bool native = p->manifest.kind == plugins::Kind::Native;
