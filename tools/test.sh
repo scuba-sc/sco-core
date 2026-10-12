@@ -400,7 +400,7 @@ UI=("$ROOT/tests/test_ui.cpp" "$ROOT/src/ui/ui.cpp" "${PLUGINS[@]}" "${RUNTIME[@
 "$OUT/test_ui_tsan"
 
 # Retained widgets over the neutral real host, and the host-only ImGui API shim.
-WIDGETS=("$ROOT/tests/test_widgets.cpp" "$ROOT/src/widgets/widgets.cpp" "${RUNTIME[@]}"
+WIDGETS=("$ROOT/tests/test_widgets.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}"
          "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${WIDGETS[@]}" -o "$OUT/test_widgets"
 "$OUT/test_widgets"
