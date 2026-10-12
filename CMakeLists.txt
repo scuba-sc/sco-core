@@ -214,6 +214,11 @@ add_library(sco_settings STATIC src/settings/settings.cpp)
 target_link_libraries(sco_settings PUBLIC sco_host sco_plugins sco_storage sco_ui)
 sco_project_target(sco_settings)
 
+# Read-only startup list/script snapshots; kernel-neutral public sco.content.
+add_library(sco_content STATIC src/content/content.cpp)
+target_link_libraries(sco_content PUBLIC sco_host sco_plugins)
+sco_project_target(sco_content)
+
 # sco.ipc (sco/ipc.h, include/sco_ipc.h over the MIT wire include/sc_ipc.h): named shared-memory
 # channels to another program on the same PC, a host-owned service. The platform half is
 # shm_win.cpp (the real target) or shm_posix.cpp (the host tests); the ring logic is platform-free.
@@ -259,7 +264,7 @@ endif()
 
 # The host kit (sco/app.h): Start / Tick / Stop over the host table, caps, signatures and loader.
 add_library(sco_app STATIC src/app/sco_app.cpp)
-target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_ipc sco_net_service)
+target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service)
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
   # Platform::registerSignatures (sco::game::RegisterGameSignatures).
@@ -775,6 +780,29 @@ if(SCO_BUILD_TESTS)
   # sco.settings: the declarations' values, the service over the real host table and storage,
   # persistence across a restart, settings.changed. Host build, no game.
   add_executable(test_settings tests/test_settings.cpp)
+  add_executable(test_content tests/test_content.cpp tests/abi_content.c)
+  set(_content_inc "${CMAKE_CURRENT_BINARY_DIR}/content_public_include")
+  file(MAKE_DIRECTORY "${_content_inc}")
+  foreach(h sco_api.h sco_content.h)
+    configure_file("${SCO_INCLUDE_DIR}/${h}" "${_content_inc}/${h}" COPYONLY)
+  endforeach()
+  add_library(content_reader_fixture MODULE sdk/examples/content_reader/content_reader.c)
+  target_include_directories(content_reader_fixture PRIVATE "${_content_inc}")
+  sco_warnings(content_reader_fixture)
+  if(UNIX AND NOT APPLE)
+    target_link_options(content_reader_fixture PRIVATE -Wl,--no-undefined)
+  endif()
+  add_dependencies(test_content content_reader_fixture)
+  if(NOT MSVC)
+    add_library(sco_abi_content_short_enums OBJECT tests/abi_content.c)
+    target_include_directories(sco_abi_content_short_enums PRIVATE "${SCO_INCLUDE_DIR}")
+    target_compile_options(sco_abi_content_short_enums PRIVATE -fshort-enums -Wpedantic)
+    sco_warnings(sco_abi_content_short_enums)
+    add_dependencies(test_content sco_abi_content_short_enums)
+  endif()
+  target_link_libraries(test_content PRIVATE sco_app)
+  sco_project_target(test_content)
+  add_test(NAME test_content COMMAND test_content "${SCO_TEST_OUT}" "$<TARGET_FILE:content_reader_fixture>")
   target_link_libraries(test_settings PRIVATE sco_settings)
   sco_project_target(test_settings)
   add_test(NAME test_settings COMMAND test_settings "${SCO_TEST_OUT}")

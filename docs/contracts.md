@@ -75,8 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **117 table methods across 14 tables,
-plus 3 plugin entrypoints: 120 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **121 table methods across 16 tables,
+plus 3 plugin entrypoints: 124 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -181,6 +181,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sco_ipc_v1` | 9 | 80 | 1.0 |
 | `sco_net_v1` | 7 | 64 | 1.0 |
 | `sco_settings_v1` | 5 | 48 | 1.0 |
+| `sco_content_v1` | 2 | 24 | 1.0 |
 | `sco_ui_v1` | 9 | 80 | 1.0 |
 | `sco_widgets_v1` | 2 | 24 | 1.0 |
 | `sc_spatial_v1` | 6 | 56 | 1.0 |
@@ -274,6 +275,25 @@ For SQL restrictions and persistence settings see [storage](storage.md).
 | `sco_storage_v1.column_name` | `size >= 112`; 1.0 | `sco_result (*column_name)(sco_plugin* self, uint64_t cursor, uint32_t index, char* out, uint32_t* inout_size);`<br>The column's name, NUL-terminated, with the size handshake. | Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI. | Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified. | Common storage failures; NOT_FOUND unknown/non-owned cursor; BAD_ARG invalid buffer/index; TOO_MANY required bytes. Does not require a current row. | No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 | `sco_storage_v1.close` | `size >= 120`; 1.0 | `sco_result (*close)(sco_plugin* self, uint64_t cursor);`<br>Closes a cursor. SCO_NOT_FOUND: this plugin holds no cursor by that id. | Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI. | Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified. | Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract. | No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 | `sco_storage_v1.last_error` | `size >= 128`; 1.0 | `sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The message of this plugin's last failed call ("" if none), NUL-terminated, with the size handshake. | Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI. | Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified. | Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract. | No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
+
+## sco.content: `sco_content_v1`
+
+Source: [`sco_content.h`](../include/sco_content.h),
+[implementation](../src/content/content.cpp), [layout pin](../tests/abi_content.c).
+[G14 audit/design](design/content-access.md) records why the private index and
+command registry were insufficient. This game-neutral service copies enabled
+list/script pack bytes before consumer loads. Only startup snapshots are exposed;
+no file paths or script execution. All calls require the game thread and live
+self. Global limits: 4096 items, 16 MiB bytes; 1 MiB per file. A pack is refused
+atomically on unsafe/unreadable content or quotas, including dependent packs.
+Size handshakes are binary: no appended NUL. Host restart invalidates old IDs.
+C++ `scosdk/content.hpp` guards full extents/null pointers and failed reopen;
+C#/Lua are not exposed. Synthetic kernel-only fixtures are not game evidence.
+
+| Method | Size / since | Signature; inputs, outputs and buffers | Ownership / lifetime / allocation | Thread / callback context / reentrancy | Results / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sco_content_v1.item` | `size >= 16`; 1.0 | `sco_result (*item)(sco_plugin* self, sco_content_kind kind, uint32_t ordinal, sco_content_item* out);`<br>Copies one supported list/script record by zero-based kind ordinal in plugin/name order. Caller sets size >= sizeof(sco_content_item). Duplicate names retain distinct IDs. Failure leaves output untouched. | Caller-owned copied records/bytes; host owns bounded startup snapshot. No paths, borrowed content pointers or allocation transfer. | Game thread only; synchronous memory copies, no callouts or file IO. | Query NOT_FOUND when absent; UNAVAILABLE when stopped/terminal shutdown; WRONG_THREAD off game thread; BAD_ARG invalid/released self or invalid buffer/kind; NOT_FOUND ordinal end or unknown/stale ID; read TOO_MANY reports needed bytes. | No cancel or per-owner resource; host Stop clears snapshot and invalidates IDs. Table storage is process-lifetime; packs require restart. |
+| `sco_content_v1.read` | `size >= 24`; 1.0 | `sco_result (*read)(sco_plugin* self, uint64_t id, void* out, uint32_t* inout_size);`<br>Copies exact immutable startup bytes; no added NUL. Size handshake: capacity in, written on OK, needed on TOO_MANY. NULL out requires zero capacity; empty file is OK/0. Only TOO_MANY changes size on failure; no failed call writes bytes. | Caller-owned copied records/bytes; host owns bounded startup snapshot. No paths, borrowed content pointers or allocation transfer. | Game thread only; synchronous memory copies, no callouts or file IO. | Query NOT_FOUND when absent; UNAVAILABLE when stopped/terminal shutdown; WRONG_THREAD off game thread; BAD_ARG invalid/released self or invalid buffer/kind; NOT_FOUND ordinal end or unknown/stale ID; read TOO_MANY reports needed bytes. | No cancel or per-owner resource; host Stop clears snapshot and invalidates IDs. Table storage is process-lifetime; packs require restart. |
 
 ## sco.datacore: `sco_datacore_v1`
 

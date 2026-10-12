@@ -4,6 +4,15 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G14 content access (#135):** audit confirms the private content index and
+  command registry lacked a public list/script read route. Add kernel-neutral
+  `sco.content` 1.0 with bounded copied startup records/bytes, link-safe reads,
+  whole-pack refusal, dependency propagation, and guarded C++ access. Packs are
+  prepared before consumer code loads; code-provider dependencies are explicitly
+  refused. Public C example, synthetic module/layout tests, catalogue, packaging
+  and provenance added. Frozen `sco_api` unchanged; no allowlist expansion.
+  Not run in game; C#/Lua and product step-2C migration remain downstream.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner

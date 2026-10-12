@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-content-v1-item",
+      "kind": "table-method",
+      "symbol": "sco_content_v1.item",
+      "table": "sco_content_v1",
+      "service": "sco.content",
+      "version_macro": "SCO_CONTENT_VERSION_1_0",
+      "source_header": "include/sco_content.h",
+      "signature": "sco_result (*)(sco_plugin *, sco_content_kind, uint32_t, sco_content_item *)",
+      "member_extent": 16,
+      "table_size": 24,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Copies one supported list/script record by zero-based kind ordinal in plugin/name order. Caller sets size >= sizeof(sco_content_item). Duplicate names retain distinct IDs. Failure leaves output untouched.",
+      "buffer_contract": "`sco_result (*item)(sco_plugin* self, sco_content_kind kind, uint32_t ordinal, sco_content_item* out);`<br>Copies one supported list/script record by zero-based kind ordinal in plugin/name order. Caller sets size >= sizeof(sco_content_item). Duplicate names retain distinct IDs. Failure leaves output untouched.",
+      "ownership": "Caller-owned copied records/bytes; host owns bounded startup snapshot. No paths, borrowed content pointers or allocation transfer.",
+      "thread_affinity": "Game thread only; synchronous memory copies, no callouts or file IO.",
+      "callback_context": "No callbacks.",
+      "reentrancy": "No callouts; callable from a game-thread consumer callback while runtime admission is open.",
+      "results": "Query NOT_FOUND when absent; UNAVAILABLE when stopped/terminal shutdown; WRONG_THREAD off game thread; BAD_ARG invalid/released self or invalid buffer/kind; NOT_FOUND ordinal end or unknown/stale ID; read TOO_MANY reports needed bytes.",
+      "absent_capability": "Query NOT_FOUND when service absent; no game capability required.",
+      "cleanup": "No cancel or per-owner resource; host Stop clears snapshot and invalidates IDs. Table storage is process-lifetime; packs require restart.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_content.h",
+              "token": "(*item)"
+            }
+          ],
+          "tests": [
+            "tests/abi_content.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/content.hpp",
+              "token": "table_->item("
+            }
+          ],
+          "tests": [
+            "tests/test_content.cpp",
+            "tests/abi_content.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/content-access.md",
+              "token": "no C#/Lua binding"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/content-access.md",
+              "token": "no C#/Lua binding"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [
+        "sdk/examples/content_reader/content_reader.c"
+      ],
+      "tests": [
+        "tests/abi_content.c",
+        "tests/test_content.cpp"
+      ],
+      "limitations": [
+        "List/script kinds only; script bytes are not permission to execute.",
+        "No C# or Lua binding. Windows file handling and gameplay unverified."
+      ]
+    },
+    {
+      "id": "sco-content-v1-read",
+      "kind": "table-method",
+      "symbol": "sco_content_v1.read",
+      "table": "sco_content_v1",
+      "service": "sco.content",
+      "version_macro": "SCO_CONTENT_VERSION_1_0",
+      "source_header": "include/sco_content.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, void *, uint32_t *)",
+      "member_extent": 24,
+      "table_size": 24,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Copies exact immutable startup bytes; no added NUL. Size handshake: capacity in, written on OK, needed on TOO_MANY. NULL out requires zero capacity; empty file is OK/0. Only TOO_MANY changes size on failure; no failed call writes bytes.",
+      "buffer_contract": "`sco_result (*read)(sco_plugin* self, uint64_t id, void* out, uint32_t* inout_size);`<br>Copies exact immutable startup bytes; no added NUL. Size handshake: capacity in, written on OK, needed on TOO_MANY. NULL out requires zero capacity; empty file is OK/0. Only TOO_MANY changes size on failure; no failed call writes bytes.",
+      "ownership": "Caller-owned copied records/bytes; host owns bounded startup snapshot. No paths, borrowed content pointers or allocation transfer.",
+      "thread_affinity": "Game thread only; synchronous memory copies, no callouts or file IO.",
+      "callback_context": "No callbacks.",
+      "reentrancy": "No callouts; callable from a game-thread consumer callback while runtime admission is open.",
+      "results": "Query NOT_FOUND when absent; UNAVAILABLE when stopped/terminal shutdown; WRONG_THREAD off game thread; BAD_ARG invalid/released self or invalid buffer/kind; NOT_FOUND ordinal end or unknown/stale ID; read TOO_MANY reports needed bytes.",
+      "absent_capability": "Query NOT_FOUND when service absent; no game capability required.",
+      "cleanup": "No cancel or per-owner resource; host Stop clears snapshot and invalidates IDs. Table storage is process-lifetime; packs require restart.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_content.h",
+              "token": "(*read)"
+            }
+          ],
+          "tests": [
+            "tests/abi_content.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/content.hpp",
+              "token": "table_->read("
+            }
+          ],
+          "tests": [
+            "tests/test_content.cpp",
+            "tests/abi_content.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/content-access.md",
+              "token": "no C#/Lua binding"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/content-access.md",
+              "token": "no C#/Lua binding"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [
+        "sdk/examples/content_reader/content_reader.c"
+      ],
+      "tests": [
+        "tests/abi_content.c",
+        "tests/test_content.cpp"
+      ],
+      "limitations": [
+        "List/script kinds only; script bytes are not permission to execute.",
+        "No C# or Lua binding. Windows file handling and gameplay unverified."
+      ]
+    }
+  ]
+}

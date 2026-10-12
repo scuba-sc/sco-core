@@ -14,6 +14,96 @@
   "note": "The project's copyright notices say 'the sco-core contributors' (as sc_ipc.h does). The maintainer, scubamount, is the only contributor so far; the commit identities 'yerts' and 'scubamount' are both the maintainer."
  },
  "entries": [
+  {
+   "path": "tools/test_content_gate.py",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G14-only synthetic catalogue, local archive membership, public-header module and content fixture probe. No network, game extracts or release authorization."
+  },
+   {
+    "path": "include/sco_content.h",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "include/scosdk/content.hpp",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "include/sco/content.h",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "src/content/**",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "tests/*content*",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "sdk/examples/content_reader/**",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "sdk/contracts/sco_content_v1.json",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "docs/design/content-access.md",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
 {
   "path": "include/sco/diagnostics*.h",
   "origin": "project-authored",

@@ -3,6 +3,7 @@
 #include "sco/app.h"
 #include "../api/internal.h"
 #include "sco/caps.h"
+#include "sco/content.h"
 #ifndef SCO_KERNEL_ONLY
 #include "sco/datacore_service.h"   // sco.datacore: the Star Citizen game pack (SCO_GAME_SC)
 #endif
@@ -151,6 +152,8 @@ bool Start(const Platform& platform) {
     if (wr != Result::Ok) Log("[app] widgets not started: %s", ResultName(wr));
     const Result str = settings::Start();   // after storage: kept values are read from it
     if (str != Result::Ok) Log("[app] settings not started: %s", ResultName(str));
+    const Result cr = content::Start(); // before discovery: requires=sco.content is public
+    if (cr != Result::Ok) Log("[app] content not started: %s", ResultName(cr));
     const Result ir = ipc::Start();
     if (ir != Result::Ok) Log("[app] sco.ipc not started: %s", ResultName(ir));
     const Result nr = net::Start();   // inert until the product calls net::Host or net::Join
@@ -197,6 +200,35 @@ bool Start(const Platform& platform) {
     plugins::ContainCallouts(&g_list);
     g_started = true;
 
+    // Packs are indexed and snapshotted before ANY consumer load callback.
+    // A startup pack cannot depend on code that has not run. Refuse that
+    // dependency explicitly instead of exposing content from a failed provider.
+    for (auto& p : g_list) {
+        if (p.state != plugins::State::Ready || p.manifest.kind != plugins::Kind::Data) continue;
+        for (const auto& dependency : p.manifest.requires_)
+            for (const auto& provider : g_list)
+                if (!HasCap(dependency.c_str()) && provider.manifest.kind != plugins::Kind::Data &&
+                    (dependency == provider.manifest.id || dependency.starts_with(provider.manifest.id + "."))) {
+                    p.state = plugins::State::Refused;
+                    p.reason = "startup data pack requires code provider: " + dependency;
+                }
+    }
+    for (const size_t i : plugins::LoadOrder(g_list)) {
+        auto& p = g_list[i];
+        if (p.state != plugins::State::Ready || p.manifest.kind != plugins::Kind::Data) continue;
+        if (const auto why = plugins::UnmetRequires(p, g_list); !why.empty()) {
+            p.state = plugins::State::Refused;
+            p.reason = why;
+        }
+    }
+    g_index.Build(g_list);
+    const Result csr = cr == Result::Ok ? content::Snapshot(g_list, g_index) : cr;
+    if (csr != Result::Ok) {
+        Log("[app] content snapshot failed: %s; consumers not loaded", ResultName(csr));
+        Stop();
+        return false;
+    }
+
     // Built-ins first: they are the product's features, and register before any plugin can.
     for (auto& p : g_list)
         if (p.state == plugins::State::Ready && p.manifest.kind == plugins::Kind::Builtin)
@@ -226,7 +258,6 @@ bool Start(const Platform& platform) {
             }
         }
     }
-    g_index.Build(g_list);
     RegisterReloadCommand();
 
     if (pf.image) LogSignatureReport(false);
@@ -261,6 +292,7 @@ void Stop() {
     for (auto& p : g_list)
         if (p.manifest.kind == plugins::Kind::Native) { plugins::RemoveReloadCopies(p); p.reloadCopy.clear(); }
     settings::Stop();   // before storage: it reads and writes through it
+    content::Stop();
     storage::Stop();
     net::Stop();   // leaves any session
     ipc::Stop();
