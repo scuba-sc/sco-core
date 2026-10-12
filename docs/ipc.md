@@ -16,7 +16,7 @@ Design: [multiplayer.md § 3.3](design/multiplayer.md#33-sc_ipch-the-wire-mit-an
 The plugin creates it; the other program (the **peer**) opens it by name and never creates it.
 
 - **Name:** `Local\SCO_<plugin id>.<channel>`, built by the host. A plugin can't choose `Global\`, another plugin's prefix or any other name.
-- **Access:** the current user only (the mapping's security descriptor names that user as owner and grants nobody else). If a mapping of that name already exists, the host uses it only when the current user owns it and it is large enough.
+- **Access (Windows):** a newly created mapping names the current user as owner and receives a DACL granting access only to that user. Reuse of an existing mapping checks current-user ownership and sufficient size, **not its DACL**. A same-user-owned mapping may therefore retain broader access; reuse does not certify current-user-only isolation. Do not treat the channel as a security boundary against other accounts without independently validating the existing mapping's DACL.
 - **Sizes:** 4 KiB to 256 MiB per channel, 512 MiB over a plugin's open channels, 16 channels per plugin, 32 rings per channel.
 - **Lifetime:** explicit `close` or ordinary owner-release cleanup (including non-retained `crashed` cleanup) marks the channel closed (`SC_IPC_GONE` for the peer at once), stops its heartbeat and unmaps it. Restart-required retained-provider faults skip the resource-release hook: channels/mappings remain retained, even though host scheduling/lookup is withdrawn. Terminal IPC shutdown closes any remaining channels.
 

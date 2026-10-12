@@ -20,27 +20,41 @@ It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned ser
 ## Using it from C
 
 ```c
+#include <stddef.h>
 #include "sco_storage.h"
 
+typedef struct my_spot { double x, y, z; } my_spot;
 static const sco_storage_v1* st;
 
 sco_result sco_plugin_load(const sco_api* api, sco_plugin* self) {
-    if (api->size <= offsetof(sco_api, query_service) ||
-        api->query_service(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_0, (const void**)&st) != SCO_OK)
+    st = NULL;
+    if (!api || api->size < offsetof(sco_api, query_service) + sizeof(api->query_service) ||
+        !api->query_service ||
+        api->query_service(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_0, (const void**)&st) != SCO_OK) {
         st = NULL;   /* a host without storage: keep working without it */
-    if (st) {
+        return SCO_OK;
+    }
+    if (!st) return SCO_OK;
+
+    if (st->size >= offsetof(sco_storage_v1, put) + sizeof(st->put) && st->put) {
         my_spot home = { 1.0, 2.0, 3.0 };
         st->put(self, "spots.home", &home, sizeof home);
-
+    }
+    if (st->size >= offsetof(sco_storage_v1, get) + sizeof(st->get) && st->get) {
         my_spot got;
         uint32_t size = sizeof got;
-        if (st->get(self, "spots.home", &got, &size) == SCO_OK && size == sizeof got) { ... }
-
-        st->exec(self, "CREATE TABLE IF NOT EXISTS visits(place TEXT, at INTEGER)", NULL, 0, NULL);
-        sco_sql_value row[2] = { { SCO_SQL_TEXT, 8 }, { SCO_SQL_INT } };
-        row[0].v.p = "Lorville";
-        row[1].v.i = 1;
-        st->exec(self, "INSERT INTO visits VALUES (?, ?)", row, 2, NULL);
+        if (st->get(self, "spots.home", &got, &size) == SCO_OK && size == sizeof got) {
+            /* Use got here; a failed put above may leave an older saved value. */
+        }
+    }
+    if (st->size >= offsetof(sco_storage_v1, exec) + sizeof(st->exec) && st->exec) {
+        if (st->exec(self, "CREATE TABLE IF NOT EXISTS visits(place TEXT, at INTEGER)",
+                     NULL, 0, NULL) == SCO_OK) {
+            sco_sql_value row[2] = { { SCO_SQL_TEXT, 8 }, { SCO_SQL_INT } };
+            row[0].v.p = "Waypoint";
+            row[1].v.i = 1;
+            st->exec(self, "INSERT INTO visits VALUES (?, ?)", row, 2, NULL);
+        }
     }
     return SCO_OK;
 }

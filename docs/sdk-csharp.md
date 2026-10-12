@@ -115,7 +115,7 @@ The handler is `ScoResult (Args args, Reply reply)`. `Args` reads by index: `Int
 
 ## Services
 
-A service table is a blittable struct that starts with `uint size`, allocated once in native memory (`NativeMemory.AllocZeroed`) and kept until `Release` or unload; its functions are `delegate* unmanaged<...>` pointers to `[UnmanagedCallersOnly]` methods.
+A service table is a blittable struct that starts with `uint size`, allocated once in native memory (`NativeMemory.AllocZeroed`); its functions are `delegate* unmanaged<...>` pointers to `[UnmanagedCallersOnly]` methods. Keep its native allocation and backing state valid until provider-coordinated quiescence: stop new lookup, prevent consumers from starting more calls, and wait for all in-flight calls and custom workers to finish before destruction. Without that coordination, retain them for the admitted host session. `Release` alone is not a disposal barrier.
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
@@ -129,8 +129,8 @@ if (Query("my_plugin.greeter", ServiceVersion(1, 0), out ServiceRef<GreeterV1> g
 
 - `Query` answers like `query_service` (`Ok`, `Unavailable` for another major or an older version, `NotFound`), `Unavailable` on a 1.0 host, and `BadArg` when the table found doesn't start with a size of at least 4. The `ServiceRef` is empty unless `Ok`.
 - `ServiceRef.Covers(offset, fieldSize = 8)` is true when the provider's `size` covers the field: the check before calling a function a later minor added.
-- `Release(name)` withdraws one of your services. The host withdraws the rest when you unload.
-- A provider's table goes away when it unloads: query when you need it, and don't keep a `ServiceRef` across ticks (host services under `sco.` may be kept).
+- `Release(name)` stops new lookup of that service; the host withdraws the rest at unload. It does not revoke cached pointers or wait for calls through them.
+- `ServiceRef` is a borrowed pointer holder, not a lease. Once a native table has been handed out, administrative unload/reload is refused for the admitted session. Retained code/state after a fault is not permission to call it: stop using cached tables and restart after a native fault. Do not use peer tables during shutdown or across sessions. Host services under `sco.` may be kept for the plugin lifetime, subject to their individual shutdown rules. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
 - Ids, never pointers: a service that deals with game objects takes and returns entity ids and resolves them on every call ([the API rule](api-v1.md#services-11)).
 - A function in your table is called from native code: wrap its body in `try`/`catch` (see [The exception boundary](#the-exception-boundary)).
 
@@ -196,7 +196,7 @@ The SDK owns every callable you hand it (command and raw handlers, event handler
 | A `done` callback (`InvokeAsync`) | It runs. A call still queued at unload is dropped and `done` is not called |
 | An event handler | Its `Subscription` is disposed, or the plugin unloads |
 | A tab or overlay draw function | `RemoveTab` / `RemoveOverlay`, or the plugin unloads |
-| A service table | Yours: keep it valid until `Release` or unload |
+| A service table | Yours: keep its native allocation and backing state valid until provider-coordinated quiescence; absent that, retain them for the admitted host session. `Release` only stops new lookup (see [Services](#services)) |
 
 The SDK keeps one host subscription per event and multiplexes your handlers over it (the host keys a subscription by plugin, event and function). Disposing the `Subscription` removes the handler; when the last handler for an event goes, the host subscription goes too.
 
