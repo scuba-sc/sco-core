@@ -859,6 +859,7 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_game_host PRIVATE sco_game_host)
   sco_project_target(test_game_host)
   add_test(NAME game_host COMMAND test_game_host)
+  add_test(NAME game_host_loss COMMAND test_game_host loss)
   # The DataCore parser over tests/dcb_builder.h fixtures; it also writes the fixtures dcb_tool
   # runs sco-dcb on.
   add_executable(test_datacore tests/test_datacore.cpp)

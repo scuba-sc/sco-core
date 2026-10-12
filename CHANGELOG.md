@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Offline host tick adapter (G1):** game-thread cadence/wrap handling, first-pass
+  tick, fresh admission checks even on throttled passes, shutdown/cancellation on
+  lost offline evidence, and no feature fallback after a plugin fault. OS message
+  and renderer integration remain in the shell; synthetic fixtures only.
+
 - **Offline host composition, admission/resolve/start (G1):** add game-only
   `sco_game_host` C++ host-source target. Unknown/online/EAC/unblocked-network/wrong
   target evidence refuses before any signature resolution or publication; startup

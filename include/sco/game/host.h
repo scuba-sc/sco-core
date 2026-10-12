@@ -25,6 +25,7 @@ struct Options {
     uint32_t size = sizeof(Options); // C++ source contract, not frozen sco_api or a wire ABI
     Admission (*inspect)() = nullptr; // synchronous OS adapter; exceptions refuse admission
     const Image* image = nullptr;    // readable immutable original image through Prepare
+    uint32_t tickIntervalMs = 100;    // 0 = every shell pass; <= INT32_MAX
     app::Platform platform;          // image/registerSignatures MUST be null: owned here
 };
 // Serialized host entries, outside loader lock/runtime callouts. Prepare may precede the game
@@ -35,6 +36,10 @@ struct Options {
 Result Prepare(const Options& options);
 // Re-inspects admission before any publication. Prepared only; no feature fallback tick.
 Result Start();
+// Shell invokes from its game-thread message/tick adapter; first pass is immediate.
+// Unsigned elapsed time handles clock wrap. Rechecks admission BEFORE cadence or callbacks.
+// Lost admission stops the host without executing queued work. No fallback feature ticks.
+Result Tick(uint32_t nowMs);
 // Game thread. Stop cancels tasks through app::Stop; repeated stop is safe. No restart from
 // Stopped/Failed: process-lifetime signature/hook ownership requires a fresh host process.
 Result Stop();

@@ -10,6 +10,8 @@ namespace {
 std::atomic<Phase> phase{Phase::Idle};
 std::atomic<bool> resolved{false};
 Options options;
+bool ticked = false;
+uint32_t lastTick = 0;
 bool Admitted() noexcept {
     try {
         const Admission a = options.inspect();
@@ -20,7 +22,8 @@ bool Admitted() noexcept {
 }
 Result Prepare(const Options& o) {
     if (phase.load() != Phase::Idle) return Result::BadArg;
-    if (o.size < sizeof(Options) || !o.inspect || o.platform.image || o.platform.registerSignatures)
+    if (o.size < sizeof(Options) || !o.inspect || o.tickIntervalMs > 0x7fffffffu ||
+        o.platform.image || o.platform.registerSignatures)
         return Result::BadArg;
     options = o;
     // Admission is deliberately before even registering signature rows.
@@ -46,6 +49,16 @@ Result Start() {
         phase = Phase::Running;
         return Result::Ok;
     } catch (...) { phase = Phase::Failed; return Result::Failed; }
+}
+Result Tick(uint32_t nowMs) {
+    if (phase.load() != Phase::Running) return Result::Unavailable;
+    if (!OnGameThread()) return Result::WrongThread;
+    if (sco::detail::InCallout()) return Result::Unavailable;
+    if (!Admitted()) { Stop(); return Result::Unavailable; }
+    if (ticked && nowMs - lastTick < options.tickIntervalMs) return Result::Ok;
+    ticked = true; lastTick = nowMs;
+    app::Tick(nowMs);
+    return Result::Ok;
 }
 Result Stop() {
     const Phase p = phase.load();

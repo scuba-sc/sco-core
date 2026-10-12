@@ -47,6 +47,20 @@ No network socket, anti-cheat modification, process launch, proxy DLL, Windows
 message hook or renderer is created by this adapter. The shell keeps OS/render
 policy. Admission must not silently treat an inspection failure as absence.
 
+## Tick adapter
+
+The shell keeps its Windows message hook, renderer frames and input polling. On
+each game-thread pass call `Tick(nowMs)`; do not throttle the OS shell itself.
+The adapter performs the first plugin tick immediately, then uses a configurable
+unsigned millisecond cadence (default 100, zero means every pass), including clock
+wrap. It drains app tasks and dispatches only the app tick; there are no product
+feature fallbacks. A contained synthetic plugin fault stays disabled.
+
+Admission is rechecked on every pass, before cadence filtering. Lost/unknown
+admission stops the app and cancels queued tasks without running a tick. Nested
+runtime-callout and wrong-thread entries refuse. The `game_host_loss` fixture
+proves loss during a throttled pass does not execute a queued task.
+
 ## Decision pending owner / migration limits
 
 This first composition slice deliberately does **not** copy the product's
