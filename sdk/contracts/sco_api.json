@@ -30,6 +30,9 @@
               "path": "include/sco_api.h",
               "token": "(*host_version)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,9 @@
               "path": "include/sco_api.h",
               "token": "(*host_version)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "csharp": {
@@ -48,6 +54,10 @@
               "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
               "token": "return a == null ? \"\" : Utf8.Read(a->host_version()) ?? \"\";"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -57,6 +67,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "const char* v = Of(L)->api->host_version();"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -77,7 +90,9 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -113,6 +128,9 @@
               "path": "include/sco_api.h",
               "token": "(*has)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -122,6 +140,20 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "bool Has(const char* capability) const noexcept { return api_ && capability && api_->has(capability) != 0; }"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -131,6 +163,10 @@
               "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
               "token": "fixed (byte* c = Utf8.Z(capability)) return a->has(c) != 0;"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -140,6 +176,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "lua_pushboolean(L, Of(L)->api->has(luaL_checkstring(L, 1)) != 0);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -160,7 +199,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."
@@ -195,6 +237,9 @@
               "path": "include/sco_api.h",
               "token": "(*run_on_game_thread)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -204,6 +249,20 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "const sco_result r = api_->run_on_game_thread(self_, detail::TaskTrampoline, detail::ToCtx(id));"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -213,6 +272,10 @@
               "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
               "token": "ScoResult r = a->run_on_game_thread(_self, &TaskTrampoline, (void*)id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -226,6 +289,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "if (s->ntasks >= SCO_LUA_MAX_TASKS) return PushResult(L, SCO_TOO_MANY);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -246,7 +312,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."
@@ -281,6 +350,9 @@
               "path": "include/sco_api.h",
               "token": "(*subscribe)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -290,6 +362,20 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "const sco_result r = api_->subscribe(self_, event, detail::EventTrampoline, detail::ToCtx(id));"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -299,6 +385,10 @@
               "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
               "token": "fixed (byte* n = Utf8.Z(ev)) r = _api->subscribe(_self, n, EventFn, (void*)slot.Id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -312,6 +402,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "if (lua_rawlen(L, list) >= SCO_LUA_MAX_SUBSCRIBERS) return PushResult(L, SCO_TOO_MANY);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -332,7 +425,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."
@@ -367,6 +463,9 @@
               "path": "include/sco_api.h",
               "token": "(*unsubscribe)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -376,6 +475,20 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "s->api->unsubscribe(s->self, it->first.c_str(), detail::EventTrampoline);"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -385,6 +498,10 @@
               "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
               "token": "fixed (byte* n = Utf8.Z(slot.Event)) _api->unsubscribe(_self, n, EventFn);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -394,6 +511,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "s->api->unsubscribe(s->self, e->name, sco_lua_event_);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -414,7 +534,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "other reentrancy unspecified."
@@ -449,6 +572,9 @@
               "path": "include/sco_api.h",
               "token": "(*status)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -458,6 +584,20 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "api_->status(self_, line);"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -467,6 +607,10 @@
               "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
               "token": "fixed (byte* m = Utf8.Z(message)) a->status(_self, m);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -476,6 +620,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "s->api->status(s->self, line);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -496,7 +643,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."
@@ -531,6 +681,9 @@
               "path": "include/sco_api.h",
               "token": "(*log)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -540,6 +693,20 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "api->log(self, SCO_LOG_ERROR, line);"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -549,6 +716,10 @@
               "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
               "token": "fixed (byte* m = Utf8.Z(message)) api->log(self, level, m);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -558,6 +729,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "s->api->log(s->self, SCO_LOG_ERROR, line);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -578,7 +752,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."
@@ -613,6 +790,9 @@
               "path": "include/sco_api.h",
               "token": "(*register_command)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -622,6 +802,20 @@
               "path": "include/scosdk/command.hpp",
               "token": "const sco_result r = plugin_.Api()->register_command(plugin_.Self(), &cmd);"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -631,6 +825,10 @@
               "path": "sdk/csharp/Sco.Sdk/Commands.cs",
               "token": "ScoResult r = api->register_command(_plugin.SelfPtr, &cmd);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -644,6 +842,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "if (s->ncmds == SCO_LUA_MAX_COMMANDS) return PushResult(L, SCO_TOO_MANY);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -664,7 +865,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."
@@ -699,6 +903,9 @@
               "path": "include/sco_api.h",
               "token": "(*invoke)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -708,6 +915,20 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "if (!reply) return api_->invoke(self_, name, args, nargs, nullptr, nullptr);"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -717,6 +938,10 @@
               "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
               "token": "r = a->invoke(_self, n, block.Args, block.Count, &DoneTrampoline, (void*)id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -730,6 +955,9 @@
               "path": "sdk/docs/lua.md",
               "token": "Runs any command, sc-offline's or a plugin's, now."
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -750,7 +978,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Recursive invoke depth/limit unspecified."
@@ -785,6 +1016,9 @@
               "path": "include/sco_api.h",
               "token": "(*list_commands)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -794,6 +1028,9 @@
               "path": "include/sco_api.h",
               "token": "(*list_commands)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "csharp": {
@@ -803,6 +1040,10 @@
               "path": "sdk/csharp/Sco.Sdk/Interop.cs",
               "token": "public delegate* unmanaged[Cdecl]<ScoCommand**, uint, uint> list_commands;"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -816,6 +1057,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "if (n > 512) n = 512;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -836,7 +1080,9 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -872,6 +1118,9 @@
               "path": "include/sco_api.h",
               "token": "(*provide_service)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -881,6 +1130,20 @@
               "path": "include/scosdk/service.hpp",
               "token": "return plugin.Api()->provide_service(plugin.Self(), name, version, table);"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -890,6 +1153,10 @@
               "path": "sdk/csharp/Sco.Sdk/Services.cs",
               "token": "fixed (byte* n = Utf8.Z(name)) return a->provide_service(SelfPtr, n, version, table);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -903,7 +1170,8 @@
               "path": "sdk/docs/lua.md",
               "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [
@@ -923,7 +1191,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."
@@ -958,6 +1229,9 @@
               "path": "include/sco_api.h",
               "token": "(*query_service)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -967,6 +1241,20 @@
               "path": "include/scosdk/service.hpp",
               "token": "const sco_result r = api->query_service(name, minVersion, &out);"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -976,6 +1264,10 @@
               "path": "sdk/csharp/Sco.Sdk/Services.cs",
               "token": "fixed (byte* n = Utf8.Z(name)) r = a->query_service(n, minVersion, &table);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -985,6 +1277,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "s->api->query_service(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_0, &t)"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -1005,7 +1300,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."
@@ -1040,6 +1338,9 @@
               "path": "include/sco_api.h",
               "token": "(*release_service)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -1049,6 +1350,20 @@
               "path": "include/scosdk/service.hpp",
               "token": "return plugin.Api()->release_service(plugin.Self(), name);"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -1058,6 +1373,10 @@
               "path": "sdk/csharp/Sco.Sdk/Services.cs",
               "token": "fixed (byte* n = Utf8.Z(name)) return a->release_service(SelfPtr, n);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -1071,7 +1390,8 @@
               "path": "sdk/docs/lua.md",
               "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [
@@ -1091,7 +1411,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Concurrency/quiescence for callers holding it unspecified.",
@@ -1128,6 +1451,9 @@
               "path": "include/sco_api.h",
               "token": "(*invoke_raw)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -1137,6 +1463,20 @@
               "path": "include/scosdk/raw.hpp",
               "token": "const sco_result r = plugin.Api()->invoke_raw(plugin.Self(), name, in.empty() ? nullptr : in.data(),"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -1146,6 +1486,10 @@
               "path": "sdk/csharp/Sco.Sdk/Services.cs",
               "token": "r = a->invoke_raw(SelfPtr, n, i, (uint)input.Length, o, &size);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -1159,7 +1503,8 @@
               "path": "sdk/docs/lua.md",
               "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [
@@ -1179,7 +1524,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "recursive raw-handler invocation unspecified.",
@@ -1215,6 +1563,9 @@
               "path": "include/sco_api.h",
               "token": "(*register_raw)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -1224,6 +1575,20 @@
               "path": "include/scosdk/raw.hpp",
               "token": "plugin.Api()->register_raw(plugin.Self(), name, capability, detail::RawTrampoline, detail::ToCtx(id));"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_app.cpp",
+            "tests/test_datacore_service.cpp",
+            "tests/test_host.cpp",
+            "tests/test_ipc.cpp",
+            "tests/test_net_service.cpp",
+            "tests/test_plugins.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -1233,6 +1598,10 @@
               "path": "sdk/csharp/Sco.Sdk/Services.cs",
               "token": "r = a->register_raw(SelfPtr, n, c, &RawTrampoline, (void*)id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -1246,7 +1615,8 @@
               "path": "sdk/docs/lua.md",
               "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [
@@ -1266,7 +1636,10 @@
         "tests/test_sdk.cpp",
         "tests/test_settings.cpp",
         "tests/test_storage.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "reentrancy unspecified."

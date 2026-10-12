@@ -40,22 +40,23 @@ public:
         t_ = nullptr;
         self_ = self;
         if (!api || !self_) return SCO_BAD_ARG;
-        if (!Covers(api->size, offsetof(sco_api, query_service))) return SCO_UNAVAILABLE;
+        if (!Covers(api->size, offsetof(sco_api, query_service)) || !api->query_service) return SCO_UNAVAILABLE;
         const void* table = nullptr;
         const sco_result r = api->query_service(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, &table);
         if (r != SCO_OK) return r;
+        if (!table || *static_cast<const uint32_t*>(table) < 8) return SCO_UNAVAILABLE;
         t_ = static_cast<const sc_entities_v1*>(table);
         return SCO_OK;
     }
     explicit operator bool() const noexcept { return t_ != nullptr; }
     const sc_entities_v1* Table() const noexcept { return t_; }
 
-    // True when the entity is streamed in.
-    bool Alive(uint64_t id) const noexcept { return t_ && t_->alive(id) != 0; }
+    // True when streamed in. False also covers absent methods, unavailable capability or wrong thread.
+    bool Alive(uint64_t id) const noexcept { return t_ && Covers(t_->size, offsetof(sc_entities_v1, alive)) && t_->alive && t_->alive(id) != 0; }
     // The entity's class name (the name Spawn takes). SCO_NOT_FOUND: not streamed in.
     sco_result ClassOf(uint64_t id, std::string& cls) const noexcept {
         cls.clear();
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!t_ || !Covers(t_->size, offsetof(sc_entities_v1, class_of)) || !t_->class_of) return SCO_UNAVAILABLE;
         try {
             std::string s(128, '\0');
             uint32_t size = static_cast<uint32_t>(s.size());
@@ -78,27 +79,27 @@ public:
         zoneId = 0;
         pos[0] = pos[1] = pos[2] = 0;
         rot[0] = rot[1] = rot[2] = rot[3] = 0;
-        return t_ ? t_->get_transform(id, pos, rot, &zoneId) : SCO_UNAVAILABLE;
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1, get_transform)) && t_->get_transform ? t_->get_transform(id, pos, rot, &zoneId) : SCO_UNAVAILABLE;
     }
     // Moves and turns an entity you may move (one you spawned, or the player's own vehicle); pos
     // and rot are in zone zoneId's local frame.
     sco_result SetTransform(uint64_t id, uint64_t zoneId, const double (&pos)[3], const double (&rot)[4]) const noexcept {
-        return t_ ? t_->set_transform(self_, id, zoneId, pos, rot) : SCO_UNAVAILABLE;
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1, set_transform)) && t_->set_transform ? t_->set_transform(self_, id, zoneId, pos, rot) : SCO_UNAVAILABLE;
     }
     // An entity of entityClass at pos, facing rot, in zone zoneId's local frame, anywhere; id is
     // yours to despawn. It streams in a few seconds later.
     sco_result Spawn(const char* entityClass, uint64_t zoneId, const double (&pos)[3], const double (&rot)[4],
                      uint64_t& id) const noexcept {
         id = 0;
-        return t_ ? t_->spawn(self_, entityClass, zoneId, pos, rot, &id) : SCO_UNAVAILABLE;
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1, spawn)) && t_->spawn ? t_->spawn(self_, entityClass, zoneId, pos, rot, &id) : SCO_UNAVAILABLE;
     }
     // Removes an entity this plugin spawned (it leaves the world within a few seconds).
-    sco_result Despawn(uint64_t id) const noexcept { return t_ ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }
+    sco_result Despawn(uint64_t id) const noexcept { return t_ && Covers(t_->size, offsetof(sc_entities_v1, despawn)) && t_->despawn ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }
     // 1.1. Releases this plugin's ownership of an entity it spawned: it stays in the world when the
     // plugin unloads or crashes, and SetTransform and Despawn refuse it from now on. SCO_UNAVAILABLE
     // on a 1.0 table; SCO_NOT_FOUND: not an entity this plugin spawned and still owns.
     sco_result Keep(uint64_t id) const noexcept {
-        if (!t_ || !Covers(t_->size, offsetof(sc_entities_v1, keep))) return SCO_UNAVAILABLE;
+        if (!t_ || !Covers(t_->size, offsetof(sc_entities_v1, keep)) || !t_->keep) return SCO_UNAVAILABLE;
         return t_->keep(self_, id);
     }
 
@@ -108,9 +109,9 @@ public:
     // check of the hooks has confirmed them.
     sco_result Watch(uint32_t what, const char* type, sc_entity_watch_fn fn, void* ctx, uint64_t& watchId) const noexcept {
         watchId = 0;
-        return t_ ? t_->watch(self_, what, type, fn, ctx, &watchId) : SCO_UNAVAILABLE;
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1, watch)) && t_->watch ? t_->watch(self_, what, type, fn, ctx, &watchId) : SCO_UNAVAILABLE;
     }
-    sco_result Unwatch(uint64_t watchId) const noexcept { return t_ ? t_->unwatch(self_, watchId) : SCO_UNAVAILABLE; }
+    sco_result Unwatch(uint64_t watchId) const noexcept { return t_ && Covers(t_->size, offsetof(sc_entities_v1, unwatch)) && t_->unwatch ? t_->unwatch(self_, watchId) : SCO_UNAVAILABLE; }
 
     // Ids of streamed-in entities within radius metres of pos in zone zoneId's frame, of class
     // classFilter (a class name or "PREFIX*"; nullptr or "" = any): up to max are written to ids,
@@ -119,7 +120,7 @@ public:
     sco_result QueryRadius(uint64_t zoneId, const double (&pos)[3], double radius, const char* classFilter, uint64_t* ids,
                            uint32_t max, uint32_t& count, uint32_t& more) const noexcept {
         count = more = 0;
-        return t_ ? t_->query_radius(zoneId, pos, radius, classFilter, ids, max, &count, &more) : SCO_UNAVAILABLE;
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1, query_radius)) && t_->query_radius ? t_->query_radius(zoneId, pos, radius, classFilter, ids, max, &count, &more) : SCO_UNAVAILABLE;
     }
 
     // The reason for this plugin's last failed SetTransform, Spawn, Despawn, Keep, Watch or Unwatch.
@@ -129,7 +130,7 @@ public:
 
 private:
     std::string Error(sco_plugin* who) const noexcept {
-        if (!t_) return {};
+        if (!t_ || !Covers(t_->size, offsetof(sc_entities_v1, last_error)) || !t_->last_error) return {};
         try {
             std::string s(256, '\0');
             uint32_t size = static_cast<uint32_t>(s.size());

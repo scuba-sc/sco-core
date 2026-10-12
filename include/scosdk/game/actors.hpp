@@ -38,10 +38,11 @@ public:
         t_ = nullptr;
         self_ = self;
         if (!api || !self_) return SCO_BAD_ARG;
-        if (!Covers(api->size, offsetof(sco_api, query_service))) return SCO_UNAVAILABLE;
+        if (!Covers(api->size, offsetof(sco_api, query_service)) || !api->query_service) return SCO_UNAVAILABLE;
         const void* table = nullptr;
         const sco_result r = api->query_service(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_0, &table);
         if (r != SCO_OK) return r;
+        if (!table || *static_cast<const uint32_t*>(table) < 8) return SCO_UNAVAILABLE;
         t_ = static_cast<const sc_actors_v1*>(table);
         return SCO_OK;
     }
@@ -51,27 +52,27 @@ public:
     // Your actor id and entity id (0 on failure). SCO_NOT_FOUND: you haven't spawned yet.
     sco_result LocalPlayer(uint64_t& actorId, uint64_t& entityId) const noexcept {
         actorId = entityId = 0;
-        return t_ ? t_->local_player(&actorId, &entityId) : SCO_UNAVAILABLE;
+        return t_ && Covers(t_->size, offsetof(sc_actors_v1, local_player)) && t_->local_player ? t_->local_player(&actorId, &entityId) : SCO_UNAVAILABLE;
     }
     // An NPC of archetypeClass at pos in zone zoneId's local frame; id is yours to despawn.
     sco_result SpawnNpc(const char* archetypeClass, uint64_t zoneId, const double (&pos)[3], uint64_t& id) const noexcept {
         id = 0;
-        return t_ ? t_->spawn_npc(self_, archetypeClass, zoneId, pos, &id) : SCO_UNAVAILABLE;
+        return t_ && Covers(t_->size, offsetof(sc_actors_v1, spawn_npc)) && t_->spawn_npc ? t_->spawn_npc(self_, archetypeClass, zoneId, pos, &id) : SCO_UNAVAILABLE;
     }
     // Removes an NPC this plugin spawned (it leaves the world within a few seconds).
-    sco_result Despawn(uint64_t id) const noexcept { return t_ ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }
+    sco_result Despawn(uint64_t id) const noexcept { return t_ && Covers(t_->size, offsetof(sc_actors_v1, despawn)) && t_->despawn ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }
 
     // 1.1: the HealthPool of the actor with entity id (yours, or an NPC's). max is 0: the maximum isn't
     // read yet. SCO_UNAVAILABLE on a 1.0 table or when game.actors.health isn't ready.
     sco_result Health(uint64_t id, float& cur, float& max) const noexcept {
         cur = max = 0;
-        if (!t_ || !Covers(t_->size, offsetof(sc_actors_v1, health))) return SCO_UNAVAILABLE;
+        if (!t_ || !Covers(t_->size, offsetof(sc_actors_v1, health)) || !t_->health) return SCO_UNAVAILABLE;
         return t_->health(id, &cur, &max);
     }
     // 1.1: alive, incapacitated or dead. SCO_UNAVAILABLE until game.actors.state is ready (not yet).
     sco_result State(uint64_t id, sc_actor_state& state) const noexcept {
         state = SC_ACTOR_ALIVE;
-        if (!t_ || !Covers(t_->size, offsetof(sc_actors_v1, state))) return SCO_UNAVAILABLE;
+        if (!t_ || !Covers(t_->size, offsetof(sc_actors_v1, state)) || !t_->state) return SCO_UNAVAILABLE;
         uint32_t raw = 0;
         const sco_result r = t_->state(id, &raw);
         if (r == SCO_OK) state = static_cast<sc_actor_state>(raw);
@@ -85,7 +86,7 @@ public:
 
 private:
     std::string Error(sco_plugin* who) const noexcept {
-        if (!t_) return {};
+        if (!t_ || !Covers(t_->size, offsetof(sc_actors_v1, last_error)) || !t_->last_error) return {};
         try {
             std::string s(256, '\0');
             uint32_t size = static_cast<uint32_t>(s.size());

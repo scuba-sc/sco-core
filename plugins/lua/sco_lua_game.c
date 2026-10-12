@@ -271,12 +271,15 @@ static void DataCoreTypes(lua_State* L) {
     lua_pop(L, 1);
 }
 
+/* Require the whole function pointer before reading it, including optional tails. */
+#define GAME_MEMBER(t, type, member) ((t) && (t)->size >= offsetof(type, member) + sizeof((t)->member) && (t)->member)
+
 /* ---- sco.game.actors (the game pack's game.actors, read-only: no function that takes self) ----- */
 
 static const sc_actors_v1* ActorsTable(lua_State* L) {
     const sco_api* api = sco_lua_api(L);
     const void* t = NULL;
-    if (!api || api->size <= offsetof(sco_api, query_service) || !api->query_service) return NULL;
+    if (!GAME_MEMBER(api, sco_api, query_service)) return NULL;
     if (api->query_service(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_0, &t) != SCO_OK) return NULL;
     return (const sc_actors_v1*)t;
 }
@@ -288,7 +291,7 @@ static int L_actors_local_player(lua_State* L) {
     uint64_t actor = 0, entity = 0;
     char msg[256];
     uint32_t size = sizeof(msg);
-    const sco_result r = a ? a->local_player(&actor, &entity) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(a, sc_actors_v1, local_player) ? a->local_player(&actor, &entity) : SCO_UNAVAILABLE;
     sco_lua_check_budget(L);
     if (r == SCO_OK) {
         lua_pushinteger(L, (lua_Integer)(int64_t)actor);
@@ -297,7 +300,7 @@ static int L_actors_local_player(lua_State* L) {
     }
     lua_pushnil(L);
     lua_pushstring(L, sco_lua_result_name(r));
-    if (a && a->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
+    if (GAME_MEMBER(a, sc_actors_v1, last_error) && a->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
     return 2;
 }
 
@@ -306,7 +309,7 @@ static int L_actors_local_player(lua_State* L) {
 static const sc_entities_v1* Entities(lua_State* L) {
     const sco_api* api = sco_lua_api(L);
     const void* t = NULL;
-    if (!api || api->size <= offsetof(sco_api, query_service) || !api->query_service) return NULL;
+    if (!GAME_MEMBER(api, sco_api, query_service)) return NULL;
     if (api->query_service(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, &t) != SCO_OK) return NULL;
     return (const sc_entities_v1*)t;
 }
@@ -317,7 +320,7 @@ static int EntFail(lua_State* L, const sc_entities_v1* e, sco_result r) {
     uint32_t size = sizeof(msg);
     lua_pushnil(L);
     lua_pushstring(L, sco_lua_result_name(r));
-    if (e && e->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
+    if (GAME_MEMBER(e, sc_entities_v1, last_error) && e->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
     return 2;
 }
 
@@ -325,7 +328,7 @@ static int EntFail(lua_State* L, const sc_entities_v1* e, sco_result r) {
 static int L_ent_alive(lua_State* L) {
     const sc_entities_v1* e = Entities(L);
     const uint64_t id = (uint64_t)luaL_checkinteger(L, 1);
-    const int alive = e ? e->alive(id) : 0;
+    const int alive = GAME_MEMBER(e, sc_entities_v1, alive) ? e->alive(id) : 0;
     sco_lua_check_budget(L);
     lua_pushboolean(L, alive);
     return 1;
@@ -337,7 +340,7 @@ static int L_ent_class_of(lua_State* L) {
     const uint64_t id = (uint64_t)luaL_checkinteger(L, 1);
     char name[256];
     uint32_t size = sizeof(name);
-    const sco_result r = e ? e->class_of(id, name, &size) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(e, sc_entities_v1, class_of) ? e->class_of(id, name, &size) : SCO_UNAVAILABLE;
     sco_lua_check_budget(L);
     if (r != SCO_OK) return EntFail(L, e, r);
     lua_pushstring(L, name);
@@ -351,7 +354,7 @@ static int L_ent_get_transform(lua_State* L) {
     const uint64_t id = (uint64_t)luaL_checkinteger(L, 1);
     double pos[3] = { 0, 0, 0 }, rot[4] = { 0, 0, 0, 0 };
     uint64_t zone = 0;
-    const sco_result r = e ? e->get_transform(id, pos, rot, &zone) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(e, sc_entities_v1, get_transform) ? e->get_transform(id, pos, rot, &zone) : SCO_UNAVAILABLE;
     sco_lua_check_budget(L);
     if (r != SCO_OK) return EntFail(L, e, r);
     for (int i = 0; i < 3; ++i) lua_pushnumber(L, pos[i]);
@@ -368,7 +371,8 @@ static int L_actors_health(lua_State* L) {
     float cur = 0, max = 0;
     char msg[256];
     uint32_t size = sizeof(msg);
-    const sco_result r = a && a->size > offsetof(sc_actors_v1, health) ? a->health(id, &cur, &max) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(a, sc_actors_v1, health) ? a->health(id, &cur, &max) : SCO_UNAVAILABLE;
+    sco_lua_check_budget(L);
     if (r == SCO_OK) {
         lua_pushnumber(L, (lua_Number)cur);
         lua_pushnumber(L, (lua_Number)max);
@@ -376,7 +380,7 @@ static int L_actors_health(lua_State* L) {
     }
     lua_pushnil(L);
     lua_pushstring(L, sco_lua_result_name(r));
-    if (a && a->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
+    if (GAME_MEMBER(a, sc_actors_v1, last_error) && a->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
     return 2;
 }
 

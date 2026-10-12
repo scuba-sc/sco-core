@@ -48,7 +48,11 @@ Top-level keys are `schema_version`, `sdk_version` (from `sdk/VERSION`),
   (`direct`, `typed-wrapper`, `restricted`, `unsupported`) and nonempty `evidence`
   containing `{path, token}` source references. `restricted` means an exposed
   subset/adaptation, not unrestricted native access; read its source token and
-  contract. Game mutations are unsupported in read-only Lua. A raw C# function
+  contract. Each mapping also has `tests`: paths drawn from the record's test
+  inventory. A supported mapping requires nonempty language-specific tests; an
+  unsupported mapping may use an empty list. C layout pins compile as C11 and
+  C++20; C# and Lua must reference their own test suites. These are source links,
+  not a recorded successful run or per-method runtime certification. Game mutations are unsupported in read-only Lua. A raw C# function
   pointer field is direct interop, not a typed wrapper.
 - `examples` and `tests` contain repository-relative file paths; an empty examples
   list means none is identified, not proof that no example can exist. ABI test
@@ -58,7 +62,7 @@ Top-level keys are `schema_version`, `sdk_version` (from `sdk/VERSION`),
 `extract` validates records and returns header-only `methods`, `tables` and
 `game_pack_version` (without semantic contexts). `check` refuses inventory/type/
 extent drift, duplicate IDs, missing paths, documentation drift and language
-support claims without source evidence. `build` validates before writing.
+support claims without source evidence or language-specific tests. `build` validates before writing.
 
 
 This catalogue covers the plain-C plugin boundary: every function-pointer **method** in
@@ -81,6 +85,41 @@ contract is distinguished from an implementation observation. **Unspecified** me
 no guarantee is established here; it is not permission to rely on observed behavior.
 Game-service behavior has not been verified in a game session; see
 [game service status](game/status.md). This document does not upgrade that status.
+
+## Workflow language evidence and limits
+
+The mappings describe individual primitives, not identical end-to-end language
+surfaces. C++ actor/entity `Open` accepts a readable service prefix and guards each
+method at the point of use; C# `Open` requires the complete 1.0 table before
+opening. Neither `IsOpen`/Boolean conversion establishes operation capability.
+For the bounded inspector, native C/C++ and C# can combine local-player,
+health and entity-transform reads; Lua can use the read-only optional game
+adapter. A zero health maximum is **unknown**. `Alive == false` is not proof of
+removal: it also covers not-yet-streamed entities, missing capability and wrong
+thread. Positions are zone-local metres; rotations are quaternion x/y/z/w.
+
+| Route | Fixture / compile evidence | Boundary |
+|---|---|---|
+| C public tables | `tests/abi_v1.c`, `abi_game_actors.c`, `abi_game_entities.c`, `abi_spatial.c`, `abi_game_events.c`; `tests/test_language_routes.c` | Direct calls must check complete member extents and non-null pointers. The recipe uses synthetic reads and caller-position spawn/remove requests. |
+| C++ wrappers | `tests/test_language_routes.cpp`; `tests/test_sdk.cpp`, `tests/game_contracts/sdk_cases.inc`, `tests/host_sim.cmake` | Actor/entity wrappers reject partial and null method fields. `cpp_hello` dynamically loads, ticks, invokes its command and queries its service through the neutral host; no typed spatial wrapper exists. |
+| C# wrappers / layout | `sdk/csharp/Sco.Sdk.Tests/{FakeHost,GameFakeHost,Layout,GameLayout}.cs` | Requires .NET 8 test execution. Actor/entity wrappers clear cached state on a failed reopen and reject absent pointers/tails. There is **no** C# spatial route; an owned-NPC caller-position primitive is not player-pose workflow parity. |
+| C# NativeAOT host loading | `.github/workflows/sdk.yml`: `csharp-host-sim` | Windows x64 `cs_hello` loads through `sco-host-sim`, ticks, invokes a command and finds a service. This generic plugin does **not** test inspector/NPC game-provider behavior. |
+| Lua sandbox / game adapter | `tests/test_lua.cpp`, `tests/game_contracts/lua_cases.inc` | Real Lua loader/sandbox with optional adapter and synthetic providers; absence, budget overruns, short event payloads, callback cleanup and partial/null query methods are covered. |
+
+Owned NPC creation/removal is **unsupported in Lua**. Scripts own no NPCs and do
+not gain mutation by invoking a product command. DataCore's separate patch/write
+service is not a game-object mutation binding. Native C++ may call the public C
+`teleport.spatial` table; C# lacks that mapping. No wrapper is invented for parity.
+
+The supported game-runtime target is **Windows x64**. macOS ARM64 and Linux runs
+are development-fixture evidence; header cross-compilation to Windows x64 is
+layout/compile evidence, not execution on Windows. C# layout/NativeAOT and real
+host loading must run in their SDK CI jobs when `dotnet` is unavailable locally.
+Complete combined game-workflow loading, delayed streaming/removal, provider
+cleanup, and actual game semantics still require their corresponding host/game
+acceptance. No simulator response certifies gameplay or arbitrary native-process
+recovery. Provider reload refusal and retained raw-table lifetimes remain as
+specified in the [lifetime audit](design/service-table-lifetime.md).
 
 ## Reading the rows
 

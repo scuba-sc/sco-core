@@ -30,6 +30,9 @@
               "path": "include/sc_vehicles.h",
               "token": "(*player_ship)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,11 @@
               "path": "include/scosdk/game/vehicles.hpp",
               "token": "return ref_ ? ref_->player_ship(&ship) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c",
+            "tests/test_app.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -48,6 +56,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
               "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->player_ship(&id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -57,13 +69,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = v ? v->player_ship(&ship) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_vehicles.c",
-        "tests/test_app.cpp"
+        "tests/test_app.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -102,6 +121,9 @@
               "path": "include/sc_vehicles.h",
               "token": "(*seats)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c"
           ]
         },
         "cpp": {
@@ -111,6 +133,11 @@
               "path": "include/scosdk/game/vehicles.hpp",
               "token": "const sco_result r = ref_->seats(ship, out.data(), static_cast<uint32_t>(out.size()), &count, &m);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c",
+            "tests/test_app.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -120,6 +147,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
               "token": "fixed (ScVehicleSeat* p = seats) r = _t->seats(ship, p, (uint)seats.Length, &n, &m);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -133,13 +164,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "static sc_vehicle_seat g_vehSeats[256];"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_vehicles.c",
-        "tests/test_app.cpp"
+        "tests/test_app.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -178,6 +216,9 @@
               "path": "include/sc_vehicles.h",
               "token": "(*seat_occupant)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c"
           ]
         },
         "cpp": {
@@ -187,6 +228,11 @@
               "path": "include/scosdk/game/vehicles.hpp",
               "token": "return ref_ ? ref_->seat_occupant(ship, seatIndex, &actor) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c",
+            "tests/test_app.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -196,6 +242,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
               "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->seat_occupant(ship, seatIndex, &id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -205,13 +255,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = v ? v->seat_occupant(ship, (uint32_t)index, &actor) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_vehicles.c",
-        "tests/test_app.cpp"
+        "tests/test_app.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -250,6 +307,9 @@
               "path": "include/sc_vehicles.h",
               "token": "(*seat)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c"
           ]
         },
         "cpp": {
@@ -259,6 +319,11 @@
               "path": "include/scosdk/game/vehicles.hpp",
               "token": "return ref_ ? ref_->seat(self_, actor, ship, seatIndex) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c",
+            "tests/test_app.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -268,6 +333,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
               "token": "public ScoResult Seat(ulong actor, ulong ship, uint seatIndex) => _t == null ? ScoResult.Unavailable : _t->seat(Self, actor, ship, seatIndex);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -277,13 +346,17 @@
               "path": "sdk/docs/lua.md",
               "token": "Read-only: scripts can list seats but can't seat, eject or power on"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_vehicles.c",
-        "tests/test_app.cpp"
+        "tests/test_app.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -322,6 +395,9 @@
               "path": "include/sc_vehicles.h",
               "token": "(*eject)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c"
           ]
         },
         "cpp": {
@@ -331,6 +407,11 @@
               "path": "include/scosdk/game/vehicles.hpp",
               "token": "sco_result Eject(uint64_t actor) const noexcept { return ref_ ? ref_->eject(self_, actor) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c",
+            "tests/test_app.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -340,6 +421,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
               "token": "public ScoResult Eject(ulong actor) => _t == null ? ScoResult.Unavailable : _t->eject(Self, actor);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -349,13 +434,17 @@
               "path": "sdk/docs/lua.md",
               "token": "Read-only: scripts can list seats but can't seat, eject or power on"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_vehicles.c",
-        "tests/test_app.cpp"
+        "tests/test_app.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -394,6 +483,9 @@
               "path": "include/sc_vehicles.h",
               "token": "(*power_on)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c"
           ]
         },
         "cpp": {
@@ -403,6 +495,11 @@
               "path": "include/scosdk/game/vehicles.hpp",
               "token": "sco_result PowerOn(uint64_t ship) const noexcept { return ref_ ? ref_->power_on(self_, ship) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c",
+            "tests/test_app.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -412,6 +509,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
               "token": "public ScoResult PowerOn(ulong ship) => _t == null ? ScoResult.Unavailable : _t->power_on(Self, ship);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -421,13 +522,17 @@
               "path": "sdk/docs/lua.md",
               "token": "Read-only: scripts can list seats but can't seat, eject or power on"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_vehicles.c",
-        "tests/test_app.cpp"
+        "tests/test_app.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -466,6 +571,9 @@
               "path": "include/sc_vehicles.h",
               "token": "(*last_error)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c"
           ]
         },
         "cpp": {
@@ -475,6 +583,11 @@
               "path": "include/scosdk/game/vehicles.hpp",
               "token": "return ref_->last_error(self_, out.data(), &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_vehicles.c",
+            "tests/test_app.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -484,6 +597,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
               "token": "return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -493,13 +610,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (v->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_vehicles.c",
-        "tests/test_app.cpp"
+        "tests/test_app.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",

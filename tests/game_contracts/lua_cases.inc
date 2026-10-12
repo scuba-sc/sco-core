@@ -95,7 +95,7 @@ static void TestGameActors() {
     CHECK(none.p && none.p->state == State::Loaded);
     Unload(none);
 
-    static const sc_actors_v1 kFake = { sizeof(sc_actors_v1), 0, FakeLocalPlayer, FakeSpawnNpc, FakeDespawn, FakeLastError,
+    static sc_actors_v1 kFake = { sizeof(sc_actors_v1), 0, FakeLocalPlayer, FakeSpawnNpc, FakeDespawn, FakeLastError,
                                         FakeHealth, FakeState };
     CHECK(sco::host::ProvideGameService(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_1, &kFake) == Result::Ok);
     Write("gaplay", R"(
@@ -125,6 +125,14 @@ end }
     r = Invoke(g_caller, "gaplay.hp");
     CHECK(r.r == SCO_OK && r.text == "50.5 0.0 / not_found local_player: you're not spawned yet");
     if (r.text != "50.5 0.0 / not_found local_player: you're not spawned yet") std::printf("  gaplay.hp -> %s\n", r.text.c_str());
+    kFake.size = offsetof(sc_actors_v1, health) + 1;
+    r = Invoke(g_caller, "gaplay.hp");
+    CHECK(r.r == SCO_OK && r.text == "unavailable: local_player: you're not spawned yet");
+    kFake.size = sizeof(kFake);
+    kFake.health = nullptr;
+    r = Invoke(g_caller, "gaplay.hp");
+    CHECK(r.r == SCO_OK && r.text == "unavailable: local_player: you're not spawned yet");
+    kFake.health = FakeHealth;
     CHECK(ReloadScript(l));   // reopens the read-only adapter with a new Lua state
     CHECK(Invoke(g_caller, "gaplay.ids").text == "11 -9223372036854775786");
     CHECK(Invoke(g_caller, "gaplay.hp").text == "50.5 0.0 / not_found local_player: you're not spawned yet");
@@ -243,7 +251,7 @@ end }
 }
 
 static void TestGameEntities() {
-    static const sc_entities_v1 kFake = { sizeof(sc_entities_v1), 0, FakeEntAlive, FakeEntClassOf, FakeEntGet, FakeEntSet,
+    static sc_entities_v1 kFake = { sizeof(sc_entities_v1), 0, FakeEntAlive, FakeEntClassOf, FakeEntGet, FakeEntSet,
                                           FakeEntSpawn, FakeEntDespawn, FakeEntWatch, FakeEntUnwatch, FakeEntQuery, FakeEntLastError,
                                           nullptr /* keep: Lua is read-only */ };
     CHECK(sco::host::ProvideGameService(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, &kFake) == Result::Ok);
@@ -251,6 +259,10 @@ static void TestGameEntities() {
 local e = assert(sco.game and sco.game.entities, "sco.game.entities")
 assert(e.spawn == nil and e.despawn == nil and e.set_transform == nil and e.watch == nil and e.unwatch == nil
        and e.query_radius == nil and e.last_error == nil, "read-only")
+sco.register_command{ name = "gaent.partial", fn = function()
+  local x, err = e.get_transform(5)
+  return tostring(x) .. ":" .. tostring(err)
+end }
 sco.register_command{ name = "gaent.ask", title = "Ask", fn = function()
   local t = { tostring(e.alive(5)), tostring(e.alive(6)) }
   t[#t + 1] = e.class_of(5)
@@ -268,6 +280,16 @@ end }
     const char* want = "true false AEGS_Avenger_Titan 1,2,3,1,-9223372036854775799 nil:not_found:class_of: 6 isn't streamed in";
     CHECK(r.r == SCO_OK && r.text == want);
     if (r.text != want) std::printf("  gaent.ask -> %s\n", r.text.c_str());
+    kFake.size = offsetof(sc_entities_v1, get_transform) + 1;
+    const Reply partial = Invoke(g_caller, "gaent.partial");
+    CHECK(partial.r == SCO_OK && partial.text == "nil:unavailable");
+    kFake.size = sizeof(kFake);
+    kFake.get_transform = nullptr;
+    kFake.last_error = nullptr;
+    const Reply nullMethod = Invoke(g_caller, "gaent.partial");
+    CHECK(nullMethod.r == SCO_OK && nullMethod.text == "nil:unavailable");
+    kFake.get_transform = FakeEntGet;
+    kFake.last_error = FakeEntLastError;
     Unload(l);
     CHECK(sco::host::WithdrawGameService(SC_ENTITIES_NAME) == Result::Ok);
 }

@@ -61,6 +61,8 @@ namespace Sco.Sdk.Game
         public ScoResult Open(Plugin plugin)
         {
             ArgumentNullException.ThrowIfNull(plugin);
+            _t = null;
+            _plugin = null;
             ScoResult r = plugin.Query(GameAbi.ActorsName, GameAbi.ActorsVersion1_0, out ServiceRef<ScActorsV1> s);
             if (r != ScoResult.Ok) return r;
             if (!s.Covers(32)) return ScoResult.Unavailable;   // last_error, the last 1.0 function
@@ -70,12 +72,13 @@ namespace Sco.Sdk.Game
         }
 
         private void* Self => _plugin == null ? null : _plugin.SelfPtr;
+        private bool Covers(uint offset) => new ServiceRef<ScActorsV1>(_t).Covers(offset);
 
         /// <summary>Your actor id and entity id (0 on failure). NotFound: you haven't spawned yet.</summary>
         public ScoResult LocalPlayer(out ulong actorId, out ulong entityId)
         {
             ulong a = 0, e = 0;
-            ScoResult r = _t == null ? ScoResult.Unavailable : _t->local_player(&a, &e);
+            ScoResult r = !Covers(8) || _t->local_player == null ? ScoResult.Unavailable : _t->local_player(&a, &e);
             actorId = a;
             entityId = e;
             return r;
@@ -88,7 +91,7 @@ namespace Sco.Sdk.Game
             ArgumentNullException.ThrowIfNull(archetypeClass);
             id = 0;
             if (pos.Length != 3) return ScoResult.BadArg;
-            if (_t == null) return ScoResult.Unavailable;
+            if (!Covers(16) || _t->spawn_npc == null) return ScoResult.Unavailable;
             ulong n = 0;
             ScoResult r;
             fixed (byte* c = Utf8.Z(archetypeClass))
@@ -99,14 +102,14 @@ namespace Sco.Sdk.Game
         }
 
         /// <summary>Removes an NPC this plugin spawned; it leaves the world within a few seconds.</summary>
-        public ScoResult Despawn(ulong id) => _t == null ? ScoResult.Unavailable : _t->despawn(Self, id);
+        public ScoResult Despawn(ulong id) => !Covers(24) || _t->despawn == null ? ScoResult.Unavailable : _t->despawn(Self, id);
 
         /// <summary>1.1: the HealthPool of the actor with entity id (yours, or an NPC's). max is 0: the
         /// maximum isn't read yet. Unavailable on a 1.0 table or when game.actors.health isn't ready.</summary>
         public ScoResult Health(ulong id, out float cur, out float max)
         {
             float c = 0, m = 0;
-            ScoResult r = _t == null || !new ServiceRef<ScActorsV1>(_t).Covers(40) ? ScoResult.Unavailable : _t->health(id, &c, &m);
+            ScoResult r = !Covers(40) || _t->health == null ? ScoResult.Unavailable : _t->health(id, &c, &m);
             cur = c;
             max = m;
             return r;
@@ -116,7 +119,7 @@ namespace Sco.Sdk.Game
         public ScoResult State(ulong id, out ScActorState state)
         {
             uint s = 0;
-            ScoResult r = _t == null || !new ServiceRef<ScActorsV1>(_t).Covers(48) ? ScoResult.Unavailable : _t->state(id, &s);
+            ScoResult r = !Covers(48) || _t->state == null ? ScoResult.Unavailable : _t->state(id, &s);
             state = r == ScoResult.Ok ? (ScActorState)s : ScActorState.Alive;
             return r;
         }
@@ -129,7 +132,7 @@ namespace Sco.Sdk.Game
 
         private string Error(nint who)
         {
-            if (_t == null) return "";
+            if (!Covers(32) || _t->last_error == null) return "";
             nint t = (nint)_t;
             return Storage.Sized((buf, size) => ((ScActorsV1*)t)->last_error((void*)who, buf, size), out byte[] b) == ScoResult.Ok
                 ? Utf8.FromBytes(b) : "";

@@ -232,6 +232,12 @@ SDKT=("$ROOT/tests/test_sdk.cpp" "${HOST[@]:1}")
 "$OUT/test_sdk"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "${SDKT[@]}" -o "$OUT/test_sdk_tsan"
 "$OUT/test_sdk_tsan"
+# Direct C workflow recipes and C++ actor/entity complete-pointer and null-method guards.
+"$CC" -std=c11 -O1 -g -Wall -Wextra -Werror -I "$ROOT/include" -fsanitize=address,undefined \
+  "$ROOT/tests/test_language_routes.c" -o "$OUT/test_language_routes_c"
+"$OUT/test_language_routes_c"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_language_routes.cpp" -o "$OUT/test_language_routes"
+"$OUT/test_language_routes"
 # sco.storage (sco/storage.h) over vendored SQLite, built once per sanitizer set as C with its own
 # warnings off and the options of CMakeLists.txt (keep in step). test_storage spawns itself to test
 # crash safety and runs threads, so both sanitizer sets.

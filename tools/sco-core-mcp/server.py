@@ -159,13 +159,18 @@ def load_catalogue(path):
         mappings = record["language_mappings"]
         require(isinstance(mappings, dict) and set(mappings) == set(LANGUAGES), "Invalid language mappings")
         for mapping in mappings.values():
-            require(isinstance(mapping, dict) and set(mapping) == {"status", "evidence"}
+            require(isinstance(mapping, dict) and set(mapping) in ({"status", "evidence"}, {"status", "evidence", "tests"})
                     and isinstance(mapping["status"], str)
                     and mapping["status"] in {"direct", "typed-wrapper", "restricted", "unsupported"}, "Invalid mapping status")
             evidence = mapping["evidence"]
             require(isinstance(evidence, list) and evidence, "Missing language evidence")
             require(all(isinstance(e, dict) and set(e) == {"path", "token"}
                         and all(nonempty(v) for v in e.values()) for e in evidence), "Invalid language evidence")
+            if "tests" in mapping:
+                tests = mapping["tests"]
+                require(isinstance(tests, list) and all(nonempty(p) and p in record["tests"] for p in tests),
+                        "Invalid language tests")
+                require(mapping["status"] == "unsupported" or tests, "Missing language tests")
     return data
 
 

@@ -203,7 +203,7 @@ def load_records(root):
 
 def language_check(root, record, language, mapping):
     symbol = record['symbol']
-    require(isinstance(mapping, dict) and set(mapping) == {'status', 'evidence'},
+    require(isinstance(mapping, dict) and set(mapping) == {'status', 'evidence', 'tests'},
             'invalid language mapping: ' + symbol)
     status = mapping['status']
     require(status in STATUSES and isinstance(mapping['evidence'], list) and mapping['evidence'],
@@ -253,6 +253,25 @@ def language_check(root, record, language, mapping):
                 'unsupported language claimed as supported: ' + symbol + ' / lua')
     require(not positive or supported_evidence,
             'unsupported language claimed as supported: ' + symbol + ' / ' + language)
+    tests = mapping['tests']
+    require(isinstance(tests, list) and all(isinstance(p, str) and p for p in tests),
+            'invalid language tests: ' + symbol + ' / ' + language)
+    require(not positive or tests, 'supported language has no test: ' + symbol + ' / ' + language)
+    for path in tests:
+        require(path in record['tests'], 'test not in record evidence: ' + symbol + ' / ' + path)
+        local_path(root, path)
+        # C ABI pins compile as both C11 and C++20; C# and Lua must name their
+        # own suites, not borrow C layout evidence for an untested adapter.
+        if language == 'c':
+            valid = path.startswith('tests/') and path.endswith('.c')
+        elif language == 'cpp':
+            valid = ((path.startswith('tests/') and path.endswith(('.c', '.cpp', '.inc')))
+                     or path == 'tools/test.sh') # independently compiles every scosdk header
+        elif language == 'csharp':
+            valid = path.startswith('sdk/csharp/Sco.Sdk.Tests/') and path.endswith('.cs')
+        else:
+            valid = path == 'tests/test_lua.cpp' or path.startswith('tests/game_contracts/lua_')
+        require(valid, 'wrong language test: ' + symbol + ' / ' + language + ' / ' + path)
 
 
 def documentation_check(root, records, inventory):

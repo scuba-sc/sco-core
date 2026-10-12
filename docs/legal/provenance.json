@@ -299,6 +299,7 @@
   },
   {
    "path": "tests/**",
+   "note": "Includes tests/test_language_routes.c and tests/test_language_routes.cpp: project-authored public-table/wrapper fixtures using only synthetic IDs, positions and provider responses; no game data or copied third-party implementation.",
    "origin": "project-authored",
    "license": "GPL-3.0-only",
    "copyright": "2026 the sco-core contributors",
