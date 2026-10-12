@@ -26,7 +26,7 @@
    "zip": "sco-sdk-core-source-{version}",
    "version_from": "sdk/VERSION",
    "layout": "source",
-   "about": "Kernel source-development archive: host/runtime, native and Lua loaders, required vendored code, CMake, tools and synthetic tests. No game implementation. Public ABI header pins remain."
+   "about": "Kernel source-development archive: host/runtime, native and Lua loaders, required vendored code, CMake, tools and synthetic tests. No game implementation, contracts, game examples or game-only test fixtures."
   }
  },
  "covers": [
@@ -208,6 +208,171 @@
  ],
  "components": [
   {
+   "id": "game.tests.game_contracts.hook_lengths.inc",
+   "source": "tests/game_contracts/hook_lengths.inc",
+   "destination": "tests/game_contracts/hook_lengths.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.core_headers.inc",
+   "source": "tests/game_contracts/core_headers.inc",
+   "destination": "tests/game_contracts/core_headers.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.core_cases.inc",
+   "source": "tests/game_contracts/core_cases.inc",
+   "destination": "tests/game_contracts/core_cases.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.core_run.inc",
+   "source": "tests/game_contracts/core_run.inc",
+   "destination": "tests/game_contracts/core_run.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.lua_datacore_headers.inc",
+   "source": "tests/game_contracts/lua_datacore_headers.inc",
+   "destination": "tests/game_contracts/lua_datacore_headers.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.lua_adapter_headers.inc",
+   "source": "tests/game_contracts/lua_adapter_headers.inc",
+   "destination": "tests/game_contracts/lua_adapter_headers.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.lua_cases.inc",
+   "source": "tests/game_contracts/lua_cases.inc",
+   "destination": "tests/game_contracts/lua_cases.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.lua_run.inc",
+   "source": "tests/game_contracts/lua_run.inc",
+   "destination": "tests/game_contracts/lua_run.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.app_adapter_headers.inc",
+   "source": "tests/game_contracts/app_adapter_headers.inc",
+   "destination": "tests/game_contracts/app_adapter_headers.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.app_service_headers.inc",
+   "source": "tests/game_contracts/app_service_headers.inc",
+   "destination": "tests/game_contracts/app_service_headers.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.app_register_signatures.inc",
+   "source": "tests/game_contracts/app_register_signatures.inc",
+   "destination": "tests/game_contracts/app_register_signatures.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.app_service_cases.inc",
+   "source": "tests/game_contracts/app_service_cases.inc",
+   "destination": "tests/game_contracts/app_service_cases.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.app_register_adapter.inc",
+   "source": "tests/game_contracts/app_register_adapter.inc",
+   "destination": "tests/game_contracts/app_register_adapter.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.sdk_includes.inc",
+   "source": "tests/game_contracts/sdk_includes.inc",
+   "destination": "tests/game_contracts/sdk_includes.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "game.tests.game_contracts.sdk_cases.inc",
+   "source": "tests/game_contracts/sdk_cases.inc",
+   "destination": "tests/game_contracts/sdk_cases.inc",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
    "id": "include.sco_api.h",
    "source": "include/sco_api.h",
    "destination": "include/sco_api.h",
@@ -260,8 +425,7 @@
    "source": "include/sco_datacore.h",
    "destination": "include/sco_datacore.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -346,8 +510,7 @@
    "source": "include/sc_spatial.h",
    "destination": "include/sc_spatial.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -358,8 +521,7 @@
    "source": "include/sc_spawn.h",
    "destination": "include/sc_spawn.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -370,8 +532,7 @@
    "source": "include/sc_actors.h",
    "destination": "include/sc_actors.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -382,8 +543,7 @@
    "source": "include/sc_vehicles.h",
    "destination": "include/sc_vehicles.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -394,8 +554,7 @@
    "source": "include/sc_creative.h",
    "destination": "include/sc_creative.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -406,8 +565,7 @@
    "source": "include/sc_world.h",
    "destination": "include/sc_world.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -418,8 +576,7 @@
    "source": "include/sc_game_events.h",
    "destination": "include/sc_game_events.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -430,8 +587,7 @@
    "source": "include/sc_entities.h",
    "destination": "include/sc_entities.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -442,8 +598,7 @@
    "source": "include/sc_game_pack.h",
    "destination": "include/sc_game_pack.h",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -496,8 +651,7 @@
    "source": "include/scosdk/datacore.hpp",
    "destination": "include/scosdk/datacore.hpp",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -616,8 +770,7 @@
    "source": "include/scosdk/game/actors.hpp",
    "destination": "include/scosdk/game/actors.hpp",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -628,8 +781,7 @@
    "source": "include/scosdk/game/creative.hpp",
    "destination": "include/scosdk/game/creative.hpp",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -640,8 +792,7 @@
    "source": "include/scosdk/game/entities.hpp",
    "destination": "include/scosdk/game/entities.hpp",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -652,8 +803,7 @@
    "source": "include/scosdk/game/events.hpp",
    "destination": "include/scosdk/game/events.hpp",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -664,8 +814,7 @@
    "source": "include/scosdk/game/vehicles.hpp",
    "destination": "include/scosdk/game/vehicles.hpp",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -676,8 +825,7 @@
    "source": "include/scosdk/game/world.hpp",
    "destination": "include/scosdk/game/world.hpp",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1236,8 +1384,7 @@
    "source": "sdk/examples/quantum_pack/CMakeLists.txt",
    "destination": "examples/quantum_pack/CMakeLists.txt",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1247,8 +1394,7 @@
    "source": "sdk/examples/quantum_pack/plugin.ini",
    "destination": "examples/quantum_pack/plugin.ini",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1258,8 +1404,7 @@
    "source": "sdk/examples/quantum_pack/datacore/eos.toml",
    "destination": "examples/quantum_pack/datacore/eos.toml",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1270,8 +1415,7 @@
    "source": "sdk/examples/travel_pack/CMakeLists.txt",
    "destination": "examples/travel_pack/CMakeLists.txt",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1281,8 +1425,7 @@
    "source": "sdk/examples/travel_pack/plugin.ini",
    "destination": "examples/travel_pack/plugin.ini",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1292,8 +1435,7 @@
    "source": "sdk/examples/travel_pack/lists/locations.txt",
    "destination": "examples/travel_pack/lists/locations.txt",
    "profiles": [
-    "game-sc",
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1477,11 +1619,11 @@
    "source": "docs/contracts.md",
    "destination": "docs/contracts.md",
    "profiles": [
-    "core",
-    "core-source"
+    "core"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.CMakeLists.txt",
@@ -2868,70 +3010,77 @@
    "source": "tests/abi_datacore.c",
    "destination": "tests/abi_datacore.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_game_actors.c",
    "source": "tests/abi_game_actors.c",
    "destination": "tests/abi_game_actors.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_game_creative.c",
    "source": "tests/abi_game_creative.c",
    "destination": "tests/abi_game_creative.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_game_entities.c",
    "source": "tests/abi_game_entities.c",
    "destination": "tests/abi_game_entities.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_game_events.c",
    "source": "tests/abi_game_events.c",
    "destination": "tests/abi_game_events.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_game_vehicles.c",
    "source": "tests/abi_game_vehicles.c",
    "destination": "tests/abi_game_vehicles.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_game_world.c",
    "source": "tests/abi_game_world.c",
    "destination": "tests/abi_game_world.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_ipc.c",
@@ -2978,20 +3127,22 @@
    "source": "tests/abi_spatial.c",
    "destination": "tests/abi_spatial.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_spawn.c",
    "source": "tests/abi_spawn.c",
    "destination": "tests/abi_spawn.c",
    "profiles": [
-    "core-source"
+    "game-sc"
    ],
    "origin": "project-authored",
-   "license": "GPL-3.0-only"
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "source.tests.abi_storage.c",

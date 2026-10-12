@@ -41,7 +41,9 @@ NearAllocator       g_nearAllocator = nullptr;   // SetNearAllocatorForTesting; 
 thread_local uint32_t g_osError = 0;
 
 constexpr int64_t kReach = 0x7FFF0000;   // keep every byte of a cave inside rel32 range
+#if SCO_HOOK_X64
 constexpr size_t  kAbsJump = 14;         // FF 25 00000000 <addr64>
+#endif
 
 bool InReach(const uint8_t* a, const uint8_t* lo, const uint8_t* hi) {
     const int64_t d1 = reinterpret_cast<int64_t>(lo) - reinterpret_cast<int64_t>(a);
@@ -106,6 +108,7 @@ uint8_t* CarveNear(const void* anchorPtr, size_t n) {   // g_lock held
     return p;
 }
 
+#if SCO_HOOK_X64
 // n bytes of executable memory anywhere (the far path's trampoline jumps back absolutely).
 uint8_t* CarveAny(size_t n) {   // g_lock held
     if (!n || n > kCaveBytes) return nullptr;
@@ -121,6 +124,7 @@ uint8_t* CarveAny(size_t n) {   // g_lock held
     g_caves.push_back({ p, p + need, p + kCaveBytes });
     return p;
 }
+#endif
 
 Detour* Find(const void* target) {   // g_lock held
     for (Detour& d : g_detours)
@@ -128,11 +132,13 @@ Detour* Find(const void* target) {   // g_lock held
     return nullptr;
 }
 
+#if SCO_HOOK_X64
 void PutAbsJump(uint8_t* at, const void* to) {   // FF 25 00000000 <addr64>: jmp [rip+0]
     at[0] = 0xFF; at[1] = 0x25;
     std::memset(at + 2, 0, 4);
     std::memcpy(at + 6, &to, 8);
 }
+#endif
 
 // ---- instruction lengths ------------------------------------------------------------------
 

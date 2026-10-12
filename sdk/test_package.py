@@ -284,6 +284,54 @@ class RealManifest(unittest.TestCase):
         with unittest.mock.patch.object(pkg, "game_pack", side_effect=AssertionError("game version read")):
             self.assertIn("-DSCO_GAME_SC=OFF", pkg.versions_txt("core-source", "1.2.0"))
 
+    def test_core_source_has_no_game_contracts(self):
+        game = {c["source"] for c in self.m["components"]
+                if c.get("group") == "game-contract" or
+                ("game-sc" in c["profiles"] and c["source"] != "LICENSE")}
+        # Profile membership classifies game files; no filename-pattern allowlist.
+        selected = {c["source"] for c in pkg.select(self.m, "core-source")}
+        self.assertFalse(selected & game, sorted(selected & game))
+        for path in ("tests/abi_datacore.c", "tests/abi_game_actors.c",
+                     "tests/abi_spatial.c", "tests/abi_spawn.c"):
+            self.assertIn(path, game)
+        with zipfile.ZipFile(pkg.build(self.m, "core-source", self.tmp)) as z:
+            files = {n.split("/", 1)[1] for n in z.namelist()}
+            self.assertFalse(files & game, sorted(files & game))
+
+    def test_core_source_builds_from_extracted_root(self):
+        """CI and local runs exercise every neutral CTest, with no checkout include paths."""
+        with tempfile.TemporaryDirectory(prefix="core-source-") as tmp:
+            archive = pkg.build(self.m, "core-source", os.path.join(tmp, "dist"))
+            with zipfile.ZipFile(archive) as z:
+                z.extractall(os.path.join(tmp, "empty"))
+                root = Path(tmp, "empty", z.namelist()[0].split("/", 1)[0])
+            game = {c["source"] for c in self.m["components"]
+                    if c.get("group") == "game-contract" or
+                    ("game-sc" in c["profiles"] and c["source"] != "LICENSE")}
+            self.assertFalse(any((root / path).exists() for path in game))
+            env = os.environ.copy()
+            for key in ("CPATH", "CPLUS_INCLUDE_PATH", "C_INCLUDE_PATH", "LIBRARY_PATH",
+                        "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "CMAKE_PREFIX_PATH"):
+                env.pop(key, None)
+            self.assertFalse((root / ".git").exists())
+            build = os.path.join(tmp, "build")
+            for command in (["cmake", "-S", str(root), "-B", build, "-DSCO_GAME_SC=OFF",
+                             "-DSCO_BUILD_TESTS=ON", "-DCMAKE_BUILD_TYPE=Debug",
+                             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
+                            ["cmake", "--build", build, "--config", "Debug", "--parallel", "4"],
+                            ["ctest", "--test-dir", build, "-C", "Debug", "--output-on-failure"]):
+                result = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            print(result.stdout)
+            commands = Path(build, "compile_commands.json")
+            if commands.exists():  # Make/Ninja; Visual Studio does not export this file.
+                self.assertNotIn(pkg.ROOT, commands.read_text())
+            refusal = subprocess.run(["cmake", "-S", str(root), "-B", os.path.join(tmp, "game"),
+                                      "-DSCO_GAME_SC=ON"], cwd=root, env=env,
+                                     capture_output=True, text=True)
+            self.assertNotEqual(refusal.returncode, 0)
+            self.assertIn("Configure with -DSCO_GAME_SC=OFF", refusal.stdout + refusal.stderr)
+
     def test_contract_catalogue_inventory(self):
         methods = set()
         for header in sorted(Path(pkg.ROOT, "include").glob("*.h")):
@@ -303,6 +351,18 @@ class RealManifest(unittest.TestCase):
                 facets = cells.rstrip().rstrip("|").split("|")
                 self.assertEqual(len(facets), 6, name)
                 self.assertTrue(all(cell.strip() for cell in facets), name)
+
+    def test_external_example_headers_are_shipped(self):
+        for profile in self.m["profiles"]:
+            for component in pkg.select(self.m, profile):
+                if component["source"].startswith(("sdk/examples/", "sdk/template/")) and \
+                        component["source"].endswith((".c", ".cpp", ".h", ".hpp")):
+                    text = Path(pkg.ROOT, component["source"]).read_text()
+                    pkg.check_example_headers(self.m, profile, text, component["source"])
+
+    def test_unshipped_nested_public_header_is_refused(self):
+        with self.assertRaisesRegex(pkg.ManifestError, "scosdk/nested/unshipped.hpp"):
+            pkg.check_example_headers(self.m, "core", '#include "scosdk/nested/unshipped.hpp"', "external.cpp")
 
     def test_public_headers(self):
         core = pkg.public_headers(self.m, ["core"])
@@ -346,6 +406,19 @@ class Refused(unittest.TestCase):
                                 "origin": "project-authored", "license": "GPL-3.0-only"})
         with self.assertRaisesRegex(pkg.ManifestError, "game implementation"):
             pkg.select(m, "core-source")
+
+    def test_source_refuses_game_contract_membership(self):
+        for source in ("include/sc_actors.h", "tests/abi_game_actors.c"):
+            m = copy.deepcopy(self.good)
+            self.comp(m, source)["profiles"].append("core-source")
+            with self.assertRaisesRegex(pkg.ManifestError, "contracts"):
+                pkg.select(m, "core-source")
+
+    def test_public_header_source_does_not_prove_destination(self):
+        m = copy.deepcopy(self.good)
+        self.comp(m, "include/scosdk/scosdk.hpp")["destination"] = "include/scosdk/renamed.hpp"
+        with self.assertRaisesRegex(pkg.ManifestError, "unshipped public header"):
+            pkg.check_example_headers(m, "core", '#include "scosdk/scosdk.hpp"', "external.cpp")
 
     def test_unknown_layout(self):
         self.refused(lambda m: m["profiles"]["core-source"].update(layout="unknown"), "unknown layout")

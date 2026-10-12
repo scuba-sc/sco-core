@@ -224,9 +224,11 @@ def select(m, profile):
     if profile == "core-source":
         forbidden = ("src/game/", "src/datacore/", "include/sco/game/", "include/sco/datacore",
                      "plugins/lua/sco_lua_game.", "third_party/tomlplusplus/")
-        game = [c["source"] for c in chosen if c["source"].startswith(forbidden)]
+        game = [c["source"] for c in chosen
+                if c["source"].startswith(forbidden) or c.get("group") == "game-contract" or
+                ("game-sc" in c["profiles"] and c["source"] != "LICENSE")]
         if game:
-            raise ManifestError("core-source would hold game implementation: " + ", ".join(game))
+            raise ManifestError("core-source would hold game implementation or contracts: " + ", ".join(game))
     seen = {}
     for c in chosen:
         dst = destination(m, profile, c)
@@ -239,6 +241,29 @@ def select(m, profile):
 def public_headers(m, profiles):
     """Destinations of the public headers (public_header: true) in any of the given profiles."""
     return sorted({c["destination"] for c in m["components"] if c.get("public_header") and set(profiles) & set(c["profiles"])})
+
+
+def check_example_headers(m, profile, text, source):
+    """Resolve each SDK include to an exact public-header file in this profile/overlay.
+
+    A shipped directory is not evidence that an arbitrary nested header ships.
+    Quoted local headers must also be individual selected components.
+    """
+    reached = closure(m, profile)
+    components = [c for c in m["components"] if reached & set(c["profiles"])]
+    shipped = {destination(m, profile, c) for c in components}
+    public = {destination(m, profile, c) for c in components if c.get("public_header")}
+    example = next((destination(m, profile, c) for c in components if c["source"] == source), source)
+    for delimiter, header in re.findall(r'^[ \t]*#[ \t]*include\s*([<"])([^>"]+)[>"]', text, re.M):
+        candidates = {"include/" + header, "third_party/imgui/" + header,
+                      "sdk/third_party/imgui/" + header}
+        if candidates & public:
+            continue
+        local = os.path.normpath(os.path.join(os.path.dirname(example), header)).replace(os.sep, "/")
+        if delimiter == '"' and local in shipped:
+            continue
+        if delimiter == '"' or header.startswith(("scosdk/", "sco_", "sc_", "sco/")) or header == "imgui.h":
+            raise ManifestError(f"{profile}: {source} includes unshipped public header {header}")
 
 
 def define(text, name, pattern, where):
@@ -284,7 +309,7 @@ def versions_txt(profile, version):
     abi = abi_version()
     if profile == "core-source":
         return (f"sco SDK core source {version}\n\nplugin ABI (sco_api.h): {abi}\n"
-                "Configure with -DSCO_GAME_SC=OFF. Game implementation is not included.\n"
+                "Configure with -DSCO_GAME_SC=OFF. Game implementation and contracts are not included.\n"
                 "The frozen release header is hash-checked by tools/abi_snapshot.py.\n")
     if profile == "core":
         return (f"sco SDK core {version}\n\nkernel (sdk/VERSION, tag sdk-v{version}): {version}\n"
@@ -491,6 +516,8 @@ def archive_entries(m, profile):
             s, d = os.path.dirname(s), os.path.dirname(d)
     entries = {}
     for c in chosen:
+        if c["source"].startswith(("sdk/examples/", "sdk/template/")) and c["source"].endswith((".c", ".cpp", ".h", ".hpp")):
+            check_example_headers(m, profile, read(c["source"]), c["source"])
         full = os.path.join(ROOT, c["source"])
         with open(full, "rb") as f:
             dst = destination(m, profile, c)

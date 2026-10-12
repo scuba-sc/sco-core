@@ -187,15 +187,34 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-// The published snapshot. Readers take the current table without a lock; Publish swaps it
-// atomically, and handles keep the table (and file) they opened with.
+// The published snapshot. Readers need no caller-held lock; Publish swaps it atomically,
+// and handles keep the table (and file) they opened with.
 class MountTable {
 public:
+    MountTable() = default;
+    MountTable(const MountTable&) = delete;
+    MountTable& operator=(const MountTable&) = delete;
+
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
     std::shared_ptr<const Table> Current() const noexcept { return cur_.load(std::memory_order_acquire); }
     void Publish(std::shared_ptr<const Table> table) noexcept { cur_.store(std::move(table), std::memory_order_release); }
+#else
+    // C++20 libraries without the atomic<shared_ptr> specialization still provide these
+    // atomic shared_ptr operations. Never access cur_ non-atomically after construction.
+    std::shared_ptr<const Table> Current() const noexcept {
+        return std::atomic_load_explicit(&cur_, std::memory_order_acquire);
+    }
+    void Publish(std::shared_ptr<const Table> table) noexcept {
+        std::atomic_store_explicit(&cur_, std::move(table), std::memory_order_release);
+    }
+#endif
 
 private:
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
     std::atomic<std::shared_ptr<const Table>> cur_;
+#else
+    std::shared_ptr<const Table> cur_;
+#endif
 };
 
 }  // namespace sco::vfs

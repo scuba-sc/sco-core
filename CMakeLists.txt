@@ -24,6 +24,9 @@ option(SCO_WERROR "Treat warnings in sco-core's own code as errors" ON)
 # alone, with SCO_KERNEL_ONLY defined; CI's kernel-only job does, so nothing in the kernel can
 # depend on the game pack without that job failing.
 option(SCO_GAME_SC "Build the Star Citizen game pack (signature rows, CryPak adapter, DataCore)" ON)
+if(SCO_GAME_SC AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/game")
+  message(FATAL_ERROR "This source kit omits the game pack. Configure with -DSCO_GAME_SC=OFF.")
+endif()
 if(NOT SCO_GAME_SC)
   add_compile_definitions(SCO_KERNEL_ONLY=1)
 endif()
@@ -432,8 +435,8 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_settings
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_settings_targets})
 
-  # The game.vehicles table pin (tests/abi_game_vehicles.c), the same three ways. Header only, so the
-  # kernel-only build checks it too.
+  if(SCO_GAME_SC)
+  # The game.vehicles table pin (tests/abi_game_vehicles.c), the same three ways. Game-pack only.
   set(_abi_vehicles_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_vehicles.cpp")
   file(CONFIGURE OUTPUT "${_abi_vehicles_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_vehicles.c\"\n")
@@ -455,8 +458,7 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_game_vehicles
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_vehicles_targets})
 
-  # The game.entities table pin (tests/abi_game_entities.c, sc_entities.h), the same three ways. Header
-  # only, so the kernel-only build checks it too.
+  # The game.entities table pin (tests/abi_game_entities.c, sc_entities.h), the same three ways. Game-pack only.
   set(_abi_ge_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_entities.cpp")
   file(CONFIGURE OUTPUT "${_abi_ge_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_entities.c\"\n")
@@ -478,8 +480,7 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_game_entities
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ge_targets})
 
-  # The game.creative table pin (tests/abi_game_creative.c, sc_creative.h), the same three ways. Header
-  # only, so the kernel-only build checks it too.
+  # The game.creative table pin (tests/abi_game_creative.c, sc_creative.h), the same three ways. Game-pack only.
   set(_abi_gc_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_creative.cpp")
   file(CONFIGURE OUTPUT "${_abi_gc_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_creative.c\"\n")
@@ -500,6 +501,8 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_game_creative
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_gc_targets})
+
+  endif()
 
   # The sco.ui table pin (tests/abi_ui.c), the same three ways.
   set(_abi_ui_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_ui.cpp")
@@ -523,6 +526,7 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_ui
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ui_targets})
 
+  if(SCO_GAME_SC)
   # The sco.datacore table pin (tests/abi_datacore.c), the same three ways.
   set(_abi_datacore_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_datacore.cpp")
   file(CONFIGURE OUTPUT "${_abi_datacore_cxx}"
@@ -544,6 +548,8 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_datacore
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_datacore_targets})
+
+  endif()
 
   # The sco.ipc table pin (tests/abi_ipc.c, which also compiles the static_asserts of sc_ipc.h), the
   # same three ways.
@@ -615,7 +621,11 @@ if(SCO_BUILD_TESTS)
   # The MIT bridge layouts (tests/abi_titanlink.c, tests/abi_voxel_bridge.c: sc_titanlink.h and
   # sc_voxel_bridge.h, every size, offset and constant), and the game pack's game.world table and
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
-  foreach(_b IN ITEMS titanlink voxel_bridge game_world game_events)
+  set(_abi_bridge_pins titanlink voxel_bridge)
+  if(SCO_GAME_SC)
+    list(APPEND _abi_bridge_pins game_world game_events)
+  endif()
+  foreach(_b IN LISTS _abi_bridge_pins)
     set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")
     file(CONFIGURE OUTPUT "${_abi_b_cxx}"
          CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_${_b}.c\"\n")
@@ -637,6 +647,7 @@ if(SCO_BUILD_TESTS)
     add_test(NAME abi_${_b}
              COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_b_targets})
   endforeach()
+  if(SCO_GAME_SC)
   # The game.actors table pin (tests/abi_game_actors.c, sc_actors.h), the same three ways.
   set(_abi_ga_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actors.cpp")
   file(CONFIGURE OUTPUT "${_abi_ga_cxx}"
@@ -658,6 +669,8 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_game_actors
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ga_targets})
+
+  endif()
 
   add_executable(test_core tests/test_core.cpp)
   target_link_libraries(test_core PRIVATE sco_core)

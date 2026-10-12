@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Strict neutral source SDK and macOS ARM64 development builds:** the `core-source` archive excludes game ABI headers, layout pins, examples and game-only test fragments, while retaining generic scanner/hook/host coverage. Packaging tests build and run every neutral CTest from an empty extraction and resolve external example includes to exact shipped public headers. VFS snapshots work on C++20 libraries without atomic shared-pointer specialization; ARM64 detours remain explicitly unsupported. The plugin ABI is unchanged.
+
 - **Release promotion refusal coverage:** candidate, mandatory-check and draft round-trip logic now lives in testable stdlib tooling; signed negative tests cover the release refusal matrix and reject checkout-local signer policies.
 - **Machine-readable SDK contracts:** `sdk/contracts/` records all 117 table methods and three native entrypoints, with compiler-validated signatures/extents, language evidence and explicit unspecified semantics; `tools/sdk_catalogue.py` builds a deterministic versioned JSON catalogue, and CI rejects inventory, documentation and support-claim drift.
 
