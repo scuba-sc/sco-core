@@ -4,6 +4,14 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G4 (#125) owned prefab spawning:** independent `game.prefabs` 1.0 validates
+  canonical content-relative paths and bounded owned quotas, ports the existing
+  object-container attribute writer, and records pending prefab ownership in the
+  existing entities ledger for move/despawn/retained undo and ordinary unload.
+  C/C++ routes and synthetic/ABI/catalogue/package evidence; new capability stays
+  OFF pending streamed Windows spawn/removal acceptance. Frozen ABI unchanged;
+  no arbitrary delete, content exports or private product fallback. Not run in game.
+
 - **G5 (#126): `game.world.control` 1.0** adds owner-validated bounded filtered
   rays and exclusive reversible free-camera leases, with native C/C++ routes,
   synthetic restoration/ownership/fault fixtures and ABI/catalogue/package pins.

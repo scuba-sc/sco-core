@@ -75,8 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **123 table methods across 16 tables,
-plus 3 plugin entrypoints: 126 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **130 table methods across 18 tables,
+plus 3 plugin entrypoints: 133 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -191,6 +191,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_world_v1` | 3 | 32 | 1.0 |
 | `sc_world_control_v1` | 4 | 40 | 1.0 |
 | `sc_entities_v1` | 11 | 96 | 1.1 |
+| `sc_prefabs_v1` | 1 | 16 | 1.0 |
 | `sc_owned_v1` | 6 | 56 | 1.0 |
 | Native plugin entrypoints | 3 | `sco_plugin_info`: 32 | API 1.1 |
 
@@ -577,6 +578,20 @@ Failure-output guarantees differ per method; do not assume all outputs unchanged
 | `sc_entities_v1.query_radius` | `size >= 80`; 1.0 | `sco_result (*query_radius)(uint64_t zone_id, const double pos[3], double radius, const char* class_filter, uint64_t* out_ids, uint32_t max, uint32_t* out_count, uint32_t* out_more);`<br>Ids of streamed-in entities within radius metres of pos in zone zone_id's frame, whose class matches class_filter (a class name or a "PREFIX*"; NULL or "" = any class). Up to max ids are written to out_ids (max 0 counts only); *out_count = how many were written and *out_more = how many matched but didn't fit. SCO_BAD_ARG: a null pos, out_count or out_more, a null out_ids with max &gt; 0, zone 0, a radius that isn't finite and positive, a filter that isn't a class name or prefix. SCO_NOT_FOUND: the zone isn't streamed in. SCO_FAILED: the walk faulted or saw more than 65536 entities. SCO_UNAVAILABLE: no "game.entities.query_radius" on this game build, or while its in-game check is pending (docs/game-services.md). Read-only: last_error(NULL, ...). | Caller buffers; no allocation crosses boundary. Host owns entity/watch tracking; IDs are session values. Internal allocation unspecified. | Game thread only (WRONG_THREAD elsewhere, alive returns 0); last_error any thread. Recursive reentrancy unspecified except unwatch in callback. | Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract. | No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 | `sc_entities_v1.last_error` | `size >= 88`; 1.0 | `sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The reason for self's last failed call ("" if none), NUL-terminated, with the size handshake (*inout_size: capacity in; bytes written, or needed with SCO_TOO_MANY, out). self NULL: the last failure of a call made without a plugin handle (alive's neighbours: class_of, get_transform, query_radius). Any thread. | Caller buffers; no allocation crosses boundary. Host owns entity/watch tracking; IDs are session values. Internal allocation unspecified. | Any thread; diagnostic scope as described; recursive reentrancy unspecified. | BAD_ARG invalid/released non-NULL self or buffer; TOO_MANY required bytes. NULL self selects no-self failures; stopped-service refusal unspecified (no started check). | No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 | `sc_entities_v1.keep` | `size >= 96`; 1.1 | `sco_result (*keep)(sco_plugin* self, uint64_t entity_id);`<br>1.1. Releases your ownership of an entity you spawned here (see Keeping above): the host no longer despawns it when your plugin unloads or crashes, and set_transform and despawn by you are refused from now on, as for any entity you don't own. The entity itself is untouched. SCO_OK, once. SCO_BAD_ARG: a null or released self, id 0. SCO_NOT_FOUND: not an entity you spawned here and still own (kept or despawned already, or spawned another way), with a reason for last_error. SCO_UNAVAILABLE: no "game.entities.spawn". Call it right after spawn succeeds: the id is final at once, the entity needn't have streamed in. SCO_FAILED: a game.owned retained build cannot relinquish ownership; use remove_build for undo/clear and ordinary unload cleanup. | Relinquishes own game.entities spawn; no allocation transfer. Entity survives unload/crash, no longer counts against ownership quota; no longer movable/despawnable by this ownership. | Game thread only (WRONG_THREAD elsewhere, alive returns 0); last_error any thread. Recursive reentrancy unspecified except unwatch in callback. | Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract. | For unretained legacy keep only: entity untouched and survives unload; no SDK undo/removal authority. Retained builds refuse keep and use game.owned removal/unload instead. |
+
+## game.prefabs: `sc_prefabs_v1`
+
+Independent table over the existing entity spawner, mover and delayed despawn.
+Prefab IDs are in the game.entities ledger, including not-yet-streamed spawns;
+retain_build preserves undo while loaded, not across reload. No keep-based undo.
+Canonical content-relative paths do not authorize external files or content
+exports. Native adapter ports existing spawn.prefabs rows and ocFilename writer;
+production operation remains OFF pending owner-run streamed cleanup acceptance.
+C/C++ supported; C# and read-only Lua unsupported. [Design](design/prefabs.md).
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_prefabs_v1.spawn` | `size >= 16`; 1.0 | `sco_result (*spawn)(sco_plugin* self, const char* content_path, uint64_t zone_id, const double pos[3], const double rot_xyzw[4], uint64_t* out_id);`<br>Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs remains OFF pending owner streamed spawn/unload acceptance. | Live caller owns result through existing game.entities ledger. Inputs copied for synchronous provider call, host-session table borrowed; no cross-boundary allocation. | Game thread only; WRONG_THREAD otherwise. | BAD_ARG invalid handle/path/pose/output; WRONG_THREAD; TOO_MANY quota; NOT_FOUND zone/content/class; UNAVAILABLE disabled capability or cleanup; FAILED provider refusal/fault. Output ID zero on failure. | Use existing entities despawn/set_transform and game.owned retention/removal. Ordinary owner unload removes pending/streamed owned prefab via delayed removal primitive; no materialization/removal completion promise. Known ID on provider failure remains tracked for cleanup. Fault-retained native provider follows restart-required lifetime contract. |
 
 ## game.owned: `sc_owned_v1`
 

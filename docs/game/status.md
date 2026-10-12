@@ -19,6 +19,12 @@ As of sco-core `main` at `2197dfb` (2026-10-11, with `game.actors.died`), game p
 
 ## Service tables and capabilities
 
+**Unreleased G4 addition:** `game.prefabs` 1.0 uses the existing object-container
+spawner/attribute writer and entities ownership. Capability `game.entities.prefabs`
+is OFF pending owner-run streamed spawn and pending/unload removal acceptance.
+Portable admission/ABI fixtures are synthetic; MSVC/SEH/gameplay not verified.
+
+
 **Unreleased G9 addition:** `game.owned` 1.0 ([header](../../include/sc_owned.h),
 [policy](../design/owned-removal.md)) is a game-pack composition over the existing
 entities/actors removal and seat-read capabilities below, not a new engine binding.

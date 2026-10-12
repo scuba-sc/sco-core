@@ -43,6 +43,10 @@
  ],
  "excluded": [
   {
+   "path": "tests/test_prefabs.cpp",
+   "why": "Repository-only synthetic game-pack owned prefab policy fixture; no kernel source-kit membership."
+  },
+  {
    "path": "tests/test_world_control.cpp",
    "why": "Game-pack synthetic owner/filter/camera policy fixture; repository only, not in neutral source kit."
   },
@@ -240,6 +244,39 @@
   }
  ],
  "components": [
+{
+   "id": "include.sc_prefabs.h",
+   "source": "include/sc_prefabs.h",
+   "destination": "include/sc_prefabs.h",
+   "profiles": [
+      "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+},
+{
+   "id": "include.scosdk.game.prefabs.hpp",
+   "source": "include/scosdk/game/prefabs.hpp",
+   "destination": "include/scosdk/game/prefabs.hpp",
+   "profiles": [
+      "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+},
+{
+   "id": "tests.abi_prefabs.c",
+   "source": "tests/abi_prefabs.c",
+   "destination": "tests/abi_prefabs.c",
+   "profiles": [
+      "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+},
 {
   "id": "source.include.sco.diagnostics.h",
   "source": "include/sco/diagnostics.h",

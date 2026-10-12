@@ -351,6 +351,9 @@ Services the Star Citizen game pack publishes under the reserved owner `game` (`
 | `spawn.entities` | 1.2 | [`sc_spawn.h`](../include/sc_spawn.h) | `abi_spawn.c` | the product's `spawn.ship` |
 | `game.actors` | 1.1 | [`sc_actors.h`](../include/sc_actors.h) | `abi_game_actors.c` | `game.actors.local_player`, `.spawn_npc`, `.despawn`, `.health`, `.state` (off) |
 | `game.vehicles` | 1.0 | [`sc_vehicles.h`](../include/sc_vehicles.h) | `abi_game_vehicles.c` | `game.vehicles.seats`, `.seat`, `.flight_ready` |
+| `game.prefabs` | 1.0 | [`sc_prefabs.h`](../include/sc_prefabs.h) | `abi_prefabs.c` | `game.entities.prefabs` (off) |
+| `game.world.control` | 1.0 | [`sc_world_control.h`](../include/sc_world_control.h) | `abi_world_control.c` | filtered rays/free camera (off) |
+| `game.owned` | 1.0 | [`sc_owned.h`](../include/sc_owned.h) | `abi_game_owned.c` | existing entity/actor removal and seat reads |
 | `game.world` | 1.0 | [`sc_world.h`](../include/sc_world.h) | `abi_game_world.c` | `game.world.raycast`, `.camera` |
 | `game.entities` | 1.1 | [`sc_entities.h`](../include/sc_entities.h) | `abi_game_entities.c` | `game.entities.transform`, `.spawn`, `.class_of`, `.query_radius` (off), `.watch` (off) |
 | `game.*` events | bus | [`sc_game_events.h`](../include/sc_game_events.h) | `abi_game_events.c` | `game.events.player_spawned`, `.player_died`, `.zone_changed`, `.vehicle_seat` (off) |
@@ -534,6 +537,37 @@ static void on_died(const char* event, const void* data, void* ctx) {
 }
 api->subscribe(self, SC_GAME_EVENT_PLAYER_DIED, on_died, NULL);
 ```
+
+### Owned build extensions (unreleased G4/G5/G9)
+
+Three independent size-prefixed tables leave `sco_api` 1.1 and existing table
+layouts unchanged. Native callers check complete pointer extent and non-null
+members; service publication does not establish an operation capability.
+
+* [`game.prefabs` 1.0](../include/sc_prefabs.h): one owner-attributed canonical
+  content-relative object-container spawn, 511-byte path and shared/per-owner
+  quotas, finite zone-local pose. ID is final before streaming; existing
+  game.entities move/despawn and game.owned retention apply. Pending prefab IDs
+  do not expire because alive=0. Capability `game.entities.prefabs` remains OFF
+  pending owner-run streamed/unload acceptance. [Design](design/prefabs.md).
+* [`game.world.control` 1.0](../include/sc_world_control.h): at most 32 unique
+  current own skip IDs for filtered rays; exclusive owner/token camera lease,
+  bounded world deltas and restoration on ordinary owner release/service stop.
+  Surface entity/normal remain unknown. Provider failure refuses further camera
+  mutation and requires restart. Both capabilities remain OFF: engine adapter
+  absent. [Design](design/world-control.md).
+* [`game.owned` 1.0](../include/sc_owned.h): retain own game.entities placements
+  for undo/clear while loaded; retained keep is refused, ordinary unload removes
+  them. Removal receipts mean REQUESTED, never disappearance. NPC removal uses
+  actors-owned authority; seat removal additionally verifies the expected current
+  occupant, refuses foreign/player/unknown occupants and never grants arbitrary
+  delete or RegisterPlayerVehicle. [Policy](design/owned-removal.md).
+
+C/C++ routes supported; C#/sandboxed Lua unsupported for these additions.
+Windows/MSVC/SEH, late streaming and gameplay remain unverified. Retained native
+provider faults follow restart-required host lifetime rules, not guaranteed
+camera recovery or safe unloading. Cross-reload removable placement persistence
+is NOT provided by these contracts.
 
 ### `game.entities` 1.1 (game pack)
 

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-prefabs-v1-spawn",
+      "kind": "table-method",
+      "symbol": "sc_prefabs_v1.spawn",
+      "table": "sc_prefabs_v1",
+      "service": "game.prefabs",
+      "version_macro": "SC_PREFABS_VERSION_1_0",
+      "source_header": "include/sc_prefabs.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, uint64_t, const double *, const double *, uint64_t *)",
+      "member_extent": 16,
+      "table_size": 16,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs remains OFF pending owner streamed spawn/unload acceptance.",
+      "buffer_contract": "`sco_result (*spawn)(sco_plugin* self, const char* content_path, uint64_t zone_id, const double pos[3], const double rot_xyzw[4], uint64_t* out_id);`<br>Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs remains OFF pending owner streamed spawn/unload acceptance.",
+      "ownership": "Live caller owns result through existing game.entities ledger. Inputs copied for synchronous provider call, host-session table borrowed; no cross-boundary allocation.",
+      "thread_affinity": "Game thread only; WRONG_THREAD otherwise.",
+      "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded and nonthrowing.",
+      "reentrancy": "No recursive reentry; host adapter must not call plugins.",
+      "results": "BAD_ARG invalid handle/path/pose/output; WRONG_THREAD; TOO_MANY quota; NOT_FOUND zone/content/class; UNAVAILABLE disabled capability or cleanup; FAILED provider refusal/fault. Output ID zero on failure.",
+      "absent_capability": "Absent service: query_service NOT_FOUND; present disabled operation: UNAVAILABLE.",
+      "cleanup": "Use existing entities despawn/set_transform and game.owned retention/removal. Ordinary owner unload removes pending/streamed owned prefab via delayed removal primitive; no materialization/removal completion promise. Known ID on provider failure remains tracked for cleanup. Fault-retained native provider follows restart-required lifetime contract.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_prefabs.h",
+              "token": "(*spawn)"
+            }
+          ],
+          "tests": [
+            "tests/abi_prefabs.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/prefabs.hpp",
+              "token": "table_->spawn("
+            }
+          ],
+          "tests": [
+            "tests/test_prefabs.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/prefabs.md",
+              "token": "C# and sandboxed Lua: unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/prefabs.md",
+              "token": "C# and sandboxed Lua: unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_prefabs.c",
+        "tests/test_prefabs.cpp"
+      ],
+      "limitations": [
+        "Windows engine/SEH/gameplay and streamed cleanup not verified.",
+        "Production capability OFF until owner acceptance; portable provider policy is synthetic evidence only.",
+        "No packaged content or filesystem/online path access."
+      ]
+    }
+  ]
+}

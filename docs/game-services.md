@@ -19,6 +19,17 @@ Not a table: the capability `game.mining` (the row `mining.cell`, [mining](game/
 
 `teleport.spatial` and `spawn.entities` keep their names and tables for all of 1.x: sc-offline's `teleport` and `spawn` built-ins published them before the game pack did, and a plugin can't tell the difference. New game services are named `game.<name>`.
 
+## Owned prefab extension (G4)
+
+`game.prefabs` 1.0 (`sc_prefabs.h`), native C/C++ only. The game pack publishes
+it alongside entities; query success is not capability. `game.entities.prefabs`
+remains OFF pending owner-run streamed spawn/unload cleanup acceptance.
+It uses existing entities ownership, mover and despawn, not arbitrary delete.
+Canonical content-relative paths, shared/per-owner quotas and finite poses are
+checked before engine calls. Pending ownership never expires via alive=0.
+Use game.owned retained-build policy for undo while loaded; keep gives up rights.
+See [design and Windows acceptance](design/prefabs.md). C#/Lua unsupported.
+
 ## For products
 
 ### Retained build and owned-seat removal (G9, unreleased)

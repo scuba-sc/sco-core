@@ -274,7 +274,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
-                                       src/game/services/owned.cpp)
+                                       src/game/services/owned.cpp src/game/services/prefabs.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
@@ -661,7 +661,11 @@ if(SCO_BUILD_TESTS)
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events world_control)
+    list(APPEND _abi_bridge_pins game_world game_events world_control prefabs)
+    add_executable(test_prefabs tests/test_prefabs.cpp src/game/services/prefabs.cpp)
+    target_include_directories(test_prefabs PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_prefabs)
+    add_test(NAME prefabs COMMAND test_prefabs)
     add_executable(test_world_control tests/test_world_control.cpp src/game/services/world_control.cpp)
     target_include_directories(test_world_control PRIVATE "${SCO_INCLUDE_DIR}")
     target_link_libraries(test_world_control PRIVATE sco_runtime)

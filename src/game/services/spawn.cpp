@@ -7,6 +7,7 @@
 // PoseToZone in services.h). The spawn.ship command, the menu and the spawner's tick stay in
 // the product.
 #include "spawn.h"
+#include "prefabs.h"
 #include "actors.h"
 #include "entities.h"
 #include "creative.h"
@@ -42,6 +43,10 @@ constexpr uint64_t kPtrMask = 0xFFFFFFFFFFFFull;
 // as in sc-offline.
 struct Spawner {
     bool              ok = false;
+    uintptr_t* prefabSystem = nullptr;
+    int32_t pathMgrSlot = 0, pathIdSlot = 0, attrSetSlot = 0;
+    uint32_t (__fastcall* attrTypeId)() = nullptr;
+    void* attrWriter = nullptr;
     SpawnParamsCtorFn ctor = nullptr;
     SpawnSetClassFn   setClass = nullptr;
     SpawnSetLocFn     setLocation = nullptr;
@@ -94,6 +99,15 @@ bool Resolve() {
     g_sp.setLocation  = Row<SpawnSetLocFn>("spawn.set_location");
     g_sp.ctor         = Row<SpawnParamsCtorFn>("spawn.params_ctor");
     if (RowsOk("spawn.seat_picker")) g_sp.handleToId = Row<HandleToIdFn>("spawn.handle_to_id");
+    if (kPrefabConfirmed && RowsOk("spawn.prefabs")) {
+        const uint8_t* site = Sig("spawn.prefab_site");
+        g_sp.prefabSystem = Row<uintptr_t*>("spawn.prefab_system");
+        g_sp.pathMgrSlot = Rel32(site + actors::kPrefabPathMgrSlot);
+        g_sp.pathIdSlot = Rel32(site + actors::kPrefabPathIdSlot);
+        g_sp.attrSetSlot = site[actors::kPrefabAttrSetSlot];
+        g_sp.attrWriter = Sig("spawn.prefab_attr_writer");
+        g_sp.attrTypeId = Row<uint32_t(__fastcall*)()>("spawn.prefab_attr_type_id");
+    }
     g_sp.ok = true;
     return true;
 }
@@ -176,7 +190,8 @@ const char* PlayerZonePos(const double offset[3], uint64_t& zoneId, double pos[3
     return nullptr;
 }
 
-const char* SpawnInZone(const char* entityClass, uint64_t zoneId, const double pos[3], const double* rot, uint64_t& id) {
+const char* SpawnInZone(const char* entityClass, uint64_t zoneId, const double pos[3], const double* rot, uint64_t& id,
+                        const char* contentPath = nullptr) {
     __try {
         const uintptr_t es = *g_sp.entitySystem;
         const uintptr_t cls = VCall<uintptr_t>(ClassRegistry(), actors::kRegistryFindClass, entityClass);
@@ -196,8 +211,22 @@ const char* SpawnInZone(const char* entityClass, uint64_t zoneId, const double p
         if (!batch) return "couldn't create a spawn batch";
         uintptr_t attributes[2] = {};
         VCall<void>(es, actors::kEsSpawnAttributes, attributes);
+        if (contentPath) {
+            const uintptr_t paths = g_sp.prefabSystem ? VCall<uintptr_t>(*g_sp.prefabSystem, g_sp.pathMgrSlot) : 0;
+            const uint32_t resolved = paths ? VCall<uint32_t>(paths, g_sp.pathIdSlot, contentPath) : 0;
+            if (!attributes[0] || !resolved) {
+                uintptr_t owned = batch;
+                VCall<void>(es, actors::kEsReleaseBatch, &owned);
+                return !attributes[0] ? "couldn't create spawn attributes" : "unknown prefab content path";
+            }
+            uint32_t pathId = resolved;
+            const struct { const char* name; uint32_t* value; } field = { "ocFilename", &pathId };
+            const struct { const void* field; void* writer; } setter = { &field, g_sp.attrWriter };
+            VCall<void>(attributes[0], g_sp.attrSetSlot, "ocFilename", g_sp.attrTypeId(), uintptr_t(0), &setter);
+        }
         uint64_t newId[2] = {};
         VCall<void>(batch, actors::kBatchSpawn, newId, params, attributes);
+        if (contentPath) id = newId[0]; // retain ownership even if releasing the batch faults
         uintptr_t owned = batch;
         VCall<void>(es, actors::kEsReleaseBatch, &owned);
         id = newId[0];
@@ -388,6 +417,13 @@ MoveResult MoveEntity(uint64_t id, uint64_t zoneId, const double pos[3], const d
     double localPos[3], localRot[4];
     if (!PoseToZone(zoneId, in, pos, rot, localPos, localRot)) return MoveResult::ZoneConversion;
     return MoveEntityLocal(id, localPos, localRot) ? MoveResult::Ok : MoveResult::Refused;
+}
+
+const char* SpawnPrefabEntityInZone(const char* path, uint64_t zoneId, const double pos[3],
+                                   const double rot[4], uint64_t& id) {
+    id = 0;
+    if (!Ready() || !g_sp.attrTypeId) return "prefab spawning isn't available";
+    return SpawnInZone("StreamingObjectContainer", zoneId, pos, rot, id, path);
 }
 
 bool SpawnReleaseHooked() { return g_releaseHook; }
