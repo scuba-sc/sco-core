@@ -1,6 +1,6 @@
 # Framework plan: sco-core as the heart, sc-offline on the SDK
 
-**Status: a planning record, last reconciled 2026-10-10. Phases 1 to 3 are done; Phase 4 is sc-offline's work and was in review on 2026-10-09 (its state lives in sc-offline's repository); sco-core's side of Phases 5 and 6 has landed (settings, `requires` order, hot reload, the game services); the SDK is released as `sdk-v1.1.0` and `sdk-v1.2.0` is prepared.** For what is built now, read [architecture](architecture.md), [game services](game-services.md) and [status](game/status.md). This page records where sco-core and sc-offline stand, the decisions taken so far, what the finished phases taught ([Lessons](#lessons)), and the order of work that makes sco-core the core of a framework for mods of any kind, with sc-offline as the first product built on it. Each phase lands as its own pull requests; this page changes as decisions are made.
+**Status: a planning record, last reconciled 2026-10-10. Phases 1 to 3 are done; Phase 4 is sc-offline's work and was in review on 2026-10-09 (its state lives in sc-offline's repository); sco-core's side of Phases 5 and 6 has landed (settings, `requires` order, hot reload, the game services); the SDK is released as `sdk-v1.1.0` and `sdk-v2.0.0` is prepared.** For what is built now, read [architecture](architecture.md), [game services](game-services.md) and [status](game/status.md). This page records where sco-core and sc-offline stand, the decisions taken so far, what the finished phases taught ([Lessons](#lessons)), and the order of work that makes sco-core the core of a framework for mods of any kind, with sc-offline as the first product built on it. Each phase lands as its own pull requests; this page changes as decisions are made.
 
 | Phase | State | Landed in |
 |---|---|---|
@@ -19,7 +19,7 @@ The [scope rules](../sdk/docs/plugin-rules.md) changed on 2026-10-09 (maintainer
 
 ## Where things stand
 
-**sco-core** (as of `sdk-v1.1.0`, 2026-10-09; what came after is in the CHANGELOG's `sdk-v1.2.0` section):
+**sco-core** (as of `sdk-v1.1.0`, 2026-10-09; what came after is in the CHANGELOG's `sdk-v2.0.0` section):
 
 - Plugin ABI: `sco_api.h` 1.1 (commands, events, tasks, capabilities, services, raw handlers, `SCO_FAILED`), pinned by `tests/abi_v1.c`; stable, version 1 only grows.
 - Language layers over it: C, C++20 (`include/scosdk/`), C# (`sdk/csharp/Sco.Sdk`, NativeAOT), Lua 5.4 (sco-lua, sandboxed), data packs.

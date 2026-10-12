@@ -1,17 +1,25 @@
-# sco-core SDK 1.2.0 (release notes, draft)
+# sco-core SDK 2.0.0 (release notes, draft)
 
-Tag `sdk-v1.2.0`, zip `sco-sdk-1.2.0.zip`. Prepared on 2026-10-10; **the tag is not pushed and no GitHub release exists yet.** The release workflow publishes the CHANGELOG section `## sdk-v1.2.0` as the release's notes; this page is the longer draft behind it.
+Tag `sdk-v2.0.0`, zip `sco-sdk-2.0.0.zip`. Prepared on 2026-10-12; **the tag is not pushed and no GitHub release exists yet.** The release workflow publishes the CHANGELOG section `## sdk-v2.0.0` as the release's notes; this page is the longer draft behind it.
 
 ## Versions
 
 | What | Version | Where |
 |---|---|---|
-| Kernel (the SDK) | 1.2.0 | `sdk/VERSION`, tag `sdk-v1.2.0` |
+| Kernel (the SDK) | 2.0.0 | `sdk/VERSION`, tag `sdk-v2.0.0` |
 | Plugin ABI | 1.1, unchanged | `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h` (ABI declarations/layout unchanged since sdk-v1.1.0; licensing comment revised; `tests/abi_v1.c` unchanged) |
 | Star Citizen game pack | 0.3.0 (was 0.2.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
 | Verified game build | 4.10.196.36804, PE timestamp `0x6ac64e6f` | rows verified by sigcheck; in-game verification pending |
 
 `VERSIONS.txt` in the zip states the same four lines, generated from the headers by `sdk/package.py`.
+
+## Packaging and release-process migration
+
+SDK 2.0.0 is a major packaging/profile and release-process change, not a plugin ABI bump. ABI 1.1 is unchanged. The prepared SDK 1.2.0 was never tagged or published; all of its changes ship here instead.
+
+Choose `sco-sdk-core-2.0.0.zip` for neutral plugin development, overlay `sco-sdk-game-sc-0.3.0.zip` for the Star Citizen extension, or use the combined `sco-sdk-2.0.0.zip` legacy profile. `sco-sdk-core-source-2.0.0.zip` is the independently buildable kernel source kit. Keep the extension's separate metadata when overlaying it; update tooling that assumed one combined archive. See [SDK profiles](../../sdk/README.md) and [building](../building.md).
+
+Releases now build once in `release-candidate.yml` on an exact green main commit. Publication promotes only those immutable, audited bytes after the maintainer signs a complete hash-bound approval; a green candidate is not approval and does not create a tag. See the [release checklist](../legal/release-checklist.md#releasing).
 
 ## Compatibility
 
@@ -45,14 +53,14 @@ Wrappers: C++ (`scosdk/game/`), C# (`Sco.Sdk.Game`) and read-only Lua (`sco.game
 
 ## Upgrading
 
-- **Plugin authors:** nothing to do. To use a game service, query it, check the capability (`has("game.vehicles.seats")`) and handle `SCO_UNAVAILABLE`; the Lua wrappers are read-only.
+- **Plugin authors:** no ABI migration is required; select the appropriate archive profile as described above. To use a game service, query it, check the capability (`has("game.vehicles.seats")`) and handle `SCO_UNAVAILABLE`; the Lua wrappers are read-only.
 - **Products (sc-offline):** set `Platform::gameServices` to start the game services, resolve the `teleport.*` and `spawn.*` rows first, and drop your own provider of `teleport.spatial` or `spawn.entities` (the second provider of a name is refused). Register the player's own vehicles with `sco::game::services::RegisterPlayerVehicle` so plugins may move them.
 
 ## Checking the zip
 
 ```sh
-sha256sum -c sco-sdk-1.2.0.zip.sha256
-unzip -p sco-sdk-1.2.0.zip sco-sdk-1.2.0/VERSIONS.txt
+sha256sum -c SHA256SUMS
+unzip -p sco-sdk-2.0.0.zip sco-sdk-2.0.0/VERSIONS.txt
 ```
 
 Route through the appropriate reviewer before sending.

@@ -67,4 +67,4 @@ Start with the [README](../README.md) for what sco-core is. Pick your path below
 | [Building and testing](building.md) | `tools/test.sh`, CMake and CTest, the Windows run, the SDK zip, CI |
 | [Contributing](../CONTRIBUTING.md) | What fits, how to make a change, how it reaches sc-offline, how lessons come back |
 | [Changelog](../CHANGELOG.md) | What changed |
-| [Release notes: sdk-v1.2.0](releases/sdk-v1.2.0.md) | The draft notes for the next SDK release (prepared; the tag is the maintainer's) |
+| [Release notes: sdk-v2.0.0](releases/sdk-v2.0.0.md) | The draft notes for the next SDK release (prepared; the tag is the maintainer's) |
