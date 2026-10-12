@@ -1,0 +1,1603 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposed runtime diagnostics v1 synthetic request/response vector",
+  "description": "Step 0 only; project-authored GPL-3.0-only. Not a runtime implementation. Each tool input/output is in $defs.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "tool": {
+          "type": "string",
+          "const": "runtime_get_host_info"
+        },
+        "opcode": {
+          "type": "integer",
+          "const": 256
+        },
+        "request": {
+          "$ref": "#/$defs/runtime_get_host_info_input"
+        },
+        "response": {
+          "$ref": "#/$defs/runtime_get_host_info_output"
+        }
+      },
+      "required": [
+        "schema_version",
+        "tool",
+        "opcode",
+        "request",
+        "response"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "tool": {
+          "type": "string",
+          "const": "runtime_list_plugins"
+        },
+        "opcode": {
+          "type": "integer",
+          "const": 257
+        },
+        "request": {
+          "$ref": "#/$defs/runtime_list_plugins_input"
+        },
+        "response": {
+          "$ref": "#/$defs/runtime_list_plugins_output"
+        }
+      },
+      "required": [
+        "schema_version",
+        "tool",
+        "opcode",
+        "request",
+        "response"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "tool": {
+          "type": "string",
+          "const": "runtime_tail_plugin_log"
+        },
+        "opcode": {
+          "type": "integer",
+          "const": 258
+        },
+        "request": {
+          "$ref": "#/$defs/runtime_tail_plugin_log_input"
+        },
+        "response": {
+          "$ref": "#/$defs/runtime_tail_plugin_log_output"
+        }
+      },
+      "required": [
+        "schema_version",
+        "tool",
+        "opcode",
+        "request",
+        "response"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "tool": {
+          "type": "string",
+          "const": "runtime_list_service_status"
+        },
+        "opcode": {
+          "type": "integer",
+          "const": 259
+        },
+        "request": {
+          "$ref": "#/$defs/runtime_list_service_status_input"
+        },
+        "response": {
+          "$ref": "#/$defs/runtime_list_service_status_output"
+        }
+      },
+      "required": [
+        "schema_version",
+        "tool",
+        "opcode",
+        "request",
+        "response"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "tool": {
+          "type": "string",
+          "const": "runtime_get_resolution_status"
+        },
+        "opcode": {
+          "type": "integer",
+          "const": 260
+        },
+        "request": {
+          "$ref": "#/$defs/runtime_get_resolution_status_input"
+        },
+        "response": {
+          "$ref": "#/$defs/runtime_get_resolution_status_output"
+        }
+      },
+      "required": [
+        "schema_version",
+        "tool",
+        "opcode",
+        "request",
+        "response"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "tool": {
+          "type": "string",
+          "const": "runtime_get_game_status"
+        },
+        "opcode": {
+          "type": "integer",
+          "const": 261
+        },
+        "request": {
+          "$ref": "#/$defs/runtime_get_game_status_input"
+        },
+        "response": {
+          "$ref": "#/$defs/runtime_get_game_status_output"
+        }
+      },
+      "required": [
+        "schema_version",
+        "tool",
+        "opcode",
+        "request",
+        "response"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "const": "runtime"
+        },
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "session_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "epoch": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "generation": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_ms": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "age_ms": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "host_build": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_sha": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "schema_version",
+        "session_id",
+        "epoch",
+        "generation",
+        "observed_ms",
+        "age_ms",
+        "host_build",
+        "source_sha"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "host_unavailable",
+            "runtime_disabled",
+            "auth_failed",
+            "layout_mismatch",
+            "session_changed",
+            "peer_busy",
+            "snapshot_busy",
+            "snapshot_changed",
+            "not_found",
+            "offline_denied",
+            "audit_unavailable",
+            "rate_limited",
+            "invalid_request",
+            "oversize",
+            "unknown_metadata",
+            "corrupt_frame",
+            "deadline_expired"
+          ]
+        },
+        "retry_after_ms": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 60000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "retry_after_ms"
+      ],
+      "additionalProperties": false
+    },
+    "host_info": {
+      "type": "object",
+      "properties": {
+        "host_version": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "abi_major": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "abi_minor": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "api_table_size": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sdk_version": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "game_pack_version": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "game_build": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "diagnostics_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "readiness": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "ready",
+            "stopping",
+            "unknown"
+          ]
+        },
+        "restart_required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "host_version",
+        "abi_major",
+        "abi_minor",
+        "api_table_size",
+        "sdk_version",
+        "game_pack_version",
+        "game_build",
+        "diagnostics_version",
+        "readiness",
+        "restart_required"
+      ],
+      "additionalProperties": false
+    },
+    "plugin": {
+      "type": "object",
+      "properties": {
+        "plugin_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 31,
+          "pattern": "^[a-z0-9_]{1,31}$"
+        },
+        "version": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "builtin",
+            "native",
+            "lua",
+            "data",
+            "unknown"
+          ]
+        },
+        "manifest_valid": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "off",
+            "disabled",
+            "refused",
+            "ready",
+            "loaded",
+            "crashed",
+            "unloaded",
+            "faulted",
+            "unknown"
+          ]
+        },
+        "reason": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "load_generation": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restart_required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "plugin_id",
+        "version",
+        "kind",
+        "manifest_valid",
+        "state",
+        "reason",
+        "load_generation",
+        "restart_required"
+      ],
+      "additionalProperties": false
+    },
+    "log_entry": {
+      "type": "object",
+      "properties": {
+        "sequence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20,
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "monotonic_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "plugin_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 31,
+          "pattern": "^[a-z0-9_]{1,31}$"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "host",
+            "plugin"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "untrusted_content": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "sequence",
+        "monotonic_ms",
+        "plugin_id",
+        "level",
+        "origin",
+        "message",
+        "untrusted_content"
+      ],
+      "additionalProperties": false
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63,
+          "pattern": "^[a-z0-9_]+([.][a-z0-9_]+)*$"
+        },
+        "packed_version": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "owner_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 31,
+              "pattern": "^[a-z0-9_]{1,31}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner_category": {
+          "type": "string",
+          "enum": [
+            "host",
+            "game_pack",
+            "plugin",
+            "unknown"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "published",
+            "withdrawn",
+            "admission_blocked",
+            "unknown"
+          ]
+        },
+        "exposed": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "table_size": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "service",
+        "packed_version",
+        "owner_id",
+        "owner_category",
+        "status",
+        "exposed",
+        "table_size",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "resolution": {
+      "type": "object",
+      "properties": {
+        "row_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9_]+([.][a-z0-9_]+)*$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "not_run",
+            "ok",
+            "missing",
+            "ambiguous",
+            "failed",
+            "blocked",
+            "unknown"
+          ]
+        },
+        "match_count": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resolution_generation": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "game_build": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "row_id",
+        "state",
+        "match_count",
+        "reason",
+        "resolution_generation",
+        "game_build"
+      ],
+      "additionalProperties": false
+    },
+    "game_status": {
+      "type": "object",
+      "properties": {
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "ready",
+            "stopping",
+            "unknown"
+          ]
+        },
+        "last_tick_age_ms": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "offline_admission": {
+          "type": "string",
+          "enum": [
+            "authorized",
+            "unknown",
+            "denied"
+          ]
+        },
+        "game_services_requested": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "game_services_built": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "game_services_published": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[a-z0-9_]+([.][a-z0-9_]+)*$"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "enabled",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 50
+        },
+        "capabilities_truncated": {
+          "type": "boolean"
+        },
+        "restart_required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "lifecycle",
+        "last_tick_age_ms",
+        "offline_admission",
+        "game_services_requested",
+        "game_services_built",
+        "game_services_published",
+        "capabilities",
+        "capabilities_truncated",
+        "restart_required"
+      ],
+      "additionalProperties": false
+    },
+    "plugins": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/plugin"
+          },
+          "maxItems": 50
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "next_cursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "redacted_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "items",
+        "has_more",
+        "next_cursor",
+        "truncated",
+        "redacted_count"
+      ],
+      "additionalProperties": false
+    },
+    "services": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/service"
+          },
+          "maxItems": 50
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "next_cursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "redacted_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "items",
+        "has_more",
+        "next_cursor",
+        "truncated",
+        "redacted_count"
+      ],
+      "additionalProperties": false
+    },
+    "resolutions": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resolution"
+          },
+          "maxItems": 50
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "next_cursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "redacted_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "items",
+        "has_more",
+        "next_cursor",
+        "truncated",
+        "redacted_count"
+      ],
+      "additionalProperties": false
+    },
+    "logs": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/log_entry"
+          },
+          "maxItems": 100
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "next_sequence": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "first_available_sequence": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dropped_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "redacted_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "capture_started_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "free_form_enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "entries",
+        "has_more",
+        "next_sequence",
+        "first_available_sequence",
+        "dropped_count",
+        "redacted_count",
+        "capture_started_ms",
+        "free_form_enabled"
+      ],
+      "additionalProperties": false
+    },
+    "runtime_get_host_info_input": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "runtime_get_host_info_output": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "stale",
+                "restart_required"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "$ref": "#/$defs/host_info"
+            },
+            "error": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "unavailable",
+                "unknown"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/error"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "runtime_list_plugins_input": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 25
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "off",
+            "disabled",
+            "refused",
+            "ready",
+            "loaded",
+            "crashed",
+            "unloaded",
+            "faulted",
+            "unknown"
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "runtime_list_plugins_output": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "stale",
+                "restart_required"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "$ref": "#/$defs/plugins"
+            },
+            "error": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "unavailable",
+                "unknown"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/error"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "runtime_tail_plugin_log_input": {
+      "type": "object",
+      "properties": {
+        "plugin_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 31,
+          "pattern": "^[a-z0-9_]{1,31}$"
+        },
+        "after_sequence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20,
+          "pattern": "^[0-9]{1,20}$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50
+        }
+      },
+      "required": [
+        "plugin_id"
+      ],
+      "additionalProperties": false
+    },
+    "runtime_tail_plugin_log_output": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "stale",
+                "restart_required"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "$ref": "#/$defs/logs"
+            },
+            "error": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "unavailable",
+                "unknown"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/error"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "runtime_list_service_status_input": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 25
+        },
+        "service": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63,
+          "pattern": "^[a-z0-9_]+([.][a-z0-9_]+)*$"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "runtime_list_service_status_output": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "stale",
+                "restart_required"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "$ref": "#/$defs/services"
+            },
+            "error": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "unavailable",
+                "unknown"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/error"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "runtime_get_resolution_status_input": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 25
+        },
+        "row_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9_]+([.][a-z0-9_]+)*$"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "runtime_get_resolution_status_output": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "stale",
+                "restart_required"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "$ref": "#/$defs/resolutions"
+            },
+            "error": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "unavailable",
+                "unknown"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/error"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "runtime_get_game_status_input": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "runtime_get_game_status_output": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "stale",
+                "restart_required"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "$ref": "#/$defs/game_status"
+            },
+            "error": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "unavailable",
+                "unknown"
+              ]
+            },
+            "provenance": {
+              "$ref": "#/$defs/provenance"
+            },
+            "data": {
+              "type": "null"
+            },
+            "error": {
+              "$ref": "#/$defs/error"
+            }
+          },
+          "required": [
+            "status",
+            "provenance",
+            "data",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

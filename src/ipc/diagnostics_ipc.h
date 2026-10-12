@@ -57,6 +57,7 @@ public:
     Result Challenge(uint64_t now); Result Ready(uint64_t now);
     Result Send(uint16_t opcode,std::string_view input,uint64_t now);
     Result Receive(uint64_t now,std::string& output);
+    Result Heartbeat(uint64_t now); // idle peer only; no request or observation
     void Close();
 private: struct State; std::unique_ptr<State> state_;
 };

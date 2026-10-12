@@ -1,6 +1,6 @@
 # Design: opt-in local runtime MCP inspection
 
-Status: **step 3 host policy/collector implemented locally; tests NOT RUN**.
+Status: **steps 3–4 host policy/collector and separate launcher implemented locally; tests NOT RUN**.
 Current task explicitly selects separate `tools/sco-core-mcp-runtime` (placement B),
 superseding the historical placement A sections below. Discovery stays unchanged.
 Windows effective-identity ACL proof and manual offline acceptance are **NOT VERIFIED**.

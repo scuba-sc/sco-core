@@ -268,6 +268,18 @@ else()
 endif()
 target_link_libraries(sco_diagnostics_ipc PUBLIC sco_ipc Threads::Threads)
 sco_project_target(sco_diagnostics_ipc)
+option(SCO_BUILD_RUNTIME_MCP "Build separately packaged native runtime MCP peer" OFF)
+if(SCO_BUILD_RUNTIME_MCP)
+  # All dependencies are local project sources/system APIs; no compilation at launcher runtime.
+  add_library(sco_core_mcp_runtime_peer SHARED tools/sco-core-mcp-runtime/native_adapter.cpp)
+  target_include_directories(sco_core_mcp_runtime_peer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(sco_core_mcp_runtime_peer PRIVATE sco_diagnostics_ipc sco_plugins)
+  set_target_properties(sco_core_mcp_runtime_peer PROPERTIES PREFIX "" CXX_VISIBILITY_PRESET hidden)
+  foreach(_rt_pic sco_diagnostics_ipc sco_ipc sco_host sco_runtime sco_core sco_plugins)
+    set_target_properties(${_rt_pic} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  endforeach()
+  sco_project_target(sco_core_mcp_runtime_peer)
+endif()
 
 # sco.net core (sco/net/*.h): SHA-256/HMAC/PBKDF2 (sha2.c, plain C), the wire framing, reliable
 # streams and the session over an abstract datagram transport. Platform-free (docs/net-wire.md).

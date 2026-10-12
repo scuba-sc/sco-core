@@ -351,4 +351,11 @@ Result Peer::Receive(uint64_t now,std::string& output) {
     if(!Coordinates(f,s.credentials,2,s.nextHost,now)||f.opcode!=s.pending.opcode||f.request!=s.pending.request||f.deadline!=s.pending.deadline||s.nextHost==UINT64_MAX)return fail(Result::Auth);
     ++s.nextHost;s.phase=3;s.lastNow=now;output=std::move(f.payload);s.pending={};return Result::Ok;
 }
+Result Peer::Heartbeat(uint64_t now){
+    auto& s=*state_;if(s.phase!=3)return Result::Unavailable;
+    const auto result=Rings(s.map,s.credentials,s.channel,s.request,s.response,now);
+    if(result!=Result::Ok){Close();return result;}
+    if(now<s.lastNow){Close();return Result::Deadline;}
+    sc_ipc_peer_beat(&s.channel,0,now);s.lastNow=now;return Result::Ok;
+}
 } // namespace sco::diagnostics::ipc

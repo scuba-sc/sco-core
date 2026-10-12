@@ -6,6 +6,14 @@ catalogue as the static reference site. It does not call SDK methods, run a game
 compile examples, or provide an HTTP endpoint. GitHub Pages cannot host it.
 No credentials, secrets, network service or orchestration prompt is required.
 
+Runtime inspection uses the separate default-off
+[`sco-core-mcp-runtime`](../tools/sco-core-mcp-runtime/README.md) launcher.
+It is same-PC development tooling only: six explicit tool names, pinned native
+peer, configured session-file path, independent positive host offline verdict and
+protected audit acknowledgement. It is never deployed on a hosted catalogue runner.
+Local read data may reach a remote model provider; explicit disclosure consent is
+required. Windows security/manual acceptance is NOT VERIFIED; **not run in game**.
+
 ## Prepare a trusted snapshot
 
 From the intended, reviewed checkout with Python 3 and **Clang** capable of

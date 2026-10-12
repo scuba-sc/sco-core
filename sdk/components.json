@@ -51,6 +51,7 @@
     "site"
   ],
   "excluded": [
+    {"path": "tools/sco-core-mcp-runtime/", "why": "Separately built default-off local runtime development package; not a plugin SDK component."},
     {
       "path": "tools/test_content_gate.py",
       "why": "Repository-only G14 catalogue/package closure probe; source kits use test_content directly."
