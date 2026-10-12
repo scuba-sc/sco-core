@@ -198,7 +198,7 @@ Workflow actions are pinned to commit SHAs. The release workflow defaults to `co
 
 ## Releases
 
-The SDK is released as `sco-sdk-<version>.zip` under a tag `sdk-v<version>` (`sdk-v1.1.0` was the first; `sdk-v1.2.0` is prepared, and the tag is the maintainer's to push). The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
+The SDK is released as `sco-sdk-<version>.zip` under a tag `sdk-v<version>` (`sdk-v1.1.0` was the first; `sdk-v2.0.0` is prepared, and the tag is the maintainer's to push). The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
 
 Follow the [maintainer release procedure](legal/release-checklist.md#releasing), not a tag-first packaging recipe: prepare the version and notes, build a candidate on the checked main commit, review its exact payload and provenance, commit the schema-2 approval manifest and its maintainer SSH signature, then tag that approval commit. The [`release`](../.github/workflows/release.yml) workflow promotes those approved bytes without rebuilding and publishes only after verifying a complete draft round trip. [Signed approval requirements](legal/release-checklist.md#signed-approval-record) and [`tools/release_verify.py`](../tools/release_verify.py) define the approval and independent signer-trust checks; a successful candidate run alone is not approval to publish.
 
