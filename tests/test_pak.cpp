@@ -21,7 +21,7 @@
 #include <thread>
 #include <vector>
 
-static int g_fail = 0, g_pass = 0;
+[[maybe_unused]] static int g_fail = 0, g_pass = 0;  // unused when SCO_TEST_PAK is off (Apple/ARM64)
 #define CHECK(c) do { if (c) ++g_pass; else { ++g_fail; std::printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 
 #if (defined(__x86_64__) || defined(_M_X64)) && !defined(__APPLE__)
