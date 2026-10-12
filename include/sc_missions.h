@@ -15,6 +15,17 @@ extern "C" {
 #define SC_MISSIONS_MAX_OFFERS 256u
 #define SC_MISSIONS_MAX_STEPS 64u
 #define SC_MISSIONS_MAX_ACTIVE 64u
+#define SC_MISSIONS_MAX_SCRIPTS 16u
+#define SC_MISSIONS_SCRIPT_BYTES 4096u
+/* User-authored declarative format only, never arbitrary XML/Lua/native code. */
+typedef struct sc_mission_script {
+    uint32_t size;
+    uint32_t flags; /* zero */
+    char relative_path[128]; /* missions/<lowercase ASCII id>.scom within declared data */
+    const char* bytes;
+    uint32_t byte_count;
+    uint32_t _pad; /* zero */
+} sc_mission_script;
 /* State values are frozen for 1.x. */
 typedef enum sc_mission_state {
     SC_MISSION_ACTIVE = 1, SC_MISSION_COMPLETED = 2, SC_MISSION_ABANDONED = 3,
@@ -53,6 +64,8 @@ typedef struct sc_missions_v1 {
     sco_result (*accept)(sco_plugin* self, const sc_mission_offer* offer, uint64_t key, uint64_t* out_mission);
     sco_result (*objective)(sco_plugin* self, uint64_t mission_id, uint32_t phase, uint32_t objective);
     sco_result (*advance)(sco_plugin* self, uint64_t mission_id, uint32_t expected_phase);
+    sco_result (*abandon)(sco_plugin* self, uint64_t mission_id);
+    sco_result (*ingest)(sco_plugin* self, const sc_mission_script* script);
 } sc_missions_v1;
 #ifdef __cplusplus
 }

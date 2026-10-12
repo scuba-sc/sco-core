@@ -4,6 +4,8 @@
 #include "../../api/internal.h"
 #include <cstring>
 #include <type_traits>
+#include <string_view>
+#include <charconv>
 #ifdef _MSC_VER
 #include <windows.h>
 #endif
@@ -23,9 +25,18 @@ struct Ticket {
 };
 Ticket tickets[SC_MISSIONS_MAX_ACTIVE];
 uint64_t ledgerSession = 0;
+bool ownReleaseHook = false;
+struct ScriptSlot {
+    bool used = false;
+    sc_mission_script script{};
+    char data[SC_MISSIONS_SCRIPT_BYTES]{};
+    sco_result result = SCO_FAILED;
+};
+ScriptSlot scripts[SC_MISSIONS_MAX_SCRIPTS];
 void Session(uint64_t id) {
     if (ledgerSession != id) {
         for (auto& t : tickets) t = {};
+        for (auto& s : scripts) s = {};
         ledgerSession = id;
     }
 }
@@ -209,29 +220,133 @@ sco_result Advance(sco_plugin* self, uint64_t id, uint32_t phase) {
     } else t->effectFailed = true;
     return r;
 }
-const sc_missions_v1 table{sizeof(table), 0, Offer, Status, Accept, Objective, Advance};
+sco_result Abandon(sco_plugin* self, uint64_t id) {
+    Admission a;
+    if (const auto r = Enter(self, a); r != SCO_OK) return r;
+    if (!id) return SCO_BAD_ARG;
+    Ticket* t = Owned(self, id);
+    if (!t) return SCO_NOT_FOUND;
+    if (t->state == SC_MISSION_ABANDONED) return SCO_OK;
+    if (t->state == SC_MISSION_COMPLETED || t->effectFailed) return SCO_FAILED;
+    if (!backend.abandon) return SCO_UNAVAILABLE;
+    CallScope scope;
+    auto effect = [&] { return backend.abandon(backend.ctx, id); };
+    const auto r = Call(effect);
+    if (r == SCO_OK) t->state = SC_MISSION_ABANDONED;
+    else t->effectFailed = true;
+    return r;
 }
-Result Start(const Backend& b) {
+bool SafePath(const char (&path)[128]) {
+    const auto end = static_cast<const char*>(std::memchr(path, 0, sizeof(path)));
+    if (!end) return false;
+    std::string_view p(path, static_cast<size_t>(end - path));
+    if (!p.starts_with("missions/") || !p.ends_with(".scom")) return false;
+    p.remove_prefix(9); p.remove_suffix(5);
+    if (p.empty() || p.size() > 100) return false;
+    for (char c : p) if (!(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') && c != '_') return false;
+    if (p == "con" || p == "prn" || p == "aux" || p == "nul") return false;
+    if (p.size() == 4 && (p.starts_with("com") || p.starts_with("lpt")) && p[3] >= '1' && p[3] <= '9') return false;
+    return true;
+}
+bool Number(std::string_view& s, std::string_view key) {
+    if (!s.starts_with(key)) return false;
+    s.remove_prefix(key.size());
+    const size_t n = s.find('\n');
+    if (n == std::string_view::npos || !n || n > 2 || (n > 1 && s[0] == '0')) return false;
+    uint32_t value = 0;
+    auto result = std::from_chars(s.data(), s.data() + n, value);
+    if (result.ec != std::errc{} || result.ptr != s.data() + n || !value || value > SC_MISSIONS_MAX_STEPS) return false;
+    s.remove_prefix(n + 1);
+    return true;
+}
+bool ValidScript(const sc_mission_script& v) {
+    if (v.size < sizeof(v) || v.flags || v._pad || !SafePath(v.relative_path) ||
+        !v.bytes || !v.byte_count || v.byte_count > SC_MISSIONS_SCRIPT_BYTES) return false;
+    std::string_view s(v.bytes, v.byte_count);
+    constexpr std::string_view magic = "sco-mission 1\n";
+    if (!s.starts_with(magic)) return false;
+    s.remove_prefix(magic.size());
+    return Number(s, "phases ") && Number(s, "objectives ") && s.empty();
+}
+sco_result Ingest(sco_plugin* self, const sc_mission_script* input) {
+    Admission a;
+    if (const auto r = Enter(self, a); r != SCO_OK) return r;
+    if (!input || input->size < sizeof(*input) || !ValidScript(*input)) return SCO_BAD_ARG;
+    if (!backend.ingest) return SCO_UNAVAILABLE;
+    ScriptSlot* slot = nullptr;
+    for (auto& s : scripts) {
+        if (!s.used) { if (!slot) slot = &s; continue; }
+        if (std::strcmp(input->relative_path, s.script.relative_path)) continue;
+        if (s.script.byte_count != input->byte_count || std::memcmp(s.data, input->bytes, input->byte_count))
+            return SCO_FAILED; // library registration immutable for session; restart to edit
+        return s.result;
+    }
+    if (!slot) return SCO_TOO_MANY;
+    slot->used = true; slot->script = *input; slot->script.size = sizeof(slot->script);
+    std::memcpy(slot->data, input->bytes, input->byte_count); slot->script.bytes = slot->data;
+    CallScope scope;
+    auto effect = [&] { return backend.ingest(backend.ctx, &slot->script); };
+    slot->result = Call(effect);
+    return slot->result;
+}
+const sc_missions_v1 table{sizeof(table), 0, Offer, Status, Accept, Objective, Advance, Abandon, Ingest};
+}
+void ReleaseOwner(const void* owner) {
+    if (!OnGameThread() || !started || !owner) return;
+    if (busy) { faulted = true; return; } // cannot safely free/cancel an effect's callback context
+    Admission a;
+    CallScope scope;
+    bool admitted = false;
+    if (!faulted && backend.admission) {
+        auto read = [&] { a = backend.admission(backend.ctx); return SCO_OK; };
+        admitted = Call(read) == SCO_OK && a.session == ledgerSession && a.offline &&
+            a.eac_absent && !a.shutting_down;
+    }
+    for (auto& t : tickets) {
+        if (t.owner != owner || t.revoked) continue;
+        t.revoked = true;
+        if (!admitted || faulted || !backend.abandon || t.result != SCO_OK ||
+            t.state != SC_MISSION_ACTIVE || t.effectFailed) continue;
+        // Revoke first, attempt once, never replay failed/uncertain cleanup.
+        auto effect = [&] { return backend.abandon(backend.ctx, t.mission); };
+        if (Call(effect) == SCO_OK) t.state = SC_MISSION_ABANDONED;
+        else t.effectFailed = true;
+    }
+}
+Result Start(const Backend& b, bool shared_release_hook) {
     if (!OnGameThread()) return Result::WrongThread;
     if (faulted) return Result::Crashed;
     if (started) return Result::BadArg;
+    if (b.accept && !b.abandon) return Result::BadArg;
+    if (b.accept && !shared_release_hook) {
+        const auto hook = AddReleaseHook(ReleaseOwner);
+        if (hook != Result::Ok) return hook;
+        ownReleaseHook = true;
+    }
     const auto r = host::ProvideGameService(SC_MISSIONS_SERVICE_NAME, SC_MISSIONS_SERVICE_VERSION, &table);
-    if (r != Result::Ok) return r;
+    if (r != Result::Ok) {
+        if (ownReleaseHook) RemoveReleaseHook(ReleaseOwner);
+        ownReleaseHook = false; return r;
+    }
     backend = b; started = true;
     caps::Set("game.missions.read", b.admission && b.offer && b.status, "validated offline backend required");
     caps::Set("game.missions.accept", b.admission && b.offer && b.accept, "validated offline backend required");
     caps::Set("game.missions.progress", b.admission && b.status && b.objective && b.advance, "validated offline backend required");
+    caps::Set("game.missions.scripts", b.admission && b.ingest, "validated offline backend required");
     return Result::Ok;
 }
 Result Stop() {
     if (!OnGameThread()) return Result::WrongThread;
     if (busy) return Result::Failed;
     if (!started) return Result::Ok;
+    if (ownReleaseHook) RemoveReleaseHook(ReleaseOwner);
+    ownReleaseHook = false;
     started = false;
     host::WithdrawGameService(SC_MISSIONS_SERVICE_NAME);
     caps::Set("game.missions.read", false, "stopped");
     caps::Set("game.missions.accept", false, "stopped");
     caps::Set("game.missions.progress", false, "stopped");
+    caps::Set("game.missions.scripts", false, "stopped");
     backend = {};
     return Result::Ok;
 }

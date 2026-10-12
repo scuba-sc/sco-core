@@ -11,8 +11,9 @@ using namespace sco;
 using namespace sco::game::offline;
 struct Fake {
     Admission allow{7, true, true, false};
-    int reads = 0, accepts = 0, objectives = 0, advances = 0;
+    int reads = 0, accepts = 0, objectives = 0, advances = 0, abandons = 0, ingests = 0;
     uint32_t phase = 0, objective = 0, state = SC_MISSION_ACTIVE;
+    uint64_t lastMission = 303;
     static Admission Admit(void* p) { return static_cast<Fake*>(p)->allow; }
     static sco_result Offer(void* p, uint32_t i, sc_mission_offer* out) {
         ++static_cast<Fake*>(p)->reads;
@@ -21,7 +22,7 @@ struct Fake {
         return SCO_OK;
     }
     static sco_result Accept(void* p, const sc_mission_offer*, uint64_t* out) {
-        auto& f = *static_cast<Fake*>(p); ++f.accepts; *out = 303; return SCO_OK;
+        auto& f = *static_cast<Fake*>(p); ++f.accepts; *out = f.lastMission = 302 + f.accepts; return SCO_OK;
     }
     static sco_result Objective(void* p, uint64_t, uint32_t, uint32_t) {
         auto& f = *static_cast<Fake*>(p); ++f.objectives; ++f.objective; return SCO_OK;
@@ -32,11 +33,17 @@ struct Fake {
         else { ++f.phase; f.objective = 0; }
         return SCO_OK;
     }
+    static sco_result Abandon(void* p, uint64_t) {
+        ++static_cast<Fake*>(p)->abandons; return SCO_OK;
+    }
+    static sco_result Ingest(void* p, const sc_mission_script*) {
+        ++static_cast<Fake*>(p)->ingests; return SCO_OK;
+    }
     static sco_result Status(void* p, uint64_t id, sc_mission_status* out) {
         ++static_cast<Fake*>(p)->reads;
-        if (id != 303) return SCO_NOT_FOUND;
+        if (id != static_cast<Fake*>(p)->lastMission) return SCO_NOT_FOUND;
         auto& f = *static_cast<Fake*>(p);
-        *out = {sizeof(*out), f.state, 303, 101, f.phase, f.objective, 2, 2, f.allow.session};
+        *out = {sizeof(*out), f.state, f.lastMission, 101, f.phase, f.objective, 2, 2, f.allow.session};
         return SCO_OK;
     }
 };
@@ -56,6 +63,8 @@ void WrapperGuards(sco_plugin* self) {
         uint64_t id = 0; CHECK(wrap.Accept(offer, 42, id) == SCO_UNAVAILABLE);
         CHECK(wrap.Objective(303, 0, 0) == SCO_UNAVAILABLE);
         CHECK(wrap.Advance(303, 0) == SCO_UNAVAILABLE);
+        CHECK(wrap.Abandon(303) == SCO_UNAVAILABLE);
+        sc_mission_script script{}; CHECK(wrap.Ingest(script) == SCO_UNAVAILABLE);
     }
     sc_missions_v1 empty{}; empty.size = sizeof(empty); exposed = &empty;
     CHECK(wrap.Open(&api, self) == SCO_OK);
@@ -69,7 +78,7 @@ int main() {
     auto* self = host::NewPlugin("mission_fixture"); CHECK(self);
     WrapperGuards(self);
     Fake f;
-    Backend backend{&f, Fake::Admit, Fake::Offer, Fake::Status, Fake::Accept, Fake::Objective, Fake::Advance};
+    Backend backend{&f, Fake::Admit, Fake::Offer, Fake::Status, Fake::Accept, Fake::Objective, Fake::Advance, Fake::Abandon, Fake::Ingest};
     CHECK(Start(backend) == Result::Ok);
     const sc_missions_v1* svc = nullptr;
     CHECK(api->query_service(SC_MISSIONS_SERVICE_NAME, SC_MISSIONS_SERVICE_VERSION,
@@ -100,6 +109,31 @@ int main() {
     CHECK(svc->objective(self, mission, 1, 1) == SCO_OK);
     CHECK(svc->advance(self, mission, 1) == SCO_OK && f.state == SC_MISSION_COMPLETED);
     CHECK(svc->advance(self, mission, 1) == SCO_OK && f.advances == 2);
+    CHECK(svc->abandon(self, mission) == SCO_FAILED && f.abandons == 0); // completed
+    const char text[] = "sco-mission 1\nphases 2\nobjectives 2\n";
+    sc_mission_script script{}; script.size = sizeof(script);
+    std::strcpy(script.relative_path, "missions/synthetic.scom");
+    script.bytes = text; script.byte_count = sizeof(text) - 1;
+    CHECK(svc->ingest(self, &script) == SCO_OK && f.ingests == 1);
+    CHECK(svc->ingest(self, &script) == SCO_OK && f.ingests == 1);
+    std::strcpy(script.relative_path, "missions/../escape.scom");
+    CHECK(svc->ingest(self, &script) == SCO_BAD_ARG && f.ingests == 1);
+    std::strcpy(script.relative_path, "missions/synthetic.scom");
+    script.bytes = "sco-mission 1\nphases 2\nobjectives 2\nnetwork evil\n";
+    script.byte_count = static_cast<uint32_t>(std::strlen(script.bytes));
+    CHECK(svc->ingest(self, &script) == SCO_BAD_ARG && f.ingests == 1);
+    script.bytes = "sco-mission 1\nphases 3\nobjectives 2\n";
+    script.byte_count = static_cast<uint32_t>(std::strlen(script.bytes));
+    CHECK(svc->ingest(self, &script) == SCO_FAILED && f.ingests == 1); // restart to edit
+    script.bytes = text; script.byte_count = sizeof(text) - 1;
+    std::strcpy(script.relative_path, "missions/nul.scom");
+    CHECK(svc->ingest(self, &script) == SCO_BAD_ARG);
+    for (unsigned i = 1; i < SC_MISSIONS_MAX_SCRIPTS; ++i) {
+        std::snprintf(script.relative_path, sizeof(script.relative_path), "missions/synthetic_%u.scom", i);
+        CHECK(svc->ingest(self, &script) == SCO_OK);
+    }
+    std::strcpy(script.relative_path, "missions/overflow.scom");
+    CHECK(svc->ingest(self, &script) == SCO_TOO_MANY && f.ingests == SC_MISSIONS_MAX_SCRIPTS);
     CHECK(svc->offer(self, 1, &offer) == SCO_NOT_FOUND);
     int before = f.reads;
     f.allow.offline = false;
@@ -114,7 +148,15 @@ int main() {
     offer.size = 4; CHECK(svc->offer(self, 0, &offer) == SCO_BAD_ARG); offer.size = sizeof(offer);
     CHECK(svc->offer(self, SC_MISSIONS_MAX_OFFERS, &offer) == SCO_BAD_ARG);
     CHECK(svc->offer(nullptr, 0, &offer) == SCO_BAD_ARG);
-    CHECK(Release(self) == Result::Ok);
+    f.allow.session = 8; f.phase = f.objective = 0; f.state = SC_MISSION_ACTIVE;
+    CHECK(svc->objective(self, mission, 0, 0) == SCO_NOT_FOUND); // stale session
+    CHECK(svc->accept(self, &offer, 99, &mission) == SCO_OK);
+    CHECK(svc->abandon(foreign, mission) == SCO_NOT_FOUND);
+    CHECK(svc->abandon(self, mission) == SCO_OK && f.abandons == 1);
+    CHECK(svc->abandon(self, mission) == SCO_OK && f.abandons == 1);
+    f.allow.session = 9;
+    CHECK(svc->accept(self, &offer, 100, &mission) == SCO_OK);
+    CHECK(Release(self) == Result::Ok && f.abandons == 2);
     CHECK(svc->status(self, 303, &status) == SCO_BAD_ARG);
     CHECK(Stop() == Result::Ok);
     CHECK(api->query_service(SC_MISSIONS_SERVICE_NAME, SC_MISSIONS_SERVICE_VERSION,

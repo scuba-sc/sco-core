@@ -17,9 +17,13 @@ struct Backend {
     sco_result (*accept)(void*, const sc_mission_offer*, uint64_t*) = nullptr;
     sco_result (*objective)(void*, uint64_t, uint32_t, uint32_t) = nullptr;
     sco_result (*advance)(void*, uint64_t, uint32_t) = nullptr;
+    sco_result (*abandon)(void*, uint64_t) = nullptr;
+    sco_result (*ingest)(void*, const sc_mission_script*) = nullptr;
 };
 // Session-lifetime borrowed backend context. Start/Stop on game thread only.
 // Start refuses replacement; Stop must follow consumer unload. Faults require process restart.
-Result Start(const Backend& backend = {});
+Result Start(const Backend& backend = {}, bool shared_release_hook = false);
 Result Stop();
+// Shared with spawn.cpp's release hook in a composed Windows host; portable fixtures own a hook.
+void ReleaseOwner(const void* owner);
 }

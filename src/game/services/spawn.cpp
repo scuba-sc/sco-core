@@ -10,6 +10,7 @@
 #include "actors.h"
 #include "entities.h"
 #include "creative.h"
+#include "offline_missions.h"
 #include "sco/game/actors.h"
 #include "sco/game/reads.h"
 #include "sco/game/services.h"
@@ -261,6 +262,7 @@ bool MayMove(const void* owner, uint64_t id) {
 // watches end; and the game.creative toggles it switched on go off (god mode, fly, fly speed,
 // ammo): one hook for all four services.
 void OnRelease(const void* owner) {
+    offline::ReleaseOwner(owner);
     ForgetOwner(owner);
     ReleaseActorsOwner(owner);
     ReleaseEntitiesOwner(owner);

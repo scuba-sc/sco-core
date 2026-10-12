@@ -46,6 +46,40 @@ retrying it. Last-phase advance marks completion only; there is no automatic pay
 A backend success means its effect completed synchronously; delayed operations require
 a different future contract, not optimistically returning OK here.
 
+## Abandonment and user-authored content
+
+Abandonment is an owned once-only effect. Completed missions refuse it; repeated
+successful abandonment is a no-op. Ordinary owner release revokes authority before
+attempting admitted active cleanup once. Unknown/closed admission skips engine cleanup;
+uncertain failures are never replayed. Release inside a backend call quarantines the
+boundary for restart. Native-fault cleanup does not make further engine calls.
+The Windows composition shares spawn's release hook; fixtures reserve their own hook
+only when a mutation backend is installed. Hook quota failures refuse startup atomically.
+
+User content is deliberately **declarative**, not arbitrary engine XML or executable
+Lua/native scripts. Only this exact ASCII grammar is accepted (LF required):
+
+```text
+sco-mission 1
+phases 2
+objectives 2
+```
+
+Numbers are canonical decimal 1..64. No other directives, references, embedded NULs,
+DTD/entities, executable commands, includes, file/network APIs or trailing bytes.
+The name is `missions/<lowercase ASCII [a-z0-9_], 1..100>.scom`, relative to the
+consumer's declared data folder. Absolute/traversal/alias paths and Windows device
+names are refused. **No file is opened by this service:** the consumer/content broker
+must enforce declared-root/link containment when obtaining bytes. The game-pack
+adapter must use copied validated bytes, never open the supplied name.
+
+At most 16 registrations per admitted session and 4096 input bytes each. Validation
+is atomic before registration; identical data/name registration is once-only, changed
+content requires restart, failed registrations are not retried. Library registrations
+are session-lifetime rather than unloadable executable code. Existing engine XML
+script ingestion remains unsupported until its format and containment are independently
+validated; this narrow format must not be advertised as legacy mission-script parity.
+
 ## Decision pending owner
 
 Approve mission-kind coverage and the concrete Windows adapter only after independent

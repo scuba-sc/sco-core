@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G11 abandon/script boundary (#132):** once-only owned abandonment/release cleanup
+  and bounded declarative user content with strict path/grammar validation, immutable
+  session registration and no filesystem/network/script-execution access. Existing
+  engine XML scripts remain unsupported; no proprietary content or adapter enabled.
+
 - **G11 objective/phase progression (#132):** owner-scoped ordered steps, fresh status
   comparison, no-op duplicate completion and refused skips/uncertain retries. Final
   phase completion never pays automatically. Synthetic two-phase acceptance only.

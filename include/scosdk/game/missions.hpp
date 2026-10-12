@@ -35,6 +35,14 @@ public:
         return table_ && table_->size >= offsetof(sc_missions_v1, advance) + sizeof(table_->advance) && table_->advance
             ? table_->advance(self_, id, phase) : SCO_UNAVAILABLE;
     }
+    sco_result Abandon(uint64_t id) const noexcept {
+        return table_ && table_->size >= offsetof(sc_missions_v1, abandon) + sizeof(table_->abandon) && table_->abandon
+            ? table_->abandon(self_, id) : SCO_UNAVAILABLE;
+    }
+    sco_result Ingest(const sc_mission_script& script) const noexcept {
+        return table_ && table_->size >= offsetof(sc_missions_v1, ingest) + sizeof(table_->ingest) && table_->ingest
+            ? table_->ingest(self_, &script) : SCO_UNAVAILABLE;
+    }
     sco_result Status(uint64_t id, sc_mission_status& out) const noexcept {
         return table_ && table_->size >= offsetof(sc_missions_v1, status) + sizeof(table_->status) && table_->status
             ? table_->status(self_, id, &out) : SCO_UNAVAILABLE;
