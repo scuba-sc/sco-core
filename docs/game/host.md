@@ -61,6 +61,29 @@ admission stops the app and cancels queued tasks without running a tick. Nested
 runtime-callout and wrong-thread entries refuse. The `game_host_loss` fixture
 proves loss during a throttled pass does not execute a queued task.
 
+## Quit adapter
+
+By default Prepare requires the validated `system.quit` target and installs its
+entry detour through the shared hook owner. Failure/missing row refuses startup,
+not a silent WM_QUIT-only fallback. The adapter calls `BeforeQuit()` synchronously
+before the engine original on **both** normal and fast shutdown. It reads no
+CSystem/ICVar fast-shutdown fields. The engine receives the original system/info
+pointers and exit code exactly once. OS WM_QUIT is a secondary Stop trigger, not
+the sole shutdown guarantee; never call from DLL_PROCESS_DETACH/loader lock.
+
+`QuitPolicy::External` is an explicit trusted-host integration route only when
+the shell already guarantees synchronous `BeforeQuit()` on the game thread
+before engine shutdown; it grants no plugin hook/patch service. It is used in
+synthetic fixtures. Wrong-thread/callout quits cannot safely marshal a caller
+stack to a future tick: teardown refuses/logs but the original engine call still
+runs. This limitation is not represented as successful cleanup. A game-thread
+quit is required for the lifecycle guarantee. The entry hook remains installed
+for process lifetime, including after Stop; no in-flight detour is removed.
+
+The private ForwardQuit seam tests actual adapter ordering/argument passthrough
+without writing executable memory. ARM/macOS cannot prove a real x86-64 detour;
+Windows hook/game proof remains owed.
+
 ## Decision pending owner / migration limits
 
 This first composition slice deliberately does **not** copy the product's

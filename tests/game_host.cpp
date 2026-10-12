@@ -1,5 +1,6 @@
 // Synthetic offline host composition; no game image, data, process or network.
 #include "sco/game/host.h"
+#include "../src/game/host_testing.h"
 #include "sco/runtime.h"
 #include <cstdio>
 #include <thread>
@@ -21,17 +22,31 @@ static const sco_plugin_info* Query() {
     static const sco_plugin_info info{sizeof(sco_plugin_info), SCO_API_MAJOR, SCO_API_MINOR, "synthetic", "1.0.0", "tests"};
     return &info;
 }
-static sco_result Load(const sco_api* api, sco_plugin* self) { return api->subscribe(self, "tick", CrashTick, nullptr); }
+static int loads = 0;
+static sco_result Load(const sco_api* api, sco_plugin* self) { ++loads; return api->subscribe(self, "tick", CrashTick, nullptr); }
 static void Unload() {}
 static const sco::plugins::Builtin builtin{"synthetic", Query, Load, Unload};
+static int originals = 0;
+static void* passedSystem = nullptr;
+static void* passedInfo = nullptr;
+static int passedCode = 0;
+static void OriginalQuit(void* system, void* info, int code) {
+    ++originals; passedSystem = system; passedInfo = info; passedCode = code;
+    CHECK(gh::Status().phase == gh::Phase::Stopped);
+    CHECK(sco::QueuedTasks() == 0);
+    CHECK(gh::Stop() == sco::Result::Ok); // repeat from original remains harmless
+}
 static uint32_t ExceptionGuard(void (*thunk)(void*), void* ctx) {
     try { thunk(ctx); return 0; } catch (const std::runtime_error&) { return 0xe06d7363u; }
 }
 int main(int argc, char** argv) {
     sco::plugins::SetCallGuard(ExceptionGuard);
     const bool loss = argc > 1 && std::strcmp(argv[1], "loss") == 0;
+    const bool quit = argc > 1 && std::strcmp(argv[1], "quit") == 0;
+    const bool missingQuit = argc > 1 && std::strcmp(argv[1], "missing-quit") == 0;
     gh::Options o;
     o.inspect = Inspect;
+    o.quit = missingQuit ? gh::QuitPolicy::Required : gh::QuitPolicy::External; // synthetic host supplies the exact BeforeQuit path
     o.platform.builtins = &builtin;
     o.platform.nBuiltins = 1;
     // Unknown evidence refuses before signature resolution or host startup.
@@ -52,9 +67,16 @@ int main(int argc, char** argv) {
     CHECK(gh::Prepare(o) == sco::Result::Unavailable);
     evidence.targetProcess = gh::Check::Clear;
     CHECK(gh::Prepare(o) == sco::Result::BadArg); // no readable image
+    CHECK(!gh::Status().signaturesResolved && loads == 0);
     uint8_t bytes[8192]{};
     sco::Image image{bytes, {bytes, 4096}, {bytes + 4096, 4096}, {}, 0, sizeof(bytes)};
     o.image = &image;
+    if (missingQuit) {
+        CHECK(gh::Prepare(o) == sco::Result::Unavailable);
+        CHECK(gh::Status().phase == gh::Phase::Failed && !gh::Status().quitHookInstalled);
+        CHECK(gh::Start() == sco::Result::BadArg && loads == 0);
+        return failures ? 1 : 0;
+    }
     CHECK(gh::Prepare(o) == sco::Result::Ok);
     CHECK(gh::Status().phase == gh::Phase::Prepared);
     CHECK(gh::Prepare(o) == sco::Result::BadArg);
@@ -86,6 +108,11 @@ int main(int argc, char** argv) {
     if (loss) {
         evidence.session = gh::Session::Unknown;
         CHECK(gh::Tick(0x55u) == sco::Result::Unavailable); // checked even when throttled
+    } else if (quit) {
+        gh::testing::ForwardQuit(OriginalQuit, &ticks, &tasks, 73);
+        CHECK(originals == 1 && passedSystem == &ticks && passedInfo == &tasks && passedCode == 73);
+        gh::testing::ForwardQuit(OriginalQuit, &tasks, &ticks, -7);
+        CHECK(originals == 2 && passedSystem == &tasks && passedInfo == &ticks && passedCode == -7);
     } else {
         CHECK(gh::Stop() == sco::Result::Ok);
     }

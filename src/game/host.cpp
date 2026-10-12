@@ -3,12 +3,29 @@
 #include "sco/game/signatures.h"
 #include "sco/signatures.h"
 #include "sco/log.h"
+#include "sco/game/system.h"
+#include "sco/hook.h"
+#include "host_testing.h"
 #include <atomic>
 
 namespace sco::game::host {
 namespace {
 std::atomic<Phase> phase{Phase::Idle};
 std::atomic<bool> resolved{false};
+std::atomic<bool> quitInstalled{false};
+testing::QuitFn quitOriginal = nullptr;
+void QuitDetour(void* system, void* info, int code) {
+    testing::ForwardQuit(quitOriginal, system, info, code);
+}
+Result InstallQuit() {
+    QuitHook target;
+    if (!QuitFunction(target)) return Result::Unavailable;
+    if (hook::InstallDetour(target.fn, target.stolenBytes, reinterpret_cast<void*>(&QuitDetour),
+                            reinterpret_cast<void**>(&quitOriginal)) != hook::Error::None)
+        return Result::Failed;
+    quitInstalled = true;
+    return Result::Ok;
+}
 Options options;
 bool ticked = false;
 uint32_t lastTick = 0;
@@ -23,7 +40,8 @@ bool Admitted() noexcept {
 Result Prepare(const Options& o) {
     if (phase.load() != Phase::Idle) return Result::BadArg;
     if (o.size < sizeof(Options) || !o.inspect || o.tickIntervalMs > 0x7fffffffu ||
-        o.platform.image || o.platform.registerSignatures)
+        o.platform.image || o.platform.registerSignatures ||
+        (o.quit != QuitPolicy::Required && o.quit != QuitPolicy::External))
         return Result::BadArg;
     options = o;
     // Admission is deliberately before even registering signature rows.
@@ -36,6 +54,10 @@ Result Prepare(const Options& o) {
         if (!RegisterGameSignatures()) { phase = Phase::Failed; return Result::Failed; }
         ResolveAll(*o.image);
         resolved = true;
+        if (options.quit == QuitPolicy::Required) {
+            const Result q = InstallQuit();
+            if (q != Result::Ok) { phase = Phase::Failed; return q; }
+        }
         phase = Phase::Prepared;
         return Result::Ok;
     } catch (...) { phase = Phase::Failed; return Result::Failed; }
@@ -73,5 +95,14 @@ Result Stop() {
     phase = Phase::Stopped;
     return Result::Ok;
 }
-Snapshot Status() { return {phase.load(), resolved.load()}; }
+Result BeforeQuit() { return Stop(); }
+namespace testing {
+void ForwardQuit(QuitFn original, void* system, void* info, int code) {
+    // Preserve the engine call and arguments even if shutdown cannot run on this thread.
+    const Result r = BeforeQuit();
+    if (r != Result::Ok) Log("[game-host] quit teardown refused: %s", ResultName(r));
+    if (original) original(system, info, code);
+}
+}
+Snapshot Status() { return {phase.load(), resolved.load(), quitInstalled.load()}; }
 } // namespace sco::game::host

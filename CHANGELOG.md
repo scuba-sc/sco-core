@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Offline host quit adapter (G1):** required validated CSystem quit hook by
+  default, synchronous stop before both engine quit paths, original argument
+  passthrough, repeated-stop/task-cancellation fixtures and explicit external
+  quit integration. No product fast-shutdown field reads; actual Windows detour
+  and game shutdown not verified.
+
 - **Offline host tick adapter (G1):** game-thread cadence/wrap handling, first-pass
   tick, fresh admission checks even on throttled passes, shutdown/cancellation on
   lost offline evidence, and no feature fallback after a plugin fault. OS message

@@ -17,14 +17,17 @@ struct Admission {
     Check targetProcess = Check::Unknown;
 };
 enum class Phase : uint32_t { Idle, Preparing, Prepared, Starting, Running, Stopping, Stopped, Failed };
+enum class QuitPolicy : uint32_t { Required, External };
 struct Snapshot {
     Phase phase = Phase::Idle;
     bool signaturesResolved = false;
+    bool quitHookInstalled = false;
 };
 struct Options {
     uint32_t size = sizeof(Options); // C++ source contract, not frozen sco_api or a wire ABI
     Admission (*inspect)() = nullptr; // synchronous OS adapter; exceptions refuse admission
     const Image* image = nullptr;    // readable immutable original image through Prepare
+    QuitPolicy quit = QuitPolicy::Required; // External only when shell supplies BeforeQuit
     uint32_t tickIntervalMs = 100;    // 0 = every shell pass; <= INT32_MAX
     app::Platform platform;          // image/registerSignatures MUST be null: owned here
 };
@@ -43,6 +46,9 @@ Result Tick(uint32_t nowMs);
 // Game thread. Stop cancels tasks through app::Stop; repeated stop is safe. No restart from
 // Stopped/Failed: process-lifetime signature/hook ownership requires a fresh host process.
 Result Stop();
+// Synchronous game-thread quit admission: stop BEFORE the engine may terminate the process.
+// No fast-shutdown field/vtable reads; normal and fast quit share this entry.
+Result BeforeQuit();
 // Immutable scalar observation; no provider/table callbacks. May read on any thread.
 Snapshot Status();
 } // namespace sco::game::host

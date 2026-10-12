@@ -1,0 +1,7 @@
+#pragma once
+// Private synthetic seam: exercises the exact dispatch used by the installed detour.
+// Not a public/plugin header. Does not install a hook or inspect a process.
+namespace sco::game::host::testing {
+using QuitFn = void (*)(void* system, void* info, int exitCode);
+void ForwardQuit(QuitFn original, void* system, void* info, int exitCode);
+}

@@ -284,7 +284,7 @@ sco_project_target(sco_app)
 # Offline game host composition is a separate host-source target, never a plugin API.
 if(SCO_GAME_SC)
   add_library(sco_game_host STATIC src/game/host.cpp)
-  target_link_libraries(sco_game_host PUBLIC sco_app sco_game_sc)
+  target_link_libraries(sco_game_host PUBLIC sco_app sco_game_sc sco_hook)
   sco_project_target(sco_game_host)
 endif()
 
@@ -860,6 +860,8 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_game_host)
   add_test(NAME game_host COMMAND test_game_host)
   add_test(NAME game_host_loss COMMAND test_game_host loss)
+  add_test(NAME game_host_quit COMMAND test_game_host quit)
+  add_test(NAME game_host_quit_missing COMMAND test_game_host missing-quit)
   # The DataCore parser over tests/dcb_builder.h fixtures; it also writes the fixtures dcb_tool
   # runs sco-dcb on.
   add_executable(test_datacore tests/test_datacore.cpp)
