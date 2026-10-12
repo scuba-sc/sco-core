@@ -230,6 +230,18 @@ endif()
 target_link_libraries(sco_ipc PUBLIC sco_host)
 sco_project_target(sco_ipc)
 
+# Default-off host-private diagnostics; deliberately does not link sco.net or sockets.
+# Reuse project-authored SHA/HMAC primitives only, with independent session keys.
+add_library(sco_diagnostics_ipc STATIC src/ipc/diagnostics_ipc.cpp src/ipc/diagnostics_json.cpp src/net/sha2.c)
+if(WIN32)
+  target_sources(sco_diagnostics_ipc PRIVATE src/ipc/diagnostics_platform_win.cpp)
+  target_link_libraries(sco_diagnostics_ipc PRIVATE advapi32 bcrypt)
+else()
+  target_sources(sco_diagnostics_ipc PRIVATE src/ipc/diagnostics_platform_posix.cpp)
+endif()
+target_link_libraries(sco_diagnostics_ipc PUBLIC sco_ipc Threads::Threads)
+sco_project_target(sco_diagnostics_ipc)
+
 # sco.net core (sco/net/*.h): SHA-256/HMAC/PBKDF2 (sha2.c, plain C), the wire framing, reliable
 # streams and the session over an abstract datagram transport. Platform-free (docs/net-wire.md).
 add_library(sco_net STATIC src/net/sha2.c src/net/wire.cpp src/net/reliable.cpp src/net/core.cpp)
@@ -728,6 +740,17 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_host COMMAND test_host)
 
   target_compile_definitions(sco_runtime PRIVATE SCO_RUNTIME_DIAGNOSTICS_FIXTURE=1)
+  target_compile_definitions(sco_diagnostics_ipc PRIVATE SCO_RUNTIME_DIAGNOSTICS_FIXTURE=1)
+  add_executable(test_runtime_diagnostics_ipc tests/test_runtime_diagnostics_ipc.cpp tests/test_diagnostics_json.cpp)
+  target_include_directories(test_runtime_diagnostics_ipc PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(test_runtime_diagnostics_ipc PRIVATE sco_diagnostics_ipc)
+  sco_project_target(test_runtime_diagnostics_ipc)
+  add_test(NAME test_runtime_diagnostics_ipc COMMAND test_runtime_diagnostics_ipc "${SCO_TEST_OUT}" "${CMAKE_CURRENT_SOURCE_DIR}")
+  add_executable(test_diagnostics_platform tests/test_diagnostics_platform.cpp)
+  target_link_libraries(test_diagnostics_platform PRIVATE sco_diagnostics_ipc)
+  sco_project_target(test_diagnostics_platform)
+  add_test(NAME test_diagnostics_platform COMMAND test_diagnostics_platform)
+  set_tests_properties(test_diagnostics_platform PROPERTIES ENVIRONMENT "SCO_DIAGNOSTICS_TEST_TMPDIR=${SCO_TEST_OUT}")
   add_executable(test_runtime_diagnostics_snapshot
     tests/test_runtime_diagnostics_snapshot.cpp tests/test_runtime_diagnostics_services.cpp)
   target_link_libraries(test_runtime_diagnostics_snapshot PRIVATE sco_app)

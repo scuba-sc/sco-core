@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Runtime MCP step 2 — host IPC/auth gate (local fixture):** default-off host-private mapping, secure per-session credentials/peer lease, mutual directional HMAC and six copied-metadata reads; hostile real-transport and literal-vector fixtures. No sockets, network-key reuse, public ABI change or product/MCP enablement. Protected OS audit/product policy remains step 3; **not run in game**.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner
