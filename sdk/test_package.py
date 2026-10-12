@@ -384,10 +384,11 @@ class RealManifest(unittest.TestCase):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
                 root = self.installed_fixture(profile, tmp)
                 proof = pkg.check_installed_example_headers(self.m, profile, root, Path(tmp, "proof"))
-                self.assertEqual(proof["translation_units"], 3)
+                self.assertEqual(proof["translation_units"], 4)  # template, hello, cpp_hello, widgets
                 self.assertEqual(set(proof["languages"]), {"C", "CXX"})
                 self.assertIn("include/sco_api.h", proof["public_headers"])
                 self.assertIn("include/scosdk/scosdk.hpp", proof["public_headers"])
+                self.assertIn("include/sco_widgets.h", proof["public_headers"])
 
     def test_windows_archive_verifier_checkout_has_manifest_inputs(self):
         """Replay the Windows job's checkout; verifier tools must exist outside the archive."""
@@ -417,7 +418,7 @@ class RealManifest(unittest.TestCase):
                                      "--profile", "core", "--check-installed-headers", str(root)],
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn("3 external C/C++ examples compiled", result.stdout)
+            self.assertIn("4 external C/C++ examples compiled", result.stdout)
             self.assertIn("exact installed public header dependencies approved", result.stdout)
 
     def test_msvc_system_headers_use_evaluated_include_path(self):
