@@ -104,6 +104,7 @@ int main() {
     table.spawn = Forward; CHECK(wrapper.Open(&api, owner) == SCO_OK);
     query_result = SCO_NOT_FOUND; CHECK(wrapper.Open(&api, owner) == SCO_NOT_FOUND);
     CHECK(wrapper.Spawn(path, 7, pos, rot, id) == SCO_UNAVAILABLE && id == 0);
-    CHECK(!kPrefabConfirmed);
+    // Owner-approved R1 default; all refusal/admission cases above still apply.
+    CHECK(kPrefabConfirmed);
     std::printf("prefabs: %u passed, %u failed\n", passed, failed); return failed ? 1 : 0;
 }

@@ -28,8 +28,14 @@ offline admission adapter installed. See [loadout](loadout.md). Not run in game.
 
 **Unreleased G4 addition:** `game.prefabs` 1.0 uses the existing object-container
 spawner/attribute writer and entities ownership. Capability `game.entities.prefabs`
-is OFF pending owner-run streamed spawn and pending/unload removal acceptance.
-Portable admission/ABI fixtures are synthetic; MSVC/SEH/gameplay not verified.
+is **ON by default for R1 by owner approval**, with the hard-disable removed.
+Existing startup/cleanup readiness, provider-fault refusal, canonical 511-byte
+content paths, finite normalized poses and shared 1,024/per-owner 128 entity
+quotas remain enforced. This approval is not runtime acceptance: **Windows/MSVC,
+native SEH behavior and gameplay are NOT VERIFIED**. Streamed materialization,
+cancellation before first stream, preview/unload cleanup and native attribute/
+spawn/batch-release fault handling still need owner-run evidence. Portable
+admission/ABI fixtures are synthetic. G5 and G9 behavior is unchanged.
 
 
 **Unreleased G9 addition:** `game.owned` 1.0 ([header](../../include/sc_owned.h),

@@ -68,9 +68,13 @@ What each change means for plugin authors and for products built on sco-core (sc
   canonical content-relative paths and bounded owned quotas, ports the existing
   object-container attribute writer, and records pending prefab ownership in the
   existing entities ledger for move/despawn/retained undo and ordinary unload.
-  C/C++ routes and synthetic/ABI/catalogue/package evidence; new capability stays
-  OFF pending streamed Windows spawn/removal acceptance. Frozen ABI unchanged;
-  no arbitrary delete, content exports or private product fallback. Not run in game.
+  Owner-approved R1 default removes the hard-disable for `game.entities.prefabs`;
+  canonical 511-byte paths, finite normalized poses, shared 1,024/per-owner 128
+  quotas and existing readiness/cleanup/fault refusals are unchanged. C/C++
+  routes and synthetic/ABI/catalogue/package evidence only: Windows/MSVC,
+  native SEH and streamed spawn/removal behavior are **NOT VERIFIED**; not run
+  in game. Frozen ABI unchanged; no arbitrary delete, content exports or private
+  product fallback. G5/G9 behavior is unchanged.
 
 - **G5 (#126): `game.world.control` 1.0** adds owner-validated bounded filtered
   rays and exclusive reversible free-camera leases, with native C/C++ routes,

@@ -25,7 +25,8 @@ Not a table: the capability `game.mining` (the row `mining.cell`, [mining](game/
 
 `game.prefabs` 1.0 (`sc_prefabs.h`), native C/C++ only. The game pack publishes
 it alongside entities; query success is not capability. `game.entities.prefabs`
-remains OFF pending owner-run streamed spawn/unload cleanup acceptance.
+is enabled by default for R1 by owner approval, retaining readiness/fault refusal.
+Windows/SEH and streamed spawn/unload cleanup remain **NOT VERIFIED**.
 It uses existing entities ownership, mover and despawn, not arbitrary delete.
 Canonical content-relative paths, shared/per-owner quotas and finite poses are
 checked before engine calls. Pending ownership never expires via alive=0.

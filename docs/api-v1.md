@@ -363,7 +363,7 @@ Services the Star Citizen game pack publishes under the reserved owner `game` (`
 | `spawn.entities` | 1.2 | [`sc_spawn.h`](../include/sc_spawn.h) | `abi_spawn.c` | the product's `spawn.ship` |
 | `game.actors` | 1.1 | [`sc_actors.h`](../include/sc_actors.h) | `abi_game_actors.c` | `game.actors.local_player`, `.spawn_npc`, `.despawn`, `.health`, `.state` (off) |
 | `game.vehicles` | 1.0 | [`sc_vehicles.h`](../include/sc_vehicles.h) | `abi_game_vehicles.c` | `game.vehicles.seats`, `.seat`, `.flight_ready` |
-| `game.prefabs` | 1.0 | [`sc_prefabs.h`](../include/sc_prefabs.h) | `abi_prefabs.c` | `game.entities.prefabs` (off) |
+| `game.prefabs` | 1.0 | [`sc_prefabs.h`](../include/sc_prefabs.h) | `abi_prefabs.c` | `game.entities.prefabs` (R1 default on; Windows/SEH/gameplay NOT VERIFIED) |
 | `game.world.control` | 1.0 | [`sc_world_control.h`](../include/sc_world_control.h) | `abi_world_control.c` | filtered rays/free camera (off) |
 | `game.owned` | 1.0 | [`sc_owned.h`](../include/sc_owned.h) | `abi_game_owned.c` | existing entity/actor removal and seat reads |
 | `game.world` | 1.0 | [`sc_world.h`](../include/sc_world.h) | `abi_game_world.c` | `game.world.raycast`, `.camera` |
@@ -560,8 +560,9 @@ members; service publication does not establish an operation capability.
   content-relative object-container spawn, 511-byte path and shared/per-owner
   quotas, finite zone-local pose. ID is final before streaming; existing
   game.entities move/despawn and game.owned retention apply. Pending prefab IDs
-  do not expire because alive=0. Capability `game.entities.prefabs` remains OFF
-  pending owner-run streamed/unload acceptance. [Design](design/prefabs.md).
+  do not expire because alive=0. Capability `game.entities.prefabs` is enabled
+  by default for R1 by owner approval; readiness/fault refusals remain, and
+  Windows/SEH/streamed cleanup are NOT VERIFIED. [Design](design/prefabs.md).
 * [`game.world.control` 1.0](../include/sc_world_control.h): at most 32 unique
   current own skip IDs for filtered rays; exclusive owner/token camera lease,
   bounded world deltas and restoration on ordinary owner release/service stop.

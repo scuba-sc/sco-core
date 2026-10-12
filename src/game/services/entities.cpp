@@ -1098,7 +1098,7 @@ Result StartEntities() {
     const Result prefab = host::ProvideGameService(SC_PREFABS_NAME, SC_PREFABS_VERSION_1_0, &kPrefabs);
     if (prefab != Result::Ok) { StopEntities(); return prefab; }
     g_prefabsPublished = true;
-    caps::Set("game.entities.prefabs", PrefabReady(), "waiting for owner-run streamed prefab/unload cleanup acceptance");
+    caps::Set("game.entities.prefabs", PrefabReady(), PrefabReady() ? "" : "entities spawn/unload cleanup unavailable or prefab provider faulted");
     const Result owned = StartOwned();
     if (owned != Result::Ok) { StopEntities(); return owned; }
     return Result::Ok;
