@@ -20,6 +20,8 @@
 // 20 s after the player has spawned, logging what that run has to confirm ("[game] game.entities
 // diag: ..." lines in mod.log); it changes nothing else.
 #include "entities.h"
+#include "prefabs.h"
+#include "owned.h"
 #include "actors.h"
 #include "spawn.h"
 #include "../../api/internal.h"   // detail::Released
@@ -79,6 +81,8 @@ struct Game {
 
 Game g_game;
 bool g_started = false;
+bool g_prefabsPublished = false;
+bool g_prefabFaulted = false; // process-lifetime latch; service reopen cannot clear an engine fault
 bool g_canTransform = false, g_canSpawn = false, g_canClass = false, g_canQuery = false, g_canWatch = false;
 char g_whyTransform[128] = "", g_whySpawn[128] = "", g_whyClass[128] = "", g_whyQuery[160] = "", g_whyWatch[160] = "";
 bool g_diag = false;
@@ -86,7 +90,7 @@ bool g_hooksInstalled = false;
 uint64_t g_startedAt = 0;
 
 // Game thread only. Reserved at start (SC_ENTITIES_MAX_OWNED), so nothing here allocates later.
-struct Owned { const void* owner; uint64_t id; uint64_t at; };
+struct Owned { const void* owner; uint64_t id; uint64_t at; bool prefab = false; };
 std::vector<Owned> g_owned;
 
 // Any thread (last_error, and the wrong-thread refusals). One entry per plugin handle plus the
@@ -795,7 +799,8 @@ sco_result SvcSetTransform(sco_plugin* self, uint64_t id, uint64_t zoneId, const
 void PruneOwned() {
     const uint64_t now = Now();
     for (size_t i = 0; i < g_owned.size();) {
-        if (now - g_owned[i].at >= kPruneAgeMs && !EntityAlive(g_owned[i].id)) {
+        if (!g_owned[i].prefab && !BuildRetainedBy(g_owned[i].owner, g_owned[i].id) &&
+            now - g_owned[i].at >= kPruneAgeMs && !EntityAlive(g_owned[i].id)) {
             g_owned[i] = g_owned.back();
             g_owned.pop_back();
         } else {
@@ -842,6 +847,7 @@ sco_result SvcDespawn(sco_plugin* self, uint64_t id) {
         g_owned[i] = g_owned.back();
         g_owned.pop_back();
         RemoveEntityLater(id);
+        DropBuildRetention(self, id);
         return SCO_OK;
     }
     return Fail(self, Result::NotFound, "despawn: %llu is not an entity this plugin spawned with game.entities (or it's despawned already)",
@@ -856,6 +862,8 @@ sco_result SvcKeep(sco_plugin* self, uint64_t id) {
     if (!who) return Fail(nullptr, Result::BadArg, "keep: self is not a loaded plugin's handle");
     if (!g_started || !g_canSpawn) return Unavailable(self, "keep", kCapSpawn, g_whySpawn);
     if (!id) return Fail(self, Result::BadArg, "keep: id 0");
+    if (BuildRetainedBy(self, id))
+        return Fail(self, Result::Failed, "keep: retained build ownership must stay loaded for undo; remove through game.owned");
     for (size_t i = 0; i < g_owned.size(); ++i) {
         if (g_owned[i].owner != self || g_owned[i].id != id) continue;
         g_owned[i] = g_owned.back();
@@ -993,6 +1001,34 @@ sco_result SvcLastError(sco_plugin* self, char* out, uint32_t* inoutSize) {
     return SCO_OK;
 }
 
+// Existing game.entities ledger owns prefab IDs too: no parallel removal or mover.
+bool PrefabReady() {
+    return g_started && g_canSpawn && SpawnReleaseHooked() && kPrefabConfirmed && !g_prefabFaulted;
+}
+sco_result PrefabReserve(const sco_plugin* owner) {
+    size_t count = 0;
+    for (const Owned& o : g_owned) if (o.owner == owner) ++count;
+    return count >= SC_PREFABS_MAX_PER_OWNER || g_owned.size() >= SC_ENTITIES_MAX_OWNED ? SCO_TOO_MANY : SCO_OK;
+}
+sco_result PrefabZone(uint64_t zone) { return ZoneStreamed(zone) ? SCO_OK : SCO_NOT_FOUND; }
+sco_result PrefabSpawn(const char* path, uint64_t zone, const double* pos, const double* q, uint64_t* id) {
+    const char* error = SpawnPrefabEntityInZone(path, zone, pos, q, *id);
+    if (!error) return SCO_OK;
+    if (!strcmp(error, "unknown prefab content path") || !strcmp(error, "unknown entity class")) return SCO_NOT_FOUND;
+    g_prefabFaulted = true;
+    caps::Set("game.entities.prefabs", false, "prefab provider failed; restart required");
+    return SCO_FAILED;
+}
+void PrefabRemember(sco_plugin* owner, uint64_t id) { g_owned.push_back({owner, id, Now(), true}); }
+sco_result SvcPrefabSpawn(sco_plugin* self, const char* path, uint64_t zone,
+                          const double* pos, const double* q, uint64_t* id) {
+    const PrefabProvider provider{OnGameThread, LivePlugin, PrefabReady, PrefabReserve, PrefabZone, PrefabSpawn, PrefabRemember};
+    const auto r = SpawnOwnedPrefab(provider, self, path, zone, pos, q, id);
+    if (r != SCO_OK) return Fail(LivePlugin(self) ? self : nullptr, static_cast<Result>(r), "prefab spawn refused: %u", unsigned(r));
+    return SCO_OK;
+}
+const sc_prefabs_v1 kPrefabs{sizeof(sc_prefabs_v1), 0, SvcPrefabSpawn};
+
 const sc_entities_v1 kEntities = {
     sizeof(sc_entities_v1), 0,        SvcAlive, SvcClassOf, SvcGetTransform, SvcSetTransform,
     SvcSpawn,               SvcDespawn, SvcWatch, SvcUnwatch, SvcQueryRadius,  SvcLastError,
@@ -1006,10 +1042,13 @@ void LogCap(const char* cap, bool ready, const char* why) {
 void ResetState() {
     for (const char* cap : { kCapTransform, kCapSpawn, kCapClassOf, kCapQuery, kCapWatch }) caps::Set(cap, false, "game.entities stopped");
     g_canTransform = g_canSpawn = g_canClass = g_canQuery = g_canWatch = false;
+    caps::Set("game.entities.prefabs", false, "stopped");
     g_game = {};
 }
 
 }  // namespace
+
+bool EntitiesOwnedBy(const void* owner, uint64_t id) { return OwnedBy(owner, id); }
 
 Result StartEntities() {
     if (g_started) return Result::Ok;
@@ -1056,11 +1095,20 @@ Result StartEntities() {
     LogCap(kCapQuery, g_canQuery, g_whyQuery);
     LogCap(kCapWatch, g_canWatch, g_whyWatch);
     g_started = true;
+    const Result prefab = host::ProvideGameService(SC_PREFABS_NAME, SC_PREFABS_VERSION_1_0, &kPrefabs);
+    if (prefab != Result::Ok) { StopEntities(); return prefab; }
+    g_prefabsPublished = true;
+    caps::Set("game.entities.prefabs", PrefabReady(), "waiting for owner-run streamed prefab/unload cleanup acceptance");
+    const Result owned = StartOwned();
+    if (owned != Result::Ok) { StopEntities(); return owned; }
     return Result::Ok;
 }
 
 void StopEntities() {
     if (!g_started) return;
+    StopOwned();
+    if (g_prefabsPublished) host::WithdrawGameService(SC_PREFABS_NAME);
+    g_prefabsPublished = false;
     RemoveHooks();
     // Every plugin has unloaded (Stop runs after UnloadAll), so anything still owned belongs to a
     // plugin whose release failed: ask the game to remove it now (game.actors is still started).

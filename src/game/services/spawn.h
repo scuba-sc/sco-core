@@ -27,6 +27,9 @@ MoveResult MoveEntity(uint64_t id, uint64_t zoneId, const double pos[3], const d
 // True while spawn.cpp's release hook is added: it also releases game.actors' NPCs
 // (ReleaseActorsOwner), so game.actors spawns nothing without it.
 bool SpawnReleaseHooked();
+// Internal only, validated canonical path/pose, same batch/mover/removal as entities.
+// A nonzero id on error must remain tracked until cleanup (release-batch fault).
+const char* SpawnPrefabEntityInZone(const char*, uint64_t, const double*, const double*, uint64_t&);
 
 // For game.vehicles' ownership rules. Game thread. SpawnedBy: owner spawned id through spawn_as
 // and is still loaded (false without the release hook, as the mover). IsPlayerVehicle: the product

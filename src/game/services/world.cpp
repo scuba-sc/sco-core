@@ -10,6 +10,7 @@
 // SC_WORLD_RAY_MAX_DISTANCE, and nothing here waits or loops on the game: one physics call per
 // zone, at most three zones.
 #include "world.h"
+#include "world_control.h"
 #include "../../api/internal.h"   // detail::Released
 #include "sco/caps.h"
 #include "sco/game/reads.h"
@@ -342,6 +343,26 @@ sco_result SvcLastError(sco_plugin* self, char* out, uint32_t* inoutSize) {
 
 const sc_world_v1 kWorld = { sizeof(sc_world_v1), 0, SvcRaycast, SvcCamera, SvcLastError };
 
+// No engine adapter is installed: filtered skip construction and comprehensive
+// reversible camera mutation are NOT inferred from signature/offset matches.
+// Portable policy is exercised by synthetic providers, not gameplay-certified.
+WorldControl g_control({ OnGameThread, LivePlugin }, false);
+bool g_controlReleaseHook = false;
+void ControlOwnerReleased(const void* owner) {
+    if (g_control.ReleaseOwner(owner) != SCO_OK)
+        Log("[game] camera restore failed on owner release; restart required");
+}
+sco_result ControlRay(sco_plugin* self, uint64_t zone, const double* from, const double* dir,
+    double distance, const uint64_t* ids, uint32_t count, sc_world_hit* hit) {
+    return g_control.Ray(self, zone, from, dir, distance, ids, count, hit);
+}
+sco_result ControlAcquire(sco_plugin* self, uint64_t* lease) { return g_control.Acquire(self, lease); }
+sco_result ControlStep(sco_plugin* self, uint64_t lease, const sc_world_camera_step* step) {
+    return g_control.Step(self, lease, step);
+}
+sco_result ControlRelease(sco_plugin* self, uint64_t lease) { return g_control.Release(self, lease); }
+const sc_world_control_v1 kControl = { sizeof(kControl), 0, ControlRay, ControlAcquire, ControlStep, ControlRelease };
+
 void LogCap(const char* cap, bool ready, const char* why) {
     if (!ready) Log("[game] %s not ready: %s; it answers SCO_UNAVAILABLE", cap, why);
 }
@@ -358,6 +379,20 @@ Result StartWorld() {
         g_canRay = g_canCamera = false;
         return r;
     }
+    g_controlReleaseHook = AddReleaseHook(ControlOwnerReleased) == Result::Ok;
+    (void)g_control.Start(g_controlReleaseHook);
+    const Result controlResult = host::ProvideGameService(SC_WORLD_CONTROL_NAME, SC_WORLD_CONTROL_VERSION_1_0, &kControl);
+    if (controlResult != Result::Ok) {
+        if (g_controlReleaseHook) RemoveReleaseHook(ControlOwnerReleased);
+        g_controlReleaseHook = false;
+        (void)g_control.Stop();
+        host::WithdrawGameService(SC_WORLD_NAME);
+        for (const char* cap : { kCapRay, kCapCamera }) caps::Set(cap, false, "world control not published");
+        g_game = {}; g_canRay = g_canCamera = false;
+        return controlResult;
+    }
+    for (const char* cap : { "game.world.raycast_filtered", "game.world.free_camera" })
+        caps::Set(cap, false, "no verified offline engine adapter; synthetic policy only");
     LogCap(kCapRay, g_canRay, g_whyRay);
     LogCap(kCapCamera, g_canCamera, g_whyCamera);
     g_started = true;
@@ -366,8 +401,14 @@ Result StartWorld() {
 
 void StopWorld() {
     if (!g_started) return;
+    // Restore while provider backing state and its release hook are still alive.
+    if (g_control.Stop() != SCO_OK) Log("[game] camera restore failed on stop; restart required");
+    if (g_controlReleaseHook) RemoveReleaseHook(ControlOwnerReleased);
+    g_controlReleaseHook = false;
+    host::WithdrawGameService(SC_WORLD_CONTROL_NAME);
     host::WithdrawGameService(SC_WORLD_NAME);
-    for (const char* cap : { kCapRay, kCapCamera }) caps::Set(cap, false, "stopped");
+    for (const char* cap : { kCapRay, kCapCamera, "game.world.raycast_filtered", "game.world.free_camera" })
+        caps::Set(cap, false, "stopped");
     {
         std::lock_guard<std::mutex> hold(g_errLock);
         g_error[0] = 0;

@@ -64,6 +64,28 @@ What each change means for plugin authors and for products built on sco-core (sc
   unchanged. Root ancestry is exposed, but system classification remains explicitly
   unknown rather than guessed. C#/Lua unsupported; portable synthetic/ABI fixtures,
   **not verified on Windows or in game**.
+- **G4 (#125) owned prefab spawning:** independent `game.prefabs` 1.0 validates
+  canonical content-relative paths and bounded owned quotas, ports the existing
+  object-container attribute writer, and records pending prefab ownership in the
+  existing entities ledger for move/despawn/retained undo and ordinary unload.
+  C/C++ routes and synthetic/ABI/catalogue/package evidence; new capability stays
+  OFF pending streamed Windows spawn/removal acceptance. Frozen ABI unchanged;
+  no arbitrary delete, content exports or private product fallback. Not run in game.
+
+- **G5 (#126): `game.world.control` 1.0** adds owner-validated bounded filtered
+  rays and exclusive reversible free-camera leases, with native C/C++ routes,
+  synthetic restoration/ownership/fault fixtures and ABI/catalogue/package pins.
+  `game.world` 1.0 and frozen `sco_api` remain unchanged. New production
+  capabilities are OFF: no verified offline engine adapter, no guessed offsets.
+  Ordinary unload/stop restoration is policy-tested; Windows/game not verified.
+- **G9 retained-build and owned-seat removal**: new game-only `game.owned` 1.0
+  table keeps explicitly retained `game.entities` placements owned for undo/clear
+  while loaded and removes them on ordinary unload; no across-reload persistence.
+  Actors-owned NPC and expected-seat-occupant removal are separate authorities;
+  foreign/player occupants and arbitrary deletion remain forbidden. Bounded
+  owner-scoped receipts report removal initiation only, never `alive=0` completion.
+  C/C++ direct route, C#/Lua explicitly unsupported; synthetic fixtures only,
+  **not run in game**. Frozen base and existing service layouts remain unchanged.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,

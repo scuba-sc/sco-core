@@ -146,6 +146,22 @@
     {
       "path": "tests/test_game_spatial.cpp",
       "why": "Repository-only G3 game-provider shared-logic fixture; excluded from the neutral source kit."
+    },
+    {
+      "path": "tests/test_prefabs.cpp",
+      "why": "Repository-only synthetic game-pack owned prefab policy fixture; no kernel source-kit membership."
+    },
+    {
+      "path": "tests/test_world_control.cpp",
+      "why": "Game-pack synthetic owner/filter/camera policy fixture; repository only, not in neutral source kit."
+    },
+    {
+      "path": "tests/test_owned_removal.cpp",
+      "why": "Repository-only synthetic G9 game ownership/removal provider fixture."
+    },
+    {
+      "path": "tools/test_g9_owned_contract.py",
+      "why": "Repository-only targeted G9 contract, layout, catalogue and package gate."
     }
   ],
   "components": [
@@ -5861,6 +5877,94 @@
       "id": "source.tests.abi_game_spatial.c",
       "source": "tests/abi_game_spatial.c",
       "destination": "tests/abi_game_spatial.c",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "include.sc_prefabs.h",
+      "source": "include/sc_prefabs.h",
+      "destination": "include/sc_prefabs.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "include.scosdk.game.prefabs.hpp",
+      "source": "include/scosdk/game/prefabs.hpp",
+      "destination": "include/scosdk/game/prefabs.hpp",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "tests.abi_prefabs.c",
+      "source": "tests/abi_prefabs.c",
+      "destination": "tests/abi_prefabs.c",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "include.sc_world_control.h",
+      "source": "include/sc_world_control.h",
+      "destination": "include/sc_world_control.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "include.scosdk.game.world_control.hpp",
+      "source": "include/scosdk/game/world_control.hpp",
+      "destination": "include/scosdk/game/world_control.hpp",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "tests.abi_world_control.c",
+      "source": "tests/abi_world_control.c",
+      "destination": "tests/abi_world_control.c",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "include.sc_owned.h",
+      "source": "include/sc_owned.h",
+      "destination": "include/sc_owned.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "source.tests.abi_game_owned.c",
+      "source": "tests/abi_game_owned.c",
+      "destination": "tests/abi_game_owned.c",
       "profiles": [
         "game-sc"
       ],

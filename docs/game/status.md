@@ -19,6 +19,20 @@ As of sco-core `main` at `2197dfb` (2026-10-11, with `game.actors.died`), game p
 
 ## Service tables and capabilities
 
+**Unreleased G4 addition:** `game.prefabs` 1.0 uses the existing object-container
+spawner/attribute writer and entities ownership. Capability `game.entities.prefabs`
+is OFF pending owner-run streamed spawn and pending/unload removal acceptance.
+Portable admission/ABI fixtures are synthetic; MSVC/SEH/gameplay not verified.
+
+
+**Unreleased G9 addition:** `game.owned` 1.0 ([header](../../include/sc_owned.h),
+[policy](../design/owned-removal.md)) is a game-pack composition over the existing
+entities/actors removal and seat-read capabilities below, not a new engine binding.
+Only synthetic provider/ownership fixtures and header layout checks are supplied;
+**not run in game or on Windows/MSVC runtime**. Its receipts record initiation,
+not disappearance. Retained build ownership lasts only while loaded and ordinary
+unload removes placements. C/C++ direct routes; C#/Lua unsupported.
+
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
 | `teleport.spatial` ([`sc_spatial.h`](../../include/sc_spatial.h)) | 1.0 | the four `teleport.*` rows (the product's capability `teleport`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
@@ -31,6 +45,7 @@ As of sco-core `main` at `2197dfb` (2026-10-11, with `game.actors.died`), game p
 | `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.0 | `game.world.raycast_filtered`, `game.world.free_camera` | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.0 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | camera field of view | none | BLOCKED |
