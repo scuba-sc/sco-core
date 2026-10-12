@@ -202,7 +202,10 @@ class SiteTests(unittest.TestCase):
             check_leaks(output / 'src/content/docs', FORBIDDEN + SENTINELS)
             check_leaks(output / 'public', FORBIDDEN + SENTINELS)
             if shutil.which('node') and (ROOT / 'site/node_modules/.bin/astro').is_file():
-                (output / 'node_modules').symlink_to(ROOT / 'site/node_modules', target_is_directory=True)
+                # A real installation keeps Astro virtual-module identities local
+                # to this fixture. Symlinked node_modules mixes cache roots on Linux.
+                installed = subprocess.run(['npm', 'ci', '--offline'], cwd=output, capture_output=True, text=True)
+                self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
                 result = subprocess.run(['npm', 'run', 'build'], cwd=output, capture_output=True, text=True,
                                         env={**os.environ, 'ASTRO_TELEMETRY_DISABLED': '1'})
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
