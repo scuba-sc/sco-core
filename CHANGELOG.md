@@ -6,6 +6,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - **First-plugin documentation:** add a published-archive download/checksum/copy/rename/build/check walkthrough, explicit Windows deployment limits and diagnostics; curate the documentation index for six audiences and publish the guide through the existing site allowlist. No behavior or ABI change.
 - **SDK documentation safety:** clarify service-table quiescence, native fault limits, reused Windows IPC mapping access and DataCore output-alias precautions; make the C storage example compile with full callback guards and refresh published SDK 2.0.0 links. No behavior or ABI change.
+- **Runtime MCP design and security policy:** propose a default-off, metadata-only runtime tool group inside the existing `sco-core-mcp` server, with exact schemas, authenticated same-PC IPC, protected audit and fixture acceptance requirements; runtime tools are not implemented, eight owner decisions remain pending, and discovery behavior/dependencies are unchanged. Add private security-reporting guidance and record that GitHub private vulnerability reporting still requires owner enablement.
 
 ## sdk-v2.0.0 (2026-10-12)
 

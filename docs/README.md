@@ -85,6 +85,8 @@ Client-specific instructions live in the integration guide, not in this index.
    checks and existing Pages publication workflow.
 5. [IP policy](../IP_POLICY.md), [third-party notices](../THIRD_PARTY_NOTICES.md)
    and [dependency inventory](legal/third-party-inventory.md).
+6. [Design: opt-in runtime MCP](design/runtime-mcp.md): proposed, not implemented;
+   metadata-only runtime group, pending decisions and security/fixture acceptance.
 
 ### Historical designs and evidence
 
@@ -95,3 +97,4 @@ These are dated plans/audits, not substitutes for current contracts:
 [multiplayer/bridges](design/multiplayer.md), [VFS/DataCore](design/vfs-datacore.md),
 [release-hardening baseline](legal/release-hardening-baseline.md) and
 [plugin-licensing options](legal/plugin-licensing-options.md).
+

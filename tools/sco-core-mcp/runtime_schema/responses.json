@@ -1,0 +1,402 @@
+{
+  "runtime_get_host_info": [
+    {
+      "status": "ok",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 100,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": {
+        "host_version": "fixture-host-1",
+        "abi_major": 1,
+        "abi_minor": 1,
+        "api_table_size": 128,
+        "sdk_version": null,
+        "game_pack_version": null,
+        "game_build": null,
+        "diagnostics_version": 1,
+        "readiness": "ready",
+        "restart_required": false
+      },
+      "error": null
+    },
+    {
+      "status": "unavailable",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": null,
+        "epoch": null,
+        "generation": null,
+        "observed_ms": null,
+        "age_ms": null,
+        "host_build": null,
+        "source_sha": null
+      },
+      "data": null,
+      "error": {
+        "code": "host_unavailable",
+        "retry_after_ms": null
+      }
+    }
+  ],
+  "runtime_list_plugins": [
+    {
+      "status": "ok",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 100,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": {
+        "items": [
+          {
+            "plugin_id": "fixture_plugin",
+            "version": "1.0.0",
+            "kind": "native",
+            "manifest_valid": true,
+            "state": "loaded",
+            "reason": null,
+            "load_generation": "1",
+            "restart_required": false
+          }
+        ],
+        "has_more": false,
+        "next_cursor": null,
+        "truncated": false,
+        "redacted_count": 0
+      },
+      "error": null
+    },
+    {
+      "status": "unavailable",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": null,
+        "epoch": null,
+        "generation": null,
+        "observed_ms": null,
+        "age_ms": null,
+        "host_build": null,
+        "source_sha": null
+      },
+      "data": null,
+      "error": {
+        "code": "host_unavailable",
+        "retry_after_ms": null
+      }
+    },
+    {
+      "status": "restart_required",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 100,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": {
+        "items": [
+          {
+            "plugin_id": "fixture_plugin",
+            "version": "1.0.0",
+            "kind": "native",
+            "manifest_valid": true,
+            "state": "faulted",
+            "reason": "restart_required",
+            "load_generation": "1",
+            "restart_required": true
+          }
+        ],
+        "has_more": false,
+        "next_cursor": null,
+        "truncated": false,
+        "redacted_count": 0
+      },
+      "error": null
+    }
+  ],
+  "runtime_tail_plugin_log": [
+    {
+      "status": "ok",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 100,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": {
+        "entries": [
+          {
+            "sequence": "1",
+            "monotonic_ms": 1000,
+            "plugin_id": "fixture_plugin",
+            "level": "info",
+            "origin": "host",
+            "message": "fixture_loaded",
+            "untrusted_content": true
+          }
+        ],
+        "has_more": false,
+        "next_sequence": "1",
+        "first_available_sequence": "1",
+        "dropped_count": 0,
+        "redacted_count": 0,
+        "capture_started_ms": 500,
+        "free_form_enabled": false
+      },
+      "error": null
+    },
+    {
+      "status": "unavailable",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": null,
+        "epoch": null,
+        "generation": null,
+        "observed_ms": null,
+        "age_ms": null,
+        "host_build": null,
+        "source_sha": null
+      },
+      "data": null,
+      "error": {
+        "code": "host_unavailable",
+        "retry_after_ms": null
+      }
+    }
+  ],
+  "runtime_list_service_status": [
+    {
+      "status": "ok",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 100,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": {
+        "items": [
+          {
+            "service": "fixture_plugin.status",
+            "packed_version": 65536,
+            "owner_id": "fixture_plugin",
+            "owner_category": "plugin",
+            "status": "published",
+            "exposed": false,
+            "table_size": null,
+            "reason": null
+          }
+        ],
+        "has_more": false,
+        "next_cursor": null,
+        "truncated": false,
+        "redacted_count": 0
+      },
+      "error": null
+    },
+    {
+      "status": "unavailable",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": null,
+        "epoch": null,
+        "generation": null,
+        "observed_ms": null,
+        "age_ms": null,
+        "host_build": null,
+        "source_sha": null
+      },
+      "data": null,
+      "error": {
+        "code": "host_unavailable",
+        "retry_after_ms": null
+      }
+    },
+    {
+      "status": "unknown",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 100,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": null,
+      "error": {
+        "code": "unknown_metadata",
+        "retry_after_ms": null
+      }
+    }
+  ],
+  "runtime_get_resolution_status": [
+    {
+      "status": "ok",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 100,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": {
+        "items": [
+          {
+            "row_id": "fixture.row",
+            "state": "not_run",
+            "match_count": 0,
+            "reason": null,
+            "resolution_generation": "1",
+            "game_build": null
+          }
+        ],
+        "has_more": false,
+        "next_cursor": null,
+        "truncated": false,
+        "redacted_count": 0
+      },
+      "error": null
+    },
+    {
+      "status": "unavailable",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": null,
+        "epoch": null,
+        "generation": null,
+        "observed_ms": null,
+        "age_ms": null,
+        "host_build": null,
+        "source_sha": null
+      },
+      "data": null,
+      "error": {
+        "code": "host_unavailable",
+        "retry_after_ms": null
+      }
+    },
+    {
+      "status": "stale",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 1500,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": {
+        "items": [
+          {
+            "row_id": "fixture.row",
+            "state": "not_run",
+            "match_count": 0,
+            "reason": null,
+            "resolution_generation": "1",
+            "game_build": null
+          }
+        ],
+        "has_more": false,
+        "next_cursor": null,
+        "truncated": false,
+        "redacted_count": 0
+      },
+      "error": null
+    }
+  ],
+  "runtime_get_game_status": [
+    {
+      "status": "ok",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "epoch": "1",
+        "generation": "1",
+        "observed_ms": 1000,
+        "age_ms": 100,
+        "host_build": "fixture-host-1",
+        "source_sha": "0000000000000000000000000000000000000000"
+      },
+      "data": {
+        "lifecycle": "ready",
+        "last_tick_age_ms": 100,
+        "offline_admission": "authorized",
+        "game_services_requested": false,
+        "game_services_built": false,
+        "game_services_published": false,
+        "capabilities": [
+          {
+            "id": "fixture.capability",
+            "enabled": false,
+            "reason": "not_built"
+          }
+        ],
+        "capabilities_truncated": false,
+        "restart_required": false
+      },
+      "error": null
+    },
+    {
+      "status": "unavailable",
+      "provenance": {
+        "source": "runtime",
+        "schema_version": 1,
+        "session_id": null,
+        "epoch": null,
+        "generation": null,
+        "observed_ms": null,
+        "age_ms": null,
+        "host_build": null,
+        "source_sha": null
+      },
+      "data": null,
+      "error": {
+        "code": "host_unavailable",
+        "retry_after_ms": null
+      }
+    }
+  ]
+}

@@ -46,6 +46,7 @@ jobs:
           python3 tools/test_sdk_catalogue.py
           python3 tools/sdk_catalogue.py build --out "$RUNNER_TEMP/evidence/sdk-catalogue.json" --source-sha "$SOURCE_SHA"
           SCO_CORE_MCP_TEST_CATALOGUE="$RUNNER_TEMP/evidence/sdk-catalogue.json" python3 tools/sco-core-mcp/test_server.py
+          python3 tools/sco-core-mcp/test_runtime_schema.py
 
       - name: Package every profile twice; the bytes must match (Gate 6)
         run: |
