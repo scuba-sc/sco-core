@@ -1439,6 +1439,46 @@ static void TestFailedScriptServiceRetention() {
     fs::remove_all(p.dir);
 }
 
+// An actual off-thread attribution queues BlameTask; terminal cancellation must retain
+// the native provider even before that task applies its game-thread state verdict.
+static void TestPendingFaultShutdown() {
+    P::Options on;
+    on.enabled = true;
+    auto list = P::Discover(g_out / "plugins", on);
+    g_list = &list;
+    P::ContainCallouts(&list);
+    auto& provider = *const_cast<P::Plugin*>(Find(list, "svc_prov_d"));
+    auto& caller = *const_cast<P::Plugin*>(Find(list, "m0"));
+    const sco_api api = MakeApi();
+    CHECK(P::LoadNative(provider, &api, NewOwner(), on, kRecOps));
+    CHECK(P::LoadNative(caller, &api, NewOwner(), on, kRecOps));
+    const void* table = nullptr;
+    CHECK(sco::QueryService("svc_prov_d.svc", 1u << 16, &table) == sco::Result::Ok && table);
+    void* const module = provider.module;
+    const auto unload = provider.exports.unload;
+    const int unloads = Frozen(provider, "fake_unload_calls");
+    g_faultOwner = provider.self;
+    g_faultReleases = 0;
+    CHECK(sco::AddReleaseHook(FaultReleaseHook) == sco::Result::Ok);
+    g_faultModule = module;
+    P::SetCallGuard(ReportingGuard);
+    bool completed = true;
+    std::thread([&] { completed = P::CallPlugin(caller, "pending verdict", [](void*) {}, nullptr); }).join();
+    P::SetCallGuard(nullptr);
+    g_faultModule = nullptr;
+    CHECK(!completed && provider.state == State::Loaded && sco::QueuedTasks() == 1);
+    sco::detail::StopRuntime();   // cancels the real fault record, not a synthetic task
+    CHECK(sco::QueuedTasks() == 0);
+    P::UnloadAll(list, kRecOps);
+    CHECK(provider.state == State::Faulted && provider.module == module && provider.exports.unload == unload);
+    CHECK(Frozen(provider, "fake_unload_calls") == unloads && g_faultReleases == 0);
+    CHECK(sco::RemoveReleaseHook(FaultReleaseHook) == sco::Result::Ok);
+    g_faultOwner = nullptr;
+    P::ContainCallouts(nullptr);
+    g_list = nullptr;
+    sco::detail::SetRuntimeStopping(false);   // isolate the terminal session from later unit cases
+}
+
 // ---- the ABI freeze's old-binary fixture (tools/abi_snapshot.py) -----------------------------
 //
 // tests/fixtures/plugins/native/frozen_v11_plugin.c is compiled against include/sco_api.h
@@ -1526,6 +1566,7 @@ int main(int argc, char** argv) {
     TestContentIndex();
     TestNative();
     TestFrozenV11();
+    TestPendingFaultShutdown();
     TestServices();
     TestFaultedProviderUnloadRefusal();
     TestQuarantinedUnloadReservation();

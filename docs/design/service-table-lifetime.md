@@ -1,6 +1,6 @@
 # Design: service-table lifetime audit
 
-Status: source audit of `0ce4ab8`, updated for atomic administrative withdrawal, built-in provider refusal, queried failed-load retention, dependent reload cascades and restart-required fault retention. No plugin ABI growth. This is an inventory of the current implementation, not a lease or crash-safety guarantee. See [service safety](service-safety.md) for the historical proposal and [plugins](../plugins.md#hot-reload) for the supported reload contract.
+Status: source audit of `0ce4ab8`, updated from `ab25aa7` for atomic administrative withdrawal, built-in provider refusal, queried failed-load retention, dependent reload cascades, restart-required fault retention and the terminal host shutdown barrier. No plugin ABI growth. This is an inventory of the current implementation, not a lease or crash-safety guarantee. See [service safety](service-safety.md) for the historical proposal and [plugins](../plugins.md#hot-reload) for the supported reload contract.
 
 ## Scope and result
 
@@ -156,6 +156,65 @@ N = native plugin owner (`p.self`); B = built-in plugin owner; L = script owner.
 
 Resource release hooks are additional teardown sinks, not table/module owners: `OnRelease` in `src/storage/storage.cpp:772`, `src/settings/settings.cpp:237`, `src/ui/ui.cpp:440`, `src/ipc/ipc.cpp:372`, `src/net/service.cpp:613`, `src/datacore/service.cpp:390`; game `spawn.cpp:263` delegates to `ReleaseActorsOwner` (`actors.cpp:649`), `ReleaseEntitiesOwner` (`entities.cpp:1095`), `ReleaseCreativeOwner` (`creative.cpp:666`). They run on the game thread through `sco::Release`; they close/despawn/reset the released consumer's resources, do not ask CanUnload and do not revoke cached tables held by other consumers.
 
+## Shutdown
+
+### Terminal host boundary
+
+`app::Stop` (`src/app/sco_app.cpp:210–239`) is a game-thread operation outside an active runtime callout or reload. Wrong-thread and active-callout entries are logged and ignored, rather than tearing down a callback's live context or running inside the outer task/event/command stack. A `g_stopping` latch is set **before** `game.exit`; recursive Stop from exit/unload callbacks is a no-op. Tick and Reload also refuse while stopping. `TestRecursiveShutdown` and `TestShutdownCalloutSafety` observed the old duplicate teardown/active-callback failures before these repairs.
+
+`game.exit` remains the last live-session notification. Its callbacks may query live services and finish synchronous cleanup. Tasks posted there are **not** promised a final execution. Once every exit callback has returned, Stop calls private `StopRuntime` (`src/api/sco_tasks.cpp:196–214`) before the first native/built-in unload export or script-runtime unload:
+
+- `SetRuntimeStopping(true)` takes the service registry mutex (`src/api/sco_services.cpp:50–55`). This serializes the boundary with lookup and permanent hand-out recording (`:78–98`); a query completed on the admitted side, or a matching service returns `Unavailable` with a null output. An absent/withdrawn name still returns `NotFound`. Publication refuses with `Unavailable` (`:57–66`). No registry lock is held across plugin teardown.
+- Task admission checks the barrier under the queue mutex (`src/api/sco_tasks.cpp:87–106`). Shutdown then takes that same mutex, copies the bounded ring, splices the overflow list without allocation, and empties both. An in-progress admitted post is included; a later post is rejected. This includes **plugin, host-owned and ownerless work**. Drop functions run in FIFO order outside locks, freeing internal invoke/fault contexts; task functions and completion callbacks never run. Plain `Post`/`run_on_game_thread` has no drop callback: cancellation does not free arbitrary plugin-owned `ctx`, which the provider must own/clean up itself.
+- `DrainTasks` refuses after the boundary (`src/api/sco_tasks.cpp:129–164`); `Callout` suppresses host as well as plugin callbacks (`:49–56`). Dispatch returns `Unavailable` (`src/api/sco_events.cpp:97–102`), and Invoke/InvokeRaw refuse before calling plugin code (`src/api/sco_commands.cpp:300–308`, `src/api/sco_raw.cpp:76–85`). Event, command, service and raw-handler registrations cannot reopen admission during teardown. Cleanup operations such as withdrawal, unsubscribe and Release remain available.
+- The barrier remains closed after Stop. The next host `Start` reopens admission (`src/app/sco_app.cpp:79–86`), without replaying cancelled work. Plugin owners/hand-out marks are not recycled.
+
+Host-owned runtime callbacks are game-thread callouts, so there is no concurrent host-dispatched callback to wait for at the accepted Stop entry. Queued host-owned callbacks are cancelled before plugin state is freed. This is **not** a join of arbitrary provider worker threads, an interruption of direct raw-table calls, or a safety guarantee for custom resource hooks. Providers must stop/join their own workers before teardown, normally during `game.exit`; native calls outside host guards remain uncontained on POSIX.
+
+### Teardown and peer calls
+
+`UnloadAll` (`src/plugins/loader.cpp:660–674`) preserves newest-first ordering with built-ins last; it does not refuse healthy Loaded providers just because a table was handed out. The native/built-in sink runs the unload export, then Release, then close-or-pin (`:514–525`). The script sink releases host registrations/resources before runtime unload (`:597–602`). Host/game service Stops follow plugin teardown (`src/app/sco_app.cpp:221–235`). A failed Release keeps the module/runtime and reports failure rather than unmapping code; the terminal barrier still suppresses residual host callbacks.
+
+Faulted instances are never entered. An owner already quiesced by an off-thread fault but still awaiting its game-thread verdict also stays retained: `UnloadOneNow` converts it to terminal Faulted without unload/resource hooks (`src/plugins/loader.cpp:606–619`). Queued attribution records now have `DropBlame` (`:456`, queued at `:476`) so terminal cancellation deletes their internal context. `TestShutdownPendingFault` failed before this guard; `TestPendingFaultShutdown` exercises real joined-worker attribution and its actual queued record.
+
+A shutdown unload callback may use its own still-live state and cleanup APIs. It must **not** acquire new service tables, post work, dispatch events or invoke peer commands; those paths are closed. A cached peer-provider table is not a lease: actual queried dependencies are not necessarily declared `requires`, and built-ins-last/reverse load order is not proof that the peer's backing state still exists. Do not call cached plugin-provider entries from unload callbacks or after Stop. A provider must define any stronger, explicitly coordinated teardown contract itself. Host static table addresses may still exist, but their resource lifetime remains separate.
+
+`UnloadAll` alone is a lower-level loader teardown primitive, **not** a complete host-session shutdown: it does not itself send `game.exit`, close global runtime admission or cancel host-owned work. Products use `app::Stop` for that boundary. Direct loader unit cases exercise teardown/refusal/module pinning separately and must not be cited as proof of the host-session drain.
+
+### Lifecycle coverage matrix
+
+CTest registers whole executables, not each C++ test function. `ctest -N` enumerated 34 kernel tests before the new shutdown gate; the current kernel list has **35**, and the game-pack configuration has **43**:
+
+```text
+abi_v1 abi_freeze abi_storage abi_settings abi_game_vehicles abi_game_entities
+abi_game_creative abi_ui abi_datacore abi_ipc abi_sc_net abi_net abi_titanlink
+abi_voxel_bridge abi_game_world abi_game_events abi_game_actors
+ test_core test_runtime test_host test_sdk test_storage test_settings test_ipc
+ test_net test_net_service test_ui test_hook test_spatial test_vfs test_plugins
+ test_lua test_app test_shutdown_drain host_sim_examples
+```
+
+The game-pack configuration adds `test_death_events`, `test_pak`, `test_datacore`, `test_datacore_patch`, `test_datacore_pack`, `dcb_pack`, `test_datacore_service` and `dcb_tool`. The new `test_shutdown_drain` executes only the shutdown cases (`CMakeLists.txt:910`); `tools/test.sh` runs the same dedicated executable mode.
+
+| Requested row | Existing evidence | Gap filled / limits |
+|---|---|---|
+| Cached tables | `TestServices`, `tests/test_plugins.cpp:1040`; SDK `ServiceRef` cases, `tests/test_sdk.cpp:539–554` | Both public unload refusals preserve table identity/code; fault and shutdown module pinning covered. No claim of callable arbitrary state after terminal teardown. |
+| Denied provider reload | `TestReload`, `tests/test_app.cpp:954`; `TestReloadCascade`, :1147; `TestFaultedProviderUnloadRefusal`, `tests/test_plugins.cpp:1209` | App, command, C invocation and UI paths; whole-group refusal/rollback. Already covered; no duplicate row test. |
+| Recursive callbacks | Nested drain/tick in `TestTaskQueue`, `tests/test_runtime.cpp:104`; nested provider/unload faults in `TestServices`/`TestNative`; `TestDoneAfterRelease`, :885 | **New:** `TestRecursiveShutdown`, `tests/test_app.cpp:1457`, and `TestShutdownCalloutSafety`, :1475, cover recursive exit/unload, off-thread Stop and Stop from an active event. |
+| Failed release | `TestNative`, `tests/test_plugins.cpp:977–988` | Wrong-thread Release keeps code mapped and suppresses callbacks. Allocation-failure injection is not covered; do not equate this test with exhaustive OOM behavior. |
+| Pending tasks at unload | Owner Release ring/overflow in `TestTaskQueue`; queued commands in `TestCommands`, `tests/test_runtime.cpp:375`; host API release in `tests/test_host.cpp:390–407` | **New:** `TestShutdownDrain`, `tests/test_app.cpp:1546`, and `TestShutdownQueueOverflow`, :1581: terminal ring/overflow cancellation, owned cleanup exactly once/FIFO, host/null/plugin owners, real off-thread C invoke/copied strings, no completion/task replay, synchronous and joined-worker lookup/post refusal during unload. |
+| Provider fault | `TestServices`, `TestFaultedProviderUnloadRefusal`, `TestQuarantinedUnloadReservation`, `tests/test_plugins.cpp`; `TestReload`, `tests/test_app.cpp` | **New:** `TestShutdownPendingFault`, `tests/test_app.cpp:1608`, and real native `TestPendingFaultShutdown`, `tests/test_plugins.cpp:1444`: pending quiesced verdict cannot re-enter unload or release backing state. POSIX tests report a synthetic module trace; Windows CI exercises its guard separately. |
+| Repeated shutdown | `TestApp`, `tests/test_app.cpp:296`, plus storage/settings/net Stop cases | Sequential no-op already covered; new recursive cases verify exactly one exit and one unload. |
+| Missing capability | `TestDiscover`, `tests/test_plugins.cpp:296`; `TestRequiresOrder`, :459; `TestCommands`, `tests/test_runtime.cpp:375`; `TestApp` | Discovery/load and gated command refusal already covered; no extra test needed. |
+
+Each production defect repair was preceded by the narrow shutdown gate failing for the expected reason. Additional coverage-only cases exercise already-repaired cancellation branches without inventing another defect. Cached-pointer safety after arbitrary provider-managed destruction, uncontrolled worker faults and allocation-failure permutations remain outside this evidence.
+
+### Local verification limits
+
+AppleClang supports the requested C++ `-fsanitize=address,undefined` build. Kernel `test_runtime`, `test_plugins`, `test_app` and `test_shutdown_drain` pass with ASan/UBSan (`UBSAN_OPTIONS=halt_on_error=1`); fake native C modules and vendor C code are uninstrumented in this C++-flags configuration. An additional attempt instrumenting C too encounters macOS dynamic-fixture ODR/global-registration failures; it is not counted as a passing fully instrumented run.
+
+The requested full kernel and game-pack builds were attempted on macOS, but stop in pre-existing VFS libc++ `atomic<shared_ptr>` errors and warning-as-error failures in VFS/hooks; the game-pack app target also depends on those files. The kernel lifecycle/ABI-freeze targets build and pass independently. This local result does not substitute for full Linux/Windows CI, the Windows SEH stack walk, or running game-service Stop inside a game. Not run in game.
+
 ## Regression evidence and limits
 
 SDK provider-side teardown is reached from the guarded unload export, not through a second host predicate: C++ `detail::Slot<T>::Unload` (`include/scosdk/plugin.hpp:447`) calls `UnloadPlugin` (:695), then deletes the plugin object; `Plugin::Shutdown` (:657) clears SDK callback state, and failed `LoadPlugin` (:671) also calls it. `SCO_PLUGIN` emits the export at :724. C# `PluginExports.Unload` (`sdk/csharp/Sco.Sdk/Plugin.cs:446`) calls `UnloadPlugin` (:474), then `Plugin.Release` (:335) clears callbacks/arena/API; failed `LoadPlugin` (:458) also calls Release. These game-thread provider hooks do not consult CanUnload themselves, and a provider can still invalidate its own heap-backed table/state outside host lifecycle. They are not extra administrative host unload routes.
@@ -166,13 +225,13 @@ The standalone checker is a different one-plugin host: `sdk/tools/sco-plugin-che
 
 Local verification uses the kernel-only CMake `test_plugins` and `test_app` targets. That covers the refusal logic and real host shared-library loading, not the Windows SEH stack walk or game-pack Stop behavior in a running game. Not run in game. The full local `tools/test.sh` path is not used because of the known unrelated macOS warning-as-error failures in the VFS/pak code.
 
-## Open: provider withdrawal, fault behavior and shutdown
+## Open: provider withdrawal, raw calls and caches
 
 The atomic administrative race, built-in plugin refusal and queried failed-load cleanup findings are repaired above. Fault behavior now follows the retention policy below; the other limitations remain:
 
 - **Explicit withdrawal/republication:** release_service withdraws a name, not a reference. Outside a loader reservation, a provider may subsequently free/replace dynamic table memory while existing consumers retain it. The host gate cannot constrain arbitrary provider-managed teardown or replacement.
 - **Fault behavior (implemented after this audit):** the common `Crash` path quiesces the owner before testing the permanent hand-out mark: new host registrations are rejected and lookup/scheduling withdrawn. A handed-out provider becomes internal `State::Faulted`, retains its state/module, and never runs unload or resource release hooks, even through `UnloadAll`. Logs, status, plugin reports and reload refusal instruct the user to restart the game. A guarded off-thread provider verdict quiesces lookup/scheduling immediately without freeing resources and queues only the game-thread state/reason update; it remains restart-required even without a recorded hand-out. Quiescence/queue failure causes a logged controlled process stop. This is partial attribution, not a process security boundary or recovery from corrupted native state. Raw cached tables are not revoked or made safe; already-running calls are not interrupted. Off-thread faults outside a host guard are not contained; POSIX's default guard contains nothing.
-- **Shutdown ordering:** reverse declared load order and built-ins-last is not a graph of all actual queried dependencies. A consumer without a declared requires may unload after a provider. Stop is terminal for consumers; do not keep calling raw tables during/after shutdown based only on module pinning. Crash/killed-process shutdown is best effort.
+- **Shutdown ordering:** the terminal admission/cancellation barrier above is implemented; reverse declared load order and built-ins-last remain unchanged and are not a graph of all actual queried dependencies. Stop is terminal for consumers; raw tables confer no teardown lease. Crash/killed-process shutdown is best effort.
 - **Static getters and SDK caches:** native Table() getters return a non-null static address even after Stop. SDK copies do not automatically invalidate on withdrawal/fault/Stop. C# typed Open methods can retain the old pointer on failed reopen; lookup-again is not a lease either. Do not strengthen this into an all-functions-return-Unavailable claim: UI chord normalization is pure, DataCore state is a state value, and Net predicates can return 0.
 
-`sco_api.h`, its public enums, service table layouts, shutdown ordering and SDK caches are unchanged. Fault handling changes only host-internal state and implementation; dependent reload policy changes only as described above. Raw table references are never revoked. Current fault code is in `Crash`/`BlameProvider` and private runtime `QuarantineOwner`.
+`sco_api.h`, its public enums, service table layouts, relative plugin teardown ordering and SDK caches are unchanged. Terminal host admission/cancellation and shutdown reentrancy are repaired above. Fault handling changes only host-internal state and implementation; dependent reload policy changes only as described above. Raw table references are never revoked. Current fault code is in `Crash`/`BlameProvider` and private runtime `QuarantineOwner`.

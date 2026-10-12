@@ -138,6 +138,7 @@ Result RegisterCommand(const void* owner, const char* prefix, const Command& cmd
     }
 
     std::lock_guard<std::mutex> hold(g_regLock);
+    if (detail::RuntimeStopping()) return Result::Unavailable;
     if (detail::Released(owner) || FindLive(cmd.name)) return Result::BadArg;
     if (prefix && PrefixTaken(owner, prefix, prefixLen)) return Result::BadArg;
     if (g_liveCount == kMaxCommands) return Result::TooMany;
@@ -299,6 +300,7 @@ Result Invoke(const char* name, const Arg* args, uint32_t nargs, InvokeDone done
 Result detail::InvokeOwned(const char* name, const Arg* args, uint32_t nargs, InvokeDone done, void* ctx,
                            const void* owner, TaskFn dropCtx) {
     if (!name || nargs > kMaxCommandArgs || (nargs && !args) || detail::Released(owner)) return Result::BadArg;
+    if (detail::RuntimeStopping()) return Result::Unavailable;
     if (OnGameThread()) {
         Result r = Result::Ok;
         RunAndReport(name, args, nargs, done, ctx, owner, dropCtx, &r);

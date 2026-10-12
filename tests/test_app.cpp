@@ -37,6 +37,8 @@
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <thread>
+#include "../src/api/internal.h"   // owned task/drop regressions, no public ABI additions
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -159,7 +161,8 @@ static void OnDone(sco::Result r, const char* reply, void* ctx) {
 }
 static Reply Invoke(const char* name, std::vector<sco::Arg> args = {}) {
     Reply d;
-    sco::Invoke(name, args.empty() ? nullptr : args.data(), static_cast<uint32_t>(args.size()), OnDone, &d);
+    const sco::Result r = sco::Invoke(name, args.empty() ? nullptr : args.data(), static_cast<uint32_t>(args.size()), OnDone, &d);
+    if (!d.called) d.r = r;
     return d;
 }
 static sco::Arg Str(const char* s) { sco::Arg a{}; a.type = sco::ArgType::String; a.v.s = s; return a; }
@@ -382,7 +385,7 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     CHECK((Unloaded() == std::vector<std::string>{ "m11", "m0", "greeter", "core1" }));
     CHECK(StateOf("core1") == State::Unloaded && StateOf("m0") == State::Unloaded && StateOf("greeter") == State::Unloaded);
     CHECK(StateOf("faulty") == State::Crashed && StateOf("travel_pack") == State::Loaded);
-    CHECK(Invoke("core1.count").r == sco::Result::NotFound);
+    CHECK(Invoke("core1.count").r == sco::Result::Unavailable);
     sco::app::Tick(300);                                                     // after Stop: nothing
     CHECK(g_coreTicks == 2);
     sco::app::Stop();                                                        // twice: no-op
@@ -1433,6 +1436,188 @@ static void TestAppSettings(const fs::path& out) {
     fs::remove_all(base, ec);
 }
 
+// ---- shutdown reentrancy --------------------------------------------------------------------
+
+static int g_stopExits = 0, g_stopUnloads = 0;
+static void StopExit(const char*, const void*, void*) {
+    if (++g_stopExits == 1) sco::app::Stop();   // bounded even before the regression is fixed
+    CHECK(StateOf("stopprobe") == State::Loaded);   // the exit callback must unwind first
+}
+static const sco_plugin_info* StopQuery() {
+    static const sco_plugin_info info{ sizeof(sco_plugin_info), SCO_API_MAJOR, SCO_API_MINOR,
+                                       "stopprobe", "1.0.0", "tests" };
+    return &info;
+}
+static sco_result StopLoad(const sco_api* api, sco_plugin* self) {
+    return api->subscribe(self, "game.exit", StopExit, nullptr);
+}
+static void StopUnload() {
+    if (++g_stopUnloads == 1) sco::app::Stop();
+}
+static void TestRecursiveShutdown() {
+    static const P::Builtin b{ "stopprobe", StopQuery, StopLoad, StopUnload };
+    sco::app::Platform pf;
+    pf.builtins = &b; pf.nBuiltins = 1;
+    g_stopExits = g_stopUnloads = 0;
+    CHECK(sco::app::Start(pf));
+    sco::app::Stop();
+    CHECK(g_stopExits == 1 && g_stopUnloads == 1);
+    CHECK(StateOf("stopprobe") == State::Unloaded);
+    sco::app::Stop();
+    CHECK(g_stopExits == 1 && g_stopUnloads == 1);
+}
+
+static void StopDuringEvent(const char*, const void*, void*) {
+    sco::app::Stop();
+    CHECK(StateOf("stopprobe") == State::Loaded);
+    CHECK(g_stopUnloads == 0);
+}
+static void TestShutdownCalloutSafety() {
+    static const P::Builtin b{ "stopprobe", StopQuery, StopLoad, StopUnload };
+    sco::app::Platform pf;
+    pf.builtins = &b; pf.nBuiltins = 1;
+    g_stopExits = g_stopUnloads = 0;
+    CHECK(sco::app::Start(pf));
+    std::thread worker([] { sco::app::Stop(); });
+    worker.join();
+    CHECK(StateOf("stopprobe") == State::Loaded && g_stopExits == 0);
+    CHECK(sco::Subscribe(Find("stopprobe")->self, "stop.test", StopDuringEvent, nullptr) == sco::Result::Ok);
+    CHECK(sco::Dispatch("stop.test", nullptr) == sco::Result::Ok);
+    sco::app::Stop();
+    CHECK(g_stopExits == 1 && g_stopUnloads == 1);
+}
+
+static const sco_api* g_drainApi = nullptr;
+static sco_plugin* g_drainSelf = nullptr;
+static int g_drainRuns = 0, g_drainDrops = 0, g_drainDones = 0, g_drainExits = 0;
+static void DrainRun(void*) { ++g_drainRuns; }
+static void DrainDrop(void*) { ++g_drainDrops; }
+static void DrainDone(sco::Result, const char*, void*) { ++g_drainDones; }
+static void DrainEvent(const char*, const void*, void*) { ++g_drainRuns; }
+static sco::Result DrainCommand(const sco::Arg*, uint32_t, void*, char*, uint32_t) {
+    ++g_drainRuns; return sco::Result::Ok;
+}
+static const sco_plugin_info* DrainQuery() {
+    static const sco_plugin_info info{ sizeof(sco_plugin_info), SCO_API_MAJOR, SCO_API_MINOR,
+                                       "drainprobe", "1.0.0", "tests" };
+    return &info;
+}
+static void DrainExit(const char*, const void*, void*) {
+    ++g_drainExits;
+    // game.exit still sees the live session; teardown begins only after this returns.
+    const void* table = nullptr;
+    CHECK(g_drainApi->query_service("sco.ui", 0x00010000, &table) == SCO_OK && table);
+    CHECK(g_drainApi->run_on_game_thread(g_drainSelf, DrainRun, nullptr) == SCO_OK);
+}
+static sco_result DrainLoad(const sco_api* api, sco_plugin* self) {
+    g_drainApi = api; g_drainSelf = self;
+    static int table;
+    CHECK(api->provide_service(self, "drainprobe.svc", 0x00010000, &table) == SCO_OK);
+    CHECK(api->subscribe(self, "game.exit", DrainExit, nullptr) == SCO_OK);
+    const sco::Command cmd{ "drainprobe.run", "", "", nullptr, nullptr, 0, DrainCommand, nullptr };
+    CHECK(sco::RegisterCommand(self, "drainprobe", cmd) == sco::Result::Ok);
+    return SCO_OK;
+}
+static void DrainUnload() {
+    CHECK(sco::QueuedTasks() == 0);
+    CHECK(g_drainDrops == 3);   // plugin invoke, host-owned task and ownerless task cleaned first
+    const void* table = reinterpret_cast<const void*>(1);
+    CHECK(g_drainApi->query_service("drainprobe.svc", 0x00010000, &table) == SCO_UNAVAILABLE && !table);
+    table = reinterpret_cast<const void*>(1);
+    CHECK(g_drainApi->query_service("sco.ui", 0x00010000, &table) == SCO_UNAVAILABLE && !table);
+    static int replacement;
+    CHECK(g_drainApi->provide_service(g_drainSelf, "drainprobe.new", 0x00010000, &replacement) == SCO_UNAVAILABLE);
+    CHECK(g_drainApi->run_on_game_thread(g_drainSelf, DrainRun, nullptr) == SCO_UNAVAILABLE);
+    CHECK(sco::Post(DrainRun, nullptr) == sco::Result::Unavailable);
+    CHECK(sco::Dispatch("drain.event", nullptr) == sco::Result::Unavailable);
+    CHECK(sco::Invoke("drainprobe.run", nullptr, 0, DrainDone, nullptr) == sco::Result::Unavailable);
+    CHECK(sco::DrainTasks() == 0);
+    sco::Result posted = sco::Result::Ok;
+    sco_result queried = SCO_OK;
+    std::thread worker([&] {
+        posted = sco::Post(DrainRun, nullptr, sco::host::HostOwner());
+        const void* peer = reinterpret_cast<const void*>(1);
+        queried = g_drainApi->query_service("sco.ui", 0x00010000, &peer);
+        CHECK(!peer);
+    });
+    worker.join();
+    CHECK(posted == sco::Result::Unavailable && queried == SCO_UNAVAILABLE);
+}
+static void TestShutdownDrain() {
+    static const P::Builtin b{ "drainprobe", DrainQuery, DrainLoad, DrainUnload };
+    sco::app::Platform pf;
+    pf.builtins = &b; pf.nBuiltins = 1;
+    g_drainRuns = g_drainDrops = g_drainDones = g_drainExits = 0;
+    CHECK(sco::app::Start(pf));
+    CHECK(sco::Subscribe(sco::host::HostOwner(), "drain.event", DrainEvent, nullptr) == sco::Result::Ok);
+    CHECK(sco::detail::PostOwned(DrainRun, DrainDrop, nullptr, sco::host::HostOwner()) == sco::Result::Ok);
+    CHECK(sco::detail::PostOwned(DrainRun, DrainDrop, nullptr, nullptr) == sco::Result::Ok);
+    CHECK(sco::Post(DrainRun, nullptr, g_drainSelf) == sco::Result::Ok);
+    sco::Result queued = sco::Result::Failed;
+    std::thread worker([&] {
+        queued = sco::detail::InvokeOwned("drainprobe.run", nullptr, 0, DrainDone, nullptr, g_drainSelf, DrainDrop);
+    });
+    worker.join();
+    CHECK(queued == sco::Result::Ok);
+    sco::app::Stop();
+    CHECK(g_drainExits == 1 && g_drainRuns == 0 && g_drainDones == 0 && g_drainDrops == 3);
+    CHECK(sco::QueuedTasks() == 0 && sco::DrainTasks() == 0);
+    CHECK(sco::Post(DrainRun, nullptr) == sco::Result::Unavailable);
+    CHECK(sco::Unsubscribe(sco::host::HostOwner(), "drain.event", DrainEvent) == sco::Result::Ok);
+    // A new host session reopens admission, without replaying cancelled work.
+    pf.builtins = nullptr; pf.nBuiltins = 0;
+    CHECK(sco::app::Start(pf));
+    CHECK(sco::Post(DrainRun, nullptr) == sco::Result::Ok && sco::DrainTasks() == 1);
+    CHECK(g_drainRuns == 1);
+    sco::app::Stop();
+}
+
+static int g_overflowDrops = 0;
+static void OverflowDrop(void* ctx) {
+    CHECK(*static_cast<int*>(ctx) == g_overflowDrops);   // exact FIFO, no duplicate cleanup
+    ++g_overflowDrops;
+}
+static void DrainDoneC(sco_result, const char*, void*) { ++g_drainDones; }
+static void TestShutdownQueueOverflow() {
+    sco::app::Platform pf;
+    CHECK(sco::app::Start(pf));
+    g_overflowDrops = g_drainRuns = g_drainDones = 0;
+    std::vector<int> contexts(sco::kMaxQueuedTasks + 5);
+    for (size_t i = 0; i < contexts.size(); ++i) {
+        contexts[i] = static_cast<int>(i);
+        CHECK(sco::detail::PostOwned(DrainRun, OverflowDrop, &contexts[i], nullptr) == sco::Result::Ok);
+    }
+    const sco_api* api = sco::host::BuildApi({ "shutdown-test" });
+    sco_plugin* caller = sco::host::NewPlugin("overflowcaller");
+    sco_result queued = SCO_FAILED;
+    std::thread worker([&] {
+        std::string text = "copied-before-caller-unwinds";
+        sco_arg arg{}; arg.type = SCO_ARG_STRING; arg.v.s = text.c_str();
+        queued = api->invoke(caller, "sco.reload", &arg, 1, DrainDoneC, nullptr);
+    });
+    worker.join();
+    CHECK(queued == SCO_OK && sco::QueuedTasks() == contexts.size() + 1);
+    sco::app::Stop();
+    CHECK(g_overflowDrops == static_cast<int>(contexts.size()));
+    CHECK(g_drainRuns == 0 && g_drainDones == 0 && sco::QueuedTasks() == 0);
+    CHECK(sco::Release(caller) == sco::Result::Ok);
+}
+
+static int g_pendingFaultUnloads = 0;
+static void PendingFaultUnload() { ++g_pendingFaultUnloads; }
+static void TestShutdownPendingFault() {
+    static const P::Builtin b{ "stopprobe", StopQuery, StopLoad, PendingFaultUnload };
+    sco::app::Platform pf;
+    pf.builtins = &b; pf.nBuiltins = 1;
+    g_stopExits = g_pendingFaultUnloads = 0;
+    CHECK(sco::app::Start(pf));
+    // Off-thread attribution has closed the owner but its game-thread verdict is pending.
+    CHECK(sco::detail::QuarantineOwner(Find("stopprobe")->self) == sco::Result::Ok);
+    sco::app::Stop();
+    CHECK(g_pendingFaultUnloads == 0);
+    CHECK(StateOf("stopprobe") == State::Faulted);
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_app <sdk dir> <out dir>\n"); return 2; }
     sco::SetLogSink(Sink);
@@ -1443,6 +1628,16 @@ int main(int argc, char** argv) {
 #ifndef _WIN32
     P::SetCallGuard(SignalGuard);
 #endif
+    if (argc > 3 && std::strcmp(argv[3], "shutdown-only") == 0) {
+        TestRecursiveShutdown();
+        TestShutdownCalloutSafety();
+        TestShutdownDrain();
+        TestShutdownQueueOverflow();
+        TestShutdownPendingFault();
+        std::printf("sco-core shutdown tests: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
+    TestBuiltinLoader(sco::host::BuildApi({ "test-app 1.0" }), fs::path(argv[2]) / "plugins");
     TestApp(argv[1], argv[2]);
     TestBuiltinIdConflict(argv[2]);
     TestReload(argv[2]);
@@ -1450,7 +1645,6 @@ int main(int argc, char** argv) {
     TestReloadNonCodeDependents(argv[2]);
     TestAppSettings(argv[2]);
     TestReloadSettings(argv[2]);
-    TestBuiltinLoader(sco::host::BuildApi({ "test-app 1.0" }), fs::path(argv[2]) / "plugins");
     P::SetCallGuard(nullptr);
     std::printf("sco-core app tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

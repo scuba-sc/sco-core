@@ -411,6 +411,7 @@ APP=("$ROOT/src/app/sco_app.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -I "$ROOT/plugins/lua" -isystem "$LUA_SRC" "$ROOT/tests/test_app.cpp" "${APP[@]}" \
   "${LUA_OBJS[@]}" -ldl -o "$OUT/test_app"
 "$OUT/test_app" "$ROOT/sdk" "$OUT"
+"$OUT/test_app" "$ROOT/sdk" "$OUT" shutdown-only
 SIM=$OUT/sim/plugins
 rm -rf "$OUT/sim"
 mkdir -p "$SIM/hello"

@@ -453,6 +453,8 @@ struct Blame {
     char     where[96];
 };
 
+static void DropBlame(void* c) { delete static_cast<Blame*>(c); }
+
 static void BlameTask(void* c) {
     const std::unique_ptr<Blame> b(static_cast<Blame*>(c));
     BlameProviderNow(*b->culprit, b->where, b->code);
@@ -471,7 +473,7 @@ static void BlameProvider(Plugin& culprit, const Plugin& caller, uint32_t code) 
         std::abort();
     }
     Blame* b = new (std::nothrow) Blame(tmp);
-    if (b && sco::Post(BlameTask, b, nullptr) == sco::Result::Ok) return;
+    if (b && sco::detail::PostOwned(BlameTask, DropBlame, b, nullptr) == sco::Result::Ok) return;
     delete b;
     sco::Log("[plugin] %s faulted in %s (0x%08X); cannot queue fault state; stopping the process", IdOf(culprit), tmp.where, code);
     std::abort();
@@ -603,6 +605,14 @@ static void UnloadScript(Plugin& p, const ScriptRuntime* runtime) {
 // shutdown) must unload everything, so it calls this directly; UnloadOne reserves admission first.
 static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* runtime) {
     if (p.state != State::Loaded) return;
+    if (p.self && sco::detail::Released(p.self)) {
+        // An off-thread fault closed this owner, but its queued verdict may have been
+        // cancelled by terminal shutdown. Never enter its exports or destroy retained state.
+        p.state = State::Faulted;
+        p.reason = "owner quiesced before shutdown verdict; state retained, restart the game";
+        sco::Log("[plugin] %s faulted: %s", IdOf(p), p.reason.c_str());
+        return;
+    }
     switch (p.manifest.kind) {
         case Kind::Native:  UnloadCode(p, ops); break;
         case Kind::Builtin: UnloadCode(p, nullptr); break;

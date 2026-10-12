@@ -2,6 +2,7 @@
 #include "sco/runtime.h"
 #include "internal.h"
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -19,6 +20,7 @@ struct Service {
 };
 
 std::mutex           g_lock;
+std::atomic<bool>    g_stopped{ false };
 std::vector<Service> g_services;
 // Owners whose table QueryService has returned at least once. Kept after the services are
 // withdrawn: the loader asks once the owner is released, to keep its module mapped. One pointer
@@ -45,6 +47,13 @@ bool ValidServiceName(const char* name) {
 
 }  // namespace
 
+bool detail::RuntimeStopping() { return g_stopped.load(); }
+void detail::SetRuntimeStopping(bool stopped) {
+    // Serializes the terminal boundary with the first successful hand-out.
+    std::lock_guard<std::mutex> hold(g_lock);
+    g_stopped.store(stopped);
+}
+
 Result ProvideService(const void* owner, const char* prefix, const char* name, uint32_t version,
                       const void* table) {
     if (!owner || !table || !ValidServiceName(name)) return Result::BadArg;
@@ -53,6 +62,7 @@ Result ProvideService(const void* owner, const char* prefix, const char* name, u
         if (p == 0 || strncmp(name, prefix, p) != 0 || (name[p] != '\0' && name[p] != '.')) return Result::BadArg;
     }
     std::lock_guard<std::mutex> hold(g_lock);
+    if (detail::RuntimeStopping()) return Result::Unavailable;
     if (detail::Released(owner)) return Result::BadArg;
     if (Withdrawing(owner)) return Result::Unavailable;
     for (const Service& s : g_services)
@@ -71,7 +81,7 @@ Result QueryService(const char* name, uint32_t minVersion, const void** out) {
     std::lock_guard<std::mutex> hold(g_lock);
     for (const Service& s : g_services) {
         if (s.name != name) continue;
-        if (Withdrawing(s.owner)) return Result::Unavailable;
+        if (detail::RuntimeStopping() || Withdrawing(s.owner)) return Result::Unavailable;
         if ((s.version >> 16) != (minVersion >> 16) || s.version < minVersion) return Result::Unavailable;
         // Record the hand-out first: a table that is returned must be one the loader knows about.
         if (std::find(g_handedOut.begin(), g_handedOut.end(), s.owner) == g_handedOut.end()) {
