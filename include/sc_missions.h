@@ -48,6 +48,9 @@ typedef struct sc_missions_v1 {
     sco_result (*offer)(sco_plugin* self, uint32_t index, sc_mission_offer* out);
     /* Copied, sanitized status for an opaque mission ID. NOT_FOUND for unknown ID. */
     sco_result (*status)(sco_plugin* self, uint64_t mission_id, sc_mission_status* out);
+    /* Current offer/broker/generation only. key is owner/session-scoped; output unchanged on failure.
+     * Identical key+offer replay returns original ID; altered replay BAD_ARG; 64 receipts, no eviction. */
+    sco_result (*accept)(sco_plugin* self, const sc_mission_offer* offer, uint64_t key, uint64_t* out_mission);
 } sc_missions_v1;
 #ifdef __cplusplus
 }

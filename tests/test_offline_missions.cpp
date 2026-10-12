@@ -11,13 +11,16 @@ using namespace sco;
 using namespace sco::game::offline;
 struct Fake {
     Admission allow{7, true, true, false};
-    int reads = 0;
+    int reads = 0, accepts = 0;
     static Admission Admit(void* p) { return static_cast<Fake*>(p)->allow; }
     static sco_result Offer(void* p, uint32_t i, sc_mission_offer* out) {
         ++static_cast<Fake*>(p)->reads;
         if (i) return SCO_NOT_FOUND;
         *out = {sizeof(*out), 0, 101, 202, 2, 2, 50, 3};
         return SCO_OK;
+    }
+    static sco_result Accept(void* p, const sc_mission_offer*, uint64_t* out) {
+        auto& f = *static_cast<Fake*>(p); ++f.accepts; *out = 303; return SCO_OK;
     }
     static sco_result Status(void* p, uint64_t id, sc_mission_status* out) {
         ++static_cast<Fake*>(p)->reads;
@@ -39,6 +42,7 @@ void WrapperGuards(sco_plugin* self) {
         exposed = bytes.get(); CHECK(wrap.Open(&api, self) == SCO_OK);
         CHECK(wrap.Offer(0, offer) == SCO_UNAVAILABLE);
         CHECK(wrap.Status(303, status) == SCO_UNAVAILABLE);
+        uint64_t id = 0; CHECK(wrap.Accept(offer, 42, id) == SCO_UNAVAILABLE);
     }
     sc_missions_v1 empty{}; empty.size = sizeof(empty); exposed = &empty;
     CHECK(wrap.Open(&api, self) == SCO_OK);
@@ -52,7 +56,7 @@ int main() {
     auto* self = host::NewPlugin("mission_fixture"); CHECK(self);
     WrapperGuards(self);
     Fake f;
-    Backend backend{&f, Fake::Admit, Fake::Offer, Fake::Status};
+    Backend backend{&f, Fake::Admit, Fake::Offer, Fake::Status, Fake::Accept};
     CHECK(Start(backend) == Result::Ok);
     const sc_missions_v1* svc = nullptr;
     CHECK(api->query_service(SC_MISSIONS_SERVICE_NAME, SC_MISSIONS_SERVICE_VERSION,
@@ -62,6 +66,14 @@ int main() {
     CHECK(svc->offer(self, 0, &offer) == SCO_OK && offer.offer_id == 101);
     sc_mission_status status{}; status.size = sizeof(status);
     CHECK(svc->status(self, 303, &status) == SCO_OK && status.session == 7);
+    uint64_t mission = 0;
+    CHECK(svc->accept(self, &offer, 42, &mission) == SCO_OK && mission == 303 && f.accepts == 1);
+    CHECK(svc->accept(self, &offer, 42, &mission) == SCO_OK && f.accepts == 1);
+    auto changed = offer; changed.broker_id++;
+    CHECK(svc->accept(self, &changed, 42, &mission) == SCO_BAD_ARG && f.accepts == 1);
+    changed = offer; changed.generation++;
+    CHECK(svc->accept(self, &changed, 43, &mission) == SCO_NOT_FOUND && f.accepts == 1);
+    CHECK(svc->accept(self, &offer, 0, &mission) == SCO_BAD_ARG && f.accepts == 1);
     CHECK(svc->offer(self, 1, &offer) == SCO_NOT_FOUND);
     int before = f.reads;
     f.allow.offline = false;

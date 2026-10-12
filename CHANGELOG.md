@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G11 broker acceptance (#132):** exact broker/offer/generation validation,
+  owner/session-scoped idempotency and bounded non-evicting acceptance receipts.
+  Uncertain failures are not retried automatically; no engine adapter enabled.
+
 - **G11 read/status boundary (#132):** add game-pack `game.missions` 1.0 copied,
   bounded offers/status, current offline/EAC/session admission, release/thread guards,
   native-fault restart latch and C++ full-extent/null/reopen checks. Synthetic provider

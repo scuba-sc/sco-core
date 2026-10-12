@@ -75,8 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **121 table methods across 16 tables,
-plus 3 plugin entrypoints: 124 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **122 table methods across 16 tables,
+plus 3 plugin entrypoints: 125 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -175,7 +175,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 
 | Table / entrypoints | Methods | Current x64 size | Contract version |
 |---|---:|---:|---|
-| `sc_missions_v1` | 2 | 24 | 1.0 |
+| `sc_missions_v1` | 3 | 32 | 1.0 |
 | `sco_api` | 15 | 128 | 1.1 |
 | `sco_storage_v1` | 15 | 128 | 1.0 |
 | `sco_datacore_v1` | 10 | 88 | 1.1 |
@@ -585,9 +585,9 @@ C/C++ direct table route; C# and Lua unsupported.
 
 | Method | size / since | buffer contract | ownership | thread | results | cleanup |
 |---|---|---|---|---|---|---|
+| `sc_missions_v1.accept` | `size >= 32`; 1.0 | `sco_result (*accept)(sco_plugin* self, const sc_mission_offer* offer, uint64_t key, uint64_t* out_mission);`<br>Accept the exact current broker/offer/generation with a nonzero owner/session idempotency key. Duplicate identical requests return the original handle without another effect; changed input with the same key is BAD_ARG. At most 64 retained acceptance receipts per session; no eviction. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
 | `sc_missions_v1.offer` | `size >= 16`; 1.0 | `sco_result (*offer)(sco_plugin* self, uint32_t index, sc_mission_offer* out);`<br>Bounded copied offline offer by index (0..255); NOT_FOUND at end. Caller output size must cover the whole record; size and unknown tails are preserved. No mutation authority. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
 | `sc_missions_v1.status` | `size >= 24`; 1.0 | `sco_result (*status)(sco_plugin* self, uint64_t mission_id, sc_mission_status* out);`<br>Copied sanitized mission status for nonzero opaque ID and current session. NOT_FOUND for unknown ID; caller output size must cover the record. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
-
 ## Explicit remaining gaps
 
 This is an inventory-complete catalogue, not a claim that the API has a complete

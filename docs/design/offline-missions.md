@@ -25,6 +25,16 @@ C and C++ routes are supported; the C++ wrapper checks complete callback extents
 null methods and failed reopen. C# and Lua bindings are unsupported for this service.
 Native plugins remain trusted process code; table guards are not a native sandbox.
 
+## Broker acceptance
+
+`accept` validates a complete offer against the current bounded broker catalogue,
+including generation and broker ID. No arbitrary mission identifier creation.
+A live plugin/session owns each accepted handle and key. A 64-entry non-evicting
+receipt ledger reserves before the effect, preserving identical success/failure
+replays and rejecting altered key reuse. Faults or malformed successful engine
+IDs require restart. Old session receipts become inaccessible on session change;
+this is **session-local**, not persistence across plugin reload or process restart.
+
 ## Decision pending owner
 
 Approve mission-kind coverage and the concrete Windows adapter only after independent

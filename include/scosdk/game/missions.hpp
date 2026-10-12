@@ -23,6 +23,10 @@ public:
         return table_ && table_->size >= offsetof(sc_missions_v1, offer) + sizeof(table_->offer) && table_->offer
             ? table_->offer(self_, index, &out) : SCO_UNAVAILABLE;
     }
+    sco_result Accept(const sc_mission_offer& offer, uint64_t key, uint64_t& id) const noexcept {
+        return table_ && table_->size >= offsetof(sc_missions_v1, accept) + sizeof(table_->accept) && table_->accept
+            ? table_->accept(self_, &offer, key, &id) : SCO_UNAVAILABLE;
+    }
     sco_result Status(uint64_t id, sc_mission_status& out) const noexcept {
         return table_ && table_->size >= offsetof(sc_missions_v1, status) + sizeof(table_->status) && table_->status
             ? table_->status(self_, id, &out) : SCO_UNAVAILABLE;

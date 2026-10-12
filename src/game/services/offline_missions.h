@@ -14,6 +14,7 @@ struct Backend {
     Admission (*admission)(void*) = nullptr;
     sco_result (*offer)(void*, uint32_t, sc_mission_offer*) = nullptr;
     sco_result (*status)(void*, uint64_t, sc_mission_status*) = nullptr;
+    sco_result (*accept)(void*, const sc_mission_offer*, uint64_t*) = nullptr;
 };
 // Session-lifetime borrowed backend context. Start/Stop on game thread only.
 // Start refuses replacement; Stop must follow consumer unload. Faults require process restart.

@@ -3,13 +3,91 @@
   "records": [
     {
       "kind": "table-method",
+      "symbol": "sc_missions_v1.accept",
+      "table": "sc_missions_v1",
+      "source_header": "include/sc_missions.h",
+      "signature": "sco_result (*)(sco_plugin *, const sc_mission_offer *, uint64_t, uint64_t *)",
+      "version_macro": "SC_MISSIONS_SERVICE_VERSION",
+      "member_extent": 32,
+      "table_size": 32,
+      "service": "game.missions",
+      "id": "sc-missions-v1-accept",
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Accept the exact current broker/offer/generation with a nonzero owner/session idempotency key. Duplicate identical requests return the original handle without another effect; changed input with the same key is BAD_ARG. At most 64 retained acceptance receipts per session; no eviction.",
+      "buffer_contract": "`sco_result (*accept)(sco_plugin* self, const sc_mission_offer* offer, uint64_t key, uint64_t* out_mission);`<br>Accept the exact current broker/offer/generation with a nonzero owner/session idempotency key. Duplicate identical requests return the original handle without another effect; changed input with the same key is BAD_ARG. At most 64 retained acceptance receipts per session; no eviction.",
+      "ownership": "Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session.",
+      "thread_affinity": "Game thread only; WRONG_THREAD before backend access.",
+      "callback_context": "Backend callbacks synchronous on game thread; pointers valid only during call.",
+      "reentrancy": "Recursive calls and Stop/replacement during callbacks refused (FAILED).",
+      "results": "OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure.",
+      "absent_capability": "Missing table: query_service NOT_FOUND; absent method/backend or unsafe admission: UNAVAILABLE.",
+      "cleanup": "Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart.",
+      "examples": [],
+      "tests": [
+        "tests/abi_offline_missions.c",
+        "tests/test_offline_missions.cpp"
+      ],
+      "limitations": [
+        "No validated Windows engine adapter; synthetic/compile checked, not run in game.",
+        "Uniform phase widths only; other mission kinds unavailable.",
+        "No persistent receipt/store/import policy in game pack."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_missions.h",
+              "token": "(*accept)"
+            }
+          ],
+          "tests": [
+            "tests/abi_offline_missions.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_missions.h",
+              "token": "(*accept)"
+            }
+          ],
+          "tests": [
+            "tests/test_offline_missions.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/offline-missions.md",
+              "token": "C# and Lua bindings are unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/offline-missions.md",
+              "token": "C# and Lua bindings are unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
       "symbol": "sc_missions_v1.offer",
       "table": "sc_missions_v1",
       "source_header": "include/sc_missions.h",
       "signature": "sco_result (*)(sco_plugin *, uint32_t, sc_mission_offer *)",
       "version_macro": "SC_MISSIONS_SERVICE_VERSION",
       "member_extent": 16,
-      "table_size": 24,
+      "table_size": 32,
       "service": "game.missions",
       "id": "sc-missions-v1-offer",
       "since": "`size >= 16`; 1.0",
@@ -87,7 +165,7 @@
       "signature": "sco_result (*)(sco_plugin *, uint64_t, sc_mission_status *)",
       "version_macro": "SC_MISSIONS_SERVICE_VERSION",
       "member_extent": 24,
-      "table_size": 24,
+      "table_size": 32,
       "service": "game.missions",
       "id": "sc-missions-v1-status",
       "since": "`size >= 24`; 1.0",

@@ -12,6 +12,21 @@ namespace sco::game::offline {
 namespace {
 Backend backend;
 bool started = false, faulted = false, busy = false;
+struct Ticket {
+    const sco_plugin* owner = nullptr;
+    uint64_t key = 0, session = 0, mission = 0;
+    sc_mission_offer offer{};
+    sco_result result = SCO_FAILED;
+    bool revoked = false;
+};
+Ticket tickets[SC_MISSIONS_MAX_ACTIVE];
+uint64_t ledgerSession = 0;
+void Session(uint64_t id) {
+    if (ledgerSession != id) {
+        for (auto& t : tickets) t = {};
+        ledgerSession = id;
+    }
+}
 
 // This frame contains no C++ objects needing unwinding (MSVC C2712).
 sco_result NativeCall(sco_result (*fn)(void*), void* ctx) {
@@ -43,6 +58,7 @@ sco_result Enter(sco_plugin* self, Admission& admission) {
     if (r != SCO_OK) return r;
     if (!admission.session || !admission.offline || !admission.eac_absent || admission.shutting_down)
         return SCO_UNAVAILABLE;
+    Session(admission.session);
     return SCO_OK;
 }
 bool ValidOffer(const sc_mission_offer& v) {
@@ -86,7 +102,53 @@ sco_result Status(sco_plugin* self, uint64_t id, sc_mission_status* out) {
     const uint32_t size = out->size; *out = v; out->size = size;
     return SCO_OK;
 }
-const sc_missions_v1 table{sizeof(table), 0, Offer, Status};
+bool SameOffer(const sc_mission_offer& a, const sc_mission_offer& b) {
+    return a.flags == b.flags && a.offer_id == b.offer_id && a.broker_id == b.broker_id &&
+        a.generation == b.generation && a.phase_count == b.phase_count &&
+        a.objectives_in_phase == b.objectives_in_phase && a.local_reward == b.local_reward;
+}
+sco_result Accept(sco_plugin* self, const sc_mission_offer* offer, uint64_t key, uint64_t* out) {
+    Admission a;
+    if (const auto r = Enter(self, a); r != SCO_OK) return r;
+    if (!offer || offer->size < sizeof(*offer) || !out || !key || !ValidOffer(*offer)) return SCO_BAD_ARG;
+    for (const auto& t : tickets) {
+        if (t.owner != self || t.key != key) continue;
+        if (!SameOffer(t.offer, *offer)) return SCO_BAD_ARG;
+        if (t.revoked) return SCO_NOT_FOUND;
+        if (t.result == SCO_OK) *out = t.mission;
+        return t.result;
+    }
+    if (!backend.offer || !backend.accept) return SCO_UNAVAILABLE;
+    Ticket* slot = nullptr;
+    for (auto& t : tickets) if (!t.owner) { slot = &t; break; }
+    if (!slot) return SCO_TOO_MANY;
+    CallScope scope;
+    bool found = false;
+    for (uint32_t i = 0; i < SC_MISSIONS_MAX_OFFERS; ++i) {
+        sc_mission_offer current{}; current.size = sizeof(current);
+        auto read = [&] { return backend.offer(backend.ctx, i, &current); };
+        const auto r = Call(read);
+        if (r == SCO_NOT_FOUND) break;
+        if (r != SCO_OK) return r;
+        if (!ValidOffer(current)) return SCO_FAILED;
+        if (SameOffer(current, *offer)) { found = true; break; }
+    }
+    if (!found) return SCO_NOT_FOUND;
+    *slot = {self, key, a.session, 0, *offer, SCO_FAILED, false};
+    // Reserve before side effects; uncertain failures never trigger another attempt for this key.
+    auto effect = [&] { return backend.accept(backend.ctx, &slot->offer, &slot->mission); };
+    slot->result = Call(effect);
+    if (slot->result == SCO_OK) {
+        if (!slot->mission) { faulted = true; slot->result = SCO_CRASHED; }
+        for (const auto& t : tickets)
+            if (&t != slot && t.mission && t.mission == slot->mission) {
+                faulted = true; slot->result = SCO_CRASHED;
+            }
+        if (slot->result == SCO_OK) *out = slot->mission;
+    }
+    return slot->result;
+}
+const sc_missions_v1 table{sizeof(table), 0, Offer, Status, Accept};
 }
 Result Start(const Backend& b) {
     if (!OnGameThread()) return Result::WrongThread;
@@ -96,6 +158,7 @@ Result Start(const Backend& b) {
     if (r != Result::Ok) return r;
     backend = b; started = true;
     caps::Set("game.missions.read", b.admission && b.offer && b.status, "validated offline backend required");
+    caps::Set("game.missions.accept", b.admission && b.offer && b.accept, "validated offline backend required");
     return Result::Ok;
 }
 Result Stop() {
@@ -105,6 +168,7 @@ Result Stop() {
     started = false;
     host::WithdrawGameService(SC_MISSIONS_SERVICE_NAME);
     caps::Set("game.missions.read", false, "stopped");
+    caps::Set("game.missions.accept", false, "stopped");
     backend = {};
     return Result::Ok;
 }
