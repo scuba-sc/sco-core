@@ -73,7 +73,14 @@ void DisabledAndCredential() {
     SnapshotStore s;Capture c;Sink sink;di::Host h(s,c);di::Options o;o.credentialPath=path;
     CHECK(h.Start(o,&sink,1000)==di::Result::Disabled);CHECK(!std::filesystem::exists(path));
     di::Peer p;CHECK(p.Begin(path,1000)==di::Result::Auth);
-    o.enabled=true;o.excludedRoots={root};CHECK(h.Start(o,nullptr,1000)==di::Result::Audit);
+    // A null fixture sink selects production admission: policy defaults refuse
+    // first, but an authorized product must still fail closed without a collector.
+    o.enabled=true;o.excludedRoots={root};CHECK(h.Start(o,nullptr,1000)==di::Result::Disabled);
+    CHECK(!h.Started()&&!std::filesystem::exists(path));
+    o.policy.enabled=o.policy.disclosureConsent=true;
+    o.policy.admission=std::make_shared<std::atomic<OfflineAdmission>>(OfflineAdmission::Authorized);
+    CHECK(h.Start(o,nullptr,1000)==di::Result::Audit);
+    CHECK(!h.Started()&&!std::filesystem::exists(path));
     o.credentialPath=root+"/credential.json";CHECK(h.Start(o,&sink,1000)==di::Result::Unavailable);
     {
         Fixture f;di::Credentials credentials;std::string text;CHECK(os::ReadCredential(path,text));CHECK(di::ParseCredential(text,credentials));

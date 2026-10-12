@@ -911,6 +911,10 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_diagnostics_platform)
   add_test(NAME test_diagnostics_platform COMMAND test_diagnostics_platform)
   set_tests_properties(test_diagnostics_platform PROPERTIES ENVIRONMENT "SCO_DIAGNOSTICS_TEST_TMPDIR=${SCO_TEST_OUT}")
+  # These fixtures use the same per-user/session diagnostics mapping and peer lease.
+  # Keep that resource exclusive without serializing unrelated tests.
+  set_tests_properties(test_runtime_diagnostics_policy test_runtime_diagnostics_ipc
+    test_diagnostics_platform PROPERTIES RESOURCE_LOCK sco_diagnostics_transport)
   # Independently compiled source publisher: only copied public SDK declarations.
   set(_diagnostic_sdk "${CMAKE_CURRENT_BINARY_DIR}/diagnostics-sdk/include")
   file(MAKE_DIRECTORY "${_diagnostic_sdk}")

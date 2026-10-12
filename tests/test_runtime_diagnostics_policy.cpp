@@ -30,7 +30,9 @@ int main(int argc,char** argv){
     }
     const auto dir=std::filesystem::path(argv[1])/"runtime-policy";
     std::filesystem::create_directories(dir);std::filesystem::permissions(dir,std::filesystem::perms::owner_all);
-    o.credentialPath=(dir/"session.json").string();o.excludedRoots={argv[2]};o.hostBuild="fixture-host-1";
+    // Resolve only the trusted fixture directory (e.g. macOS /tmp alias),
+    // not the credential filename: transport symlink refusal stays intact.
+    o.credentialPath=(std::filesystem::canonical(dir)/"session.json").string();o.excludedRoots={argv[2]};o.hostBuild="fixture-host-1";
     o.policy.admission->store(OfflineAdmission::Authorized);
     for(auto status:{audit::Status::Unavailable,audit::Status::Full,audit::Status::Deadline}){
         collector->status=status;CHECK(host.Start(o,di::ClockNow())==di::Result::Audit);CHECK(!host.Started());
