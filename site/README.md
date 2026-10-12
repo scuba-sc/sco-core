@@ -4,10 +4,19 @@ Astro Starlight renders the SDK contract catalogue and explicitly selected publi
 engineering guides. Starlight's built-in Pagefind search runs locally against the
 static build; no hosted search service is configured.
 
-**Deployment is not configured.** The workflow builds a reviewable `sco-docs-site`
-artifact with read-only repository permissions. It does not enable GitHub Pages,
-publish the artifact or create a deployment. Publication remains a maintainer
-decision. The prospective site/base is `https://scubamount.github.io/sco-core/`.
+The workflow publishes to `https://scubamount.github.io/sco-core/` through the
+existing `docs-site` workflow and GitHub Pages' workflow build mode. Pull requests
+build and validate a reviewable `sco-docs-site` artifact with read-only permissions;
+they never publish. Only a push to `main`, or a manual workflow dispatch targeting
+`main`, uploads the validated `site/dist` Pages artifact and deploys it.
+
+The deploy job alone receives `pages: write` and `id-token: write`, uses the
+`github-pages` environment restricted to `main`, and serializes deployments without
+cancelling an in-progress publication. Checkout retains no credentials. Catalogue
+generation, locked dependency installation, search-path sanitization, private
+sentinel checks and built-site validation all precede artifact upload. Failed
+validation prevents publication. Publication remains a **development preview**;
+it does not create or label an SDK release.
 
 ## Local build
 
