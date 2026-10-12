@@ -709,6 +709,19 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_sdk)
   add_test(NAME test_sdk COMMAND test_sdk)
 
+  if(SCO_GAME_SC)
+    # Synthetic C recipes and typed C++ actor/entity pointer-tail negatives.
+    # Contract declarations only; never a game-runtime certification.
+    add_executable(test_language_routes_c tests/test_language_routes.c)
+    target_include_directories(test_language_routes_c PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(test_language_routes_c)
+    add_test(NAME test_language_routes_c COMMAND test_language_routes_c)
+    add_executable(test_language_routes tests/test_language_routes.cpp)
+    target_include_directories(test_language_routes PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_language_routes)
+    add_test(NAME test_language_routes COMMAND test_language_routes)
+  endif()
+
   # sco.storage over the real host table and SQLite; spawns itself to test crash safety.
   add_executable(test_storage tests/test_storage.cpp)
   target_link_libraries(test_storage PRIVATE sco_storage)
@@ -963,12 +976,24 @@ if(SCO_BUILD_TESTS)
     string(REPLACE "entry = hello.dll" "entry = hello.so" _hello_ini "${_hello_ini}")
   endif()
   file(WRITE "${_sim}/hello/plugin.ini" "${_hello_ini}")
+  add_library(sco_sim_cpp_hello SHARED sdk/examples/cpp_hello/cpp_hello.cpp)
+  target_include_directories(sco_sim_cpp_hello PRIVATE "${SCO_INCLUDE_DIR}")
+  set_target_properties(sco_sim_cpp_hello PROPERTIES
+    OUTPUT_NAME cpp_hello PREFIX "" SUFFIX ".${_ext}"
+    LIBRARY_OUTPUT_DIRECTORY "$<1:${_sim}/cpp_hello>"
+    RUNTIME_OUTPUT_DIRECTORY "$<1:${_sim}/cpp_hello>")
+  sco_project_target(sco_sim_cpp_hello)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/cpp_hello/plugin.ini" _cpp_hello_ini)
+  if(NOT WIN32)
+    string(REPLACE "entry = cpp_hello.dll" "entry = cpp_hello.so" _cpp_hello_ini "${_cpp_hello_ini}")
+  endif()
+  file(WRITE "${_sim}/cpp_hello/plugin.ini" "${_cpp_hello_ini}")
   file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/greeter" DESTINATION "${_sim}")
   if(SCO_GAME_SC)
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/travel_pack"
               "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/quantum_pack" DESTINATION "${_sim}")
   endif()
-  add_dependencies(sco-host-sim sco_sim_hello)
+  add_dependencies(sco-host-sim sco_sim_hello sco_sim_cpp_hello)
   # tests/host_sim.cmake runs the sim and prints "host_sim_examples: FAIL" unless it exits 0 and
   # answers the invoke; CTest needs the reply and no FAIL line.
   add_test(NAME host_sim_examples

@@ -2,7 +2,7 @@
 
 The C# layer of the sco plugin SDK: a .NET 8 library over [`sco_api.h`](api-v1.md) and the host-owned service headers, with no package references. A plugin references it and is published with **NativeAOT** into one self-contained native DLL with the three C exports; the player needs no .NET runtime, and the host can't tell it from a C plugin (`kind = native`).
 
-`sco_api.h` stays the contract. Everything here is a wrapper, so the [API v1 reference](api-v1.md) rules (threads, the reply buffer, `done` callbacks, services, raw handlers) still apply; this page covers what the C# layer adds. It mirrors the [C++ SDK](sdk-cpp.md): same registry, same lifetimes, same exception boundary.
+`sco_api.h` stays the contract. Everything here is a wrapper, so the [API v1 reference](api-v1.md) rules (threads, the reply buffer, `done` callbacks, services, raw handlers) still apply; this page covers what the C# layer adds. It shares the registry and lifetime contract with the [C++ SDK](sdk-cpp.md), but does **not** expose every C/C++ service. Consult the per-method [language mappings](contracts.md); `teleport.spatial` has no C# interop or typed wrapper. NativeAOT plugins are trusted in-process code, not a managed sandbox.
 
 ## Contents
 

@@ -41,7 +41,7 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 | [`scosdk/game/world.hpp`](../include/scosdk/game/world.hpp) | `sco::sdk::game::World`: `Raycast(zone, from, dir, maxDist, hit)`, `Camera(pos, rot, zone)` (world frame; no field of view), `LastError` (the game pack's service `game.world`, [`sc_world.h`](../include/sc_world.h); [API](api-v1.md#gameworld-10-game-pack)); not in `scosdk.hpp` |
 | [`scosdk/game/events.hpp`](../include/scosdk/game/events.hpp) | `sco::sdk::game::OnPlayerSpawned`, `OnPlayerDied`, `OnActorDied`, `OnZoneChanged`: `Plugin::Subscribe` helpers for the game pack's bus events ([`sc_game_events.h`](../include/sc_game_events.h); [game services](game-services.md#events)) that hand your function a copy of the payload and drop one shorter than the struct; not in `scosdk.hpp` |
 | [`scosdk/game/entities.hpp`](../include/scosdk/game/entities.hpp) | `sco::sdk::game::Entities`: `Alive`, `ClassOf`, `GetTransform`, `SetTransform`, `Spawn`, `Despawn`, `Keep` (1.1), `Watch`, `Unwatch`, `QueryRadius`, `LastError`, `LastReadError` (the game service `game.entities`, [`sc_entities.h`](../include/sc_entities.h); [API](api-v1.md#gameentities-11-game-pack)); not in `scosdk.hpp` |
-| [`scosdk/scosdk.hpp`](../include/scosdk/scosdk.hpp) | All of the above |
+| [`scosdk/scosdk.hpp`](../include/scosdk/scosdk.hpp) | Core `plugin.hpp`, `command.hpp`, `service.hpp`, `raw.hpp` only; include the optional headers above explicitly |
 
 Put the SDK's `include/` folder on the include path; the headers find `sco_api.h` there.
 

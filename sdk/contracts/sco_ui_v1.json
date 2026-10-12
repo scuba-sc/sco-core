@@ -30,6 +30,9 @@
               "path": "include/sco_ui.h",
               "token": "(*register_tab)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "return t_ ? t_->register_tab(self_, id, title, order, draw, ctx) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -48,6 +57,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "r = _t->register_tab(Self, i, t, order, &DrawTrampoline, (void*)key);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -57,14 +70,18 @@
               "path": "docs/ui.md",
               "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other recursive reentrancy unspecified.",
@@ -100,6 +117,9 @@
               "path": "include/sco_ui.h",
               "token": "(*unregister_tab)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -109,6 +129,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "sco_result RemoveTab(const char* id) noexcept { return t_ ? t_->unregister_tab(self_, id) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -118,6 +144,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "fixed (byte* i = Utf8.Z(id)) r = _t->unregister_tab(Self, i);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -127,14 +157,18 @@
               "path": "docs/ui.md",
               "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other reentrancy unspecified.",
@@ -170,6 +204,9 @@
               "path": "include/sco_ui.h",
               "token": "(*set_badge)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -179,6 +216,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "return t_ ? t_->set_badge(self_, tabId, text) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -188,6 +231,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "return _t->set_badge(Self, i, t);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -197,14 +244,18 @@
               "path": "docs/ui.md",
               "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other recursive reentrancy unspecified.",
@@ -240,6 +291,9 @@
               "path": "include/sco_ui.h",
               "token": "(*register_overlay)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -249,6 +303,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "return t_ ? t_->register_overlay(self_, id, draw, ctx) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -258,6 +318,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "fixed (byte* i = Utf8.Z(id)) r = _t->register_overlay(Self, i, &DrawTrampoline, (void*)key);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -267,14 +331,18 @@
               "path": "docs/ui.md",
               "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other recursive reentrancy unspecified.",
@@ -310,6 +378,9 @@
               "path": "include/sco_ui.h",
               "token": "(*unregister_overlay)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -319,6 +390,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "sco_result RemoveOverlay(const char* id) noexcept { return t_ ? t_->unregister_overlay(self_, id) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -328,6 +405,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "fixed (byte* i = Utf8.Z(id)) r = _t->unregister_overlay(Self, i);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -337,14 +418,18 @@
               "path": "docs/ui.md",
               "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other reentrancy unspecified.",
@@ -380,6 +465,9 @@
               "path": "include/sco_ui.h",
               "token": "(*bind_hotkey)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -389,6 +477,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "return t_->bind_hotkey(self_, chord, command, args.size() ? args.begin() : nullptr, static_cast<uint32_t>(args.size()));"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -398,6 +492,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "return _t->bind_hotkey(Self, c, n, block.Args, block.Count);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -407,6 +505,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "const sco_result r = ui->bind_hotkey(s->self, chord, name, nargs ? args : NULL, (uint32_t)nargs);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -414,7 +515,11 @@
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other recursive reentrancy unspecified.",
@@ -451,6 +556,9 @@
               "path": "include/sco_ui.h",
               "token": "(*unbind_hotkey)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -460,6 +568,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "sco_result UnbindHotkey(const char* chord) noexcept { return t_ ? t_->unbind_hotkey(self_, chord) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -469,6 +583,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "fixed (byte* c = Utf8.Z(chord)) return _t->unbind_hotkey(Self, c);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -478,6 +596,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "return PushUiResult(L, s, ui, ui->unbind_hotkey(s->self, chord));"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -485,7 +606,11 @@
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other recursive reentrancy unspecified.",
@@ -521,6 +646,9 @@
               "path": "include/sco_ui.h",
               "token": "(*normalize_chord)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -530,6 +658,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "const sco_result r = t_->normalize_chord(chord, buf, &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -539,6 +673,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "ScoResult r = Storage.Sized((buf, size) => { fixed (byte* cp = c) return _t->normalize_chord(cp, buf, size); }, out byte[] b);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -548,14 +686,18 @@
               "path": "docs/ui.md",
               "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other recursive reentrancy unspecified.",
@@ -591,6 +733,9 @@
               "path": "include/sco_ui.h",
               "token": "(*last_error)"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c"
           ]
         },
         "cpp": {
@@ -600,6 +745,12 @@
               "path": "include/scosdk/ui.hpp",
               "token": "sco_result r = t_->last_error(self_, s.data(), &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_ui.c",
+            "tests/test_settings.cpp",
+            "tests/test_ui.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -609,6 +760,10 @@
               "path": "sdk/csharp/Sco.Sdk/Ui.cs",
               "token": "return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -618,6 +773,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "if (ui->last_error(s->self, msg, &size) == SCO_OK && msg[0]) {"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -625,7 +783,11 @@
       "tests": [
         "tests/abi_ui.c",
         "tests/test_settings.cpp",
-        "tests/test_ui.cpp"
+        "tests/test_ui.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Other recursive reentrancy unspecified.",

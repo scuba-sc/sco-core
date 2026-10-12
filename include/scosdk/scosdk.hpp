@@ -1,4 +1,4 @@
-// scosdk/scosdk.hpp: the whole C++20 layer of the sco SDK in one include.
+// scosdk/scosdk.hpp: the core C++20 plugin, command, service and raw helpers.
 // Reference: docs/sdk-cpp.md. GPL-3.0, like sco-core.
 #ifndef SCOSDK_SCOSDK_HPP
 #define SCOSDK_SCOSDK_HPP

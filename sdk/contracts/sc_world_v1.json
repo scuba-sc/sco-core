@@ -30,6 +30,9 @@
               "path": "include/sc_world.h",
               "token": "(*raycast)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_world.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,12 @@
               "path": "include/scosdk/game/world.hpp",
               "token": "return t_ ? t_->raycast(zone, from, dir, maxDist, &hit) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_world.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -48,6 +57,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/World.cs",
               "token": "r = _t->raycast(zoneId, f, d, maxDist, &h);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -57,6 +70,9 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = w ? w->raycast(zone, from, dir, max, &hit) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -65,7 +81,10 @@
         "tests/abi_game_world.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -103,6 +122,9 @@
               "path": "include/sc_world.h",
               "token": "(*camera)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_world.c"
           ]
         },
         "cpp": {
@@ -112,6 +134,12 @@
               "path": "include/scosdk/game/world.hpp",
               "token": "return t_ ? t_->camera(pos, rot, &zone) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_world.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -121,6 +149,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/World.cs",
               "token": "ScoResult r = _t->camera(pos, rot, &zone);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -130,6 +162,9 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = w ? w->camera(pos, rot, &zone) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -138,7 +173,10 @@
         "tests/abi_game_world.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -176,6 +214,9 @@
               "path": "include/sc_world.h",
               "token": "(*last_error)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_world.c"
           ]
         },
         "cpp": {
@@ -185,6 +226,12 @@
               "path": "include/scosdk/game/world.hpp",
               "token": "sco_result r = t_->last_error(self_, s.data(), &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_world.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -194,6 +241,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/World.cs",
               "token": "return Storage.Sized((buf, size) => ((ScWorldV1*)t)->last_error((void*)self, buf, size), out byte[] b) == ScoResult.Ok"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -203,6 +254,9 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (w->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -211,7 +265,10 @@
         "tests/abi_game_world.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",

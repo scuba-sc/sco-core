@@ -30,6 +30,10 @@
               "path": "include/sc_actors.h",
               "token": "(*local_player)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -37,8 +41,15 @@
           "evidence": [
             {
               "path": "include/scosdk/game/actors.hpp",
-              "token": "return t_ ? t_->local_player(&actorId, &entityId) : SCO_UNAVAILABLE;"
+              "token": "return t_ && Covers(t_->size, offsetof(sc_actors_v1, local_player)) && t_->local_player ? t_->local_player(&actorId, &entityId) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -46,8 +57,12 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
-              "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->local_player(&a, &e);"
+              "token": "ScoResult r = !Covers(8) || _t->local_player == null ? ScoResult.Unavailable : _t->local_player(&a, &e);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -55,8 +70,11 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = a ? a->local_player(&actor, &entity) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(a, sc_actors_v1, local_player) ? a->local_player(&actor, &entity) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -65,7 +83,12 @@
         "tests/abi_game_actors.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -103,6 +126,10 @@
               "path": "include/sc_actors.h",
               "token": "(*spawn_npc)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -110,8 +137,15 @@
           "evidence": [
             {
               "path": "include/scosdk/game/actors.hpp",
-              "token": "return t_ ? t_->spawn_npc(self_, archetypeClass, zoneId, pos, &id) : SCO_UNAVAILABLE;"
+              "token": "return t_ && Covers(t_->size, offsetof(sc_actors_v1, spawn_npc)) && t_->spawn_npc ? t_->spawn_npc(self_, archetypeClass, zoneId, pos, &id) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -121,6 +155,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
               "token": "r = _t->spawn_npc(Self, c, zoneId, p, &n);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -130,7 +168,8 @@
               "path": "sdk/docs/lua.md",
               "token": "Lua gets the game services **read-only**: queries, never a function that changes the game, so a script owns no NPCs."
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -138,7 +177,12 @@
         "tests/abi_game_actors.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -176,6 +220,10 @@
               "path": "include/sc_actors.h",
               "token": "(*despawn)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -183,8 +231,15 @@
           "evidence": [
             {
               "path": "include/scosdk/game/actors.hpp",
-              "token": "sco_result Despawn(uint64_t id) const noexcept { return t_ ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }"
+              "token": "sco_result Despawn(uint64_t id) const noexcept { return t_ && Covers(t_->size, offsetof(sc_actors_v1, despawn)) && t_->despawn ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -192,8 +247,12 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
-              "token": "public ScoResult Despawn(ulong id) => _t == null ? ScoResult.Unavailable : _t->despawn(Self, id);"
+              "token": "public ScoResult Despawn(ulong id) => !Covers(24) || _t->despawn == null ? ScoResult.Unavailable : _t->despawn(Self, id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -203,7 +262,8 @@
               "path": "sdk/docs/lua.md",
               "token": "Lua gets the game services **read-only**: queries, never a function that changes the game, so a script owns no NPCs."
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -211,7 +271,12 @@
         "tests/abi_game_actors.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -249,6 +314,10 @@
               "path": "include/sc_actors.h",
               "token": "(*last_error)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -258,6 +327,13 @@
               "path": "include/scosdk/game/actors.hpp",
               "token": "sco_result r = t_->last_error(who, s.data(), &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -267,6 +343,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
               "token": "return Storage.Sized((buf, size) => ((ScActorsV1*)t)->last_error((void*)who, buf, size), out byte[] b) == ScoResult.Ok"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -274,8 +354,11 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (a && a->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
+              "token": "if (w->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -284,7 +367,12 @@
         "tests/abi_game_actors.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -322,6 +410,10 @@
               "path": "include/sc_actors.h",
               "token": "(*health)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -331,6 +423,13 @@
               "path": "include/scosdk/game/actors.hpp",
               "token": "return t_->health(id, &cur, &max);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -338,8 +437,12 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
-              "token": "ScoResult r = _t == null || !new ServiceRef<ScActorsV1>(_t).Covers(40) ? ScoResult.Unavailable : _t->health(id, &c, &m);"
+              "token": "ScoResult r = !Covers(40) || _t->health == null ? ScoResult.Unavailable : _t->health(id, &c, &m);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -347,8 +450,11 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = a && a->size > offsetof(sc_actors_v1, health) ? a->health(id, &cur, &max) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(a, sc_actors_v1, health) ? a->health(id, &cur, &max) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -357,7 +463,12 @@
         "tests/abi_game_actors.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -395,6 +506,10 @@
               "path": "include/sc_actors.h",
               "token": "(*state)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -404,6 +519,13 @@
               "path": "include/scosdk/game/actors.hpp",
               "token": "const sco_result r = t_->state(id, &raw);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_actors.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -411,8 +533,12 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
-              "token": "ScoResult r = _t == null || !new ServiceRef<ScActorsV1>(_t).Covers(48) ? ScoResult.Unavailable : _t->state(id, &s);"
+              "token": "ScoResult r = !Covers(48) || _t->state == null ? ScoResult.Unavailable : _t->state(id, &s);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -422,7 +548,8 @@
               "path": "sdk/docs/lua.md",
               "token": "`state` isn't in Lua: it isn't available yet"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -430,7 +557,12 @@
         "tests/abi_game_actors.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",

@@ -30,6 +30,9 @@
               "path": "include/sco_api.h",
               "token": "sco_plugin_query(void)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,11 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "extern \"C\" SCO_EXPORT const sco_plugin_info* sco_plugin_query(void)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_plugins.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -52,6 +60,10 @@
               "path": "sdk/examples/cs_hello/CsHello.cs",
               "token": "PluginExports.Query("
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -61,7 +73,8 @@
               "path": "sdk/docs/lua.md",
               "token": "A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`)"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [
@@ -71,7 +84,10 @@
       ],
       "tests": [
         "tests/abi_v1.c",
-        "tests/test_plugins.cpp"
+        "tests/test_plugins.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Query-thread identity unspecified;",
@@ -107,6 +123,9 @@
               "path": "include/sco_api.h",
               "token": "sco_plugin_load(const sco_api* api, sco_plugin* self)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -116,6 +135,11 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "extern \"C\" SCO_EXPORT sco_result sco_plugin_load(const sco_api* api, sco_plugin* self)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_plugins.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -129,6 +153,10 @@
               "path": "sdk/examples/cs_hello/CsHello.cs",
               "token": "PluginExports.Load<Hello>("
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -138,7 +166,8 @@
               "path": "sdk/docs/lua.md",
               "token": "A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`)"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [
@@ -148,7 +177,10 @@
       ],
       "tests": [
         "tests/abi_v1.c",
-        "tests/test_plugins.cpp"
+        "tests/test_plugins.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "internal allocation unspecified",
@@ -184,6 +216,9 @@
               "path": "include/sco_api.h",
               "token": "sco_plugin_unload(void)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c"
           ]
         },
         "cpp": {
@@ -193,6 +228,11 @@
               "path": "include/scosdk/plugin.hpp",
               "token": "extern \"C\" SCO_EXPORT void sco_plugin_unload(void)"
             }
+          ],
+          "tests": [
+            "tests/abi_v1.c",
+            "tests/test_plugins.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -206,6 +246,10 @@
               "path": "sdk/examples/cs_hello/CsHello.cs",
               "token": "PluginExports.Unload("
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -215,7 +259,8 @@
               "path": "sdk/docs/lua.md",
               "token": "A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`)"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [
@@ -225,7 +270,10 @@
       ],
       "tests": [
         "tests/abi_v1.c",
-        "tests/test_plugins.cpp"
+        "tests/test_plugins.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "an independent export thread guarantee and recursive reentrancy are unspecified",

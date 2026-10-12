@@ -30,6 +30,9 @@
               "path": "include/sc_creative.h",
               "token": "(*set_god_mode)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,12 @@
               "path": "include/scosdk/game/creative.hpp",
               "token": "sco_result SetGodMode(bool on) const noexcept { return ref_ ? ref_->set_god_mode(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -48,6 +57,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
               "token": "public ScoResult SetGodMode(bool on) => _t == null ? ScoResult.Unavailable : _t->set_god_mode(Self, on ? 1 : 0);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -57,7 +70,8 @@
               "path": "sdk/docs/lua.md",
               "token": "Read-only: scripts can see which toggles are on but can't switch any"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -65,7 +79,10 @@
         "tests/abi_game_creative.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -104,6 +121,9 @@
               "path": "include/sc_creative.h",
               "token": "(*set_fly_mode)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c"
           ]
         },
         "cpp": {
@@ -113,6 +133,12 @@
               "path": "include/scosdk/game/creative.hpp",
               "token": "sco_result SetFlyMode(bool on) const noexcept { return ref_ ? ref_->set_fly_mode(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -122,6 +148,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
               "token": "public ScoResult SetFlyMode(bool on) => _t == null ? ScoResult.Unavailable : _t->set_fly_mode(Self, on ? 1 : 0);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -131,7 +161,8 @@
               "path": "sdk/docs/lua.md",
               "token": "Read-only: scripts can see which toggles are on but can't switch any"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -139,7 +170,10 @@
         "tests/abi_game_creative.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -178,6 +212,9 @@
               "path": "include/sc_creative.h",
               "token": "(*set_fly_speed)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c"
           ]
         },
         "cpp": {
@@ -187,6 +224,12 @@
               "path": "include/scosdk/game/creative.hpp",
               "token": "sco_result SetFlySpeed(float mps) const noexcept { return ref_ ? ref_->set_fly_speed(self_, mps) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -196,6 +239,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
               "token": "public ScoResult SetFlySpeed(float mps) => _t == null ? ScoResult.Unavailable : _t->set_fly_speed(Self, mps);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -205,7 +252,8 @@
               "path": "sdk/docs/lua.md",
               "token": "Read-only: scripts can see which toggles are on but can't switch any"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -213,7 +261,10 @@
         "tests/abi_game_creative.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -252,6 +303,9 @@
               "path": "include/sc_creative.h",
               "token": "(*set_infinite_ammo)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c"
           ]
         },
         "cpp": {
@@ -261,6 +315,12 @@
               "path": "include/scosdk/game/creative.hpp",
               "token": "sco_result SetInfiniteAmmo(bool on) const noexcept { return ref_ ? ref_->set_infinite_ammo(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -270,6 +330,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
               "token": "public ScoResult SetInfiniteAmmo(bool on) => _t == null ? ScoResult.Unavailable : _t->set_infinite_ammo(Self, on ? 1 : 0);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -279,7 +343,8 @@
               "path": "sdk/docs/lua.md",
               "token": "Read-only: scripts can see which toggles are on but can't switch any"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -287,7 +352,10 @@
         "tests/abi_game_creative.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -326,6 +394,9 @@
               "path": "include/sc_creative.h",
               "token": "(*set_infinite_ship_ammo)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c"
           ]
         },
         "cpp": {
@@ -335,6 +406,12 @@
               "path": "include/scosdk/game/creative.hpp",
               "token": "return ref_ ? ref_->set_infinite_ship_ammo(self_, on ? 1 : 0) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -344,6 +421,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
               "token": "public ScoResult SetInfiniteShipAmmo(bool on) => _t == null ? ScoResult.Unavailable : _t->set_infinite_ship_ammo(Self, on ? 1 : 0);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -353,7 +434,8 @@
               "path": "sdk/docs/lua.md",
               "token": "Read-only: scripts can see which toggles are on but can't switch any"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -361,7 +443,10 @@
         "tests/abi_game_creative.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -400,6 +485,9 @@
               "path": "include/sc_creative.h",
               "token": "(*state)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c"
           ]
         },
         "cpp": {
@@ -409,6 +497,12 @@
               "path": "include/scosdk/game/creative.hpp",
               "token": "return ref_ ? ref_->state(self_, &flags) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -418,6 +512,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
               "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->state(Self, &f);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -427,6 +525,9 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "lua_pushstring(L, dc->state() == SCO_DC_OPEN ? \"open\" : \"loaded\");"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -435,7 +536,10 @@
         "tests/abi_game_creative.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -474,6 +578,9 @@
               "path": "include/sc_creative.h",
               "token": "(*last_error)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c"
           ]
         },
         "cpp": {
@@ -483,6 +590,12 @@
               "path": "include/scosdk/game/creative.hpp",
               "token": "return ref_->last_error(self_, out.data(), &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_creative.c",
+            "tests/test_app.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -492,6 +605,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
               "token": "return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -501,6 +618,9 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (c->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -509,7 +629,10 @@
         "tests/abi_game_creative.c",
         "tests/test_app.cpp",
         "tests/test_lua.cpp",
-        "tests/test_sdk.cpp"
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",

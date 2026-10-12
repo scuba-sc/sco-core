@@ -30,6 +30,9 @@
               "path": "include/sco_storage.h",
               "token": "(*put)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "return t_->put(self_, key, value.data(), static_cast<uint32_t>(value.size()));"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -48,6 +57,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "return _t->put(Self, k, v, (uint)value.Length);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -57,6 +70,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "const sco_result r = st->put(s->self, key, value, (uint32_t)n);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -67,7 +83,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -103,6 +122,9 @@
               "path": "include/sco_storage.h",
               "token": "(*get)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -112,6 +134,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "const sco_result r = t_->get(self_, key, size ? out.data() : nullptr, &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -121,6 +149,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "return Sized((buf, size) => { fixed (byte* kp = k) return _t->get(Self, kp, buf, size); }, out value);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -130,6 +162,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "sco_result r = st->get(s->self, key, NULL, &size);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -140,7 +175,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -176,6 +214,9 @@
               "path": "include/sco_storage.h",
               "token": "(*del)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -185,6 +226,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "sco_result Delete(const char* key) noexcept { return t_ ? t_->del(self_, key) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -194,6 +241,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "fixed (byte* k = Utf8.Z(key)) return _t->del(Self, k);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -203,6 +254,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "const sco_result r = st->del(s->self, key);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -213,7 +267,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -249,6 +306,9 @@
               "path": "include/sco_storage.h",
               "token": "(*next_key)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -258,6 +318,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "const sco_result r = t_->next_key(self_, prefix, out.empty() ? nullptr : last.c_str(), buf, &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -267,6 +333,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "return _t->next_key(Self, pp, ap, buf, size);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -276,6 +346,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "const sco_result r = st->next_key(s->self, prefix, after, key, &size);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -286,7 +359,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -322,6 +398,9 @@
               "path": "include/sco_storage.h",
               "token": "(*begin)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -331,6 +410,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "sco_result Begin() noexcept { return t_ ? t_->begin(self_) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -340,6 +425,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "public ScoResult Begin() => _t == null ? ScoResult.Unavailable : _t->begin(Self);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -349,6 +438,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "StoreTx(L, st ? st->begin : NULL, st, s)"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -359,7 +451,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -395,6 +490,9 @@
               "path": "include/sco_storage.h",
               "token": "(*commit)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -404,6 +502,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "sco_result Commit() noexcept { return t_ ? t_->commit(self_) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -413,6 +517,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "public ScoResult Commit() => _t == null ? ScoResult.Unavailable : _t->commit(Self);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -422,6 +530,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "StoreTx(L, st ? st->commit : NULL, st, s)"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -432,7 +543,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -468,6 +582,9 @@
               "path": "include/sco_storage.h",
               "token": "(*rollback)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -477,6 +594,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "sco_result Rollback() noexcept { return t_ ? t_->rollback(self_) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -486,6 +609,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "public ScoResult Rollback() => _t == null ? ScoResult.Unavailable : _t->rollback(Self);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -495,6 +622,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "StoreTx(L, st ? st->rollback : NULL, st, s)"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -505,7 +635,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -541,6 +674,9 @@
               "path": "include/sco_storage.h",
               "token": "(*exec)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -550,6 +686,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "return t_->exec(self_, sql, params.size() ? params.begin() : nullptr, static_cast<uint32_t>(params.size()), changes);"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -559,6 +701,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "r = _t->exec(Self, s, block.Values, block.Count, &c);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -568,6 +714,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "const sco_result r = st->exec(s->self, sql, n ? params : NULL, n, &changes);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -578,7 +727,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -614,6 +766,9 @@
               "path": "include/sco_storage.h",
               "token": "(*query)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -623,6 +778,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "c.r_ = t_->query(self_, sql, params.size() ? params.begin() : nullptr, static_cast<uint32_t>(params.size()), &id);"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -632,6 +793,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "r = _t->query(Self, s, block.Values, block.Count, &id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -645,6 +810,9 @@
               "path": "sdk/docs/lua.md",
               "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -655,7 +823,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -691,6 +862,9 @@
               "path": "include/sco_storage.h",
               "token": "(*step)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -700,6 +874,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "sco_result Next() noexcept { return t_ ? t_->step(self_, id_) : r_; }"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -709,6 +889,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "public ScoResult Next() => _id == 0 ? ScoResult.NotFound : _s.Table->step(_s.SelfFor, _id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -722,6 +906,9 @@
               "path": "sdk/docs/lua.md",
               "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -732,7 +919,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -768,6 +958,9 @@
               "path": "include/sco_storage.h",
               "token": "(*column_count)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -777,6 +970,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "if (t_) t_->column_count(self_, id_, &n);"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -786,6 +985,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "return _id != 0 && _s.Table->column_count(_s.SelfFor, _id, &n) == ScoResult.Ok ? (int)n : 0;"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -799,6 +1002,9 @@
               "path": "sdk/docs/lua.md",
               "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -809,7 +1015,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified."
@@ -844,6 +1053,9 @@
               "path": "include/sco_storage.h",
               "token": "(*column)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -853,6 +1065,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "if (t_) t_->column(self_, id_, index, &v, nullptr, nullptr);"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -862,6 +1080,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "ScoResult r = _id == 0 ? ScoResult.NotFound : _s.Table->column(_s.SelfFor, _id, (uint)i, &value, null, null);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -875,6 +1097,9 @@
               "path": "sdk/docs/lua.md",
               "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -885,7 +1110,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -921,6 +1149,9 @@
               "path": "include/sco_storage.h",
               "token": "(*column_name)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -930,6 +1161,9 @@
               "path": "include/sco_storage.h",
               "token": "(*column_name)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "csharp": {
@@ -939,6 +1173,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "return Storage.Sized((buf, size) => _s.Table->column_name(_s.SelfFor, _id, (uint)i, buf, size), out byte[] b) == ScoResult.Ok"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -952,6 +1190,9 @@
               "path": "sdk/docs/lua.md",
               "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -962,7 +1203,9 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified."
@@ -997,6 +1240,9 @@
               "path": "include/sco_storage.h",
               "token": "(*close)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -1006,6 +1252,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "if (t_) t_->close(self_, id_);"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -1015,6 +1267,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "if (_id != 0 && _s.Table != null) _s.Table->close(_s.SelfFor, _id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -1028,6 +1284,9 @@
               "path": "sdk/docs/lua.md",
               "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -1038,7 +1297,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -1074,6 +1336,9 @@
               "path": "include/sco_storage.h",
               "token": "(*last_error)"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c"
           ]
         },
         "cpp": {
@@ -1083,6 +1348,12 @@
               "path": "include/scosdk/storage.hpp",
               "token": "sco_result r = t_->last_error(self_, s.data(), &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_storage.c",
+            "tests/test_settings.cpp",
+            "tests/test_storage.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -1092,6 +1363,10 @@
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
               "token": "return Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -1101,6 +1376,9 @@
               "path": "plugins/lua/sco_lua.c",
               "token": "st->last_error(s->self, msg, &size)"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -1111,7 +1389,10 @@
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
         "tests/test_settings.cpp",
-        "tests/test_storage.cpp"
+        "tests/test_storage.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",

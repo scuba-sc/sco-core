@@ -170,6 +170,27 @@ class CatalogueTests(unittest.TestCase):
         self.record('sco_api.has', lambda r: r['tests'].append('../outside.c'))
         self.refuses('repository-relative')
 
+    def test_supported_language_requires_its_own_test(self):
+        record = next(r for r in catalogue.load_records(ROOT) if r['symbol'] == 'sc_actors_v1.health')
+        mapping = dict(record['language_mappings']['csharp'])
+        mapping['tests'] = []
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'supported language has no test'):
+            catalogue.language_check(ROOT, record, 'csharp', mapping)
+
+    def test_csharp_cannot_use_c_layout_as_wrapper_test(self):
+        record = next(r for r in catalogue.load_records(ROOT) if r['symbol'] == 'sc_actors_v1.health')
+        mapping = dict(record['language_mappings']['csharp'])
+        mapping['tests'] = ['tests/abi_game_actors.c']
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'wrong language test'):
+            catalogue.language_check(ROOT, record, 'csharp', mapping)
+
+    def test_test_path_must_be_in_record_evidence(self):
+        record = next(r for r in catalogue.load_records(ROOT) if r['symbol'] == 'sc_actors_v1.health')
+        mapping = dict(record['language_mappings']['cpp'])
+        mapping['tests'] = ['tests/test_net.cpp']
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'test not in record evidence'):
+            catalogue.language_check(ROOT, record, 'cpp', mapping)
+
     def test_invalid_source_sha(self):
         with self.assertRaisesRegex(catalogue.CatalogueError, '40-hex'):
             catalogue.build(self.root, 'main')

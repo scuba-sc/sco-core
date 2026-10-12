@@ -30,6 +30,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*create)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "c.r_ = t_->create(self_, name, bytes, layoutId, layoutVersion, &id);"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -48,7 +56,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -57,13 +66,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Recursive reentrancy unspecified.",
@@ -99,6 +110,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*peer_age_ms)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -108,6 +122,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "sco_result PeerAgeMs(uint32_t& ms) const noexcept { return t_ ? t_->peer_age_ms(self_, id_, &ms) : r_; }"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -117,7 +136,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -126,13 +146,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Recursive reentrancy unspecified.",
@@ -168,6 +190,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*block_write)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -177,6 +202,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "return t_->block_write(self_, id_, offset, data.data(), static_cast<uint32_t>(data.size()));"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -186,7 +216,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -195,13 +226,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Recursive reentrancy unspecified.",
@@ -237,6 +270,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*block_read)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -246,6 +282,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "return t_->block_read(self_, id_, offset, data.data(), static_cast<uint32_t>(data.size()));"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -255,7 +296,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -264,13 +306,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Recursive reentrancy unspecified.",
@@ -306,6 +350,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*ring_init)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -315,6 +362,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "return t_ ? t_->ring_init(self_, id_, offset, capacity, direction) : r_;"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -324,7 +376,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -333,13 +386,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Recursive reentrancy unspecified.",
@@ -375,6 +430,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*ring_push)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -384,6 +442,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "return t_->ring_push(self_, id_, offset, type, data.data(), static_cast<uint32_t>(data.size()));"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -393,7 +456,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -402,13 +466,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Recursive reentrancy unspecified.",
@@ -444,6 +510,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*ring_pop)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -453,6 +522,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "const sco_result r = t_->ring_pop(self_, id_, offset, &type, size ? out.data() : nullptr, &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -462,7 +536,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -471,13 +546,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Recursive reentrancy unspecified.",
@@ -513,6 +590,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*view)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -522,6 +602,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "if (!t_ || t_->view(self_, id_, &base, &bytes) != SCO_OK) return {};"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -531,7 +616,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -540,13 +626,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "synchronization with close and direct-view access unspecified.",
@@ -583,6 +671,9 @@
               "path": "include/sco_ipc.h",
               "token": "(*close)"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c"
           ]
         },
         "cpp": {
@@ -592,6 +683,11 @@
               "path": "include/scosdk/ipc.hpp",
               "token": "if (t_) t_->close(self_, id_);"
             }
+          ],
+          "tests": [
+            "tests/abi_ipc.c",
+            "tests/test_ipc.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -601,7 +697,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -610,13 +707,15 @@
               "path": "docs/ipc.md",
               "token": "Lua plugins get no `sco.ipc`"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_ipc.c",
-        "tests/test_ipc.cpp"
+        "tests/test_ipc.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Recursive reentrancy unspecified.",

@@ -44,7 +44,7 @@ namespace Sco.Sdk.Game
     /// <summary>
     /// The game service "game.entities" (docs/game-services.md). Published by the Star Citizen game
     /// pack: Open answers NotFound on a host without it. Game thread only (a command, a tick or a
-    /// RunOnGameThread task); from another thread every call answers WrongThread. An entity you
+    /// RunOnGameThread task); result-returning game calls answer WrongThread off-thread; Alive answers false. An entity you
     /// spawn is yours: only you may despawn it, and the host removes it, and ends your watches,
     /// when your plugin unloads or crashes, unless you Keep (1.1) the entity. Ids are the game's session handles, never keys to
     /// store. Positions are teleport.spatial's: metres in a zone's local frame, rotations
@@ -63,6 +63,8 @@ namespace Sco.Sdk.Game
         public ScoResult Open(Plugin plugin)
         {
             ArgumentNullException.ThrowIfNull(plugin);
+            _t = null;
+            _plugin = null;
             ScoResult r = plugin.Query(GameAbi.EntitiesName, GameAbi.EntitiesVersion1_0, out ServiceRef<ScEntitiesV1> s);
             if (r != ScoResult.Ok) return r;
             if (!s.Covers(80)) return ScoResult.Unavailable;   // last_error, the last 1.0 function
@@ -72,15 +74,16 @@ namespace Sco.Sdk.Game
         }
 
         private void* Self => _plugin == null ? null : _plugin.SelfPtr;
+        private bool Covers(uint offset) => new ServiceRef<ScEntitiesV1>(_t).Covers(offset);
 
-        /// <summary>True when the entity is streamed in.</summary>
-        public bool Alive(ulong id) => _t != null && _t->alive(id) != 0;
+        /// <summary>True when streamed in. False also covers missing methods, unavailable capability or wrong thread.</summary>
+        public bool Alive(ulong id) => Covers(8) && _t->alive != null && _t->alive(id) != 0;
 
         /// <summary>The entity's class name (the name Spawn takes). NotFound: not streamed in.</summary>
         public ScoResult ClassOf(ulong id, out string cls)
         {
             cls = "";
-            if (_t == null) return ScoResult.Unavailable;
+            if (!Covers(16) || _t->class_of == null) return ScoResult.Unavailable;
             nint t = (nint)_t;
             ScoResult r = Storage.Sized((buf, size) => ((ScEntitiesV1*)t)->class_of(id, buf, size), out byte[] b);
             if (r == ScoResult.Ok) cls = Utf8.FromBytes(b);
@@ -93,7 +96,7 @@ namespace Sco.Sdk.Game
         {
             zoneId = 0;
             if (pos.Length != 3 || rot.Length != 4) return ScoResult.BadArg;
-            if (_t == null) return ScoResult.Unavailable;
+            if (!Covers(24) || _t->get_transform == null) return ScoResult.Unavailable;
             ulong z = 0;
             ScoResult r;
             fixed (double* p = pos)
@@ -108,7 +111,7 @@ namespace Sco.Sdk.Game
         public ScoResult SetTransform(ulong id, ulong zoneId, ReadOnlySpan<double> pos, ReadOnlySpan<double> rot)
         {
             if (pos.Length != 3 || rot.Length != 4) return ScoResult.BadArg;
-            if (_t == null) return ScoResult.Unavailable;
+            if (!Covers(32) || _t->set_transform == null) return ScoResult.Unavailable;
             fixed (double* p = pos)
             fixed (double* q = rot)
                 return _t->set_transform(Self, id, zoneId, p, q);
@@ -121,7 +124,7 @@ namespace Sco.Sdk.Game
             ArgumentNullException.ThrowIfNull(entityClass);
             id = 0;
             if (pos.Length != 3 || rot.Length != 4) return ScoResult.BadArg;
-            if (_t == null) return ScoResult.Unavailable;
+            if (!Covers(40) || _t->spawn == null) return ScoResult.Unavailable;
             ulong n = 0;
             ScoResult r;
             fixed (byte* c = Utf8.Z(entityClass))
@@ -133,13 +136,13 @@ namespace Sco.Sdk.Game
         }
 
         /// <summary>Removes an entity this plugin spawned; it leaves the world within a few seconds.</summary>
-        public ScoResult Despawn(ulong id) => _t == null ? ScoResult.Unavailable : _t->despawn(Self, id);
+        public ScoResult Despawn(ulong id) => !Covers(48) || _t->despawn == null ? ScoResult.Unavailable : _t->despawn(Self, id);
 
         /// <summary>1.1. Releases this plugin's ownership of an entity it spawned: it stays in the world
         /// when the plugin unloads or crashes, and SetTransform and Despawn refuse it from now on.
         /// Unavailable on a 1.0 table; NotFound: not an entity this plugin spawned and still owns.</summary>
         public ScoResult Keep(ulong id) =>
-            _t == null || !new ServiceRef<ScEntitiesV1>(_t).Covers(88) ? ScoResult.Unavailable : _t->keep(Self, id);
+            !Covers(88) || _t->keep == null ? ScoResult.Unavailable : _t->keep(Self, id);
 
         /// <summary>Calls fn(ctx, what, id, className) on the game thread for every entity of
         /// <paramref name="type"/> (a class name, or "PREFIX*") that streams in or out (what:
@@ -149,7 +152,8 @@ namespace Sco.Sdk.Game
         {
             ArgumentNullException.ThrowIfNull(type);
             watchId = 0;
-            if (_t == null) return ScoResult.Unavailable;
+            if (fn == null) return ScoResult.BadArg;
+            if (!Covers(56) || _t->watch == null) return ScoResult.Unavailable;
             ulong w = 0;
             ScoResult r;
             fixed (byte* c = Utf8.Z(type))
@@ -159,7 +163,7 @@ namespace Sco.Sdk.Game
         }
 
         /// <summary>Ends a watch this plugin registered.</summary>
-        public ScoResult Unwatch(ulong watchId) => _t == null ? ScoResult.Unavailable : _t->unwatch(Self, watchId);
+        public ScoResult Unwatch(ulong watchId) => !Covers(64) || _t->unwatch == null ? ScoResult.Unavailable : _t->unwatch(Self, watchId);
 
         /// <summary>Ids of streamed-in entities within radius metres of pos in zone zoneId's frame,
         /// of class classFilter (a class name or "PREFIX*"; null or "" = any): up to ids.Length are
@@ -169,7 +173,7 @@ namespace Sco.Sdk.Game
         {
             count = more = 0;
             if (pos.Length != 3) return ScoResult.BadArg;
-            if (_t == null) return ScoResult.Unavailable;
+            if (!Covers(72) || _t->query_radius == null) return ScoResult.Unavailable;
             uint c = 0, m = 0;
             ScoResult r;
             fixed (byte* f = classFilter == null ? null : Utf8.Z(classFilter))
@@ -191,7 +195,7 @@ namespace Sco.Sdk.Game
 
         private string Error(nint who)
         {
-            if (_t == null) return "";
+            if (!Covers(80) || _t->last_error == null) return "";
             nint t = (nint)_t;
             return Storage.Sized((buf, size) => ((ScEntitiesV1*)t)->last_error((void*)who, buf, size), out byte[] b) == ScoResult.Ok
                 ? Utf8.FromBytes(b) : "";

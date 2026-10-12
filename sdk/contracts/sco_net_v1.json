@@ -30,6 +30,9 @@
               "path": "include/sco_net.h",
               "token": "(*is_active)"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,11 @@
               "path": "include/scosdk/net.hpp",
               "token": "bool Active() const noexcept { return t_ && t_->is_active(); }"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c",
+            "tests/test_net_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -48,7 +56,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -57,13 +66,15 @@
               "path": "docs/net.md",
               "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_net.c",
-        "tests/test_net_service.cpp"
+        "tests/test_net_service.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract."
@@ -98,6 +109,9 @@
               "path": "include/sco_net.h",
               "token": "(*get_peers)"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c"
           ]
         },
         "cpp": {
@@ -107,6 +121,11 @@
               "path": "include/scosdk/net.hpp",
               "token": "const sco_result r = t_->get_peers(n ? out.data() : nullptr, &n);"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c",
+            "tests/test_net_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -116,7 +135,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -125,13 +145,15 @@
               "path": "docs/net.md",
               "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_net.c",
-        "tests/test_net_service.cpp"
+        "tests/test_net_service.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract."
@@ -166,6 +188,9 @@
               "path": "include/sco_net.h",
               "token": "(*get_peer_name)"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c"
           ]
         },
         "cpp": {
@@ -175,6 +200,11 @@
               "path": "include/scosdk/net.hpp",
               "token": "if (!t_ || t_->get_peer_name(peer, buf, sizeof buf) != SCO_OK) return {};"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c",
+            "tests/test_net_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -184,7 +214,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -193,13 +224,15 @@
               "path": "docs/net.md",
               "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_net.c",
-        "tests/test_net_service.cpp"
+        "tests/test_net_service.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract."
@@ -234,6 +267,9 @@
               "path": "include/sco_net.h",
               "token": "(*send_channel)"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c"
           ]
         },
         "cpp": {
@@ -243,6 +279,11 @@
               "path": "include/scosdk/net.hpp",
               "token": "return t_->send_channel(self_, name_.c_str(), data.data(), static_cast<uint32_t>(data.size()));"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c",
+            "tests/test_net_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -252,7 +293,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -261,13 +303,15 @@
               "path": "docs/net.md",
               "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_net.c",
-        "tests/test_net_service.cpp"
+        "tests/test_net_service.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract."
@@ -302,6 +346,9 @@
               "path": "include/sco_net.h",
               "token": "(*register_channel)"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c"
           ]
         },
         "cpp": {
@@ -311,6 +358,11 @@
               "path": "include/scosdk/net.hpp",
               "token": "c.r_ = t_->register_channel(self_, name, flags, maxLen, &NetChannel::Thunk, c.fn_.get());"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c",
+            "tests/test_net_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -320,7 +372,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -329,13 +382,15 @@
               "path": "docs/net.md",
               "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_net.c",
-        "tests/test_net_service.cpp"
+        "tests/test_net_service.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract."
@@ -370,6 +425,9 @@
               "path": "include/sco_net.h",
               "token": "(*unregister_channel)"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c"
           ]
         },
         "cpp": {
@@ -379,6 +437,11 @@
               "path": "include/scosdk/net.hpp",
               "token": "if (t_) t_->unregister_channel(self_, name_.c_str());"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c",
+            "tests/test_net_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -388,7 +451,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -397,13 +461,15 @@
               "path": "docs/net.md",
               "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_net.c",
-        "tests/test_net_service.cpp"
+        "tests/test_net_service.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract.",
@@ -439,6 +505,9 @@
               "path": "include/sco_net.h",
               "token": "(*self_peer)"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c"
           ]
         },
         "cpp": {
@@ -448,6 +517,11 @@
               "path": "include/scosdk/net.hpp",
               "token": "uint64_t SelfPeer() const noexcept { return t_ ? t_->self_peer() : 0; }"
             }
+          ],
+          "tests": [
+            "tests/abi_net.c",
+            "tests/test_net_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -457,7 +531,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -466,13 +541,15 @@
               "path": "docs/net.md",
               "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_net.c",
-        "tests/test_net_service.cpp"
+        "tests/test_net_service.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract."

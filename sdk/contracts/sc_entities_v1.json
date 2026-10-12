@@ -30,6 +30,10 @@
               "path": "include/sc_entities.h",
               "token": "(*alive)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -37,8 +41,14 @@
           "evidence": [
             {
               "path": "include/scosdk/game/entities.hpp",
-              "token": "bool Alive(uint64_t id) const noexcept { return t_ && t_->alive(id) != 0; }"
+              "token": "bool Alive(uint64_t id) const noexcept { return t_ && Covers(t_->size, offsetof(sc_entities_v1, alive)) && t_->alive && t_->alive(id) != 0; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -46,8 +56,12 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
-              "token": "public bool Alive(ulong id) => _t != null && _t->alive(id) != 0;"
+              "token": "public bool Alive(ulong id) => Covers(8) && _t->alive != null && _t->alive(id) != 0;"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -55,8 +69,11 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const int alive = e ? e->alive(id) : 0;"
+              "token": "const int alive = GAME_MEMBER(e, sc_entities_v1, alive) ? e->alive(id) : 0;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -64,7 +81,12 @@
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -102,6 +124,10 @@
               "path": "include/sc_entities.h",
               "token": "(*class_of)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -111,6 +137,12 @@
               "path": "include/scosdk/game/entities.hpp",
               "token": "sco_result r = t_->class_of(id, s.data(), &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -120,6 +152,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
               "token": "ScoResult r = Storage.Sized((buf, size) => ((ScEntitiesV1*)t)->class_of(id, buf, size), out byte[] b);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -127,8 +163,11 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = e ? e->class_of(id, name, &size) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(e, sc_entities_v1, class_of) ? e->class_of(id, name, &size) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -136,7 +175,12 @@
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -174,6 +218,10 @@
               "path": "include/sc_entities.h",
               "token": "(*get_transform)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -181,8 +229,14 @@
           "evidence": [
             {
               "path": "include/scosdk/game/entities.hpp",
-              "token": "return t_ ? t_->get_transform(id, pos, rot, &zoneId) : SCO_UNAVAILABLE;"
+              "token": "return t_ && Covers(t_->size, offsetof(sc_entities_v1, get_transform)) && t_->get_transform ? t_->get_transform(id, pos, rot, &zoneId) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -192,6 +246,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
               "token": "r = _t->get_transform(id, p, q, &z);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -199,8 +257,11 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = e ? e->get_transform(id, pos, rot, &zone) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(e, sc_entities_v1, get_transform) ? e->get_transform(id, pos, rot, &zone) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -208,7 +269,12 @@
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -246,6 +312,10 @@
               "path": "include/sc_entities.h",
               "token": "(*set_transform)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -253,8 +323,14 @@
           "evidence": [
             {
               "path": "include/scosdk/game/entities.hpp",
-              "token": "return t_ ? t_->set_transform(self_, id, zoneId, pos, rot) : SCO_UNAVAILABLE;"
+              "token": "return t_ && Covers(t_->size, offsetof(sc_entities_v1, set_transform)) && t_->set_transform ? t_->set_transform(self_, id, zoneId, pos, rot) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -264,6 +340,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
               "token": "return _t->set_transform(Self, id, zoneId, p, q);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -277,14 +357,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "{ \"alive\", L_ent_alive }, { \"class_of\", L_ent_class_of }, { \"get_transform\", L_ent_get_transform },"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -322,6 +408,10 @@
               "path": "include/sc_entities.h",
               "token": "(*spawn)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -329,8 +419,14 @@
           "evidence": [
             {
               "path": "include/scosdk/game/entities.hpp",
-              "token": "return t_ ? t_->spawn(self_, entityClass, zoneId, pos, rot, &id) : SCO_UNAVAILABLE;"
+              "token": "return t_ && Covers(t_->size, offsetof(sc_entities_v1, spawn)) && t_->spawn ? t_->spawn(self_, entityClass, zoneId, pos, rot, &id) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -340,6 +436,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
               "token": "r = _t->spawn(Self, c, zoneId, p, q, &n);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -353,14 +453,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "{ \"alive\", L_ent_alive }, { \"class_of\", L_ent_class_of }, { \"get_transform\", L_ent_get_transform },"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -398,6 +504,10 @@
               "path": "include/sc_entities.h",
               "token": "(*despawn)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -405,8 +515,14 @@
           "evidence": [
             {
               "path": "include/scosdk/game/entities.hpp",
-              "token": "sco_result Despawn(uint64_t id) const noexcept { return t_ ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }"
+              "token": "sco_result Despawn(uint64_t id) const noexcept { return t_ && Covers(t_->size, offsetof(sc_entities_v1, despawn)) && t_->despawn ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -414,8 +530,12 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
-              "token": "public ScoResult Despawn(ulong id) => _t == null ? ScoResult.Unavailable : _t->despawn(Self, id);"
+              "token": "public ScoResult Despawn(ulong id) => !Covers(48) || _t->despawn == null ? ScoResult.Unavailable : _t->despawn(Self, id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -429,14 +549,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "{ \"alive\", L_ent_alive }, { \"class_of\", L_ent_class_of }, { \"get_transform\", L_ent_get_transform },"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -474,6 +600,10 @@
               "path": "include/sc_entities.h",
               "token": "(*watch)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -481,8 +611,14 @@
           "evidence": [
             {
               "path": "include/scosdk/game/entities.hpp",
-              "token": "return t_ ? t_->watch(self_, what, type, fn, ctx, &watchId) : SCO_UNAVAILABLE;"
+              "token": "return t_ && Covers(t_->size, offsetof(sc_entities_v1, watch)) && t_->watch ? t_->watch(self_, what, type, fn, ctx, &watchId) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -492,6 +628,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
               "token": "r = _t->watch(Self, what, c, fn, ctx, &w);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -505,14 +645,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "{ \"alive\", L_ent_alive }, { \"class_of\", L_ent_class_of }, { \"get_transform\", L_ent_get_transform },"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "other reentrancy unspecified.",
@@ -549,6 +695,10 @@
               "path": "include/sc_entities.h",
               "token": "(*unwatch)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -556,8 +706,14 @@
           "evidence": [
             {
               "path": "include/scosdk/game/entities.hpp",
-              "token": "sco_result Unwatch(uint64_t watchId) const noexcept { return t_ ? t_->unwatch(self_, watchId) : SCO_UNAVAILABLE; }"
+              "token": "sco_result Unwatch(uint64_t watchId) const noexcept { return t_ && Covers(t_->size, offsetof(sc_entities_v1, unwatch)) && t_->unwatch ? t_->unwatch(self_, watchId) : SCO_UNAVAILABLE; }"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -565,8 +721,12 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
-              "token": "public ScoResult Unwatch(ulong watchId) => _t == null ? ScoResult.Unavailable : _t->unwatch(Self, watchId);"
+              "token": "public ScoResult Unwatch(ulong watchId) => !Covers(64) || _t->unwatch == null ? ScoResult.Unavailable : _t->unwatch(Self, watchId);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -580,14 +740,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "{ \"alive\", L_ent_alive }, { \"class_of\", L_ent_class_of }, { \"get_transform\", L_ent_get_transform },"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -624,6 +790,10 @@
               "path": "include/sc_entities.h",
               "token": "(*query_radius)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -631,8 +801,14 @@
           "evidence": [
             {
               "path": "include/scosdk/game/entities.hpp",
-              "token": "return t_ ? t_->query_radius(zoneId, pos, radius, classFilter, ids, max, &count, &more) : SCO_UNAVAILABLE;"
+              "token": "return t_ && Covers(t_->size, offsetof(sc_entities_v1, query_radius)) && t_->query_radius ? t_->query_radius(zoneId, pos, radius, classFilter, ids, max, &count, &more) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -642,6 +818,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
               "token": "r = _t->query_radius(zoneId, p, radius, f, o, (uint)ids.Length, &c, &m);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -655,14 +835,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "{ \"alive\", L_ent_alive }, { \"class_of\", L_ent_class_of }, { \"get_transform\", L_ent_get_transform },"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -700,6 +886,10 @@
               "path": "include/sc_entities.h",
               "token": "(*last_error)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -709,6 +899,12 @@
               "path": "include/scosdk/game/entities.hpp",
               "token": "sco_result r = t_->last_error(who, s.data(), &size);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -718,6 +914,10 @@
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
               "token": "return Storage.Sized((buf, size) => ((ScEntitiesV1*)t)->last_error((void*)who, buf, size), out byte[] b) == ScoResult.Ok"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -725,8 +925,11 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (e && e->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
+              "token": "if (w->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
@@ -734,7 +937,12 @@
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",
@@ -772,6 +980,10 @@
               "path": "include/sc_entities.h",
               "token": "(*keep)"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_language_routes.c"
           ]
         },
         "cpp": {
@@ -781,6 +993,12 @@
               "path": "include/scosdk/game/entities.hpp",
               "token": "return t_->keep(self_, id);"
             }
+          ],
+          "tests": [
+            "tests/abi_game_entities.c",
+            "tests/test_app.cpp",
+            "tests/test_language_routes.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -788,8 +1006,12 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
-              "token": "_t == null || !new ServiceRef<ScEntitiesV1>(_t).Covers(88) ? ScoResult.Unavailable : _t->keep(Self, id);"
+              "token": "!Covers(88) || _t->keep == null ? ScoResult.Unavailable : _t->keep(Self, id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
           ]
         },
         "lua": {
@@ -803,14 +1025,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "{ \"alive\", L_ent_alive }, { \"class_of\", L_ent_class_of }, { \"get_transform\", L_ent_get_transform },"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_entities.c",
         "tests/test_app.cpp",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_language_routes.c",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Recursive reentrancy unspecified except unwatch in callback.",

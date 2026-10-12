@@ -748,6 +748,29 @@ class AdditionalBoundaryTests(ServerCase):
         self.rpc_error(self.start().request("tools/list", {"cursor": "unknown"}), -32602)
 
 
+class LanguageMetadataTests(ServerCase):
+    def test_language_test_metadata_and_legacy_catalogues(self):
+        server = importlib.import_module("server")
+        self.assertEqual(server.load_catalogue(CATALOGUE), fixture())
+        data = fixture()
+        for record in data["records"]:
+            record["tests"].append("tests/synthetic_language_fixture.c")
+            for mapping in record["language_mappings"].values():
+                mapping["tests"] = [] if mapping["status"] == "unsupported" else ["tests/synthetic_language_fixture.c"]
+        _, path = self.temporary_catalogue(data)
+        self.assertEqual(server.load_catalogue(path), data)
+        record = data["records"][0]
+        positive = next(m for m in record["language_mappings"].values() if m["status"] != "unsupported")
+        positive["tests"] = []
+        path.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Missing language tests"):
+            server.load_catalogue(path)
+        positive["tests"] = ["tests/not_listed.c"]
+        path.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Invalid language tests"):
+            server.load_catalogue(path)
+
+
 class BuildIntegrationTests(ServerCase):
     def test_actual_build_catalogue_mcp_transcript(self):
         override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")

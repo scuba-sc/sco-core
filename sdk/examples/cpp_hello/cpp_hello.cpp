@@ -83,8 +83,8 @@ private:
         else
             Warn("teleport is not available on this game build");
 
-        // Look the service up as another plugin would. Query when needed: a provider's table goes
-        // away when it unloads.
+        // Query as another plugin would. Handed-out native provider tables block live
+        // reload/unload in 1.x; do not retain or call them past terminal shutdown.
         sco::sdk::ServiceRef<greeter_v1> greeter;
         const sco_result r = greeter.Query(*this, "cpp_hello.greeter", sco::sdk::ServiceVersion(1, 0));
         if (r == SCO_OK && sco::sdk::HasMember(greeter, &greeter_v1::greet)) {

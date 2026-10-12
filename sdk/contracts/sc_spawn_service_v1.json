@@ -30,6 +30,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*spawn_near_player)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*spawn_near_player)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "csharp": {
@@ -52,7 +58,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -69,7 +76,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -113,6 +121,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*class_exists)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "cpp": {
@@ -122,6 +133,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*class_exists)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "csharp": {
@@ -135,7 +149,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -152,7 +167,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -196,6 +212,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*local_player_id)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "cpp": {
@@ -205,6 +224,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*local_player_id)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "csharp": {
@@ -218,7 +240,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -235,7 +258,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -279,6 +303,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*player_ship_id)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "cpp": {
@@ -288,6 +315,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*player_ship_id)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "csharp": {
@@ -301,7 +331,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -318,7 +349,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -362,6 +394,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*entity_alive)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "cpp": {
@@ -371,6 +406,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*entity_alive)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "csharp": {
@@ -384,7 +422,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -401,7 +440,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -445,6 +485,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*set_entity_transform)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "cpp": {
@@ -454,6 +497,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*set_entity_transform)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "csharp": {
@@ -467,7 +513,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -484,7 +531,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -527,6 +575,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*spawn_as)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "cpp": {
@@ -536,6 +587,9 @@
               "path": "include/sc_spawn.h",
               "token": "(*spawn_as)"
             }
+          ],
+          "tests": [
+            "tests/abi_spawn.c"
           ]
         },
         "csharp": {
@@ -549,7 +603,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -566,7 +621,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],

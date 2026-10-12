@@ -30,6 +30,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*player_pose)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*player_pose)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "csharp": {
@@ -52,7 +58,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -69,7 +76,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -112,6 +120,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*zone_of_entity)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "cpp": {
@@ -121,6 +132,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*zone_of_entity)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "csharp": {
@@ -134,7 +148,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -151,7 +166,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -194,6 +210,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*local_to_world)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "cpp": {
@@ -203,6 +222,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*local_to_world)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "csharp": {
@@ -216,7 +238,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -233,7 +256,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -276,6 +300,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*world_to_local)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "cpp": {
@@ -285,6 +312,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*world_to_local)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "csharp": {
@@ -298,7 +328,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -315,7 +346,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -358,6 +390,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*zone_to_zone)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "cpp": {
@@ -367,6 +402,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*zone_to_zone)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "csharp": {
@@ -380,7 +418,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -397,7 +436,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],
@@ -440,6 +480,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*zone_name)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "cpp": {
@@ -449,6 +492,9 @@
               "path": "include/sc_spatial.h",
               "token": "(*zone_name)"
             }
+          ],
+          "tests": [
+            "tests/abi_spatial.c"
           ]
         },
         "csharp": {
@@ -462,7 +508,8 @@
               "path": "docs/sdk-csharp.md",
               "token": "| Class | Service | Does |"
             }
-          ]
+          ],
+          "tests": []
         },
         "lua": {
           "status": "unsupported",
@@ -479,7 +526,8 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "if (!(actors || vehicles || world || entities || creative)) return;"
             }
-          ]
+          ],
+          "tests": []
         }
       },
       "examples": [],

@@ -30,6 +30,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*state)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -39,6 +42,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "uint32_t State() const noexcept { return ref_ ? ref_->state() : SCO_DC_LOADED; }"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -48,6 +56,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "public uint State => _t == null ? 0 : _t->state();"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -57,13 +69,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "lua_pushstring(L, dc->state() == SCO_DC_OPEN ? \"open\" : \"loaded\");"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -100,6 +119,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*begin)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -109,6 +131,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "const sco_result r = ref_->begin(self_, flags, &id);"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -118,6 +145,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "ScoResult r = _t->begin(_plugin.SelfPtr, flags, &id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -127,13 +158,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc->begin(self, flags, &id);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -170,6 +208,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*set)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -179,6 +220,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "return appending_ ? t_->append(id_, rec.c_str(), f.c_str(), &v) : t_->set(id_, rec.c_str(), f.c_str(), &v);"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -188,6 +234,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "return t->set(Id, r, f, v.Ptr);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -197,13 +247,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc->set(p->id, record, field, v.type == SCO_DC_NULL ? NULL : &v);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -240,6 +297,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*add_instance)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -249,6 +309,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "const sco_result r = t_->add_instance(id_, ty.c_str(), cr.empty() ? nullptr : cr.c_str(), cf.empty() ? nullptr : cf.c_str(), &id);"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -258,6 +323,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "r = t->add_instance(Id, ty, cr, cf, &id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -267,13 +336,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc->add_instance(p->id, type, cloneRecord, cloneField, &id);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -310,6 +386,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*set_pointer)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -319,6 +398,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "return t_->set_pointer(id_, rec.c_str(), f.c_str(), target.Id());"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -328,6 +412,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "return t->set_pointer(Id, r, f, instance);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -337,13 +425,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc->set_pointer(p->id, record, field, inst->id);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -380,6 +475,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*append)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -389,6 +487,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "return appending_ ? t_->append(id_, rec.c_str(), f.c_str(), &v) : t_->set(id_, rec.c_str(), f.c_str(), &v);"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -398,6 +501,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "return t->append(Id, r, f, v.Ptr);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -407,13 +514,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc->append(p->id, record, field, v.type == SCO_DC_NULL ? NULL : &v);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -450,6 +564,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*add_record)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -459,6 +576,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "const sco_result r = t_->add_record(id_, a.c_str(), b.c_str(), c.empty() ? nullptr : c.c_str(), d.c_str(),"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -468,6 +590,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "r = t->add_record(Id, ty, n, g, c, p, &id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -477,13 +603,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc->add_record(p->id, type, name, guid, clone, file, &id);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -520,6 +653,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*commit)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -529,6 +665,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "const sco_result r = t_->commit(id_);"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -538,6 +679,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "ScoResult r = t->commit(Id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -547,13 +692,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc ? dc->commit(p->id) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -590,6 +742,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*discard)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -599,6 +754,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "const sco_result r = t_->discard(id_);"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -608,6 +768,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "ScoResult r = t->discard(Id);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -617,13 +781,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc ? dc->discard(p->id) : SCO_UNAVAILABLE;"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",
@@ -660,6 +831,9 @@
               "path": "include/sco_datacore.h",
               "token": "(*report)"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c"
           ]
         },
         "cpp": {
@@ -669,6 +843,11 @@
               "path": "include/scosdk/datacore.hpp",
               "token": "if (t_->report(id_, i, &rep) != SCO_OK) break;"
             }
+          ],
+          "tests": [
+            "tests/abi_datacore.c",
+            "tests/test_datacore_service.cpp",
+            "tools/test.sh"
           ]
         },
         "csharp": {
@@ -678,6 +857,10 @@
               "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
               "token": "ScoResult r = t->report(Id, index, &rep);"
             }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
           ]
         },
         "lua": {
@@ -687,13 +870,20 @@
               "path": "plugins/lua/sco_lua_game.c",
               "token": "const sco_result r = dc->report(p->id, i, &rep);"
             }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
           ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_datacore.c",
-        "tests/test_datacore_service.cpp"
+        "tests/test_datacore_service.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
+        "tests/test_lua.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
         "Internal allocation/failure guarantee unspecified.",

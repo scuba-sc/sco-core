@@ -19,9 +19,11 @@ namespace Sco.Sdk.Tests
         private static ScCreativeV1* _creative;  // a stand-in game.creative
         private static uint _creativeFlags;      // its toggles
         private static float _creativeSpeed;
+        private static bool _actorEntityServicesMissing;
 
         static partial void GameQueryService(string name, void** o, ref bool found)
         {
+            if (_actorEntityServicesMissing && (name == GameAbi.ActorsName || name == GameAbi.EntitiesName)) return;
             if (name == GameAbi.ActorsName) { *o = _actors; found = true; return; }
             if (name == GameAbi.EntitiesName) { *o = _entities; found = true; return; }
             if (name == GameAbi.WorldName) { *o = _world; found = true; return; }
@@ -148,9 +150,11 @@ namespace Sco.Sdk.Tests
             return ScoResult.Ok;
         }
 
+        private static int _actorStateCalls;
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult ActState(ulong id, uint* state)
         {
+            ++_actorStateCalls;
             *state = 0;
             return ScoResult.Unavailable;
         }
@@ -271,6 +275,158 @@ namespace Sco.Sdk.Tests
             _creative->last_error = &CrLastError;
         }
 
+        // Every callback is checked with a partially covered pointer, its exact extent,
+        // and a fully covered null pointer. Keep the backing allocation valid while its
+        // advertised size changes so a failure is observable without an access violation.
+        private static void CheckGameFields<T>(T* table, (string Field, Func<bool> Unavailable, Func<bool> Available)[] cases)
+            where T : unmanaged
+        {
+            T saved = *table;
+            try
+            {
+                foreach (var test in cases)
+                {
+                    uint offset = (uint)Marshal.OffsetOf<T>(test.Field).ToInt32();
+                    *(uint*)table = offset + (uint)sizeof(nint) - 1;
+                    Expect(test.Unavailable(), $"{typeof(T).Name}.{test.Field} rejects a partial pointer");
+                    *(uint*)table = offset + (uint)sizeof(nint);
+                    Expect(test.Available(), $"{typeof(T).Name}.{test.Field} accepts its exact extent");
+                    *table = saved;
+                    *(nint*)((byte*)table + offset) = 0;
+                    Expect(test.Unavailable(), $"{typeof(T).Name}.{test.Field} rejects a null pointer");
+                    *table = saved;
+                }
+            }
+            finally { *table = saved; }
+        }
+
+        private static void MalformedActorEntityTests(Plugin p)
+        {
+            var actors = new Actors();
+            var entities = new Entities();
+            double[] pos = { 1, 2, 3 }, rot = { 0, 0, 0, 1 };
+            var actorCases = new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
+            {
+                (nameof(ScActorsV1.local_player),
+                    () => actors.LocalPlayer(out ulong a, out ulong e) == ScoResult.Unavailable && a == 0 && e == 0,
+                    () => actors.LocalPlayer(out ulong a, out ulong e) == ScoResult.Ok && a == 5 && e == 6),
+                (nameof(ScActorsV1.spawn_npc),
+                    () => actors.SpawnNpc("Npc", 9, pos, out ulong id) == ScoResult.Unavailable && id == 0,
+                    () => actors.SpawnNpc("Npc", 9, pos, out ulong id) == ScoResult.Ok && id == 77),
+                (nameof(ScActorsV1.despawn),
+                    () => actors.Despawn(77) == ScoResult.Unavailable,
+                    () => actors.Despawn(77) == ScoResult.Ok),
+                (nameof(ScActorsV1.last_error),
+                    () => actors.LastError() == "" && actors.LastReadError() == "",
+                    () => actors.LastError() == "not yours" && actors.LastReadError() == "read"),
+                (nameof(ScActorsV1.health),
+                    () => actors.Health(6, out float cur, out float max) == ScoResult.Unavailable && cur == 0 && max == 0,
+                    () => actors.Health(6, out float cur, out float max) == ScoResult.Ok && cur == 87.5f && max == 0),
+                (nameof(ScActorsV1.state),
+                    () => { int calls = _actorStateCalls; return actors.State(6, out ScActorState state) == ScoResult.Unavailable && state == ScActorState.Alive && _actorStateCalls == calls; },
+                    () => { int calls = _actorStateCalls; return actors.State(6, out _) == ScoResult.Unavailable && _actorStateCalls == calls + 1; }),
+            };
+            var entityCases = new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
+            {
+                (nameof(ScEntitiesV1.alive), () => !entities.Alive(5), () => entities.Alive(5)),
+                (nameof(ScEntitiesV1.class_of),
+                    () => entities.ClassOf(5, out string cls) == ScoResult.Unavailable && cls == "",
+                    () => entities.ClassOf(5, out string cls) == ScoResult.Ok && cls != ""),
+                (nameof(ScEntitiesV1.get_transform),
+                    () => entities.GetTransform(5, pos, rot, out ulong zone) == ScoResult.Unavailable && zone == 0 && pos[2] == 3 && rot[3] == 1,
+                    () => entities.GetTransform(5, pos, rot, out ulong zone) == ScoResult.Ok && zone == 9),
+                (nameof(ScEntitiesV1.set_transform),
+                    () => entities.SetTransform(5, 9, pos, rot) == ScoResult.Unavailable,
+                    () => entities.SetTransform(5, 9, pos, rot) == ScoResult.Ok),
+                (nameof(ScEntitiesV1.spawn),
+                    () => entities.Spawn("DRAK_Cutlass_Black", 9, pos, rot, out ulong id) == ScoResult.Unavailable && id == 0,
+                    () => entities.Spawn("DRAK_Cutlass_Black", 9, pos, rot, out ulong id) == ScoResult.Ok && id == 88),
+                (nameof(ScEntitiesV1.despawn), () => entities.Despawn(88) == ScoResult.Unavailable, () => entities.Despawn(88) == ScoResult.Ok),
+                (nameof(ScEntitiesV1.watch),
+                    () => entities.Watch(GameAbi.EntityStreamedIn, "AEGS_*", &WatchFn, _self, out ulong id) == ScoResult.Unavailable && id == 0,
+                    () => entities.Watch(GameAbi.EntityStreamedIn, "AEGS_*", &WatchFn, _self, out ulong id) == ScoResult.Ok && id == 3),
+                (nameof(ScEntitiesV1.unwatch), () => entities.Unwatch(3) == ScoResult.Unavailable, () => entities.Unwatch(3) == ScoResult.Ok),
+                (nameof(ScEntitiesV1.query_radius),
+                    () => entities.QueryRadius(9, pos, 50, "AEGS_*", new ulong[2], out uint count, out uint more) == ScoResult.Unavailable && count == 0 && more == 0,
+                    () => entities.QueryRadius(9, pos, 50, "AEGS_*", new ulong[2], out uint count, out uint more) == ScoResult.Ok && count == 2 && more == 1),
+                (nameof(ScEntitiesV1.last_error),
+                    () => entities.LastError() == "" && entities.LastReadError() == "",
+                    () => entities.LastError() == "ent-own" && entities.LastReadError() == "ent-read"),
+                (nameof(ScEntitiesV1.keep), () => entities.Keep(89) == ScoResult.Unavailable, () => entities.Keep(89) == ScoResult.Ok),
+            };
+            Expect(actors.Open(p) == ScoResult.Ok && entities.Open(p) == ScoResult.Ok, "malformed-table fixtures open");
+            CheckGameFields(_actors, actorCases);
+            CheckGameFields(_entities, entityCases);
+
+            ScActorsV1* savedActors = _actors;
+            ScEntitiesV1* savedEntities = _entities;
+            uint actorSize = _actors->size, entitySize = _entities->size;
+            try
+            {
+                foreach (uint size in new uint[] { 0, 3, 4, 39 })
+                {
+                    Expect(actors.Open(p) == ScoResult.Ok, "actors reopen fixture starts open");
+                    _actors->size = size;
+                    Expect(actors.Open(p) == (size < 4 ? ScoResult.BadArg : ScoResult.Unavailable) && !actors.IsOpen,
+                        $"actors rejects size {size} and closes");
+                    _actors->size = actorSize;
+                    foreach (var test in actorCases) Expect(test.Unavailable(), $"actors failed reopen disables {test.Field}");
+                }
+                foreach (uint size in new uint[] { 0, 3, 4, 87 })
+                {
+                    Expect(entities.Open(p) == ScoResult.Ok, "entities reopen fixture starts open");
+                    _entities->size = size;
+                    Expect(entities.Open(p) == (size < 4 ? ScoResult.BadArg : ScoResult.Unavailable) && !entities.IsOpen,
+                        $"entities rejects size {size} and closes");
+                    _entities->size = entitySize;
+                    foreach (var test in entityCases) Expect(test.Unavailable(), $"entities failed reopen disables {test.Field}");
+                }
+                Expect(actors.Open(p) == ScoResult.Ok && entities.Open(p) == ScoResult.Ok, "null-table fixtures start open");
+                _actors = null;
+                _entities = null;
+                Expect(actors.Open(p) == ScoResult.BadArg && !actors.IsOpen, "actors rejects an Ok query with a null table and closes");
+                Expect(entities.Open(p) == ScoResult.BadArg && !entities.IsOpen, "entities rejects an Ok query with a null table and closes");
+                _actors = savedActors;
+                _entities = savedEntities;
+                foreach (var test in actorCases) Expect(test.Unavailable(), $"actors null-table reopen disables {test.Field}");
+                foreach (var test in entityCases) Expect(test.Unavailable(), $"entities null-table reopen disables {test.Field}");
+
+                Expect(actors.Open(p) == ScoResult.Ok && entities.Open(p) == ScoResult.Ok, "missing-service fixtures start open");
+                _actorEntityServicesMissing = true;
+                Expect(actors.Open(p) == ScoResult.NotFound && !actors.IsOpen, "actors closes after a failed service query");
+                Expect(entities.Open(p) == ScoResult.NotFound && !entities.IsOpen, "entities closes after a failed service query");
+                _actorEntityServicesMissing = false;
+                foreach (var test in actorCases) Expect(test.Unavailable(), $"actors missing-service reopen disables {test.Field}");
+                foreach (var test in entityCases) Expect(test.Unavailable(), $"entities missing-service reopen disables {test.Field}");
+
+                // Actual short allocations exercise Open without a full struct behind the prefix.
+                foreach (uint size in new uint[] { 4, 39, 87 })
+                {
+                    void* prefix = NativeMemory.AllocZeroed(size);
+                    try
+                    {
+                        *(uint*)prefix = size;
+                        _actors = (ScActorsV1*)prefix;
+                        _entities = (ScEntitiesV1*)prefix;
+                        if (size < 40) Expect(actors.Open(p) == ScoResult.Unavailable && !actors.IsOpen, "actors rejects a short allocation");
+                        Expect(entities.Open(p) == ScoResult.Unavailable && !entities.IsOpen, "entities rejects a short allocation");
+                    }
+                    finally { _actors = savedActors; _entities = savedEntities; NativeMemory.Free(prefix); }
+                }
+                Expect(actors.Open(p) == ScoResult.Ok && actors.LocalPlayer(out _, out _) == ScoResult.Ok,
+                    "actors recovers after a failed reopen");
+                Expect(entities.Open(p) == ScoResult.Ok && entities.Alive(5), "entities recovers after a failed reopen");
+            }
+            finally
+            {
+                _actorEntityServicesMissing = false;
+                _actors = savedActors;
+                _entities = savedEntities;
+                _actors->size = actorSize;
+                _entities->size = entitySize;
+            }
+        }
+
         static partial void GameTests(Plugin p)
         {
             var actors = new Actors();
@@ -348,6 +504,9 @@ namespace Sco.Sdk.Tests
             Expect(ent.QueryRadius(9, ePos, 50.0, "AEGS_*", ids, out uint eCount, out uint eMore) == ScoResult.Ok && eCount == 2 && eMore == 1 && ids[0] == 7 && ids[1] == 8,
                    "Entities.QueryRadius (count, more)");
             Expect(ent.LastError() == "ent-own" && ent.LastReadError() == "ent-read", "Entities.LastError, LastReadError");
+            Expect(ent.Watch(GameAbi.EntityStreamedIn, "AEGS_*", null, _self, out badWatch) == ScoResult.BadArg && badWatch == 0,
+                "Watch rejects a null consumer callback");
+            MalformedActorEntityTests(p);
         }
     }
 }
