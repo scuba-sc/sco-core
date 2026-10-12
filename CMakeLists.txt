@@ -84,8 +84,7 @@ sco_project_target(sco_core)
 # sco-sigcheck don't need hooks.
 if(SCO_GAME_SC)
   file(GLOB SCO_GAME_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/game/*.cpp")
-  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|diagnostics)\\.cpp$")
-  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|host)\\.cpp$")
+  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|diagnostics|host)\\.cpp$")
   add_library(sco_game_sc STATIC ${SCO_GAME_SOURCES})
   target_link_libraries(sco_game_sc PUBLIC sco_core)
   add_library(sco_game_diagnostics STATIC src/game/diagnostics.cpp)
@@ -314,15 +313,9 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
-                                       src/game/services/owned.cpp src/game/services/prefabs.cpp)
-  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
-                                       src/game/services/world.cpp src/game/services/events.cpp
-                                       src/game/services/entities.cpp src/game/services/creative.cpp
+                                       src/game/services/owned.cpp src/game/services/prefabs.cpp
                                        src/game/services/loadout.cpp src/game/services/cvars.cpp)
-  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_quantum)
-                                       src/game/services/world.cpp src/game/services/events.cpp
-                                       src/game/services/entities.cpp src/game/services/creative.cpp)
-  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_offline_missions)
+  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_quantum sco_offline_missions)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
   target_link_libraries(sco_app PUBLIC sco_game_services)
@@ -421,6 +414,8 @@ if(SCO_GAME_SC AND SCO_BUILD_TESTS)
     sco_project_target(${t})
     add_test(NAME ${t} COMMAND ${t})
   endforeach()
+endif()
+
 # Host-only offline fleet composition: never linked into the neutral kernel.
 if(SCO_GAME_SC)
   add_library(sco_asop_host STATIC src/game/asop_host/config.cpp src/game/asop_host/handoff.cpp)
@@ -780,8 +775,7 @@ if(SCO_BUILD_TESTS)
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events game_spatial)
-    list(APPEND _abi_bridge_pins game_world game_events world_control prefabs)
+    list(APPEND _abi_bridge_pins game_world game_events game_spatial world_control prefabs game_loadout)
     add_executable(test_prefabs tests/test_prefabs.cpp src/game/services/prefabs.cpp)
     target_include_directories(test_prefabs PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(test_prefabs)
@@ -791,7 +785,6 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_world_control PRIVATE sco_runtime)
     sco_project_target(test_world_control)
     add_test(NAME world_control COMMAND test_world_control)
-    list(APPEND _abi_bridge_pins game_world game_events game_loadout)
   endif()
   foreach(_b IN LISTS _abi_bridge_pins)
     set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")
