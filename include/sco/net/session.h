@@ -1,7 +1,8 @@
 #pragma once
 // sco::net service and session control: the host side of "sco.net" (include/sco_net.h). C++ and
-// internal: the host kit starts the service; the product (sc-offline's launcher and menu, through
-// its multiplayer built-in) opens and closes sessions. Plugins only see the C table, which has no
+// backend: new hosts use the consent broker in sco/net/control.h; the host kit starts the service.
+// Legacy products (sc-offline's launcher and menu, through
+// their multiplayer built-in) open and close sessions. Plugins only see the C table, which has no
 // session control: a plugin can never make a player's PC listen or connect.
 //
 //   sco::net::Start();                       // publishes sco.net 1.0 and the capability "sco.net"

@@ -107,6 +107,36 @@ What each change means for plugin authors and for products built on sco-core (sc
   C/C++ routes, ABI/extent/null fixtures and a real native-loader synthetic probe;
   production remains unavailable until the engine adapter is verified. No console
   execution or persistent config edits; frozen `sco_api` is unchanged.
+- **Offline hangar/ATC continuation port (#131):** preserve scoped offline hub,
+  hangar/bubble/gateway/retention and pad-token mechanics in the game pack.
+  Synchronous bounded handoff keeps caller frames alive after take, falls back on
+  untaken timeout and closes admission safely on shutdown. Focused portable lifetime,
+  reentrancy, timeout, overflow and shutdown fixtures; Windows gameplay not verified.
+
+- **Offline hangar lift composition (#131):** enable the row-validated sole lift
+  hook owner and preserve lower/spawn/raise plus store-down/store/raise mechanics.
+  Shared lift-watch fixture checks exact timeout, unknown state and one-shot fallback;
+  Windows lift gameplay not verified.
+
+- **Offline fleet operations (#131):** port existing ASOP delivery/store/retrieve,
+  list refresh/claim timeout and ATC request mechanics to the host-only game pack,
+  using guarded core reads/spawn helpers rather than product symbols. Shared original
+  delivery-loop fixture covers refusal/timing/timeout. Windows gameplay not verified.
+
+- **Offline fleet host catalog/status (#131):** default-off host-source configuration,
+  bounded copied class catalog and Windows game-pack entitlement-list port. Unknown
+  offline/EAC state refuses; no plugin ABI/authority change. Portable fixture only;
+  Windows gameplay not verified.
+
+- **Host-only private-session control v1 (G13):** default-off `SessionControlV1`
+  wraps the existing `sco.net` host/join/leave backend with per-request local
+  consent and up to 16 exact private LAN/CGNAT VPN IPv4 addresses. No implicit
+  LAN expansion, public destinations, remembered secrets, plugin service or
+  remote commands; reconfiguration and terminal teardown close owned sessions.
+  Kernel-only ASan/UBSan synthetic transport test covers authentication refusal,
+  malformed/out-of-scope datagrams, quotas, stale peers and teardown with UDP
+  replaced by failing socket traps. Frozen `sco_api` 1.1 is untouched.
+  Product UI/firewall integration and Windows/private-LAN/game checks remain pending.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,

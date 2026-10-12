@@ -6152,6 +6152,36 @@
       "origin": "project-authored",
       "license": "GPL-3.0-only",
       "group": "game-contract"
+    },
+    {
+      "id": "source.include.sco.net.control.h",
+      "source": "include/sco/net/control.h",
+      "destination": "include/sco/net/control.h",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.src.net.control.cpp",
+      "source": "src/net/control.cpp",
+      "destination": "src/net/control.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_net_control.cpp",
+      "source": "tests/test_net_control.cpp",
+      "destination": "tests/test_net_control.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
     }
   ]
 }

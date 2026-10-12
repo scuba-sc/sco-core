@@ -950,6 +950,36 @@
       "reviewer": "agent draft; maintainer approval pending",
       "date": "2026-10-12",
       "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+    },
+    {
+      "path": "src/game/asop_host/**",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Host-only offline fleet mechanics ported from sc-offline 1ac5308a65ac0ba7955e4108bd1dc800449cfa69 src/hooks.cpp, src/fleet.cpp and src/services.cpp. New composition and synthetic fixtures project-authored; no game extracts or GUID tables. All files excluded from SDK archives by src/game/ exclusion."
+    },
+    {
+      "path": "include/sco/game/asop_host.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Host-source-only game configuration; not plugin authority or public_header. Excluded from SDK archives by include/sco/game/ exclusion."
+    },
+    {
+      "path": "docs/game/asop-host.md",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Repository-only host composition documentation and evidence limits; not an SDK archive member."
     }
   ],
   "pinned": {
