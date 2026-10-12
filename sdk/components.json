@@ -27,6 +27,15 @@
    "version_from": "sdk/VERSION",
    "layout": "source",
    "about": "Kernel source-development archive: host/runtime, native and Lua loaders, required vendored code, CMake, tools and synthetic tests. No game implementation, contracts, game examples or game-only test fixtures."
+  },
+  "host-source-sc": {
+   "zip": "sco-sdk-host-source-sc-{version}",
+   "version_from": "sdk/VERSION",
+   "layout": "source",
+   "includes": [
+    "core-source"
+   ],
+   "about": "Standalone Star Citizen host source kit in repository layout: neutral kernel plus complete game implementation, DataCore, vendored build dependencies, headers and synthetic tests. Local packaging only; no release publication or attestation."
   }
  },
  "covers": [
@@ -42,18 +51,6 @@
   "site"
  ],
  "excluded": [
-  {
-   "path": "tests/game_contracts/conformance/",
-   "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
-   },
-   {
-   "path": "tests/test_language_routes.c",
-   "why": "Game-contract-only C language fixture; excluded from the neutral source kit."
-  },
-  {
-   "path": "tests/test_language_routes.cpp",
-   "why": "Game-contract-only C++ language fixture; excluded from the neutral source kit."
-  },
   {
    "path": "tools/sco-core-mcp/",
    "why": "Repository-only, read-only SDK catalogue discovery aid; not a runtime component or SDK package."
@@ -95,94 +92,6 @@
    "why": "packaging test"
   },
   {
-   "path": "src/game/",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "src/datacore/",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "include/sco/game/",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "include/sco/datacore",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "plugins/lua/sco_lua_game.",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "tests/fixtures/datacore/",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "tests/test_datacore",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "tests/test_death_events.cpp",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "tests/test_pak.cpp",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "tests/dcb_",
-   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
-  },
-  {
-   "path": "include/sco/datacore.h",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "include/sco/datacore_pack.h",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "include/sco/datacore_service.h",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "plugins/lua/sco_lua_game.c",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "plugins/lua/sco_lua_game.h",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "tests/dcb_builder.h",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "tests/dcb_pack.cmake",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "tests/dcb_tool.cmake",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "tests/test_datacore.cpp",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "tests/test_datacore_pack.cpp",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "tests/test_datacore_patch.cpp",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "tests/test_datacore_service.cpp",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
    "path": "tools/ip_audit.py",
    "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
   },
@@ -203,14 +112,6 @@
    "why": "Release publication verifier tests; not part of the kernel source kit."
   },
   {
-   "path": "tools/sco-dcb.cpp",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
-   "path": "tools/sco-sigcheck.cpp",
-   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
-  },
-  {
    "path": "tools/sigcheck.sh",
    "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
   },
@@ -225,59 +126,67 @@
   {
    "path": "tools/test_ip_audit.py",
    "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "sdk/test_host_source.py",
+   "why": "Repository-only host-source packaging verification/integration tool; not shipped in SDK profiles."
+  },
+  {
+   "path": "sdk/add_host_adapter_components.py",
+   "why": "Repository-only host-source packaging verification/integration tool; not shipped in SDK profiles."
   }
  ],
  "components": [
-{
-  "id": "source.include.sco.diagnostics.h",
-  "source": "include/sco/diagnostics.h",
-  "destination": "include/sco/diagnostics.h",
-  "profiles": [
+  {
+   "id": "source.include.sco.diagnostics.h",
+   "source": "include/sco/diagnostics.h",
+   "destination": "include/sco/diagnostics.h",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "source.include.sco.diagnostics_services.h",
-  "source": "include/sco/diagnostics_services.h",
-  "destination": "include/sco/diagnostics_services.h",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.diagnostics_services.h",
+   "source": "include/sco/diagnostics_services.h",
+   "destination": "include/sco/diagnostics_services.h",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "source.src.host.sco_diagnostics.cpp",
-  "source": "src/host/sco_diagnostics.cpp",
-  "destination": "src/host/sco_diagnostics.cpp",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.host.sco_diagnostics.cpp",
+   "source": "src/host/sco_diagnostics.cpp",
+   "destination": "src/host/sco_diagnostics.cpp",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "source.tests.test_runtime_diagnostics_snapshot.cpp",
-  "source": "tests/test_runtime_diagnostics_snapshot.cpp",
-  "destination": "tests/test_runtime_diagnostics_snapshot.cpp",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_runtime_diagnostics_snapshot.cpp",
+   "source": "tests/test_runtime_diagnostics_snapshot.cpp",
+   "destination": "tests/test_runtime_diagnostics_snapshot.cpp",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "source.tests.test_runtime_diagnostics_services.cpp",
-  "source": "tests/test_runtime_diagnostics_services.cpp",
-  "destination": "tests/test_runtime_diagnostics_services.cpp",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_runtime_diagnostics_services.cpp",
+   "source": "tests/test_runtime_diagnostics_services.cpp",
+   "destination": "tests/test_runtime_diagnostics_services.cpp",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
   {
    "id": "include.sco_widgets.h",
    "source": "include/sco_widgets.h",
@@ -356,7 +265,9 @@
    "id": "source.tests.test_widgets_app.cpp",
    "source": "tests/test_widgets_app.cpp",
    "destination": "tests/test_widgets_app.cpp",
-   "profiles": ["core-source"],
+   "profiles": [
+    "core-source"
+   ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
   },
@@ -451,7 +362,8 @@
    "source": "tests/game_contracts/hook_lengths.inc",
    "destination": "tests/game_contracts/hook_lengths.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -462,7 +374,8 @@
    "source": "tests/game_contracts/core_headers.inc",
    "destination": "tests/game_contracts/core_headers.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -473,7 +386,8 @@
    "source": "tests/game_contracts/core_cases.inc",
    "destination": "tests/game_contracts/core_cases.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -484,7 +398,8 @@
    "source": "tests/game_contracts/core_run.inc",
    "destination": "tests/game_contracts/core_run.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -495,7 +410,8 @@
    "source": "tests/game_contracts/lua_datacore_headers.inc",
    "destination": "tests/game_contracts/lua_datacore_headers.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -506,7 +422,8 @@
    "source": "tests/game_contracts/lua_adapter_headers.inc",
    "destination": "tests/game_contracts/lua_adapter_headers.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -517,7 +434,8 @@
    "source": "tests/game_contracts/lua_cases.inc",
    "destination": "tests/game_contracts/lua_cases.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -528,7 +446,8 @@
    "source": "tests/game_contracts/lua_run.inc",
    "destination": "tests/game_contracts/lua_run.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -539,7 +458,8 @@
    "source": "tests/game_contracts/app_adapter_headers.inc",
    "destination": "tests/game_contracts/app_adapter_headers.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -550,7 +470,8 @@
    "source": "tests/game_contracts/app_service_headers.inc",
    "destination": "tests/game_contracts/app_service_headers.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -561,7 +482,8 @@
    "source": "tests/game_contracts/app_register_signatures.inc",
    "destination": "tests/game_contracts/app_register_signatures.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -572,7 +494,8 @@
    "source": "tests/game_contracts/app_service_cases.inc",
    "destination": "tests/game_contracts/app_service_cases.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -583,7 +506,8 @@
    "source": "tests/game_contracts/app_register_adapter.inc",
    "destination": "tests/game_contracts/app_register_adapter.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -594,7 +518,8 @@
    "source": "tests/game_contracts/sdk_includes.inc",
    "destination": "tests/game_contracts/sdk_includes.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -605,7 +530,8 @@
    "source": "tests/game_contracts/sdk_cases.inc",
    "destination": "tests/game_contracts/sdk_cases.inc",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -664,7 +590,8 @@
    "source": "include/sco_datacore.h",
    "destination": "include/sco_datacore.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -749,7 +676,8 @@
    "source": "include/sc_spatial.h",
    "destination": "include/sc_spatial.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -760,7 +688,8 @@
    "source": "include/sc_spawn.h",
    "destination": "include/sc_spawn.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -771,7 +700,8 @@
    "source": "include/sc_actors.h",
    "destination": "include/sc_actors.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -782,7 +712,8 @@
    "source": "include/sc_vehicles.h",
    "destination": "include/sc_vehicles.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -793,7 +724,8 @@
    "source": "include/sc_creative.h",
    "destination": "include/sc_creative.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -804,7 +736,8 @@
    "source": "include/sc_world.h",
    "destination": "include/sc_world.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -815,7 +748,8 @@
    "source": "include/sc_game_events.h",
    "destination": "include/sc_game_events.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -826,7 +760,8 @@
    "source": "include/sc_entities.h",
    "destination": "include/sc_entities.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -837,7 +772,8 @@
    "source": "include/sc_game_pack.h",
    "destination": "include/sc_game_pack.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -848,7 +784,8 @@
    "source": "docs/game-pack.md",
    "destination": "docs/game-pack.md",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -858,7 +795,8 @@
    "source": "docs/game-services.md",
    "destination": "docs/game-services.md",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -868,7 +806,8 @@
    "source": "docs/game/status.md",
    "destination": "docs/game/status.md",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -890,7 +829,8 @@
    "source": "include/scosdk/datacore.hpp",
    "destination": "include/scosdk/datacore.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1009,7 +949,8 @@
    "source": "include/scosdk/game/actors.hpp",
    "destination": "include/scosdk/game/actors.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1020,7 +961,8 @@
    "source": "include/scosdk/game/creative.hpp",
    "destination": "include/scosdk/game/creative.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1031,7 +973,8 @@
    "source": "include/scosdk/game/entities.hpp",
    "destination": "include/scosdk/game/entities.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1042,7 +985,8 @@
    "source": "include/scosdk/game/events.hpp",
    "destination": "include/scosdk/game/events.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1053,7 +997,8 @@
    "source": "include/scosdk/game/vehicles.hpp",
    "destination": "include/scosdk/game/vehicles.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1064,7 +1009,8 @@
    "source": "include/scosdk/game/world.hpp",
    "destination": "include/scosdk/game/world.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1163,7 +1109,8 @@
    "source": "sdk/csharp/Sco.Sdk/DataCore.cs",
    "destination": "csharp/Sco.Sdk/DataCore.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1173,7 +1120,8 @@
    "source": "sdk/csharp/Sco.Sdk/DataCoreInterop.cs",
    "destination": "csharp/Sco.Sdk/DataCoreInterop.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1183,7 +1131,8 @@
    "source": "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
    "destination": "csharp/Sco.Sdk.Tests/GameFakeHost.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1193,7 +1142,8 @@
    "source": "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs",
    "destination": "csharp/Sco.Sdk.Tests/GameLayout.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1203,7 +1153,8 @@
    "source": "sdk/csharp/Sco.Sdk.Tests/GamePins.cs",
    "destination": "csharp/Sco.Sdk.Tests/GamePins.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1293,7 +1244,8 @@
    "source": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
    "destination": "csharp/Sco.Sdk/Game/Actors.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1303,7 +1255,8 @@
    "source": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
    "destination": "csharp/Sco.Sdk/Game/Creative.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1313,7 +1266,8 @@
    "source": "sdk/csharp/Sco.Sdk/Game/Entities.cs",
    "destination": "csharp/Sco.Sdk/Game/Entities.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1323,7 +1277,8 @@
    "source": "sdk/csharp/Sco.Sdk/Game/Events.cs",
    "destination": "csharp/Sco.Sdk/Game/Events.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1333,7 +1288,8 @@
    "source": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
    "destination": "csharp/Sco.Sdk/Game/Vehicles.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1343,7 +1299,8 @@
    "source": "sdk/csharp/Sco.Sdk/Game/World.cs",
    "destination": "csharp/Sco.Sdk/Game/World.cs",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1623,7 +1580,8 @@
    "source": "sdk/examples/quantum_pack/CMakeLists.txt",
    "destination": "examples/quantum_pack/CMakeLists.txt",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1633,7 +1591,8 @@
    "source": "sdk/examples/quantum_pack/plugin.ini",
    "destination": "examples/quantum_pack/plugin.ini",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1643,7 +1602,8 @@
    "source": "sdk/examples/quantum_pack/datacore/eos.toml",
    "destination": "examples/quantum_pack/datacore/eos.toml",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1654,7 +1614,8 @@
    "source": "sdk/examples/travel_pack/CMakeLists.txt",
    "destination": "examples/travel_pack/CMakeLists.txt",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1664,7 +1625,8 @@
    "source": "sdk/examples/travel_pack/plugin.ini",
    "destination": "examples/travel_pack/plugin.ini",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1674,7 +1636,8 @@
    "source": "sdk/examples/travel_pack/lists/locations.txt",
    "destination": "examples/travel_pack/lists/locations.txt",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3253,7 +3216,8 @@
    "source": "tests/abi_datacore.c",
    "destination": "tests/abi_datacore.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3264,7 +3228,8 @@
    "source": "tests/abi_game_actors.c",
    "destination": "tests/abi_game_actors.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3275,7 +3240,8 @@
    "source": "tests/abi_game_creative.c",
    "destination": "tests/abi_game_creative.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3286,7 +3252,8 @@
    "source": "tests/abi_game_entities.c",
    "destination": "tests/abi_game_entities.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3297,7 +3264,8 @@
    "source": "tests/abi_game_events.c",
    "destination": "tests/abi_game_events.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3308,7 +3276,8 @@
    "source": "tests/abi_game_vehicles.c",
    "destination": "tests/abi_game_vehicles.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3319,7 +3288,8 @@
    "source": "tests/abi_game_world.c",
    "destination": "tests/abi_game_world.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3370,7 +3340,8 @@
    "source": "tests/abi_spatial.c",
    "destination": "tests/abi_spatial.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -3381,7 +3352,8 @@
    "source": "tests/abi_spawn.c",
    "destination": "tests/abi_spawn.c",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "host-source-sc"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -4026,6 +3998,1500 @@
    ],
    "origin": "third-party",
    "license": "blessing"
+  },
+  {
+   "id": "host-source-sc-docs-game-actors.md",
+   "source": "docs/game/actors.md",
+   "destination": "docs/game/actors.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-asop.md",
+   "source": "docs/game/asop.md",
+   "destination": "docs/game/asop.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-contracts.md",
+   "source": "docs/game/contracts.md",
+   "destination": "docs/game/contracts.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-creative.md",
+   "source": "docs/game/creative.md",
+   "destination": "docs/game/creative.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-entities.md",
+   "source": "docs/game/entities.md",
+   "destination": "docs/game/entities.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-events.md",
+   "source": "docs/game/events.md",
+   "destination": "docs/game/events.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-features.md",
+   "source": "docs/game/features.md",
+   "destination": "docs/game/features.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-mining.md",
+   "source": "docs/game/mining.md",
+   "destination": "docs/game/mining.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-offline.md",
+   "source": "docs/game/offline.md",
+   "destination": "docs/game/offline.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-game-world.md",
+   "source": "docs/game/world.md",
+   "destination": "docs/game/world.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-docs-host-source-sc.md",
+   "source": "docs/host-source-sc.md",
+   "destination": "docs/host-source-sc.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-datacore.h",
+   "source": "include/sco/datacore.h",
+   "destination": "include/sco/datacore.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-datacore_pack.h",
+   "source": "include/sco/datacore_pack.h",
+   "destination": "include/sco/datacore_pack.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-datacore_service.h",
+   "source": "include/sco/datacore_service.h",
+   "destination": "include/sco/datacore_service.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-actors.h",
+   "source": "include/sco/game/actors.h",
+   "destination": "include/sco/game/actors.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-asop.h",
+   "source": "include/sco/game/asop.h",
+   "destination": "include/sco/game/asop.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-contracts.h",
+   "source": "include/sco/game/contracts.h",
+   "destination": "include/sco/game/contracts.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-entities.h",
+   "source": "include/sco/game/entities.h",
+   "destination": "include/sco/game/entities.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-events.h",
+   "source": "include/sco/game/events.h",
+   "destination": "include/sco/game/events.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-features.h",
+   "source": "include/sco/game/features.h",
+   "destination": "include/sco/game/features.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-mining.h",
+   "source": "include/sco/game/mining.h",
+   "destination": "include/sco/game/mining.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-missions.h",
+   "source": "include/sco/game/missions.h",
+   "destination": "include/sco/game/missions.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-offline.h",
+   "source": "include/sco/game/offline.h",
+   "destination": "include/sco/game/offline.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-pak.h",
+   "source": "include/sco/game/pak.h",
+   "destination": "include/sco/game/pak.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-reads.h",
+   "source": "include/sco/game/reads.h",
+   "destination": "include/sco/game/reads.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-services.h",
+   "source": "include/sco/game/services.h",
+   "destination": "include/sco/game/services.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-signatures.h",
+   "source": "include/sco/game/signatures.h",
+   "destination": "include/sco/game/signatures.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-system.h",
+   "source": "include/sco/game/system.h",
+   "destination": "include/sco/game/system.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-teleport.h",
+   "source": "include/sco/game/teleport.h",
+   "destination": "include/sco/game/teleport.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-world.h",
+   "source": "include/sco/game/world.h",
+   "destination": "include/sco/game/world.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-plugins-lua-sco_lua_game.c",
+   "source": "plugins/lua/sco_lua_game.c",
+   "destination": "plugins/lua/sco_lua_game.c",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-plugins-lua-sco_lua_game.h",
+   "source": "plugins/lua/sco_lua_game.h",
+   "destination": "plugins/lua/sco_lua_game.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-datacore-datacore.cpp",
+   "source": "src/datacore/datacore.cpp",
+   "destination": "src/datacore/datacore.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-datacore-internal.h",
+   "source": "src/datacore/internal.h",
+   "destination": "src/datacore/internal.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-datacore-pack.cpp",
+   "source": "src/datacore/pack.cpp",
+   "destination": "src/datacore/pack.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-datacore-patch.cpp",
+   "source": "src/datacore/patch.cpp",
+   "destination": "src/datacore/patch.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-datacore-service.cpp",
+   "source": "src/datacore/service.cpp",
+   "destination": "src/datacore/service.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-datacore-toml.h",
+   "source": "src/datacore/toml.h",
+   "destination": "src/datacore/toml.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-actors_sigs.cpp",
+   "source": "src/game/actors_sigs.cpp",
+   "destination": "src/game/actors_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-asop_sigs.cpp",
+   "source": "src/game/asop_sigs.cpp",
+   "destination": "src/game/asop_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-atc_sigs.cpp",
+   "source": "src/game/atc_sigs.cpp",
+   "destination": "src/game/atc_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-contracts_sigs.cpp",
+   "source": "src/game/contracts_sigs.cpp",
+   "destination": "src/game/contracts_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-entities_sigs.cpp",
+   "source": "src/game/entities_sigs.cpp",
+   "destination": "src/game/entities_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-events_sigs.cpp",
+   "source": "src/game/events_sigs.cpp",
+   "destination": "src/game/events_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-features_sigs.cpp",
+   "source": "src/game/features_sigs.cpp",
+   "destination": "src/game/features_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-hangar_sigs.cpp",
+   "source": "src/game/hangar_sigs.cpp",
+   "destination": "src/game/hangar_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-mining_sigs.cpp",
+   "source": "src/game/mining_sigs.cpp",
+   "destination": "src/game/mining_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-offline_sigs.cpp",
+   "source": "src/game/offline_sigs.cpp",
+   "destination": "src/game/offline_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-pak_hooks.cpp",
+   "source": "src/game/pak_hooks.cpp",
+   "destination": "src/game/pak_hooks.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-pak_sigs.cpp",
+   "source": "src/game/pak_sigs.cpp",
+   "destination": "src/game/pak_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-actors.cpp",
+   "source": "src/game/services/actors.cpp",
+   "destination": "src/game/services/actors.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-actors.h",
+   "source": "src/game/services/actors.h",
+   "destination": "src/game/services/actors.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-creative.cpp",
+   "source": "src/game/services/creative.cpp",
+   "destination": "src/game/services/creative.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-creative.h",
+   "source": "src/game/services/creative.h",
+   "destination": "src/game/services/creative.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-death_events.h",
+   "source": "src/game/services/death_events.h",
+   "destination": "src/game/services/death_events.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-entities.cpp",
+   "source": "src/game/services/entities.cpp",
+   "destination": "src/game/services/entities.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-entities.h",
+   "source": "src/game/services/entities.h",
+   "destination": "src/game/services/entities.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-events.cpp",
+   "source": "src/game/services/events.cpp",
+   "destination": "src/game/services/events.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-events.h",
+   "source": "src/game/services/events.h",
+   "destination": "src/game/services/events.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-missions.cpp",
+   "source": "src/game/services/missions.cpp",
+   "destination": "src/game/services/missions.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-reads.cpp",
+   "source": "src/game/services/reads.cpp",
+   "destination": "src/game/services/reads.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-spatial.cpp",
+   "source": "src/game/services/spatial.cpp",
+   "destination": "src/game/services/spatial.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-spawn.cpp",
+   "source": "src/game/services/spawn.cpp",
+   "destination": "src/game/services/spawn.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-spawn.h",
+   "source": "src/game/services/spawn.h",
+   "destination": "src/game/services/spawn.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-vehicles.cpp",
+   "source": "src/game/services/vehicles.cpp",
+   "destination": "src/game/services/vehicles.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-vehicles.h",
+   "source": "src/game/services/vehicles.h",
+   "destination": "src/game/services/vehicles.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-world.cpp",
+   "source": "src/game/services/world.cpp",
+   "destination": "src/game/services/world.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-services-world.h",
+   "source": "src/game/services/world.h",
+   "destination": "src/game/services/world.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-sig_rows.h",
+   "source": "src/game/sig_rows.h",
+   "destination": "src/game/sig_rows.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-signatures.cpp",
+   "source": "src/game/signatures.cpp",
+   "destination": "src/game/signatures.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-system_sigs.cpp",
+   "source": "src/game/system_sigs.cpp",
+   "destination": "src/game/system_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-teleport_sigs.cpp",
+   "source": "src/game/teleport_sigs.cpp",
+   "destination": "src/game/teleport_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-src-game-world_sigs.cpp",
+   "source": "src/game/world_sigs.cpp",
+   "destination": "src/game/world_sigs.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-dcb_builder.h",
+   "source": "tests/dcb_builder.h",
+   "destination": "tests/dcb_builder.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-dcb_pack.cmake",
+   "source": "tests/dcb_pack.cmake",
+   "destination": "tests/dcb_pack.cmake",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-dcb_tool.cmake",
+   "source": "tests/dcb_tool.cmake",
+   "destination": "tests/dcb_tool.cmake",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_atomic.toml",
+   "source": "tests/fixtures/datacore/golden/bad_atomic.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_atomic.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_both_targets.toml",
+   "source": "tests/fixtures/datacore/golden/bad_both_targets.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_both_targets.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_clone.toml",
+   "source": "tests/fixtures/datacore/golden/bad_clone.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_clone.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_duplicate_id.toml",
+   "source": "tests/fixtures/datacore/golden/bad_duplicate_id.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_duplicate_id.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_element_in_set.toml",
+   "source": "tests/fixtures/datacore/golden/bad_element_in_set.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_element_in_set.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_format.toml",
+   "source": "tests/fixtures/datacore/golden/bad_format.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_format.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_guid.toml",
+   "source": "tests/fixtures/datacore/golden/bad_guid.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_guid.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_instance_struct.toml",
+   "source": "tests/fixtures/datacore/golden/bad_instance_struct.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_instance_struct.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_missing_format.toml",
+   "source": "tests/fixtures/datacore/golden/bad_missing_format.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_missing_format.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_no_target.toml",
+   "source": "tests/fixtures/datacore/golden/bad_no_target.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_no_target.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_no_value.toml",
+   "source": "tests/fixtures/datacore/golden/bad_no_value.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_no_value.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_path.toml",
+   "source": "tests/fixtures/datacore/golden/bad_path.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_path.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_clone_field.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_clone_field.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_clone_field.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_duplicate_guid.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_duplicate_guid.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_duplicate_guid.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_duplicate_name.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_duplicate_name.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_duplicate_name.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_file.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_file.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_file.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_file_ext.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_file_ext.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_file_ext.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_id.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_id.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_id.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_no_clone.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_no_clone.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_no_clone.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_no_struct.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_no_struct.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_no_struct.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_record_zero_guid.toml",
+   "source": "tests/fixtures/datacore/golden/bad_record_zero_guid.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_record_zero_guid.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_set_twice.toml",
+   "source": "tests/fixtures/datacore/golden/bad_set_twice.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_set_twice.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_single_table.toml",
+   "source": "tests/fixtures/datacore/golden/bad_single_table.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_single_table.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_syntax.toml",
+   "source": "tests/fixtures/datacore/golden/bad_syntax.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_syntax.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_two_values.toml",
+   "source": "tests/fixtures/datacore/golden/bad_two_values.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_two_values.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_uint.toml",
+   "source": "tests/fixtures/datacore/golden/bad_uint.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_uint.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_undefined_id.toml",
+   "source": "tests/fixtures/datacore/golden/bad_undefined_id.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_undefined_id.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_unknown_key.toml",
+   "source": "tests/fixtures/datacore/golden/bad_unknown_key.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_unknown_key.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_unknown_top.toml",
+   "source": "tests/fixtures/datacore/golden/bad_unknown_top.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_unknown_top.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_use_before_define.toml",
+   "source": "tests/fixtures/datacore/golden/bad_use_before_define.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_use_before_define.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-bad_value_shape.toml",
+   "source": "tests/fixtures/datacore/golden/bad_value_shape.toml",
+   "destination": "tests/fixtures/datacore/golden/bad_value_shape.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-good_all.toml",
+   "source": "tests/fixtures/datacore/golden/good_all.toml",
+   "destination": "tests/fixtures/datacore/golden/good_all.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-good_dotted.toml",
+   "source": "tests/fixtures/datacore/golden/good_dotted.toml",
+   "destination": "tests/fixtures/datacore/golden/good_dotted.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-good_minimal.toml",
+   "source": "tests/fixtures/datacore/golden/good_minimal.toml",
+   "destination": "tests/fixtures/datacore/golden/good_minimal.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-golden-good_record.toml",
+   "source": "tests/fixtures/datacore/golden/good_record.toml",
+   "destination": "tests/fixtures/datacore/golden/good_record.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-missing_field-datacore-typo.toml",
+   "source": "tests/fixtures/datacore/missing_field/datacore/typo.toml",
+   "destination": "tests/fixtures/datacore/missing_field/datacore/typo.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-fixtures-datacore-new_record-datacore-record.toml",
+   "source": "tests/fixtures/datacore/new_record/datacore/record.toml",
+   "destination": "tests/fixtures/datacore/new_record/datacore/record.toml",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "interoperability-derived",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-game_contracts-conformance-README.md",
+   "source": "tests/game_contracts/conformance/README.md",
+   "destination": "tests/game_contracts/conformance/README.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-game_contracts-conformance-consumer.c",
+   "source": "tests/game_contracts/conformance/consumer.c",
+   "destination": "tests/game_contracts/conformance/consumer.c",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-game_contracts-conformance-host.cpp",
+   "source": "tests/game_contracts/conformance/host.cpp",
+   "destination": "tests/game_contracts/conformance/host.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-test_datacore.cpp",
+   "source": "tests/test_datacore.cpp",
+   "destination": "tests/test_datacore.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-test_datacore_pack.cpp",
+   "source": "tests/test_datacore_pack.cpp",
+   "destination": "tests/test_datacore_pack.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-test_datacore_patch.cpp",
+   "source": "tests/test_datacore_patch.cpp",
+   "destination": "tests/test_datacore_patch.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-test_datacore_service.cpp",
+   "source": "tests/test_datacore_service.cpp",
+   "destination": "tests/test_datacore_service.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-test_death_events.cpp",
+   "source": "tests/test_death_events.cpp",
+   "destination": "tests/test_death_events.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-test_language_routes.c",
+   "source": "tests/test_language_routes.c",
+   "destination": "tests/test_language_routes.c",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-test_language_routes.cpp",
+   "source": "tests/test_language_routes.cpp",
+   "destination": "tests/test_language_routes.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tests-test_pak.cpp",
+   "source": "tests/test_pak.cpp",
+   "destination": "tests/test_pak.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-third_party-tomlplusplus-LICENSE",
+   "source": "third_party/tomlplusplus/LICENSE",
+   "destination": "third_party/tomlplusplus/LICENSE",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "third-party",
+   "license": "MIT",
+   "group": "host-source-sc",
+   "upstream": "https://github.com/marzer/tomlplusplus v3.4.0"
+  },
+  {
+   "id": "host-source-sc-third_party-tomlplusplus-README.md",
+   "source": "third_party/tomlplusplus/README.md",
+   "destination": "third_party/tomlplusplus/README.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "third-party",
+   "license": "MIT",
+   "group": "host-source-sc",
+   "upstream": "https://github.com/marzer/tomlplusplus v3.4.0"
+  },
+  {
+   "id": "host-source-sc-third_party-tomlplusplus-toml.hpp",
+   "source": "third_party/tomlplusplus/toml.hpp",
+   "destination": "third_party/tomlplusplus/toml.hpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "third-party",
+   "license": "MIT",
+   "group": "host-source-sc",
+   "upstream": "https://github.com/marzer/tomlplusplus v3.4.0"
+  },
+  {
+   "id": "host-source-sc-tools-sco-dcb.cpp",
+   "source": "tools/sco-dcb.cpp",
+   "destination": "tools/sco-dcb.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-tools-sco-sigcheck.cpp",
+   "source": "tools/sco-sigcheck.cpp",
+   "destination": "tools/sco-sigcheck.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc"
+  },
+  {
+   "id": "host-source-sc-include-sco-game-host.h",
+   "source": "include/sco/game/host.h",
+   "destination": "include/sco/game/host.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc",
+   "public_header": false
+  },
+  {
+   "id": "host-source-sc-src-game-host.cpp",
+   "source": "src/game/host.cpp",
+   "destination": "src/game/host.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc",
+   "public_header": false
+  },
+  {
+   "id": "host-source-sc-src-game-host_testing.h",
+   "source": "src/game/host_testing.h",
+   "destination": "src/game/host_testing.h",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc",
+   "public_header": false
+  },
+  {
+   "id": "host-source-sc-tests-game_host_data.cpp",
+   "source": "tests/game_host_data.cpp",
+   "destination": "tests/game_host_data.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc",
+   "public_header": false
+  },
+  {
+   "id": "host-source-sc-tests-game_host.cpp",
+   "source": "tests/game_host.cpp",
+   "destination": "tests/game_host.cpp",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc",
+   "public_header": false
+  },
+  {
+   "id": "host-source-sc-docs-game-host.md",
+   "source": "docs/game/host.md",
+   "destination": "docs/game/host.md",
+   "profiles": [
+    "host-source-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "host-source-sc",
+   "public_header": false
   }
  ]
 }

@@ -27,6 +27,7 @@ What each change means for plugin authors and for products built on sco-core (sc
   Synthetic lifecycle/thread fixtures only; no online-to-offline conversion,
   plugin patch service or frozen ABI change. Legacy offline mutations and product
   migration remain separate; not run in game.
+- **G16 local Star Citizen host-source kit:** `host-source-sc` packages the neutral kernel plus complete tracked game implementation, DataCore, private headers, vendored dependencies and synthetic test inputs in a standalone source layout. Existing SPDX SBOM, provenance and checksum generation is retained; an extracted-archive regression builds the G1 host adapter targets with `SCO_GAME_SC=ON`, runs five synthetic host fixtures and checks `core-source` game exclusions. All six private adapter files are included. No plugin ABI, CI/release workflow, publication or attestation change; Windows/game validation and human-controlled asset publication remain owed.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
