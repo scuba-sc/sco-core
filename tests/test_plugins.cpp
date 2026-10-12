@@ -817,6 +817,25 @@ static int Ticks(const P::Plugin& p) {
     return t ? *t : -1;
 }
 
+// The exported counters of the frozen 1.1 plugin (tests/fixtures/plugins/native/frozen_v11_plugin.c).
+static int Frozen(const P::Plugin& p, const char* name) {
+    if (!p.module) return -1;
+    const int* v = static_cast<const int*>(P::PlatformModuleOps().symbol(p.module, name));
+    return v ? *v : -1;
+}
+
+// Module ops for the frozen plugin: record closes, and read its unload counter (not the fakes')
+// before closing, so the test can prove sco_plugin_unload ran exactly once.
+static std::vector<std::string> g_frozenClosed;
+static void* FrozenOpen(const fs::path& f, std::string& e) { return P::PlatformModuleOps().open(f, e); }
+static void* FrozenSymbol(void* m, const char* n) { return P::PlatformModuleOps().symbol(m, n); }
+static void FrozenClose(void* m) {
+    const int* calls = static_cast<const int*>(P::PlatformModuleOps().symbol(m, "frozen_unloads"));
+    g_frozenClosed.emplace_back(calls ? std::to_string(*calls) : "?");
+    P::PlatformModuleOps().close(m);
+}
+static const P::ModuleOps kFrozenOps{ FrozenOpen, FrozenSymbol, FrozenClose };
+
 // Owner handles: distinct, never reused (Release is final per owner).
 static char g_owners[64];
 static int g_nextOwner = 0;
@@ -1138,6 +1157,79 @@ static void TestServices() {
     P::SetCallGuard(nullptr);
 }
 
+// ---- the ABI freeze's old-binary fixture (tools/abi_snapshot.py) -----------------------------
+//
+// tests/fixtures/plugins/native/frozen_v11_plugin.c is compiled against include/sco_api.h
+// *as released at sdk-v1.1.0* (extracted from the tag by `abi_snapshot.py released-header`, so
+// no binary is committed) and laid out under <out>/frozen_v11/ by tools/test.sh and CMake.
+// Loading it here is the other half of the freeze: the golden and tests/abi_v1.c pin the
+// header's surface as data, and this proves the current host still speaks to a module built
+// against the released bytes. A reordered sco_api function pointer, a changed offset or a
+// shrunk table makes the old module call the wrong thing, or refuse to load, and this fails.
+static void TestFrozenV11() {
+    const fs::path root = g_out / "frozen_v11";
+    if (!fs::is_directory(root)) {
+        std::printf("FAIL: %s missing (tools/test.sh or the CMake build makes it)\n",
+                    root.string().c_str());
+        ++g_fail;
+        return;
+    }
+#ifndef _WIN32
+    P::SetCallGuard(SignalGuard);
+#endif
+    P::Options on;
+    on.enabled = true;
+    auto list = P::Discover(root, on);
+    g_list = &list;
+    P::ContainCallouts(&list);
+    const sco_api api = MakeApi();
+    CHECK(list.size() == 1);
+    if (list.size() != 1) return;
+    P::Plugin& p = list[0];
+    CHECK(p.folder == "v11" && p.state == State::Ready);
+    if (p.state != State::Ready) std::printf("  v11: %s\n", p.reason.c_str());
+
+    g_log.clear();
+    const size_t subs0 = sco::SubscriptionCount();
+    CHECK(P::LoadNative(p, &api, NewOwner(), on, kFrozenOps));
+    CHECK(p.state == State::Loaded);
+    if (p.state != State::Loaded) std::printf("  v11: %s\n", p.reason.c_str());
+    // The module was built against the released header, so it reports 1.1 and sized its own
+    // structs from it; the host's table must still cover every 1.1 field it calls.
+    CHECK(p.manifest.apiMajor == 1 && p.manifest.apiMinor == 1);
+    CHECK(Frozen(p, "frozen_loads") == 1);
+    CHECK(Frozen(p, "frozen_expected_size") == 128);          // sizeof(sco_api) in sdk-v1.1.0
+    CHECK(Frozen(p, "frozen_host_size") >= 128);              // what this host handed it
+    CHECK(Frozen(p, "frozen_unloads") == 0);
+    CHECK(Logged("[v11] v11 loaded (built against sdk-v1.1.0)"));
+    CHECK(sco::SubscriptionCount() == subs0 + 1);             // its subscribe took
+
+    // Its tick runs through the trampoline: the host's subscribe reached it at the offset the
+    // released header put it at.
+    CHECK(sco::GameThreadTick(1) == sco::Result::Ok);
+    CHECK(Frozen(p, "frozen_ticks") == 1);
+    CHECK(sco::SubscriptionCount() == subs0 + 1);
+
+    // Its command answers, so register_command and the sco_command layout still line up.
+    CHECK(RunCommand("v11.ping") == sco::Result::Ok);
+    CHECK(Frozen(p, "frozen_cmds") == 1);
+
+    // Unload: sco_plugin_unload ran once (kFrozenOps reads its counter before closing the
+    // module), the module closed, and its subscription is gone.
+    g_frozenClosed.clear();
+    g_log.clear();
+    P::UnloadNative(p, kFrozenOps);
+    CHECK(p.state == State::Unloaded && !p.module);
+    CHECK((g_frozenClosed == std::vector<std::string>{ "1" }));   // unload() ran exactly once
+    CHECK(Logged("[plugin] unloaded v11"));
+    CHECK(sco::SubscriptionCount() == subs0);
+    P::ContainCallouts(nullptr);
+    g_list = nullptr;
+#ifndef _WIN32
+    P::SetCallGuard(nullptr);
+#endif
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_plugins <fixtures dir> <out dir>\n"); return 2; }
     g_fixtures = argv[1];
@@ -1151,6 +1243,7 @@ int main(int argc, char** argv) {
     TestRequiresOrder();
     TestContentIndex();
     TestNative();
+    TestFrozenV11();
     TestServices();
     std::printf("sco-core plugin tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

@@ -8,7 +8,7 @@ sco-core is the game-facing core of [sc-offline](https://github.com/scubamount/s
 - **No game files.** Byte patterns and the names of strings the game references are fine. Don't commit pieces of `StarCitizen.exe`, dumps or anything extracted from the game.
 - **No secrets or personal data** in code, tests or logs you paste.
 - **Portable core.** Only `src/sco_image_win.cpp`, `src/ipc/shm_win.cpp`, `src/net/udp_win.cpp` and the `_WIN32` halves of `src/plugins/loader.cpp` and `src/plugins/guard_win.cpp` may include Windows headers. Everything else must build with clang or gcc on macOS and Linux, so the tests and `sco-sigcheck` keep running without Windows, and with MSVC x64, the real target.
-- **The plugin ABI only grows.** `include/sco_api.h` follows the rules in [Plugin API v1 § Compatibility](docs/api-v1.md#compatibility). Any change to it updates `tests/abi_v1.c` and `docs/api-v1.md` in the same PR.
+- **The plugin ABI only grows.** `include/sco_api.h` follows the rules in [Plugin API v1 § Compatibility](docs/api-v1.md#compatibility), and it is frozen at 1.1 by the checks in [Plugin API v1 § ABI freeze](docs/api-v1.md#abi-freeze): `tools/abi_snapshot.py` compares the compiled surface with `tests/abi/sco_api-v1.1.golden` (and the sha256 of the header as released at `sdk-v1.1.0`), and a plugin built against that released header is loaded by `test_plugins`. Any change to the header updates `tests/abi_v1.c`, `docs/api-v1.md` and — by hand, in the same PR, with the reason in the PR body — the golden.
 - **No new dependencies** without discussing it in an issue first.
 
 ## Making a change

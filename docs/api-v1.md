@@ -22,6 +22,7 @@ Plugins are native DLLs and run with the game's full rights. Only install plugin
 - [Raw handlers (1.1)](#raw-handlers-11)
 - [Threading](#threading)
 - [Compatibility](#compatibility)
+- [ABI freeze](#abi-freeze)
 - [Layout](#layout)
 
 ## Rules
@@ -600,6 +601,18 @@ Within major version 1:
 - The host reads only the fields the plugin's `size` covers in `sco_plugin_info` and `sco_command`, and reads `sco_arg_def` arrays with the plugin's `arg_def_size`.
 
 [`tests/abi_v1.c`](../tests/abi_v1.c) enforces this. It pins, with static asserts, every struct's size and field offsets, every enum value and size, both version numbers, and the parameter types of every function and callback. `tools/test.sh` compiles it with `-Werror` as C11 and C++20 for the host, again with `-fshort-enums`, and for `x86_64-pc-windows-msvc`, so CI fails on any change. Since `sdk-v1.1.0` the file is append-only: an addition gets new lines, and an existing line never changes.
+
+## ABI freeze
+
+Version 1.1 is frozen: no change that would break a plugin built against the released header can land unnoticed. Three things hold it, all run by `tools/test.sh` and by CTest (`abi_v1`, `abi_freeze`, `test_plugins`), on Linux, macOS and Windows, in kernel-only builds too:
+
+- **The layout pins** (`tests/abi_v1.c`, above): compile-time, so a broken build is the failure.
+- **The golden surface** (`tests/abi/sco_api-v1.1.golden`): [`tools/abi_snapshot.py`](../tools/abi_snapshot.py) compiles a probe against `include/sco_api.h` and compares its `sizeof`, `_Alignof`, `offsetof`, enum-value and macro output with the golden — 96 lines covering every struct's size, alignment and field offsets, every enum value, both version macros, and the `sco_api` function pointer order. The golden also records the sha256 of `include/sco_api.h` **as released at tag `sdk-v1.1.0`**, which the tool checks on every run.
+  Because the header's *bytes* have changed since that release (comments only — its licence note), the pin is the semantic surface, not the raw file: what is pinned byte for byte is the released header, by that sha256.
+  **There is no auto-update.** The tool has no mode that writes the golden; on a difference it prints the diff and fails. A deliberate 1.x addition — a new field or function at the end of a struct, a new enum value after the last, `SCO_API_MINOR` up by one — gets its new lines hand-added to the golden in the same PR, with the reason in the PR body. That is what stops a PR from editing `tests/abi_v1.c` and the header together and calling it stable.
+- **The old binary** ([`tests/fixtures/plugins/native/frozen_v11_plugin.c`](../tests/fixtures/plugins/native/frozen_v11_plugin.c)): at test time the header as released at `sdk-v1.1.0` is extracted from the tag and this plugin is compiled against *that* copy — never against the working tree — and laid out under `tests/out/frozen_v11/`. `tests/test_plugins.cpp` then loads it into the current host: it must load, take a tick through `subscribe`, answer its command, and unload once. Nothing binary is committed; the build makes it.
+
+Within major version 1, growth means **appending a tail with a size check**: new fields and functions go at the end of their struct, and both sides check `size` (or `arg_def_size`) before reaching past what they were built against. Anything else — a removed or renamed field, a reordered function pointer, a changed offset or enum value, a struct that shrank — is a break, and the freeze is what makes it visible.
 
 ## Layout
 

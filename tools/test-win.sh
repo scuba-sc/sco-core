@@ -36,6 +36,15 @@ plugin svc_caller 12
 mkdir -p "$PLUG/text"
 printf 'id = text\nname = Not a library\nversion = 1\napi = 1.0\nkind = native\nentry = text.dll\n' > "$PLUG/text/plugin.ini"
 echo "not a DLL" > "$PLUG/text/text.dll"
+# The ABI freeze's old binary (tools/abi_snapshot.py): frozen_v11_plugin.c against sco_api.h as
+# released at sdk-v1.1.0, loaded by test_plugins here too. Keep in step with tools/test.sh and
+# CMakeLists.txt.
+FROZEN=$OUT/frozen_v11/v11
+mkdir -p "$FROZEN" "$OUT/frozen_v11_include"
+python3 "$ROOT/tools/abi_snapshot.py" released-header "$OUT/frozen_v11_include/sco_api.h"
+printf 'id = v11\nname = Frozen 1.1\nversion = 1.1.0\napi = 1.1\nkind = native\nentry = v11.dll\n' > "$FROZEN/plugin.ini"
+"$GCC" -std=c11 -O1 -Wall -Wextra -Werror -I "$OUT/frozen_v11_include" -shared \
+  "$ROOT/tests/fixtures/plugins/native/frozen_v11_plugin.c" -o "$FROZEN/v11.dll"
 
 "$GXX" -std=c++20 -O1 -g -Wall -Wextra -Werror -I "$ROOT/include" -static \
   "$ROOT/tests/test_plugins.cpp" \
