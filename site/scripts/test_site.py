@@ -290,7 +290,8 @@ class SiteTests(unittest.TestCase):
         if BUILT is None:
             self.skipTest('Use --built site/dist for browser navigation verification')
         self.assertIsNotNone(shutil.which('node'), 'Node required for browser navigation')
-        result = subprocess.run(['node', str(ROOT / 'site/scripts/test_navigation.mjs'), str(BUILT)],
+        result = subprocess.run(['node', str(ROOT / 'site/scripts/test_navigation.mjs'), str(BUILT),
+                                 '--defer-search-idle'],
                                 capture_output=True, text=True, timeout=60)
         if result.returncode == 77:
             self.skipTest(result.stderr.strip())

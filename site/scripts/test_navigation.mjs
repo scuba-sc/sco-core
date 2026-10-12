@@ -92,8 +92,36 @@ try {
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers, windowsVirtualKeyCode });
   };
   await call('Runtime.enable'); await call('Network.enable'); await call('Page.enable');
+  if (process.env.SCO_DOCS_CPU_THROTTLE) {
+    const rate = Number(process.env.SCO_DOCS_CPU_THROTTLE);
+    assert(Number.isFinite(rate) && rate >= 1, 'SCO_DOCS_CPU_THROTTLE must be at least 1');
+    await call('Emulation.setCPUThrottlingRate', { rate });
+  }
+  // Hold Starlight's idle initialization beyond document load to reproduce a cold
+  // CI page deterministically. Only scheduling changes: the real Pagefind UI runs.
+  const deferSearchIdle = process.argv.includes('--defer-search-idle');
+  if (deferSearchIdle) {
+    await call('Page.addScriptToEvaluateOnNewDocument', { source: `
+      window.requestIdleCallback = callback => {
+        window.__releaseSearchIdle = callback;
+        return 1;
+      };
+    ` });
+  }
+  const searchReady = async () => {
+    await wait("document.readyState === 'complete' && !!customElements.get('site-search') && !!document.querySelector('site-search [data-open-modal]:not([disabled])')");
+    if (deferSearchIdle) {
+      await wait("typeof window.__releaseSearchIdle === 'function'");
+      assert.equal(await evaluate("!!document.querySelector('site-search input')"), false,
+        'The cold-load regression must hold Pagefind initialization beyond document load');
+      await evaluate('window.__releaseSearchIdle()');
+    }
+    // Starlight focuses the input synchronously when opening. Document load and
+    // custom-element registration do not await its idle-scheduled Pagefind import.
+    await wait("!!document.querySelector('site-search .pagefind-ui__search-input')");
+  };
   await call('Page.navigate', { url: origin + '/sco-core/' });
-  await wait("document.readyState === 'complete' && !!document.querySelector('site-search')");
+  await searchReady();
   await key('k', 'KeyK', process.platform === 'darwin' ? 4 : 2);
   await wait("!!document.querySelector('dialog[open]') && document.activeElement.tagName === 'INPUT'");
   await call('Input.insertText', { text: 'schedule game thread task' });
@@ -104,6 +132,8 @@ try {
   await key('Enter', 'Enter');
   await wait("location.pathname.endsWith('/reference/sco-api-run-on-game-thread/') && document.readyState === 'complete'");
   console.log('PASS keyboard: shortcut opens/focuses search; Tab reaches result; Enter follows stable route');
+  await searchReady();
+  if (deferSearchIdle) console.log('PASS cold search initialization held beyond load on both navigations');
   await key('k', 'KeyK', process.platform === 'darwin' ? 4 : 2);
   await wait("!!document.querySelector('dialog[open]')");
   await key('Escape', 'Escape');

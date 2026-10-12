@@ -76,6 +76,10 @@ is an explicit skipped check, not keyboard/search acceptance. The runner checks:
   preview, examples, capability absence and catalogue language status.
 - Search shortcut focus, Tab to a result, Enter navigation and Escape closure;
   real long tables/code at desktop and narrow widths without document overflow.
+  The runner holds Starlight's idle-scheduled Pagefind initialization beyond
+  document load on both navigations, then waits for the real search input before
+  sending each shortcut. Document load alone does not make that input focusable.
+  For an additional slow-CPU probe, set `SCO_DOCS_CPU_THROTTLE=6` (CDP slowdown).
 - No nonlocal page/search requests or script exceptions, all generated/built
   deep links/anchors, ID route stability under record reordering, and refusal of
   retired task-search targets and duplicate IDs. Task phrases are editorial
