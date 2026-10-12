@@ -4,7 +4,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-- **Windows extracted-SDK verification:** the archive-test job checks out the packaging verifier and its complete manifest inputs, rather than only the shell runner. Builds remain confined to extracted SDK headers, with compiler-resolved checkout leakage refused.
+- **Windows extracted-SDK verification:** the archive-test job checks out the packaging verifier and its complete manifest inputs, rather than only the shell runner. The verifier reads evaluated MSBuild toolchain include paths so Windows SDK/CRT headers are recognized without relying on the shell's `INCLUDE`. Builds remain confined to extracted SDK headers, with compiler-resolved checkout leakage refused.
 
 - **Extracted SDK storage and public-header proof:** storage resolves host-owned directory aliases before SQLite opens the database, fixing macOS temporary-root failures without permitting database-file symlinks. External C/C++ examples now compile with exact compiler-resolved installed public-header membership checks; hidden checkout and unshipped nested dependencies are refused. Packaging also refuses recognized private-key and GitHub credential shapes before writing an archive. No plugin ABI change.
 

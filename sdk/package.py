@@ -302,6 +302,18 @@ def check_installed_example_headers(m, profile, root, work):
         if not Path(header).is_file() or str(Path(header).resolve()) != header:
             raise ManifestError(f"{profile}: missing or redirected installed public header {header}")
 
+    # Visual Studio computes the Windows SDK/CRT paths inside MSBuild, even
+    # when CMake's invoking shell has no INCLUDE. Record the evaluated search
+    # path immediately before compilation, not a guessed installation prefix.
+    import xml.etree.ElementTree as ET
+    build = work / 'build'
+    for lang in ('C', 'CXX'):
+        props = ET.Element('Project', xmlns='http://schemas.microsoft.com/developer/msbuild/2003')
+        target = ET.SubElement(props, 'Target', Name='SdkHeaderProofSystemDirs', BeforeTargets='ClCompile')
+        ET.SubElement(target, 'WriteLinesToFile', File=str(build / f'system-{lang}.txt'),
+                      Lines='$(IncludePath)', Overwrite='true')
+        ET.ElementTree(props).write(work / f'system-{lang}.props', encoding='utf-8', xml_declaration=True)
+
     def cmake_path(path):
         return '[=[' + str(path).replace('\\', '/') + ']=]'
 
@@ -332,6 +344,8 @@ def check_installed_example_headers(m, profile, root, work):
                   f'set_target_properties(proof{i} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON '
                   'CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)',
                   'if(MSVC)',
+                  f'  set_target_properties(proof{i} PROPERTIES VS_USER_PROPS ' +
+                  cmake_path(work / ('system-C.props' if c['source'].endswith('.c') else 'system-CXX.props')) + ')',
                   f'  target_compile_options(proof{i} PRIVATE /sourceDependencies '
                   f'"${{CMAKE_BINARY_DIR}}/proof{i}.json")',
                   'elseif(CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$" AND '
@@ -364,7 +378,8 @@ def check_installed_example_headers(m, profile, root, work):
     for i, c in enumerate(units):
         lang = 'C' if c['source'].endswith('.c') else 'CXX'
         languages.add(lang)
-        system = [Path(p).resolve() for p in (build / f'system-{lang}.txt').read_text().splitlines() if p]
+        system = [Path(p).resolve() for p in
+                  (build / f'system-{lang}.txt').read_text(encoding='utf-8-sig').splitlines() if p]
         depfile, msdep = build / f'proof{i}.d', build / f'proof{i}.json'
         if msdep.exists():
             data = json.loads(msdep.read_text(encoding='utf-8-sig'))['Data']
