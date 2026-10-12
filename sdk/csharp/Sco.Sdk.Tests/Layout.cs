@@ -23,7 +23,35 @@ namespace Sco.Sdk.Tests
         static partial void AddGame(Dictionary<string, Type> types, Dictionary<string, long> constants, Dictionary<string, string> strings);
         static partial void GameSizeOf(Type t, ref int size);
 
-        static Layout() => AddGame(Types, Constants, Strings);
+        static Layout()
+        {
+            AddGame(Types, Constants, Strings);
+            Types["sco_widget_node"] = typeof(ScoWidgetNode);
+            Types["sco_widget_event"] = typeof(ScoWidgetEvent);
+            Types["sco_widgets_v1"] = typeof(ScoWidgetsV1);
+            Strings["SCO_WIDGETS_NAME"] = Abi.WidgetsName;
+            Constants["SCO_WIDGET_DISABLED"] = Abi.WidgetDisabled;
+            Constants["SCO_WIDGETS_VERSION_1_0"] = Abi.WidgetsVersion1_0;
+            Constants["SCO_WIDGETS_MAX_PANELS"] = Abi.WidgetsMaxPanels;
+            Constants["SCO_WIDGETS_MAX_NODES"] = Abi.WidgetsMaxNodes;
+            Constants["SCO_WIDGETS_MAX_TOTAL_NODES"] = Abi.WidgetsMaxTotalNodes;
+            Constants["SCO_WIDGETS_MAX_ITEMS"] = Abi.WidgetsMaxItems;
+            Constants["SCO_WIDGETS_MAX_COLUMNS"] = Abi.WidgetsMaxColumns;
+            Constants["SCO_WIDGETS_MAX_TEXT"] = Abi.WidgetsMaxText;
+            Constants["SCO_WIDGETS_MAX_ID"] = Abi.WidgetsMaxId;
+            Constants["SCO_WIDGETS_MAX_TITLE"] = Abi.WidgetsMaxTitle;
+            Constants["SCO_WIDGETS_MAX_EVENTS"] = Abi.WidgetsMaxEvents;
+            Constants["SCO_WIDGET_LABEL"] = (long)WidgetKind.Label;
+            Constants["SCO_WIDGET_BUTTON"] = (long)WidgetKind.Button;
+            Constants["SCO_WIDGET_TOGGLE"] = (long)WidgetKind.Toggle;
+            Constants["SCO_WIDGET_SLIDER"] = (long)WidgetKind.Slider;
+            Constants["SCO_WIDGET_COMBO"] = (long)WidgetKind.Combo;
+            Constants["SCO_WIDGET_LIST"] = (long)WidgetKind.List;
+            Constants["SCO_WIDGET_TEXT_INPUT"] = (long)WidgetKind.TextInput;
+            Constants["SCO_WIDGET_TABLE"] = (long)WidgetKind.Table;
+            Constants["SCO_WIDGET_ROW"] = (long)WidgetKind.Row;
+            Constants["SCO_WIDGET_COLUMN"] = (long)WidgetKind.Column;
+        }
 
         private static readonly Dictionary<string, Type> Types = new()
         {
@@ -134,6 +162,13 @@ namespace Sco.Sdk.Tests
                 string e = m.Groups[1].Value.Trim();
                 if (e == "sizeof(void*) == 8") return IntPtr.Size == 8 ? null : "not 64-bit";
                 if (e == "sizeof(void (*)(void)) == 8") return sizeof_fnptr() == 8 ? null : "function pointers aren't 8 bytes";
+                Match structure = Regex.Match(e, @"^(sizeof|ALIGN)\((sco_widget_node|sco_widget_event|sco_widgets_v1)\) == (\d+)$");
+                if (structure.Success)
+                {
+                    Type t = Types[structure.Groups[2].Value];
+                    int structureSize = structure.Groups[1].Value == "sizeof" ? SizeOf(t) : WidgetAlignment(t);
+                    return structureSize == int.Parse(structure.Groups[3].Value, CultureInfo.InvariantCulture) ? null : "widget size/alignment mismatch";
+                }
                 Match s = PinSizeofString.Match(e);
                 if (s.Success && Strings.TryGetValue(s.Groups[1].Value, out string? str))
                 {
@@ -156,6 +191,11 @@ namespace Sco.Sdk.Tests
 
         private static unsafe int sizeof_fnptr() => sizeof(delegate* unmanaged[Cdecl]<void>);
 
+        [StructLayout(LayoutKind.Sequential)] private struct NodeAlignment { public byte prefix; public ScoWidgetNode value; }
+        [StructLayout(LayoutKind.Sequential)] private struct EventAlignment { public byte prefix; public ScoWidgetEvent value; }
+        [StructLayout(LayoutKind.Sequential)] private struct TableAlignment { public byte prefix; public ScoWidgetsV1 value; }
+        private static int WidgetAlignment(Type t) => t == typeof(ScoWidgetNode) ? (int)Marshal.OffsetOf<NodeAlignment>("value")
+            : t == typeof(ScoWidgetEvent) ? (int)Marshal.OffsetOf<EventAlignment>("value") : (int)Marshal.OffsetOf<TableAlignment>("value");
         private static int SizeOf(Type t)
         {
             // Unsafe.SizeOf<T> for a runtime type, without reflection-emitted generics: the set is fixed.
@@ -167,6 +207,9 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScoSqlValue)) return Unsafe.SizeOf<ScoSqlValue>();
             if (t == typeof(ScoStorageV1)) return Unsafe.SizeOf<ScoStorageV1>();
             if (t == typeof(ScoUiV1)) return Unsafe.SizeOf<ScoUiV1>();
+            if (t == typeof(ScoWidgetNode)) return Unsafe.SizeOf<ScoWidgetNode>();
+            if (t == typeof(ScoWidgetEvent)) return Unsafe.SizeOf<ScoWidgetEvent>();
+            if (t == typeof(ScoWidgetsV1)) return Unsafe.SizeOf<ScoWidgetsV1>();
             if (t == typeof(ScoSettingsChanged)) return Unsafe.SizeOf<ScoSettingsChanged>();
             if (t == typeof(ScoSettingsV1)) return Unsafe.SizeOf<ScoSettingsV1>();
             int size = -1;

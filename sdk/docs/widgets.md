@@ -79,10 +79,28 @@ and the optional ImGui adapter are source-kit internals, not public plugin heade
 
 ## Language coverage and legacy UI
 
-C, C++20 and Lua support both methods. **C# is unsupported/deferred**:
-[#142](https://github.com/scubamount/sco-core/issues/142) tracks UTF-8 marshalling,
-layout pins and rooted callback ownership, a follow-up to
-[#139](https://github.com/scubamount/sco-core/issues/139).
+C, C++20, C# and Lua support both methods.
+
+## C#
+
+`Widgets.Open(plugin)` discovers the optional service; `SetPanel(id, title,
+ReadOnlySpan<WidgetNode>, callback)` submits a complete bounded tree and
+`RemovePanel(id)` removes it. Each method checks the complete function-pointer
+extent and null pointer. `WidgetKind` covers all eight widgets plus Row/Column;
+use `Disabled`, zero-based `Index`, row-major `Items`, and the native bounds.
+Invalid UTF-16, embedded NULs, malformed trees and unused fields are rejected;
+UTF-8 byte limits are checked before native allocation. Failed native mutations
+preserve callbacks. Successful replacement/removal or ordinary unload releases
+the owner registry root; copied `WidgetEvent` text is safe to keep. Callbacks may
+invoke/replace/remove; exceptions stay managed and stale contexts are discarded.
+Open again after owner reload. All calls and events remain game-thread only.
+
+The core archive includes `examples/cs_widgets` and its test driver:
+`dotnet run -c Release --project csharp/Sco.Sdk.Tests -- --widgets`.
+This builds/runs the example against a synthetic host, including missing service,
+all typed events, reentrancy and unload. NativeAOT deployment uses
+`dotnet publish examples/cs_widgets -c Release -r win-x64`; Windows native loading,
+GPU rendering and gameplay are separate evidence, not claimed by the managed test.
 
 ## Lua
 

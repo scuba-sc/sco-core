@@ -48,18 +48,13 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
-            {
-              "path": "docs/design/widgets.md",
-              "token": "C#: **unsupported/deferred**"
-            },
-            {
-              "path": "docs/design/widgets.md",
-              "token": "https://github.com/scubamount/sco-core/issues/142"
-            }
+            { "path": "sdk/csharp/Sco.Sdk/Widgets.cs", "token": "_t->set_panel(_plugin.SelfPtr" },
+            { "path": "sdk/csharp/Sco.Sdk/Widgets.cs", "token": "_t->remove_panel(_plugin.SelfPtr" },
+            { "path": "sdk/csharp/Sco.Sdk/WidgetsInterop.cs", "token": "public unsafe struct ScoWidgetsV1" }
           ],
-          "tests": []
+          "tests": ["sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs", "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs"]
         },
         "lua": {
           "status": "typed-wrapper",
@@ -78,7 +73,8 @@
       },
       "examples": [
         "sdk/examples/widgets/widgets.c",
-        "sdk/examples/widgets_lua/main.lua"
+        "sdk/examples/widgets_lua/main.lua",
+        "sdk/examples/cs_widgets/WidgetsExample.cs"
       ],
       "tests": [
         "tests/abi_widgets.c",
@@ -88,7 +84,7 @@
         "sdk/test-zip.sh"
       ],
       "limitations": [
-        "C# renderer-neutral adapter unsupported/deferred: scubamount/sco-core #142, follow-up to #139.",
+        "C# provides bounded copied UTF-8 trees and registry-rooted callbacks; Windows NativeAOT host loading remains unverified locally.",
         "Lua uses bounded declarative tables, registry-rooted callbacks and shared sandbox budgets; no native FFI or draw callbacks.",
         "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
       ]
@@ -140,18 +136,13 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
-            {
-              "path": "docs/design/widgets.md",
-              "token": "C#: **unsupported/deferred**"
-            },
-            {
-              "path": "docs/design/widgets.md",
-              "token": "https://github.com/scubamount/sco-core/issues/142"
-            }
+            { "path": "sdk/csharp/Sco.Sdk/Widgets.cs", "token": "_t->set_panel(_plugin.SelfPtr" },
+            { "path": "sdk/csharp/Sco.Sdk/Widgets.cs", "token": "_t->remove_panel(_plugin.SelfPtr" },
+            { "path": "sdk/csharp/Sco.Sdk/WidgetsInterop.cs", "token": "public unsafe struct ScoWidgetsV1" }
           ],
-          "tests": []
+          "tests": ["sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs", "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs"]
         },
         "lua": {
           "status": "typed-wrapper",
@@ -170,7 +161,8 @@
       },
       "examples": [
         "sdk/examples/widgets/widgets.c",
-        "sdk/examples/widgets_lua/main.lua"
+        "sdk/examples/widgets_lua/main.lua",
+        "sdk/examples/cs_widgets/WidgetsExample.cs"
       ],
       "tests": [
         "tests/abi_widgets.c",
@@ -180,7 +172,7 @@
         "sdk/test-zip.sh"
       ],
       "limitations": [
-        "C# renderer-neutral adapter unsupported/deferred: scubamount/sco-core #142, follow-up to #139.",
+        "C# provides bounded copied UTF-8 trees and registry-rooted callbacks; Windows NativeAOT host loading remains unverified locally.",
         "Lua uses bounded declarative tables, registry-rooted callbacks and shared sandbox budgets; no native FFI or draw callbacks.",
         "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
       ]
