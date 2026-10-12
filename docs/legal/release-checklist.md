@@ -30,7 +30,7 @@ CI creates a tag. Candidate generation and public promotion are separate operati
 ## Needs a person
 
 - [ ] **F:** the CHANGELOG section and the README describe what ships (core vs. extension) and claim no more than the checks show.
-- [ ] **B:** every `needs-review` entry the release ships has a decision in `docs/legal/release-decisions/`, or the release leaves that component out. Since the synthetic example data (2026-10-11), no SDK zip ships one; the game pack's entries ship in none.
+- [ ] **B:** every `needs-review` entry the release ships has a decision in `docs/legal/release-decisions/`, or the release leaves that component out. Since the synthetic example data (2026-10-11), no SDK zip ships one; the game pack's entries ship in none. Since 2026-10-12 the ledger has no `needs-review` entry ([decisions](release-decisions/README.md)).
 - [ ] **D:** counsel has reviewed the plugin-licence wording ([option A, chosen 2026-10-11](release-decisions/2026-10-11-plugin-licence.md)), or the release states nothing stronger than it.
 - [ ] **G:** the maintainer checks the source commit, candidate run, artifact IDs and every file hash, and qualified counsel reviews any open material legal question.
 - [ ] **G:** the maintainer signs and commits the approval record, then tags. Publishing is a separate act from CI going green.
