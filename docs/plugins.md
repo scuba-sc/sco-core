@@ -206,6 +206,24 @@ sco::plugins::LoadBuiltin(p, api, sco::host::NewPlugin("teleport"), opts);
 
 `Describe(plugin)` gives one line, `hello 1.0.0 native loaded` or `pack 1.0.0 data refused: built for api 2.0`; `LogReport(list, enabled)` writes `[plugin] N found, L loaded (plugins = on)` and one line per plugin.
 
+## Copied diagnostics and privacy
+
+The host can observe all existing plugin states through immutable metadata copies
+without calling plugin query/load/unload exports, event callbacks or service methods.
+Only safe ID, version, kind, manifest validity, state, fixed host reason and restart
+flag are copied. Invalid manifests receive deterministic `unknown_` aliases, with
+collisions against valid IDs avoided; raw folder names, author/display names, paths,
+module/self/export pointers and reload copies are omitted. Unknown load generation
+stays unknown. A `faulted` copy retains the restart requirement, including on stale
+pages; it does not certify native recovery or authorize reload.
+
+`Capture` keys use host-assigned identities, never plugin prefixes. Structured
+host events are the default; free-form input requires a separate consent bit and
+uncertain text is withheld and counted. Step 1 provides the host-side buffer only:
+it does not install capture in products, tail `mod.log`, change the ordinary logging
+sink, or expose an endpoint. Capture loss does not change plugin/capability state.
+See [log privacy](log-privacy.md) for limits and what is deliberately not implemented.
+
 ## Tests
 
 - `tools/test.sh` runs `tests/test_plugins.cpp` on the host under ASan+UBSan: manifest rules, discovery over `tests/fixtures/plugins/tree/`, the content index, and the loader against real shared libraries built from `tests/fixtures/plugins/native/fake_plugin.c`, one per behavior. Off Windows the crash guard is a signal handler the test installs. `TestServices` (provider `svc_provider`, caller `svc_caller`, three more providers) covers service blame and the pin: the provider is Faulted/restart-required and the caller loaded, the command answers `crashed`; release hooks/unload/close do not run for a handed-out provider, further ticks/tasks do not run and new registrations are refused; a stale table into an already faulted provider; an owner fault staying the owner's; the same inside a nested callout; the off-thread verdict; and a counting `ModuleOps.close` for a handed-out and a plain provider. The frame walk itself only runs where the real `__try` guard does: off Windows the test's guard reports the faulting module, so the blame logic is covered there and the walk on Windows (CI's `windows` job; `tools/test-win.sh` under Wine).

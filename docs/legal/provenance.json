@@ -14,6 +14,46 @@
   "note": "The project's copyright notices say 'the sco-core contributors' (as sc_ipc.h does). The maintainer, scubamount, is the only contributor so far; the commit identities 'yerts' and 'scubamount' are both the maintainer."
  },
  "entries": [
+{
+  "path": "include/sco/diagnostics*.h",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
+},
+{
+  "path": "src/host/sco_diagnostics.cpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
+},
+{
+  "path": "tests/test_runtime_diagnostics_*.cpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
+},
+{
+  "path": "docs/log-privacy.md",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
+},
   {
    "path": "docs/design/runtime-mcp.md",
    "origin": "project-authored",

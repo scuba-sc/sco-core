@@ -98,7 +98,7 @@ target_link_libraries(sco_runtime PUBLIC Threads::Threads)
 sco_project_target(sco_runtime)
 
 # Capability registry and the host's sco_api table.
-add_library(sco_host STATIC src/api/sco_caps.cpp src/host/sco_host.cpp)
+add_library(sco_host STATIC src/api/sco_caps.cpp src/host/sco_host.cpp src/host/sco_diagnostics.cpp)
 target_link_libraries(sco_host PUBLIC sco_runtime sco_core)
 sco_project_target(sco_host)
 
@@ -726,6 +726,13 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_host PRIVATE sco_host)
   sco_project_target(test_host)
   add_test(NAME test_host COMMAND test_host)
+
+  target_compile_definitions(sco_runtime PRIVATE SCO_RUNTIME_DIAGNOSTICS_FIXTURE=1)
+  add_executable(test_runtime_diagnostics_snapshot
+    tests/test_runtime_diagnostics_snapshot.cpp tests/test_runtime_diagnostics_services.cpp)
+  target_link_libraries(test_runtime_diagnostics_snapshot PRIVATE sco_app)
+  sco_project_target(test_runtime_diagnostics_snapshot)
+  add_test(NAME test_runtime_diagnostics_snapshot COMMAND test_runtime_diagnostics_snapshot)
 
   # The death hook's one-owner rule over the real bus: game.actors.died for every death,
   # game.player.died only for your player's, each gated by its own capability. The rule lives in

@@ -228,6 +228,56 @@
   }
  ],
  "components": [
+{
+  "id": "source.include.sco.diagnostics.h",
+  "source": "include/sco/diagnostics.h",
+  "destination": "include/sco/diagnostics.h",
+  "profiles": [
+    "core-source"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only"
+},
+{
+  "id": "source.include.sco.diagnostics_services.h",
+  "source": "include/sco/diagnostics_services.h",
+  "destination": "include/sco/diagnostics_services.h",
+  "profiles": [
+    "core-source"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only"
+},
+{
+  "id": "source.src.host.sco_diagnostics.cpp",
+  "source": "src/host/sco_diagnostics.cpp",
+  "destination": "src/host/sco_diagnostics.cpp",
+  "profiles": [
+    "core-source"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only"
+},
+{
+  "id": "source.tests.test_runtime_diagnostics_snapshot.cpp",
+  "source": "tests/test_runtime_diagnostics_snapshot.cpp",
+  "destination": "tests/test_runtime_diagnostics_snapshot.cpp",
+  "profiles": [
+    "core-source"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only"
+},
+{
+  "id": "source.tests.test_runtime_diagnostics_services.cpp",
+  "source": "tests/test_runtime_diagnostics_services.cpp",
+  "destination": "tests/test_runtime_diagnostics_services.cpp",
+  "profiles": [
+    "core-source"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only"
+},
   {
    "id": "include.sco_widgets.h",
    "source": "include/sco_widgets.h",
