@@ -6,7 +6,11 @@ catalogue. It does **not** connect to a running host or game, invoke SDK methods
 compile plugins, execute examples, or modify the repository. It is development
 tooling, not an SDK runtime component.
 
-[Opt-in runtime tools in this existing server](../../docs/design/runtime-mcp.md) have owner-approved placement/defaults and runtime data sources (2026-10-12), but are not implemented; the current six-tool discovery launcher and its no-runtime guarantees are unchanged.
+[Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
+implements the fixed runtime tool surface. This discovery executable remains
+credentials-free and catalogue-only, with its original six tools/dependencies.
+The current task supersedes the historical same-server placement in the
+[runtime design](../../docs/design/runtime-mcp.md). No live runtime/game acceptance is claimed.
 
 The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes

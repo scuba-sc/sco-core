@@ -259,15 +259,27 @@ sco_project_target(sco_ipc)
 
 # Default-off host-private diagnostics; deliberately does not link sco.net or sockets.
 # Reuse project-authored SHA/HMAC primitives only, with independent session keys.
-add_library(sco_diagnostics_ipc STATIC src/ipc/diagnostics_ipc.cpp src/ipc/diagnostics_json.cpp src/net/sha2.c)
+add_library(sco_diagnostics_ipc STATIC src/ipc/diagnostics_ipc.cpp src/ipc/diagnostics_json.cpp src/ipc/diagnostics_audit.cpp src/net/sha2.c)
 if(WIN32)
   target_sources(sco_diagnostics_ipc PRIVATE src/ipc/diagnostics_platform_win.cpp)
-  target_link_libraries(sco_diagnostics_ipc PRIVATE advapi32 bcrypt)
+  target_link_libraries(sco_diagnostics_ipc PRIVATE advapi32 bcrypt wevtapi)
 else()
   target_sources(sco_diagnostics_ipc PRIVATE src/ipc/diagnostics_platform_posix.cpp)
 endif()
 target_link_libraries(sco_diagnostics_ipc PUBLIC sco_ipc Threads::Threads)
 sco_project_target(sco_diagnostics_ipc)
+option(SCO_BUILD_RUNTIME_MCP "Build separately packaged native runtime MCP peer" OFF)
+if(SCO_BUILD_RUNTIME_MCP)
+  # All dependencies are local project sources/system APIs; no compilation at launcher runtime.
+  add_library(sco_core_mcp_runtime_peer SHARED tools/sco-core-mcp-runtime/native_adapter.cpp)
+  target_include_directories(sco_core_mcp_runtime_peer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(sco_core_mcp_runtime_peer PRIVATE sco_diagnostics_ipc sco_plugins)
+  set_target_properties(sco_core_mcp_runtime_peer PROPERTIES PREFIX "" CXX_VISIBILITY_PRESET hidden)
+  foreach(_rt_pic sco_diagnostics_ipc sco_ipc sco_host sco_runtime sco_core sco_plugins)
+    set_target_properties(${_rt_pic} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  endforeach()
+  sco_project_target(sco_core_mcp_runtime_peer)
+endif()
 
 # sco.net core (sco/net/*.h): SHA-256/HMAC/PBKDF2 (sha2.c, plain C), the wire framing, reliable
 # streams and the session over an abstract datagram transport. Platform-free (docs/net-wire.md).
@@ -298,7 +310,7 @@ endif()
 
 # The host kit (sco/app.h): Start / Tick / Stop over the host table, caps, signatures and loader.
 add_library(sco_app STATIC src/app/sco_app.cpp)
-target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service)
+target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service sco_diagnostics_ipc)
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
   # Platform::registerSignatures (sco::game::RegisterGameSignatures).
@@ -853,6 +865,30 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_core)
   add_test(NAME test_core COMMAND test_core)
 
+  add_executable(test_runtime_diagnostics_policy tests/test_runtime_diagnostics_policy.cpp)
+  if(SCO_BUILD_RUNTIME_MCP)
+    add_executable(test_runtime_diagnostics_integration tests/test_runtime_diagnostics_integration.cpp)
+    target_include_directories(test_runtime_diagnostics_integration PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(test_runtime_diagnostics_integration PRIVATE sco_diagnostics_ipc sco_plugins)
+    add_dependencies(test_runtime_diagnostics_integration sco_core_mcp_runtime_peer)
+    sco_project_target(test_runtime_diagnostics_integration)
+    add_test(NAME test_runtime_diagnostics_integration
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/sco-core-mcp-runtime/test_integration.py"
+        --host "$<TARGET_FILE:test_runtime_diagnostics_integration>"
+        --adapter "$<TARGET_FILE:sco_core_mcp_runtime_peer>" --root "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(test_runtime_diagnostics_integration PROPERTIES TIMEOUT 45 RUN_SERIAL TRUE)
+    add_test(NAME test_runtime_server
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/sco-core-mcp-runtime/test_server.py")
+  endif()
+  target_include_directories(test_runtime_diagnostics_policy PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(test_runtime_diagnostics_policy PRIVATE sco_app sco_diagnostics_ipc)
+  sco_project_target(test_runtime_diagnostics_policy)
+  add_test(NAME test_runtime_diagnostics_policy COMMAND test_runtime_diagnostics_policy
+    "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
+  add_executable(test_runtime_diagnostics_audit_win tests/test_runtime_diagnostics_audit_win.cpp)
+  target_include_directories(test_runtime_diagnostics_audit_win PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(test_runtime_diagnostics_audit_win PRIVATE sco_diagnostics_ipc)
+  sco_project_target(test_runtime_diagnostics_audit_win)
   add_executable(test_runtime tests/test_runtime.cpp)
   target_link_libraries(test_runtime PRIVATE sco_runtime)
   sco_project_target(test_runtime)

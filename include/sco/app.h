@@ -49,6 +49,7 @@
 // ContainCallouts(nullptr).
 #include "sco/plugins.h"
 #include "sco/diagnostics.h"
+#include "sco/diagnostics_policy.h"
 #include "sco/runtime.h"
 #include "sco/scan.h"
 #include <cstddef>
@@ -101,6 +102,7 @@ struct Platform {
     bool loadFromCopies = false;
     // Default-off diagnostic sources; no channel/consent inferred from this config.
     diagnostics::SourceOptions diagnosticSources;
+    diagnostics::InspectionOptions runtimeInspection; // independently default off
 };
 
 // Starts the host kit (see above). Game thread: it becomes the game thread. False, and nothing

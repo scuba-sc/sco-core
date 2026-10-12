@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
-// Host-private step-2 fixture gate. Not an SDK service. No production enablement
-// until protected OS audit and product policy exist (step 3).
+// Host-private diagnostics gate. Not an SDK service; default-off product policy.
+#include "sco/diagnostics_policy.h"
+#include "diagnostics_audit.h"
 #include "diagnostics_platform.h"
 #include "diagnostics_json.h"
 #include "sc_ipc.h"
@@ -35,12 +36,15 @@ struct Options {
     // Trusted startup roots; containment refused in addition to opened-handle checks.
     std::vector<std::string> excludedRoots;
     std::optional<std::string> hostBuild;
+    InspectionOptions policy;
 };
+uint64_t ClockNow(); // transport and collector share one machine monotonic clock
 class Host {
 public:
     Host(SnapshotStore&,Capture&); ~Host();
     Host(const Host&)=delete; Host& operator=(const Host&)=delete;
     Result Start(const Options&,FixtureAudit*,uint64_t now);
+    Result Start(const Options&,uint64_t now); // protected production collector only
     Result Poll(uint64_t now); // one worker only; <=8 queued/control work, no game callbacks
     void Stop(); bool Started() const;
 private: struct State; std::unique_ptr<State> state_;
@@ -53,6 +57,7 @@ public:
     Result Challenge(uint64_t now); Result Ready(uint64_t now);
     Result Send(uint16_t opcode,std::string_view input,uint64_t now);
     Result Receive(uint64_t now,std::string& output);
+    Result Heartbeat(uint64_t now); // idle peer only; no request or observation
     void Close();
 private: struct State; std::unique_ptr<State> state_;
 };

@@ -5,8 +5,24 @@
 #include <algorithm>
 #include <chrono>
 #include <limits>
+#include <atomic>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 namespace sco::diagnostics {
+namespace { std::atomic<Capture*> logCapture{nullptr}; }
+void SetLogCapture(Capture* capture){logCapture.store(capture,std::memory_order_release);}
+void CapturePluginLog(const void* key,LogLevel level,std::string_view text){
+    auto* capture=logCapture.load(std::memory_order_acquire);if(!capture)return;
+#ifdef _WIN32
+    const uint64_t now=GetTickCount64();
+#else
+    const auto now=uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
+    capture->RecordPlugin(key,level,text,now);
+}
 namespace {
 bool Id(std::string_view s, size_t max, bool dotted = false) {
     if (s.empty() || s.size() > max) return false;

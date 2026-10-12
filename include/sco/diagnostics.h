@@ -167,4 +167,6 @@ private:
     bool active_ = false, freeForm_ = false, exhausted_ = false;
 };
 
+void SetLogCapture(Capture*); // host-owned lifetime, detached before teardown
+void CapturePluginLog(const void* key,LogLevel,std::string_view);
 } // namespace sco::diagnostics

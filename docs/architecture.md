@@ -1,4 +1,9 @@
 # How sco-core works
+Runtime inspection is independently default off in `Platform::runtimeInspection`.
+The trusted product owns the atomic offline verdict; unknown/online/denied cannot
+create a mapping or credential. Collector I/O runs on a diagnostics worker, never
+on tick. Stop revokes before teardown and joins the bounded worker; shutdown/tick
+latency acceptance is **NOT VERIFIED**. See [audit policy](runtime-audit.md).
 
 ## The problem it solves
 
