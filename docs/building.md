@@ -154,6 +154,16 @@ python3 sdk/package.py --out dist        # dist/sco-sdk-<version>.zip, reproduci
 sdk/test-zip.sh dist/sco-sdk-*.zip       # builds and checks every example from the unpacked zip alone
 ```
 
+The two-profile build (`core`, then the Star Citizen extension over it) keeps each zip's own
+`VERSIONS.txt` and `SHA256SUMS` — the extension's are named `VERSIONS.txt.game-sc` and
+`SHA256SUMS.game-sc`, so unpacking it over the core overwrites nothing:
+
+```sh
+python3 sdk/package.py --profile core --out dist-profiles
+python3 sdk/package.py --profile game-sc --out dist-profiles
+sdk/test-zip.sh dist-profiles/sco-sdk-core-*.zip dist-profiles/sco-sdk-game-sc-*.zip
+```
+
 ## CI
 
 | Workflow | Runs on | Does |

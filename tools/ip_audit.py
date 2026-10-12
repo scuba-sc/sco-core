@@ -12,9 +12,11 @@
     tools/ip_audit.py zip <archive.zip> --profile core|game-sc|legacy [--sbom FILE] [--report FILE]
         The archive is exactly what sdk/components.json selects for the profile (no missing, no
         extra file, byte-identical to the sources), SHA256SUMS matches every entry, entries are
-        safe paths without symlinks, no entry is unresolved or refused (Gate 2), the licence and
-        notices ship, and for core: no game-sc component and no file that names one. --sbom
-        writes an SPDX 2.3 JSON SBOM of the archive bound to the commit and the archive's hash.
+        safe paths without symlinks, reserved Windows names, case-fold twins or duplicates, and
+        within the entry-count, per-entry, total-size and compression limits, no entry is
+        unresolved or refused (Gate 2), the licence and notices ship, and for core: no game-sc
+        component and no file that names one. --sbom writes an SPDX 2.3 JSON SBOM of the archive
+        bound to the commit and the archive's hash.
     tools/ip_audit.py reuse-toml
         Writes REUSE.toml from docs/legal/provenance.json (the repo audit fails when it is stale);
         `reuse lint` then checks the REUSE specification.
@@ -71,6 +73,88 @@ RFC3339 = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\
 SCHEMA_KEYWORDS = {"$schema", "$id", "title", "type", "properties", "required", "additionalProperties",
                    "items", "const", "enum", "pattern", "format", "minLength", "maxLength",
                    "minimum", "maximum", "minItems", "maxItems", "uniqueItems"}
+# Archive limits, four times what the legacy zip actually holds (sdk/package.py --profile legacy:
+# 116 entries, 1,334,638 bytes uncompressed in total, its largest entry 426,845 bytes and its best
+# compression 8.2:1). A release that outgrows them raises these constants on purpose.
+MAX_ENTRIES = 464            # 4 x 116
+MAX_ENTRY_BYTES = 1_707_380  # 4 x 426,845
+MAX_TOTAL_BYTES = 5_338_552  # 4 x 1,334,638
+MAX_RATIO = 33               # 4 x 8.2:1
+# Device names Windows refuses in any path segment, with or without an extension.
+RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {f"LPT{i}" for i in range(1, 10)}
+
+
+def reserved_problem(rel):
+    """A Windows device name in a path segment ('CON', 'nul.log', 'com1'), or None."""
+    for seg in rel.split("/"):
+        if seg.split(".", 1)[0].upper() in RESERVED_NAMES:
+            return f"'{seg}' is a reserved Windows device name"
+    return None
+
+
+def trailing_problem(rel):
+    """A path segment ending in a dot or a space, which Windows silently drops, or None."""
+    for seg in rel.split("/"):
+        if seg != seg.rstrip(". "):
+            return f"'{seg}' ends in a dot or a space, which Windows drops"
+    return None
+
+
+def structure_problems(infos, top, safe_rel):
+    """(problems, readable): every structural refusal for an archive's entries, and the entries
+    (relative name -> info) that passed and may be read.
+
+    Refused: an unsafe path ('..', absolute, a backslash, a drive letter or an NTFS stream), a
+    Windows reserved or trailing-dot name, a name listed twice, two names equal except for case,
+    a symlink, and the entry-count, per-entry, total-size and compression limits. The limits are
+    checked on the declared sizes first, so a zip bomb is refused before anything is unpacked;
+    when the count or the total is over its limit nothing is read at all.
+    """
+    problems = []
+    readable = {}
+    if len(infos) > MAX_ENTRIES:
+        problems.append(f"{len(infos)} entries, over the {MAX_ENTRIES}-entry limit")
+        return problems, readable
+    seen, folded, total = set(), {}, 0
+    for i in infos:
+        n = i.filename
+        if n.endswith("/"):
+            continue
+        rel = n[len(top) + 1:] if n.startswith(top + "/") else n
+        # The raw name is checked too: an absolute path, a backslash or a colon (a drive letter or
+        # an NTFS stream) must be refused whatever the top folder turns out to be.
+        if not safe_rel(n) or not safe_rel(rel):
+            problems.append(f"{n}: unsafe path")
+            continue
+        why = reserved_problem(rel) or trailing_problem(rel)
+        if why:
+            problems.append(f"{n}: {why}")
+            continue
+        if n in seen:
+            problems.append(f"{n}: listed twice")
+            continue
+        fold = n.casefold()
+        if fold in folded:
+            problems.append(f"{n}: the same name as {folded[fold]} except for case")
+            continue
+        if (i.external_attr >> 16) & 0o170000 == 0o120000:
+            problems.append(f"{n}: a symlink")
+            continue
+        if i.file_size > MAX_ENTRY_BYTES:
+            problems.append(f"{n}: {i.file_size} bytes uncompressed, over the {MAX_ENTRY_BYTES}-byte limit")
+            continue
+        if i.compress_size and i.file_size / i.compress_size > MAX_RATIO:
+            problems.append(f"{n}: {i.file_size} bytes compress to {i.compress_size} "
+                            f"({i.file_size // i.compress_size}:1), over the {MAX_RATIO}:1 limit")
+            continue
+        seen.add(n)
+        folded[fold] = n
+        readable[rel] = i
+        total += i.file_size
+    if total > MAX_TOTAL_BYTES:
+        problems.append(f"{total} bytes uncompressed in total, over the {MAX_TOTAL_BYTES}-byte limit")
+        return problems, {}
+    return problems, readable
 
 
 class Report:
@@ -301,28 +385,29 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         if len(tops) != 1:
             fails.append(f"the archive must hold one top folder, holds {sorted(tops)}")
         top = sorted(tops)[0] if tops else ""
+        problems, readable = structure_problems(infos, top, pkg.safe_rel)
+        fails += problems
         names, content = [], {}
-        for i in infos:
-            n = i.filename
-            mode = (i.external_attr >> 16) & 0o170000
-            rel = n[len(top) + 1:] if n.startswith(top + "/") else n
-            if n.endswith("/"):
+        for rel, i in readable.items():
+            # Bounded read: an entry that unpacks to more than its header claims is stopped at the
+            # limit, so a lying header can't decompress a bomb past the check.
+            with z.open(i) as f:
+                data = f.read(MAX_ENTRY_BYTES + 1)
+            if len(data) > MAX_ENTRY_BYTES:
+                fails.append(f"{i.filename}: unpacks past the {MAX_ENTRY_BYTES}-byte limit")
                 continue
-            if not pkg.safe_rel(rel) or "\\" in n:
-                fails.append(f"{n}: unsafe path")
-                continue
-            if mode == 0o120000:
-                fails.append(f"{n}: a symlink")
+            if len(data) != i.file_size:
+                fails.append(f"{i.filename}: declares {i.file_size} bytes, holds {len(data)}")
                 continue
             names.append(rel)
-            content[rel] = z.read(i)
+            content[rel] = data
         r.check("archive structure", len(infos), fails)
 
         # Manifest equality: exactly the selected components, byte-identical (links are rewritten
         # in .md files, so those are compared after package.py's own rewrite).
         fails = []
         expected = {c["destination"]: c for c in chosen}
-        generated = {"VERSIONS.txt", "SHA256SUMS"}
+        generated = set(pkg.metadata_names(m, profile))
         for rel in names:
             if rel not in expected and rel not in generated:
                 fails.append(f"{rel}: in the archive but not selected by {COMPONENTS} for {profile}")
@@ -349,24 +434,25 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         # SHA256SUMS: every entry once, every hash right.
         fails = []
         sums = {}
-        for line in content.get("SHA256SUMS", b"").decode("ascii", "replace").splitlines():
+        sums_name = pkg.metadata_names(m, profile)[1]
+        for line in content.get(sums_name, b"").decode("ascii", "replace").splitlines():
             mt = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
             if not mt:
-                fails.append(f"SHA256SUMS: malformed line {line!r}")
+                fails.append(f"{sums_name}: malformed line {line!r}")
                 continue
             if mt.group(2) in sums:
-                fails.append(f"SHA256SUMS: {mt.group(2)} listed twice")
+                fails.append(f"{sums_name}: {mt.group(2)} listed twice")
             sums[mt.group(2)] = mt.group(1)
         for rel in names:
-            if rel == "SHA256SUMS":
+            if rel == sums_name:
                 continue
             if rel not in sums:
-                fails.append(f"{rel}: not in SHA256SUMS")
+                fails.append(f"{rel}: not in {sums_name}")
             elif sums[rel] != sha256(content[rel]):
-                fails.append(f"{rel}: SHA256SUMS says {sums[rel]}, the file is {sha256(content[rel])}")
+                fails.append(f"{rel}: {sums_name} says {sums[rel]}, the file is {sha256(content[rel])}")
         for s in sums:
             if s not in content:
-                fails.append(f"SHA256SUMS lists {s}, which isn't in the archive")
+                fails.append(f"{sums_name} lists {s}, which isn't in the archive")
         r.check("SHA256SUMS (Gate 6)", len(names), fails)
 
         # Provenance and artifacts of what ships.

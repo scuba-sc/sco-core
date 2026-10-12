@@ -55,25 +55,40 @@ class RealManifest(unittest.TestCase):
         z = zipfile.ZipFile(pkg.build(self.m, "core", os.path.join(self.tmp, "c")))
         bad = [n for n in z.namelist() if any(k in n for k in GAME_MARKERS)]
         self.assertEqual(bad, [])
-        self.assertNotIn("game pack", z.read(next(n for n in z.namelist() if n.endswith("VERSIONS.txt"))).decode())
+        versions = pkg.metadata_names(self.m, "core")[0]
+        self.assertNotIn("game pack", z.read(next(n for n in z.namelist() if n.endswith(versions))).decode())
 
     def test_core_and_game_sc_partition_legacy(self):
         names = {}
         for prof in ("core", "game-sc", "legacy"):
             z = zipfile.ZipFile(pkg.build(self.m, prof, os.path.join(self.tmp, prof)))
-            names[prof] = {n.split("/", 1)[1] for n in z.namelist()} - {"VERSIONS.txt", "SHA256SUMS"}
+            names[prof] = {n.split("/", 1)[1] for n in z.namelist()} - set(pkg.metadata_names(self.m, prof))
         self.assertEqual(names["core"] | names["game-sc"], names["legacy"])
         self.assertEqual(names["core"] & names["game-sc"], {"LICENSE"})
+
+    def test_overlay_keeps_each_archives_own_metadata(self):
+        """game-sc unpacks over core: its VERSIONS.txt and SHA256SUMS carry the profile name, so
+        the overlay overwrites no file of the core (LICENSE is the one shared file, byte-identical)."""
+        held = {}
+        for prof in ("core", "game-sc"):
+            z = zipfile.ZipFile(pkg.build(self.m, prof, os.path.join(self.tmp, "m" + prof)))
+            held[prof] = {n.split("/", 1)[1]: z.read(n) for n in z.namelist() if not n.endswith("/")}
+        self.assertIn("SHA256SUMS.game-sc", held["game-sc"])
+        self.assertIn("VERSIONS.txt.game-sc", held["game-sc"])
+        self.assertNotIn("SHA256SUMS.game-sc", held["core"])
+        for name in set(held["core"]) & set(held["game-sc"]):
+            self.assertEqual(held["core"][name], held["game-sc"][name], f"{name} differs between the zips")
 
     def test_sha256sums(self):
         for prof in self.m["profiles"]:
             z = zipfile.ZipFile(pkg.build(self.m, prof, os.path.join(self.tmp, "s" + prof)))
             top = z.namelist()[0].split("/")[0]
+            sums_name = pkg.metadata_names(self.m, prof)[1]
             listed = {}
-            for line in z.read(f"{top}/SHA256SUMS").decode().splitlines():
+            for line in z.read(f"{top}/{sums_name}").decode().splitlines():
                 h, name = line.split("  ", 1)
                 listed[name] = h
-            files = {n.split("/", 1)[1] for n in z.namelist()} - {"SHA256SUMS"}
+            files = {n.split("/", 1)[1] for n in z.namelist()} - {sums_name}
             self.assertEqual(set(listed), files, prof)
             for name, h in listed.items():
                 self.assertEqual(hashlib.sha256(z.read(f"{top}/{name}")).hexdigest(), h, f"{prof}: {name}")
@@ -181,6 +196,22 @@ class Refused(unittest.TestCase):
             with self.assertRaises(pkg.ManifestError) as cm:
                 pkg.load_manifest(self.path, root)
             self.assertIn("not a regular file", str(cm.exception))
+
+    def test_unknown_component_key(self):
+        self.refused(lambda m: self.comp(m, "include/sco_api.h").update(colour="blue"), "unknown key(s) colour")
+
+    def test_destination_collision_across_profiles(self):
+        """legacy holds core and game-sc: two components of different profiles may not share a
+        destination, or one silently wins in the legacy zip (and where the extension unpacks)."""
+        self.refused(lambda m: self.comp(m, "include/sco_ui.h").update(destination="include/sc_actors.h"),
+                     "both write include/sc_actors.h")
+
+    def test_profile_cycle(self):
+        self.refused(lambda m: m["profiles"]["legacy"].update(includes=["core", "game-sc"]) or
+                     m["profiles"]["core"].update(requires=["legacy"]), "cycle")
+
+    def test_requires_unknown_profile(self):
+        self.refused(lambda m: m["profiles"]["game-sc"].update(requires="nope"), "names unknown profile")
 
 
 class Cli(unittest.TestCase):

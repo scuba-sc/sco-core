@@ -11,14 +11,14 @@ machine and which need a person. Machine checks collect evidence; they are not a
 |---|---|---|
 | A, 3 | Kernel builds and tests with `SCO_GAME_SC=OFF`; no game-pack object or symbol in it | `cmake.yml` `kernel-only` |
 | A | The core SDK zip builds and passes from its own files; it includes no extension header and names no game C# type | `sdk.yml` (`sdk/test-zip.sh <core.zip>`), `tools/ip_audit.py zip --profile core` |
-| A | The Star Citizen extension unpacked over the core builds and passes; overwrites no core file | `sdk.yml` (`sdk/test-zip.sh <core.zip> <game-sc.zip>`) |
+| A | The Star Citizen extension unpacked over the core builds and passes; overwrites no core file, and keeps its own `VERSIONS.txt.game-sc` / `SHA256SUMS.game-sc` | `sdk.yml` (`sdk/test-zip.sh <core.zip> <game-sc.zip>`) |
 | A | ABI v1.1 pins unchanged (`tests/abi_*.c`, C# `Pins.cs`/`GamePins.cs`) | `test.yml`, `sdk.yml` |
 | B, 1 | Every tracked file matches a `docs/legal/provenance.json` entry; none `unresolved` | `ip-compliance.yml` (`tools/ip_audit.py repo`) |
 | C, 2 | No binary or refused-extension file outside the exact-hash allowlist, in the repository or any zip | `ip-compliance.yml` |
 | C, D, 4 | Vendored files match their pinned hashes; licence texts and notices present and shipped; `sdk/components.json` and `provenance.json` agree; REUSE 3.3 compliant | `ip-compliance.yml` (`ip_audit.py repo`, `reuse lint`) |
 | E, 5 | SPDX 2.3 SBOM per zip, bound to commit and zip hash, validated | `ip-compliance.yml`, `release.yml` |
-| E, 6 | Each profile packaged twice gives the same bytes; `SHA256SUMS` matches every entry | `ip-compliance.yml`, `sdk/test_package.py` |
-| E, 7 | Each check refuses a synthetic defect (35 cases) | `ip-compliance.yml` (`tools/test_ip_audit.py`) |
+| E, 6 | Each profile packaged twice gives the same bytes; each profile's `SHA256SUMS` matches every entry | `ip-compliance.yml`, `sdk/test_package.py` |
+| E, 7 | Each check refuses a synthetic defect (52 cases) | `ip-compliance.yml` (`tools/test_ip_audit.py`) |
 | G | The release job refuses unless `docs/legal/release-decisions/<tag>.json` validates against `docs/legal/release-approval.schema.json`, names the tagged commit (or its parent, with only release decisions changed), is unexpired and approves publication | `release.yml` (`tools/ip_audit.py release --tag`) |
 
 A failed or skipped mandatory check blocks the release. Nothing in CI creates a tag.

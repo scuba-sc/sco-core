@@ -23,6 +23,11 @@ spec = importlib.util.spec_from_file_location("ip_audit", os.path.join(HERE, "ip
 assert spec and spec.loader
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
+# sdk/package.py: its manifest rules and safe-path predicate, the same module ip_audit.py loads.
+pspec = importlib.util.spec_from_file_location("package", os.path.join(ROOT, "sdk", "package.py"))
+assert pspec and pspec.loader
+pkg = importlib.util.module_from_spec(pspec)
+pspec.loader.exec_module(pkg)
 
 
 def read(path, mode="rb"):
@@ -316,6 +321,212 @@ class Negative(unittest.TestCase):
         code, out = run("zip", bad, "--profile", "core")
         self.assertEqual(code, 2, out)
         self.assertIn("not a readable zip", out)
+
+    # Archive structure.
+    def test_parent_directory_entry(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/../../evil.txt"] = b"x"
+            resum(e)
+        self.refused_zip(f, "unsafe path")
+
+    def test_absolute_path_entry(self):
+        def f(e):
+            e["/etc/passwd"] = b"x"
+            resum(e)
+        self.refused_zip(f, "unsafe path")
+
+    def test_backslash_in_entry_name(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/dir\\evil.txt"] = b"x"
+            resum(e)
+        self.refused_zip(f, "unsafe path")
+
+    def test_drive_letter_entry(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/C:evil.txt"] = b"x"
+            resum(e)
+        self.refused_zip(f, "unsafe path")
+
+    def test_ntfs_alternate_data_stream(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/README.md:evil"] = b"x"
+            resum(e)
+        self.refused_zip(f, "unsafe path")
+
+    def test_windows_reserved_name(self):
+        for name in ("CON", "nul.log", "com1", "LPT9.txt", "aux"):
+            with self.subTest(name=name):
+                def f(e, name=name):
+                    top = next(iter(e)).split("/", 1)[0]
+                    e[f"{top}/{name}"] = b"x"
+                    resum(e)
+                self.refused_zip(f, "reserved Windows device name")
+
+    def test_trailing_dot_or_space_segment(self):
+        for name in ("trailing.", "trailing ", "dir./file.txt"):
+            with self.subTest(name=name):
+                def f(e, name=name):
+                    top = next(iter(e)).split("/", 1)[0]
+                    e[f"{top}/{name}"] = b"x"
+                    resum(e)
+                self.refused_zip(f, "ends in a dot or a space")
+
+    def test_case_fold_collision(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/readme.md"] = e[f"{top}/README.md"]
+            resum(e)
+        self.refused_zip(f, "except for case")
+
+    def test_duplicate_entry_name(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/README.md"] = b"first"
+        bad = os.path.join(self.out, "bad-dup.zip")
+        with zipfile.ZipFile(self.core) as zsrc, zipfile.ZipFile(bad, "w") as zdst:
+            for i in zsrc.infolist():
+                zdst.writestr(i.filename, zsrc.read(i))
+            top = next(iter(zsrc.namelist())).split("/", 1)[0]
+            zdst.writestr(f"{top}/README.md", b"second")
+        code, out = run("zip", bad, "--profile", "core")
+        self.assertEqual(code, 1, out)
+        self.assertIn("listed twice", out)
+
+    def test_nested_archive(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/tools/inner.zip"] = b"PK\x03\x04synthetic, harmless"
+            resum(e)
+        self.refused_zip(f, "refused extension .zip")
+
+    def test_symlink_entry(self):
+        bad = os.path.join(self.out, "bad-link.zip")
+        with zipfile.ZipFile(self.core) as zsrc, zipfile.ZipFile(bad, "w") as zdst:
+            for i in zsrc.infolist():
+                data = zsrc.read(i)
+                info = zipfile.ZipInfo(i.filename)
+                info.external_attr = i.external_attr
+                zdst.writestr(info, data)
+            top = next(iter(zsrc.namelist())).split("/", 1)[0]
+            link = zipfile.ZipInfo(f"{top}/link.txt")
+            link.create_system = 3
+            link.external_attr = (0o120777 << 16)
+            zdst.writestr(link, b"README.md")
+        code, out = run("zip", bad, "--profile", "core")
+        self.assertEqual(code, 1, out)
+        self.assertIn("a symlink", out)
+
+    def test_entry_count_limit(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            for i in range(audit.MAX_ENTRIES - len(e) + 1):
+                e[f"{top}/pad/{i}.txt"] = b"x"
+            resum(e)
+        self.refused_zip(f, "over the 464-entry limit")
+
+    def test_entry_size_limit(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/huge.txt"] = b"x" * (audit.MAX_ENTRY_BYTES + 1)
+            resum(e)
+        self.refused_zip(f, "over the 1707380-byte limit")
+
+    def test_total_size_limit(self):
+        def f(e):
+            top = next(iter(e)).split("/", 1)[0]
+            e[f"{top}/huge.txt"] = b"x" * audit.MAX_ENTRY_BYTES
+            e[f"{top}/huge2.txt"] = b"x" * audit.MAX_ENTRY_BYTES
+            e[f"{top}/huge3.txt"] = b"x" * audit.MAX_ENTRY_BYTES
+            e[f"{top}/huge4.txt"] = b"x" * (audit.MAX_TOTAL_BYTES - 3 * audit.MAX_ENTRY_BYTES + 1)
+            resum(e)
+        self.refused_zip(f, "in total, over the 5338552-byte limit")
+
+    def test_compression_ratio_limit(self):
+        bad = os.path.join(self.out, "bad-bomb.zip")
+        top = next(iter(zipfile.ZipFile(self.core).namelist())).split("/", 1)[0]
+        with zipfile.ZipFile(self.core) as zsrc, zipfile.ZipFile(bad, "w", zipfile.ZIP_DEFLATED) as zdst:
+            for i in zsrc.infolist():
+                zdst.writestr(i.filename, zsrc.read(i))
+            # 33:1 is the limit; 64 KiB of zeros is far past it (and under the per-entry limit).
+            zdst.writestr(f"{top}/zeros.bin", b"\0" * 65536)
+        code, out = run("zip", bad, "--profile", "core")
+        self.assertEqual(code, 1, out)
+        self.assertIn("over the 33:1 limit", out)
+
+    # Limits accept what the real zips hold, and refuse one past it.
+    def test_real_archive_is_inside_every_limit(self):
+        with zipfile.ZipFile(self.core) as z:
+            problems, readable = audit.structure_problems(z.infolist(), next(iter(z.namelist())).split("/", 1)[0],
+                                                          pkg.safe_rel)
+        self.assertEqual(problems, [])
+        self.assertGreater(len(readable), 0)
+
+    def test_entry_count_at_the_limit_is_accepted(self):
+        with zipfile.ZipFile(self.core) as z:
+            top = next(iter(z.namelist())).split("/", 1)[0]
+            infos = list(z.infolist())
+        infos += [zipfile.ZipInfo(f"{top}/pad/{i}.txt") for i in range(audit.MAX_ENTRIES - len(infos))]
+        problems, _ = audit.structure_problems(infos, top, pkg.safe_rel)
+        self.assertEqual(problems, [], "exactly at the entry-count limit must pass")
+        problems, readable = audit.structure_problems(infos + [zipfile.ZipInfo(f"{top}/pad/one-more.txt")],
+                                                      top, pkg.safe_rel)
+        self.assertTrue(any("464-entry limit" in p for p in problems), problems)
+        self.assertEqual(readable, {}, "nothing is read from an archive over the count limit")
+
+    def test_entry_size_at_the_limit_is_accepted(self):
+        with zipfile.ZipFile(self.core) as z:
+            top = next(iter(z.namelist())).split("/", 1)[0]
+            base = list(z.infolist())
+        at = zipfile.ZipInfo(f"{top}/huge.txt")
+        at.file_size, at.compress_size = audit.MAX_ENTRY_BYTES, audit.MAX_ENTRY_BYTES
+        problems, _ = audit.structure_problems(base + [at], top, pkg.safe_rel)
+        self.assertEqual(problems, [], "exactly at the per-entry limit must pass")
+        over = zipfile.ZipInfo(f"{top}/huge.txt")
+        over.file_size, over.compress_size = audit.MAX_ENTRY_BYTES + 1, audit.MAX_ENTRY_BYTES + 1
+        problems, _ = audit.structure_problems(base + [over], top, pkg.safe_rel)
+        self.assertTrue(any("1707380-byte limit" in p for p in problems), problems)
+
+    def test_total_size_at_the_limit_is_accepted(self):
+        with zipfile.ZipFile(self.core) as z:
+            top = next(iter(z.namelist())).split("/", 1)[0]
+            base = list(z.infolist())
+        base_total = sum(i.file_size for i in base)
+        room = audit.MAX_TOTAL_BYTES - base_total
+        # Split across entries: one entry may not exceed the per-entry limit, so several are used.
+        chunk, extra = divmod(room, audit.MAX_ENTRY_BYTES)
+        pads = []
+        for k in range(chunk):
+            p = zipfile.ZipInfo(f"{top}/pad{k}.bin")
+            p.file_size = p.compress_size = audit.MAX_ENTRY_BYTES
+            pads.append(p)
+        if extra:
+            p = zipfile.ZipInfo(f"{top}/pad-last.bin")
+            p.file_size = p.compress_size = extra
+            pads.append(p)
+        problems, _ = audit.structure_problems(base + pads, top, pkg.safe_rel)
+        self.assertEqual(problems, [], "exactly at the total-size limit must pass")
+        over = list(pads)
+        over[-1].file_size = over[-1].compress_size = over[-1].file_size + 1
+        problems, readable = audit.structure_problems(base + over, top, pkg.safe_rel)
+        self.assertTrue(any("5338552-byte limit" in p for p in problems), problems)
+        self.assertEqual(readable, {}, "nothing is read from an archive over the total limit")
+
+    def test_ratio_at_the_limit_is_accepted(self):
+        with zipfile.ZipFile(self.core) as z:
+            top = next(iter(z.namelist())).split("/", 1)[0]
+            base = list(z.infolist())
+        at = zipfile.ZipInfo(f"{top}/packed.bin")
+        at.file_size, at.compress_size = audit.MAX_RATIO * 1000, 1000
+        problems, _ = audit.structure_problems(base + [at], top, pkg.safe_rel)
+        self.assertEqual(problems, [], "exactly at the ratio limit must pass")
+        over = zipfile.ZipInfo(f"{top}/packed.bin")
+        over.file_size, over.compress_size = (audit.MAX_RATIO + 1) * 1000, 1000
+        problems, _ = audit.structure_problems(base + [over], top, pkg.safe_rel)
+        self.assertTrue(any("33:1 limit" in p for p in problems), problems)
 
     # Release approval (Gate G): the JSON record, its schema and its semantics.
     def base_record(self, **over):

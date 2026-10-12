@@ -32,26 +32,39 @@ else
   ZIP=$(ls "$WORK"/dist/sco-sdk-*.zip)
 fi
 verify_zip() {   # verify_zip <zip>: unpack into its own folder; its SHA256SUMS must match and list every file
-  local dir="$WORK/z$1" top listed actual
+  local dir="$WORK/z$1" top listed actual sums
   mkdir "$dir"
   "$PY" -m zipfile -e "$2" "$dir"
   top=$(ls -d "$dir"/sco-sdk-*)
-  ( cd "$top" && if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet SHA256SUMS; else shasum -a 256 -c --quiet SHA256SUMS; fi )
-  listed=$(wc -l < "$top/SHA256SUMS")
-  actual=$(cd "$top" && find . -type f ! -name SHA256SUMS | wc -l)
-  [ "$listed" -eq "$actual" ] || { echo "SHA256SUMS lists $listed files, $(basename "$2") has $actual"; exit 1; }
-  echo "zip: $(basename "$2"): $actual files, SHA256SUMS OK"
+  # The overlay profile keeps its own copies (SHA256SUMS.game-sc), so each zip's sums file is its own.
+  sums=$(cd "$top" && ls SHA256SUMS* 2>/dev/null || true)
+  [ -n "$sums" ] && [ "$(printf '%s\n' "$sums" | wc -l)" -eq 1 ] \
+    || { echo "$(basename "$2"): expected exactly one SHA256SUMS* file, found: ${sums:-none}"; exit 1; }
+  ( cd "$top" && if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet "$sums"; else shasum -a 256 -c --quiet "$sums"; fi )
+  listed=$(wc -l < "$top/$sums")
+  actual=$(cd "$top" && find . -type f ! -name 'SHA256SUMS*' | wc -l)
+  [ "$listed" -eq "$actual" ] || { echo "$sums lists $listed files, $(basename "$2") has $actual"; exit 1; }
+  echo "zip: $(basename "$2"): $actual files, $sums OK"
   VERIFIED=$top
 }
 verify_zip 1 "$ZIP"
 ROOT=$VERIFIED
 if [ $# -ge 2 ]; then
-  # The extension goes over the core: no file of one may overwrite a file of the other.
+  # The extension goes over the core: no file of one may overwrite a file of the other, and each
+  # zip's own VERSIONS.txt / SHA256SUMS survives (the overlay profile's are named after it).
+  # LICENSE is the one file both zips ship, from one source; it must be byte-identical.
   verify_zip 2 "$2"
-  ( cd "$VERIFIED" && find . -type f ! -name SHA256SUMS ! -name VERSIONS.txt ! -name LICENSE ) | while read -r f; do
-    [ ! -e "$ROOT/$f" ] || { echo "$(basename "$2") overwrites $f of the core SDK"; exit 1; }
+  ( cd "$VERIFIED" && find . -type f ) | while read -r f; do
+    if [ -e "$ROOT/$f" ]; then
+      cmp -s "$VERIFIED/$f" "$ROOT/$f" || { echo "$(basename "$2") overwrites $f of the core SDK"; exit 1; }
+    fi
   done
-  ( cd "$VERIFIED" && find . -type f ! -name SHA256SUMS ! -name VERSIONS.txt ! -name LICENSE -exec sh -c 'mkdir -p "$0/$(dirname "$1")" && cp "$1" "$0/$1"' "$ROOT" {} \; )
+  ( cd "$VERIFIED" && find . -type f -exec sh -c 'mkdir -p "$0/$(dirname "$1")" && cp "$1" "$0/$1"' "$ROOT" {} \; )
+  # Both archives' metadata is there, under each archive's own names.
+  for m in VERSIONS.txt SHA256SUMS; do
+    [ -f "$ROOT/$m" ] || { echo "the core SDK's $m is gone after the overlay"; exit 1; }
+    [ -f "$ROOT/$m.game-sc" ] || { echo "$(basename "$2") did not keep its own $m.game-sc"; exit 1; }
+  done
   echo "zip: $(basename "$2") unpacked over $(basename "$ZIP")"
 fi
 GAME=0
