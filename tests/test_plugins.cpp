@@ -350,20 +350,37 @@ static void TestDiscover() {
     P::LogReport(list, true);
     CHECK(g_log.size() == 12 && g_log[0] == "[plugin] 11 found, 0 loaded (plugins = on)");
 
-    // A folder whose id belongs to a built-in is refused, whatever its kind (#11); a disabled one
-    // stays disabled.
+    // A folder whose id belongs to a built-in is refused, whatever its kind (#11); the reason
+    // names the id, and the conflict is checked before the api and entry checks. A disabled
+    // folder is not loaded, so it stays disabled and only names the conflict in its reason.
     P::Options withBuiltins;
     withBuiltins.enabled = true;
     withBuiltins.has = HasAll;
     const P::Builtin builtins[] = { { "hello", nullptr, nullptr, nullptr }, { "pack", nullptr, nullptr, nullptr },
+                                    { "luamod", nullptr, nullptr, nullptr }, { "noentry", nullptr, nullptr, nullptr },
                                     { "offswitch", nullptr, nullptr, nullptr } };
     withBuiltins.builtins = builtins;
-    withBuiltins.nBuiltins = 3;
+    withBuiltins.nBuiltins = 5;
     list = P::Discover(tree, withBuiltins);
-    CHECK(state("hello") == State::Refused && reason("hello") == "the id belongs to a built-in plugin");
-    CHECK(state("pack") == State::Refused && reason("pack") == "the id belongs to a built-in plugin");
-    CHECK(state("offswitch") == State::Disabled);
-    CHECK(state("needcap") == State::Ready);
+    CHECK(state("hello") == State::Refused && reason("hello") == "id 'hello' belongs to a built-in plugin");
+    CHECK(state("pack") == State::Refused && reason("pack") == "id 'pack' belongs to a built-in plugin");
+    CHECK(state("luamod") == State::Refused && reason("luamod") == "id 'luamod' belongs to a built-in plugin");
+    // The conflict wins over "entry 'gone.dll' not found": no entry file is opened for a folder
+    // that may not load at all.
+    CHECK(state("noentry") == State::Refused && reason("noentry") == "id 'noentry' belongs to a built-in plugin");
+    CHECK(state("offswitch") == State::Disabled &&
+          reason("offswitch") == "disabled file; id 'offswitch' belongs to a built-in plugin");
+    CHECK(state("needcap") == State::Ready);          // a non-conflicting id still loads
+    CHECK(state("badapi") == State::Refused && reason("badapi") == "built for api 2.0");   // untouched
+    // Status line and log both name the conflict.
+    CHECK(P::Describe(*Find(list, "hello")) == "hello 1.0.0 native refused: id 'hello' belongs to a built-in plugin");
+    g_log.clear();
+    P::LogReport(list, true);
+    CHECK(g_log.size() == 12 && g_log[0] == "[plugin] 11 found, 0 loaded (plugins = on)");
+    bool logged = false;
+    for (const std::string& line : g_log)
+        logged = logged || line == "[plugin] hello 1.0.0 native refused: id 'hello' belongs to a built-in plugin";
+    CHECK(logged);
 }
 
 // Duplicate ids and the plugin cap need generated trees.

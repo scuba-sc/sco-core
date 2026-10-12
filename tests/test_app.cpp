@@ -832,6 +832,100 @@ static size_t ReloadFiles(const fs::path& dir) {   // .reload-* files in a plugi
     return c;
 }
 
+// A folder whose id belongs to a built-in, through the real host kit (#11): refused before any
+// load attempt, with the conflict named, whatever its kind; a non-conflicting id still loads and
+// the built-in itself keeps working. "pack1" and "core1off" are two more built-ins (data-only
+// ones, no code) so a data pack and a disabled folder can clash with them.
+static const sco_plugin_info* NamedInfo(const char* id) {
+    static sco_plugin_info info;
+    info = { sizeof(sco_plugin_info), SCO_API_MAJOR, SCO_API_MINOR, id, "1.0.0", "tests" };
+    return &info;
+}
+static const sco_plugin_info* PackQuery() { return NamedInfo("pack1"); }
+static const sco_plugin_info* OffQuery() { return NamedInfo("core1off"); }
+static sco_result PackLoad(const sco_api*, sco_plugin*) { return SCO_OK; }
+static void PackUnload() {}
+
+// The discovered folder with this id (a built-in has the same folder name, and comes first).
+static const P::Plugin* Folder(const char* id) {
+    for (const auto& p : sco::app::Plugins())
+        if (p.folder == id && p.manifest.kind != P::Kind::Builtin) return &p;
+    return nullptr;
+}
+static State FolderState(const char* id) { const P::Plugin* p = Folder(id); return p ? p->state : State::Off; }
+
+static void TestBuiltinIdConflict(const fs::path& out) {
+    const fs::path root = out / "conflict" / "plugins";
+    std::error_code ec;
+    fs::remove_all(out / "conflict", ec);
+    fs::create_directories(root);
+    for (const char* id : { "m0", "m11" }) {   // the non-conflicting controls
+        if (!fs::is_directory(out / "plugins" / id)) {
+            std::printf("FAIL: %s missing (tools/test.sh or the CMake build makes it)\n", (out / "plugins" / id).string().c_str());
+            ++g_fail;
+            return;
+        }
+        fs::copy(out / "plugins" / id, root / id, fs::copy_options::recursive);
+    }
+    // A native folder (its entry is missing too), a Lua folder, a data pack and a disabled folder,
+    // each with a built-in's id.
+    fs::create_directories(root / "core1");
+    WriteText(root / "core1" / "plugin.ini", "id = core1\nname = Clash\nversion = 1.0.0\napi = 1.0\nkind = native\nentry = gone.dll\n");
+    fs::create_directories(root / "faulty");
+    WriteText(root / "faulty" / "plugin.ini", "id = faulty\nname = Clash\nversion = 1.0.0\napi = 1.0\nkind = lua\nentry = main.lua\n");
+    WriteText(root / "faulty" / "main.lua", "sco.log('info', 'should never run')\n");
+    fs::create_directories(root / "pack1" / "lists");
+    WriteText(root / "pack1" / "plugin.ini", "id = pack1\nname = Clash\nversion = 1.0.0\napi = 1.0\nkind = data\n");
+    WriteText(root / "pack1" / "lists" / "x.txt", "x\n");
+    fs::create_directories(root / "core1off");
+    WriteText(root / "core1off" / "plugin.ini", "id = core1off\nname = Clash\nversion = 1.0.0\napi = 1.0\nkind = data\n");
+    WriteText(root / "core1off" / "disabled", "");
+
+    const P::Builtin builtins[] = {
+        { "core1", CoreQuery, CoreLoad, CoreUnload },
+        { "faulty", FaultyQuery, FaultyLoad, FaultyUnload },
+        { "pack1", PackQuery, PackLoad, PackUnload },
+        { "core1off", OffQuery, PackLoad, PackUnload },
+    };
+    sco::app::Platform pf;
+    pf.hostVersion = "test-app 1.0";
+    pf.pluginRoot = root;
+    pf.pluginsEnabled = true;
+    pf.builtins = builtins;
+    pf.nBuiltins = 4;
+    pf.scripts = &kLua;
+
+    g_log.clear();
+    g_events.clear();
+    CHECK(sco::app::Start(pf));
+
+    const auto& list = sco::app::Plugins();
+    CHECK(list.size() == 10);   // 4 built-ins + m0, m11 and the four clashing folders
+    for (const auto& p : list) {
+        if (p.manifest.kind == P::Kind::Builtin) continue;
+        if (p.folder == "m0" || p.folder == "m11") { CHECK(p.state == State::Loaded); continue; }
+        CHECK(p.state == (p.folder == "core1off" ? State::Disabled : State::Refused));
+    }
+    CHECK(FolderState("core1") == State::Refused &&
+          Folder("core1")->reason == "id 'core1' belongs to a built-in plugin");
+    CHECK(FolderState("faulty") == State::Refused &&
+          Folder("faulty")->reason == "id 'faulty' belongs to a built-in plugin");
+    CHECK(FolderState("pack1") == State::Refused &&
+          Folder("pack1")->reason == "id 'pack1' belongs to a built-in plugin");
+    CHECK(FolderState("core1off") == State::Disabled &&
+          Folder("core1off")->reason == "disabled file; id 'core1off' belongs to a built-in plugin");
+    CHECK(StateOf("m0") == State::Loaded);                                   // no conflict: loads
+    CHECK(CountCommands("core1.count") == 1);                                // the built-in registered
+    CHECK(Invoke("core1.count").text == "ticks=0");                          // and works
+    CHECK(!Logged("should never run"));                                      // the Lua folder never ran
+    CHECK(Logged("[plugin] core1 1.0.0 native refused: id 'core1' belongs to a built-in plugin"));
+    CHECK(Logged("[plugin] faulty 1.0.0 lua refused: id 'faulty' belongs to a built-in plugin"));
+    CHECK(Logged("[plugin] pack1 1.0.0 data refused: id 'pack1' belongs to a built-in plugin"));
+    CHECK(Logged("[plugin] 10 found, 6 loaded (plugins = on)"));   // 4 built-ins + m0, m11
+    sco::app::Stop();
+    CHECK((g_events == std::vector<std::string>{ "core1:load", "core1:game.ready", "core1:game.exit", "core1:unload" }));
+}
+
 static const char* const kRlScript =
     "sco.log('info', 'rl run')\n"
     "sco.register_command{ name = 'rl.ping', title = 'Ping', fn = function() return 'pong' end }\n"
@@ -1118,6 +1212,7 @@ int main(int argc, char** argv) {
     P::SetCallGuard(SignalGuard);
 #endif
     TestApp(argv[1], argv[2]);
+    TestBuiltinIdConflict(argv[2]);
     TestReload(argv[2]);
     TestAppSettings(argv[2]);
     TestReloadSettings(argv[2]);

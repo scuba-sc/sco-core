@@ -181,7 +181,8 @@ constexpr size_t kMaxPlugins = 128;               // folders beyond this are lis
 // kReservedIds, checked before the disabled switch and before plugin.ini is parsed),
 // "plugin.ini: unreadable",
 // "plugin.ini: <parse error>" (incl. "plugin.ini: too big"), "id 'x' does not match folder 'y'"
-// (so ids are unique), "the id belongs to a built-in plugin" (opts.builtins), "built for api M.m" (major differs or minor newer than the host),
+// (so ids are unique), "id 'x' belongs to a built-in plugin" (opts.builtins; a disabled folder
+// keeps `disabled` and appends the same reason to "disabled file"), "built for api M.m" (major differs or minor newer than the host),
 // "entry 'x' not found", then the `requires` checks, once every folder is listed. Each name is,
 // in this order: the plugin itself (a cycle), a capability or a service the host or the game pack
 // published (opts.has: counted as provided), a built-in's id or "<id>.<name>" (provided: built-ins
