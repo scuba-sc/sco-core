@@ -60,6 +60,7 @@ Result RegisterRaw(const void* owner, const char* prefix, const char* name, cons
             if (strcmp(prefix, r) == 0) return Result::BadArg;
     }
     std::lock_guard<std::mutex> hold(g_lock);
+    if (detail::RuntimeStopping()) return Result::Unavailable;
     if (detail::Released(owner)) return Result::BadArg;
     for (const Handler& h : g_handlers)
         if (h.name == name) return Result::BadArg;
@@ -80,6 +81,7 @@ Result InvokeRaw(const void* caller, const char* name, const void* in, uint32_t 
         return Result::BadArg;
     }
     if (!OnGameThread()) { if (outSize) *outSize = 0; return Result::WrongThread; }
+    if (detail::RuntimeStopping()) { if (outSize) *outSize = 0; return Result::Unavailable; }
     const void* owner = nullptr;
     RawFn fn = nullptr;
     void* ctx = nullptr;

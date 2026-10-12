@@ -33,6 +33,7 @@ Result Subscribe(const void* owner, const char* event, EventFn fn, void* ctx) {
     if (!event || !*event || !fn) return Result::BadArg;
     try {
         std::lock_guard<std::mutex> hold(g_subLock);
+        if (detail::RuntimeStopping()) return Result::Unavailable;
         if (detail::Released(owner)) return Result::BadArg;
         for (const auto& s : *g_subs)
             if (Same(*s, owner, event, fn)) return Result::BadArg;
@@ -97,6 +98,7 @@ Result Dispatch(const char* event, const void* data, size_t* called) {
     if (called) *called = 0;
     if (!event) return Result::BadArg;
     if (!OnGameThread()) return Result::WrongThread;
+    if (detail::RuntimeStopping()) return Result::Unavailable;
     std::shared_ptr<const SubList> subs;
     {
         std::lock_guard<std::mutex> hold(g_subLock);

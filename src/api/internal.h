@@ -7,6 +7,12 @@ namespace sco::detail {
 
 bool InCallout();
 
+// Terminal host-session barrier. Start reopens it; shutdown closes it under the
+// service registry lock, then cancels all queued work before any unload export.
+bool RuntimeStopping();
+void SetRuntimeStopping(bool stopped);
+void StopRuntime();
+
 // Marks a callout (a task, an event callback, a command, a done callback) for its lifetime.
 struct CallScope {
     CallScope();

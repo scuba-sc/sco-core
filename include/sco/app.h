@@ -40,7 +40,8 @@
 // folder or a refused plugin still starts, and every plugin that can load does.
 // Tick also writes the owner heartbeat of every sco.ipc channel (ipc::Tick) and delivers sco.net
 // messages and events (net::Tick).
-// Stop: Dispatch "game.exit", UnloadAll (newest first, built-ins last), storage::Stop, net::Stop (leaves
+// Stop: Dispatch "game.exit", close runtime admissions and cancel all queued work,
+// then UnloadAll (newest first, built-ins last), storage::Stop, net::Stop (leaves
 // any session), ipc::Stop, ui::Stop,
 // datacore::service::Stop, game::services::Stop and host::WithdrawGameServices, and
 // host::WithdrawHostServices (host and game services outlive every plugin),
@@ -107,7 +108,11 @@ bool Start(const Platform& platform);
 void Tick(uint32_t nowMs);
 
 // Dispatches "game.exit", then unloads every plugin (UnloadAll: newest first, built-ins last)
-// and removes the callout guard. Game thread. No-op unless started. The list stays readable
+// and removes the callout guard. New service lookup/publication, task scheduling,
+// events and command/raw invocation are unavailable from the first unload callback until
+// the next Start. Queued work is cancelled, not executed; internal owned contexts are dropped.
+// Game thread, outside runtime callouts/reload: an unsafe entry is logged and ignored.
+// Recursive/sequential Stop is a no-op. The list stays readable
 // (final states) until the next Start.
 // Call it from the game's own quit path, on the game thread (sc-offline: a hook on the
 // system.quit row, CSystem::Quit). Not from a WM_QUIT hook: the game's Quit ends the process

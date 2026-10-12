@@ -1,6 +1,7 @@
 // The host kit: Start / Tick / Stop over the game core, caps, the host table and the loader.
 // Everything runs on the game thread; the state below is touched by nothing else.
 #include "sco/app.h"
+#include "../api/internal.h"
 #include "sco/caps.h"
 #ifndef SCO_KERNEL_ONLY
 #include "sco/datacore_service.h"   // sco.datacore: the Star Citizen game pack (SCO_GAME_SC)
@@ -29,6 +30,7 @@ namespace sco::app {
 namespace {
 
 bool                         g_started = false;
+bool                         g_stopping = false;
 Platform                     g_platform;
 std::vector<plugins::Plugin> g_list;     // never resized while ContainCallouts points at it
 plugins::ContentIndex        g_index;
@@ -80,6 +82,7 @@ bool Start(const Platform& platform) {
         return false;
     }
     SetGameThread();
+    sco::detail::SetRuntimeStopping(false);
     g_platform = platform;
     const Platform& pf = g_platform;
 
@@ -197,7 +200,7 @@ bool Start(const Platform& platform) {
 }
 
 void Tick(uint32_t nowMs) {
-    if (!g_started) return;
+    if (!g_started || g_stopping) return;
     const Result r = GameThreadTick(nowMs);
     if (r != Result::Ok) Log("[app] tick: %s", ResultName(r));
     ipc::Tick();   // the owner heartbeat of every sco.ipc channel
@@ -205,9 +208,13 @@ void Tick(uint32_t nowMs) {
 }
 
 void Stop() {
-    if (!g_started) return;
+    if (!OnGameThread()) { Log("[app] stop refused: wrong thread"); return; }
+    if (!g_started || g_stopping) return;
+    if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return; }
+    g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
+    sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
     plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts);
     for (auto& p : g_list)
         if (p.manifest.kind == plugins::Kind::Native) { plugins::RemoveReloadCopies(p); p.reloadCopy.clear(); }
@@ -226,6 +233,7 @@ void Stop() {
     host::WithdrawHostServices();
     plugins::ContainCallouts(nullptr);
     g_started = false;
+    g_stopping = false;
 }
 
 Result Reload(std::string_view id, std::string* why) {
@@ -233,6 +241,7 @@ Result Reload(std::string_view id, std::string* why) {
     std::string& w = why ? *why : note;
     w.clear();
     if (!g_started) { w = "the host kit is not started"; return Result::Unavailable; }
+    if (g_stopping) { w = "the host kit is stopping"; return Result::Unavailable; }
     if (!OnGameThread()) { w = "reload runs on the game thread only"; return Result::WrongThread; }
     const std::string name(id);
     if (g_reloading) { w = "busy: another reload is running"; return Result::Failed; }

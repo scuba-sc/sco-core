@@ -907,6 +907,7 @@ if(SCO_BUILD_TESTS)
   add_dependencies(test_app ${_fake_targets})
   sco_project_target(test_app)
   add_test(NAME test_app COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}")
+  add_test(NAME test_shutdown_drain COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}" shutdown-only)
 
   # sco-host-sim over the SDK examples, laid out like data/plugins: <out>/sim/plugins/
   # {hello/{hello.<ext>,plugin.ini}, greeter/, travel_pack/}. Keep in step with tools/test.sh.

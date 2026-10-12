@@ -1,8 +1,8 @@
-# Design: service calls that fault, and providers that unload (M1)
+# Design: service calls that fault, and providers that unload
 
-**Superseded for 1.x (2026-10-11):** the Part 2 table growth below (`sco_api` 128 -> 136 bytes, `guard_call`) is not planned for 1.x. `sco_api.h` stays at 128 bytes and `tests/abi_v1.c` is unchanged: the provider-lifetime problem is handled instead by refusing reload and unload of a native provider whose service table was handed out ([plugins: hot reload](../plugins.md#hot-reload)), so a held table never outlives a live provider mid-session. Part 1 and the pin below are implemented as described; `ServiceRef` is still not built.
+**Historical proposal; base-table growth superseded:** The proposed `sco_api` expansion from 128 to 136 bytes and appended `guard_call` are not implemented or planned for 1.x. `include/sco_api.h` and the ABI pins remain unchanged. Future lifecycle/guarded-call work must use a **separately versioned service table**; legacy `query_service` stays conservative and permanently marks the provider as handed out.
 
-Status: Part 1 and Part 3 implemented (2026-10-10; no ABI change). Part 2 (`guard_call`) and `ServiceRef` are not built. Hot reload has landed since (`sco.reload`): a provider whose service table was handed out can no longer be reloaded at all — the request is refused before anything of it is torn down ([plugins: hot reload](../plugins.md#hot-reload)) — so a caller's held table always points at a provider that is still loaded; the counted `ServiceRef` that would make mid-session table replacement safe is still not built. As built: the Windows filter walks at most 32 frames and stops at the guard's own frame; a stack overflow is not walked (blamed on the owner); the faulting-module trace is per thread and read by `CallPlugin`; load, unload, query and script-load faults keep owner blame; the pin flag is per owner and set by `QueryService`, read after `Release` (when no new table can be handed out); the POSIX default guard doesn't contain faults at all, so POSIX has owner blame unless a test guard reports the module. The problem section below describes the code before this change. Audit item M1 (2026-10-10): `query_service` hands the caller the provider's own function table, so the host neither guards nor tracks calls into it.
+Current behavior is documented in [service-table lifetime](service-table-lifetime.md) and [plugins: hot reload](../plugins.md#hot-reload): atomic administrative withdrawal refuses handed-out native and built-in providers; handed-out faulted providers are quiesced and retained without unload exports or resource-release hooks, with restart required. Terminal host shutdown closes lookup/work admission and cancels queued work before teardown of healthy Loaded entries. Pinning mapped code does not preserve arbitrary backing state or make cached raw tables callable after teardown. Existing C++/C# `ServiceRef<T>` types are borrowed-pointer wrappers, not the counted leases proposed below. The remainder preserves the original proposal, including obsolete implementation details and hypothetical return-code guarantees; it is not the current API or a recovery guarantee.
 
 ## The problem, in today's code
 
@@ -30,7 +30,7 @@ The guard already sees the exception. On Windows, `DefaultGuard`'s filter gets `
 
 This fixes wrong blame for every existing plugin.
 
-## Part 2: a provider-side guard (opt-in, `sco_api` 1.2)
+## Historical Part 2: a provider-side guard (superseded)
 
 Part 1 still aborts the caller's whole callout. A provider that wants its caller to get an error code instead wraps its entry points with a new appended function:
 
@@ -66,9 +66,9 @@ sco_result (*release_service_ref)(sco_plugin* self, const char* name);
 - **Part 2:** `sco_api.h` + `tests/abi_v1.c` (size 128 -> 136, one pinned offset), `sco_host.cpp`, `scosdk/service.hpp`, the C# wrapper (and sco-lua, if scripts may provide services), docs. Test: same fixture, provider wrapped. The caller gets `SCO_CRASHED` and continues; after unload it gets `SCO_UNAVAILABLE`.
 - **Part 3 (pin):** `loader.cpp` `UnloadCode` checks a "table handed out" flag set by `QueryService`. Test: a counting `ModuleOps.close`.
 
-## Recommendation
+## Historical recommendation (superseded)
 
-Ship Part 1 and the pin first, as one sco-core PR with no ABI change. They fix both reported defects for every plugin that exists today. Part 2 follows as the 1.2 ABI append once a third-party provider asks for error codes instead of aborted callouts. `ServiceRef` waits for hot reload.
+The original recommendation below is retained only as design history: ship attribution and module pinning first, then append a provider guard and counted references. **Do not implement that base-table append.** Any future guarded lifecycle/lease interface must be a separately versioned service table; legacy `query_service` remains a conservative permanent hand-out, not a revocable lease. No such lifecycle service is implemented here.
 
 ## Rejected
 

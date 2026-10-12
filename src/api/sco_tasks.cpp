@@ -48,7 +48,7 @@ void SetCalloutGuard(CalloutGuard guard) { g_calloutGuard.store(guard); }
 
 bool detail::Callout(const void* owner, const char* where, TaskFn thunk, void* ctx) {
     detail::CallScope scope;
-    if (detail::Released(owner)) return false;
+    if (detail::RuntimeStopping() || detail::Released(owner)) return false;
     const CalloutGuard guard = owner ? g_calloutGuard.load() : nullptr;
     if (guard) return guard(owner, where, thunk, ctx);
     thunk(ctx);
@@ -87,6 +87,7 @@ static uint64_t        g_nextSeq = 0;   // post order; a drain runs only tasks p
 static Result Push(TaskFn fn, TaskFn drop, void* ctx, const void* owner, bool guarded) {
     if (!fn) return Result::BadArg;
     std::lock_guard<std::mutex> hold(g_queueLock);
+    if (detail::RuntimeStopping()) return Result::Unavailable;
     if (detail::Released(owner)) return Result::BadArg;
     const Task t{ fn, drop, ctx, owner, g_nextSeq, guarded };
     if (g_count < kMaxQueuedTasks && g_overflow.empty()) {
@@ -129,7 +130,7 @@ size_t DrainTasks() {
     // Never nested: a drain inside a callout would run tasks while an outer dispatch is still on
     // the stack, which breaks the "post a task, free ctx there" rule in runtime.h. It would
     // also pop tasks the outer drain counted.
-    if (!OnGameThread() || detail::InCallout()) return 0;
+    if (!OnGameThread() || detail::InCallout() || detail::RuntimeStopping()) return 0;
     uint64_t end;
     {
         std::lock_guard<std::mutex> hold(g_queueLock);
@@ -190,6 +191,26 @@ long detail::ReleaseTasks(const void* owner) {
     for (const Task& t : droppedOverflow)
         if (t.drop) t.drop(t.ctx);
     return static_cast<long>(nDropped + droppedOverflow.size());
+}
+
+void detail::StopRuntime() {
+    detail::SetRuntimeStopping(true);
+    // Fixed ring snapshot plus list splice: cancellation cannot allocate or fail.
+    Task dropped[kMaxQueuedTasks];
+    size_t nDropped;
+    std::list<Task> overflow;
+    {
+        std::lock_guard<std::mutex> hold(g_queueLock);
+        nDropped = g_count;
+        for (size_t i = 0; i < nDropped; ++i) dropped[i] = g_ring[(g_head + i) % kMaxQueuedTasks];
+        g_head = g_count = 0;
+        overflow.splice(overflow.end(), g_overflow);
+    }
+    // Drop functions own runtime cleanup, not plugin callouts. No lock is held.
+    for (size_t i = 0; i < nDropped; ++i)
+        if (dropped[i].drop) dropped[i].drop(dropped[i].ctx);
+    for (const Task& t : overflow)
+        if (t.drop) t.drop(t.ctx);
 }
 
 static std::mutex  g_hookLock;
