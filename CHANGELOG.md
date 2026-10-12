@@ -4,6 +4,14 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Offline host composition, admission/resolve/start (G1):** add game-only
+  `sco_game_host` C++ host-source target. Unknown/online/EAC/unblocked-network/wrong
+  target evidence refuses before any signature resolution or publication; startup
+  revalidates admission, owns row resolution and starts the existing app kit.
+  Synthetic lifecycle/thread fixtures only; no online-to-offline conversion,
+  plugin patch service or frozen ABI change. Legacy offline mutations and product
+  migration remain separate; not run in game.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner

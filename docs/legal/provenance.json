@@ -15,6 +15,46 @@
  },
  "entries": [
 {
+  "path": "include/sco/game/host.h",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
+},
+{
+  "path": "src/game/host.cpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
+},
+{
+  "path": "tests/game_host.cpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
+},
+{
+  "path": "docs/game/host.md",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
+},
+{
   "path": "include/sco/diagnostics*.h",
   "origin": "project-authored",
   "license": "GPL-3.0-only",
