@@ -67,6 +67,32 @@ checks fixed ZIP timestamps/modes and absence of checkout/output paths. This pro
 within one Python/zlib environment, not across compression-library versions. Packaged repository
 document links are pinned to the source commit rather than a moving branch.
 
+## Optional ImGui: a host-specific third-party ABI
+
+ImGui is **optional**. Non-drawing plugins need neither its headers nor implementation;
+the kernel UI registry passes an opaque draw context and does not depend on ImGui.
+The frozen `sco_api.h` **1.1 C ABI** and `sco.ui` table do not freeze the pointed-to
+`ImGuiContext`. Raw context sharing is **third-party ABI coupling**, not a promise
+of compatibility across arbitrary ImGui versions or later 1.x hosts.
+
+The shipped public headers target sc-offline's exact ImGui snapshot at
+`1ee0727cc63866a95e709ae61dd5dd355b511253`: **1.92.8 WIP**, `IMGUI_VERSION_NUM` **19277**.
+The label/number alone is insufficient; check the SHA-256 pins:
+
+| File in `third_party/imgui/` | SHA-256 |
+| --- | --- |
+| `imgui.h` | `cd65b1905d5cbdaeab82f6ff180ae8767bd72c7bc99ee258c74665eb2d3ee1fa` |
+| `imconfig.h` | `1353bfa59da16eec481723fd4e5d910356f0406b79e3c4142e0c9867bafffab5` |
+| `LICENSE.txt` | `173506a2d6f7fb67990d257fb2507f188690eca39060c39469ae7bef43aae2a3` |
+
+Drawing plugins must use the implementation from that targeted host revision,
+unmodified `imconfig.h`, matching ABI-affecting definitions and compatible compiler
+settings. Bind the host's context and allocator only during a draw call. Rebuild
+when the host changes its ImGui snapshot or configuration; there is no generic
+runtime negotiation in the frozen C table. Header equality is not runtime proof.
+On a host without a compatible rendering contract, skip draws and continue without
+UI. See [the UI contract](../docs/ui.md#optional-third-party-abi-coupling-not-the-frozen-c-abi).
+
 ## Build the kernel source kit
 
 The source-development zip is independent of the plugin SDK zips; do not overlay them.
