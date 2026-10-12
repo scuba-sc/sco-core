@@ -32,7 +32,9 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const child = spawn(chrome, ['--headless=new', '--remote-debugging-port=0', '--no-first-run',
   '--no-default-browser-check', '--disable-background-networking', `--user-data-dir=${profile}`, 'about:blank'],
-  { stdio: ['ignore', 'ignore', 'pipe'] });
+  // Own process group: Chrome's helpers (renderer, GPU, crashpad) keep writing the profile after the
+  // browser process exits, so teardown must end the whole group before removing the profile.
+  { stdio: ['ignore', 'ignore', 'pipe'], detached: process.platform !== 'win32' });
 let socket;
 let failures = [];
 try {
@@ -154,8 +156,20 @@ try {
   console.log('PASS long reference tables/code at 1280px and 390px; zero script exceptions or nonlocal requests');
 } finally {
   if (socket) socket.close();
-  child.kill();
-  await new Promise(resolve => { if (child.exitCode !== null) resolve(); else child.once('exit', resolve); });
+  const groupAlive = () => {
+    if (!child.pid) return false;
+    try { process.kill(-child.pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; }
+  };
+  if (process.platform === 'win32') child.kill();
+  else if (groupAlive()) process.kill(-child.pid, 'SIGTERM');
+  await new Promise(resolve => { if (child.exitCode !== null || child.signalCode !== null) resolve(); else child.once('exit', resolve); });
+  if (process.platform !== 'win32') {
+    for (let wait = 0; groupAlive(); wait++) {
+      if (wait === 50) process.kill(-child.pid, 'SIGKILL');
+      if (wait > 100) throw Error('Chrome helper processes outlived SIGKILL');
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
   await new Promise(resolve => server.close(resolve));
   await fs.rm(profile, { recursive: true, force: true });
 }
