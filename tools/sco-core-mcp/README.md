@@ -185,9 +185,12 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
   its output; the server does neither.
 - **Not arbitrary file access.** `get_example` reads only paths listed in the
   selected catalogue record's `examples`, beneath the configured repository root.
-  Absolute paths, traversal outside the root, and symlinks are refused. Files over
-  **256 KiB** are refused, with at most **16 files** per example result. Omitting
-  the root keeps examples paths-only. The optional language filter uses source
+  Absolute paths, traversal outside the root, and symlinks anywhere the catalogue
+  names are refused. The configured root itself is operator-supplied and trusted,
+  so a symlinked root path (for example a macOS `/var` path) is followed. Files
+  over **256 KiB** are refused, with at most **16 files** per example result.
+  Omitting the root keeps examples paths-only. The optional language filter uses
+  source
   extensions (`.c`/`.h`, `.cpp`/`.cc`/`.cxx`/`.hpp`/`.hxx`, `.cs`, `.lua`), not
   inferred runtime support; other referenced file types remain available without
   a language filter. No examples are executed.

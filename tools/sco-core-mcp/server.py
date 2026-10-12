@@ -194,31 +194,24 @@ def example_parts(name):
     return path.parts
 
 
-def reject_symlink_components(path):
-    current = Path(path.anchor)
-    for part in path.parts[1:]:
-        current /= part
+def reject_symlinks(base, parts):
+    current = base
+    for part in parts:
+        current = current / part
         if current.is_symlink():
-            raise ToolError("Symlink example paths or repository roots are refused")
+            raise ToolError("Symlink example paths are refused")
 
 
 def read_example(root, parts):
-    """Use descriptor-relative no-follow traversal where available (no TOCTOU escape).
+    """Open a catalogue-supplied relative path inside the configured root.
 
-    On platforms without dir_fd, verify every component, containment, and the
-    opened regular-file identity. The repository must remain trusted/stable there.
+    The root is operator-configured and therefore trusted: symlinks in it are
+    followed. Every component the catalogue supplies is opened without following
+    symlinks, so a record cannot name a link that escapes the root.
     """
-    reject_symlink_components(root)
-    path = root.joinpath(*parts)
     if os.open in os.supports_dir_fd and hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY"):
-        directory = os.open(root.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
         try:
-            # Traverse the configured root too: a swapped ancestor must not make
-            # a no-follow leaf open resolve through a newly introduced symlink.
-            for part in root.parts[1:]:
-                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-                os.close(directory)
-                directory = child
             for part in parts[:-1]:
                 child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
                 os.close(directory)
@@ -227,7 +220,11 @@ def read_example(root, parts):
         finally:
             os.close(directory)
     else:
-        reject_symlink_components(path)
+        # Platforms without descriptor-relative opens: check the supplied
+        # components, then verify the opened file identity. Best effort on a
+        # trusted, stable checkout; not race-free.
+        reject_symlinks(root, parts)
+        path = root.joinpath(*parts)
         if not path.resolve().is_relative_to(root.resolve()):
             raise ToolError("Example escapes repository root")
         before = path.stat()

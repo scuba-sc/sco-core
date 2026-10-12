@@ -620,14 +620,25 @@ class ExampleSecurityTests(ServerCase):
         result = self.result(self.start(catalogue=catalogue, repo_root=root).call("get_example", {"symbol_or_id": "sample-read"}), data=data)
         self.assertEqual(len(result["examples"]), 16)
 
-    def test_symlink_repo_root_is_rejected(self):
+    def test_symlinked_repository_root_is_followed_but_contained(self):
         data = fixture()
         root, catalogue = self.temporary_catalogue(data)
         alias = root / "alias"
-        alias.symlink_to(root / "examples", target_is_directory=True)
-        # A root itself must not bypass the component-level symlink prohibition.
+        alias.symlink_to(root, target_is_directory=True)
         client = self.start(catalogue=catalogue, repo_root=alias)
-        self.result(client.call("get_example", {"symbol_or_id": "sample-read"}), data=data, is_error=True)
+        result = self.result(client.call("get_example", {"symbol_or_id": "sample-read"}), data=data)
+        self.assertIs(result["paths_only"], False)
+        self.assertEqual([item["path"] for item in result["examples"]],
+                         ["examples/read.c", "examples/read.cpp"])
+
+    def test_symlink_inside_repository_root_is_still_refused(self):
+        data = fixture()
+        root, catalogue = self.temporary_catalogue(data)
+        (root / "linked").symlink_to(root / "examples", target_is_directory=True)
+        record = next(r for r in data["records"] if r["id"] == "sample-read")
+        record["examples"] = ["linked/read.c"]
+        catalogue.write_text(json.dumps(data), encoding="utf-8")
+        self.result(self.start(catalogue=catalogue, repo_root=root).call("get_example", {"symbol_or_id": "sample-read"}), data=data, is_error=True)
 
 
 class StartupTests(ServerCase):
