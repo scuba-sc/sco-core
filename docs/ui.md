@@ -217,7 +217,13 @@ if (sco::ui::Dispatch(chord.c_str(), &reply) == sco::Result::Ok && !reply.empty(
 | `settings::Pages()` | The plugins' typed settings, as data to draw: see [Settings](#settings) |
 | `Dispatch(chord, reply)` | Invokes the bound command through the registry. `NotFound` for no binding or a reserved chord |
 
-The draw context is the product's choice: sco-core passes `frame` through as `void*`. ImGui never crosses the ABI as a type; a plugin that draws with ImGui links the same ImGui version as the product, which is the product's contract to publish.
+### Optional third-party ABI coupling (not the frozen C ABI)
+
+ImGui is **optional**: the kernel UI registry and plain-C `sco.ui` table do not require it. A plugin can use commands, events, settings or hotkeys without linking ImGui; on a host without a rendering contract, it must skip draw registration and continue without graphical UI.
+
+The draw context is the product's choice: sco-core passes `frame` through as `void*`. The frozen `sco_api.h` 1.1 C ABI and the pinned `sco.ui` table describe registration and callout layout only. They do **not** freeze the contents of an `ImGuiContext` or grant cross-version compatibility to the pointer. Using that pointer with ImGui is a separate **third-party ABI coupling**, specific to the targeted host build.
+
+A drawing plugin must match the host's exact ImGui source revision, public headers, unmodified `imconfig.h`, ABI-affecting compiler definitions and compatible build settings, and bind the host's context and allocator only during the draw callback. A release label or `IMGUI_VERSION_NUM` alone is not enough (especially for WIP builds). Rebuild drawing plugins when that identity or configuration changes; arbitrary ImGui versions must never consume the raw context. No generic runtime ImGui-version negotiation is provided by the frozen C table.
 
 sc-offline hosts Dear ImGui **1.92.8 WIP**. Its public headers ship in the SDK at [`sdk/third_party/imgui/`](../sdk/third_party/imgui/README.md) (`imconfig.h`, `imgui.h`, `LICENSE.txt`), byte for byte the product's, and sc-offline's CI fails if they drift. Compile against them unmodified, `imconfig.h` included (`IMGUI_DEFINE_MATH_OPERATORS` is not defined); `imgui_internal.h` is not part of the contract.
 
