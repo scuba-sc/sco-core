@@ -73,7 +73,9 @@ On Windows `LoadLibraryExW` runs under `SetThreadErrorMode(SEM_FAILCRITICALERROR
 
 ### Crash containment
 
-Every call into plugin code goes through `Guarded()`: on Windows a `__try/__except` that catches any SEH exception. `query`, `load` and `unload` are guarded by the loader itself. Everything a plugin registers through `sco_api` (event callbacks, `run_on_game_thread` tasks, command functions and `invoke` `done` callbacks) runs from the runtime, so the host installs a runtime callout guard once, right after `Discover`:
+Native plugins are trusted in-process code, not sandboxed extensions. The supported thread, cached-table, unmanaged-worker and shutdown limits are in [Plugin rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
+
+Host-entered plugin calls go through `Guarded()`: on Windows a `__try/__except` boundary for SEH faults, not a guarantee of safe continuation. `query`, `load` and `unload` are guarded by the loader itself. Registered callbacks/tasks/commands and `invoke` completion callbacks use the runtime guard installed by the host. Custom unmanaged threads and direct raw service calls are not automatically guarded. The host installs the runtime callout guard once, right after `Discover`:
 
 ```cpp
 auto list = sco::plugins::Discover(root, opts);

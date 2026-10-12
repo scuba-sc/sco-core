@@ -77,6 +77,19 @@ static Loaded Load(const std::string& id, const sco_api* api = nullptr) {
 
 static void Unload(Loaded& l) { P::UnloadAll(l.list, P::PlatformModuleOps(), &kLua); }
 
+// The script-only leg of app::Reload: same discovery record, administrative gate, fresh owner.
+static bool ReloadScript(Loaded& l) {
+    if (!l.p) return false;
+    sco_plugin* old = l.p->self;
+    P::UnloadOne(*l.p, P::PlatformModuleOps(), &kLua);
+    CHECK(l.p->state == State::Unloaded && !sco_lua_alive(old));
+    if (l.p->state != State::Unloaded) return false;
+    l.p->state = State::Ready;
+    sco_plugin* next = sco::host::NewPlugin(l.p->manifest.id.c_str());
+    CHECK(next != old);
+    return P::LoadScript(*l.p, g_api, next, kLua);
+}
+
 struct Reply { bool called = false; sco_result r = SCO_OK; std::string text; };
 static void OnDone(sco_result r, const char* reply, void* ctx) {
     auto* d = static_cast<Reply*>(ctx);
@@ -567,6 +580,92 @@ static bool AllCursorsFree(sco_plugin* self) {
     return ok;
 }
 
+// ---- script-only administrative reload -----------------------------------------------------
+
+static void TestReloadLifecycle() {
+    const fs::path data = g_root.parent_path() / "reload-storage";
+    fs::remove_all(data);
+    sco::storage::Options options;
+    options.dataRoot = data;
+    CHECK(sco::storage::Start(options) == Result::Ok);
+    CHECK(sco::ui::Start() == Result::Ok);
+    const size_t subscriptions = sco::SubscriptionCount();
+    Write("reloadlife", R"lua(
+        assert(sco.game == nil and sco.datacore == nil and sco.provide_service == nil)
+        assert(sco.store.get("pending") == nil, "uncommitted data survived")
+        local generation = tonumber(sco.store.get("generation") or "0") + 1
+        assert(sco.store.put("generation", tostring(generation)))
+        assert(sco.store.begin() and sco.store.put("pending", "discard me"))
+        local ticks = 0
+        assert(sco.subscribe("tick", function()
+          ticks = ticks + 1; sco.log("info", "tick generation " .. generation) end))
+        assert(sco.register_command{ name = "reloadlife.state", title = "State",
+          fn = function() return generation .. " " .. ticks end })
+        assert(sco.register_command{ name = "reloadlife.only" .. generation, title = "Generation", fn = print })
+        assert(sco.bind_hotkey("ctrl+alt+r", "reloadlife.state"))
+        for _ = 1, 16 do
+          assert(sco.run_on_game_thread(function() sco.log("info", "pending generation " .. generation) end))
+        end
+        assert(select(2, sco.run_on_game_thread(print)) == "too_many")
+    )lua");
+    Loaded l = Load("reloadlife");
+    CHECK(l.p && l.p->state == State::Loaded);
+    for (int generation = 1; generation <= 3; ++generation) {
+        CHECK(Invoke(g_caller, "reloadlife.state").text == std::to_string(generation) + " 0");
+        CHECK(sco::SubscriptionCount() == subscriptions + 1);
+        CHECK(sco::ui::Hotkeys().size() == 1);
+        CHECK(AllCursorsFree(l.p->self));
+        if (generation < 3) {
+            CHECK(ReloadScript(l));
+            const std::string old = "reloadlife.only" + std::to_string(generation);
+            CHECK(!HasCommand(old.c_str()));
+            CHECK(Invoke(g_caller, old.c_str()).r == SCO_NOT_FOUND);
+        }
+    }
+    sco_plugin* finalOwner = l.p->self;
+    P::UnloadOne(*l.p, P::PlatformModuleOps(), &kLua);
+    CHECK(l.p->state == State::Unloaded && !sco_lua_alive(finalOwner));
+    CHECK(sco::SubscriptionCount() == subscriptions && sco::ui::Hotkeys().empty());
+    CHECK(!HasCommand("reloadlife.state") && !HasCommand("reloadlife.only3"));
+    // Drain after every old Lua state is gone: stale task/event contexts must never execute.
+    sco::GameThreadTick(4200);
+    CHECK(!Logged("[reloadlife] pending generation") && !Logged("[reloadlife] tick generation"));
+    CHECK(ReloadScript(l));   // unload is a no-op for the already-unloaded discovery record
+    CHECK(Invoke(g_caller, "reloadlife.state").text == "4 0");
+    sco::GameThreadTick(4300);
+    CHECK(Invoke(g_caller, "reloadlife.state").text == "4 1");
+    CHECK(Logged("[reloadlife] pending generation 4") && Logged("[reloadlife] tick generation 4"));
+    Unload(l);
+    sco::ui::Stop();
+    sco::storage::Stop();
+}
+
+static void TestReloadBudgets() {
+    Write("reloadbudget", R"lua(
+        sco.register_command{ name = "reloadbudget.ok", title = "OK", fn = function() return "fresh" end }
+        sco.register_command{ name = "reloadbudget.spin", title = "Spin",
+          fn = function() while true do pcall(function() while true do end end) end end }
+        sco.register_command{ name = "reloadbudget.eat", title = "Eat", fn = function()
+          local mb = string.rep(string.rep("x", 1000), 1000)
+          local kept = {}; for i = 1, 100 do kept[i] = mb .. i end end }
+    )lua");
+    Loaded l = Load("reloadbudget");
+    CHECK(l.p && l.p->state == State::Loaded);
+    for (int round = 0; round < 2; ++round) {
+        CHECK(Invoke(g_caller, "reloadbudget.ok").text == "fresh");
+        const Reply spin = Invoke(g_caller, "reloadbudget.spin");
+        CHECK(spin.r == SCO_CRASHED && spin.text.find("step budget") != std::string::npos);
+        CHECK(!sco_lua_alive(l.p->self) && Invoke(g_caller, "reloadbudget.ok").r == SCO_UNAVAILABLE);
+        CHECK(ReloadScript(l));
+        CHECK(Invoke(g_caller, "reloadbudget.ok").text == "fresh");
+        const Reply memory = Invoke(g_caller, "reloadbudget.eat");
+        CHECK(memory.r == SCO_TOO_MANY && memory.text.find("not enough memory") != std::string::npos);
+        CHECK(!sco_lua_alive(l.p->self) && Invoke(g_caller, "reloadbudget.ok").r == SCO_UNAVAILABLE);
+        CHECK(ReloadScript(l));
+    }
+    Unload(l);
+}
+
 static void TestSettings() {
     // Without the service: sco.settings is there, get answers unavailable.
     Write("setnone", R"lua(
@@ -808,6 +907,8 @@ int main(int argc, char** argv) {
     TestSandbox();
     TestLimits();
     TestTotalMemory();
+    TestReloadLifecycle();
+    TestReloadBudgets();
     TestExtensions();
 #ifndef SCO_KERNEL_ONLY
 #include "game_contracts/lua_run.inc"

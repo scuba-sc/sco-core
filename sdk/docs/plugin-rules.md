@@ -33,11 +33,40 @@ These are permanent:
 - Keep callbacks short. `tick` runs about 10 times a second on the game's main thread; slow work there stalls the game.
 - Name everything with its id: commands are `<id>.<action>`, and the host prefixes log lines and status messages with it.
 
+## Native trust and supported usage
+
+Native plugins are **trusted in-process code**, with the host process's full rights.
+There is no native sandbox: custom unmanaged threads, direct OS calls and raw
+service-table calls outside host dispatch are not intercepted by the callback guard.
+The guard is a fault-attribution boundary for host-entered code, not proof that
+native memory corruption is contained or that the process can safely continue.
+
+Supported native usage requires:
+
+- Follow each service's thread, reentrancy, ownership and buffer-lifetime contract.
+  Any-thread service lookup does not make every table method any-thread.
+- Keep a legacy table only within its supported provider lifetime. Successful lookup
+  prevents administrative unload/reload of that native provider; it does **not**
+  authorize calls after a provider fault, during shutdown, or across host sessions.
+  A mapped DLL alone does not preserve the provider's backing state.
+- Treat C++ and C# `ServiceRef` wrappers as borrowed pointer holders, not counted
+  leases. Withdrawing a service stops future lookup, not calls through cached pointers.
+- Use host-owned callbacks/tasks for dispatch. A plugin that creates workers must
+  stop and join them before its state is destroyed; the host does not track or drain
+  arbitrary unmanaged threads. Do not call peer providers from unload callbacks or
+  after terminal shutdown admission has closed.
+- On a native fault, stop using cached tables and restart. Do not retry raw calls or
+  infer recovery from a diagnostic report. Out-of-contract native calls are unsupported,
+  even when they happen to work.
+
+See the [service lifetime audit](../../docs/design/service-table-lifetime.md) for the
+current administrative, fault and shutdown distinctions.
+
 ## What the host guarantees
 
 - Nothing loads unless the player sets `plugins = on`. Each plugin can be switched off on its own.
 - Every plugin is listed in `mod.log` and `sc-offline.exe status` with its state.
-- A native plugin that faults inside a callback is disabled and never called again; everything it registered is removed and the game keeps running. This limits damage; it is not a sandbox. A native plugin runs with the game's full rights.
+- Host-entered native callbacks have fault attribution and scheduling suppression, not a recovery guarantee. An attributed provider fault revokes new lookup and host work; an exposed provider enters a degraded, restart-required state with backing state retained. Other fault paths disable/quarantine the owner. Cached raw calls, arbitrary workers and corrupted process state cannot be made safe by that guard; continued execution may be unsafe or require a controlled stop. Native plugins have the host's full rights (see [supported usage](#native-trust-and-supported-usage)).
 - A native plugin is session-lifetime once anything has queried one of its services: the host refuses to reload or unload it while the game runs (`sco.reload` answers `provides a service in use; restart the game to reload it`), because a caller may still hold the service table. Restart the game to pick up a new build of such a plugin; a provider nobody ever asked a service of reloads while the game runs.
 - A Lua plugin runs in a sandbox with no file, process or network access, and an instruction budget per callback. Once `sco.net` ships, one exception: a Lua plugin whose `plugin.ini` declares `requires = sco.net` may read the peer list and publish and subscribe to `<plugin-id>.<channel>` messages. It never gets a socket, an address or session control (hosting, joining, admitting or removing peers), and gets no IPC.
 - A data pack never runs code.

@@ -5,6 +5,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 ## Unreleased
 
 - **Optional ImGui coupling is host-specific, not the frozen C ABI:** document the exact source/configuration match and public-header hashes, drawing-plugin rebuild requirements and absence of cross-version raw-context compatibility; non-drawing plugins do not require ImGui.
+- **Native trust and Lua reload limits:** native plugins are trusted in-process code, not a sandbox or a native-fault recovery guarantee; supported cached-table, worker and shutdown usage is explicit. Real-loader Lua tests cover repeated reload resource/callback cleanup, transaction rollback, persistent data, preserved budgets and optional read-only game-adapter boundaries. No runtime or ABI change.
 
 - **Strict neutral source SDK and macOS ARM64 development builds:** the `core-source` archive excludes game ABI headers, layout pins, examples and game-only test fragments, while retaining generic scanner/hook/host coverage. Packaging tests build and run every neutral CTest from an empty extraction and resolve external example includes to exact shipped public headers. VFS snapshots work on C++20 libraries without atomic shared-pointer specialization; ARM64 detours remain explicitly unsupported. The plugin ABI is unchanged.
 - **Local SDK discovery:** `tools/sco-core-mcp/` adds a stdlib, read-only MCP stdio server with six catalogue tools, bounded example reads and source provenance; development aid only, with no SDK execution or game access.
