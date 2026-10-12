@@ -43,12 +43,16 @@ static bool ReadCapped(const fs::path& p, std::string& out) {
     return !f.bad();
 }
 
-// True when one of the host's built-ins has this id: the built-in owns it (its command prefix,
-// its services), so a folder may not take it, whatever its kind.
-static bool BuiltinId(const Options& opts, const std::string& id) {
+// The refusal reason for a folder whose id is one of the host's built-ins, or "" when it is not:
+// the built-in owns that id (its command prefix, its services), so no folder may take it, whatever
+// its kind. Ids are [a-z0-9_] on both sides (plugin.ini's ValidId, FromBuiltin's ValidBuiltinId),
+// so a byte comparison is the whole match: there is no case to fold, and none is folded anywhere
+// else in the kernel.
+static std::string BuiltinConflict(const Options& opts, const std::string& id) {
     for (size_t i = 0; opts.builtins && i < opts.nBuiltins; ++i)
-        if (opts.builtins[i].id && id == opts.builtins[i].id) return true;
-    return false;
+        if (opts.builtins[i].id && id == opts.builtins[i].id)
+            return "id '" + id + "' belongs to a built-in plugin";
+    return {};
 }
 
 // The host's own id and the reserved command prefixes (kReservedIds) can't be plugin folders.
@@ -103,7 +107,7 @@ static void ResolveRequires(std::vector<Plugin>& list, const Options& opts) {
                 continue;                                               // a capability, a host or game service
             } else if (head == p.folder) {
                 provider = p.folder;                                    // itself: a cycle, refused below
-            } else if (BuiltinId(opts, head)) {
+            } else if (!BuiltinConflict(opts, head).empty()) {
                 provider = head;
             } else if (!ReservedFolder(head)) {
                 if (const Plugin* q = ByFolder(list, head)) provider = q->folder;
@@ -234,17 +238,25 @@ std::vector<Plugin> Discover(const fs::path& root, const Options& opts) {
         } else if (ReservedFolder(p.folder)) {
             Refuse(p, "the folder name '" + p.folder + "' is reserved for the host");
         } else if (std::error_code dec; fs::symlink_status(dir / "disabled", dec).type() != fs::file_type::not_found) {
-            // Any entry named "disabled" (file, folder, link) switches the plugin off.
+            // Any entry named "disabled" (file, folder, link) switches the plugin off. It is not
+            // loaded, so a built-in id only goes in the reason; the conflict is still named, so
+            // `status` and mod.log show what renaming the folder (or dropping the file) would fix.
             p.state = State::Disabled;
             p.reason = "disabled file";
+            if (p.manifestOk) {
+                if (const std::string why = BuiltinConflict(opts, p.manifest.id); !why.empty())
+                    p.reason += "; " + why;
+            }
         } else if (!read) {
             Refuse(p, "plugin.ini: unreadable");
         } else if (!parsed) {
             Refuse(p, "plugin.ini: " + error);
         } else if (p.manifest.id != p.folder) {
             Refuse(p, "id '" + p.manifest.id + "' does not match folder '" + p.folder + "'");
-        } else if (BuiltinId(opts, p.manifest.id)) {
-            Refuse(p, "the id belongs to a built-in plugin");
+        } else if (const std::string why = BuiltinConflict(opts, p.manifest.id); !why.empty()) {
+            // Before the api and entry checks: the conflict is the reason, whatever else the
+            // manifest says, and no entry file is opened for a folder that may not load at all.
+            Refuse(p, why);
         } else if (p.manifest.apiMajor != opts.hostMajor || p.manifest.apiMinor > opts.hostMinor) {
             char buf[48];
             std::snprintf(buf, sizeof(buf), "built for api %u.%u", p.manifest.apiMajor, p.manifest.apiMinor);
