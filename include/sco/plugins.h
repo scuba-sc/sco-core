@@ -123,6 +123,7 @@ enum class State : uint32_t {
     Loaded,     // native, builtin: sco_plugin_load returned OK; lua: the entry script ran; data: indexed
     Crashed,    // faulted in plugin code, or couldn't be released; never called again, DLL kept mapped
     Unloaded,   // unloaded cleanly; DLL closed (kept mapped when a service table of it was handed out)
+    Faulted,    // handed-out provider fault: quiesced, state retained; restart the game, no recovery
 };
 const char* StateName(State s);                   // "off", "disabled", "refused", ...
 
@@ -139,7 +140,7 @@ struct Plugin {
     Manifest    manifest;                         // valid only when manifestOk
     bool        manifestOk = false;               // plugin.ini parsed (state may still be Refused)
     State       state = State::Refused;
-    std::string reason;                           // why Refused / Disabled / Crashed
+    std::string reason;                           // why Refused / Disabled / Crashed / Faulted
     // native (module, exports), builtin (exports), lua (self)
     void*         module = nullptr;               // module handle while mapped (also kept after an unload that
                                                   // left it mapped: see UnloadNative); null for a builtin
@@ -236,7 +237,9 @@ uint32_t  Guarded(void (*thunk)(void* ctx), void* ctx);
 // check or load returns non-OK. Cleanup reserves service admission before Release/close. If a
 // table was already queried during load, Refused retains backing state, exports and module;
 // new queries/publication are unavailable and ContainCallouts suppresses its host callouts.
-// Crashed (released, module kept mapped, never called again) when query or load faults, or when
+// Crashed on a query/load fault without a handed-out table (host resources released, module
+// kept mapped); Faulted on a handed-out provider fault (state retained, restart required).
+// Also Crashed when
 // load returned non-OK and sco::Release(self) failed ("release failed: TOO_MANY"): the runtime
 // may still hold the plugin's callbacks, so the module is never closed under them.
 // False for anything but Loaded; reason set; one [plugin] log line either way.
@@ -260,17 +263,19 @@ void RemoveReloadCopies(const Plugin& p);
 //     MarkCrashed(culprit, "a service call from <p>", code) and p stays Loaded (its callout did
 //     not complete, its command answers Crashed). A culprit that is not Loaded any more (crashed,
 //     or unloaded with its module kept mapped) is only logged. Needs ContainCallouts's list to
-//     find the culprit; off the game thread the verdict is queued as a task and applied there.
+//     find the culprit; off-thread lookup/scheduling are quiesced immediately without resource
+//     teardown, and only the state/reason verdict is queued. Quiescence/queue failure stops the process.
 //   - otherwise (the first plugin frame is p's, no plugin frame, a built-in p, no trace) p gets
 //     MarkCrashed(p, where, code). Built-ins share the product's module, so a fault inside one is
 //     always blamed on its owner.
 // Faults in query, load, unload and script load keep owner blame. Game thread only.
 bool CallPlugin(Plugin& p, const char* where, void (*thunk)(void* ctx), void* ctx);
 
-// Marks a loaded plugin crashed after a fault caught in one of its callbacks (CallPlugin calls
-// it for tick, a command, a task, a done callback): sco::Release(self), state Crashed, reason
-// "crashed in <where> (0x<code>)", one log line and a status message. The module stays mapped
-// (its code may still be on a stack). Game thread only. No-op unless state is Loaded.
+// Applies an attributed fault caught in a callback: quiesce registrations/lookup/scheduling
+// first. A handed-out provider becomes Faulted, with state and module retained and no unload
+// or resource release hooks; reason, log/status and Describe instruct a game restart. Otherwise
+// host resource hooks run and state is Crashed. Neither state promises native-process recovery.
+// Quiescence failure stops the process. Game thread only; no-op unless state is Loaded.
 void MarkCrashed(Plugin& p, const char* where, uint32_t code);
 
 // Installs a runtime callout guard (sco::SetCalloutGuard) that finds the Plugin in *list whose
@@ -278,7 +283,7 @@ void MarkCrashed(Plugin& p, const char* where, uint32_t code);
 // plugin callback marks that plugin Crashed and a faulting command answers SCO_CRASHED. Owners
 // not in the list (host features) and plugins still Ready (calls made synchronously during their
 // load or script run, already inside the load guard) are called straight through; a Crashed,
-// Refused or Unloaded plugin is never called. nullptr uninstalls. Game thread only; *list must
+// Faulted, Refused or Unloaded plugin is never called. nullptr uninstalls. Game thread only; *list must
 // outlive the installation and must not be resized while installed.
 void ContainCallouts(std::vector<Plugin>* list);
 
@@ -286,10 +291,11 @@ void ContainCallouts(std::vector<Plugin>* list);
 // does a fault nested inside it, such as a crashing command it invoked), sco::Release(self),
 // close the module, state Unloaded. If Release fails (TooMany, or WrongThread when called off
 // the game thread) the module stays mapped and the plugin is Crashed with reason
-// "release failed: <RESULT>". Routes through UnloadOne and CanUnload: a native whose service
+// "release failed: <RESULT>". Routes through UnloadOne and BeginUnload: a native whose service
 // table was handed out by sco::QueryService is refused before unload() or Release runs,
-// leaving it Loaded and intact. Use UnloadAll only at host shutdown; it tears down even a
-// handed-out provider but keeps its module mapped until the process ends. Game thread only.
+// leaving it Loaded and intact. Faulted instances are never re-entered. Use UnloadAll only at
+// host shutdown; it tears down a still-Loaded handed-out provider but keeps its module mapped
+// until the process ends. Game thread only.
 // No-op unless Loaded.
 void UnloadNative(Plugin& p, const ModuleOps& ops = PlatformModuleOps());
 
@@ -315,7 +321,8 @@ Plugin FromBuiltin(const Builtin& b);
 // Loads one Ready built-in, as LoadNative does without a module: query() (guarded; the same
 // info checks: size, api major/minor, name == id), then load(api, self) (guarded). Loaded (true);
 // Refused on a failed check or non-OK load (queried state retained, as for LoadNative);
-// Crashed when query/load faults or Release fails after a non-OK load. Game thread only.
+// Crashed on a fault without a handed-out table or a failed Release; Faulted on a handed-out
+// provider fault, as for LoadNative. Game thread only.
 bool LoadBuiltin(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts);
 
 // ---- script loader (kind = lua) --------------------------------------------------------------
@@ -347,24 +354,28 @@ bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRun
 // a caller may still hold that table, so p is session-lifetime and every mid-session
 // unload request (sco::app::Reload, the sco.reload command, UnloadOne, UnloadNative) must be refused
 // before sco_plugin_unload or sco::Release runs — only a restart of the game reloads it.
-// Any owner with no handed-out table passes. This is advisory only: BeginUnload makes the
-// atomic admission decision again before actual teardown; CanUnload is not a reservation.
-// Host shutdown (UnloadAll) does not ask: it tears everything down, reverse load order.
+// Faulted or already-quarantined owners are refused with a restart-required reason even
+// before their queued state verdict. Other owners with no handed-out table pass. This is
+// advisory only: BeginUnload makes the atomic admission decision again before actual
+// teardown; CanUnload is not a reservation. Host shutdown (UnloadAll) does not ask: it
+// tears down still-Loaded instances in reverse load order, never Faulted instances.
 bool CanUnload(const Plugin& p, std::string& why);
 
 // Atomically reserve service admission for all owners before a reload group's first teardown.
 // Refusal leaves all members intact. UnloadOne accepts an existing reservation. Cancel only
-// reopens owners still Loaded (for copy failure or surviving members after an unload fault).
+// reopens owners still Loaded and not quarantined (for copy failure or surviving members
+// after an unload fault); quarantine preserves existing reservations permanently.
 // Game thread only; does not hold the registry lock while plugin code runs.
 bool BeginUnload(const std::vector<Plugin*>& group, std::string& why);
 void CancelUnload(const std::vector<Plugin*>& group);
 
 // Unloads one Loaded plugin of any kind the way UnloadAll does (natives: UnloadNative; built-ins:
 // without a module; scripts: Release then runtime.unload). No-op unless Loaded. The state is
-// Unloaded afterwards, or Crashed when unload() faulted or Release failed. Reserves BeginUnload:
+// Unloaded afterwards, or Crashed/Faulted when unload() faulted, or Crashed if Release failed.
+// Reserves BeginUnload:
 // any owner whose service table was handed out is refused instead (one [plugin] log line, the
 // plugin stays Loaded and intact — session-lifetime). UnloadAll (host shutdown) bypasses that
-// refusal and unloads everything.
+// refusal for still-Loaded instances; Faulted instances remain retained.
 void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const ScriptRuntime* runtime = nullptr);
 
 // Unloads every Loaded plugin, last loaded first, built-ins after every other plugin (they are
@@ -374,7 +385,8 @@ void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const Scri
 // then runtime.unload(self) (state Unloaded; if Release fails the script is kept and the
 // plugin Crashed, as for natives). This is the host shutdown path: it does not ask CanUnload,
 // so a provider whose service table was handed out is unloaded like any other (its module
-// stays mapped, as for any unload). runtime may be null when no script was loaded. Data packs
+// stays mapped, as for any unload). Faulted instances retain state and are never entered,
+// even at shutdown. runtime may be null when no script was loaded. Data packs
 // stay as they are.
 void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
                const ScriptRuntime* runtime = nullptr);

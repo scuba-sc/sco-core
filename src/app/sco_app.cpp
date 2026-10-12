@@ -241,6 +241,7 @@ Result Reload(std::string_view id, std::string* why) {
     if (!p) { w = "no plugin '" + name + "'"; return Result::NotFound; }
     if (p->manifest.kind == plugins::Kind::Builtin) { w = name + " is built in and cannot be reloaded"; return Result::BadArg; }
     if (!p->manifestOk || p->manifest.kind == plugins::Kind::Data) { w = name + " has no code to reload"; return Result::BadArg; }
+    if (p->state == plugins::State::Faulted) { w = name + " is faulted; restart the game (no recovery guaranteed)"; return Result::Failed; }
     if (p->state != plugins::State::Loaded) { w = name + " is not loaded (" + plugins::StateName(p->state) + ")"; return Result::Failed; }
     // Discover resolved requires to provider ids in `after`; do not reinterpret capabilities
     // or host services as plugin dependencies. Only loaded dependents join the cascade.

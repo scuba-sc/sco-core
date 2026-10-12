@@ -104,6 +104,11 @@ Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
                          bool allowInUse, bool& inUse) {
     inUse = false;
     std::lock_guard<std::mutex> hold(g_lock);
+    // Off-thread quarantine marks the owner before its game-thread state verdict. Reject
+    // administrative teardown under the admission lock even while Plugin::state is Loaded.
+    if (!allowInUse)
+        for (size_t i = 0; i < count; ++i)
+            if (owners[i] && detail::Released(owners[i])) return Result::Crashed;
     for (size_t i = 0; i < count; ++i)
         if (std::find(g_handedOut.begin(), g_handedOut.end(), owners[i]) != g_handedOut.end())
             inUse = true;
@@ -122,9 +127,11 @@ Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
 
 void CancelServiceWithdrawal(const void* const* owners, size_t count) {
     std::lock_guard<std::mutex> hold(g_lock);
-    for (size_t i = 0; i < count; ++i)
+    for (size_t i = 0; i < count; ++i) {
+        if (detail::Released(owners[i])) continue;   // quarantine reservations stay terminal
         g_withdrawing.erase(std::remove(g_withdrawing.begin(), g_withdrawing.end(), owners[i]),
                             g_withdrawing.end());
+    }
 }
 
 Result ReleaseService(const void* owner, const char* name) {

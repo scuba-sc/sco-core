@@ -11,6 +11,7 @@
 //   tools/test.sh
 #include "sco/plugins.h"
 #include "../src/plugins/internal.h"
+#include "../src/api/internal.h"
 #include "sco/log.h"
 #include "sco/runtime.h"
 #include "sco/status.h"
@@ -1030,6 +1031,12 @@ static uint32_t ReportingGuard(void (*)(void*), void*) {
 static sco::Result g_nestedResult = sco::Result::Failed;
 static void NestedBoom(void*) { g_nestedResult = RunCommand("svc_caller.boom"); }
 
+static const void* g_faultOwner = nullptr;
+static int g_faultReleases = 0;
+static void FaultReleaseHook(const void* owner) {
+    if (owner == g_faultOwner) ++g_faultReleases;
+}
+
 static void TestServices() {
     const fs::path root = g_out / "plugins";
     if (!fs::is_directory(root)) { std::printf("FAIL: %s missing (tools/test.sh builds it)\n", root.string().c_str()); ++g_fail; return; }
@@ -1056,13 +1063,34 @@ static void TestServices() {
         CHECK(RunCommand("svc_caller.ok") == sco::Result::Ok);
         CHECK(sco::ServiceTableHandedOut(prov.self));                          // the caller's query handed it out
 
+        g_faultOwner = prov.self;
+        g_faultReleases = 0;
+        CHECK(sco::AddReleaseHook(FaultReleaseHook) == sco::Result::Ok);
+        const int ticksBeforeFault = Ticks(prov);
+        const size_t closesBeforeFault = g_closed.size();
+        int pending = 0;
+        CHECK(sco::Post([](void* ctx) { ++*static_cast<int*>(ctx); }, &pending, prov.self) == sco::Result::Ok);
         g_faultModule = prov.module;
         g_log.clear();
         CHECK(RunCommand("svc_caller.boom") == sco::Result::Crashed);         // the command answers crashed
         g_faultModule = nullptr;
-        CHECK(prov.state == State::Crashed);                                   // the provider is blamed ...
-        CHECK(prov.reason == "crashed in a service call from svc_caller (0xC0000005)");
-        CHECK(Logged("[plugin] svc_provider crashed in a service call from svc_caller (0xC0000005) and was disabled"));
+        CHECK(g_faultReleases == 0);                                         // no resource teardown under held tables
+        CHECK(sco::ProvideService(prov.self, "svc_provider", "svc_provider.republish", v1, &pending) == sco::Result::BadArg);
+        CHECK(sco::Post([](void*) {}, nullptr, prov.self) == sco::Result::BadArg);
+        CHECK(sco::Subscribe(prov.self, "tick", [](const char*, const void*, void*) {}, nullptr) == sco::Result::BadArg);
+        P::UnloadNative(prov, kRecOps);
+        P::MarkCrashed(prov, "again", 1);
+        CHECK(g_faultReleases == 0);
+        CHECK(sco::DrainTasks() == 0 && pending == 0);                         // no further scheduled work
+        CHECK(sco::GameThreadTick(7) == sco::Result::Ok && Ticks(prov) == ticksBeforeFault);
+        CHECK(g_closed.size() == closesBeforeFault && Frozen(prov, "fake_unload_calls") == 0);
+        CHECK(P::Describe(prov).find("faulted") != std::string::npos);
+        CHECK(P::Describe(prov).find("restart the game") != std::string::npos);
+        CHECK(sco::RemoveReleaseHook(FaultReleaseHook) == sco::Result::Ok);
+        g_faultOwner = nullptr;
+        CHECK(prov.state == State::Faulted);
+        CHECK(prov.reason == "crashed in a service call from svc_caller (0xC0000005); state retained, restart the game (no recovery guaranteed)");
+        CHECK(Logged("[plugin] svc_provider faulted: crashed in a service call from svc_caller (0xC0000005); state retained, restart the game (no recovery guaranteed)"));
         CHECK(caller.state == State::Loaded);                                  // ... the caller is not
         CHECK(prov.module != nullptr);                                         // its code stays mapped
         CHECK(sco::QueryService("svc_provider.svc", v1, &table) == sco::Result::NotFound);   // services withdrawn
@@ -1076,7 +1104,7 @@ static void TestServices() {
         CHECK(RunCommand("svc_caller.cached") == sco::Result::Crashed);
         g_faultModule = nullptr;
         CHECK(caller.state == State::Loaded);
-        CHECK(Logged("[plugin] svc_provider faulted again in a service call from svc_caller (0xC0000005); it is already crashed"));
+        CHECK(Logged("[plugin] svc_provider faulted again in a service call from svc_caller (0xC0000005); it is already faulted"));
 
         // A fault in the callout owner's own code is still the owner's.
         g_faultModule = caller.module;
@@ -1104,7 +1132,7 @@ static void TestServices() {
     CHECK(P::CallPlugin(outer, "outer", NestedBoom, nullptr));
     g_faultModule = nullptr;
     CHECK(g_nestedResult == sco::Result::Crashed);
-    CHECK(prov.state == State::Crashed && caller.state == State::Loaded && outer.state == State::Loaded);
+    CHECK(prov.state == State::Faulted && caller.state == State::Loaded && outer.state == State::Loaded);
 
     // Off the game thread MarkCrashed can't run: the verdict is queued and applied on the game thread.
     P::Plugin& offProv = get(again, "svc_prov_d");
@@ -1114,9 +1142,14 @@ static void TestServices() {
     bool completed = true;
     std::thread([&] { completed = P::CallPlugin(outer, "off", [](void*) {}, nullptr); }).join();
     CHECK(!completed);
-    CHECK(offProv.state == State::Loaded && outer.state == State::Loaded);   // queued, not applied off thread
+    CHECK(offProv.state == State::Loaded && outer.state == State::Loaded);   // state/reason queued for game thread
+    CHECK(sco::QueryService("svc_prov_d.svc", v1, &table) == sco::Result::NotFound);
+    P::SetCallGuard(nullptr);
+    int afterFault = 0;
+    CHECK(!P::CallPlugin(offProv, "pending", [](void* ctx) { ++*static_cast<int*>(ctx); }, &afterFault));
+    CHECK(afterFault == 0);   // quiescence is immediate, not delayed until the verdict task
     CHECK(sco::DrainTasks() >= 1);
-    CHECK(offProv.state == State::Crashed && offProv.reason == "crashed in a service call from m11 (0xC0000005)");
+    CHECK(offProv.state == State::Faulted && offProv.reason.find("restart the game") != std::string::npos);
     CHECK(outer.state == State::Loaded);
     g_faultModule = nullptr;
 #ifndef _WIN32
@@ -1169,6 +1202,75 @@ static void TestServices() {
     P::ContainCallouts(nullptr);
     g_list = nullptr;
     P::SetCallGuard(nullptr);
+}
+
+// A terminal fault must be refused by the shared unload/reload admission gate, not just
+// accidentally skipped by Loaded-only teardown. Cached tables never justify recovery.
+static void TestFaultedProviderUnloadRefusal() {
+    P::Options on;
+    on.enabled = true;
+    auto list = P::Discover(g_out / "plugins", on);
+    g_list = &list;
+    P::ContainCallouts(&list);
+    P::Plugin& p = *const_cast<P::Plugin*>(Find(list, "svc_prov_c"));
+    const sco_api api = MakeApi();
+    CHECK(P::LoadNative(p, &api, NewOwner(), on, kRecOps));
+    const void* held = nullptr;
+    CHECK(sco::QueryService("svc_prov_c.svc", 1u << 16, &held) == sco::Result::Ok && held);
+    g_faultOwner = p.self;
+    g_faultReleases = 0;
+    CHECK(sco::AddReleaseHook(FaultReleaseHook) == sco::Result::Ok);
+    void* const module = p.module;
+    sco_plugin* const self = p.self;
+    const auto unload = p.exports.unload;
+    const size_t closes = g_closed.size();
+    P::MarkCrashed(p, "provider callback", 0xC0000005u);
+    CHECK(p.state == State::Faulted);
+    const std::string reason = p.reason;
+    std::string why;
+    CHECK(!P::CanUnload(p, why));
+    CHECK(why.find("faulted; restart the game") != std::string::npos);
+    CHECK(!P::BeginUnload({ &p }, why));   // the same reservation used by a reload cascade
+    CHECK(why.find("faulted; restart the game") != std::string::npos);
+    P::CancelUnload({ &p });
+    P::UnloadNative(p, kRecOps);
+    P::UnloadOne(p, kRecOps);
+    P::UnloadAll(list, kRecOps);   // shutdown also never re-enters a faulted instance
+    CHECK(p.state == State::Faulted && p.reason == reason);
+    CHECK(p.module == module && p.self == self && p.exports.unload == unload);
+    CHECK(Frozen(p, "fake_unload_calls") == 0 && g_closed.size() == closes);
+    CHECK(g_faultReleases == 0);
+    const void* table = held;
+    CHECK(sco::QueryService("svc_prov_c.svc", 1u << 16, &table) == sco::Result::NotFound && !table);
+    CHECK(sco::ProvideService(p.self, nullptr, "svc_prov_c.svc", 1u << 16, held) == sco::Result::BadArg);
+    CHECK(sco::RemoveReleaseHook(FaultReleaseHook) == sco::Result::Ok);
+    g_faultOwner = nullptr;
+    P::ContainCallouts(nullptr);
+    g_list = nullptr;
+}
+
+static void TestQuarantinedUnloadReservation() {
+    P::Plugin p;
+    p.manifest.id = "quarantined_gate";
+    p.manifest.kind = P::Kind::Native;
+    p.state = State::Loaded;
+    p.self = NewOwner();
+    int backing = 43;
+    CHECK(sco::ProvideService(p.self, nullptr, "quarantined_gate.svc", 1u << 16, &backing) == sco::Result::Ok);
+    std::string why;
+    CHECK(P::BeginUnload({ &p }, why));
+    // Simulate immediate off-thread quarantine before its queued game-thread verdict:
+    // keep the existing reservation and never reopen this still-Loaded-but-released owner.
+    CHECK(sco::detail::QuarantineOwner(p.self) == sco::Result::Ok);
+    P::CancelUnload({ &p });
+    CHECK(!P::CanUnload(p, why));
+    CHECK(why.find("faulted; restart the game") != std::string::npos);
+    CHECK(!P::BeginUnload({ &p }, why));
+    const void* table = &backing;
+    CHECK(sco::QueryService("quarantined_gate.svc", 1u << 16, &table) == sco::Result::NotFound && !table);
+    CHECK(sco::ProvideService(p.self, nullptr, "quarantined_gate.svc", 1u << 16, &backing) == sco::Result::BadArg);
+    P::MarkCrashed(p, "queued provider verdict", 0xC0000005u);
+    CHECK(p.state == State::Faulted && backing == 43);
 }
 
 // Admission must close before plugin code or release hooks can destroy provider state.
@@ -1425,6 +1527,8 @@ int main(int argc, char** argv) {
     TestNative();
     TestFrozenV11();
     TestServices();
+    TestFaultedProviderUnloadRefusal();
+    TestQuarantinedUnloadReservation();
     TestAtomicUnloadAdmission();
     TestBuiltinServiceUnloadRefusal();
     TestFailedLoadServiceRetention();

@@ -18,6 +18,7 @@ const char* StateName(State s) {
         case State::Loaded:   return "loaded";
         case State::Crashed:  return "crashed";
         case State::Unloaded: return "unloaded";
+        case State::Faulted:  return "faulted";
     }
     return "?";
 }

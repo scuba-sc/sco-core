@@ -1,6 +1,7 @@
 // Game-thread identity, callout depth, the bounded task queue and Release().
 #include "sco/runtime.h"
 #include "internal.h"
+#include <algorithm>
 #include <atomic>
 #include <iterator>
 #include <list>
@@ -47,14 +48,15 @@ void SetCalloutGuard(CalloutGuard guard) { g_calloutGuard.store(guard); }
 
 bool detail::Callout(const void* owner, const char* where, TaskFn thunk, void* ctx) {
     detail::CallScope scope;
+    if (detail::Released(owner)) return false;
     const CalloutGuard guard = owner ? g_calloutGuard.load() : nullptr;
     if (guard) return guard(owner, where, thunk, ctx);
     thunk(ctx);
     return true;
 }
 
-// Owners that Release() has started on; grows for the life of the process (one pointer per
-// released plugin). Lock order is module lock -> g_ownerLock; Release takes g_ownerLock alone.
+// Owners that Release() or fault quarantine has started on; grows for the process lifetime.
+// Lock order is module lock -> g_ownerLock; marking takes g_ownerLock alone.
 static std::mutex               g_ownerLock;
 static std::vector<const void*> g_released;
 
@@ -215,6 +217,29 @@ Result RemoveReleaseHook(ReleaseHook hook) {
     return Result::NotFound;
 }
 
+Result detail::QuarantineOwner(const void* owner) {
+    if (!owner) return Result::BadArg;
+    {
+        std::lock_guard<std::mutex> hold(g_ownerLock);
+        if (std::find(g_released.begin(), g_released.end(), owner) == g_released.end()) {
+            try { g_released.push_back(owner); }
+            catch (...) { return Result::TooMany; }
+        }
+    }
+    // After withdrawal, the hand-out mark includes every table returned before it.
+    // New registration is already blocked; raw-table calls are not mediated here.
+    // Keep any loader withdrawal reservation: quarantine is terminal, and cancellation
+    // must not reopen an owner while its game-thread fault verdict is still queued.
+    detail::ReleaseServices(owner);
+    const long subs = detail::ReleaseSubscriptions(owner);
+    detail::ReleaseCommands(owner);
+    detail::ReleaseTasks(owner);
+    detail::ReleaseRaw(owner);
+    // No release hooks: they destroy backing resources that held tables can still refer to.
+    // If subscription removal couldn't allocate, Released and the callout guard still skip it.
+    return subs < 0 ? Result::TooMany : Result::Ok;
+}
+
 Result Release(const void* owner, size_t* removed) {
     if (removed) *removed = 0;
     if (!owner) return Result::BadArg;
@@ -236,7 +261,8 @@ Result Release(const void* owner, size_t* removed) {
     const long subs = detail::ReleaseSubscriptions(owner);
     if (subs < 0) {
         std::lock_guard<std::mutex> hold(g_ownerLock);
-        g_released.pop_back();   // only the game thread appends, so the last entry is ours
+        const auto it = std::find(g_released.begin(), g_released.end(), owner);
+        if (it != g_released.end()) g_released.erase(it);   // off-thread quarantine may append another owner
         return Result::TooMany;
     }
     const long cmds = detail::ReleaseCommands(owner);
@@ -244,6 +270,11 @@ Result Release(const void* owner, size_t* removed) {
     const long services = detail::ReleaseServices(owner);
     const long raw = detail::ReleaseRaw(owner);
     if (removed) *removed = static_cast<size_t>(subs + cmds + tasks + services + raw);
+    detail::ReleaseFaultResources(owner);
+    return Result::Ok;
+}
+
+void detail::ReleaseFaultResources(const void* owner) {
     // Hooks run outside g_hookLock (a hook may add or remove hooks), from a copy.
     ReleaseHook hooks[kMaxReleaseHooks];
     size_t nHooks;
@@ -253,7 +284,6 @@ Result Release(const void* owner, size_t* removed) {
         for (size_t i = 0; i < nHooks; ++i) hooks[i] = g_hooks[i];
     }
     for (size_t i = 0; i < nHooks; ++i) hooks[i](owner);
-    return Result::Ok;
 }
 
 Result GameThreadTick(uint32_t nowMs) {
