@@ -95,7 +95,14 @@ bool SnapshotStore::Begin(const std::vector<plugins::Plugin>& list, HostMetadata
     if (sources.gamePack) {
         sources.gamePack->version = Label(sources.gamePack->version, 128);
         sources.gamePack->gameBuild = Label(sources.gamePack->gameBuild, 128);
-        host.gamePackVersion = sources.gamePack->version;
+        if (sources.gamePack->observedMs && *sources.gamePack->observedMs > now) sources.gamePack.reset();
+        else host.gamePackVersion = sources.gamePack->version;
+    }
+    if (sources.diagnosticsPlugin) {
+        const auto& source = *sources.diagnosticsPlugin;
+        if (!source.available || (source.observedMs && *source.observedMs > now) ||
+            (source.health != SCO_DIAGNOSTICS_HEALTH_UNKNOWN && source.health != SCO_DIAGNOSTICS_HEALTH_READY &&
+             source.health != SCO_DIAGNOSTICS_HEALTH_DEGRADED)) sources.diagnosticsPlugin.reset();
     }
     next->host = std::move(host); next->game = std::move(game); next->sources = std::move(sources);
     next->generation = generation_ + 1;

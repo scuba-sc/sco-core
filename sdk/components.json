@@ -232,6 +232,115 @@
   }
  ],
  "components": [
+{
+ "id": "include.sco_diagnostics_publisher.h",
+ "source": "include/sco_diagnostics_publisher.h",
+ "destination": "include/sco_diagnostics_publisher.h",
+ "profiles": [
+  "core",
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "public_header": true
+},
+{
+ "id": "include.scosdk.diagnostics_publisher.hpp",
+ "source": "include/scosdk/diagnostics_publisher.hpp",
+ "destination": "include/scosdk/diagnostics_publisher.hpp",
+ "profiles": [
+  "core",
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "public_header": true
+},
+{
+ "id": "src.host.sco_diagnostics_publisher.cpp",
+ "source": "src/host/sco_diagnostics_publisher.cpp",
+ "destination": "src/host/sco_diagnostics_publisher.cpp",
+ "profiles": [
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only"
+},
+{
+ "id": "tests.test_diagnostics_publishers.cpp",
+ "source": "tests/test_diagnostics_publishers.cpp",
+ "destination": "tests/test_diagnostics_publishers.cpp",
+ "profiles": [
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only"
+},
+{
+ "id": "tests.abi_diagnostics_publisher.c",
+ "source": "tests/abi_diagnostics_publisher.c",
+ "destination": "tests/abi_diagnostics_publisher.c",
+ "profiles": [
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only"
+},
+{
+ "id": "sdk.examples.diagnostics_publisher.diagnostics_publisher.c",
+ "source": "sdk/examples/diagnostics_publisher/diagnostics_publisher.c",
+ "destination": "examples/diagnostics_publisher/diagnostics_publisher.c",
+ "profiles": [
+  "core",
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only"
+},
+{
+ "id": "sdk.examples.diagnostics_publisher.plugin.ini",
+ "source": "sdk/examples/diagnostics_publisher/plugin.ini",
+ "destination": "examples/diagnostics_publisher/plugin.ini",
+ "profiles": [
+  "core",
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only"
+},
+{
+ "id": "sdk.examples.diagnostics_publisher.disabled",
+ "source": "sdk/examples/diagnostics_publisher/disabled",
+ "destination": "examples/diagnostics_publisher/disabled",
+ "profiles": [
+  "core",
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only"
+},
+{
+ "id": "sdk.examples.diagnostics_publisher.CMakeLists.txt",
+ "source": "sdk/examples/diagnostics_publisher/CMakeLists.txt",
+ "destination": "examples/diagnostics_publisher/CMakeLists.txt",
+ "profiles": [
+  "core",
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only"
+},
+{
+ "id": "sdk.examples.diagnostics_publisher.README.md",
+ "source": "sdk/examples/diagnostics_publisher/README.md",
+ "destination": "examples/diagnostics_publisher/README.md",
+ "profiles": [
+  "core",
+  "core-source"
+ ],
+ "origin": "project-authored",
+ "license": "GPL-3.0-only"
+},
    {
     "id": "include.sco_content.h",
     "source": "include/sco_content.h",

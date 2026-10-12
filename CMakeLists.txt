@@ -84,9 +84,12 @@ sco_project_target(sco_core)
 # sco-sigcheck don't need hooks.
 if(SCO_GAME_SC)
   file(GLOB SCO_GAME_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/game/*.cpp")
-  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/pak_hooks\\.cpp$")
+  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|diagnostics)\\.cpp$")
   add_library(sco_game_sc STATIC ${SCO_GAME_SOURCES})
   target_link_libraries(sco_game_sc PUBLIC sco_core)
+  add_library(sco_game_diagnostics STATIC src/game/diagnostics.cpp)
+  target_link_libraries(sco_game_diagnostics PUBLIC sco_host)
+  sco_project_target(sco_game_diagnostics)
   sco_project_target(sco_game_sc)
 endif()
 
@@ -98,7 +101,8 @@ target_link_libraries(sco_runtime PUBLIC Threads::Threads)
 sco_project_target(sco_runtime)
 
 # Capability registry and the host's sco_api table.
-add_library(sco_host STATIC src/api/sco_caps.cpp src/host/sco_host.cpp src/host/sco_diagnostics.cpp)
+add_library(sco_host STATIC src/api/sco_caps.cpp src/host/sco_host.cpp src/host/sco_diagnostics.cpp
+  src/host/sco_diagnostics_publisher.cpp)
 target_link_libraries(sco_host PUBLIC sco_runtime sco_core)
 sco_project_target(sco_host)
 
@@ -268,7 +272,7 @@ target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage s
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
   # Platform::registerSignatures (sco::game::RegisterGameSignatures).
-  target_link_libraries(sco_app PUBLIC sco_datacore_service sco_game_sc)
+  target_link_libraries(sco_app PUBLIC sco_datacore_service sco_game_sc sco_game_diagnostics)
 endif()
 # The game pack's services (sco/game/services.h, docs/design/game-services.md): teleport.spatial
 # today, published under the owner "game" when the product sets Platform::gameServices. They read
@@ -733,6 +737,41 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_host COMMAND test_host)
 
   target_compile_definitions(sco_runtime PRIVATE SCO_RUNTIME_DIAGNOSTICS_FIXTURE=1)
+  # Independently compiled source publisher: only copied public SDK declarations.
+  set(_diagnostic_sdk "${CMAKE_CURRENT_BINARY_DIR}/diagnostics-sdk/include")
+  file(MAKE_DIRECTORY "${_diagnostic_sdk}")
+  foreach(_h sco_api.h sco_diagnostics_publisher.h)
+    configure_file("${SCO_INCLUDE_DIR}/${_h}" "${_diagnostic_sdk}/${_h}" COPYONLY)
+  endforeach()
+  add_library(diagnostics_publisher_fixture MODULE sdk/examples/diagnostics_publisher/diagnostics_publisher.c)
+  target_include_directories(diagnostics_publisher_fixture PRIVATE "${_diagnostic_sdk}")
+  sco_project_target(diagnostics_publisher_fixture)
+  if(APPLE)
+    target_link_options(diagnostics_publisher_fixture PRIVATE "-Wl,-undefined,error")
+  elseif(UNIX)
+    target_link_options(diagnostics_publisher_fixture PRIVATE "-Wl,--no-undefined")
+  endif()
+  file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/abi_diagnostics_publisher.cpp"
+    CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_diagnostics_publisher.c\"\n")
+  add_library(sco_abi_diagnostics_publisher_c OBJECT tests/abi_diagnostics_publisher.c)
+  add_library(sco_abi_diagnostics_publisher_cxx OBJECT "${CMAKE_CURRENT_BINARY_DIR}/abi_diagnostics_publisher.cpp")
+  set(_diagnostic_pins sco_abi_diagnostics_publisher_c sco_abi_diagnostics_publisher_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_diagnostics_publisher_short OBJECT tests/abi_diagnostics_publisher.c)
+    target_compile_options(sco_abi_diagnostics_publisher_short PRIVATE -fshort-enums -Wpedantic)
+    list(APPEND _diagnostic_pins sco_abi_diagnostics_publisher_short)
+  endif()
+  foreach(_t IN LISTS _diagnostic_pins)
+    target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${_t})
+  endforeach()
+  add_executable(test_diagnostics_publishers tests/test_diagnostics_publishers.cpp)
+  target_link_libraries(test_diagnostics_publishers PRIVATE sco_app)
+  add_dependencies(test_diagnostics_publishers diagnostics_publisher_fixture ${_diagnostic_pins})
+  sco_project_target(test_diagnostics_publishers)
+  add_test(NAME test_diagnostics_publishers COMMAND test_diagnostics_publishers
+    "$<TARGET_FILE:diagnostics_publisher_fixture>" "${CMAKE_CURRENT_BINARY_DIR}/tests/out")
+
   add_executable(test_runtime_diagnostics_snapshot
     tests/test_runtime_diagnostics_snapshot.cpp tests/test_runtime_diagnostics_services.cpp)
   target_link_libraries(test_runtime_diagnostics_snapshot PRIVATE sco_app)

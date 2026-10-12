@@ -14,6 +14,106 @@
   "note": "The project's copyright notices say 'the sco-core contributors' (as sc_ipc.h does). The maintainer, scubamount, is the only contributor so far; the commit identities 'yerts' and 'scubamount' are both the maintainer."
  },
  "entries": [
+{
+ "path": "include/sco_diagnostics_publisher.h",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "include/scosdk/diagnostics_publisher.hpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "src/host/sco_diagnostics_publisher.cpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "tests/test_diagnostics_publishers.cpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "tests/abi_diagnostics_publisher.c",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "include/sco/game/diagnostics.h",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "src/game/diagnostics.cpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "sdk/examples/diagnostics_publisher/**",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "sdk/contracts/sco_diagnostics_publisher_v1.json",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "docs/design/diagnostics-publishers.md",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
   {
    "path": "tools/test_content_gate.py",
    "origin": "project-authored",

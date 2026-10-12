@@ -5,6 +5,7 @@
 #include "sco/caps.h"
 #include "sco/content.h"
 #ifndef SCO_KERNEL_ONLY
+#include "sco/game/diagnostics.h"
 #include "sco/datacore_service.h"   // sco.datacore: the Star Citizen game pack (SCO_GAME_SC)
 #endif
 #ifdef SCO_GAME_SERVICES
@@ -63,9 +64,13 @@ void CopyDiagnostics(uint64_t now) noexcept {
         game.gameServicesBuilt = false;
 #endif
         game.gameServicesPublished = g_gameServicesPublished;
-        // No authorization inferred, publisher callbacks or optional game types. #141 sources
-        // remain absent. The endpoint/policy work will decide when anything leaves the host.
-        g_diagnostics.Begin(g_list, std::move(host), std::move(game), now);
+        diagnostics::OptionalSources sources;
+        sources.diagnosticsPlugin = diagnostics::CopyPublisherMetadata(now);
+#ifndef SCO_KERNEL_ONLY
+        sources.gamePack = game::diagnostics::CopyMinimal(g_platform.diagnosticSources, now);
+#endif
+        // Copies only: no plugin callbacks, service queries or provider execution.
+        g_diagnostics.Begin(g_list, std::move(host), std::move(game), now, std::move(sources));
         g_diagnostics.Advance(now);
     } catch (...) {
         g_diagnostics.Reset(); // observation failure must not fail a game/plugin operation
@@ -145,6 +150,11 @@ bool Start(const Platform& platform) {
             Log("[app] sco.datacore not started: this build has no game pack (SCO_GAME_SC=OFF)");
 #endif
         }
+    }
+    // Before consumers load; explicit default-off source config cannot enable IPC.
+    if (pf.diagnosticSources.diagnosticsPlugin) {
+        const Result dr = diagnostics::StartPublisher(pf.diagnosticSources);
+        if (dr != Result::Ok) Log("[app] diagnostics publisher not started: %s", ResultName(dr));
     }
     const Result ur = ui::Start();
     if (ur != Result::Ok) Log("[app] ui not started: %s", ResultName(ur));
@@ -285,6 +295,7 @@ void Stop() {
     if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return; }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
     g_diagnostics.Reset(); // invalidate observations BEFORE game.exit and plugin teardown
+    diagnostics::StopPublisher(); // cached publisher calls refuse before any unload export
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload

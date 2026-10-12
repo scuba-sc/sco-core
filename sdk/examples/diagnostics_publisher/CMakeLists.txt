@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+project(sco_diagnostics_publisher C)
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/sco-plugin.cmake")
+sco_add_plugin(diagnostics_publisher SOURCES diagnostics_publisher.c INI plugin.ini)
+install(FILES disabled DESTINATION "data/plugins/diagnostics_publisher")
