@@ -13,6 +13,7 @@
 #include "creative.h"
 #include "loadout.h"
 #include "quantum.h"
+#include "cvars.h"
 #include "world.h"
 #include "events.h"
 #include "sco/engine/zone.h"
@@ -313,10 +314,16 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    r = StartCvars(); // default cvar port remains unavailable
+    if (r != Result::Ok) {
+        StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
+        StopWorld(); StopVehicles(); StopActors(); StopSpawn();
+        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
     r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
     if (r != Result::Ok) {
-        StopQuantum();
-        StopLoadout();
+        StopCvars(); StopQuantum(); StopLoadout();
         StopCreative();
         StopEntities();
         StopEvents();
@@ -337,6 +344,7 @@ Result Start() {
 void Stop() {
     if (!g_started) return;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
+    StopCvars();
     StopQuantum();
     StopLoadout();
     StopCreative();

@@ -273,7 +273,8 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/events.cpp
-                                       src/game/services/entities.cpp src/game/services/creative.cpp src/game/services/loadout.cpp)
+                                       src/game/services/entities.cpp src/game/services/creative.cpp
+                                       src/game/services/loadout.cpp src/game/services/cvars.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_quantum)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
@@ -862,6 +863,29 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_ui PRIVATE sco_ui sco_plugins)
   sco_project_target(test_ui)
   add_test(NAME test_ui COMMAND test_ui)
+
+  if(SCO_GAME_SC)
+    add_executable(test_cvars tests/test_cvars.cpp src/game/services/cvars.cpp)
+    target_link_libraries(test_cvars PRIVATE sco_host sco_plugins)
+    add_library(cvars_probe MODULE tests/fixtures/cvars_probe.c)
+    target_include_directories(cvars_probe PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(cvars_probe)
+    set_target_properties(cvars_probe PROPERTIES PREFIX "" SUFFIX ".so"
+      LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/cvars_probe"
+      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/cvars_probe")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/cvars_probe/plugin.ini"
+      "id=cvars_probe\nname=Cvars probe\nversion=1.0.0\napi=1.1\nkind=native\nentry=cvars_probe.so\n")
+    add_dependencies(test_cvars cvars_probe)
+    target_compile_definitions(test_cvars PRIVATE CVARS_PLUGIN_ROOT="${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins")
+    add_executable(test_cvars_extent tests/test_cvars_extent.cpp)
+    target_include_directories(test_cvars_extent PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_cvars_extent)
+    add_test(NAME test_cvars_extent COMMAND test_cvars_extent)
+    add_library(abi_game_cvars OBJECT tests/abi_game_cvars.c)
+    target_include_directories(abi_game_cvars PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_cvars)
+    add_test(NAME test_cvars COMMAND test_cvars)
+  endif()
 
   add_executable(test_widgets tests/test_widgets.cpp)
   target_link_libraries(test_widgets PRIVATE sco_widgets)

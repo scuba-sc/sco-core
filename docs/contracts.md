@@ -190,6 +190,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_creative_v1` | 7 | 64 | 1.0 |
 | `sc_loadout_v1` | 1 | 16 | 1.0 |
 | `sc_quantum_v1` | 4 | 40 | 1.0 |
+| `sc_cvars_v1` | 1 | 16 | 1.0 |
 | `sc_world_v1` | 3 | 32 | 1.0 |
 | `sc_entities_v1` | 11 | 96 | 1.1 |
 | Native plugin entrypoints | 3 | `sco_plugin_info`: 32 | API 1.1 |
@@ -601,6 +602,15 @@ See [offline quantum](quantum.md). Production engine bridge unavailable; synthet
 | `sc_quantum_v1.hold` | `size >= 24`; 1.0 | `sco_result (*hold)(sco_plugin* self, uint32_t milliseconds);`<br>Refresh the owned hold lease for 1..1000 milliseconds from the latest game tick. No drive or any block refuses holding. Expiry is serviced by the next game tick. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
 | `sc_quantum_v1.release` | `size >= 32`; 1.0 | `sco_result (*release)(sco_plugin* self);`<br>Cancel holding while retaining enable and ownership. Repeated own release is idempotent. Unclaimed or foreign release is NOT_FOUND. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
 | `sc_quantum_v1.state` | `size >= 40`; 1.0 | `sco_result (*state)(sco_plugin* self, sc_quantum_state* out);`<br>Caller sets out->size to at least 32. Copy only the known prefix: enabled/held, phase, block, integer-millionth progress and opaque session generation. Unavailable observations return idle/zero and a block; early refusals leave output unchanged. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
+## `sc_cvars_v1` — `game.cvars` 1.0
+
+Source: [`sc_cvars.h`](../include/sc_cvars.h), [semantics and exact allowlist](game/cvars.md).
+Read-only, verified offline game-pack port; production capability OFF until engine ABI/type verification.
+C/C++ supported; C# and Lua unsupported. No arbitrary console or config file access.
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_cvars_v1.get_bool` | `size >= 16`; 1.0 | `sco_result (*get_bool)(sco_plugin* self, const char* name, uint32_t type, uint32_t* out);`<br>Read one exact allowlisted SQ42 bool; copied 0 or 1, output unchanged on failure. | Live caller handle; copied output; host session-lifetime borrowed table; no allocation transfer. | Game thread only; WRONG_THREAD elsewhere; non-reentrant (FAILED). | BAD_ARG invalid name/type/output/self or released handle; UNAVAILABLE absent capability/admission/adapter/session; FAILED noncanonical backend bool; CRASHED adapter fault latches restart-required. | No mutation in this table. Stop withdraws discovery and refuses cached calls; fault retains adapter context and prevents restart. |
 
 ## Explicit remaining gaps
 

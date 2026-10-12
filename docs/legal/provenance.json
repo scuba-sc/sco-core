@@ -15,6 +15,16 @@
  },
  "entries": [
   {
+   "path": "src/game/services/cvars.*",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G7 scoped cvar read provider and host-only verified engine seam, with only four exact interoperability names. Synthetic engine fixtures; no game code/data copied, no arbitrary console or USER.cfg mutation, no guessed engine ABI."
+  },
+  {
    "path": "include/sc_quantum.h",
    "origin": "project-authored",
    "license": "GPL-3.0-only",

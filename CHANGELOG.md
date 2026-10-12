@@ -11,6 +11,12 @@ What each change means for plugin authors and for products built on sco-core (sc
   fail-closed/unavailable pending verified methods and owner-run Windows/game checks.
   Frozen `sco_api` 1.1 unchanged; C#/Lua routes unsupported. **Not run in game.**
 - **Offline quantum bounded control/state (`game.quantum` 1.0, #129):** game-pack-owned enable/hold/release, copied progress/block/session status, lease expiry and controller cleanup; single-owner hook transaction with alias refusal. C/C++ full-extent/null adapters and synthetic runtime/provider fixtures, catalogue/package/provenance metadata. Frozen `sco_api` 1.1 unchanged. **Production engine bridge stays unavailable:** drive layout, NAV/input/charge/audio/effect forwarding and teardown need reviewed Windows/exact-game evidence; consumer extraction remains blocked. C# and Lua routes unsupported; not run in game.
+- **G7 / #128 read-only scoped cvars:** independent size-prefixed `game.cvars`
+  1.0 with an exact four-name SQ42 bool allowlist, live-owner/game-thread and
+  offline/capability admission, copied outputs and restart-required fault latch.
+  C/C++ routes, ABI/extent/null fixtures and a real native-loader synthetic probe;
+  production remains unavailable until the engine adapter is verified. No console
+  execution or persistent config edits; frozen `sco_api` is unchanged.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,

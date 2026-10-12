@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_cvars_v1.get_bool",
+      "table": "sc_cvars_v1",
+      "source_header": "include/sc_cvars.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, uint32_t, uint32_t *)",
+      "version_macro": "SC_CVARS_VERSION",
+      "member_extent": 16,
+      "table_size": 16,
+      "service": "game.cvars",
+      "id": "sc-cvars-v1-get-bool",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Read one exact allowlisted SQ42 bool; copied 0 or 1, output unchanged on failure.",
+      "buffer_contract": "`sco_result (*get_bool)(sco_plugin* self, const char* name, uint32_t type, uint32_t* out);`<br>Read one exact allowlisted SQ42 bool; copied 0 or 1, output unchanged on failure.",
+      "ownership": "Live caller handle; copied output; host session-lifetime borrowed table; no allocation transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere; non-reentrant (FAILED).",
+      "callback_context": "Host-only verified offline engine port; no plugin callbacks.",
+      "reentrancy": "Refused with FAILED.",
+      "results": "BAD_ARG invalid name/type/output/self or released handle; UNAVAILABLE absent capability/admission/adapter/session; FAILED noncanonical backend bool; CRASHED adapter fault latches restart-required.",
+      "absent_capability": "Table absent: query_service NOT_FOUND; feature unavailable: UNAVAILABLE.",
+      "cleanup": "No mutation in this table. Stop withdraws discovery and refuses cached calls; fault retains adapter context and prevents restart.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_cvars.h",
+              "token": "(*get_bool)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_cvars.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/cvars.hpp",
+              "token": "table_->get_bool(self_, name, SC_CVAR_BOOL, &out)"
+            }
+          ],
+          "tests": [
+            "tests/test_cvars_extent.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/cvars.md",
+              "token": "C# and Lua routes are"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/cvars.md",
+              "token": "explicitly unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_cvars.c",
+        "tests/test_cvars.cpp",
+        "tests/test_cvars_extent.cpp",
+        "tests/fixtures/cvars_probe.c"
+      ],
+      "limitations": [
+        "Production engine ABI/type bridge unverified; capability OFF without a reviewed port.",
+        "Windows/MSVC/SEH and in-game acceptance not verified."
+      ]
+    }
+  ]
+}
