@@ -11,6 +11,7 @@
 #include "vehicles.h"
 #include "entities.h"
 #include "creative.h"
+#include "offline_missions.h"
 #include "world.h"
 #include "events.h"
 #include "sco/engine/zone.h"
@@ -309,6 +310,14 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    r = offline::Start(); // published unavailable until a separately validated adapter exists
+    if (r != Result::Ok) {
+        Unsubscribe(host::GameOwner(), "tick", OnTick);
+        StopCreative(); StopEntities(); StopEvents(); StopWorld();
+        StopVehicles(); StopActors(); StopSpawn();
+        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
     g_started = true;
     Log("[game] game services published: %s 1.0, %s 1.2, %s 1.1, %s 1.0, %s 1.0, %s 1.0, %s 1.0 (+ the game.* events)", SC_SPATIAL_SERVICE_NAME,
         SC_SPAWN_SERVICE_NAME, SC_ACTORS_NAME, SC_VEHICLES_SERVICE_NAME, SC_WORLD_NAME, SC_ENTITIES_NAME,
@@ -319,6 +328,7 @@ Result Start() {
 void Stop() {
     if (!g_started) return;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
+    offline::Stop();
     StopCreative();
     StopEntities();
     StopEvents();

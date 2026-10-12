@@ -15,6 +15,66 @@
  },
  "entries": [
 {
+  "path": "include/sc_missions.h",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Guarded offline mission/economy boundary and wholly synthetic fixtures. No proprietary scripts/data or activated engine adapter."
+},
+{
+  "path": "include/scosdk/game/missions.hpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Guarded offline mission/economy boundary and wholly synthetic fixtures. No proprietary scripts/data or activated engine adapter."
+},
+{
+  "path": "tests/abi_offline_missions.c",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Guarded offline mission/economy boundary and wholly synthetic fixtures. No proprietary scripts/data or activated engine adapter."
+},
+{
+  "path": "tests/test_offline_missions.cpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Guarded offline mission/economy boundary and wholly synthetic fixtures. No proprietary scripts/data or activated engine adapter."
+},
+{
+  "path": "src/game/services/offline_missions.*",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Guarded offline mission/economy boundary and wholly synthetic fixtures. No proprietary scripts/data or activated engine adapter."
+},
+{
+  "path": "docs/design/offline-missions.md",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Guarded offline mission/economy boundary and wholly synthetic fixtures. No proprietary scripts/data or activated engine adapter."
+},
+{
   "path": "include/sco/diagnostics*.h",
   "origin": "project-authored",
   "license": "GPL-3.0-only",

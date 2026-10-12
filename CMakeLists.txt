@@ -90,6 +90,24 @@ if(SCO_GAME_SC)
   sco_project_target(sco_game_sc)
 endif()
 
+# Portable guarded game-pack boundary; no engine adapter enabled by default.
+if(SCO_GAME_SC)
+  add_library(sco_offline_missions STATIC src/game/services/offline_missions.cpp)
+  target_include_directories(sco_offline_missions PUBLIC "${SCO_INCLUDE_DIR}")
+  target_link_libraries(sco_offline_missions PUBLIC sco_host)
+  sco_project_target(sco_offline_missions)
+  if(SCO_BUILD_TESTS)
+    add_executable(test_offline_missions tests/test_offline_missions.cpp)
+    target_link_libraries(test_offline_missions PRIVATE sco_offline_missions)
+    sco_project_target(test_offline_missions)
+    add_test(NAME offline_missions COMMAND test_offline_missions)
+    add_library(sco_abi_offline_missions OBJECT tests/abi_offline_missions.c)
+    target_include_directories(sco_abi_offline_missions PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(sco_abi_offline_missions)
+    add_dependencies(test_offline_missions sco_abi_offline_missions)
+  endif()
+endif()
+
 # Tasks, events and commands: the cross-thread runtime under the plugin ABI.
 add_library(sco_runtime STATIC src/api/sco_tasks.cpp src/api/sco_events.cpp src/api/sco_commands.cpp
   src/api/sco_services.cpp src/api/sco_raw.cpp)
@@ -274,7 +292,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp)
-  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
+  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_offline_missions)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
   target_link_libraries(sco_app PUBLIC sco_game_services)

@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G11 read/status boundary (#132):** add game-pack `game.missions` 1.0 copied,
+  bounded offers/status, current offline/EAC/session admission, release/thread guards,
+  native-fault restart latch and C++ full-extent/null/reopen checks. Synthetic provider
+  and ABI tests; no validated engine adapter or in-game capability enabled.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner

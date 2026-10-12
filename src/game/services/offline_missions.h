@@ -1,0 +1,22 @@
+#pragma once
+// Game-pack implementation seam, NOT a plugin/public host composition contract.
+// Engine adapters must be independently owner-validated, offline admitted and fault-contained.
+// The default has no backend: signatures alone never enable this service.
+#include "sc_missions.h"
+#include "sco/runtime.h"
+namespace sco::game::offline {
+struct Admission {
+    uint64_t session = 0;
+    bool offline = false, eac_absent = false, shutting_down = false;
+};
+struct Backend {
+    void* ctx = nullptr;
+    Admission (*admission)(void*) = nullptr;
+    sco_result (*offer)(void*, uint32_t, sc_mission_offer*) = nullptr;
+    sco_result (*status)(void*, uint64_t, sc_mission_status*) = nullptr;
+};
+// Session-lifetime borrowed backend context. Start/Stop on game thread only.
+// Start refuses replacement; Stop must follow consumer unload. Faults require process restart.
+Result Start(const Backend& backend = {});
+Result Stop();
+}

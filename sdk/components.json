@@ -42,6 +42,7 @@
   "site"
  ],
  "excluded": [
+  {"path": "tests/test_offline_missions.cpp", "why": "Game-pack-only synthetic mission boundary fixture, not neutral kernel source."},
   {
    "path": "tests/game_contracts/conformance/",
    "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
@@ -228,6 +229,38 @@
   }
  ],
  "components": [
+{
+  "id": "game.include.sc_missions.h",
+  "source": "include/sc_missions.h",
+  "destination": "include/sc_missions.h",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "public_header": true
+},
+{
+  "id": "game.include.scosdk.game.missions.hpp",
+  "source": "include/scosdk/game/missions.hpp",
+  "destination": "include/scosdk/game/missions.hpp",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "public_header": true
+},
+{
+  "id": "game.tests.abi_offline_missions.c",
+  "source": "tests/abi_offline_missions.c",
+  "destination": "tests/abi_offline_missions.c",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only"
+},
 {
   "id": "source.include.sco.diagnostics.h",
   "source": "include/sco/diagnostics.h",
