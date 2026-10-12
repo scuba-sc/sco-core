@@ -177,7 +177,7 @@ The stand-in host is not the game: it has no game thread, no crash guard and no 
 
 1. Copy the plugin's folder, for example `out\data\plugins\hello`, into sc-offline's `data\plugins\` folder, so you have `data\plugins\hello\plugin.ini`.
 2. In `sc-offline.ini` set `plugins = on`.
-3. Play. `data\mod.log` lists every plugin with its state: `loaded`, `off`, `disabled`, `crashed` or `refused: <reason>`. `sc-offline.exe status` shows the same list.
+3. Play. `data\mod.log` lists every plugin with its state: `loaded`, `off`, `disabled`, `crashed`, `faulted` or `refused: <reason>`. `sc-offline.exe status` shows the same list. `faulted` means a provider fault retained backing state and resources rather than releasing them: restart the game; cached service tables are not safe to call, and no recovery is guaranteed.
 
 To switch one plugin off, create an empty file named `disabled` in its folder.
 
@@ -189,7 +189,7 @@ To switch one plugin off, create an empty file named `disabled` in its folder.
 4. Build, pointing at the unpacked SDK:
 
    ```sh
-   cmake -S . -B build -DSCO_SDK=/path/to/sco-sdk-1.0.0-pre
+   cmake -S . -B build -DSCO_SDK=/path/to/unpacked-sco-sdk
    ```
 
 The template registers one command, `my_plugin.ping`. [`examples/hello/hello.c`](examples/hello/hello.c) adds `has()`, events and a command with an argument. The [API reference](../docs/api-v1.md) covers every function.

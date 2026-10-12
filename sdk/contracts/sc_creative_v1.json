@@ -21,7 +21,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -112,7 +112,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -203,7 +203,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -294,7 +294,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -385,7 +385,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -476,7 +476,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -569,7 +569,7 @@
       "reentrancy": "unspecified",
       "results": "BAD_ARG invalid buffer; TOO_MANY required bytes. Implementation selects newer own/shared-query error on game thread; otherwise thread refusal. self validity and stopped-service rejection unspecified.",
       "absent_capability": "unspecified",
-      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",

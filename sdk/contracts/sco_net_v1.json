@@ -21,7 +21,7 @@
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No delivery cancellation API; unload/crash drops channels and queued messages.",
+      "cleanup": "No delivery cancellation API; ordinary unload/non-retained crash cleanup drops channels and queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -100,7 +100,7 @@
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No delivery cancellation API; unload/crash drops channels and queued messages.",
+      "cleanup": "No delivery cancellation API; ordinary unload/non-retained crash cleanup drops channels and queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -179,7 +179,7 @@
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No delivery cancellation API; unload/crash drops channels and queued messages.",
+      "cleanup": "No delivery cancellation API; ordinary unload/non-retained crash cleanup drops channels and queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -258,7 +258,7 @@
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "OK means queued, not delivery acknowledgement. Quota/queue failure drops send; no matching peer channel drops silently; unload drops queued messages.",
+      "cleanup": "OK means queued, not delivery acknowledgement. Quota/queue failure drops send; no matching peer channel drops silently; unload drops queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -337,7 +337,7 @@
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "Ends at unregister/unload/crash; incoming oversized payload dropped before reassembly; no callback cancel token.",
+      "cleanup": "Ordinary unregister/unload/non-retained crash cleanup removes the channel; incoming oversized payload dropped before reassembly; no callback cancel token. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -496,7 +496,7 @@
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No delivery cancellation API; unload/crash drops channels and queued messages.",
+      "cleanup": "No delivery cancellation API; ordinary unload/non-retained crash cleanup drops channels and queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",

@@ -8,11 +8,16 @@ No credentials, secrets, network service or orchestration prompt is required.
 
 ## Prepare a trusted snapshot
 
-From the intended, reviewed checkout with Python 3 and an x64 C11 compiler:
+From the intended, reviewed checkout with Python 3 and **Clang** capable of
+compiling and running x64 C11 probes (an arbitrary C11 compiler is not sufficient):
 
 ```sh
 python3 tools/sdk_catalogue.py build --out dist/sdk-catalogue.json --source-sha "$(git rev-parse HEAD)"
 ```
+
+Clang is required for compiler-backed AST extraction. The tool uses `CLANG` if
+set, otherwise `clang` on `PATH`; pass `--clang /absolute/path/to/clang` to the
+`build` command to override either.
 
 Use source bytes matching that full commit; a supplied SHA does not certify a
 clean checkout. Generation is separate from discovery and compiles/runs probes.
@@ -74,8 +79,10 @@ cloud agent and code review. This document is a configuration snippet, **not an
 applied repository setting**. No settings or setup workflows are changed here.
 See [GitHub's repository MCP guide](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/configure-mcp-servers).
 
-Before saving, the maintainer must prepare Python, an x64 C11 compiler, the
-trusted checkout and `dist/sdk-catalogue.json` in the **actual Copilot runner**.
+Before saving, the maintainer must prepare Python 3, Clang capable of compiling
+and running x64 C11 probes, the trusted checkout and `dist/sdk-catalogue.json`
+in the **actual Copilot runner**. Set `CLANG` or pass `--clang` when building
+there if Clang is not available as `clang` on `PATH`.
 Use its absolute paths in the JSON. A catalogue built on a workstation or another
 CI job does not automatically exist in that runner. GitHub's
 [setup workflow guide](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment)

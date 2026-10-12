@@ -21,7 +21,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on ordinary unload/non-retained crash cleanup; despawn starts deferred removal. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -117,7 +117,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on ordinary unload/non-retained crash cleanup; despawn starts deferred removal. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -211,7 +211,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on ordinary unload/non-retained crash cleanup; despawn starts deferred removal. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -305,7 +305,7 @@
       "reentrancy": "unspecified",
       "results": "BAD_ARG invalid/released non-NULL self or buffer; TOO_MANY required bytes. NULL self selects no-self failures; stopped-service refusal unspecified (no started check).",
       "absent_capability": "unspecified",
-      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on ordinary unload/non-retained crash cleanup; despawn starts deferred removal. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -401,7 +401,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on ordinary unload/non-retained crash cleanup; despawn starts deferred removal. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -497,7 +497,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on ordinary unload/non-retained crash cleanup; despawn starts deferred removal. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",

@@ -67,27 +67,41 @@ The build is 64-bit only; configuring for 32 bits stops with an error.
 
 ### Targets
 
-| Target | Sources | Links |
+The table lists direct links from [`CMakeLists.txt`](../CMakeLists.txt); transitive
+links follow from them. **Game-pack** targets exist only with `SCO_GAME_SC=ON`;
+`sco_game_services` additionally requires Windows.
+
+| Target | Sources | Direct links |
 |---|---|---|
-| `sco_core` | Scanners, signatures, log/status, PE file loader, `src/game/*.cpp` except `pak_hooks.cpp`; on Windows also `sco_image_win.cpp` | |
-| `sco_pak` | `src/game/pak_hooks.cpp`: the CryPak adapter, `sco/game/pak.h` (its rows are in `sco_core`) | `sco_core`, `sco_hook`, `sco_vfs`, `sco_host` |
-| `sco_runtime` | `src/api/sco_tasks.cpp`, `sco_events.cpp`, `sco_commands.cpp`, `sco_services.cpp` | |
-| `sco_hook` | `src/hook/sco_hook.cpp`: detours and near-code memory, `sco/hook.h` (x86-64) | |
-| `sco_engine` | `src/engine/zone.cpp`: the zone tree, `sco/engine/zone.h` (spatial math `sco/engine/types.h` is header-only) | |
+| `sco_core` | `src/sco_scan.cpp`, `sco_signatures.cpp`, `sco_log_status.cpp`, `sco_pe_file.cpp`; on Windows also `sco_image_win.cpp`. No game rows | `Threads::Threads` |
+| `sco_game_sc` (game-pack) | `src/game/*.cpp` except `pak_hooks.cpp`: signature rows and `RegisterGameSignatures` | `sco_core` |
+| `sco_pak` (game-pack) | `src/game/pak_hooks.cpp`: the CryPak adapter, `sco/game/pak.h` (its rows are in `sco_game_sc`) | `sco_game_sc`, `sco_core`, `sco_hook`, `sco_vfs`, `sco_host` |
+| `sco_runtime` | `src/api/sco_tasks.cpp`, `sco_events.cpp`, `sco_commands.cpp`, `sco_services.cpp`, `sco_raw.cpp` | `Threads::Threads` |
+| `sco_hook` | `src/hook/sco_hook.cpp`: detours and near-code memory, `sco/hook.h` (x86-64) | `Threads::Threads` |
+| `sco_engine` | `src/engine/zone.cpp`: the zone tree, `sco/engine/zone.h` (spatial math `sco/engine/types.h` is header-only) | `Threads::Threads` |
+| `sco_vfs` | `src/vfs/compose.cpp`, `table.cpp`: neutral virtual-file composition and mounts | `Threads::Threads` |
 | `sco_host` | `src/api/sco_caps.cpp`, `src/host/sco_host.cpp` | `sco_runtime`, `sco_core` |
-| `sco_plugins` | `src/plugins/*.cpp` (`guard_win.cpp` on Windows only) | `sco_runtime`, `sco_core`, `dl` |
+| `sco_plugins` | `src/plugins/manifest.cpp`, `settings_ini.cpp`, `discover.cpp`, `loader.cpp`, `content.cpp`; `guard_win.cpp` on Windows only | `sco_runtime`, `sco_core`, `${CMAKE_DL_LIBS}` |
 | `sco_lua_vendor` | `plugins/lua/third_party/lua/src/*.c` without `lua.c`/`luac.c` | `m` on Unix |
 | `sco_lua` | `plugins/lua/sco_lua.c` | `sco_lua_vendor` |
-| `sco_sqlite` | `third_party/sqlite/sqlite3.c` ([options](../third_party/sqlite/README.md)), `-std=gnu11`, warnings off | `Threads`, `m` on Unix |
-| `sco_storage` | `src/storage/storage.cpp`: the `sco.storage` host service, `sco/storage.h` ([docs](storage.md)) | `sco_host`, `sco_sqlite` |
-| `sco_ui` | `src/ui/ui.cpp`: the `sco.ui` host service, `sco/ui.h` ([docs](ui.md)) | `sco_host` |
-| `sco_app` | `src/app/sco_app.cpp`: the host kit, `sco/app.h` | `sco_host`, `sco_plugins`, `sco_core`, `sco_storage`, `sco_ui` |
-| `sco-sigcheck` | `tools/sco-sigcheck.cpp` | `sco_core` |
-| `sco-host-sim` | `tools/sco-host-sim.cpp` | `sco_app`, `sco_lua` |
-| `sco_datacore` | `src/datacore/datacore.cpp`: the DataCore parser, `sco/datacore.h` | |
-| `sco-dcb` | `tools/sco-dcb.cpp` ([docs](datacore.md)) | `sco_datacore` |
+| `sco_lua_game` (game-pack) | `plugins/lua/sco_lua_game.c`: optional game adapters | `sco_lua` |
+| `sco_sqlite` | `third_party/sqlite/sqlite3.c` ([options](../third_party/sqlite/README.md)), `-std=gnu11`, warnings off | `Threads::Threads`, `m` on Unix |
+| `sco_storage` | `src/storage/storage.cpp`: the `sco.storage` host service ([docs](storage.md)) | `sco_host`, `sco_sqlite` |
+| `sco_ui` | `src/ui/ui.cpp`: the `sco.ui` host service ([docs](ui.md)) | `sco_host` |
+| `sco_settings` | `src/settings/settings.cpp`: typed plugin settings | `sco_host`, `sco_plugins`, `sco_storage`, `sco_ui` |
+| `sco_ipc` | `src/ipc/ipc.cpp` and `shm_win.cpp` or `shm_posix.cpp` | `sco_host`; privately `advapi32` on Windows or `rt` on non-Apple POSIX |
+| `sco_net` | `src/net/sha2.c`, `wire.cpp`, `reliable.cpp`, `core.cpp` | None |
+| `sco_net_service` | `src/net/service.cpp`, `scope.cpp` and `udp_win.cpp` or `udp_posix.cpp` | `sco_net`, `sco_host`, `Threads::Threads`; privately `ws2_32` on Windows |
+| `sco_datacore` (game-pack) | `src/datacore/datacore.cpp`, `patch.cpp`, `pack.cpp`: parser, patcher and packs | `sco_vfs` |
+| `sco_datacore_service` (game-pack) | `src/datacore/service.cpp`: queued DataCore overrides | `sco_datacore`, `sco_host`, `sco_plugins` |
+| `sco_game_services` (game-pack, Windows) | `src/game/services/reads.cpp`, `spatial.cpp`, `spawn.cpp`, `missions.cpp`, `actors.cpp`, `vehicles.cpp`, `world.cpp`, `events.cpp`, `entities.cpp`, `creative.cpp` | `sco_game_sc`, `sco_host`, `sco_engine`, `sco_hook` |
+| `sco_app` | `src/app/sco_app.cpp`: the host kit, `sco/app.h` | `sco_host`, `sco_plugins`, `sco_core`, `sco_storage`, `sco_ui`, `sco_settings`, `sco_ipc`, `sco_net_service`; with the game pack also `sco_datacore_service`, `sco_game_sc`, and on Windows `sco_game_services` |
+| `sco-sigcheck` (game-pack) | `tools/sco-sigcheck.cpp` | `sco_game_sc` |
+| `sco-host-sim` | `tools/sco-host-sim.cpp` | `sco_app`, `sco_lua`; with the game pack also `sco_datacore`, `sco_lua_game` |
+| `sco-dcb` (game-pack) | `tools/sco-dcb.cpp` ([docs](datacore.md)) | `sco_datacore` |
 
-Every library exposes `include/` as a public include directory.
+Project libraries expose `include/` directly or through their public links;
+vendored SQLite and Lua expose their own header directories.
 
 ### Using sco-core from another CMake project
 
@@ -176,20 +190,19 @@ sdk/test-zip.sh dist-profiles/sco-sdk-core-*.zip dist-profiles/sco-sdk-game-sc-*
 | [`test`](../.github/workflows/test.yml) | ubuntu-24.04 | `CC=clang CXX=clang++ tools/test.sh`, and checks that `sco-sigcheck` builds |
 | [`cmake`](../.github/workflows/cmake.yml) | ubuntu-24.04 (clang, ASan+UBSan), windows-2025 (MSVC x64) | Configure, build and `ctest` |
 | [`sdk`](../.github/workflows/sdk.yml) | ubuntu-24.04, then windows-2025 (MSVC x64) | Packages the SDK zip, builds and checks every example from it, keeps the zip as an artifact |
-| [`release`](../.github/workflows/release.yml) | ubuntu-24.04, on a `sdk-v*` tag | Checks the tag against `sdk/VERSION`, packages and checks the SDK as `sdk` does, and publishes the GitHub release ([Releases](#releases)) |
+| [`release`](../.github/workflows/release.yml) | ubuntu-24.04, on a `sdk-v*` tag | Promotes the already-built candidate by exact approved artifact IDs; verifies the signed manifest and provenance, then re-downloads and verifies the draft assets before publication. Never rebuilds ([release procedure](legal/release-checklist.md#releasing)) |
+| [`docs-site`](../.github/workflows/docs-site.yml) | ubuntu-24.04 | PRs build read-only site artifacts; trusted `main` pushes and manual dispatches deploy the validated site to GitHub Pages |
 | [`discord`](../.github/workflows/discord.yml) | ubuntu | Posts repository activity to the sc-offline Discord channel |
 
-Every workflow pins its actions to commit SHAs and has `contents: read` permissions, except `release`, which has `contents: write` to create the release and nothing more. A pull request needs `test`, `cmake` and `sdk` green.
+Workflow actions are pinned to commit SHAs. The release workflow defaults to `contents: read`; its verification job also has `actions: read`, and only its publication job has `contents: write`. The docs-site build remains read-only; its trusted-main deployment job has `pages: write` and `id-token: write`. PR site builds cannot deploy. A pull request needs `test`, `cmake` and `sdk` green; release candidates additionally require the exact-commit checks listed in the [release procedure](legal/release-checklist.md#releasing).
 
 ## Releases
 
 The SDK is released as `sco-sdk-<version>.zip` under a tag `sdk-v<version>` (`sdk-v1.1.0` was the first; `sdk-v1.2.0` is prepared, and the tag is the maintainer's to push). The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
 
-1. Set `sdk/VERSION` (and `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` if the game pack's public surface grew, with its verified build there; `sdk/package.py` writes the kernel, ABI and game-pack versions and the verified builds into the zip's `VERSIONS.txt`), draft the release notes in `docs/releases/sdk-v<version>.md`, and rename `## Unreleased` in [CHANGELOG.md](../CHANGELOG.md) to `## sdk-v<version> (<date>)` with a short summary on top. Merge it with `test`, `cmake` and `sdk` green.
-2. Tag that commit on `main` and push the tag: `git tag sdk-v<version> && git push origin sdk-v<version>`.
-3. The [`release`](../.github/workflows/release.yml) workflow refuses a tag that doesn't match `sdk/VERSION` or has no `CHANGELOG` section, packages and checks the zip, and publishes the release with the zip, `sco-sdk-<version>.zip.sha256` and the `CHANGELOG` section as notes.
+Follow the [maintainer release procedure](legal/release-checklist.md#releasing), not a tag-first packaging recipe: prepare the version and notes, build a candidate on the checked main commit, review its exact payload and provenance, commit the schema-2 approval manifest and its maintainer SSH signature, then tag that approval commit. The [`release`](../.github/workflows/release.yml) workflow promotes those approved bytes without rebuilding and publishes only after verifying a complete draft round trip. [Signed approval requirements](legal/release-checklist.md#signed-approval-record) and [`tools/release_verify.py`](../tools/release_verify.py) define the approval and independent signer-trust checks; a successful candidate run alone is not approval to publish.
 
-A release the workflow creates doesn't trigger other workflows (GitHub doesn't run workflows on events made with a workflow's own token), so the `discord` post for it doesn't happen automatically; post it by hand or publish the release from the web instead.
+A release the workflow creates doesn't trigger other workflows (GitHub doesn't run workflows on events made with a workflow's own token), so the `discord` post for it doesn't happen automatically; post the announcement by hand after verified publication. Do not manually publish a failed draft to bypass the promotion checks.
 
 ## Adding a source file
 

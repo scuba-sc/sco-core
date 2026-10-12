@@ -21,7 +21,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "unregister_tab/unload/crash ends draws; off-thread unregister does not join an already-running draw.",
+      "cleanup": "unregister_tab/ordinary unload/non-retained crash cleanup ends draws; off-thread unregister does not join an already-running draw. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -108,7 +108,7 @@
       "reentrancy": "allowed inside own draw.",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -195,7 +195,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -282,7 +282,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "unregister_overlay/unload/crash ends draws; off-thread unregister does not join an already-running draw.",
+      "cleanup": "unregister_overlay/ordinary unload/non-retained crash cleanup ends draws; off-thread unregister does not join an already-running draw. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -369,7 +369,7 @@
       "reentrancy": "allowed inside own draw.",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -456,7 +456,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "unbind_hotkey/unload/crash ends binding; cancellation of an already-issued command unspecified.",
+      "cleanup": "unbind_hotkey/ordinary unload/non-retained crash cleanup ends binding; cancellation of an already-issued command unspecified. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -547,7 +547,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -637,7 +637,7 @@
       "reentrancy": "unspecified",
       "results": "BAD_ARG invalid chord/buffer; TOO_MANY required bytes/allocation. Pure normalization needs no self; stopped-service refusal unspecified (implementation does not test started).",
       "absent_capability": "unspecified",
-      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -724,7 +724,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
           "status": "direct",

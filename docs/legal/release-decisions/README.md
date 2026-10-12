@@ -6,15 +6,23 @@ game-derived file, approval of a specific SDK release.
 
 Two kinds of file live here:
 
-- **A release approval** for a tag: `<tag>.json` (for example `sdk-v1.3.0.json`), a JSON object
-  validated against [`../release-approval.schema.json`](../release-approval.schema.json) (JSON Schema
-  draft 2020-12) plus the semantic checks of `tools/ip_audit.py release --tag <tag>`: the decision is
-  `approve` and the distribution is `approved-for-publication`, the record is unexpired and no
-  exception has, `release_tag` equals the tag, `source.commit` is the tagged commit or an ancestor
-  with only release decisions changed since, `profiles` covers every artifact role, artifact names
-  are unique, and `--artifacts DIR` is exactly the listed set. The record is not yet signed:
-  `approver.key_fingerprint` is recorded, no signature is verified. Only the maintainer writes one,
-  and `release.yml` refuses a tag whose record is missing, invalid or stale.
+- **A signed release approval** for a tag: `<tag>.json` (for example `sdk-v1.3.0.json`)
+  and its detached `<tag>.json.sig`. Promotion requires **schema version 2** from
+  [`release-approval.schema.json`](../release-approval.schema.json), verified by
+  [`tools/release_verify.py`](../../../tools/release_verify.py). The manifest binds publication
+  approval to the candidate's source and recursive dependency commits, builder identity/run,
+  exact artifact IDs and complete payload filenames, byte sizes and SHA-256 values. Its exact
+  bytes must carry a maintainer SSH signature in namespace `sco-release-v1`, checked against
+  independently trusted allowed signers (the release environment's `SCO_RELEASE_ALLOWED_SIGNERS`,
+  not a checkout-local trust file). The
+  [release procedure](../release-checklist.md#releasing) and
+  [signed approval requirements](../release-checklist.md#signed-approval-record) are authoritative;
+  [`release.yml`](../../../.github/workflows/release.yml) refuses missing, invalid or stale approval
+  inputs and promotes only the approved candidate bytes, never a rebuild.
+
+  **Legacy format:** schema version 1 is the older unsigned decision record, retained by the
+  schema for compatibility. Its `approver.key_fingerprint` and the older
+  `tools/ip_audit.py release` check are not a verified signature or sufficient approval for promotion.
 - **A maintainer decision record**: `YYYY-MM-DD-<topic>.md`, stating the decision, who made it and
   when, what it was based on (with links), the commit and artifact hashes it applies to where
   relevant, and anything it leaves open.

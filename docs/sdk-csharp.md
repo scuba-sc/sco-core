@@ -101,9 +101,11 @@ NativeAOT exports only the `[UnmanagedCallersOnly(EntryPoint = ...)]` methods of
 | `RunOnGameThread(Action)` | Queues the task; see [Lifetimes](#lifetimes) |
 | `Subscribe(event, Action<nint> handler)` / `Subscribe(event, Action)` | Returns a `Subscription`; `data` is the event's pointer, valid only during the call (`TickMs(data)` reads a tick's milliseconds) |
 | `Invoke(name, out reply, args...)` | Runs a command. From the game thread it runs now and fills `reply`; from another thread it is queued, returns `Ok`, and `reply` is `""` |
-| `InvokeAsync(name, done, args...)` | Runs a command and calls `done(result, reply)` once on the game thread; any other return than `Ok` means `done` is never called |
+| `InvokeAsync(name, done, args...)` | Runs a command with completion on the game thread; see the completion rules below |
 
 `Arg.Int(3)`, `Arg.Float(2.5)`, `Arg.Text("Ada")` and `Arg.Bool(true)` (or plain `3`, `2.5`, `"Ada"`, `true`: they convert) build the `sco_arg` values for `Invoke` and `Ui.BindHotkey`.
+
+On the game thread, a dispatched `InvokeAsync` calls `done(result, reply)` before returning the same command result, including a non-`Ok` result, unless the calling plugin has been released. Pre-dispatch failures (validation, allocation or runtime admission) do not call `done`. From another thread, `Ok` means queued; a non-`Ok` return means nothing was queued and `done` will not run. A queued call dropped when the calling plugin unloads has no completion callback.
 
 ## Commands
 
@@ -146,7 +148,7 @@ For variable-size data use `RegisterRawBytes` (`ScoResult (ReadOnlySpan<byte> in
 
 In the SDK zips: `Storage`, `Settings` and `Ui` are in the core SDK. `DataCore` and every `Sco.Sdk.Game` type come with the Star Citizen extension (`sco-sdk-game-sc`, `Sco.Sdk/DataCore*.cs` and `Sco.Sdk/Game/`); unpacked over the core SDK, `Sco.Sdk.csproj` compiles them with the rest. In this repository both are always there.
 
-The host-owned services each have a class. `Open(plugin)` queries the service once and checks its table size; a host service outlives every plugin, so keep the object for the plugin's life. Every call answers a `ScoResult`; nothing throws.
+The host-owned services each have a class. `Open(plugin)` queries the service once and checks its table size; a host service outlives every plugin, so keep the object for the plugin's life. Calls that report a host-service result return `ScoResult`; convenience methods also return values or objects. Managed wrapper calls can throw, for example `ArgumentNullException` for invalid null arguments to `Ui.Open`, `Ui.AddTab` or `Ui.AddOverlay`, or exceptions from managed allocation. This is separate from the SDK's [callback exception boundary](#the-exception-boundary), which prevents managed exceptions escaping into the native host.
 
 | Class | Service | Does |
 |---|---|---|
