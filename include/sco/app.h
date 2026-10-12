@@ -121,36 +121,33 @@ void Stop();
 // to the next Start (never resized in between).
 const std::vector<plugins::Plugin>& Plugins();
 
-// Hot reload of one plugin, on the game thread (the host command "sco.reload <plugin id>", which
-// Start registers with no capability, calls this; so can the product's UI).
-//   1. natives: the entry DLL is copied to <folder>/.reload-<n>-<entry> (a failed copy changes nothing)
-//   2. the plugin unloads as at game exit (UnloadOne: sco_plugin_unload guarded, then Release(self),
-//      which withdraws its commands, subscriptions and services, runs the release hooks, so the game
-//      pack despawns what it spawned for it; the old module is closed. A native whose service table
-//      was handed out never reaches this step: such a request is refused first, before anything of
-//      the plugin is torn down — see Failed below)
-//   3. a new handle (the one Start makes: [settings] declared again, kept values read) and LoadNative
-//      from the copy / LoadScript again (a script is re-read from disk); plugin.ini is not re-read
-// Result (why, when given, says more; "reloaded" is logged only when it is Ok):
-//   Ok          the plugin is Loaded again (new Plugin::self; loadOrder is the newest)
+// Cascading hot reload on the game thread. The host command "sco.reload <plugin id>" and
+// product UI/API callers use this same entry point. Reloads the target and every transitively
+// loaded dependent in Discover's resolved `requires` graph; unrelated/non-loaded plugins stay put.
+//   1. preflight every member (code kind, idle callouts, loaded requirements, service lifetime),
+//      then atomically reserve all owners through the loader's BeginUnload gate. A built-in or
+//      data dependent, busy member or handed-out service table refuses the whole group
+//      before any copy or teardown. Service queries cannot race this gate to obtain old tables.
+//   2. prepare every native DLL copy next to its original. A copy failure deletes prepared copies,
+//      cancels every reservation and leaves the whole group running unchanged.
+//   3. unload in reverse dependency order (UnloadOne), then load in forward dependency order,
+//      checking UnmetRequires again before each load. New handles declare [settings] again and
+//      read kept values. Scripts are re-read; plugin.ini is not, so manifest edits need a restart.
+// Result (why, when given, says more; each successfully loaded member logs "reloaded"):
+//   Ok          every group member is Loaded again with a new self and loadOrder
 //   NotFound    no plugin with that folder id
-//   BadArg      a built-in (never reloaded) or a data pack
+//   BadArg      the target is a built-in or has no reloadable code (including a data pack)
 //   Unavailable not started; WrongThread: not the game thread
-//   Failed      not Loaded (Refused, Crashed, ...); busy (a callout of the plugin is running, so its code
-//               is on the stack: "busy:" in why; nothing changed, retry from outside it; also a reload
-//               started from inside another reload); "provides a service in use; restart the game to
-//               reload it" (a native whose service table sco::QueryService handed out to another plugin
-//               or the host: session-lifetime, refused before unload() or Release, so nothing changed
-//               and its services keep resolving; only a restart of the game reloads it); a required
-//               plugin is no longer Loaded; the copy failed; unload crashed or could not release
-//               (the plugin stays Crashed); no handle left
-//               (host::kMaxPlugins counts every load, reloads too: 256 for the life of the process; the
-//               plugin stays Unloaded); the new load was refused or crashed (state Refused / Crashed)
-// Two reloads in one tick are two full reloads, one after the other. Because a provider whose table
-// was ever handed out cannot be reloaded, no consumer can ever see a provider's table change
-// identity mid-session; a consumer that re-queries gets a new table only for a provider nobody
-// ever asked a service of. Command slots are recycled on release (L5), so reloads do not use them up; plugin handles are not
-// recycled: host::kMaxPlugins (256) bounds loads plus reloads for the whole process.
+//   Failed      target not Loaded; busy member/another reload; non-reloadable dependent; native
+//               service in use ("provides a service in use; restart the game to reload it"); unmet
+//               requirements; failed copy. These refusals leave the group unchanged.
+//               Unload failure stops before tearing down its providers and cancels remaining
+//               reservations. Already-unloaded members are reloaded where requirements permit.
+//               Load refusal/crash/handle exhaustion is not rolled back: dependents with unmet
+//               requirements are refused without running code, while independent branches can load.
+// Two reloads in one tick run sequentially. Held native tables never change identity mid-session:
+// once a table was handed out, its owner cannot join a reload. Command slots are recycled on
+// release; plugin handles are not (host::kMaxPlugins bounds every load, including each group member).
 Result Reload(std::string_view id, std::string* why = nullptr);
 
 // The data-pack content index of the last Start.

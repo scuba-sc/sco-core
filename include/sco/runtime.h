@@ -81,7 +81,7 @@ constexpr size_t kMaxServiceNameLen = 63;
 // trailing or doubled '.'; with a non-null prefix it must equal the prefix or start with
 // "<prefix>." (a plugin publishes under its own id). version: (major << 16) | minor.
 // BadArg: null owner or table, a bad name, a name already published, or owner released.
-// TooMany: out of memory.
+// Unavailable: the loader reserved the owner for teardown. TooMany: out of memory.
 Result ProvideService(const void* owner, const char* prefix, const char* name, uint32_t version,
                       const void* table);
 
@@ -89,7 +89,7 @@ Result ProvideService(const void* owner, const char* prefix, const char* name, u
 bool ServiceExists(const char* name);
 
 // Finds a published service. Ok: *out = its table. NotFound: no service by that name.
-// Unavailable: its major version differs from minVersion's, or it is older than minVersion.
+// Unavailable: its owner is withdrawing, its major differs, or it is older than minVersion.
 // BadArg: null name or out. TooMany: out of memory (nothing handed out). *out is null unless Ok.
 // Ok marks the provider as handed out, for the rest of the process (see above).
 Result QueryService(const char* name, uint32_t minVersion, const void** out);
@@ -98,6 +98,14 @@ Result QueryService(const char* name, uint32_t minVersion, const void** out);
 // withdrawn since. Final once Release(owner) has returned: nothing of owner's can be queried
 // after that. Any thread.
 bool ServiceTableHandedOut(const void* owner);
+
+// Loader admission gate, serialized with query/provide_service. With withdraw=true, reserve
+// the whole group atomically: subsequent queries/publications return Unavailable until cancel.
+// Failed (in use) and TooMany leave every owner unchanged unless allowInUse is set (failed load:
+// hide admission but retain backing state). `inUse` reports whether any table was handed out.
+Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
+                         bool allowInUse, bool& inUse);
+void CancelServiceWithdrawal(const void* const* owners, size_t count);
 
 // Withdraws one of owner's services. NotFound: owner publishes nothing by that name.
 // BadArg: null owner or name.

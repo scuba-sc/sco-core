@@ -232,8 +232,10 @@ uint32_t  Guarded(void (*thunk)(void* ctx), void* ctx);
 //   2. query() (guarded) -> info: non-null, size covers author, api_major == hostMajor,
 //      api_minor <= hostMinor, name == manifest id
 //   3. load(api, self) (guarded)
-// Result: Loaded (true). Refused (module closed, everything self registered released) when the
-// module won't open, an export is missing, info fails a check or load returns non-OK.
+// Result: Loaded (true). Refused when the module won't open, an export is missing, info fails a
+// check or load returns non-OK. Cleanup reserves service admission before Release/close. If a
+// table was already queried during load, Refused retains backing state, exports and module;
+// new queries/publication are unavailable and ContainCallouts suppresses its host callouts.
 // Crashed (released, module kept mapped, never called again) when query or load faults, or when
 // load returned non-OK and sco::Release(self) failed ("release failed: TOO_MANY"): the runtime
 // may still hold the plugin's callbacks, so the module is never closed under them.
@@ -312,8 +314,8 @@ Plugin FromBuiltin(const Builtin& b);
 
 // Loads one Ready built-in, as LoadNative does without a module: query() (guarded; the same
 // info checks: size, api major/minor, name == id), then load(api, self) (guarded). Loaded (true);
-// Refused (released) on a failed check or a non-OK load; Crashed when query or load faults (or
-// Release fails after a non-OK load). Game thread only.
+// Refused on a failed check or non-OK load (queried state retained, as for LoadNative);
+// Crashed when query/load faults or Release fails after a non-OK load. Game thread only.
 bool LoadBuiltin(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts);
 
 // ---- script loader (kind = lua) --------------------------------------------------------------
@@ -334,23 +336,33 @@ constexpr size_t kMaxScriptBytes = 1024 * 1024;   // entry script size
 //   1. read <dir>/<entry> (at most kMaxScriptBytes)
 //   2. runtime.load(api, self, entry, text) (guarded like native calls)
 // Loaded (true), or Refused with everything self registered released ("cannot read main.lua",
-// "script too big", "main.lua:3: ..." from the runtime). A fault in the runtime: Crashed.
+// "script too big", "main.lua:3: ..." from the runtime). A runtime publishing a queried table
+// retains its state on failure, using the same admission gate. Lua itself cannot provide tables.
+// A fault in the runtime: Crashed.
 bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRuntime& runtime);
 
 // True when p may be unloaded while the game runs. False with `why` set
-// ("provides a service in use; restart the game to reload it") when p is a native plugin
-// whose service table was handed out by sco::QueryService, to another plugin or the host:
+// ("provides a service in use; restart the game to reload it") when p is a provider
+// (including a built-in) whose service table was handed out by sco::QueryService:
 // a caller may still hold that table, so p is session-lifetime and every mid-session
 // unload request (sco::app::Reload, the sco.reload command, UnloadOne, UnloadNative) must be refused
 // before sco_plugin_unload or sco::Release runs — only a restart of the game reloads it.
-// Lua plugins, data packs, built-ins and natives nobody asked a service of always pass.
+// Any owner with no handed-out table passes. This is advisory only: BeginUnload makes the
+// atomic admission decision again before actual teardown; CanUnload is not a reservation.
 // Host shutdown (UnloadAll) does not ask: it tears everything down, reverse load order.
 bool CanUnload(const Plugin& p, std::string& why);
 
+// Atomically reserve service admission for all owners before a reload group's first teardown.
+// Refusal leaves all members intact. UnloadOne accepts an existing reservation. Cancel only
+// reopens owners still Loaded (for copy failure or surviving members after an unload fault).
+// Game thread only; does not hold the registry lock while plugin code runs.
+bool BeginUnload(const std::vector<Plugin*>& group, std::string& why);
+void CancelUnload(const std::vector<Plugin*>& group);
+
 // Unloads one Loaded plugin of any kind the way UnloadAll does (natives: UnloadNative; built-ins:
 // without a module; scripts: Release then runtime.unload). No-op unless Loaded. The state is
-// Unloaded afterwards, or Crashed when unload() faulted or Release failed. Asks CanUnload first:
-// a native whose service table was handed out is refused instead (one [plugin] log line, the
+// Unloaded afterwards, or Crashed when unload() faulted or Release failed. Reserves BeginUnload:
+// any owner whose service table was handed out is refused instead (one [plugin] log line, the
 // plugin stays Loaded and intact — session-lifetime). UnloadAll (host shutdown) bypasses that
 // refusal and unloads everything.
 void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const ScriptRuntime* runtime = nullptr);

@@ -1171,6 +1171,172 @@ static void TestServices() {
     P::SetCallGuard(nullptr);
 }
 
+// Admission must close before plugin code or release hooks can destroy provider state.
+static sco_plugin* g_admissionOwner;
+static int g_admissionTable = 73;
+static int g_admissionUnloads = 0;
+static sco::Result g_unloadQuery, g_workerQuery, g_unloadPublish;
+static void AdmissionUnload() {
+    ++g_admissionUnloads;
+    const void* out = nullptr;
+    g_unloadQuery = sco::QueryService("admission.svc", 1u << 16, &out);
+    CHECK(!out);
+    std::thread([] {
+        const void* table = nullptr;
+        g_workerQuery = sco::QueryService("admission.svc", 1u << 16, &table);
+        CHECK(!table);
+    }).join();
+    g_unloadPublish = sco::ProvideService(g_admissionOwner, "admission", "admission.new", 1u << 16,
+                                          &g_admissionTable);
+}
+
+static void TestAtomicUnloadAdmission() {
+    P::Plugin p;
+    p.manifest.id = "admission";
+    p.manifest.kind = P::Kind::Native;
+    p.state = State::Loaded;
+    p.self = NewOwner();
+    p.exports.unload = AdmissionUnload;
+    g_admissionOwner = p.self;
+    g_admissionUnloads = 0;
+    CHECK(sco::ProvideService(p.self, "admission", "admission.svc", 1u << 16, &g_admissionTable) == sco::Result::Ok);
+    CHECK(!sco::ServiceTableHandedOut(p.self));
+    P::UnloadNative(p, kRecOps);
+    CHECK(p.state == State::Unloaded && g_admissionUnloads == 1);
+    CHECK(g_unloadQuery == sco::Result::Unavailable && g_workerQuery == sco::Result::Unavailable);
+    CHECK(g_unloadPublish == sco::Result::Unavailable);
+    CHECK(!sco::ServiceTableHandedOut(p.self));
+}
+
+static int g_builtinBacking = 91;
+static int g_builtinUnloads = 0;
+static sco_plugin* g_builtinOwner;
+static void BuiltinUnload() { ++g_builtinUnloads; g_builtinBacking = 0; }
+static void BuiltinRelease(const void* owner) { if (owner == g_builtinOwner) g_builtinBacking = -1; }
+
+static void TestBuiltinServiceUnloadRefusal() {
+    std::vector<P::Plugin> list(1);
+    P::Plugin& p = list[0];
+    p.manifest.id = "builtin_gate";
+    p.manifest.kind = P::Kind::Builtin;
+    p.state = State::Loaded;
+    p.self = NewOwner();
+    p.exports.unload = BuiltinUnload;
+    g_builtinOwner = p.self;
+    g_builtinBacking = 91;
+    g_builtinUnloads = 0;
+    CHECK(sco::AddReleaseHook(BuiltinRelease) == sco::Result::Ok);
+    CHECK(sco::ProvideService(p.self, "builtin_gate", "builtin_gate.svc", 1u << 16, &g_builtinBacking) == sco::Result::Ok);
+    const void* held = nullptr;
+    CHECK(sco::QueryService("builtin_gate.svc", 1u << 16, &held) == sco::Result::Ok);
+    // Explicit withdrawal does not erase the lifetime mark or permit later state teardown.
+    CHECK(sco::ReleaseService(p.self, "builtin_gate.svc") == sco::Result::Ok);
+    CHECK(sco::ProvideService(p.self, "builtin_gate", "builtin_gate.svc", 1u << 16, &g_builtinBacking) == sco::Result::Ok);
+    std::string why;
+    CHECK(!P::CanUnload(p, why));
+    P::UnloadOne(p, kRecOps);
+    CHECK(p.state == State::Loaded && g_builtinUnloads == 0 && g_builtinBacking == 91);
+    const void* same = nullptr;
+    CHECK(sco::QueryService("builtin_gate.svc", 1u << 16, &same) == sco::Result::Ok && same == held);
+    CHECK(*static_cast<const int*>(held) == 91);
+    P::UnloadAll(list, kRecOps);   // terminal shutdown is unchanged
+    CHECK(p.state == State::Unloaded && g_builtinUnloads == 1 && g_builtinBacking == -1);
+    CHECK(sco::RemoveReleaseHook(BuiltinRelease) == sco::Result::Ok);
+}
+
+static int g_failedBacking = 57;
+static sco_plugin* g_failedOwner;
+static const void* g_failedHeld;
+static void FailedRelease(const void* owner) { if (owner == g_failedOwner) g_failedBacking = -1; }
+static sco_result FailedSubscribe(sco_plugin* self, const char* event, sco_event_fn fn, void* ctx) {
+    g_failedOwner = self;
+    CHECK(sco::ProvideService(self, nullptr, "failed_load.svc", 1u << 16, &g_failedBacking) == sco::Result::Ok);
+    CHECK(ApiQueryService("failed_load.svc", 1u << 16, &g_failedHeld) == SCO_OK);
+    return ApiSubscribe(self, event, fn, ctx);
+}
+static const sco_plugin_info* FailedQuery() {
+    static const sco_plugin_info info{ sizeof(info), SCO_API_MAJOR, SCO_API_MINOR, "failed_load", "1", "" };
+    return &info;
+}
+static void FailedTick(const char*, const void*, void*) {}
+static sco_result FailedLoad(const sco_api* api, sco_plugin* self) {
+    api->subscribe(self, "tick", FailedTick, nullptr);
+    return SCO_UNAVAILABLE;
+}
+static void FailedUnload() { g_failedBacking = 0; }
+
+static void TestFailedLoadServiceRetention() {
+    P::Options on;
+    on.enabled = true;
+    sco_api api = MakeApi();
+    api.subscribe = FailedSubscribe;
+    CHECK(sco::AddReleaseHook(FailedRelease) == sco::Result::Ok);
+    for (bool builtin : { false, true }) {
+        std::vector<P::Plugin> list;
+        if (builtin) list.push_back(P::FromBuiltin({ "failed_load", FailedQuery, FailedLoad, FailedUnload }));
+        else {
+            list = P::Discover(g_out / "plugins", on);
+            // m1 subscribes and then returns Unavailable. Use its real module but a publication
+            // shim not constrained by its original prefix, as a nested consumer query in load.
+        }
+        g_list = &list;
+        P::ContainCallouts(&list);
+        P::Plugin& p = builtin ? list[0] : *const_cast<P::Plugin*>(Find(list, "m1"));
+        g_failedBacking = 57;
+        g_failedHeld = nullptr;
+        const size_t subscriptions = sco::SubscriptionCount(), closes = g_closed.size();
+        CHECK(!(builtin ? P::LoadBuiltin(p, &api, NewOwner(), on)
+                        : P::LoadNative(p, &api, NewOwner(), on, kRecOps)));
+        CHECK(p.state == State::Refused && p.self && p.exports.unload);
+        CHECK(g_failedHeld == &g_failedBacking && *static_cast<const int*>(g_failedHeld) == 57);
+        CHECK(sco::SubscriptionCount() == subscriptions + 1 && g_closed.size() == closes);
+        if (!builtin) CHECK(p.module);
+        const void* table = nullptr;
+        CHECK(sco::QueryService("failed_load.svc", 1u << 16, &table) == sco::Result::Unavailable && !table);
+        CHECK(sco::ProvideService(p.self, nullptr, "failed_load.new", 1u << 16, &g_failedBacking) == sco::Result::Unavailable);
+        P::UnloadOne(p, kRecOps);   // Refused is not a retry/alternate teardown entry
+        CHECK(g_failedBacking == 57 && p.state == State::Refused);
+        CHECK(sco::GameThreadTick(99) == sco::Result::Ok);
+        P::ContainCallouts(nullptr);
+        CHECK(sco::Release(p.self) == sco::Result::Ok);   // test cleanup, not a loader lifecycle path
+    }
+    CHECK(sco::RemoveReleaseHook(FailedRelease) == sco::Result::Ok);
+    g_list = nullptr;
+}
+
+static int g_failedScriptUnloads = 0;
+static sco_result FailedScriptLoad(const sco_api*, sco_plugin* self, const char*, const char*, size_t,
+                                   char*, size_t) {
+    g_failedOwner = self;
+    CHECK(sco::ProvideService(self, nullptr, "failed_script.svc", 1u << 16, &g_failedBacking) == sco::Result::Ok);
+    CHECK(sco::QueryService("failed_script.svc", 1u << 16, &g_failedHeld) == sco::Result::Ok);
+    return SCO_UNAVAILABLE;
+}
+static void FailedScriptUnload(sco_plugin*) { ++g_failedScriptUnloads; g_failedBacking = 0; }
+static void TestFailedScriptServiceRetention() {
+    P::Plugin p;
+    p.dir = g_out / "failed_script";
+    p.manifest.id = "failed_script";
+    p.manifest.kind = P::Kind::Lua;
+    p.manifest.entry = "main.lua";
+    p.state = State::Ready;
+    WriteFile(p.dir / "main.lua", "-- fixture\n");
+    g_failedBacking = 57;
+    g_failedHeld = nullptr;
+    g_failedScriptUnloads = 0;
+    CHECK(sco::AddReleaseHook(FailedRelease) == sco::Result::Ok);
+    const sco_api api = MakeApi();
+    const P::ScriptRuntime runtime{ FailedScriptLoad, FailedScriptUnload };
+    CHECK(!P::LoadScript(p, &api, NewOwner(), runtime));
+    CHECK(p.state == State::Refused && g_failedHeld == &g_failedBacking && g_failedBacking == 57);
+    CHECK(g_failedScriptUnloads == 0);
+    const void* table = nullptr;
+    CHECK(sco::QueryService("failed_script.svc", 1u << 16, &table) == sco::Result::Unavailable && !table);
+    CHECK(sco::RemoveReleaseHook(FailedRelease) == sco::Result::Ok);
+    CHECK(sco::Release(p.self) == sco::Result::Ok);
+    fs::remove_all(p.dir);
+}
+
 // ---- the ABI freeze's old-binary fixture (tools/abi_snapshot.py) -----------------------------
 //
 // tests/fixtures/plugins/native/frozen_v11_plugin.c is compiled against include/sco_api.h
@@ -1259,6 +1425,10 @@ int main(int argc, char** argv) {
     TestNative();
     TestFrozenV11();
     TestServices();
+    TestAtomicUnloadAdmission();
+    TestBuiltinServiceUnloadRefusal();
+    TestFailedLoadServiceRetention();
+    TestFailedScriptServiceRetention();
     std::printf("sco-core plugin tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

@@ -17,6 +17,7 @@
 #include "sco/signatures.h"
 #include "sco/storage.h"
 #include "sco/ui.h"
+#include <algorithm>
 #include <cstdio>
 #include <system_error>
 #include <utility>
@@ -54,7 +55,7 @@ Result ReloadCommand(const Arg* args, uint32_t, void*, char* reply, uint32_t rep
 void RegisterReloadCommand() {
     if (g_reloadCommand) return;
     static const ArgDef arg{ "plugin", ArgType::String, "The plugin's id" };
-    const Command c{ "sco.reload", "Reload plugin", "Unloads one plugin and loads it again (native: from a fresh copy of its DLL; Lua: the script runs again)",
+    const Command c{ "sco.reload", "Reload plugin and dependents", "Reloads a plugin and its loaded requires dependents (native: fresh DLL copies; Lua: scripts run again)",
                      nullptr, &arg, 1, ReloadCommand, nullptr };
     const Result r = RegisterCommand(host::HostOwner(), nullptr, c);
     if (r == Result::Ok) g_reloadCommand = true;
@@ -241,49 +242,122 @@ Result Reload(std::string_view id, std::string* why) {
     if (p->manifest.kind == plugins::Kind::Builtin) { w = name + " is built in and cannot be reloaded"; return Result::BadArg; }
     if (!p->manifestOk || p->manifest.kind == plugins::Kind::Data) { w = name + " has no code to reload"; return Result::BadArg; }
     if (p->state != plugins::State::Loaded) { w = name + " is not loaded (" + plugins::StateName(p->state) + ")"; return Result::Failed; }
-    if (p->running) { w = "busy: a callout of " + name + " is running"; return Result::Failed; }
-    if (!plugins::CanUnload(*p, w)) return Result::Failed;   // session-lifetime provider: refused
-    if (const std::string unmet = plugins::UnmetRequires(*p, g_list); !unmet.empty()) { w = unmet; return Result::Failed; }
+    // Discover resolved requires to provider ids in `after`; do not reinterpret capabilities
+    // or host services as plugin dependencies. Only loaded dependents join the cascade.
+    std::vector<plugins::Plugin*> group{ p };
+    for (size_t i = 0; i < group.size(); ++i)
+        for (auto& q : g_list)
+            if (q.state == plugins::State::Loaded &&
+                std::find(q.after.begin(), q.after.end(), group[i]->folder) != q.after.end() &&
+                std::find(group.begin(), group.end(), &q) == group.end()) group.push_back(&q);
 
-    const bool native = p->manifest.kind == plugins::Kind::Native;
-    fs::path copy;   // before anything changes: a failed copy leaves the plugin running
-    if (native && !plugins::CopyForReload(*p, copy, w)) return Result::Failed;
-
-    g_reloading = true;
-    const fs::path oldCopy = p->reloadCopy;
-    plugins::UnloadOne(*p, g_platform.moduleOps, g_platform.scripts);
-    Result result = Result::Failed;
-    if (p->state != plugins::State::Unloaded) {
-        w = "unload failed: " + p->reason;   // Crashed; its module stays mapped
-    } else {
-        std::error_code ec;
-        if (p->module) { p->pinned.push_back(p->module); p->module = nullptr; }   // kept mapped (M1): never reused
-        if (!oldCopy.empty()) fs::remove(oldCopy, ec);   // Windows keeps a mapped one; Start removes it later
-        p->reloadCopy = copy;
-        p->exports = {};
-        p->state = plugins::State::Ready;
-        p->reason.clear();
-        if (sco_plugin* self = NewSelf(*p)) {   // [settings] declared again, kept values read
-            const bool ok = native ? plugins::LoadNative(*p, g_api, self, g_opts, g_platform.moduleOps)
-                                   : g_platform.scripts && plugins::LoadScript(*p, g_api, self, *g_platform.scripts);
-            if (ok) {
-                result = Result::Ok;
-                Log("[app] reloaded %s", name.c_str());
-            } else {
-                w = p->state == plugins::State::Ready ? "no script runtime" : p->reason;
-                p->state = p->state == plugins::State::Ready ? plugins::State::Refused : p->state;
-            }
-        } else {
-            p->state = plugins::State::Unloaded;
-            w = "no plugin handles left (" + std::to_string(host::kMaxPlugins) + " per process, every load counts)";
+    // Stable topological order over this group, independent of previous reloads' loadOrder.
+    std::vector<plugins::Plugin*> ordered;
+    ordered.reserve(group.size());
+    while (ordered.size() < group.size()) {
+        plugins::Plugin* next = nullptr;
+        for (auto& q : g_list) {
+            if (std::find(group.begin(), group.end(), &q) == group.end() ||
+                std::find(ordered.begin(), ordered.end(), &q) != ordered.end()) continue;
+            bool ready = true;
+            for (const auto* provider : group)
+                if (std::find(q.after.begin(), q.after.end(), provider->folder) != q.after.end() &&
+                    std::find(ordered.begin(), ordered.end(), provider) == ordered.end()) ready = false;
+            if (ready) { next = &q; break; }
+        }
+        if (!next) { w = "requires cycle in reload group"; return Result::Failed; }
+        ordered.push_back(next);
+    }
+    group = std::move(ordered);
+    for (const auto* q : group) {
+        if (q->manifest.kind == plugins::Kind::Builtin || q->manifest.kind == plugins::Kind::Data) {
+            w = q->folder + " cannot join a reload cascade"; return Result::Failed;
+        }
+        if (q->running) { w = "busy: a callout of " + q->folder + " is running"; return Result::Failed; }
+        if (!plugins::CanUnload(*q, w)) return Result::Failed;
+        if (const std::string unmet = plugins::UnmetRequires(*q, g_list); !unmet.empty()) {
+            w = unmet; return Result::Failed;
         }
     }
-    if (result != Result::Ok && !p->module && !copy.empty()) {   // the copy was never mapped, or is closed
-        std::error_code ec;
-        fs::remove(copy, ec);
-        p->reloadCopy.clear();
+
+    std::vector<fs::path> copies(group.size());
+    // The atomic loader gate reserves every owner before any copy or teardown. Roll back on
+    // copy failure, and release surviving reservations before loading fresh owner handles.
+    struct ReloadScope {
+        const std::vector<plugins::Plugin*>& group;
+        std::vector<fs::path>& copies;
+        bool reserved = false;
+        ~ReloadScope() {
+            if (reserved) plugins::CancelUnload(group);
+            for (const auto& copy : copies) if (!copy.empty()) {
+                std::error_code ec;
+                fs::remove(copy, ec);
+            }
+            g_reloading = false;
+        }
+    } scope{ group, copies };
+    g_reloading = true;
+    if (!plugins::BeginUnload(group, w)) return Result::Failed;
+    scope.reserved = true;
+    for (size_t i = 0; i < group.size(); ++i)
+        if (group[i]->manifest.kind == plugins::Kind::Native &&
+            !plugins::CopyForReload(*group[i], copies[i], w)) return Result::Failed;
+
+    Result result = Result::Ok;
+    for (auto it = group.rbegin(); it != group.rend(); ++it) {
+        plugins::UnloadOne(**it, g_platform.moduleOps, g_platform.scripts);
+        if ((*it)->state != plugins::State::Unloaded) {
+            w = "unload failed: " + (*it)->folder + ": " + (*it)->reason;
+            result = Result::Failed;
+            break;   // never tear down a provider under a dependent that failed to unload
+        }
     }
-    g_reloading = false;
+    plugins::CancelUnload(group);
+    scope.reserved = false;
+    for (size_t i = 0; i < group.size(); ++i) {
+        plugins::Plugin& q = *group[i];
+        if (q.state != plugins::State::Unloaded) continue;
+        std::error_code ec;
+        if (q.module) { q.pinned.push_back(q.module); q.module = nullptr; }
+        if (!q.reloadCopy.empty()) fs::remove(q.reloadCopy, ec);
+        q.reloadCopy.clear();
+        q.exports = {};
+        q.state = plugins::State::Ready;
+        q.reason.clear();
+        std::string error = plugins::UnmetRequires(q, g_list);
+        bool ok = false;
+        if (!error.empty()) {
+            q.state = plugins::State::Refused;
+            q.reason = error;
+            Log("[plugin] refused %s: %s", q.folder.c_str(), error.c_str());
+        } else if (sco_plugin* self = NewSelf(q)) {
+            q.reloadCopy = std::move(copies[i]);
+            copies[i].clear();
+            ok = q.manifest.kind == plugins::Kind::Native
+                ? plugins::LoadNative(q, g_api, self, g_opts, g_platform.moduleOps)
+                : g_platform.scripts && plugins::LoadScript(q, g_api, self, *g_platform.scripts);
+            if (!ok) {
+                error = q.state == plugins::State::Ready ? "no script runtime" : q.reason;
+                if (q.state == plugins::State::Ready) {
+                    q.state = plugins::State::Refused;
+                    q.reason = error;
+                }
+            }
+        } else {
+            q.state = plugins::State::Unloaded;
+            error = "no plugin handles left (" + std::to_string(host::kMaxPlugins) + " per process, every load counts)";
+            q.reason = error;
+        }
+        if (ok) Log("[app] reloaded %s", q.folder.c_str());
+        else {
+            if (result == Result::Ok) w = group.size() == 1 ? error : q.folder + ": " + error;
+            result = Result::Failed;
+            if (!q.module && !q.reloadCopy.empty()) {
+                fs::remove(q.reloadCopy, ec);
+                q.reloadCopy.clear();
+            }
+        }
+    }
     if (result != Result::Ok) Log("[app] reload %s failed: %s", name.c_str(), w.c_str());
     return result;
 }

@@ -24,6 +24,12 @@ std::vector<Service> g_services;
 // withdrawn: the loader asks once the owner is released, to keep its module mapped. One pointer
 // per provider (owners are never reused), so it stays small.
 std::vector<const void*> g_handedOut;
+// Admission reservations are separate from publication: explicit withdrawal/republication must
+// not reopen a provider while its unload export is destroying state.
+std::vector<const void*> g_withdrawing;
+bool Withdrawing(const void* owner) {
+    return std::find(g_withdrawing.begin(), g_withdrawing.end(), owner) != g_withdrawing.end();
+}
 
 bool ValidServiceName(const char* name) {
     if (!name) return false;
@@ -48,6 +54,7 @@ Result ProvideService(const void* owner, const char* prefix, const char* name, u
     }
     std::lock_guard<std::mutex> hold(g_lock);
     if (detail::Released(owner)) return Result::BadArg;
+    if (Withdrawing(owner)) return Result::Unavailable;
     for (const Service& s : g_services)
         if (s.name == name) return Result::BadArg;
     try {
@@ -64,6 +71,7 @@ Result QueryService(const char* name, uint32_t minVersion, const void** out) {
     std::lock_guard<std::mutex> hold(g_lock);
     for (const Service& s : g_services) {
         if (s.name != name) continue;
+        if (Withdrawing(s.owner)) return Result::Unavailable;
         if ((s.version >> 16) != (minVersion >> 16) || s.version < minVersion) return Result::Unavailable;
         // Record the hand-out first: a table that is returned must be one the loader knows about.
         if (std::find(g_handedOut.begin(), g_handedOut.end(), s.owner) == g_handedOut.end()) {
@@ -90,6 +98,33 @@ bool ServiceExists(const char* name) {
 bool ServiceTableHandedOut(const void* owner) {
     std::lock_guard<std::mutex> hold(g_lock);
     return std::find(g_handedOut.begin(), g_handedOut.end(), owner) != g_handedOut.end();
+}
+
+Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
+                         bool allowInUse, bool& inUse) {
+    inUse = false;
+    std::lock_guard<std::mutex> hold(g_lock);
+    for (size_t i = 0; i < count; ++i)
+        if (std::find(g_handedOut.begin(), g_handedOut.end(), owners[i]) != g_handedOut.end())
+            inUse = true;
+    if (inUse && !allowInUse) return Result::Failed;
+    if (!withdraw) return Result::Ok;
+    // Allocate before changing any admission. Idempotent teardown of an already-reserved
+    // member needs no new reservation storage (reload groups reserve once, then unload each).
+    size_t missing = 0;
+    for (size_t i = 0; i < count; ++i) if (owners[i] && !Withdrawing(owners[i])) ++missing;
+    try { g_withdrawing.reserve(g_withdrawing.size() + missing); }
+    catch (...) { return Result::TooMany; }
+    for (size_t i = 0; i < count; ++i)
+        if (owners[i] && !Withdrawing(owners[i])) g_withdrawing.push_back(owners[i]);
+    return Result::Ok;
+}
+
+void CancelServiceWithdrawal(const void* const* owners, size_t count) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    for (size_t i = 0; i < count; ++i)
+        g_withdrawing.erase(std::remove(g_withdrawing.begin(), g_withdrawing.end(), owners[i]),
+                            g_withdrawing.end());
 }
 
 Result ReleaseService(const void* owner, const char* name) {
