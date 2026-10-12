@@ -80,6 +80,34 @@ are session-lifetime rather than unloadable executable code. Existing engine XML
 script ingestion remains unsupported until its format and containment are independently
 validated; this narrow format must not be advertised as legacy mission-script parity.
 
+## Local economy and payment boundary (#133)
+
+`game.economy` 1.0 exposes only admitted local wallet reads, signed integer delta
+application with expected-balance comparison, and owner/session receipt lookup.
+Balances are [0, 1000000000000); deltas are nonzero strictly inside +/- that limit.
+Range validation prevents overflow and negative balances before engine calls. The
+backend must atomically compare and apply, and return the exact resulting balance.
+Inconsistent success is quarantined for restart. No online ledger/account/entitlement
+or shop networking is exposed. No proprietary currency IDs are part of this ABI.
+
+A 128-entry **non-evicting** session ledger reserves a receipt before each attempted
+payment. Duplicate identical keys return the same receipt/result without another
+engine call or signal; changed reuse is BAD_ARG. Failed uncertain effects are retained
+as failures, never retried. Quota saturation refuses before applying. Receipt authority
+is a live plugin handle, not a caller-supplied owner or arbitrary mission reward.
+`game.economy.transaction` emits a bounded copied successful receipt and plugin ID
+at most once, synchronously through the host event bus. If host shutdown suppresses
+notification, the successful receipt sets `SC_ECONOMY_SIGNAL_DROPPED`; receipt polling
+is authoritative, not signal delivery. Payload lifetime is callback-only;
+callbacks copy and post later reads/mutations. Notification reentrant table calls
+and Stop are refused. Ordinary owner release during notification is permitted.
+
+**Once-only means owner/session-local, not durable exactly-once across reload/restart.**
+Plugin storage must atomically persist its own reward/import/save decisions; neither
+mission completion nor a signal automatically pays, imports or saves. Existing
+wallet.txt/storage timestamp precedence remains consumer policy. This is not the
+legacy asynchronous shop hook adapter, which still needs independent Windows proof.
+
 ## Decision pending owner
 
 Approve mission-kind coverage and the concrete Windows adapter only after independent

@@ -13,7 +13,7 @@
 namespace sco::game::offline {
 namespace {
 Backend backend;
-bool started = false, faulted = false, busy = false;
+bool started = false, faulted = false, busy = false, notifying = false;
 struct Ticket {
     const sco_plugin* owner = nullptr;
     uint64_t key = 0, session = 0, mission = 0;
@@ -33,10 +33,19 @@ struct ScriptSlot {
     sco_result result = SCO_FAILED;
 };
 ScriptSlot scripts[SC_MISSIONS_MAX_SCRIPTS];
+struct Payment {
+    const sco_plugin* owner = nullptr;
+    sc_economy_request request{};
+    sc_economy_receipt receipt{};
+    sco_result result = SCO_FAILED;
+};
+Payment payments[SC_ECONOMY_MAX_RECEIPTS];
+uint64_t paymentSequence = 0;
 void Session(uint64_t id) {
     if (ledgerSession != id) {
         for (auto& t : tickets) t = {};
         for (auto& s : scripts) s = {};
+        for (auto& p : payments) p = {};
         ledgerSession = id;
     }
 }
@@ -56,15 +65,16 @@ template<class F> sco_result Call(F&& fn) {
         r = NativeCall([](void* p) -> sco_result { return (*static_cast<std::remove_reference_t<F>*>(p))(); }, &fn);
     } catch (...) { r = SCO_CRASHED; }
     if (r == SCO_CRASHED) faulted = true; // never clear: restart required
-    return r;
+    return faulted ? SCO_CRASHED : detail::RuntimeStopping() ? SCO_UNAVAILABLE : r;
 }
 struct CallScope { CallScope() { busy = true; } ~CallScope() { busy = false; } };
 sco_result Enter(sco_plugin* self, Admission& admission) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
     if (!self || !host::PluginId(self) || detail::Released(self)) return SCO_BAD_ARG;
+    if (detail::RuntimeStopping()) return SCO_UNAVAILABLE;
     if (faulted) return SCO_CRASHED;
     if (!started || !backend.admission) return SCO_UNAVAILABLE;
-    if (busy) return SCO_FAILED;
+    if (busy || notifying) return SCO_FAILED;
     CallScope scope;
     auto read = [&] { admission = backend.admission(backend.ctx); return SCO_OK; };
     const sco_result r = Call(read);
@@ -230,6 +240,7 @@ sco_result Abandon(sco_plugin* self, uint64_t id) {
     if (t->state == SC_MISSION_COMPLETED || t->effectFailed) return SCO_FAILED;
     if (!backend.abandon) return SCO_UNAVAILABLE;
     CallScope scope;
+    if (const auto r = CheckProgress(*t); r != SCO_OK) return r;
     auto effect = [&] { return backend.abandon(backend.ctx, id); };
     const auto r = Call(effect);
     if (r == SCO_OK) t->state = SC_MISSION_ABANDONED;
@@ -307,18 +318,99 @@ void ReleaseOwner(const void* owner) {
         t.revoked = true;
         if (!admitted || faulted || !backend.abandon || t.result != SCO_OK ||
             t.state != SC_MISSION_ACTIVE || t.effectFailed) continue;
+        if (detail::RuntimeStopping() || CheckProgress(t) != SCO_OK) continue;
         // Revoke first, attempt once, never replay failed/uncertain cleanup.
         auto effect = [&] { return backend.abandon(backend.ctx, t.mission); };
         if (Call(effect) == SCO_OK) t.state = SC_MISSION_ABANDONED;
         else t.effectFailed = true;
     }
 }
+namespace {
+bool ValidBalance(int64_t v) { return v >= 0 && v < SC_ECONOMY_BALANCE_LIMIT; }
+sco_result ReadBalance(int64_t& v) {
+    if (!backend.balance) return SCO_UNAVAILABLE;
+    auto read = [&] { return backend.balance(backend.ctx, &v); };
+    const auto r = Call(read);
+    return r != SCO_OK ? r : ValidBalance(v) ? SCO_OK : SCO_FAILED;
+}
+sco_result Balance(sco_plugin* self, sc_economy_balance* out) {
+    Admission a;
+    if (const auto r = Enter(self, a); r != SCO_OK) return r;
+    if (!out || out->size < sizeof(*out)) return SCO_BAD_ARG;
+    CallScope scope;
+    int64_t v = 0;
+    if (const auto r = ReadBalance(v); r != SCO_OK) return r;
+    out->_pad = 0; out->local_balance = v;
+    return SCO_OK;
+}
+void CopyReceipt(sc_economy_receipt* out, const sc_economy_receipt& value) {
+    const auto size = out->size; *out = value; out->size = size;
+}
+sco_result Apply(sco_plugin* self, const sc_economy_request* request, sc_economy_receipt* out) {
+    Admission a;
+    if (const auto r = Enter(self, a); r != SCO_OK) return r;
+    if (!request || request->size < sizeof(*request) || request->flags || !request->key ||
+        !out || out->size < sizeof(*out) || !ValidBalance(request->expected_balance) ||
+        !request->delta || request->delta <= -SC_ECONOMY_BALANCE_LIMIT || request->delta >= SC_ECONOMY_BALANCE_LIMIT)
+        return SCO_BAD_ARG;
+    // Range-checked operands are much smaller than INT64_MAX: this addition cannot overflow.
+    const int64_t after = request->expected_balance + request->delta;
+    if (!ValidBalance(after)) return SCO_BAD_ARG;
+    Payment* slot = nullptr;
+    for (auto& p : payments) {
+        if (!p.owner) { if (!slot) slot = &p; continue; }
+        if (p.owner != self || p.request.key != request->key) continue;
+        if (p.request.expected_balance != request->expected_balance || p.request.delta != request->delta)
+            return SCO_BAD_ARG;
+        if (p.result == SCO_OK) CopyReceipt(out, p.receipt);
+        return p.result;
+    }
+    if (!backend.apply || !backend.balance) return SCO_UNAVAILABLE;
+    if (!slot || paymentSequence == UINT64_MAX) return SCO_TOO_MANY;
+    {
+        CallScope scope;
+        int64_t current = 0;
+        if (const auto r = ReadBalance(current); r != SCO_OK) return r;
+        if (current != request->expected_balance) return SCO_FAILED;
+        slot->owner = self; slot->request = *request;
+        slot->receipt = {sizeof(slot->receipt), 0, request->key, a.session,
+                         current, after, request->delta, ++paymentSequence};
+        int64_t actual = -1;
+        auto effect = [&] { return backend.apply(backend.ctx, current, request->delta, &actual); };
+        slot->result = Call(effect);
+        if (slot->result == SCO_OK && actual != after) {
+            faulted = true; slot->result = SCO_CRASHED; // inconsistent success: never retry
+        }
+        if (slot->result != SCO_OK) return slot->result;
+    }
+    sc_economy_event event{}; event.size = sizeof(event); event.receipt = slot->receipt;
+    std::strncpy(event.plugin_id, host::PluginId(self), sizeof(event.plugin_id) - 1);
+    struct NotifyScope { NotifyScope() { notifying = true; } ~NotifyScope() { notifying = false; } } scope;
+    if (Dispatch(SC_ECONOMY_TRANSACTION_EVENT, &event) != Result::Ok)
+        slot->receipt.flags |= SC_ECONOMY_SIGNAL_DROPPED;
+    // Caller buffers remain valid for the complete call, including synchronous notifications.
+    CopyReceipt(out, slot->receipt);
+    return SCO_OK;
+}
+sco_result Receipt(sco_plugin* self, uint64_t key, sc_economy_receipt* out) {
+    Admission a;
+    if (const auto r = Enter(self, a); r != SCO_OK) return r;
+    if (!key || !out || out->size < sizeof(*out)) return SCO_BAD_ARG;
+    for (const auto& p : payments) {
+        if (p.owner != self || p.request.key != key) continue;
+        if (p.result == SCO_OK) CopyReceipt(out, p.receipt);
+        return p.result;
+    }
+    return SCO_NOT_FOUND;
+}
+const sc_economy_v1 economy{sizeof(economy), 0, Balance, Apply, Receipt};
+}
 Result Start(const Backend& b, bool shared_release_hook) {
     if (!OnGameThread()) return Result::WrongThread;
     if (faulted) return Result::Crashed;
     if (started) return Result::BadArg;
     if (b.accept && !b.abandon) return Result::BadArg;
-    if (b.accept && !shared_release_hook) {
+    if (b.admission && !shared_release_hook) {
         const auto hook = AddReleaseHook(ReleaseOwner);
         if (hook != Result::Ok) return hook;
         ownReleaseHook = true;
@@ -328,26 +420,37 @@ Result Start(const Backend& b, bool shared_release_hook) {
         if (ownReleaseHook) RemoveReleaseHook(ReleaseOwner);
         ownReleaseHook = false; return r;
     }
+    const auto er = host::ProvideGameService(SC_ECONOMY_SERVICE_NAME, SC_ECONOMY_SERVICE_VERSION, &economy);
+    if (er != Result::Ok) {
+        host::WithdrawGameService(SC_MISSIONS_SERVICE_NAME);
+        if (ownReleaseHook) RemoveReleaseHook(ReleaseOwner);
+        ownReleaseHook = false; return er;
+    }
     backend = b; started = true;
     caps::Set("game.missions.read", b.admission && b.offer && b.status, "validated offline backend required");
     caps::Set("game.missions.accept", b.admission && b.offer && b.accept, "validated offline backend required");
     caps::Set("game.missions.progress", b.admission && b.status && b.objective && b.advance, "validated offline backend required");
     caps::Set("game.missions.scripts", b.admission && b.ingest, "validated offline backend required");
+    caps::Set("game.economy.read", b.admission && b.balance, "validated offline backend required");
+    caps::Set("game.economy.apply", b.admission && b.balance && b.apply, "validated offline backend required");
     return Result::Ok;
 }
 Result Stop() {
     if (!OnGameThread()) return Result::WrongThread;
-    if (busy) return Result::Failed;
+    if (busy || notifying) return Result::Failed;
     if (!started) return Result::Ok;
     if (ownReleaseHook) RemoveReleaseHook(ReleaseOwner);
     ownReleaseHook = false;
     started = false;
     host::WithdrawGameService(SC_MISSIONS_SERVICE_NAME);
+    host::WithdrawGameService(SC_ECONOMY_SERVICE_NAME);
     caps::Set("game.missions.read", false, "stopped");
     caps::Set("game.missions.accept", false, "stopped");
     caps::Set("game.missions.progress", false, "stopped");
     caps::Set("game.missions.scripts", false, "stopped");
-    backend = {};
+    caps::Set("game.economy.read", false, "stopped");
+    caps::Set("game.economy.apply", false, "stopped");
+    if (!faulted) backend = {}; // uncertain native backing retained until process restart
     return Result::Ok;
 }
 }

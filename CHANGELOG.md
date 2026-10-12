@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G12 local-economy/payment boundary (#133):** copied local wallet reads, bounded
+  atomic expected-balance delta requests, owner/session once-only receipts, refused
+  uncertain retries and successful transaction signals. Storage/import/save/payout
+  policy stays consumer-side. Synthetic tests only; Windows wallet/shop adapter and
+  persistence across reload/restart remain unimplemented/unverified.
+
 - **G11 abandon/script boundary (#132):** once-only owned abandonment/release cleanup
   and bounded declarative user content with strict path/grammar validation, immutable
   session registration and no filesystem/network/script-execution access. Existing

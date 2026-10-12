@@ -1,5 +1,6 @@
 /* GPL-3.0-only: x64 mission ABI pins; synthetic identifiers only. */
 #include "sc_missions.h"
+#include "sc_economy.h"
 #include <stddef.h>
 #ifdef __cplusplus
 #define PIN static_assert
@@ -7,6 +8,12 @@
 #define PIN _Static_assert
 #endif
 PIN(sizeof(sco_api) == 128, "frozen base");
+PIN(sizeof(sc_economy_v1) == 32, "economy table");
+PIN(sizeof(sc_economy_balance) == 16, "balance record");
+PIN(sizeof(sc_economy_request) == 32, "payment request");
+PIN(sizeof(sc_economy_receipt) == 56, "receipt");
+PIN(sizeof(sc_economy_event) == 96, "transaction event");
+PIN(offsetof(sc_economy_v1, receipt) == 24, "receipt pointer");
 PIN(sizeof(sc_mission_state) == 4, "enum width");
 PIN(sizeof(sc_mission_script) == 152, "script layout");
 PIN(offsetof(sc_mission_script, bytes) == 136, "script bytes pointer");

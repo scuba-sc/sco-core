@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_economy_v1.apply",
+      "table": "sc_economy_v1",
+      "source_header": "include/sc_economy.h",
+      "signature": "sco_result (*)(sco_plugin *, const sc_economy_request *, sc_economy_receipt *)",
+      "version_macro": "SC_ECONOMY_SERVICE_VERSION",
+      "member_extent": 24,
+      "table_size": 32,
+      "service": "game.economy",
+      "id": "sc-economy-v1-apply",
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Apply one bounded signed local-wallet delta with expected-balance compare and nonzero owner/session idempotency key. Identical replay returns the first receipt; changed replay is BAD_ARG. No receipt eviction or automatic save/payout.",
+      "buffer_contract": "`sco_result (*apply)(sco_plugin* self, const sc_economy_request* request, sc_economy_receipt* out);`<br>Apply one bounded signed local-wallet delta with expected-balance compare and nonzero owner/session idempotency key. Identical replay returns the first receipt; changed replay is BAD_ARG. No receipt eviction or automatic save/payout.",
+      "ownership": "Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session.",
+      "thread_affinity": "Game thread only; WRONG_THREAD before backend access.",
+      "callback_context": "Backend callbacks synchronous on game thread; pointers valid only during call.",
+      "reentrancy": "Recursive calls and Stop/replacement during callbacks refused (FAILED).",
+      "results": "OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure.",
+      "absent_capability": "Missing table: query_service NOT_FOUND; absent method/backend or unsafe admission: UNAVAILABLE.",
+      "cleanup": "Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart.",
+      "examples": [],
+      "tests": [
+        "tests/abi_offline_missions.c",
+        "tests/test_offline_missions.cpp"
+      ],
+      "limitations": [
+        "No validated Windows engine adapter; synthetic/compile checked, not run in game.",
+        "Uniform phase widths only; other mission kinds unavailable.",
+        "No persistent receipt/store/import policy in game pack."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_economy.h",
+              "token": "(*apply)"
+            }
+          ],
+          "tests": [
+            "tests/abi_offline_missions.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_economy.h",
+              "token": "(*apply)"
+            }
+          ],
+          "tests": [
+            "tests/test_offline_missions.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/offline-missions.md",
+              "token": "C# and Lua bindings are unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/offline-missions.md",
+              "token": "C# and Lua bindings are unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_economy_v1.balance",
+      "table": "sc_economy_v1",
+      "source_header": "include/sc_economy.h",
+      "signature": "sco_result (*)(sco_plugin *, sc_economy_balance *)",
+      "version_macro": "SC_ECONOMY_SERVICE_VERSION",
+      "member_extent": 16,
+      "table_size": 32,
+      "service": "game.economy",
+      "id": "sc-economy-v1-balance",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Read the admitted offline local wallet as an integer in [0,1000000000000). No accounts or online balances; caller-sized output record is preserved.",
+      "buffer_contract": "`sco_result (*balance)(sco_plugin* self, sc_economy_balance* out);`<br>Read the admitted offline local wallet as an integer in [0,1000000000000). No accounts or online balances; caller-sized output record is preserved.",
+      "ownership": "Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session.",
+      "thread_affinity": "Game thread only; WRONG_THREAD before backend access.",
+      "callback_context": "Backend callbacks synchronous on game thread; pointers valid only during call.",
+      "reentrancy": "Recursive calls and Stop/replacement during callbacks refused (FAILED).",
+      "results": "OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure.",
+      "absent_capability": "Missing table: query_service NOT_FOUND; absent method/backend or unsafe admission: UNAVAILABLE.",
+      "cleanup": "Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart.",
+      "examples": [],
+      "tests": [
+        "tests/abi_offline_missions.c",
+        "tests/test_offline_missions.cpp"
+      ],
+      "limitations": [
+        "No validated Windows engine adapter; synthetic/compile checked, not run in game.",
+        "Uniform phase widths only; other mission kinds unavailable.",
+        "No persistent receipt/store/import policy in game pack."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_economy.h",
+              "token": "(*balance)"
+            }
+          ],
+          "tests": [
+            "tests/abi_offline_missions.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_economy.h",
+              "token": "(*balance)"
+            }
+          ],
+          "tests": [
+            "tests/test_offline_missions.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/offline-missions.md",
+              "token": "C# and Lua bindings are unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/offline-missions.md",
+              "token": "C# and Lua bindings are unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_economy_v1.receipt",
+      "table": "sc_economy_v1",
+      "source_header": "include/sc_economy.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, sc_economy_receipt *)",
+      "version_macro": "SC_ECONOMY_SERVICE_VERSION",
+      "member_extent": 32,
+      "table_size": 32,
+      "service": "game.economy",
+      "id": "sc-economy-v1-receipt",
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Read an owned session-local payment receipt by key. NOT_FOUND when absent, stale session or another owner. No persistent once-only guarantee across session restart.",
+      "buffer_contract": "`sco_result (*receipt)(sco_plugin* self, uint64_t key, sc_economy_receipt* out);`<br>Read an owned session-local payment receipt by key. NOT_FOUND when absent, stale session or another owner. No persistent once-only guarantee across session restart.",
+      "ownership": "Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session.",
+      "thread_affinity": "Game thread only; WRONG_THREAD before backend access.",
+      "callback_context": "Backend callbacks synchronous on game thread; pointers valid only during call.",
+      "reentrancy": "Recursive calls and Stop/replacement during callbacks refused (FAILED).",
+      "results": "OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure.",
+      "absent_capability": "Missing table: query_service NOT_FOUND; absent method/backend or unsafe admission: UNAVAILABLE.",
+      "cleanup": "Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart.",
+      "examples": [],
+      "tests": [
+        "tests/abi_offline_missions.c",
+        "tests/test_offline_missions.cpp"
+      ],
+      "limitations": [
+        "No validated Windows engine adapter; synthetic/compile checked, not run in game.",
+        "Uniform phase widths only; other mission kinds unavailable.",
+        "No persistent receipt/store/import policy in game pack."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_economy.h",
+              "token": "(*receipt)"
+            }
+          ],
+          "tests": [
+            "tests/abi_offline_missions.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_economy.h",
+              "token": "(*receipt)"
+            }
+          ],
+          "tests": [
+            "tests/test_offline_missions.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/offline-missions.md",
+              "token": "C# and Lua bindings are unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/offline-missions.md",
+              "token": "C# and Lua bindings are unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    }
+  ]
+}

@@ -75,8 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **126 table methods across 16 tables,
-plus 3 plugin entrypoints: 129 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **129 table methods across 17 tables,
+plus 3 plugin entrypoints: 132 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -175,6 +175,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 
 | Table / entrypoints | Methods | Current x64 size | Contract version |
 |---|---:|---:|---|
+| `sc_economy_v1` | 3 | 32 | 1.0 |
 | `sc_missions_v1` | 7 | 64 | 1.0 |
 | `sco_api` | 15 | 128 | 1.1 |
 | `sco_storage_v1` | 15 | 128 | 1.0 |
@@ -592,6 +593,17 @@ C/C++ direct table route; C# and Lua unsupported.
 | `sc_missions_v1.objective` | `size >= 40`; 1.0 | `sco_result (*objective)(sco_plugin* self, uint64_t mission_id, uint32_t phase, uint32_t objective);`<br>Complete exactly the expected current phase/objective for an owned active mission. An already completed step is an idempotent no-op; forward skips, foreign handles and stale sessions are refused. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
 | `sc_missions_v1.offer` | `size >= 16`; 1.0 | `sco_result (*offer)(sco_plugin* self, uint32_t index, sc_mission_offer* out);`<br>Bounded copied offline offer by index (0..255); NOT_FOUND at end. Caller output size must cover the whole record; size and unknown tails are preserved. No mutation authority. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
 | `sc_missions_v1.status` | `size >= 24`; 1.0 | `sco_result (*status)(sco_plugin* self, uint64_t mission_id, sc_mission_status* out);`<br>Copied sanitized mission status for nonzero opaque ID and current session. NOT_FOUND for unknown ID; caller output size must cover the record. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
+## Guarded offline boundary `sc_economy_v1`
+
+Game-pack only. See [offline missions design](design/offline-missions.md).
+No validated engine backend is installed; synthetic checks are not gameplay evidence.
+C/C++ direct table route; C# and Lua unsupported.
+
+| Method | size / since | buffer contract | ownership | thread | results | cleanup |
+|---|---|---|---|---|---|---|
+| `sc_economy_v1.apply` | `size >= 24`; 1.0 | `sco_result (*apply)(sco_plugin* self, const sc_economy_request* request, sc_economy_receipt* out);`<br>Apply one bounded signed local-wallet delta with expected-balance compare and nonzero owner/session idempotency key. Identical replay returns the first receipt; changed replay is BAD_ARG. No receipt eviction or automatic save/payout. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
+| `sc_economy_v1.balance` | `size >= 16`; 1.0 | `sco_result (*balance)(sco_plugin* self, sc_economy_balance* out);`<br>Read the admitted offline local wallet as an integer in [0,1000000000000). No accounts or online balances; caller-sized output record is preserved. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
+| `sc_economy_v1.receipt` | `size >= 32`; 1.0 | `sco_result (*receipt)(sco_plugin* self, uint64_t key, sc_economy_receipt* out);`<br>Read an owned session-local payment receipt by key. NOT_FOUND when absent, stale session or another owner. No persistent once-only guarantee across session restart. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
 ## Explicit remaining gaps
 
 This is an inventory-complete catalogue, not a claim that the API has a complete

@@ -230,6 +230,28 @@
  ],
  "components": [
 {
+  "id": "game.include.scosdk.game.economy.hpp",
+  "source": "include/scosdk/game/economy.hpp",
+  "destination": "include/scosdk/game/economy.hpp",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "public_header": true
+},
+{
+  "id": "game.include.sc_economy.h",
+  "source": "include/sc_economy.h",
+  "destination": "include/sc_economy.h",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "public_header": true
+},
+{
   "id": "game.include.sc_missions.h",
   "source": "include/sc_missions.h",
   "destination": "include/sc_missions.h",

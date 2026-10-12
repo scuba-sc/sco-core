@@ -15,6 +15,26 @@
  },
  "entries": [
 {
+  "path": "include/scosdk/game/economy.hpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Offline local-economy boundary, no accounts or online operations. Project-authored typed records/wrapper; no proprietary engine data."
+},
+{
+  "path": "include/sc_economy.h",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "Offline local-economy boundary, no accounts or online operations. Project-authored typed records/wrapper; no proprietary engine data."
+},
+{
   "path": "include/sc_missions.h",
   "origin": "project-authored",
   "license": "GPL-3.0-only",
