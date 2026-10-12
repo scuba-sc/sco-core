@@ -18,6 +18,8 @@ struct Ticket {
     sc_mission_offer offer{};
     sco_result result = SCO_FAILED;
     bool revoked = false;
+    uint32_t phase = 0, objective = 0, state = SC_MISSION_ACTIVE;
+    bool effectFailed = false;
 };
 Ticket tickets[SC_MISSIONS_MAX_ACTIVE];
 uint64_t ledgerSession = 0;
@@ -134,7 +136,8 @@ sco_result Accept(sco_plugin* self, const sc_mission_offer* offer, uint64_t key,
         if (SameOffer(current, *offer)) { found = true; break; }
     }
     if (!found) return SCO_NOT_FOUND;
-    *slot = {self, key, a.session, 0, *offer, SCO_FAILED, false};
+    *slot = {};
+    slot->owner = self; slot->key = key; slot->session = a.session; slot->offer = *offer;
     // Reserve before side effects; uncertain failures never trigger another attempt for this key.
     auto effect = [&] { return backend.accept(backend.ctx, &slot->offer, &slot->mission); };
     slot->result = Call(effect);
@@ -148,7 +151,65 @@ sco_result Accept(sco_plugin* self, const sc_mission_offer* offer, uint64_t key,
     }
     return slot->result;
 }
-const sc_missions_v1 table{sizeof(table), 0, Offer, Status, Accept};
+Ticket* Owned(sco_plugin* self, uint64_t id) {
+    for (auto& t : tickets)
+        if (t.owner == self && !t.revoked && t.mission == id && t.result == SCO_OK && t.session == ledgerSession)
+            return &t;
+    return nullptr;
+}
+sco_result CheckProgress(const Ticket& t) {
+    if (!backend.status) return SCO_UNAVAILABLE;
+    sc_mission_status v{}; v.size = sizeof(v);
+    auto read = [&] { return backend.status(backend.ctx, t.mission, &v); };
+    const auto r = Call(read);
+    if (r != SCO_OK) return r;
+    if (!ValidStatus(v, t.mission, t.session) || v.offer_id != t.offer.offer_id ||
+        v.phase_count != t.offer.phase_count || v.objectives_in_phase != t.offer.objectives_in_phase ||
+        v.phase != t.phase || v.objective != t.objective || v.state != t.state)
+        return SCO_FAILED; // no unproved mission-kind/game state reconciliation
+    return SCO_OK;
+}
+sco_result Objective(sco_plugin* self, uint64_t id, uint32_t phase, uint32_t objective) {
+    Admission a;
+    if (const auto r = Enter(self, a); r != SCO_OK) return r;
+    if (!id || phase >= SC_MISSIONS_MAX_STEPS || objective >= SC_MISSIONS_MAX_STEPS) return SCO_BAD_ARG;
+    Ticket* t = Owned(self, id);
+    if (!t) return SCO_NOT_FOUND;
+    if (phase >= t->offer.phase_count || objective >= t->offer.objectives_in_phase) return SCO_BAD_ARG;
+    if (phase < t->phase || (phase == t->phase && objective < t->objective)) return SCO_OK;
+    if (t->state != SC_MISSION_ACTIVE || t->effectFailed) return SCO_FAILED;
+    if (phase != t->phase || objective != t->objective) return SCO_BAD_ARG;
+    if (!backend.objective) return SCO_UNAVAILABLE;
+    CallScope scope;
+    if (const auto r = CheckProgress(*t); r != SCO_OK) return r;
+    auto effect = [&] { return backend.objective(backend.ctx, id, phase, objective); };
+    const auto r = Call(effect);
+    if (r == SCO_OK) ++t->objective;
+    else t->effectFailed = true; // never automatically replay an uncertain effect
+    return r;
+}
+sco_result Advance(sco_plugin* self, uint64_t id, uint32_t phase) {
+    Admission a;
+    if (const auto r = Enter(self, a); r != SCO_OK) return r;
+    if (!id || phase >= SC_MISSIONS_MAX_STEPS) return SCO_BAD_ARG;
+    Ticket* t = Owned(self, id);
+    if (!t) return SCO_NOT_FOUND;
+    if (phase >= t->offer.phase_count) return SCO_BAD_ARG;
+    if (phase < t->phase || (phase == t->phase && t->state == SC_MISSION_COMPLETED)) return SCO_OK;
+    if (t->state != SC_MISSION_ACTIVE || t->effectFailed || phase != t->phase ||
+        t->objective != t->offer.objectives_in_phase) return SCO_FAILED;
+    if (!backend.advance) return SCO_UNAVAILABLE;
+    CallScope scope;
+    if (const auto r = CheckProgress(*t); r != SCO_OK) return r;
+    auto effect = [&] { return backend.advance(backend.ctx, id, phase); };
+    const auto r = Call(effect);
+    if (r == SCO_OK) {
+        if (phase + 1 == t->offer.phase_count) t->state = SC_MISSION_COMPLETED;
+        else { ++t->phase; t->objective = 0; }
+    } else t->effectFailed = true;
+    return r;
+}
+const sc_missions_v1 table{sizeof(table), 0, Offer, Status, Accept, Objective, Advance};
 }
 Result Start(const Backend& b) {
     if (!OnGameThread()) return Result::WrongThread;
@@ -159,6 +220,7 @@ Result Start(const Backend& b) {
     backend = b; started = true;
     caps::Set("game.missions.read", b.admission && b.offer && b.status, "validated offline backend required");
     caps::Set("game.missions.accept", b.admission && b.offer && b.accept, "validated offline backend required");
+    caps::Set("game.missions.progress", b.admission && b.status && b.objective && b.advance, "validated offline backend required");
     return Result::Ok;
 }
 Result Stop() {
@@ -169,6 +231,7 @@ Result Stop() {
     host::WithdrawGameService(SC_MISSIONS_SERVICE_NAME);
     caps::Set("game.missions.read", false, "stopped");
     caps::Set("game.missions.accept", false, "stopped");
+    caps::Set("game.missions.progress", false, "stopped");
     backend = {};
     return Result::Ok;
 }

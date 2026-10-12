@@ -11,7 +11,8 @@ using namespace sco;
 using namespace sco::game::offline;
 struct Fake {
     Admission allow{7, true, true, false};
-    int reads = 0, accepts = 0;
+    int reads = 0, accepts = 0, objectives = 0, advances = 0;
+    uint32_t phase = 0, objective = 0, state = SC_MISSION_ACTIVE;
     static Admission Admit(void* p) { return static_cast<Fake*>(p)->allow; }
     static sco_result Offer(void* p, uint32_t i, sc_mission_offer* out) {
         ++static_cast<Fake*>(p)->reads;
@@ -22,10 +23,20 @@ struct Fake {
     static sco_result Accept(void* p, const sc_mission_offer*, uint64_t* out) {
         auto& f = *static_cast<Fake*>(p); ++f.accepts; *out = 303; return SCO_OK;
     }
+    static sco_result Objective(void* p, uint64_t, uint32_t, uint32_t) {
+        auto& f = *static_cast<Fake*>(p); ++f.objectives; ++f.objective; return SCO_OK;
+    }
+    static sco_result Advance(void* p, uint64_t, uint32_t) {
+        auto& f = *static_cast<Fake*>(p); ++f.advances;
+        if (f.phase == 1) f.state = SC_MISSION_COMPLETED;
+        else { ++f.phase; f.objective = 0; }
+        return SCO_OK;
+    }
     static sco_result Status(void* p, uint64_t id, sc_mission_status* out) {
         ++static_cast<Fake*>(p)->reads;
         if (id != 303) return SCO_NOT_FOUND;
-        *out = {sizeof(*out), SC_MISSION_ACTIVE, 303, 101, 0, 0, 2, 2, 7};
+        auto& f = *static_cast<Fake*>(p);
+        *out = {sizeof(*out), f.state, 303, 101, f.phase, f.objective, 2, 2, f.allow.session};
         return SCO_OK;
     }
 };
@@ -43,6 +54,8 @@ void WrapperGuards(sco_plugin* self) {
         CHECK(wrap.Offer(0, offer) == SCO_UNAVAILABLE);
         CHECK(wrap.Status(303, status) == SCO_UNAVAILABLE);
         uint64_t id = 0; CHECK(wrap.Accept(offer, 42, id) == SCO_UNAVAILABLE);
+        CHECK(wrap.Objective(303, 0, 0) == SCO_UNAVAILABLE);
+        CHECK(wrap.Advance(303, 0) == SCO_UNAVAILABLE);
     }
     sc_missions_v1 empty{}; empty.size = sizeof(empty); exposed = &empty;
     CHECK(wrap.Open(&api, self) == SCO_OK);
@@ -56,7 +69,7 @@ int main() {
     auto* self = host::NewPlugin("mission_fixture"); CHECK(self);
     WrapperGuards(self);
     Fake f;
-    Backend backend{&f, Fake::Admit, Fake::Offer, Fake::Status, Fake::Accept};
+    Backend backend{&f, Fake::Admit, Fake::Offer, Fake::Status, Fake::Accept, Fake::Objective, Fake::Advance};
     CHECK(Start(backend) == Result::Ok);
     const sc_missions_v1* svc = nullptr;
     CHECK(api->query_service(SC_MISSIONS_SERVICE_NAME, SC_MISSIONS_SERVICE_VERSION,
@@ -74,6 +87,19 @@ int main() {
     changed = offer; changed.generation++;
     CHECK(svc->accept(self, &changed, 43, &mission) == SCO_NOT_FOUND && f.accepts == 1);
     CHECK(svc->accept(self, &offer, 0, &mission) == SCO_BAD_ARG && f.accepts == 1);
+    auto* foreign = host::NewPlugin("mission_foreign"); CHECK(foreign);
+    CHECK(svc->objective(foreign, mission, 0, 0) == SCO_NOT_FOUND && f.objectives == 0);
+    CHECK(svc->advance(self, mission, 0) == SCO_FAILED && f.advances == 0);
+    CHECK(svc->objective(self, mission, 0, 0) == SCO_OK && f.objectives == 1);
+    CHECK(svc->objective(self, mission, 0, 0) == SCO_OK && f.objectives == 1);
+    CHECK(svc->objective(self, mission, 0, 2) == SCO_BAD_ARG && f.objectives == 1);
+    CHECK(svc->objective(self, mission, 0, 1) == SCO_OK && f.objectives == 2);
+    CHECK(svc->advance(self, mission, 0) == SCO_OK && f.advances == 1);
+    CHECK(svc->advance(self, mission, 0) == SCO_OK && f.advances == 1);
+    CHECK(svc->objective(self, mission, 1, 0) == SCO_OK);
+    CHECK(svc->objective(self, mission, 1, 1) == SCO_OK);
+    CHECK(svc->advance(self, mission, 1) == SCO_OK && f.state == SC_MISSION_COMPLETED);
+    CHECK(svc->advance(self, mission, 1) == SCO_OK && f.advances == 2);
     CHECK(svc->offer(self, 1, &offer) == SCO_NOT_FOUND);
     int before = f.reads;
     f.allow.offline = false;

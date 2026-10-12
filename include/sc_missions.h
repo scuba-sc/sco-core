@@ -51,6 +51,8 @@ typedef struct sc_missions_v1 {
     /* Current offer/broker/generation only. key is owner/session-scoped; output unchanged on failure.
      * Identical key+offer replay returns original ID; altered replay BAD_ARG; 64 receipts, no eviction. */
     sco_result (*accept)(sco_plugin* self, const sc_mission_offer* offer, uint64_t key, uint64_t* out_mission);
+    sco_result (*objective)(sco_plugin* self, uint64_t mission_id, uint32_t phase, uint32_t objective);
+    sco_result (*advance)(sco_plugin* self, uint64_t mission_id, uint32_t expected_phase);
 } sc_missions_v1;
 #ifdef __cplusplus
 }

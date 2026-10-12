@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G11 objective/phase progression (#132):** owner-scoped ordered steps, fresh status
+  comparison, no-op duplicate completion and refused skips/uncertain retries. Final
+  phase completion never pays automatically. Synthetic two-phase acceptance only.
+
 - **G11 broker acceptance (#132):** exact broker/offer/generation validation,
   owner/session-scoped idempotency and bounded non-evicting acceptance receipts.
   Uncertain failures are not retried automatically; no engine adapter enabled.
