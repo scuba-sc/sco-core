@@ -2,6 +2,10 @@
 
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
+## Unreleased
+
+- **First-plugin documentation:** add a published-archive download/checksum/copy/rename/build/check walkthrough, explicit Windows deployment limits and diagnostics; curate the documentation index for six audiences and publish the guide through the existing site allowlist. No behavior or ABI change.
+
 ## sdk-v2.0.0 (2026-10-12)
 
 The plugin ABI remains 1.1, unchanged. The SDK major version reflects breaking packaging/profile and release-process changes: separate core and game extension archives, an independently buildable core-source kit, and build-once promotion requiring a signed, hash-bound maintainer approval.

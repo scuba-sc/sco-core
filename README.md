@@ -49,13 +49,13 @@ Linux, macOS and Windows (MSVC). Sanitizer runs, options and CI: [Building and t
 
 | Start here | For |
 |---|---|
-| [Docs index](docs/README.md) | Every document, by audience |
-| [Plugin API v1](docs/api-v1.md) | The ABI: every function, struct and rule |
-| [C++](docs/sdk-cpp.md) · [C#](docs/sdk-csharp.md) · [Lua](sdk/docs/lua.md) · [Data packs](sdk/docs/data-packs.md) | Writing a plugin in each language |
-| [How it works](docs/architecture.md) | Layers, startup, threading, runtime, limits |
-| [Checking a game build](docs/sigcheck.md) | Patch-day signature checks |
-| [Agent and IDE integration](docs/agent-integration.md) | The read-only `sco-core-mcp` server |
-| [CHANGELOG](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) | Changes and how to contribute |
+| [Start your first plugin](docs/getting-started.md) | New author: download, verify, rename, build, check and deploy |
+| [Use the API safely](docs/README.md#plugin-api-consumer--use-the-api-safely) | Plugin ABI, contract authority and language/service guides |
+| [Embed a host](docs/README.md#sdk-integrator--host--embed-a-host) | SDK integrator: host kit, lifecycle, simulator and controls |
+| [Check or update a game build](docs/README.md#game-pack-contributor--check-or-update-a-game-build) | Game-pack contributor: signatures, guards and evidence |
+| [Discover via MCP](docs/README.md#agent--ide-user--discover-the-sdk-via-mcp) | Agent/IDE user: read-only SDK discovery |
+| [Build, contribute, release](docs/README.md#maintainer--build-contribute-release) | Maintainer: tests, release/decision evidence and publication |
+| [Curated docs index](docs/README.md) | All six audience paths plus historical evidence |
 
 ## Scope
 

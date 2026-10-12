@@ -1,70 +1,97 @@
 # sco-core documentation
 
-Start with the [README](../README.md) for what sco-core is. Pick your path below. Where sco-core and sc-offline stand, where they are heading and what the work so far taught: [Framework plan](framework.md).
+Curated guides by audience, not an exhaustive inventory of historical records.
+For the project overview, start with the [root README](../README.md).
 
-## Writing a plugin
+## New plugin author — Start a plugin
 
-| Doc | What |
-|---|---|
-| [Agent and IDE integration](agent-integration.md) | Local SDK discovery MCP launcher, explicit read-only tool allowlist and maintainer-owned Copilot code review configuration |
-| [Reference snapshots](reference-snapshots.md) | Bind the catalogue and examples to exact SDK archive/source inputs; preview and unapproved candidate inventories |
-| [Plugin SDK](../sdk/README.md) | Build the examples, start from the template, check and install a plugin |
-| [Plugin API v1](api-v1.md) | `sco_api.h`: exports, the host table, commands, events, capabilities, threading, compatibility, layout |
-| [C++ SDK](sdk-cpp.md) | `include/scosdk/`: the C++20 layer over `sco_api.h`: plugin class, commands, services, raw handlers, storage, lifetimes, the exception boundary |
-| [C# SDK](sdk-csharp.md) | `sdk/csharp/Sco.Sdk`: the C# layer, published with NativeAOT: setup, plugin class, commands, services, raw handlers, storage, DataCore, UI, lifetimes, threads, the exception boundary, AOT and trimming rules |
-| [Game services](game-services.md) | The Star Citizen game pack's services under the owner `game`: versions, capabilities, events, what a product turns on; [status of every game.* table](game/status.md) says what is on and how far it has been checked |
-| [Storage](storage.md) | The host service `sco.storage`: per-plugin key-value and SQL over SQLite, transactions, crash safety, what SQL may run, limits |
-| [UI](ui.md) | The host service `sco.ui`: tabs, overlays and badges in the product's menu, hotkeys bound to commands, chords, conflicts, hosting it |
-| [plugin.ini](../sdk/docs/plugin-ini.md) | Every key of the plugin manifest |
-| [Data packs](../sdk/docs/data-packs.md) | Missions, rules, scripts and lists without code |
-| [Lua plugins](../sdk/docs/lua.md) | The `sco` table, the sandbox and its limits |
-| [Plugin rules](../sdk/docs/plugin-rules.md) | What plugins may and may not do, and what the host guarantees |
+1. [Start your first plugin](getting-started.md): choose language/archive,
+   prerequisites, published download/checksum, copy/rename/build/check, Windows
+   deployment and diagnostics in one path.
+2. [SDK archive reference](../sdk/README.md), [plugin.ini](../sdk/docs/plugin-ini.md)
+   and [plugin rules](../sdk/docs/plugin-rules.md): packaging, manifests and trust.
+3. Your language: [C ABI](api-v1.md), [C++](sdk-cpp.md), [C#](sdk-csharp.md),
+   [Lua](../sdk/docs/lua.md) or [data packs](../sdk/docs/data-packs.md).
 
-## Hosting plugins (sc-offline and sco-core developers)
+## Plugin API consumer — Use the API safely
 
-| Doc | What |
-|---|---|
-| [Plugins](plugins.md) | Discovery, `plugin.ini` checks, the native loader, crash containment, Lua, data packs, status |
-| [sco-lua](../plugins/lua/README.md) | The Lua runtime: sandbox, step and memory limits, updating Lua |
-| [How it works](architecture.md) | The runtime (tasks, events, commands, owners), threading and limits |
-| [Multiplayer messages](net.md) | `sco.net`: channels, quotas, threads, events and the LAN rule, for plugin authors (and the product's session control) |
-| [Local IPC](ipc.md) | `sco.ipc` and the MIT wire `sc_ipc.h`: channels, rings, blocks, epochs, heartbeats and the hostile-peer rules, for plugin and bridge authors |
-| [sco.net wire format](net-wire.md) | The packets, handshake, keys, replay window and reliable delivery of `sco.net` as built (plan PR 4a), and the MIT wire header `sc_net.h` |
-| [C++ API reference](api.md) | Every function and type in `include/sco/`, including the host kit (`sco/app.h`), `caps`, `host` and the runtime |
-| [Building: sco-host-sim](building.md#sco-host-sim) | Running plugins through the real host kit, without the game |
-| [Framework plan § Lessons](framework.md#lessons) | Rules for hosts learned in game: where to call `Stop`, starting the host kit, adopting sco-core's types |
+1. [Plugin API v1](api-v1.md): exports/root table, ABI compatibility, whole-member
+   and non-null checks, capabilities, commands, events, raw handlers and threads.
+2. [Public contract catalogue and reading rules](contracts.md), backed by
+   [machine-readable records](../sdk/contracts): per-method semantics, buffers,
+   failures, ownership, callback/service lifetime and unspecified guarantees.
+   Declarations come from [sco_api.h](../include/sco_api.h); the signature-row
+   page [game/contracts.md](game/contracts.md) is **not** this contract authority.
+3. [Plugin lifetime/fault/reload rules](plugins.md) and
+   [native trust rules](../sdk/docs/plugin-rules.md): quiescence, Stop/unload and
+   restart boundaries. [C++](sdk-cpp.md), [C#](sdk-csharp.md) and
+   [Lua](../sdk/docs/lua.md) explain language-specific exposure and limits.
+4. Neutral services: [storage](storage.md), [UI](ui.md), [IPC](ipc.md),
+   [network messages](net.md) and [network wire](net-wire.md).
+5. Optional extension: [DataCore](datacore.md), [game services](game-services.md)
+   and [current evidence/status](game/status.md). Availability is not gameplay proof.
 
-## Game core
+## SDK integrator / host — Embed a host
 
-| Doc | What |
-|---|---|
-| [How it works](architecture.md) | Signature rows, results, resolving, the report, startup |
-| [The game pack](game-pack.md) | The Star Citizen game pack: its version line and the game builds it was verified on |
-| [Status of every game.* table](game/status.md) | Per service table and capability: version, ON or OFF by default, and the evidence (rows resolved by sigcheck, verified in game, off pending an in-game check, blocked); nothing is verified in game yet |
-| [Adding a signature](adding-signatures.md) | Moving a feature's addresses into a table, and the rules rows follow |
-| [ASOP, hangar and ATC rows](game/asop.md) | The 62 rows behind ship terminals, lifts, hangars and ATC, their capabilities and root causes |
-| [Building, missions, cvars and quantum rows](game/world.md) | The 37 rows behind build mode, the mission system, cvar storage and quantum boost, their capabilities |
-| [Contracts rows](game/contracts.md) | The 82 rows and 15 capabilities behind sc-offline's contracts feature |
-| [Features rows](game/features.md) | The rows moved out of sc-offline's five FindPattern scans, and their capabilities |
-| [Offline patches and startup rows](game/offline.md) | The 60 rows and 19 capabilities behind sc-offline's offline patches, boot and startup hooks |
-| [Mining row](game/mining.md) | The row behind natural mining: the biome builder's cell function, its checks and capability |
-| [Actors rows](game/actors.md) | The 36 rows behind spawning, seats, NPCs, ammo and the player loadout |
-| [Entities rows](game/entities.md) | The 6 rows behind `game.entities`: the class name, the entity walk and the two streaming hooks |
-| [Actor status and event rows](game/events.md) | The 9 rows behind `game.actors` health and state and the player, death and seat events |
-| [Creative rows](game/creative.md) | The existing rows behind `game.creative`: god mode, fly and its speed, the magazine setter, and the capability each feature has |
-| [Checking a game build](sigcheck.md) | `sco-sigcheck`: output, exit codes, the patch-day routine |
-| [DataCore files and packs](datacore.md) | `sco-dcb info`, `records`, `lint`, `check`, `show` and `diff`: extracting `Game2.dcb`, the layout check, the `.toml` pack format, the `sco.datacore` service, exit codes |
-| [Design: multiplayer and cross-game bridges](design/multiplayer.md) | The scope change of 2026-10-09, what the fork's multiplayer code does, the `sco.net` and `sco.ipc` services, the `sco::game::net` rows, sc-offline's built-ins and the PR plan; partly implemented (`sco.net`, `sco.ipc`, the bridge layouts), the rest a historical plan |
-| [Design: game-file overrides and DataCore patches](design/vfs-datacore.md) | `sco::vfs`, `sco::game::pak`, the DataCore layout, a semantic patcher (with `AddRecord`), `.toml` overrides in data packs and the `sco.datacore` service; decisions of 2026-10-09; implemented, a historical record |
-| [Design: service calls that fault, and providers that unload](design/service-safety.md) | Historical service-fault/unload proposal; base-table growth and `guard_call` superseded. Future lifecycle work uses a separately versioned service table; current lifetime audit covers atomic unload refusal, terminal fault retention and shutdown limits |
-| [Design: game services](design/game-services.md) | The SDK as the platform every plugin builds on: `game.*` services in the game pack (entities, vehicles, actors, world, events), their own version line, the move of `teleport.spatial` and `spawn.entities` out of sc-offline, and the PR plan; decisions of 2026-10-10; implemented, a historical record (as built: [game services](game-services.md)) |
-| [Design: game.world and event spikes (Appendix B)](design/game-world-spikes.md) | Raycast, camera, entity enumeration, actor health and state, and the player, zone, vehicle and streaming events: locator, byte checks, arguments and uniqueness evidence on 4.10.196.36804, or blocked with evidence; spike results of 2026-10-10; the code they gated is built, this stays the evidence record |
+1. [Kernel source kit](../sdk/README.md#build-the-kernel-source-kit) versus
+   [checkout build](building.md): platform/toolchain and neutral/game boundaries.
+2. [Host/internal C++ API](api.md): `include/sco/`, `Platform`, Start/Tick/Stop;
+   this is **not** the plugin C++ wrapper reference.
+3. [Architecture](architecture.md): layers, startup, scheduling and limits.
+4. [Plugin loader](plugins.md) and [Lua runtime host](../plugins/lua/README.md):
+   dependency ordering, discovery, reload and native trust.
+5. Host controls: [storage](storage.md), [UI](ui.md), [IPC](ipc.md),
+   [network](net.md), [DataCore](datacore.md), [game-pack opt-in](game-services.md).
+6. [Host simulator](building.md#sco-host-sim) and focused tests in
+   [building/testing](building.md); [host lessons](framework.md#lessons).
 
-## Working on sco-core
+## Game-pack contributor — Check or update a game build
 
-| Doc | What |
-|---|---|
-| [Building and testing](building.md) | `tools/test.sh`, CMake and CTest, the Windows run, the SDK zip, CI |
-| [Contributing](../CONTRIBUTING.md) | What fits, how to make a change, how it reaches sc-offline, how lessons come back |
-| [Changelog](../CHANGELOG.md) | What changed |
-| [Release notes: sdk-v2.0.0](releases/sdk-v2.0.0.md) | The draft notes for the next SDK release (prepared; the tag is the maintainer's) |
+1. [Game pack](game-pack.md) and [service/capability evidence](game/status.md):
+   pack/version, checked signatures, pending runtime diagnostics and game acceptance.
+2. [Sigcheck](sigcheck.md): setup, output, exit codes and patch-day workflow.
+3. [Adding signatures](adding-signatures.md): row ownership, uniqueness and guards.
+4. Feature inventories: [ASOP/hangar/ATC](game/asop.md), [world](game/world.md),
+   [contracts](game/contracts.md), [actors](game/actors.md),
+   [entities](game/entities.md), [events](game/events.md),
+   [creative](game/creative.md), [mining](game/mining.md),
+   [product features](game/features.md), [offline patches](game/offline.md).
+5. [Game service integration](game-services.md): product opt-in and runtime limits.
+   Signature resolution, service presence and in-game correctness are separate evidence.
+
+## Agent / IDE user — Discover the SDK via MCP
+
+1. [Agent and IDE integration](agent-integration.md): compiler/catalogue
+   prerequisites, stdio launcher, client configuration and troubleshooting.
+2. [MCP server authority](../tools/sco-core-mcp/README.md): six read-only tools,
+   allowlist, provenance, limits and separate administrator-owned runner settings.
+3. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
+   exact source/archive inputs; development previews are not approved releases.
+
+MCP is static discovery, not a host/game connection, compiler or SDK executor.
+Client-specific instructions live in the integration guide, not in this index.
+
+## Maintainer — Build, contribute, release
+
+1. [Contributing](../CONTRIBUTING.md) and [building/testing](building.md):
+   source policy, named tests, CI and product adoption.
+2. [Changelog](../CHANGELOG.md), [SDK 2.0.0 notes](releases/sdk-v2.0.0.md) and
+   [published releases](https://github.com/scubamount/sco-core/releases/latest):
+   keep SDK/package, plugin ABI and game-pack version coordinates distinct.
+3. [Release checklist](legal/release-checklist.md) and
+   [release decisions](legal/release-decisions/README.md): candidate versus
+   signed approval versus actual publication; releases are maintainer acts.
+4. [Documentation site](../site/README.md): curated public inputs, generation,
+   checks and existing Pages publication workflow.
+5. [IP policy](../IP_POLICY.md), [third-party notices](../THIRD_PARTY_NOTICES.md)
+   and [dependency inventory](legal/third-party-inventory.md).
+
+### Historical designs and evidence
+
+These are dated plans/audits, not substitutes for current contracts:
+[framework plan](framework.md), [service safety](design/service-safety.md),
+[service-table lifetime audit](design/service-table-lifetime.md),
+[game services](design/game-services.md), [game-world spikes](design/game-world-spikes.md),
+[multiplayer/bridges](design/multiplayer.md), [VFS/DataCore](design/vfs-datacore.md),
+[release-hardening baseline](legal/release-hardening-baseline.md) and
+[plugin-licensing options](legal/plugin-licensing-options.md).

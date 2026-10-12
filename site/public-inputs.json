@@ -2,6 +2,7 @@
   "schema_version": 1,
   "docs": [
     "docs/README.md",
+    "docs/getting-started.md",
     "docs/api.md",
     "docs/api-v1.md",
     "docs/plugins.md",
