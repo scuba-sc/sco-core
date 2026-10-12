@@ -84,6 +84,26 @@ The private ForwardQuit seam tests actual adapter ordering/argument passthrough
 without writing executable memory. ARM/macOS cannot prove a real x86-64 detour;
 Windows hook/game proof remains owed.
 
+## DataCore timing
+
+With Platform dataCore enabled, Prepare starts the service and indexes folder
+manifests/data packs without running plugin code; builtin inputs are refused on
+this early route. Required CryPak transport is installed before engine load,
+using the validated pak rows and a bounded Data/Game2.dcb transform. Start does
+not reset an already LOADED service. After app startup, the frozen data inputs
+are refreshed from the actual app list/content. The loader checks fresh offline
+evidence, reads/parses a bounded base, then invokes the existing service pack/
+saved-patch pipeline. Inspect must be thread-safe and non-reentrant on any loader
+thread. Stop disables transport and drains active producers before plugin
+teardown; service tables stay alive through unload.
+
+External DataCore transport is an explicit synthetic/host integration route, not
+a plugin service. The synthetic game_host_data fixture proves an early pack
+load survives Start and late producers refuse after Stop. It does not prove
+Windows CryPak hooks. Early discovery can only enforce manifest/readiness known
+at that time, not predict a future plugin-load fault. Hosts must not enable
+engine loading before Prepare completes.
+
 ## Decision pending owner / migration limits
 
 This first composition slice deliberately does **not** copy the product's

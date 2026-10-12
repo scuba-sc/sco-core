@@ -18,17 +18,23 @@ struct Admission {
 };
 enum class Phase : uint32_t { Idle, Preparing, Prepared, Starting, Running, Stopping, Stopped, Failed };
 enum class QuitPolicy : uint32_t { Required, External };
+enum class DataCoreHook : uint32_t { Required, External };
 struct Snapshot {
     Phase phase = Phase::Idle;
     bool signaturesResolved = false;
     bool quitHookInstalled = false;
+    bool dataCoreActive = false;
 };
 struct Options {
     uint32_t size = sizeof(Options); // C++ source contract, not frozen sco_api or a wire ABI
-    Admission (*inspect)() = nullptr; // synchronous OS adapter; exceptions refuse admission
+    Admission (*inspect)() = nullptr; // synchronous, thread-safe, non-reentrant OS evidence; exceptions refuse
     const Image* image = nullptr;    // readable immutable original image through Prepare
     QuitPolicy quit = QuitPolicy::Required; // External only when shell supplies BeforeQuit
     uint32_t tickIntervalMs = 100;    // 0 = every shell pass; <= INT32_MAX
+    // platform.dataCore starts the service in Prepare, before an early engine load.
+    // Requires dataRoot and no builtins (early discovery runs no plugin code).
+    DataCoreHook dataCoreHook = DataCoreHook::Required;
+    uint64_t maxDataCoreBytes = 512ull << 20; // bounded base read for Data/Game2.dcb
     app::Platform platform;          // image/registerSignatures MUST be null: owned here
 };
 // Serialized host entries, outside loader lock/runtime callouts. Prepare may precede the game

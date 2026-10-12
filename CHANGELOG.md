@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Offline host DataCore timing (G1):** initialize/index before early engine
+  loading, bounded CryPak transform, preserve LOADED across app Start and drain
+  producers before teardown. Synthetic early-load/late-refusal fixture passes;
+  Windows transport and legacy builtin migration remain unverified.
+
 - **Offline host quit adapter (G1):** required validated CSystem quit hook by
   default, synchronous stop before both engine quit paths, original argument
   passthrough, repeated-stop/task-cancellation fixtures and explicit external
