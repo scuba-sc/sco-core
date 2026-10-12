@@ -86,6 +86,27 @@ What each change means for plugin authors and for products built on sco-core (sc
   owner-scoped receipts report removal initiation only, never `alive=0` completion.
   C/C++ direct route, C#/Lua explicitly unsupported; synthetic fixtures only,
   **not run in game**. Frozen base and existing service layouts remain unchanged.
+- **G6 typed offline player loadout (`game.loadout` 1.0):** bounded 16-slot C/C++
+  synchronous apply, copied input validation and explicit partial/unsupported/missing
+  slot reports; native module/real host-provider fixtures, ABI/package/catalogue
+  evidence. No raw XML or account inventory. Production engine equip remains
+  fail-closed/unavailable pending verified methods and owner-run Windows/game checks.
+  Frozen `sco_api` 1.1 unchanged; C#/Lua routes unsupported. **Not run in game.**
+- **Offline quantum bounded control/state (`game.quantum` 1.0, #129):** game-pack-owned enable/hold/release, copied progress/block/session status, lease expiry and controller cleanup; single-owner hook transaction with alias refusal. C/C++ full-extent/null adapters and synthetic runtime/provider fixtures, catalogue/package/provenance metadata. Frozen `sco_api` 1.1 unchanged. **Production engine bridge stays unavailable:** drive layout, NAV/input/charge/audio/effect forwarding and teardown need reviewed Windows/exact-game evidence; consumer extraction remains blocked. C# and Lua routes unsupported; not run in game.
+- **G7 / #128 reversible scoped cvar writes:** separate `game.cvars_write` 1.0,
+  exact bool allowlist, first-prior leases and per-name concurrent-owner refusal;
+  verified readback, explicit restore, existing spawn owner dispatcher and
+  session/stop restoration. Failed mutation/restoration retains context/leases and
+  requires restart. C/C++ extent/null/ABI and native-loader synthetic lifecycle
+  fixtures; production capabilities remain OFF pending verified engine adapter.
+  No extra kernel release hook, arbitrary console, bridge allowlist or USER.cfg edit.
+
+- **G7 / #128 read-only scoped cvars:** independent size-prefixed `game.cvars`
+  1.0 with an exact four-name SQ42 bool allowlist, live-owner/game-thread and
+  offline/capability admission, copied outputs and restart-required fault latch.
+  C/C++ routes, ABI/extent/null fixtures and a real native-loader synthetic probe;
+  production remains unavailable until the engine adapter is verified. No console
+  execution or persistent config edits; frozen `sco_api` is unchanged.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,

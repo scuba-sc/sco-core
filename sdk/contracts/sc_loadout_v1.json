@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-loadout-v1-apply",
+      "kind": "table-method",
+      "symbol": "sc_loadout_v1.apply",
+      "table": "sc_loadout_v1",
+      "service": "game.loadout",
+      "version_macro": "SC_LOADOUT_SERVICE_VERSION",
+      "source_header": "include/sc_loadout.h",
+      "signature": "sco_result (*)(sco_plugin *, const sc_loadout_request *, sc_loadout_report *)",
+      "member_extent": 16,
+      "table_size": 16,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Synchronous typed offline local-player equip: 1..16 unique slots, fixed ASCII item classes, per-slot APPLIED/UNSUPPORTED/ITEM_MISSING/FAILED/UNAVAILABLE and applied count. Entire batch structural validation precedes engine calls; partial apply is not rolled back.",
+      "buffer_contract": "`sco_result (*apply)(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report);`<br>Synchronous typed offline local-player equip: 1..16 unique slots, fixed ASCII item classes, per-slot APPLIED/UNSUPPORTED/ITEM_MISSING/FAILED/UNAVAILABLE and applied count. Entire batch structural validation precedes engine calls; partial apply is not rolled back.",
+      "ownership": "Caller owns full-size request/report and frozen item array (exact item_stride). No allocation transfer; inputs copied to bounded stack storage; pointers borrowed only during call. Only local player is targeted.",
+      "thread_affinity": "Game thread only; WRONG_THREAD without output or engine access.",
+      "callback_context": "No plugin callbacks. Internal game-pack backend callbacks are synchronous; caller pointers are not retained.",
+      "reentrancy": "Recursive apply returns UNAVAILABLE with per-slot UNAVAILABLE; no nested backend call. Backend Start returns Unavailable and Stop is ignored during apply.",
+      "results": "BAD_ARG for null/foreign/released self, short structs, zero count, wrong stride, nonzero reserved fields, duplicate slots or malformed class; TOO_MANY above 16. Structural refusals leave report unchanged. UNAVAILABLE for missing engine/verification/capability/offline admission, with per-slot UNAVAILABLE. OK iff all applied; FAILED for partial/slot refusals or guarded backend fault.",
+      "absent_capability": "Absent table: query_service NOT_FOUND. Published table does not imply capability; production game.loadout.apply stays false.",
+      "cleanup": "No pending requests, ownership tickets, persistence or unload rollback. Successful equip survives consumer unload. Table session-lifetime; stop withdraws after consumers unload. Backend fault disables apply until process restart; do not retry cached calls after shutdown.",
+      "examples": [],
+      "tests": [
+        "tests/abi_game_loadout.c",
+        "tests/game_contracts/loadout/consumer.c",
+        "tests/game_contracts/loadout/routes.cpp",
+        "tests/game_contracts/loadout/test_loadout.cpp",
+        "tests/game_contracts/loadout/native.cpp",
+        "tests/game_contracts/loadout/test_metadata.py"
+      ],
+      "limitations": [
+        "Production typed engine equip/slot mapping is unverified and disabled. No XML loader fallback, account inventory or entitlements.",
+        "MSVC calling conventions/SEH and game acceptance not verified locally.",
+        "No claim of native corruption recovery; portable test catches C++ exceptions only."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_loadout.h",
+              "token": "(*apply)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_loadout.c",
+            "tests/game_contracts/loadout/consumer.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/loadout.hpp",
+              "token": "return table_->apply(self_, &request, &report);"
+            }
+          ],
+          "tests": [
+            "tests/game_contracts/loadout/routes.cpp",
+            "tests/game_contracts/loadout/test_loadout.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/loadout.md",
+              "token": "C# is unsupported for loadout 1.0"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/loadout.md",
+              "token": "Lua mutation is unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    }
+  ]
+}

@@ -162,6 +162,38 @@
     {
       "path": "tools/test_g9_owned_contract.py",
       "why": "Repository-only targeted G9 contract, layout, catalogue and package gate."
+    },
+    {
+      "path": "tests/abi_game_cvars_write.c",
+      "why": "G7 game-only reversible-write synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
+    },
+    {
+      "path": "tests/test_cvars_write.cpp",
+      "why": "G7 game-only reversible-write synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
+    },
+    {
+      "path": "tests/abi_game_cvars.c",
+      "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
+    },
+    {
+      "path": "tests/fixtures/cvars_probe.c",
+      "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
+    },
+    {
+      "path": "tests/test_cvars.cpp",
+      "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
+    },
+    {
+      "path": "tests/test_cvars_extent.cpp",
+      "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
+    },
+    {
+      "path": "tests/test_quantum.cpp",
+      "why": "Repository-only synthetic quantum bridge fixture; game implementation excluded from kernel source kit."
+    },
+    {
+      "path": "tests/game_contracts/loadout/",
+      "why": "Repository-only G6 typed loadout provider/native-boundary and catalogue fixtures; game-specific, never neutral core-source."
     }
   ],
   "components": [
@@ -5965,6 +5997,155 @@
       "id": "source.tests.abi_game_owned.c",
       "source": "tests/abi_game_owned.c",
       "destination": "tests/abi_game_owned.c",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "g7.include.sc_cvars_write.h",
+      "source": "include/sc_cvars_write.h",
+      "destination": "include/sc_cvars_write.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.include.scosdk.game.cvars_write.hpp",
+      "source": "include/scosdk/game/cvars_write.hpp",
+      "destination": "include/scosdk/game/cvars_write.hpp",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.sdk.contracts.sc_cvars_write_v1.json",
+      "source": "sdk/contracts/sc_cvars_write_v1.json",
+      "destination": "contracts/sc_cvars_write_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "g7.include.sc_cvars.h",
+      "source": "include/sc_cvars.h",
+      "destination": "include/sc_cvars.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.include.scosdk.game.cvars.hpp",
+      "source": "include/scosdk/game/cvars.hpp",
+      "destination": "include/scosdk/game/cvars.hpp",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.sdk.contracts.sc_cvars_v1.json",
+      "source": "sdk/contracts/sc_cvars_v1.json",
+      "destination": "contracts/sc_cvars_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "g7.docs.game.cvars.md",
+      "source": "docs/game/cvars.md",
+      "destination": "docs/game/cvars.md",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "include.sc_quantum.h",
+      "source": "include/sc_quantum.h",
+      "destination": "include/sc_quantum.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "source.tests.abi_game_quantum.c",
+      "source": "tests/abi_game_quantum.c",
+      "destination": "tests/abi_game_quantum.c",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "docs.quantum.md",
+      "source": "docs/quantum.md",
+      "destination": "docs/quantum.md",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "include.sc_loadout.h",
+      "source": "include/sc_loadout.h",
+      "destination": "include/sc_loadout.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "include.scosdk.game.loadout.hpp",
+      "source": "include/scosdk/game/loadout.hpp",
+      "destination": "include/scosdk/game/loadout.hpp",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "docs.game.loadout.md",
+      "source": "docs/game/loadout.md",
+      "destination": "docs/game/loadout.md",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "tests.abi_game_loadout.c",
+      "source": "tests/abi_game_loadout.c",
+      "destination": "tests/abi_game_loadout.c",
       "profiles": [
         "game-sc"
       ],

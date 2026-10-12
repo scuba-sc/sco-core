@@ -17,6 +17,13 @@ As of sco-core `main` at `2197dfb` (2026-10-11, with `game.actors.died`), game p
 | `OFF pending in-game confirmation` | The rows resolve, but something only a run can show is open (the thread a callback runs on, a vector layout, which of two checks means dead). The capability stays off until that run |
 | `BLOCKED` | No locator we can trust, so nothing is published |
 
+## Typed loadout extension (G6)
+
+`game.loadout` 1.0 / `game.loadout.apply`: table published by Windows game-services
+composition, capability **OFF — typed engine methods unverified**. Synthetic real
+host/provider/native-module checks only; no trusted per-slot equip mapping and no
+offline admission adapter installed. See [loadout](loadout.md). Not run in game.
+
 ## Service tables and capabilities
 
 **Unreleased G4 addition:** `game.prefabs` 1.0 uses the existing object-container
