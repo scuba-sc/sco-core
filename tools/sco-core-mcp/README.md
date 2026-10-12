@@ -6,7 +6,7 @@ catalogue. It does **not** connect to a running host or game, invoke SDK methods
 compile plugins, execute examples, or modify the repository. It is development
 tooling, not an SDK runtime component.
 
-[Opt-in runtime tools in this existing server](../../docs/design/runtime-mcp.md) are proposed, not implemented; the current six-tool discovery launcher and its no-runtime guarantees are unchanged.
+[Opt-in runtime tools in this existing server](../../docs/design/runtime-mcp.md) have owner-approved placement/defaults and runtime data sources (2026-10-12), but are not implemented; the current six-tool discovery launcher and its no-runtime guarantees are unchanged.
 
 The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes

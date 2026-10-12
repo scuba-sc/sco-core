@@ -14,20 +14,14 @@ does not certify every game build or game-service behavior. See the
 
 ## Reporting a vulnerability privately
 
-Use [GitHub Security Advisories for scubamount/sco-core](https://github.com/scubamount/sco-core/security/advisories).
-When **Report a vulnerability** is available on the repository's
-[Security page](https://github.com/scubamount/sco-core/security), submit a private
-report through GitHub private vulnerability reporting. Do not put exploit details,
-credentials, personal data, proprietary files or game dumps in public issues/PRs.
-
-Private vulnerability reporting is **currently disabled** (checked during this
-policy's preparation). The owner must enable it before the public private-report
-intake button is available; this PR does not change that setting. GitHub Security
-Advisories are the intended private coordination/publication route, **not a claim
-that a non-collaborator can open a private advisory while intake is disabled**.
-If no private-report button is offered, wait for the owner to provide that GitHub
-intake rather than publishing sensitive details in an issue. Repository
-collaborators can coordinate through a private draft advisory.
+Private vulnerability reporting is **enabled** (verified 2026-10-12).
+Submit a [private vulnerability report for scubamount/sco-core](https://github.com/scubamount/sco-core/security/advisories/new)
+through GitHub; the maintainer coordinates reports and disclosure through
+[GitHub Security Advisories](https://github.com/scubamount/sco-core/security/advisories).
+Do not put exploit details, credentials, personal data, proprietary files or game
+dumps in public issues/PRs. If GitHub's private intake is temporarily unavailable,
+wait for it to be restored rather than publishing sensitive details publicly.
+This documentation records the enabled setting; this PR does not change it.
 
 Include the affected release/commit, platform, component, minimal synthetic
 reproduction, impact and any suggested mitigation. Prefer project-authored
@@ -57,7 +51,7 @@ Lua's sandbox and no-code data packs have different contracts; do not infer thei
 restrictions apply to native plugins. An SDK service name, read-only MCP
 annotation or retained DLL is not proof of safe execution or recovery.
 
-The [runtime MCP design](docs/design/runtime-mcp.md) is a proposal, **not implemented**.
+The [runtime MCP design](docs/design/runtime-mcp.md) has owner-approved placement/defaults and data sources (2026-10-12), but is **not implemented**.
 The existing MCP server remains catalogue-only. Future runtime admission requires
 explicit host/client opt-in, positive offline policy, authenticated same-PC IPC,
 metadata minimization and a verified protected audit boundary. No guarantee against

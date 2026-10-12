@@ -2,8 +2,9 @@
 
 Status: **step 0, design only; runtime tools are not implemented**. The owner
 approved placement **A**, an opt-in runtime tool group inside the existing
-`tools/sco-core-mcp` stdio server. The remaining eight decisions below are
-proposals, not approvals. No host endpoint, startup option, adapter, credential,
+`tools/sco-core-mcp` stdio server and all eight defaults on **2026-10-12**;
+the runtime data-source decision is recorded below and tracked in
+[#141](https://github.com/scubamount/sco-core/issues/141). No host endpoint, startup option, adapter, credential,
 collector or runtime registration is added by this PR. **Not run in game.**
 
 ## Problem and scope
@@ -50,20 +51,26 @@ this diagnostics contract does not (`sdk/docs/plugin-rules.md:5-27`).
 
 ## Decisions
 
-| Decision | Status | Proposed default / remaining owner choice |
+| Decision | Status | Approved decision / remaining implementation detail |
 |---|---|---|
 | Placement | **Approved: A** | Same existing server; runtime group absent unless explicitly enabled at process startup; no separate server. |
-| v1 observation scope | **Proposed default (pending owner approval)** | Host/plugin/service/signature/lifecycle metadata only; no gameplay snapshots. |
-| Product ownership and offline admission | **Proposed default (pending owner approval)** | Trusted product supplies a default-off developer setting and positive offline verdict; unknown means no channel. Owner must name product, revocation fact and downstream PR owner. |
-| IPC/credential identity | **Proposed default (pending owner approval)** | Host-owned `sco.diagnostics`, one host and one peer per user/session, versioned layout, per-session secret outside checkout/plugin roots, packaged native peer adapter. Multi-host support requires a separate unique-name decision; no auto-discovery. |
-| Audit privilege boundary | **Proposed default (pending owner approval)** | Administrator-provisioned local OS collector, supported non-admin client, verified append-only publisher/agent permissions and fail-closed acknowledgement. Elevated/unrestricted same-user agents cannot receive the no-rewrite guarantee. |
-| Disclosure | **Proposed default (pending owner approval)** | Structured host events only; free-form plugin text separately default off; field minimization and explicit remote-model disclosure consent. Owner may require IDs/version aliases. |
-| Limits and retention | **Proposed default (pending owner approval)** | Limits below and seven-day administrator-controlled audit rotation; fixture measurements gate rollout. |
-| License/package boundary | **Proposed default (pending owner approval)** | New diagnostics wire and adapter GPL-3.0-only unless owner grants a reviewed per-file exception. New implementation packaging membership remains to be chosen. This PR's design/test fixtures are repository-only under existing exclusions, not a fifth MIT header. |
-| Acceptance ownership | **Proposed default (pending owner approval)** | Owner names Windows security-fixture provisioner and manual offline tester; record build/session-scoped fixture, OS-security and manual evidence separately. Until manual acceptance: **not run in game**. |
+| v1 observation scope | **Decided 2026-10-12 (owner)** | Host/plugin/service/signature/lifecycle metadata only; no gameplay snapshots. |
+| Product ownership and offline admission | **Decided 2026-10-12 (owner)** | Trusted product supplies a default-off developer setting and positive offline verdict; unknown means no channel. Owner must name product, revocation fact and downstream PR owner. |
+| IPC/credential identity | **Decided 2026-10-12 (owner)** | Host-owned `sco.diagnostics`, one host and one peer per user/session, versioned layout, per-session secret outside checkout/plugin roots, packaged native peer adapter. Multi-host support requires a separate unique-name decision; no auto-discovery. |
+| Audit privilege boundary | **Decided 2026-10-12 (owner)** | Administrator-provisioned local OS collector, supported non-admin client, verified append-only publisher/agent permissions and fail-closed acknowledgement. Elevated/unrestricted same-user agents cannot receive the no-rewrite guarantee. |
+| Disclosure | **Decided 2026-10-12 (owner)** | Structured host events only; free-form plugin text separately default off; field minimization and explicit remote-model disclosure consent. Owner may require IDs/version aliases. |
+| Limits and retention | **Decided 2026-10-12 (owner)** | Limits below and seven-day administrator-controlled audit rotation; fixture measurements gate rollout. |
+| License/package boundary | **Decided 2026-10-12 (owner)** | New diagnostics wire and adapter GPL-3.0-only unless owner grants a reviewed per-file exception. New implementation packaging membership remains to be chosen. This PR's design/test fixtures are repository-only under existing exclusions, not a fifth MIT header. |
+| Acceptance ownership | **Decided 2026-10-12 (owner)** | Owner names Windows security-fixture provisioner and manual offline tester; record build/session-scoped fixture, OS-security and manual evidence separately. Until manual acceptance: **not run in game**. |
+| Runtime data sources | **Decided 2026-10-12 (owner)** | Both a minimal snapshot published by the Star Citizen game pack and an optional diagnostics SDK plugin for plugin-authored fields. Both off by default, read-only, without personal identifiers, and exposed only through the host diagnostics endpoint; no side channel. Implementation tracked in [#141](https://github.com/scubamount/sco-core/issues/141). |
 
-Protocol numbers and schema v1 below are proposed contracts for review, not new
-exports or evidence that the eight pending decisions were approved.
+The eight defaults are approved as written; naming/provisioning, reviewed grants
+and package membership explicitly left in their content remain implementation
+prerequisites, not pending approval of those defaults. The data-source decision
+does not expand the v1 metadata-only scope or the six closed schemas: extra
+plugin-authored fields require a separately reviewed versioned contract.
+Protocol numbers and schema v1 below remain design contracts, not new exports
+or runtime acceptance evidence.
 
 ## Placement A: preserve the discovery boundary
 
@@ -370,9 +377,9 @@ plugin lifecycle route or SDK service selector, even for authenticated peers.
 ### Limits and scheduling
 
 Independent host and enabled-server enforcement; discovery limits remain unchanged
-(`tools/sco-core-mcp/server.py:18-22,287-294`). All new values below await approval.
+(`tools/sco-core-mcp/server.py:18-22,287-294`). The owner approved the new values below on 2026-10-12; rollout still requires fixture measurements.
 
-| Boundary | Proposed v1 limit |
+| Boundary | Approved v1 limit (fixture-gated) |
 |---|---|
 | MCP runtime input / output | 64 KiB input; 256 KiB whole runtime MCP response (including duplicated text/structured envelope). |
 | IPC mapping / complete frame | 256 KiB mapping; 4096-byte request / 65536-byte response, including 104 bytes of header+MAC. |
@@ -404,7 +411,8 @@ setting is **new work**; no offline/diagnostics field exists in the current
 authorization before channel, secret or capture creation. Unknown/online/disallowed
 means disabled; do not contact servers, interrogate/bypass anti-cheat or infer
 posture from signatures, plugin enablement or `gameServices`. Product ownership
-and revocation facts require the owner's pending decision. If trustworthy policy
+and revocation facts must be named before implementation rollout, as required
+by the approved default. If trustworthy policy
 cannot be supplied, leave inspection unavailable.
 
 Revocation closes admission/mapping before plugin teardown, invalidates keys,
@@ -520,7 +528,7 @@ needs, starts or injects a game or reads proprietary files.
 
 | Step | One PR / exit condition | Narrow test and required documentation |
 |---|---|---|
-| **0 (this PR)** | Placement A and endpoint/schema/security proposal; owner reviews eight pending defaults. No runtime implementation. | Synthetic schema/golden vectors using existing stdlib schema validator (`tools/ip_audit.py:658-728`); refuse unknown fields/opcode/version and oversized bounds. Add SECURITY/design links/changelog/provenance; current discovery tests unchanged. No live peer, crypto, ACL or audit proof claimed. |
+| **0 (this PR)** | Placement A and eight defaults approved by the owner on 2026-10-12; runtime data-source decision tracked in #141. No runtime implementation. | Synthetic schema/golden vectors using existing stdlib schema validator (`tools/ip_audit.py:658-728`); refuse unknown fields/opcode/version and oversized bounds. Add SECURITY/design links/changelog/provenance; current discovery tests unchanged. No live peer, crypto, ACL or audit proof claimed. |
 | **1: copied host snapshots** | Game-thread immutable plugin/lifecycle/signature copies, metadata registry copy and bounded keyed capture; no external channel. | `test_runtime_diagnostics_snapshot` fixture: all states, invalid manifests, withdrawal/exposure/restart/log gaps, redaction, generation pages, physically short trusted tables. Zero QueryService/new hand-outs, plugin callbacks, SDK/game methods and unchanged plugin/capability state. Update architecture/plugins/log privacy docs; frozen ABI untouched. |
 | **2: host IPC/auth gate** | Host-only channel path, versioned geometry/frames, secrets, singleton lease, mutual MAC and strict read dispatcher; default off. Fixture audit interface only. | `test_runtime_diagnostics_ipc` real transport + hostile peer: malformed geometry/counters/lengths/UTF-8, forged responses, credentials/replay/epoch/deadline, second peer, authenticated raw/mutation/reload/network opcodes and zero side-effect counters. Independent literal frame/layout/ABI pins; update IPC and explicit no-net/key-reuse docs; record wire licence/package ownership. |
 | **3: audit and product policy** | Collector acknowledgement/ACL adapter, default-off host integration, positive offline admission, revocation ordering. Downstream consumer PR is separately authorized. | `test_runtime_diagnostics_policy`: off/unknown/online, pending-read revocation, audit full/timeout/unavailable, rate aggregation, timing/caps, stop-before-teardown. Dedicated Windows no-game process checks token/mapping/collector permissions as intended identities. Update SECURITY, plugin rules, install/disable/retention docs; human provisions collector. |
