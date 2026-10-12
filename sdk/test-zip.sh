@@ -31,6 +31,65 @@ else
   "$PY" "$SDK/package.py" --out "$WORK/dist"
   ZIP=$(ls "$WORK"/dist/sco-sdk-*.zip)
 fi
+if [ $# -ge 2 ]; then
+  # Read descriptors and bind the overlay to the exact archive before extraction or copying.
+  "$PY" - "$ZIP" "$2" <<'PY'
+import hashlib
+import json
+import re
+import sys
+import zipfile
+
+
+def descriptor(path, role):
+    suffix = ".game-sc" if role == "game-sc" else ""
+    with zipfile.ZipFile(path) as z:
+        names = [n for n in z.namelist() if n.endswith("/COMPATIBILITY.json" + suffix)]
+        if len(names) != 1:
+            raise ValueError(f"{role}: expected exactly one compatibility descriptor")
+        d = json.loads(z.read(names[0]))
+    required = {"schema_version", "profile", "core_sdk_version", "plugin_abi_version",
+                "game_overlay_version", "source_commits", "base_core_sha256"}
+    if set(d) != required or d["schema_version"] != 1 or d["profile"] != role:
+        raise ValueError(f"{role}: invalid compatibility descriptor or archive role")
+    for field, pattern in (("core_sdk_version", r"[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9.]+)?"),
+                           ("plugin_abi_version", r"[0-9]+\.[0-9]+")):
+        if not isinstance(d[field], str) or not re.fullmatch(pattern, d[field]):
+            raise ValueError(f"{role}: invalid {field}")
+    commits = d["source_commits"]
+    if not isinstance(commits, dict) or set(commits) != ({"core", "game-sc"} if suffix else {"core"}):
+        raise ValueError(f"{role}: invalid source commits")
+    if any(not isinstance(c, str) or not re.fullmatch(r"[0-9a-f]{40}", c) for c in commits.values()):
+        raise ValueError(f"{role}: invalid source commit")
+    if suffix:
+        if not isinstance(d["base_core_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", d["base_core_sha256"]):
+            raise ValueError("game-sc: invalid base core SHA-256")
+        if not isinstance(d["game_overlay_version"], str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", d["game_overlay_version"]):
+            raise ValueError("game-sc: invalid game overlay version")
+    elif d["base_core_sha256"] is not None or d["game_overlay_version"] is not None:
+        raise ValueError("core: unexpected overlay fields")
+    return d
+
+
+try:
+    core, overlay = descriptor(sys.argv[1], "core"), descriptor(sys.argv[2], "game-sc")
+    with open(sys.argv[1], "rb") as f:
+        digest = hashlib.sha256()
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+        actual = digest.hexdigest()
+    if overlay["base_core_sha256"] != actual:
+        raise ValueError(f"base core SHA-256 mismatch: overlay expects {overlay['base_core_sha256']}, supplied {actual}")
+    for field in ("core_sdk_version", "plugin_abi_version"):
+        if overlay[field] != core[field]:
+            raise ValueError(f"{field} mismatch")
+    if overlay["source_commits"]["core"] != core["source_commits"]["core"]:
+        raise ValueError("base core source commit mismatch")
+except (OSError, ValueError, TypeError, KeyError, zipfile.BadZipFile) as e:
+    sys.exit(f"incompatible SDK overlay: {e}")
+print("zip: exact core/overlay compatibility OK")
+PY
+fi
 verify_zip() {   # verify_zip <zip>: unpack into its own folder; its SHA256SUMS must match and list every file
   local dir="$WORK/z$1" top listed actual sums
   mkdir "$dir"
@@ -76,7 +135,7 @@ if [ $# -ge 2 ]; then
   done
   ( cd "$VERIFIED" && find . -type f -exec sh -c 'mkdir -p "$0/$(dirname "$1")" && cp "$1" "$0/$1"' "$ROOT" {} \; )
   # Both archives' metadata is there, under each archive's own names.
-  for m in VERSIONS.txt SHA256SUMS; do
+  for m in VERSIONS.txt SHA256SUMS COMPATIBILITY.json ATTRIBUTIONS.json SBOM.spdx.json; do
     [ -f "$ROOT/$m" ] || { echo "the core SDK's $m is gone after the overlay"; exit 1; }
     [ -f "$ROOT/$m.game-sc" ] || { echo "$(basename "$2") did not keep its own $m.game-sc"; exit 1; }
   done
@@ -95,8 +154,37 @@ if [ $GAME = 0 ]; then
   echo "core: no game header, wrapper or C# type referenced"
 fi
 
-# Build everything from the unpacked SDK, as a modder would.
-cmake -S "$ROOT" -B "$WORK/build" -DCMAKE_BUILD_TYPE=Release
+# Build everything from the unpacked SDK, as a modder would. Inspect CMake's
+# resolved target model (also available with Visual Studio, unlike compile_commands).
+mkdir -p "$WORK/build/.cmake/api/v1/query"
+: > "$WORK/build/.cmake/api/v1/query/codemodel-v2"
+cmake -S "$ROOT" -B "$WORK/build" -DCMAKE_BUILD_TYPE=Release -DSCO_SDK_INCLUDE_DIR="$ROOT/include"
+"$PY" - "$WORK/build" "$ROOT" "$SDK" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+
+build, root, checkout_sdk = map(os.path.realpath, sys.argv[1:])
+reply = Path(build, ".cmake/api/v1/reply")
+targets = list(reply.glob("target-*.json"))
+if not targets:
+    sys.exit("archive-only include violation: CMake target model unavailable")
+for target in targets:
+    data = json.loads(target.read_text())
+    for group in data.get("compileGroups", []):
+        for inc in group.get("includes", []):
+            path = os.path.realpath(inc["path"])
+            if os.path.commonpath([path, root]) != root:
+                sys.exit(f"archive-only include violation: {data['name']} includes outside extracted SDK: {path}")
+        for flag in group.get("compileCommandFragments", []):
+            # CMake represents CFLAGS/CXXFLAGS as raw fragments, not include objects.
+            fragment = flag["fragment"].replace("\\", "/")
+            checkout = os.path.dirname(checkout_sdk).replace("\\", "/")
+            if checkout in fragment:
+                sys.exit(f"archive-only include violation: {data['name']} has a checkout compiler flag")
+print("zip: native target includes resolve only inside extracted SDK")
+PY
 # --config is for multi-config generators (Visual Studio); single-config ones ignore it.
 cmake --build "$WORK/build" --config Release
 cmake --install "$WORK/build" --config Release --prefix "$WORK/out"

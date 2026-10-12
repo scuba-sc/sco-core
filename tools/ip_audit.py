@@ -480,6 +480,33 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
                 fails.append(f"{sums_name} lists {s}, which isn't in the archive")
         r.check("SHA256SUMS (Gate 6)", len(names), fails)
 
+        # Every SDK artifact carries its own SPDX 2.3 document. This is an offline
+        # structural/byte check, not a claim of full SPDX specification validation.
+        fails = []
+        sbom_name = pkg.metadata_names(m, profile)[4]
+        try:
+            pkg.validate_sbom(load_json_strict(content.get(sbom_name, b"")), content, sbom_name, sums_name)
+        except (AuditError, pkg.ManifestError, ValueError, TypeError, KeyError) as exc:
+            fails.append(f"{sbom_name}: {exc}")
+        r.check("embedded SPDX 2.3 SBOM", 1, fails)
+
+        fails = []
+        inventory_name = pkg.metadata_names(m, profile)[3]
+        try:
+            records = pkg.attributions(m, profile)
+            inventory = load_json_strict(content.get(inventory_name, b""))
+            want = {"schema_version": 1, "profile": profile, "files": [records[n] for n in sorted(records)]}
+            if inventory != want or set(records) != set(content):
+                fails.append(f"{inventory_name}: not the exact archive inventory with manifest/provenance attributions")
+            sbom = load_json_strict(content.get(sbom_name, b""))
+            for f in sbom.get("files", []):
+                record = records.get(f.get("fileName", "")[2:])
+                if record is None or f.get("licenseConcluded") != record["license"] or f.get("copyrightText") != record["copyright"]:
+                    fails.append(f"{sbom_name}: file attribution disagrees with manifest/provenance")
+        except (AuditError, pkg.ManifestError, ValueError, TypeError, KeyError, AttributeError) as exc:
+            fails.append(f"{inventory_name}: {exc}")
+        r.check("attribution inventory", 1, fails)
+
         # Provenance and artifacts of what ships.
         fails = []
         for dst, c in expected.items():

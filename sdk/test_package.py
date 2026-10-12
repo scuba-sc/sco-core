@@ -49,10 +49,184 @@ class RealManifest(unittest.TestCase):
         shutil.rmtree(cls.tmp)
 
     def test_every_profile_reproducible(self):
+        runs = []
+        for label, tz, locale, mask in (("a", "UTC", "C", "022"),
+                                        ("b", "Pacific/Honolulu", "C.UTF-8", "077")):
+            cwd = os.path.join(self.tmp, "cwd-" + label)
+            os.mkdir(cwd)
+            env = dict(os.environ, TZ=tz, LC_ALL=locale, PYTHONHASHSEED=label == "a" and "1" or "123")
+            hashes = {}
+            for prof in self.m["profiles"]:
+                out = os.path.join(cwd, "dist", prof)
+                wrapper = ("import os,runpy,sys; os.umask(int(sys.argv[1],8)); "
+                           "sys.argv=sys.argv[2:]; runpy.run_path(sys.argv[0],run_name='__main__')")
+                r = subprocess.run([sys.executable, "-c", wrapper, mask, os.path.join(HERE, "package.py"),
+                                    "--profile", prof, "--out", out], cwd=cwd, env=env,
+                                   capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                archive, = Path(out).glob("*.zip")
+                hashes[prof] = sha(archive)
+                with zipfile.ZipFile(archive) as z:
+                    for info in z.infolist():
+                        self.assertEqual(info.date_time, pkg.FIXED_TIME)
+                        self.assertIn(info.external_attr >> 16, (0o100644, 0o100755))
+                        data = z.read(info)
+                        self.assertNotIn(os.fsencode(pkg.ROOT), data, info.filename)
+                        self.assertNotIn(os.fsencode(cwd), data, info.filename)
+            runs.append(hashes)
+        self.assertEqual(runs[0], runs[1])
         for prof in self.m["profiles"]:
-            a = pkg.build(self.m, prof, os.path.join(self.tmp, "a"))
-            b = pkg.build(self.m, prof, os.path.join(self.tmp, "b"))
-            self.assertEqual(sha(a), sha(b), prof)
+            print(f"double-build {prof}: {runs[0][prof]} {runs[1][prof]}")
+
+    def test_packaged_repository_links_are_commit_pinned(self):
+        commit = subprocess.check_output(["git", "-C", pkg.ROOT, "rev-parse", "HEAD"], text=True).strip()
+        for prof in self.m["profiles"]:
+            with zipfile.ZipFile(pkg.build(self.m, prof, os.path.join(self.tmp, "links"))) as z:
+                count = 0
+                for name in z.namelist():
+                    if not name.endswith(".md"):
+                        continue
+                    text = z.read(name).decode()
+                    refs = re.findall(r"https://github.com/scubamount/sco-core/(?:blob|tree)/([^/\s)]+)", text)
+                    for ref in refs:
+                        self.assertEqual(ref, commit, name)
+                        count += 1
+                self.assertGreater(count, 0, prof)
+
+    def test_compatibility_descriptors(self):
+        core = pkg.build(self.m, "core", os.path.join(self.tmp, "compat"))
+        for prof in self.m["profiles"]:
+            archive = pkg.build(self.m, prof, os.path.join(self.tmp, "compat"))
+            with zipfile.ZipFile(archive) as z:
+                name = next((n for n in z.namelist() if "/COMPATIBILITY.json" in n), None)
+                self.assertIsNotNone(name, f"{prof}: missing compatibility descriptor")
+                assert name is not None
+                desc = json.loads(z.read(name))
+            self.assertEqual(desc["schema_version"], 1)
+            self.assertEqual(desc["profile"], prof)
+            self.assertEqual(desc["core_sdk_version"], pkg.sdk_version())
+            self.assertEqual(desc["plugin_abi_version"], pkg.abi_version())
+            self.assertEqual(desc["source_commits"]["core"], subprocess.check_output(
+                ["git", "-C", pkg.ROOT, "rev-parse", "HEAD"], text=True).strip())
+            self.assertEqual(desc["game_overlay_version"], pkg.game_pack()[0]
+                             if prof in ("game-sc", "legacy") else None)
+            self.assertEqual(desc["base_core_sha256"], sha(core) if prof == "game-sc" else None)
+
+    def test_overlay_rejects_different_core_before_build(self):
+        out = os.path.join(self.tmp, "mismatch")
+        overlay = pkg.build(self.m, "game-sc", out)
+        with unittest.mock.patch.object(pkg, "source_commit", return_value="a" * 40):
+            other_core = pkg.build(self.m, "core", out)
+        r = subprocess.run(["bash", os.path.join(HERE, "test-zip.sh"), other_core, overlay],
+                           capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("base core SHA-256 mismatch", r.stdout + r.stderr)
+        self.assertNotIn("unpacked over", r.stdout + r.stderr)
+        self.assertNotIn("-- The C", r.stdout + r.stderr)
+
+    def test_per_artifact_notices_and_embedded_sbom(self):
+        for prof in self.m["profiles"]:
+            with zipfile.ZipFile(pkg.build(self.m, prof, os.path.join(self.tmp, "sbom"))) as z:
+                files = {n.split("/", 1)[1]: z.read(n) for n in z.namelist()}
+            suffix = ".game-sc" if prof == "game-sc" else ""
+            inventory_name, sbom_name = "ATTRIBUTIONS.json" + suffix, "SBOM.spdx.json" + suffix
+            self.assertTrue(inventory_name in files, f"{prof}: missing per-artifact attributions")
+            self.assertTrue(sbom_name in files, f"{prof}: missing embedded SPDX SBOM")
+            inventory = json.loads(files[inventory_name])
+            self.assertEqual({f["path"] for f in inventory["files"]}, set(files))
+            selected = {pkg.destination(self.m, prof, c): c for c in pkg.select(self.m, prof)}
+            for record in inventory["files"]:
+                self.assertTrue(record["copyright"])
+                self.assertTrue(record["license"])
+                if record["path"] in selected:
+                    self.assertEqual(record["license"], selected[record["path"]]["license"])
+            sbom = json.loads(files[sbom_name])
+            self.assertEqual(sbom["spdxVersion"], "SPDX-2.3")
+            self.assertEqual(sbom["dataLicense"], "CC0-1.0")
+            self.assertEqual(sbom["SPDXID"], "SPDXRef-DOCUMENT")
+            analyzed = {f["fileName"][2:]: f for f in sbom["files"]}
+            exclusions = {sbom_name, "SHA256SUMS" + suffix}
+            self.assertEqual(set(analyzed), set(files) - exclusions)
+            for name, record in analyzed.items():
+                self.assertEqual(record["checksums"][0], {"algorithm": "SHA256",
+                                 "checksumValue": hashlib.sha256(files[name]).hexdigest()})
+            pkg.validate_sbom(sbom, files, sbom_name, "SHA256SUMS" + suffix)
+
+    def test_archive_audit_refuses_invalid_embedded_sbom(self):
+        audit_spec = importlib.util.spec_from_file_location("ip_audit", os.path.join(pkg.ROOT, "tools/ip_audit.py"))
+        assert audit_spec and audit_spec.loader
+        audit = importlib.util.module_from_spec(audit_spec)
+        audit_spec.loader.exec_module(audit)
+        archive = pkg.build(self.m, "core", os.path.join(self.tmp, "invalid-sbom"))
+        with zipfile.ZipFile(archive) as z:
+            top = z.namelist()[0].split("/")[0]
+            entries = {n.split("/", 1)[1]: (z.read(n), False) for n in z.namelist()}
+        sbom = json.loads(entries["SBOM.spdx.json"][0])
+        del sbom["creationInfo"]
+        entries["SBOM.spdx.json"] = (pkg.json_bytes(sbom), False)
+        entries["SHA256SUMS"] = ("".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n"
+                                        for name, (data, _) in sorted(entries.items()) if name != "SHA256SUMS").encode(), False)
+        with open(archive, "wb") as f:
+            f.write(pkg.archive_bytes(top, entries))
+        report = audit.audit_zip(archive, "core")
+        self.assertTrue(any("SPDX 2.3" in f for f in report.failures), report.failures)
+
+    def test_archive_audit_refuses_false_attributions(self):
+        audit_spec = importlib.util.spec_from_file_location("ip_audit", os.path.join(pkg.ROOT, "tools/ip_audit.py"))
+        assert audit_spec and audit_spec.loader
+        audit = importlib.util.module_from_spec(audit_spec)
+        audit_spec.loader.exec_module(audit)
+        top, original = pkg.archive_entries(self.m, "core")
+        records = pkg.attributions(self.m, "core")
+        good = json.loads(original["ATTRIBUTIONS.json"][0])
+        for mutate in (lambda d: d.clear(), lambda d: d["files"].pop(),
+                       lambda d: d["files"].append(d["files"][0]),
+                       lambda d: d["files"][0].update(license="MIT")):
+            bad = copy.deepcopy(good)
+            mutate(bad)
+            entries = dict(original)
+            entries["ATTRIBUTIONS.json"] = (pkg.json_bytes(bad), False)
+            analyzed = {n: entry for n, entry in entries.items() if n not in ("SBOM.spdx.json", "SHA256SUMS")}
+            sbom = pkg.sbom_document(top, pkg.sdk_version(), analyzed, records, "SBOM.spdx.json", "SHA256SUMS", pkg.source_commit())
+            entries["SBOM.spdx.json"] = (pkg.json_bytes(sbom), False)
+            entries["SHA256SUMS"] = ("".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n"
+                                            for name, (data, _) in sorted(entries.items()) if name != "SHA256SUMS").encode(), False)
+            archive = os.path.join(self.tmp, "false-notices.zip")
+            with open(archive, "wb") as f:
+                f.write(pkg.archive_bytes(top, entries))
+            report = audit.audit_zip(archive, "core")
+            self.assertTrue(any("attribution inventory" in f for f in report.failures), report.failures)
+            self.assertFalse(any("embedded SPDX" in f or "SHA256SUMS (Gate 6)" in f for f in report.failures), report.failures)
+
+    def test_sbom_validator_refuses_corruption(self):
+        archive = pkg.build(self.m, "core", os.path.join(self.tmp, "sbom-negative"))
+        with zipfile.ZipFile(archive) as z:
+            files = {n.split("/", 1)[1]: z.read(n) for n in z.namelist()}
+        good = json.loads(files["SBOM.spdx.json"])
+        mutations = [lambda d: d.pop("spdxVersion"), lambda d: d.pop("creationInfo"),
+                     lambda d: d["creationInfo"].update(creators=[]),
+                     lambda d: d["packages"][0].pop("downloadLocation"),
+                     lambda d: d["packages"][0].update(filesAnalyzed=False),
+                     lambda d: d["files"][0].pop("licenseInfoInFiles"),
+                     lambda d: d["files"].append(d["files"][0]),
+                     lambda d: d["files"][0]["checksums"][0].update(checksumValue="0" * 64),
+                     lambda d: d["files"].pop(), lambda d: d["relationships"].pop(),
+                     lambda d: d["relationships"][0].update(relatedSpdxElement="SPDXRef-Unknown"),
+                     lambda d: d["packages"][0]["packageVerificationCode"].update(packageVerificationCodeValue="0" * 40),
+                     lambda d: d["packages"][0]["packageVerificationCode"].update(packageVerificationCodeExcludedFiles=[])]
+        for mutate in mutations:
+            bad = copy.deepcopy(good)
+            mutate(bad)
+            with self.assertRaisesRegex(pkg.ManifestError, "SPDX 2.3"):
+                pkg.validate_sbom(bad, files, "SBOM.spdx.json", "SHA256SUMS")
+
+    def test_archive_build_refuses_checkout_include(self):
+        archive = pkg.build(self.m, "core", os.path.join(self.tmp, "include-leak"))
+        env = dict(os.environ, CFLAGS="-I" + os.path.join(pkg.ROOT, "include"), SCO_SDK_NO_LUA="1")
+        r = subprocess.run(["bash", os.path.join(HERE, "test-zip.sh"), archive],
+                           capture_output=True, text=True, env=env)
+        self.assertNotEqual(r.returncode, 0, "archive test silently used checkout include path")
+        self.assertIn("archive-only include violation", r.stdout + r.stderr)
 
     def test_core_has_no_game_file(self):
         z = zipfile.ZipFile(pkg.build(self.m, "core", os.path.join(self.tmp, "c")))
