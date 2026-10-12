@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 static int g_fail = 0, g_pass = 0;
@@ -682,6 +683,30 @@ static void TestLimits() {
     CHECK(t6->Open("f", mb, base.size()) != nullptr);
 }
 
+// Publication must retain the original non-copyable/non-movable API on every standard library.
+static_assert(!std::is_copy_constructible_v<MountTable>);
+static_assert(!std::is_copy_assignable_v<MountTable>);
+static_assert(!std::is_move_constructible_v<MountTable>);
+static_assert(!std::is_move_assignable_v<MountTable>);
+
+static void TestSnapshotLifetime() {
+    MountTable mounts;
+    CHECK(!mounts.Current());
+    auto first = Table::Build({ SpliceMount("first", 0, "first", { S(0, 0, B("x")) }) });
+    std::weak_ptr<const Table> retired = first;
+    mounts.Publish(first);
+    auto held = mounts.Current();
+    CHECK(held == first && held->Mounted("first"));
+    first.reset();
+    auto second = Table::Build({});
+    mounts.Publish(second);
+    CHECK(mounts.Current() == second && !retired.expired());
+    mounts.Publish(nullptr);
+    CHECK(!mounts.Current() && held->Mounted("first") && !retired.expired());
+    held.reset();
+    CHECK(retired.expired());
+}
+
 // ---- threads -----------------------------------------------------------------------------------
 
 // Eight threads open one path of one table at the same moment: one composition, one file.
@@ -803,6 +828,7 @@ int main() {
     TestCache();
     TestMerge();
     TestLimits();
+    TestSnapshotLifetime();
     TestOneComposition();
     TestReadersBesideSwaps();
     std::printf("sco-core vfs tests: %d passed, %d failed\n", g_pass, g_fail);

@@ -41,7 +41,7 @@ public headers of a profile).
 
 | Zip | Holds |
 |---|---|
-| `sco-sdk-core-source-<version>.zip` | Kernel source-development kit in repository layout: host/runtime, loaders, required vendored Lua/SQLite, CMake build, tools and synthetic tests. Build with `-DSCO_GAME_SC=OFF`; no game implementation. Public game ABI headers and their layout-only pins are retained, not game services |
+| `sco-sdk-core-source-<version>.zip` | Kernel source-development kit in repository layout: host/runtime, loaders, required vendored Lua/SQLite, CMake build, tools and synthetic tests. Build with `-DSCO_GAME_SC=OFF`; no game implementation, game ABI headers, game layout pins or game-contract fixtures |
 | `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Its version is `sdk/VERSION` alone |
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
@@ -75,16 +75,34 @@ Unpack it into an empty directory, then use CMake 3.20+, a C11/C++20 compiler an
 ```sh
 cmake -S . -B build -DSCO_GAME_SC=OFF -DSCO_BUILD_TESTS=ON
 cmake --build build --config Debug --parallel
-ctest --test-dir build -C Debug --output-on-failure -R '^(abi_freeze|test_host|test_runtime|test_plugins|host_sim_examples)$'
+ctest --test-dir build -C Debug --output-on-failure
 ```
 
-`src/game`, `src/datacore`, game-private headers and the Lua game adapter are absent.
+Windows **x64** is the supported product platform. Linux x64 and macOS (x64/ARM64)
+are development platforms for the neutral libraries, host simulator and synthetic tests;
+their binaries are not game-loadable Windows plugins. ARM64 detour installation returns
+`Error::Unsupported` without changing memory. Hook execution tests run on x64 Windows/Linux;
+byte decoding and unsupported-host checks run on all development platforms.
+The VFS snapshot uses atomic shared-pointer operations even on C++20 standard libraries
+without the `atomic<shared_ptr>` specialization.
+
+`src/game`, `src/datacore`, all game ABI headers/wrappers, game layout pins,
+`tests/game_contracts`, game examples and the Lua game adapter are absent. Generic
+scanner, hook, spatial-math and loader/content-index tests remain. Game-only cases of
+shared test drivers live in separately classified include fragments in the repository;
+`SCO_GAME_SC=OFF` never includes them. `sdk/components.json` profile membership and
+its `game-contract` group define the exclusion inventory.
 The released 1.1 header in `tests/abi/released/sco_api.h` is checked against the
 existing golden SHA-256, so the frozen-plugin test needs neither Git nor a network.
-The source kit is not the complete game-pack source and cannot build `SCO_GAME_SC=ON`.
+The source kit is not the complete game-pack source and cannot build `SCO_GAME_SC=ON`;
+configuring that mode fails explicitly and requests `-DSCO_GAME_SC=OFF`.
 `package.py --profile core-source` produces it; `test-zip.sh <source.zip>` verifies
 checksums, configures and builds from the extracted files alone, then runs the focused
-synthetic host tests. CI also inspects the full checkout's kernel-only target graph,
+synthetic host tests. `python3 sdk/test_package.py` also verifies the manifest-classified
+game exclusions, exact public-header membership (including nested includes), and
+configures, builds and runs every neutral CTest from a freshly extracted archive.
+This full extracted-root regression runs both locally and in the existing SDK CI job.
+CI also inspects the full checkout's kernel-only target graph,
 compiler depfiles, compiled objects and link inputs; symbol scans are supplementary.
 
 ## Build the examples

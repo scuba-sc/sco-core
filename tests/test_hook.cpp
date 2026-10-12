@@ -1,5 +1,5 @@
 // Unit tests for sco/hook.h: detours over small functions written into executable memory.
-// x86-64 Windows and Linux; elsewhere the tests are skipped.
+// Executable detours: x86-64 Windows/Linux. Byte decoding and unsupported-host checks are portable.
 //   tools/test.sh
 #include "sco/hook.h"
 #include <cstdint>
@@ -20,8 +20,9 @@ static int g_fail = 0, g_pass = 0;
 #endif
 #endif
 
-#if SCO_TEST_HOOKS
 namespace H = sco::hook;
+
+#if SCO_TEST_HOOKS
 using Fn = int (*)();
 
 // Calls machine code we wrote. Clang's -fsanitize=function checks a type signature in front of
@@ -148,14 +149,19 @@ static void TestProtectScope() {
     CHECK(!H::MemoryProtectScope(page, 0).Succeeded());
 }
 
+#endif
+
 // Instruction lengths over byte arrays (never executed).
 static void TestStolenLength() {
-    // CSystem::Quit: mov [rsp+10h], rbx ; mov [rsp+18h], rsi ; mov [rsp+20h], rdi ; push rbp
-    static const uint8_t kQuit[] = { 0x48, 0x89, 0x5C, 0x24, 0x10, 0x48, 0x89, 0x74, 0x24, 0x18,
-                                     0x48, 0x89, 0x7C, 0x24, 0x20, 0x55 };
-    CHECK(H::StolenLength(kQuit, 5) == 5);
-    CHECK(H::StolenLength(kQuit, 14) == 15);
-    CHECK(H::StolenLength(kQuit, 16) == 16);
+#ifndef SCO_KERNEL_ONLY
+#include "game_contracts/hook_lengths.inc"
+#endif
+    // Synthetic stack spills: arbitrary registers/displacements, not a game prologue pin.
+    static const uint8_t kStack[] = { 0x48, 0x89, 0x44, 0x24, 0x08, 0x48, 0x89, 0x4C, 0x24, 0x28,
+                                    0x48, 0x89, 0x54, 0x24, 0x38, 0x53 };
+    CHECK(H::StolenLength(kStack, 5) == 5);
+    CHECK(H::StolenLength(kStack, 14) == 15);
+    CHECK(H::StolenLength(kStack, 16) == 16);
     static const uint8_t kPushSub[] = { 0x40, 0x53, 0x48, 0x83, 0xEC, 0x20 };   // push rbx ; sub rsp, 20h
     CHECK(H::StolenLength(kPushSub, 5) == 6);
     static const uint8_t kRipMov[] = { 0x48, 0x8B, 0x05, 0x10, 0x20, 0x30, 0x40 };   // mov rax, [rip+...]
@@ -192,9 +198,10 @@ static void TestStolenLength() {
     CHECK(H::StolenLength(kShort, 5) == 0);
     static const uint8_t kVex[] = { 0xC5, 0xF8, 0x77, 0x90, 0x90 };                  // vzeroupper
     CHECK(H::StolenLength(kVex, 5) == 0);
-    CHECK(H::StolenLength(nullptr, 5) == 0 && H::StolenLength(kQuit, 0) == 0);
+    CHECK(H::StolenLength(nullptr, 5) == 0 && H::StolenLength(kStack, 0) == 0);
 }
 
+#if SCO_TEST_HOOKS
 // stolen = 0 counts the prologue: push rbx ; sub rsp, 20h is 6 bytes, so one NOP of padding.
 static void TestAutoStolen() {
     uint8_t* page = ExecPage();
@@ -410,18 +417,42 @@ static void TestSlots() {
 }
 #endif
 
+#if !defined(__x86_64__) && !defined(_M_X64)
+static void TestUnsupportedDetours() {
+    uint8_t target[H::kMaxStolen];
+    std::memset(target, 0x90, sizeof target);
+    uint8_t detour = 0;
+    void* original = target;
+    CHECK(H::InstallDetour(target, 5, &detour, &original) == H::Error::Unsupported);
+    CHECK(original == target);
+    bool unchanged = true;
+    for (uint8_t byte : target) unchanged = unchanged && byte == 0x90;
+    CHECK(unchanged && !H::IsHooked(target) && H::DetourCount() == 0);
+    CHECK(H::InstallDetour(nullptr, 0, nullptr, nullptr) == H::Error::Unsupported);
+    CHECK(std::strcmp(H::ErrorName(H::Error::Unsupported), "unsupported") == 0);
+    H::Transaction tx;
+    tx.Add(target, 0, &detour, &original);
+    CHECK(tx.Commit() == H::Error::Unsupported && !H::IsHooked(target));
+    CHECK(tx.Rollback() == H::Error::None);
+    CHECK(H::RemoveDetour(target) == H::Error::NotHooked && H::RemoveAll() == 0);
+}
+#endif
+
 int main() {
+    TestStolenLength();
+#if !defined(__x86_64__) && !defined(_M_X64)
+    TestUnsupportedDetours();
+#endif
 #if SCO_TEST_HOOKS
     TestHooks();
     TestProtectScope();
-    TestStolenLength();
     TestAutoStolen();
     TestFarPath();
     TestTransactionAndRemoveAll();
     TestSlots();
-    std::printf("sco-core hook tests: %d passed, %d failed\n", g_pass, g_fail);
 #else
-    std::printf("sco-core hook tests: skipped (x86-64 Windows/Linux only)\n");
+    std::printf("sco-core hook execution tests: skipped (x86-64 Windows/Linux only)\n");
 #endif
+    std::printf("sco-core hook tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }
