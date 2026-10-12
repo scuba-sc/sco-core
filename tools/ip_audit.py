@@ -60,7 +60,7 @@ MAGIC = ((b"MZ", "a Windows executable (MZ)"), (b"\x7fELF", "an ELF executable")
          (b"\xcf\xfa\xed\xfe", "a Mach-O executable"), (b"\xca\xfe\xba\xbe", "a Mach-O universal binary"),
          (b"7z\xbc\xaf\x27\x1c", "a 7-Zip archive"), (b"\x1f\x8b", "a gzip stream"), (b"Rar!", "a RAR archive"),
          (b"MDMP", "a minidump"), (b"\x89PNG", "a PNG image"))
-GAME_REF = re.compile(r'#\s*include\s*[<"](sc_(actors|vehicles|entities|world|creative|spawn|spatial|game_events|game_pack)\.h'
+GAME_REF = re.compile(r'#\s*include\s*[<"](sc_(actors|vehicles|entities|world|creative|spawn|spatial|missions|economy|game_events|game_pack)\.h'
                       r'|sco_datacore\.h|scosdk/(datacore\.hpp|game/[^>"]+))[>"]|\bSco\.Sdk\.Game\b|\bScoDatacoreV1\b|\bGameAbi\.')
 APPROVAL_SCHEMA = "docs/legal/release-approval.schema.json"
 # Artifact role -> the profile whose zip it must be listed under; profiles must cover every role.

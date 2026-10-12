@@ -137,6 +137,29 @@ What each change means for plugin authors and for products built on sco-core (sc
   malformed/out-of-scope datagrams, quotas, stale peers and teardown with UDP
   replaced by failing socket traps. Frozen `sco_api` 1.1 is untouched.
   Product UI/firewall integration and Windows/private-LAN/game checks remain pending.
+- **G12 local-economy/payment boundary (#133):** copied local wallet reads, bounded
+  atomic expected-balance delta requests, owner/session once-only receipts, refused
+  uncertain retries and successful transaction signals. Storage/import/save/payout
+  policy stays consumer-side. Synthetic tests only; Windows wallet/shop adapter and
+  persistence across reload/restart remain unimplemented/unverified.
+
+- **G11 abandon/script boundary (#132):** once-only owned abandonment/release cleanup
+  and bounded declarative user content with strict path/grammar validation, immutable
+  session registration and no filesystem/network/script-execution access. Existing
+  engine XML scripts remain unsupported; no proprietary content or adapter enabled.
+
+- **G11 objective/phase progression (#132):** owner-scoped ordered steps, fresh status
+  comparison, no-op duplicate completion and refused skips/uncertain retries. Final
+  phase completion never pays automatically. Synthetic two-phase acceptance only.
+
+- **G11 broker acceptance (#132):** exact broker/offer/generation validation,
+  owner/session-scoped idempotency and bounded non-evicting acceptance receipts.
+  Uncertain failures are not retried automatically; no engine adapter enabled.
+
+- **G11 read/status boundary (#132):** add game-pack `game.missions` 1.0 copied,
+  bounded offers/status, current offline/EAC/session admission, release/thread guards,
+  native-fault restart latch and C++ full-extent/null/reopen checks. Synthetic provider
+  and ABI tests; no validated engine adapter or in-game capability enabled.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,

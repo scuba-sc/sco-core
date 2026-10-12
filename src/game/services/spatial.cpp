@@ -16,6 +16,7 @@
 #include "loadout.h"
 #include "quantum.h"
 #include "cvars.h"
+#include "offline_missions.h"
 #include "world.h"
 #include "events.h"
 #include "sco/engine/zone.h"
@@ -461,6 +462,14 @@ Result Start() {
         WithdrawSpatial();
         return r;
     }
+    r = offline::Start(); // published unavailable until a separately validated adapter exists
+    if (r != Result::Ok) {
+        Unsubscribe(host::GameOwner(), "tick", OnTick);
+        StopCreative(); StopEntities(); StopEvents(); StopWorld();
+        StopVehicles(); StopActors(); StopSpawn();
+        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
     g_started = true;
     Log("[game] game.spatial 1.0 published: observed chains only; system identity unknown");
     Log("[game] game services published: %s 1.0, %s 1.2, %s 1.1, %s 1.0, %s 1.0, %s 1.0, %s 1.0 (+ the game.* events)", SC_SPATIAL_SERVICE_NAME,
@@ -475,6 +484,7 @@ void Stop() {
     StopCvars();
     StopQuantum();
     StopLoadout();
+    offline::Stop();
     StopCreative();
     StopEntities();
     StopEvents();

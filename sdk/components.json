@@ -194,6 +194,10 @@
     {
       "path": "tests/game_contracts/loadout/",
       "why": "Repository-only G6 typed loadout provider/native-boundary and catalogue fixtures; game-specific, never neutral core-source."
+    },
+    {
+      "path": "tests/test_offline_missions.cpp",
+      "why": "Game-pack-only synthetic mission boundary fixture, not neutral kernel source."
     }
   ],
   "components": [
@@ -6179,6 +6183,60 @@
       "destination": "tests/test_net_control.cpp",
       "profiles": [
         "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "game.include.scosdk.game.economy.hpp",
+      "source": "include/scosdk/game/economy.hpp",
+      "destination": "include/scosdk/game/economy.hpp",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "game.include.sc_economy.h",
+      "source": "include/sc_economy.h",
+      "destination": "include/sc_economy.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "game.include.sc_missions.h",
+      "source": "include/sc_missions.h",
+      "destination": "include/sc_missions.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "game.include.scosdk.game.missions.hpp",
+      "source": "include/scosdk/game/missions.hpp",
+      "destination": "include/scosdk/game/missions.hpp",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "game.tests.abi_offline_missions.c",
+      "source": "tests/abi_offline_missions.c",
+      "destination": "tests/abi_offline_missions.c",
+      "profiles": [
+        "game-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
