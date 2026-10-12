@@ -16,10 +16,11 @@ Profiles (sdk/components.json "profiles"):
   legacy   sco-sdk-<sdk/VERSION>.zip: core and game-sc in one zip, as sdk-v1.1.0 shipped. Not
            game-neutral; kept until the consumers move to core + game-sc.
 
-A zip holds one folder with the selected files, VERSIONS.txt and SHA256SUMS. A profile that is
-unpacked over another one (game-sc, over core) names its own copies VERSIONS.txt.<profile> and
-SHA256SUMS.<profile>, so the overlay keeps both and overwrites nothing. The same sources always
-give the same bytes: entries are sorted and carry a fixed timestamp and fixed modes.
+A zip holds one folder with the selected files, versions, compatibility, attributions, SPDX 2.3
+SBOM and SHA256SUMS. Generated metadata in game-sc uses a .game-sc suffix, so composition keeps
+both archives' records. Its compatibility descriptor binds the exact base core archive hash;
+test-zip.sh checks it before copying. The same sources and Python/zlib environment give the same
+bytes: entries are sorted and carry a fixed timestamp and fixed modes.
 
 The manifest is checked before anything is written, and any doubt stops the build:
   - every file under the folders in "covers" is a component or an "excluded" entry, and every
@@ -37,6 +38,7 @@ Tests: python3 sdk/test_package.py
 import argparse
 import fnmatch
 import hashlib
+import io
 import json
 import os
 import re
@@ -47,7 +49,7 @@ import zipfile
 SDK = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SDK)
 MANIFEST = os.path.join(SDK, "components.json")
-REPO_URL = "https://github.com/scubamount/sco-core/blob/main/"
+REPO_URL = "https://github.com/scubamount/sco-core/"
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 ORIGINS = {"project-authored", "third-party", "generated", "interoperability-derived"}
 REQUIRED = ("id", "source", "destination", "profiles", "origin", "license")
@@ -307,6 +309,7 @@ def fix_links(src, dst, data, zip_paths, dirs):
     if not dst.endswith(".md"):
         return data
     src_dir, dst_dir = os.path.dirname(src), os.path.dirname(dst)
+    commit = source_commit()
 
     def repl(mt):
         target, anchor = mt.group(1), mt.group(2)
@@ -315,20 +318,166 @@ def fix_links(src, dst, data, zip_paths, dirs):
         repo_path = os.path.normpath(os.path.join(src_dir, target)).replace(os.sep, "/")
         zip_path = zip_paths.get(repo_path) or dirs.get(repo_path)
         if zip_path is None:
-            return f"]({REPO_URL}{repo_path}{anchor})"
+            return f"]({REPO_URL}blob/{commit}/{repo_path}{anchor})"
         return f"]({os.path.relpath(zip_path, dst_dir or '.').replace(os.sep, '/')}{anchor})"
 
-    return LINK.sub(repl, data.decode("utf-8")).encode("utf-8")
+    text = LINK.sub(repl, data.decode("utf-8"))
+    # Also pin repository URLs already written as external links, not only rewritten relatives.
+    text = re.sub(re.escape(REPO_URL) + r"(blob|tree)/[^/\s)]+/",
+                  lambda mt: f"{REPO_URL}{mt.group(1)}/{commit}/", text)
+    return text.encode("utf-8")
+
+
+def source_commit():
+    try:
+        commit = subprocess.run(["git", "-C", ROOT, "rev-parse", "HEAD"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise ManifestError("source commit unavailable; package from a Git checkout") from e
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ManifestError("source commit must be a full Git SHA-1")
+    return commit
+
+
+def json_bytes(value):
+    return (json.dumps(value, sort_keys=True, indent=2, ensure_ascii=True) + "\n").encode("ascii")
 
 
 def metadata_names(m, profile):
-    """The two files package.py writes itself. A profile that unpacks over another one (game-sc,
-    over core) keeps its own copies under distinct names, so the overlay overwrites nothing."""
+    """Generated metadata keeps archive-specific names when composed."""
     suffix = f".{profile}" if m["profiles"][profile].get("requires") else ""
-    return f"VERSIONS.txt{suffix}", f"SHA256SUMS{suffix}"
+    return tuple(n + suffix for n in ("VERSIONS.txt", "SHA256SUMS", "COMPATIBILITY.json",
+                                      "ATTRIBUTIONS.json", "SBOM.spdx.json"))
 
 
-def build(m, profile, out):
+def attributions(m, profile):
+    provenance = json.loads(read("docs/legal/provenance.json"))["entries"]
+    records = {}
+    for c in select(m, profile):
+        src = c["source"]
+        e = next((e for e in provenance if
+                  (src.startswith(e["path"][:-2]) if e["path"].endswith("/**") else
+                   fnmatch.fnmatchcase(src, e["path"]) and ("/" in e["path"] or "/" not in src))), None)
+        if e is None or e["status"] == "unresolved":
+            raise ManifestError(f"{src}: missing or unresolved provenance")
+        if e["license"] != c["license"] or e["origin"] != c["origin"]:
+            raise ManifestError(f"{src}: manifest and provenance disagree")
+        dst = destination(m, profile, c)
+        records[dst] = {"path": dst, "source": src, "origin": c["origin"], "license": c["license"],
+                        "copyright": e["copyright"], "status": e["status"]}
+        if e.get("upstream"):
+            records[dst]["upstream"] = e["upstream"]
+    for name in metadata_names(m, profile):
+        records[name] = {"path": name, "source": "sdk/package.py", "origin": "generated",
+                         "license": "CC0-1.0" if name.startswith("SBOM.spdx.json") else "GPL-3.0-only",
+                         "copyright": "2026 the sco-core contributors", "status": "reviewed"}
+    return records
+
+
+def sbom_document(top, version, entries, records, sbom_name, sums_name, commit):
+    files = []
+    for name, (data, _) in sorted(entries.items()):
+        record = records[name]
+        files.append({"SPDXID": "SPDXRef-File-" + hashlib.sha256(name.encode()).hexdigest(),
+                      "fileName": "./" + name,
+                      "checksums": [{"algorithm": "SHA256", "checksumValue": hashlib.sha256(data).hexdigest()},
+                                    {"algorithm": "SHA1", "checksumValue": hashlib.sha1(data).hexdigest()}],
+                      "licenseConcluded": record["license"], "licenseInfoInFiles": ["NOASSERTION"],
+                      "copyrightText": record["copyright"],
+                      "comment": f"source {record['source']}; origin {record['origin']}; status {record['status']}"})
+    verification = hashlib.sha1("".join(sorted(f["checksums"][1]["checksumValue"] for f in files)).encode()).hexdigest()
+    payload_hash = hashlib.sha256(json_bytes(files)).hexdigest()
+    package_id = "SPDXRef-Package"
+    return {"spdxVersion": "SPDX-2.3", "dataLicense": "CC0-1.0", "SPDXID": "SPDXRef-DOCUMENT",
+            "name": top, "documentNamespace": f"{REPO_URL}sbom/{top}-{payload_hash}",
+            "creationInfo": {"created": "2026-01-01T00:00:00Z", "creators": ["Tool: sco-core sdk/package.py"],
+                             "comment": f"Source commit {commit}; fixed creation time for byte reproducibility."},
+            "packages": [{"SPDXID": package_id, "name": top, "versionInfo": version,
+                          "downloadLocation": f"git+https://github.com/scubamount/sco-core@{commit}",
+                          "filesAnalyzed": True,
+                          "packageVerificationCode": {"packageVerificationCodeValue": verification,
+                                                      "packageVerificationCodeExcludedFiles": ["./" + sbom_name, "./" + sums_name]},
+                          "licenseConcluded": "NOASSERTION", "licenseDeclared": "NOASSERTION",
+                          "copyrightText": "NOASSERTION",
+                          "comment": "Self and checksum manifest excluded to avoid circular hashes; SHA256SUMS covers the SBOM."}],
+            "files": files,
+            "relationships": [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES",
+                               "relatedSpdxElement": package_id}] +
+                              [{"spdxElementId": package_id, "relationshipType": "CONTAINS",
+                                "relatedSpdxElement": f["SPDXID"]} for f in files]}
+
+
+def validate_sbom(doc, content, sbom_name, sums_name):
+    """Offline stdlib structural/byte check of our SPDX 2.3 subset, not a full SPDX validator."""
+    def require(ok, message):
+        if not ok:
+            raise ManifestError("SPDX 2.3: " + message)
+
+    def strings(obj, fields):
+        require(isinstance(obj, dict), "expected an object")
+        for key in fields:
+            require(isinstance(obj.get(key), str) and bool(obj[key]), f"missing or invalid {key}")
+
+    strings(doc, ("spdxVersion", "dataLicense", "SPDXID", "name", "documentNamespace"))
+    require(doc["spdxVersion"] == "SPDX-2.3" and doc["dataLicense"] == "CC0-1.0"
+            and doc["SPDXID"] == "SPDXRef-DOCUMENT", "document identity")
+    require(re.fullmatch(r"https://[^\s#]+", doc["documentNamespace"]) is not None, "document namespace")
+    creation = doc.get("creationInfo")
+    strings(creation, ("created",))
+    require(creation["created"] == "2026-01-01T00:00:00Z", "creation time")
+    creators = creation.get("creators")
+    require(isinstance(creators, list) and bool(creators) and all(
+        isinstance(c, str) and re.fullmatch(r"(?:Tool|Person|Organization): .+", c) for c in creators), "creators")
+    require(isinstance(doc.get("packages"), list) and len(doc["packages"]) == 1, "one package required")
+    package = doc["packages"][0]
+    strings(package, ("SPDXID", "name", "downloadLocation", "licenseDeclared", "licenseConcluded", "copyrightText"))
+    require(package.get("filesAnalyzed") is True, "filesAnalyzed")
+    require(isinstance(doc.get("files"), list), "file list")
+    ids, names, sha1s = {doc["SPDXID"], package["SPDXID"]}, set(), []
+    require(len(ids) == 2 and re.fullmatch(r"SPDXRef-[A-Za-z0-9.-]+", package["SPDXID"]), "package ID")
+    for f in doc["files"]:
+        strings(f, ("SPDXID", "fileName", "licenseConcluded", "copyrightText"))
+        fid, filename = f["SPDXID"], f["fileName"]
+        require(re.fullmatch(r"SPDXRef-[A-Za-z0-9.-]+", fid) is not None and fid not in ids, "unique file ID")
+        ids.add(fid)
+        require(filename.startswith("./") and safe_rel(filename[2:]), "safe file name")
+        name = filename[2:]
+        require(name in content and name not in names, "unique existing file name")
+        names.add(name)
+        licenses = f.get("licenseInfoInFiles")
+        require(isinstance(licenses, list) and bool(licenses) and all(isinstance(l, str) and l for l in licenses),
+                "licenseInfoInFiles")
+        checks = f.get("checksums")
+        require(isinstance(checks, list) and len(checks) == 2, "SHA256 and SHA1 checksums required")
+        by_algorithm = {}
+        for checksum in checks:
+            strings(checksum, ("algorithm", "checksumValue"))
+            require(checksum["algorithm"] not in by_algorithm, "duplicate checksum")
+            by_algorithm[checksum["algorithm"]] = checksum["checksumValue"]
+        require(by_algorithm == {"SHA256": hashlib.sha256(content[name]).hexdigest(),
+                                 "SHA1": hashlib.sha1(content[name]).hexdigest()}, "file checksum mismatch")
+        sha1s.append(by_algorithm["SHA1"])
+    require(names == set(content) - {sbom_name, sums_name}, "exact file inventory")
+    code = package.get("packageVerificationCode")
+    require(isinstance(code, dict), "packageVerificationCode")
+    require(code.get("packageVerificationCodeValue") == hashlib.sha1("".join(sorted(sha1s)).encode()).hexdigest(),
+            "package verification code")
+    excluded = code.get("packageVerificationCodeExcludedFiles")
+    require(isinstance(excluded, list) and len(excluded) == 2 and set(excluded) == {"./" + sbom_name, "./" + sums_name},
+            "explicit self/checksum exclusions")
+    relationships = doc.get("relationships")
+    require(isinstance(relationships, list), "relationships")
+    actual = []
+    for rel in relationships:
+        strings(rel, ("spdxElementId", "relationshipType", "relatedSpdxElement"))
+        require(rel["spdxElementId"] in ids and rel["relatedSpdxElement"] in ids, "relationship endpoint")
+        actual.append((rel["spdxElementId"], rel["relationshipType"], rel["relatedSpdxElement"]))
+    expected = {(doc["SPDXID"], "DESCRIBES", package["SPDXID"])} | {
+        (package["SPDXID"], "CONTAINS", f["SPDXID"]) for f in doc["files"]}
+    require(len(actual) == len(expected) and set(actual) == expected, "exact relationships")
+
+
+def archive_entries(m, profile):
     chosen = select(m, profile)
     p = m["profiles"][profile]
     version = sdk_version() if p["version_from"] == "sdk/VERSION" else game_pack()[0]
@@ -347,14 +496,32 @@ def build(m, profile, out):
             dst = destination(m, profile, c)
             entries[dst] = (fix_links(c["source"], dst, f.read(), zip_paths, dirs),
                                          os.access(full, os.X_OK))
-    versions_name, sums_name = metadata_names(m, profile)
+    versions_name, sums_name, compat_name, inventory_name, sbom_name = metadata_names(m, profile)
     entries[versions_name] = (versions_txt(profile, version).encode("ascii"), False)
+    commit = source_commit()
+    desc = {"schema_version": 1, "profile": profile, "core_sdk_version": sdk_version(),
+            "plugin_abi_version": abi_version(),
+            "game_overlay_version": game_pack()[0] if profile in ("game-sc", "legacy") else None,
+            "source_commits": {"core": commit}, "base_core_sha256": None}
+    if profile in ("game-sc", "legacy"):
+        desc["source_commits"]["game-sc"] = commit
+    if profile == "game-sc":
+        core_top, core_entries = archive_entries(m, "core")
+        desc["base_core_sha256"] = hashlib.sha256(archive_bytes(core_top, core_entries)).hexdigest()
+    entries[compat_name] = (json_bytes(desc), False)
+    records = attributions(m, profile)
+    entries[inventory_name] = (json_bytes({"schema_version": 1, "profile": profile,
+                                         "files": [records[n] for n in sorted(records)]}), False)
+    sbom = sbom_document(top, version, entries, records, sbom_name, sums_name, commit)
+    entries[sbom_name] = (json_bytes(sbom), False)
     sums = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n" for name, (data, _) in sorted(entries.items()))
     entries[sums_name] = (sums.encode("ascii"), False)
+    return top, entries
 
-    os.makedirs(out, exist_ok=True)
-    zip_path = os.path.join(out, f"{top}.zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+
+def archive_bytes(top, entries):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for name in sorted(entries):
             data, executable = entries[name]
             info = zipfile.ZipInfo(f"{top}/{name}", FIXED_TIME)
@@ -362,8 +529,17 @@ def build(m, profile, out):
             info.create_system = 3  # unix, so the mode bits below are honored
             info.external_attr = (0o100755 if executable else 0o100644) << 16
             z.writestr(info, data)
-    with open(zip_path, "rb") as f:
-        digest = hashlib.sha256(f.read()).hexdigest()
+    return buffer.getvalue()
+
+
+def build(m, profile, out):
+    top, entries = archive_entries(m, profile)
+    data = archive_bytes(top, entries)
+    os.makedirs(out, exist_ok=True)
+    zip_path = os.path.join(out, f"{top}.zip")
+    with open(zip_path, "wb") as f:
+        f.write(data)
+    digest = hashlib.sha256(data).hexdigest()
     print(f"{zip_path}: {len(entries)} files, sha256 {digest}")
     return zip_path
 

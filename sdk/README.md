@@ -29,6 +29,9 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | `docs/` | [plugin.ini](docs/plugin-ini.md), [data packs](docs/data-packs.md), [Lua](docs/lua.md), [plugin rules](docs/plugin-rules.md), [API reference](../docs/api-v1.md), [C++ SDK](../docs/sdk-cpp.md), [C# SDK](../docs/sdk-csharp.md) |
 | `VERSIONS.txt` | The kernel, plugin ABI and game-pack versions and the verified game builds (in the zip only). The extension zip keeps its own as `VERSIONS.txt.game-sc`, so unpacking it over the core overwrites nothing |
 | `SHA256SUMS` | The SHA-256 of every other file (in the zip only; `SHA256SUMS.game-sc` in the extension zip) |
+| `COMPATIBILITY.json` | Core SDK version, plugin ABI version, game-overlay version (null when absent), source commits and the extension's exact base core archive SHA-256 |
+| `ATTRIBUTIONS.json` | Per-artifact file inventory with source, origin, license, copyright, provenance status and upstream attribution |
+| `SBOM.spdx.json` | Embedded SPDX 2.3 JSON: exact file hashes, licenses, package verification code and relationships. Self and `SHA256SUMS` are explicitly excluded to avoid circular hashes; `SHA256SUMS` hashes the SBOM |
 
 ### Zips
 
@@ -42,6 +45,27 @@ public headers of a profile).
 | `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Its version is `sdk/VERSION` alone |
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
+
+All generated metadata in the extension has a `.game-sc` suffix; composition preserves both
+inventories and SBOMs. The packer computes the required base digest from the canonical core
+archive produced from the same source checkout. A core archive with the same version but
+different bytes is **not** interchangeable. `sdk/test-zip.sh <core.zip> <game-sc.zip>` checks
+archive roles, versions, source commits and the exact digest before extraction or copying.
+Raw unzip tools do not enforce compatibility; consumers that compose these archives must
+perform the same descriptor checks first.
+
+Each profile ships its own license/attribution inventory, including generated records; existing
+license texts and third-party notices are retained. The embedded SBOM describes the extracted
+payload, while the optional `ip_audit.py zip --sbom` sidecar also binds the complete archive hash.
+`ip_audit.py zip` and packaging tests use an **offline stdlib structural check of the required
+SPDX 2.3 fields**, IDs, relationships, inventories and checksums, not a full SPDX-spec validator.
+No pinned SPDX validator is available in the offline test environment.
+
+`python3 sdk/test_package.py` builds every profile in separate fresh working/output directories
+under different `TZ`, `LC_ALL`, Python hash seeds and umasks, then compares SHA-256 digests and
+checks fixed ZIP timestamps/modes and absence of checkout/output paths. This proves byte identity
+within one Python/zlib environment, not across compression-library versions. Packaged repository
+document links are pinned to the source commit rather than a moving branch.
 
 ## Build the kernel source kit
 
