@@ -18,6 +18,6 @@ struct PrefabProvider {
 bool ValidPrefabPath(const char* path);
 sco_result SpawnOwnedPrefab(const PrefabProvider&, sco_plugin*, const char*, uint64_t,
     const double*, const double*, uint64_t*);
-// Owner-run Windows streamed spawn/unload cleanup acceptance required. No env bypass.
-inline constexpr bool kPrefabConfirmed = false;
+// Owner-approved R1 default, not Windows/SEH/gameplay verification. No env bypass.
+inline constexpr bool kPrefabConfirmed = true;
 }

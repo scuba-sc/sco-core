@@ -15,12 +15,14 @@ ordinary entities. No fabricated offsets, duplicate hooks or unrestricted delete
 Native batch failure before spawn releases the created batch where possible;
 known IDs from a post-spawn failure remain tracked for ordinary unload cleanup.
 SEH cannot guarantee recovery from a partially executing engine spawn with no
-returned ID; that case remains an owner-run acceptance blocker.
+returned ID. Outstanding-batch cleanup on an attribute fault and ID recovery
+when spawn faults before returning remain unverified native fault cases.
 
-`kPrefabConfirmed = false`: operation and new row dereferences stay OFF until
-the owner verifies streamed spawning and cleanup on the supported Windows build.
-Publication is discovery, not capability. Nothing enables it via environment.
-This is a tested contract and portable admission implementation, NOT game proof.
+`kPrefabConfirmed = true`: the owner approved removing the R1 hard-disable.
+Operation and new row dereferences are enabled by default, with existing row,
+startup/cleanup readiness and fault checks retained. This approval does not
+certify Windows/SEH or streamed cleanup. Publication is discovery, not capability;
+no environment bypass is added. Portable admission evidence is NOT game proof.
 
 ## Paths, poses and quotas
 
@@ -67,9 +69,10 @@ provider absence/refusal/fault-ID cleanup ownership, partial/null C++ tails.
 G9's actual host/runtime fake-provider fixture proves retained/foreign/seat
 refusals and release semantics separately; no combined real engine claim.
 
-## Decision pending owner
+## Owner decision and owed acceptance
 
-Confirm the narrow 511-byte/128-owner limits and retained-only-while-loaded
-placement policy. Before enabling: MSVC/SEH build, canonical content resolution,
-late materialization, cancellation before first stream, preview/unload cleanup,
-post-spawn batch fault and missing-capability refusal. Windows/game not verified.
+R1 enablement is owner-approved; the narrow 511-byte/128-owner limits and existing
+retained-only-while-loaded placement policy are unchanged. Still owed: MSVC/SEH
+build, canonical content resolution, late materialization, cancellation before
+first stream, preview/unload cleanup, native attribute/spawn/batch fault cases
+and missing-capability refusal. **Windows/SEH/gameplay are NOT VERIFIED.**

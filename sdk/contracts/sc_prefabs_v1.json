@@ -13,8 +13,8 @@
       "member_extent": 16,
       "table_size": 16,
       "since": "`size >= 16`; 1.0",
-      "purpose": "Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs remains OFF pending owner streamed spawn/unload acceptance.",
-      "buffer_contract": "`sco_result (*spawn)(sco_plugin* self, const char* content_path, uint64_t zone_id, const double pos[3], const double rot_xyzw[4], uint64_t* out_id);`<br>Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs remains OFF pending owner streamed spawn/unload acceptance.",
+      "purpose": "Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs is enabled by default for R1 by owner approval; Windows/SEH/streamed cleanup NOT VERIFIED.",
+      "buffer_contract": "`sco_result (*spawn)(sco_plugin* self, const char* content_path, uint64_t zone_id, const double pos[3], const double rot_xyzw[4], uint64_t* out_id);`<br>Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs is enabled by default for R1 by owner approval; Windows/SEH/streamed cleanup NOT VERIFIED.",
       "ownership": "Live caller owns result through existing game.entities ledger. Inputs copied for synchronous provider call, host-session table borrowed; no cross-boundary allocation.",
       "thread_affinity": "Game thread only; WRONG_THREAD otherwise.",
       "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded and nonthrowing.",
@@ -75,7 +75,7 @@
       ],
       "limitations": [
         "Windows engine/SEH/gameplay and streamed cleanup not verified.",
-        "Production capability OFF until owner acceptance; portable provider policy is synthetic evidence only.",
+        "Owner-approved R1 default enabled; portable provider policy is synthetic evidence only, not Windows/SEH/gameplay acceptance.",
         "No packaged content or filesystem/online path access."
       ]
     }
