@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Windows extracted-SDK verification:** the archive-test job checks out the packaging verifier and its complete manifest inputs, rather than only the shell runner. The verifier reads evaluated MSBuild toolchain include paths so Windows SDK/CRT headers are recognized without relying on the shell's `INCLUDE`. Builds remain confined to extracted SDK headers, with compiler-resolved checkout leakage refused.
+
+- **Extracted SDK storage and public-header proof:** storage resolves host-owned directory aliases before SQLite opens the database, fixing macOS temporary-root failures without permitting database-file symlinks. External C/C++ examples now compile with exact compiler-resolved installed public-header membership checks; hidden checkout and unshipped nested dependencies are refused. Packaging also refuses recognized private-key and GitHub credential shapes before writing an archive. No plugin ABI change.
+
 - **Optional ImGui coupling is host-specific, not the frozen C ABI:** document the exact source/configuration match and public-header hashes, drawing-plugin rebuild requirements and absence of cross-version raw-context compatibility; non-drawing plugins do not require ImGui.
 - **Native trust and Lua reload limits:** native plugins are trusted in-process code, not a sandbox or a native-fault recovery guarantee; supported cached-table, worker and shutdown usage is explicit. Real-loader Lua tests cover repeated reload resource/callback cleanup, transaction rollback, persistent data, preserved budgets and optional read-only game-adapter boundaries. No runtime or ABI change.
 - **Real-host SDK conformance:** independent native C consumers execute inspector, owned-NPC and actor-death contract fixtures through the neutral loader and host API; negative cases cover service absence/version/partial tails, ownership, wrong-thread raw calls, queued-work cancellation, and restart-required native provider refusal/fault retention. Engine responses are synthetic, not gameplay or native-process recovery certification.

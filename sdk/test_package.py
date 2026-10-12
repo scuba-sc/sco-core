@@ -171,6 +171,22 @@ class RealManifest(unittest.TestCase):
         report = audit.audit_zip(archive, "core")
         self.assertTrue(any("SPDX 2.3" in f for f in report.failures), report.failures)
 
+    def test_archive_refuses_private_credentials_before_writing(self):
+        fixtures = [b"-----BEGIN " + kind + b" PRIVATE KEY-----\nsynthetic\n"
+                    for kind in (b"RSA", b"EC", b"OPENSSH")]
+        fixtures += [b"-----BEGIN " + b"PRIVATE KEY-----\nsynthetic\n",
+                     b"ghp" + b"_" + b"A" * 36,
+                     b"github_pat" + b"_" + b"A" * 82]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, "out")
+            for data in fixtures:
+                with self.subTest(kind=data[:8]), unittest.mock.patch.object(
+                        pkg, "archive_entries", return_value=("synthetic", {"hidden.txt": (data, False)})):
+                    with self.assertRaisesRegex(pkg.ManifestError, "private credential.*hidden.txt") as cm:
+                        pkg.build(self.m, "core", str(out))
+                    self.assertNotIn(data.decode(), str(cm.exception))
+                    self.assertFalse(out.exists())
+
     def test_archive_audit_refuses_false_attributions(self):
         audit_spec = importlib.util.spec_from_file_location("ip_audit", os.path.join(pkg.ROOT, "tools/ip_audit.py"))
         assert audit_spec and audit_spec.loader
@@ -352,13 +368,125 @@ class RealManifest(unittest.TestCase):
                 self.assertEqual(len(facets), 6, name)
                 self.assertTrue(all(cell.strip() for cell in facets), name)
 
+    def installed_fixture(self, profile, tmp):
+        root = Path(tmp, "installed SDK")
+        root.mkdir()
+        for required in pkg.closure(self.m, profile):
+            with zipfile.ZipFile(pkg.build(self.m, required, str(Path(tmp, "dist")))) as z:
+                for name in z.namelist():
+                    dest = root / name.split("/", 1)[1]
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(z.read(name))
+        return root
+
     def test_external_example_headers_are_shipped(self):
         for profile in self.m["profiles"]:
-            for component in pkg.select(self.m, profile):
-                if component["source"].startswith(("sdk/examples/", "sdk/template/")) and \
-                        component["source"].endswith((".c", ".cpp", ".h", ".hpp")):
-                    text = Path(pkg.ROOT, component["source"]).read_text()
-                    pkg.check_example_headers(self.m, profile, text, component["source"])
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
+                root = self.installed_fixture(profile, tmp)
+                proof = pkg.check_installed_example_headers(self.m, profile, root, Path(tmp, "proof"))
+                self.assertEqual(proof["translation_units"], 3)
+                self.assertEqual(set(proof["languages"]), {"C", "CXX"})
+                self.assertIn("include/sco_api.h", proof["public_headers"])
+                self.assertIn("include/scosdk/scosdk.hpp", proof["public_headers"])
+
+    def test_windows_archive_verifier_checkout_has_manifest_inputs(self):
+        """Replay the Windows job's checkout; verifier tools must exist outside the archive."""
+        workflow = Path(pkg.ROOT, ".github/workflows/sdk.yml").read_text()
+        windows = workflow.split("\n  windows:\n", 1)[1].split("\n  csharp-host-sim:\n", 1)[0]
+        sparse = re.search(r"^          sparse-checkout: (.+)$", windows, re.M)
+        with tempfile.TemporaryDirectory(prefix="archive-verifier-") as tmp:
+            checkout = Path(tmp, "checkout")
+            subprocess.run(["git", "clone", "--quiet", "--shared", "--no-checkout",
+                            pkg.ROOT, str(checkout)], check=True)
+            if sparse:
+                subprocess.run(["git", "-C", str(checkout), "sparse-checkout", "set",
+                                "--no-cone", sparse.group(1)], check=True)
+            subprocess.run(["git", "-C", str(checkout), "checkout", "--quiet", "HEAD"], check=True)
+            root = self.installed_fixture("core", tmp)
+            # Use an unrelated cwd and a path containing spaces, like a native Git Bash invocation.
+            result = subprocess.run([sys.executable, str(checkout / "sdk/package.py"),
+                                     "--profile", "core", "--check-installed-headers", str(root)],
+                                    cwd=tmp, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("exact installed public header dependencies approved", result.stdout)
+
+    def test_installed_header_cli(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.installed_fixture("core", tmp)
+            result = subprocess.run([sys.executable, str(Path(HERE, "package.py")),
+                                     "--profile", "core", "--check-installed-headers", str(root)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("3 external C/C++ examples compiled", result.stdout)
+            self.assertIn("exact installed public header dependencies approved", result.stdout)
+
+    def test_msvc_system_headers_use_evaluated_include_path(self):
+        """Visual Studio's toolchain paths need not exist in the invoking shell's INCLUDE."""
+        import xml.etree.ElementTree as ET
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.installed_fixture("core", tmp)
+            work = Path(tmp, "proof")
+            pkg.check_installed_example_headers(self.m, "core", root, work)
+            ns = {"ms": "http://schemas.microsoft.com/developer/msbuild/2003"}
+            for lang in ("C", "CXX"):
+                # Only parse XML generated by the verifier in this disposable workspace.
+                props = ET.parse(work / f"system-{lang}.props")
+                target = props.find("ms:Target", ns)
+                assert target is not None
+                self.assertEqual(target.get("BeforeTargets"), "ClCompile")
+                write = target.find("ms:WriteLinesToFile", ns)
+                assert write is not None
+                self.assertEqual(write.get("Lines"), "$(IncludePath)")
+                self.assertEqual(Path(write.attrib["File"]), work / "build" / f"system-{lang}.txt")
+                self.assertEqual(write.get("Overwrite"), "true")
+                cmake = (work / "CMakeLists.txt").read_text()
+                self.assertIn("VS_USER_PROPS", cmake)
+                self.assertIn(f"system-{lang}.props", cmake)
+
+    def test_compiler_refuses_hidden_checkout_source_include(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.installed_fixture("core", tmp)
+            example = root / "examples/hello/hello.c"
+            example.write_text('#define HIDDEN_HEADER "' + Path(pkg.ROOT, "include/sco_api.h").as_posix() +
+                               '"\n#include HIDDEN_HEADER\n' + example.read_text())
+            with self.assertRaisesRegex(pkg.ManifestError, "resolved dependency.*" +
+                                        re.escape(str(Path(pkg.ROOT, "include/sco_api.h"))) +
+                                        " outside approved installed files"):
+                pkg.check_installed_example_headers(self.m, "core", root, Path(tmp, "proof"))
+
+    def test_zip_refuses_compiler_resolved_checkout_header(self):
+        top, entries = pkg.archive_entries(self.m, "core")
+        data, executable = entries["examples/hello/hello.c"]
+        hidden = Path(pkg.ROOT, "include/sco_api.h").as_posix()
+        entries["examples/hello/hello.c"] = (
+            f'#define HIDDEN_HEADER "{hidden}"\n#include HIDDEN_HEADER\n'.encode() + data, executable)
+        entries["SHA256SUMS"] = ("".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n"
+                                        for name, (data, _) in sorted(entries.items())
+                                        if name != "SHA256SUMS").encode(), False)
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp, "hidden-source.zip")
+            archive.write_bytes(pkg.archive_bytes(top, entries))
+            env = dict(os.environ, SCO_SDK_NO_LUA="1")
+            for key in ("CPATH", "CPLUS_INCLUDE_PATH", "C_INCLUDE_PATH", "CFLAGS", "CXXFLAGS", "CPPFLAGS"):
+                env.pop(key, None)
+            result = subprocess.run(["bash", str(Path(HERE, "test-zip.sh")), str(archive)],
+                                    env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("native target includes resolve only inside extracted SDK", result.stdout)
+            self.assertIn(f"resolved dependency {hidden} outside approved installed files", result.stderr)
+
+    def test_compiler_refuses_unshipped_nested_public_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.installed_fixture("core", tmp)
+            hidden = root / "include/scosdk/nested/unshipped.hpp"
+            hidden.parent.mkdir()
+            hidden.write_text("/* Valid but not an approved public manifest destination. */\n"
+                              "#if defined(__GNUC__)\n#pragma GCC system_header\n#endif\n")
+            public = root / "include/scosdk/scosdk.hpp"
+            public.write_text(public.read_text() +
+                              '\n#define HIDDEN_HEADER "scosdk/nested/unshipped.hpp"\n#include HIDDEN_HEADER\n')
+            with self.assertRaisesRegex(pkg.ManifestError, "resolved dependency.*scosdk/nested/unshipped.hpp"):
+                pkg.check_installed_example_headers(self.m, "core", root, Path(tmp, "proof"))
 
     def test_unshipped_nested_public_header_is_refused(self):
         with self.assertRaisesRegex(pkg.ManifestError, "scosdk/nested/unshipped.hpp"):

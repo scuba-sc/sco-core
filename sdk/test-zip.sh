@@ -114,6 +114,7 @@ if [ -d "$ROOT/src/host" ]; then
   for path in src/game src/datacore include/sco/game plugins/lua/sco_lua_game.c third_party/tomlplusplus; do
     [ ! -e "$ROOT/$path" ] || { echo "source kit contains excluded implementation: $path"; exit 1; }
   done
+  "$PY" "$SDK/package.py" --profile core-source --check-installed-headers "$ROOT"
   cmake -S "$ROOT" -B "$WORK/build" -DCMAKE_BUILD_TYPE=Debug \
     -DSCO_GAME_SC=OFF -DSCO_BUILD_TESTS=ON
   cmake --build "$WORK/build" --config Debug --parallel
@@ -185,6 +186,14 @@ for target in targets:
                 sys.exit(f"archive-only include violation: {data['name']} has a checkout compiler flag")
 print("zip: native target includes resolve only inside extracted SDK")
 PY
+# The external compile proof uses compiler dependency output, not the target
+# include-directory model above. Overlay headers use the composed profile closure.
+if [ $# -ge 2 ]; then
+  PROFILE=game-sc
+else
+  PROFILE=$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["profile"])' "$ROOT/COMPATIBILITY.json")
+fi
+"$PY" "$SDK/package.py" --profile "$PROFILE" --check-installed-headers "$ROOT"
 # --config is for multi-config generators (Visual Studio); single-config ones ignore it.
 cmake --build "$WORK/build" --config Release
 cmake --install "$WORK/build" --config Release --prefix "$WORK/out"

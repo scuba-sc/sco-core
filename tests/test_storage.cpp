@@ -126,6 +126,53 @@ static void TestHostServices() {
     CHECK(sco::host::WithdrawHostService("sco.a") == Result::Ok);
 }
 
+// ---- symlinked host paths --------------------------------------------------------------------
+
+#ifndef _WIN32
+static void TestSymlinkedDataRoot() {
+    // Host paths may contain directory aliases (macOS /var is /private/var).
+    // Database-file aliases remain forbidden by SQLITE_OPEN_NOFOLLOW.
+    const fs::path real = g_root / "alias-real";
+    const fs::path alias = g_root / "alias";
+    std::error_code ec;
+    fs::create_directories(real, ec);
+    CHECK(!ec);
+    fs::create_directory_symlink(fs::canonical(real), alias, ec);
+    CHECK(!ec);
+    if (ec) return;
+    sco::storage::Options opts = Opts();
+    opts.dataRoot = alias / "new-data";   // The storage parent does not exist yet.
+    CHECK(sco::storage::Start(opts) == Result::Ok);
+    g_st = sco::storage::Table();
+    sco_plugin* p = sco::host::NewPlugin("aliased");
+    CHECK(Put(p, "key", "original") == SCO_OK);
+    CHECK(Get(p, "key") == "original");
+    CHECK(fs::exists(real / "new-data/storage/aliased.db"));
+    CHECK(sco::Release(p) == Result::Ok);
+    sco::storage::Stop();
+
+    CHECK(sco::storage::Start(opts) == Result::Ok);
+    p = sco::host::NewPlugin("aliased");
+    CHECK(Get(p, "key") == "original");   // Persistent, not an in-memory fallback.
+    const fs::path storage = fs::canonical(real / "new-data/storage");
+    fs::create_symlink(storage / "aliased.db", storage / "redirected.db", ec);
+    CHECK(!ec);
+    sco_plugin* redirected = sco::host::NewPlugin("redirected");
+    CHECK(Put(redirected, "key", "changed") == SCO_FAILED);
+    CHECK(!LastError(redirected).empty());
+    CHECK(Get(p, "key") == "original");
+    fs::create_symlink(storage / "missing.db", storage / "dangling.db", ec);
+    CHECK(!ec);
+    sco_plugin* dangling = sco::host::NewPlugin("dangling");
+    CHECK(Put(dangling, "key", "changed") == SCO_FAILED);
+    CHECK(!fs::exists(storage / "missing.db"));
+    CHECK(sco::Release(p) == Result::Ok);
+    CHECK(sco::Release(redirected) == Result::Ok);
+    CHECK(sco::Release(dangling) == Result::Ok);
+    sco::storage::Stop();
+}
+#endif
+
 // ---- the service ----------------------------------------------------------------------------
 
 static void TestService() {
@@ -636,6 +683,9 @@ int main(int argc, char** argv) {
     g_api = sco::host::BuildApi({ "test_storage" });
 
     TestHostServices();
+#ifndef _WIN32
+    TestSymlinkedDataRoot();
+#endif
     TestService();
     sco_plugin* a = sco::host::NewPlugin("alpha");
     sco_plugin* b = sco::host::NewPlugin("beta");
