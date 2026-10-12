@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Offline fleet operations (#131):** port existing ASOP delivery/store/retrieve,
+  list refresh/claim timeout and ATC request mechanics to the host-only game pack,
+  using guarded core reads/spawn helpers rather than product symbols. Shared original
+  delivery-loop fixture covers refusal/timing/timeout. Windows gameplay not verified.
+
 - **Offline fleet host catalog/status (#131):** default-off host-source configuration,
   bounded copied class catalog and Windows game-pack entitlement-list port. Unknown
   offline/EAC state refuses; no plugin ABI/authority change. Portable fixture only;

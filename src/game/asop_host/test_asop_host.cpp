@@ -5,7 +5,9 @@
 #include <string>
 #include <vector>
 using namespace sco::game::asop_host;
+#include "test_delivery.inc"
 int main() {
+    delivery_fixture::TestDelivery();
     assert(Start(Config{})==Result::Disabled);
     Config c; c.enabled=true;
     assert(Start(c)==Result::AdmissionRefused);

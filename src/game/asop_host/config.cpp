@@ -46,13 +46,23 @@ Result Start(const Config& c) {
     status.configured=true; status.catalogCount=catalog.count;
     admitted.store(true); status.admitted=true;
     status.installed=InstallCatalog();
+    InstallFleet();
     return status.installed ? Result::Ok : Result::Unavailable;
 #endif
 }
 Status Snapshot() { std::lock_guard guard(lock); return status; }
-void Pump(uint32_t now) { (void)now; }
+void Pump(uint32_t now) {
+#ifdef _WIN32
+    if(admitted.load()) TickFleet(now);
+#else
+    (void)now;
+#endif
+}
 void Stop() {
     std::lock_guard guard(lock);
     admitted.store(false); status.admitted=false; status.stopped=true;
+#ifdef _WIN32
+    CloseFleet();
+#endif
 }
 } // namespace sco::game::asop_host

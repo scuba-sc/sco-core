@@ -21,6 +21,18 @@ installation. `Stop` closes custom admission, retaining backing state for engine
 callbacks. Windows hooks are compiled only under `SCO_GAME_SC AND WIN32`; portable
 configuration/catalog fixtures run on development systems.
 
+## Delivery, store and retrieve port
+
+The existing terminal open/caller/list hooks, delivery settle/store loop, claim
+refresh, unstow takeover, retrieved-id matching and ATC cancellation are now in
+`fleet_win.cpp`. Raw offsets/continuation mechanics remain game-pack-owned.
+Existing guarded reads/spawn/mover registration replace product teleport/spawner
+symbols. Only the internal delivery setup cvar is writable; no console route is
+exposed. Stored ships remain session-only. Lift-dependent retrieval stays unavailable
+until lift composition is installed. The fixture compiles the same `delivery.inc`
+loop, checking settle timing, duplicate refusal, unavailable spawn/store and timeout.
+These synthetic primitive outcomes are not engine or gameplay evidence.
+
 Source: GPL-3.0-only sc-offline `1ac5308a65ac0ba7955e4108bd1dc800449cfa69`,
 `src/hooks.cpp` catalog mechanisms; new host composition and fixtures are
 project-authored. Engine offsets remain interoperability facts, not game extracts.
