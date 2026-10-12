@@ -1,0 +1,56 @@
+/* SPDX-License-Identifier: GPL-3.0-only
+ * Typed local-player offline equip only. No XML, files, pointers to game state,
+ * entitlement/account inventory, network or persistence API. See docs/game/loadout.md. */
+#ifndef SC_LOADOUT_H
+#define SC_LOADOUT_H
+#include "sco_api.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+#define SC_LOADOUT_SERVICE_NAME "game.loadout"
+#define SC_LOADOUT_SERVICE_VERSION 0x00010000u
+#define SC_LOADOUT_MAX_ITEMS 16u
+#define SC_LOADOUT_ITEM_NAME_BYTES 96u
+typedef enum sc_loadout_slot {
+    SC_LOADOUT_SLOT_HEAD = 1, SC_LOADOUT_SLOT_TORSO = 2,
+    SC_LOADOUT_SLOT_ARMS = 3, SC_LOADOUT_SLOT_LEGS = 4,
+    SC_LOADOUT_SLOT_UNDERSUIT = 5, SC_LOADOUT_SLOT_BACKPACK = 6,
+    SC_LOADOUT_SLOT_VISOR = 7, SC_LOADOUT_SLOT_FORCE32 = 0x7fffffff
+} sc_loadout_slot;
+typedef enum sc_loadout_status {
+    SC_LOADOUT_APPLIED = 0, SC_LOADOUT_UNSUPPORTED = 1,
+    SC_LOADOUT_ITEM_MISSING = 2, SC_LOADOUT_FAILED = 3,
+    SC_LOADOUT_UNAVAILABLE = 4, SC_LOADOUT_STATUS_FORCE32 = 0x7fffffff
+} sc_loadout_status;
+/* Frozen 1.x records. item_class: NUL-terminated ASCII [A-Za-z0-9_], 1..95 bytes.
+ * Unknown slot numbers are supported input: report UNSUPPORTED, do not call engine. */
+typedef struct sc_loadout_item {
+    uint32_t slot; uint32_t _pad; char item_class[SC_LOADOUT_ITEM_NAME_BYTES];
+} sc_loadout_item;
+typedef struct sc_loadout_slot_result {
+    uint32_t slot; sc_loadout_status status;
+} sc_loadout_slot_result;
+typedef struct sc_loadout_request {
+    uint32_t size; uint32_t count; uint32_t item_stride; uint32_t _pad;
+    const sc_loadout_item* items;
+} sc_loadout_request;
+typedef struct sc_loadout_report {
+    uint32_t size; uint32_t count; uint32_t applied; uint32_t _pad;
+    sc_loadout_slot_result slots[SC_LOADOUT_MAX_ITEMS];
+} sc_loadout_report;
+typedef struct sc_loadout_v1 {
+    uint32_t size; uint32_t _pad;
+    /* Game thread only; self must be live. request/report require full v1 extent.
+     * 1..16 items, exact item_stride; duplicate slots or malformed names -> BAD_ARG,
+     * >16 -> TOO_MANY. Structural rejection leaves report untouched; no engine calls.
+     * Safety/provider refusal -> UNAVAILABLE and one UNAVAILABLE result per item.
+     * Valid batch processed in order: OK iff all APPLIED, FAILED for partial/all slot
+     * refusals. No rollback: previously applied slots remain equipped, not owned by
+     * the plugin. Caller pointers borrowed only for the synchronous call. Recursive
+     * apply returns UNAVAILABLE; a backend fault disables apply until process restart. */
+    sco_result (*apply)(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report);
+} sc_loadout_v1;
+#ifdef __cplusplus
+}
+#endif
+#endif

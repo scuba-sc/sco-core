@@ -11,6 +11,7 @@
 #include "vehicles.h"
 #include "entities.h"
 #include "creative.h"
+#include "loadout.h"
 #include "world.h"
 #include "events.h"
 #include "sco/engine/zone.h"
@@ -297,8 +298,22 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    // Typed loadout table is discoverable, but engine equip remains unavailable.
+    r = StartLoadout();
+    if (r != Result::Ok) {
+        StopCreative();
+        StopEntities();
+        StopEvents();
+        StopWorld();
+        StopVehicles();
+        StopActors();
+        StopSpawn();
+        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
     r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
     if (r != Result::Ok) {
+        StopLoadout();
         StopCreative();
         StopEntities();
         StopEvents();
@@ -319,6 +334,7 @@ Result Start() {
 void Stop() {
     if (!g_started) return;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
+    StopLoadout();
     StopCreative();
     StopEntities();
     StopEvents();

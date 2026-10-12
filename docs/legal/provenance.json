@@ -15,6 +15,76 @@
  },
  "entries": [
 {
+  "path": "include/sc_loadout.h",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+},
+{
+  "path": "include/scosdk/game/loadout.hpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+},
+{
+  "path": "src/game/services/loadout.*",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+},
+{
+  "path": "sdk/contracts/sc_loadout_v1.json",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+},
+{
+  "path": "tests/abi_game_loadout.c",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+},
+{
+  "path": "tests/game_contracts/loadout/**",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+},
+{
+  "path": "docs/game/loadout.md",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+},
+{
   "path": "include/sco/diagnostics*.h",
   "origin": "project-authored",
   "license": "GPL-3.0-only",

@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: GPL-3.0-only
+#include "scosdk/game/loadout.hpp"
+#include "sco/host.h"
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
+#define CHECK(x) do { if (!(x)) { std::printf("FAIL routes %d: %s\n", __LINE__, #x); std::exit(1); } } while (0)
+void TestLoadoutRoutes(const sco_api* api, sco_plugin* self) {
+    sco::sdk::game::Loadout wrapper;
+    CHECK(wrapper.Open(api, self) == SCO_NOT_FOUND);
+    sc_loadout_item item{SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"};
+    sc_loadout_report report{};
+    CHECK(wrapper.Apply(std::span(&item, 1), report) == SCO_UNAVAILABLE);
+    sc_loadout_v1 table{sizeof(table), 0, [](sco_plugin*, const sc_loadout_request*, sc_loadout_report*) { return SCO_OK; }};
+    for (uint32_t size : {uint32_t(offsetof(sc_loadout_v1, apply) + 1), uint32_t(sizeof(table) - 1)}) {
+        void* shortTable = std::malloc(size); CHECK(shortTable);
+        std::memcpy(shortTable, &table, size); std::memcpy(shortTable, &size, sizeof(size));
+        CHECK(sco::host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, shortTable) == sco::Result::Ok);
+        CHECK(wrapper.Open(api, self) == SCO_OK);
+        CHECK(wrapper.Apply(std::span(&item, 1), report) == SCO_UNAVAILABLE);
+        sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME); std::free(shortTable);
+    }
+    CHECK(sco::host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == sco::Result::Ok);
+    CHECK(wrapper.Open(api, self) == SCO_OK && wrapper.Apply(std::span(&item, 1), report) == SCO_OK);
+    table.apply = nullptr;
+    CHECK(wrapper.Apply(std::span(&item, 1), report) == SCO_UNAVAILABLE);
+    sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
+    CHECK(wrapper.Open(api, self) == SCO_NOT_FOUND);
+    CHECK(wrapper.Apply(std::span(&item, 1), report) == SCO_UNAVAILABLE);
+    CHECK(wrapper.Open(nullptr, self) == SCO_BAD_ARG);
+    sco_api host = *api;
+    host.query_service = nullptr;
+    CHECK(wrapper.Open(&host, self) == SCO_UNAVAILABLE);
+    const uint32_t shortSize = offsetof(sco_api, query_service) + sizeof(api->query_service) - 1;
+    void* shortHost = std::malloc(shortSize); CHECK(shortHost);
+    std::memcpy(shortHost, api, shortSize); std::memcpy(shortHost, &shortSize, sizeof(shortSize));
+    CHECK(wrapper.Open(static_cast<const sco_api*>(shortHost), self) == SCO_UNAVAILABLE);
+    std::free(shortHost);
+    std::puts("loadout routes: full extent/null/failed reopen OK");
+}

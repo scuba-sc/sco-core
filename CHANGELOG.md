@@ -4,6 +4,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G6 typed offline player loadout (`game.loadout` 1.0):** bounded 16-slot C/C++
+  synchronous apply, copied input validation and explicit partial/unsupported/missing
+  slot reports; native module/real host-provider fixtures, ABI/package/catalogue
+  evidence. No raw XML or account inventory. Production engine equip remains
+  fail-closed/unavailable pending verified methods and owner-run Windows/game checks.
+  Frozen `sco_api` 1.1 unchanged; C#/Lua routes unsupported. **Not run in game.**
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner

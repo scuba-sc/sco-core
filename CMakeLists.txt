@@ -273,7 +273,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/events.cpp
-                                       src/game/services/entities.cpp src/game/services/creative.cpp)
+                                       src/game/services/entities.cpp src/game/services/creative.cpp src/game/services/loadout.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
@@ -660,7 +660,7 @@ if(SCO_BUILD_TESTS)
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events)
+    list(APPEND _abi_bridge_pins game_world game_events game_loadout)
   endif()
   foreach(_b IN LISTS _abi_bridge_pins)
     set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")
@@ -745,6 +745,40 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_death_events PRIVATE sco_host)
     sco_project_target(test_death_events)
     add_test(NAME test_death_events COMMAND test_death_events)
+  endif()
+
+  if(SCO_GAME_SC)
+    add_library(sco_loadout STATIC src/game/services/loadout.cpp)
+    target_link_libraries(sco_loadout PUBLIC sco_host)
+    sco_project_target(sco_loadout)
+    set(_loadout_inc "${SCO_TEST_OUT}/loadout/include")
+    file(MAKE_DIRECTORY "${_loadout_inc}")
+    configure_file(include/sco_api.h "${_loadout_inc}/sco_api.h" COPYONLY)
+    configure_file(include/sc_loadout.h "${_loadout_inc}/sc_loadout.h" COPYONLY)
+    set(_loadout_root "${SCO_TEST_OUT}/loadout/plugins")
+    if(WIN32)
+      set(_loadout_ext dll)
+    else()
+      set(_loadout_ext so)
+    endif()
+    file(WRITE "${_loadout_root}/loadout_native/plugin.ini"
+         "id = loadout_native\nname = Synthetic loadout\nversion = 1.0.0\napi = 1.1\nkind = native\nentry = loadout_native.${_loadout_ext}\n")
+    add_library(sco_loadout_native SHARED tests/game_contracts/loadout/consumer.c)
+    target_include_directories(sco_loadout_native PRIVATE "${_loadout_inc}")
+    set_target_properties(sco_loadout_native PROPERTIES PREFIX "" OUTPUT_NAME loadout_native SUFFIX ".${_loadout_ext}"
+      LIBRARY_OUTPUT_DIRECTORY "$<1:${_loadout_root}/loadout_native>"
+      RUNTIME_OUTPUT_DIRECTORY "$<1:${_loadout_root}/loadout_native>")
+    if(UNIX AND NOT APPLE)
+      target_link_options(sco_loadout_native PRIVATE "-Wl,--no-undefined")
+    endif()
+    sco_warnings(sco_loadout_native)
+    add_executable(test_loadout tests/game_contracts/loadout/test_loadout.cpp tests/game_contracts/loadout/routes.cpp
+      tests/game_contracts/loadout/native.cpp)
+    add_dependencies(test_loadout sco_loadout_native)
+    target_include_directories(test_loadout PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(test_loadout PRIVATE sco_loadout sco_plugins)
+    sco_project_target(test_loadout)
+    add_test(NAME test_loadout COMMAND test_loadout "${_loadout_root}")
   endif()
 
   # The C++20 SDK layer (include/scosdk/): two SDK plugins over the real host table.

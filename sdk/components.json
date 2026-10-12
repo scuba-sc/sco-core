@@ -42,6 +42,10 @@
   "site"
  ],
  "excluded": [
+{
+  "path": "tests/game_contracts/loadout/",
+  "why": "Repository-only G6 typed loadout provider/native-boundary and catalogue fixtures; game-specific, never neutral core-source."
+},
   {
    "path": "tests/game_contracts/conformance/",
    "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
@@ -228,6 +232,49 @@
   }
  ],
  "components": [
+{
+  "id": "include.sc_loadout.h",
+  "source": "include/sc_loadout.h",
+  "destination": "include/sc_loadout.h",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "public_header": true
+},
+{
+  "id": "include.scosdk.game.loadout.hpp",
+  "source": "include/scosdk/game/loadout.hpp",
+  "destination": "include/scosdk/game/loadout.hpp",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "public_header": true
+},
+{
+  "id": "docs.game.loadout.md",
+  "source": "docs/game/loadout.md",
+  "destination": "docs/game/loadout.md",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only"
+},
+{
+  "id": "tests.abi_game_loadout.c",
+  "source": "tests/abi_game_loadout.c",
+  "destination": "tests/abi_game_loadout.c",
+  "profiles": [
+    "game-sc"
+  ],
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "group": "game-contract"
+},
 {
   "id": "source.include.sco.diagnostics.h",
   "source": "include/sco/diagnostics.h",
