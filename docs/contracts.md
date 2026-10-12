@@ -1,5 +1,66 @@
 # Public service contract catalogue
 
+The per-method machine authority is [`sdk/contracts/`](../sdk/contracts/).
+It lives with SDK metadata rather than site content so downstream consumers share
+one versioned format. This document's method cells are checked against those
+records: update both together; CI refuses disagreement. Common reading rules,
+per-service narrative and remaining gaps stay authoritative here and are carried
+into the built catalogue, not copied into another editable prose source.
+
+```sh
+python3 tools/sdk_catalogue.py check
+python3 tools/sdk_catalogue.py extract
+python3 tools/sdk_catalogue.py build --out dist/sdk-catalogue.json --source-sha "$(git rev-parse HEAD)"
+python3 tools/test_sdk_catalogue.py
+```
+
+Extraction requires Clang and an x64 C11 compiler environment. Clang's AST supplies
+table membership and function types; compiled probes supply complete member
+extents, sizes, service names and versions, reusing `tools/abi_snapshot.py` for the
+frozen root table. The gate also compiles the C declarations printed in the rows.
+No header or ABI pin is generated or changed. These checks prove inventory/layout
+and source-backed language exposure, not runtime behavior or game verification.
+The combined core/game records are repository metadata, excluded from SDK package
+profiles by `sdk/components.json`; CI publishes the built catalogue as evidence.
+
+### Machine format (schema 1)
+
+The deterministic UTF-8 JSON has sorted keys, records sorted by stable `id`, no
+timestamps or absolute paths, and an explicitly supplied full `source_sha`.
+Top-level keys are `schema_version`, `sdk_version` (from `sdk/VERSION`),
+`game_pack_version` (compiled `SCO_GAME_PACK_VERSION`), `source_sha`,
+`contract_context`, `tables` and `records`.
+
+- `contract_context`: `source` (`docs/contracts.md`), `reading_rules`,
+  `entrypoint_context`, `remaining_gaps`; the prose is Markdown, with relative links
+  interpreted against `source`.
+- `tables`: object keyed by C table name. Each value has `source_header`,
+  `version_macro`, `members` (header field order), `size` (x64 bytes), `version`
+  (packed major/minor integer), `service` and `context` (service narrative).
+- Each record has `id`, `kind`, `symbol`, `table`, `service`, `version_macro`,
+  `source_header`, `signature`, `member_extent`, `table_size`, `since`, `purpose`,
+  `buffer_contract`, `ownership`, `thread_affinity`, `callback_context`,
+  `reentrancy`, `results`, `absent_capability`, `cleanup`, `language_mappings`,
+  `examples`, `tests`, `limitations`. `table`, `member_extent` and `table_size`
+  are null for entrypoints. Signatures are compiler-normalized C types; extents
+  include the whole pointer. Preserve `id` across prose changes and symbol renames.
+- `language_mappings` has `c`, `cpp`, `csharp`, `lua`; each has `status`
+  (`direct`, `typed-wrapper`, `restricted`, `unsupported`) and nonempty `evidence`
+  containing `{path, token}` source references. `restricted` means an exposed
+  subset/adaptation, not unrestricted native access; read its source token and
+  contract. Game mutations are unsupported in read-only Lua. A raw C# function
+  pointer field is direct interop, not a typed wrapper.
+- `examples` and `tests` contain repository-relative file paths; an empty examples
+  list means none is identified, not proof that no example can exist. ABI test
+  references are layout evidence, not semantic or live-game coverage. `limitations`
+  contains explicit unestablished guarantees; `unspecified` never implies safety.
+
+`extract` validates records and returns header-only `methods`, `tables` and
+`game_pack_version` (without semantic contexts). `check` refuses inventory/type/
+extent drift, duplicate IDs, missing paths, documentation drift and language
+support claims without source evidence. `build` validates before writing.
+
+
 This catalogue covers the plain-C plugin boundary: every function-pointer **method** in
 `sco_api` and every public service table declared by the top-level `include/*.h`
 headers, plus the three native plugin entrypoints. It does not inventory data fields,
@@ -479,7 +540,7 @@ behavioral specification. In particular:
   verified live-game contract. Event payloads are not additional method rows;
   [game services](game-services.md#events) documents delivery and absent capability.
 
-For additions, append a method row to the corresponding table and update the
-inventory only after comparing it with the header declarations and layout pin.
-A comment, signature or sibling service's behavior is not evidence for an
-unstated guarantee on a new method.
+For additions, append a record under `sdk/contracts/` and update the corresponding
+method row and inventory here. Run `tools/sdk_catalogue.py check` to compare both
+with compiled header declarations and member extents. A comment, signature or
+sibling service's behavior is not evidence for an unstated guarantee on a new method.

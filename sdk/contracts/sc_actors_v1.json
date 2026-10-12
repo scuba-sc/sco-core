@@ -1,0 +1,443 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-actors-v1-local-player",
+      "kind": "table-method",
+      "symbol": "sc_actors_v1.local_player",
+      "table": "sc_actors_v1",
+      "service": "game.actors",
+      "version_macro": "SC_ACTORS_VERSION_1_1",
+      "source_header": "include/sc_actors.h",
+      "signature": "sco_result (*)(uint64_t *, uint64_t *)",
+      "member_extent": 16,
+      "table_size": 56,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Your player: *out_actor_id, the id the game's client player record names your actor by (the id the game resolves to your actor), and *out_entity_id, your entity's id (the same as spawn.entities' local_player_id; use it with teleport.spatial and spawn.entities). Both 0 on failure. Either pointer may be NULL to skip it, not both. SCO_NOT_FOUND: you haven't spawned yet. Read-only: no self; a failure's reason is last_error(NULL, ...).",
+      "buffer_contract": "`sco_result (*local_player)(uint64_t* out_actor_id, uint64_t* out_entity_id);`<br>Your player: *out_actor_id, the id the game's client player record names your actor by (the id the game resolves to your actor), and *out_entity_id, your entity's id (the same as spawn.entities' local_player_id; use it with teleport.spatial and spawn.entities). Both 0 on failure. Either pointer may be NULL to skip it, not both. SCO_NOT_FOUND: you haven't spawned yet. Read-only: no self; a failure's reason is last_error(NULL, ...).",
+      "ownership": "Caller buffers; no allocation crosses boundary. Host owns NPC tracking; entity IDs are session values. Internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_actors.h",
+              "token": "(*local_player)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/actors.hpp",
+              "token": "return t_ ? t_->local_player(&actorId, &entityId) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
+              "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->local_player(&a, &e);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = a ? a->local_player(&actor, &entity) : SCO_UNAVAILABLE;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_actors.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "Internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-actors-v1-spawn-npc",
+      "kind": "table-method",
+      "symbol": "sc_actors_v1.spawn_npc",
+      "table": "sc_actors_v1",
+      "service": "game.actors",
+      "version_macro": "SC_ACTORS_VERSION_1_1",
+      "source_header": "include/sc_actors.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, uint64_t, const double *, uint64_t *)",
+      "member_extent": 24,
+      "table_size": 56,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Spawns an NPC of archetype_class (an entity class name, as in sc-offline's npcs.txt) at pos in zone zone_id's local frame, facing the zone's axes. *out_id = the new entity id, 0 on failure. The id is final at once; the NPC streams in a few seconds later. The NPC is yours (see Ownership above). SCO_BAD_ARG: a null or released self, a null class, pos or out_id, zone 0, or a position that isn't finite. SCO_NOT_FOUND: the zone isn't streamed in, or the class doesn't exist on this game build. SCO_TOO_MANY: SC_ACTORS_MAX_NPCS are alive. SCO_FAILED: the game refused or faulted.",
+      "buffer_contract": "`sco_result (*spawn_npc)(sco_plugin* self, const char* archetype_class, uint64_t zone_id, const double pos[3], uint64_t* out_id);`<br>Spawns an NPC of archetype_class (an entity class name, as in sc-offline's npcs.txt) at pos in zone zone_id's local frame, facing the zone's axes. *out_id = the new entity id, 0 on failure. The id is final at once; the NPC streams in a few seconds later. The NPC is yours (see Ownership above). SCO_BAD_ARG: a null or released self, a null class, pos or out_id, zone 0, or a position that isn't finite. SCO_NOT_FOUND: the zone isn't streamed in, or the class doesn't exist on this game build. SCO_TOO_MANY: SC_ACTORS_MAX_NPCS are alive. SCO_FAILED: the game refused or faulted.",
+      "ownership": "Caller buffers; no allocation crosses boundary. Host owns NPC tracking; entity IDs are session values. Internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_actors.h",
+              "token": "(*spawn_npc)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/actors.hpp",
+              "token": "return t_ ? t_->spawn_npc(self_, archetypeClass, zoneId, pos, &id) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
+              "token": "r = _t->spawn_npc(Self, c, zoneId, p, &n);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Lua gets the game services **read-only**: queries, never a function that changes the game, so a script owns no NPCs."
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_actors.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "Internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-actors-v1-despawn",
+      "kind": "table-method",
+      "symbol": "sc_actors_v1.despawn",
+      "table": "sc_actors_v1",
+      "service": "game.actors",
+      "version_macro": "SC_ACTORS_VERSION_1_1",
+      "source_header": "include/sc_actors.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 32,
+      "table_size": 56,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Removes an NPC you spawned with spawn_npc. SCO_OK starts the removal: the NPC leaves the world within a few seconds (one that hasn't streamed in yet goes once it has), and the id is no longer yours. SCO_NOT_FOUND: not an NPC you spawned here, or despawned already.",
+      "buffer_contract": "`sco_result (*despawn)(sco_plugin* self, uint64_t entity_id);`<br>Removes an NPC you spawned with spawn_npc. SCO_OK starts the removal: the NPC leaves the world within a few seconds (one that hasn't streamed in yet goes once it has), and the id is no longer yours. SCO_NOT_FOUND: not an NPC you spawned here, or despawned already.",
+      "ownership": "Caller buffers; no allocation crosses boundary. Host owns NPC tracking; entity IDs are session values. Internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_actors.h",
+              "token": "(*despawn)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/actors.hpp",
+              "token": "sco_result Despawn(uint64_t id) const noexcept { return t_ ? t_->despawn(self_, id) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
+              "token": "public ScoResult Despawn(ulong id) => _t == null ? ScoResult.Unavailable : _t->despawn(Self, id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Lua gets the game services **read-only**: queries, never a function that changes the game, so a script owns no NPCs."
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_actors.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "Internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-actors-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sc_actors_v1.last_error",
+      "table": "sc_actors_v1",
+      "service": "game.actors",
+      "version_macro": "SC_ACTORS_VERSION_1_1",
+      "source_header": "include/sc_actors.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 40,
+      "table_size": 56,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "The reason for self's last failed call (\"\" if none), NUL-terminated, with the size handshake (*inout_size: capacity in; bytes written, or needed with SCO_TOO_MANY, out). self NULL: the last failure of a call made without a plugin handle (local_player). Any thread.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The reason for self's last failed call (\"\" if none), NUL-terminated, with the size handshake (*inout_size: capacity in; bytes written, or needed with SCO_TOO_MANY, out). self NULL: the last failure of a call made without a plugin handle (local_player). Any thread.",
+      "ownership": "Caller buffers; no allocation crosses boundary. Host owns NPC tracking; entity IDs are session values. Internal allocation unspecified.",
+      "thread_affinity": "Any thread; diagnostic scope as described; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid/released non-NULL self or buffer; TOO_MANY required bytes. NULL self selects no-self failures; stopped-service refusal unspecified (no started check).",
+      "absent_capability": "unspecified",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_actors.h",
+              "token": "(*last_error)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/actors.hpp",
+              "token": "sco_result r = t_->last_error(who, s.data(), &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
+              "token": "return Storage.Sized((buf, size) => ((ScActorsV1*)t)->last_error((void*)who, buf, size), out byte[] b) == ScoResult.Ok"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (a && a->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_actors.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "Internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "stopped-service refusal unspecified (no started check).",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-actors-v1-health",
+      "kind": "table-method",
+      "symbol": "sc_actors_v1.health",
+      "table": "sc_actors_v1",
+      "service": "game.actors",
+      "version_macro": "SC_ACTORS_VERSION_1_1",
+      "source_header": "include/sc_actors.h",
+      "signature": "sco_result (*)(uint64_t, float *, float *)",
+      "member_extent": 48,
+      "table_size": 56,
+      "since": "`size >= 48`; 1.1",
+      "purpose": "1.1. The health pool of the actor whose entity id is id: your player's (local_player's entity id) or an NPC's (spawn_npc's id), once it has streamed in. *out_cur = the game's HealthPool stat in its own units. *out_max = 0: the maximum isn't read yet, 0 means unknown (the field is here so a later game pack can fill it without a new table). Either pointer may be NULL to skip it, not both. Read-only: no self; a failure's reason is last_error(NULL, ...). SCO_NOT_FOUND: id isn't streamed in or isn't an actor. SCO_UNAVAILABLE: game.actors.health isn't ready. SCO_BAD_ARG: both pointers NULL. SCO_FAILED: the game faulted. Implementation: outputs zeroed before failure checks; id 0 BAD_ARG. Maximum 0 is unknown.",
+      "buffer_contract": "`sco_result (*health)(uint64_t id, float* out_cur, float* out_max);`<br>1.1. The health pool of the actor whose entity id is id: your player's (local_player's entity id) or an NPC's (spawn_npc's id), once it has streamed in. *out_cur = the game's HealthPool stat in its own units. *out_max = 0: the maximum isn't read yet, 0 means unknown (the field is here so a later game pack can fill it without a new table). Either pointer may be NULL to skip it, not both. Read-only: no self; a failure's reason is last_error(NULL, ...). SCO_NOT_FOUND: id isn't streamed in or isn't an actor. SCO_UNAVAILABLE: game.actors.health isn't ready. SCO_BAD_ARG: both pointers NULL. SCO_FAILED: the game faulted. Implementation: outputs zeroed before failure checks; id 0 BAD_ARG. Maximum 0 is unknown.",
+      "ownership": "Caller buffers; no allocation crosses boundary. Host owns NPC tracking; entity IDs are session values. Internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_actors.h",
+              "token": "(*health)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/actors.hpp",
+              "token": "return t_->health(id, &cur, &max);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
+              "token": "ScoResult r = _t == null || !new ServiceRef<ScActorsV1>(_t).Covers(40) ? ScoResult.Unavailable : _t->health(id, &c, &m);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = a && a->size > offsetof(sc_actors_v1, health) ? a->health(id, &cur, &max) : SCO_UNAVAILABLE;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_actors.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "Internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-actors-v1-state",
+      "kind": "table-method",
+      "symbol": "sc_actors_v1.state",
+      "table": "sc_actors_v1",
+      "service": "game.actors",
+      "version_macro": "SC_ACTORS_VERSION_1_1",
+      "source_header": "include/sc_actors.h",
+      "signature": "sco_result (*)(uint64_t, uint32_t *)",
+      "member_extent": 56,
+      "table_size": 56,
+      "since": "`size >= 56`; 1.1",
+      "purpose": "1.1. *out_state = an sc_actor_state. Not published yet: SCO_UNAVAILABLE until game.actors.state is ready. Implementation: output initialized to 0; NULL out BAD_ARG, wrong thread WRONG_THREAD; valid call still UNAVAILABLE, not an ALIVE answer.",
+      "buffer_contract": "`sco_result (*state)(uint64_t id, uint32_t* out_state);`<br>1.1. *out_state = an sc_actor_state. Not published yet: SCO_UNAVAILABLE until game.actors.state is ready. Implementation: output initialized to 0; NULL out BAD_ARG, wrong thread WRONG_THREAD; valid call still UNAVAILABLE, not an ALIVE answer.",
+      "ownership": "Caller buffers; no allocation crosses boundary. Host owns NPC tracking; entity IDs are session values. Internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; invalid/released self: BAD_ARG. See method detail for game failures. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned NPCs removed on unload/crash; despawn starts deferred removal.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_actors.h",
+              "token": "(*state)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/actors.hpp",
+              "token": "const sco_result r = t_->state(id, &raw);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Actors.cs",
+              "token": "ScoResult r = _t == null || !new ServiceRef<ScActorsV1>(_t).Covers(48) ? ScoResult.Unavailable : _t->state(id, &s);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "`state` isn't in Lua: it isn't available yet"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_actors.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "Internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,522 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-creative-v1-set-god-mode",
+      "kind": "table-method",
+      "symbol": "sc_creative_v1.set_god_mode",
+      "table": "sc_creative_v1",
+      "service": "game.creative",
+      "version_macro": "SC_CREATIVE_SERVICE_VERSION",
+      "source_header": "include/sc_creative.h",
+      "signature": "sco_result (*)(sco_plugin *, int)",
+      "member_extent": 16,
+      "table_size": 64,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "God mode on (non-zero) or off (0). SCO_OK also when you haven't spawned yet: it is applied once you have. SCO_FAILED: the game faulted, or the host can't turn the toggle off when your plugin unloads (no release hook left). game.creative.god_mode.",
+      "buffer_contract": "`sco_result (*set_god_mode)(sco_plugin* self, int on);`<br>God mode on (non-zero) or off (0). SCO_OK also when you haven't spawned yet: it is applied once you have. SCO_FAILED: the game faulted, or the host can't turn the toggle off when your plugin unloads (no release hook left). game.creative.god_mode.",
+      "ownership": "Caller outputs; host owns toggle state. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_creative.h",
+              "token": "(*set_god_mode)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/creative.hpp",
+              "token": "sco_result SetGodMode(bool on) const noexcept { return ref_ ? ref_->set_god_mode(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
+              "token": "public ScoResult SetGodMode(bool on) => _t == null ? ScoResult.Unavailable : _t->set_god_mode(Self, on ? 1 : 0);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Read-only: scripts can see which toggles are on but can't switch any"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_creative.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-creative-v1-set-fly-mode",
+      "kind": "table-method",
+      "symbol": "sc_creative_v1.set_fly_mode",
+      "table": "sc_creative_v1",
+      "service": "game.creative",
+      "version_macro": "SC_CREATIVE_SERVICE_VERSION",
+      "source_header": "include/sc_creative.h",
+      "signature": "sco_result (*)(sco_plugin *, int)",
+      "member_extent": 24,
+      "table_size": 64,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Fly mode (noclip) on or off, for your player. SCO_FAILED: you're not spawned yet, your actor has no fly handler, the game faulted, or no release hook is left. Switching it off when it isn't on is SCO_OK and does nothing. game.creative.fly.",
+      "buffer_contract": "`sco_result (*set_fly_mode)(sco_plugin* self, int on);`<br>Fly mode (noclip) on or off, for your player. SCO_FAILED: you're not spawned yet, your actor has no fly handler, the game faulted, or no release hook is left. Switching it off when it isn't on is SCO_OK and does nothing. game.creative.fly.",
+      "ownership": "Caller outputs; host owns toggle state. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_creative.h",
+              "token": "(*set_fly_mode)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/creative.hpp",
+              "token": "sco_result SetFlyMode(bool on) const noexcept { return ref_ ? ref_->set_fly_mode(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
+              "token": "public ScoResult SetFlyMode(bool on) => _t == null ? ScoResult.Unavailable : _t->set_fly_mode(Self, on ? 1 : 0);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Read-only: scripts can see which toggles are on but can't switch any"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_creative.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-creative-v1-set-fly-speed",
+      "kind": "table-method",
+      "symbol": "sc_creative_v1.set_fly_speed",
+      "table": "sc_creative_v1",
+      "service": "game.creative",
+      "version_macro": "SC_CREATIVE_SERVICE_VERSION",
+      "source_header": "include/sc_creative.h",
+      "signature": "sco_result (*)(sco_plugin *, float)",
+      "member_extent": 32,
+      "table_size": 64,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "The fly speed in metres per second: finite, above 0 and at most SC_CREATIVE_FLY_SPEED_MAX (SCO_BAD_ARG otherwise). The game's own speed comes back when your plugin unloads. SCO_UNAVAILABLE: no fly capability, or the game's fly speed field wasn't found on this build. SCO_FAILED: the game's settings aren't up yet. game.creative.fly.",
+      "buffer_contract": "`sco_result (*set_fly_speed)(sco_plugin* self, float mps);`<br>The fly speed in metres per second: finite, above 0 and at most SC_CREATIVE_FLY_SPEED_MAX (SCO_BAD_ARG otherwise). The game's own speed comes back when your plugin unloads. SCO_UNAVAILABLE: no fly capability, or the game's fly speed field wasn't found on this build. SCO_FAILED: the game's settings aren't up yet. game.creative.fly.",
+      "ownership": "Caller outputs; host owns toggle state. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_creative.h",
+              "token": "(*set_fly_speed)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/creative.hpp",
+              "token": "sco_result SetFlySpeed(float mps) const noexcept { return ref_ ? ref_->set_fly_speed(self_, mps) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
+              "token": "public ScoResult SetFlySpeed(float mps) => _t == null ? ScoResult.Unavailable : _t->set_fly_speed(Self, mps);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Read-only: scripts can see which toggles are on but can't switch any"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_creative.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-creative-v1-set-infinite-ammo",
+      "kind": "table-method",
+      "symbol": "sc_creative_v1.set_infinite_ammo",
+      "table": "sc_creative_v1",
+      "service": "game.creative",
+      "version_macro": "SC_CREATIVE_SERVICE_VERSION",
+      "source_header": "include/sc_creative.h",
+      "signature": "sco_result (*)(sco_plugin *, int)",
+      "member_extent": 40,
+      "table_size": 64,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Infinite ammo for the weapons you carry: a magazine you fire from is topped up to its maximum. SCO_FAILED when the magazine setter can't be hooked or no release hook is left. game.creative.ammo.",
+      "buffer_contract": "`sco_result (*set_infinite_ammo)(sco_plugin* self, int on);`<br>Infinite ammo for the weapons you carry: a magazine you fire from is topped up to its maximum. SCO_FAILED when the magazine setter can't be hooked or no release hook is left. game.creative.ammo.",
+      "ownership": "Caller outputs; host owns toggle state. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_creative.h",
+              "token": "(*set_infinite_ammo)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/creative.hpp",
+              "token": "sco_result SetInfiniteAmmo(bool on) const noexcept { return ref_ ? ref_->set_infinite_ammo(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
+              "token": "public ScoResult SetInfiniteAmmo(bool on) => _t == null ? ScoResult.Unavailable : _t->set_infinite_ammo(Self, on ? 1 : 0);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Read-only: scripts can see which toggles are on but can't switch any"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_creative.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-creative-v1-set-infinite-ship-ammo",
+      "kind": "table-method",
+      "symbol": "sc_creative_v1.set_infinite_ship_ammo",
+      "table": "sc_creative_v1",
+      "service": "game.creative",
+      "version_macro": "SC_CREATIVE_SERVICE_VERSION",
+      "source_header": "include/sc_creative.h",
+      "signature": "sco_result (*)(sco_plugin *, int)",
+      "member_extent": 48,
+      "table_size": 64,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "The same for every weapon on the ship you're aboard (including ones that drain their magazine without the setter: topped up twice a second). game.creative.ship_ammo.",
+      "buffer_contract": "`sco_result (*set_infinite_ship_ammo)(sco_plugin* self, int on);`<br>The same for every weapon on the ship you're aboard (including ones that drain their magazine without the setter: topped up twice a second). game.creative.ship_ammo.",
+      "ownership": "Caller outputs; host owns toggle state. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_creative.h",
+              "token": "(*set_infinite_ship_ammo)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/creative.hpp",
+              "token": "return ref_ ? ref_->set_infinite_ship_ammo(self_, on ? 1 : 0) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
+              "token": "public ScoResult SetInfiniteShipAmmo(bool on) => _t == null ? ScoResult.Unavailable : _t->set_infinite_ship_ammo(Self, on ? 1 : 0);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Read-only: scripts can see which toggles are on but can't switch any"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_creative.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-creative-v1-state",
+      "kind": "table-method",
+      "symbol": "sc_creative_v1.state",
+      "table": "sc_creative_v1",
+      "service": "game.creative",
+      "version_macro": "SC_CREATIVE_SERVICE_VERSION",
+      "source_header": "include/sc_creative.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t *)",
+      "member_extent": 56,
+      "table_size": 64,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "out_flags = the sc_creative_flag bits that are on. SCO_UNAVAILABLE only when none of the four capabilities is ready.",
+      "buffer_contract": "`sco_result (*state)(sco_plugin* self, uint32_t* out_flags);`<br>out_flags = the sc_creative_flag bits that are on. SCO_UNAVAILABLE only when none of the four capabilities is ready.",
+      "ownership": "Caller outputs; host owns toggle state. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_creative.h",
+              "token": "(*state)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/creative.hpp",
+              "token": "return ref_ ? ref_->state(self_, &flags) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
+              "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->state(Self, &f);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "lua_pushstring(L, dc->state() == SCO_DC_OPEN ? \"open\" : \"loaded\");"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_creative.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-creative-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sc_creative_v1.last_error",
+      "table": "sc_creative_v1",
+      "service": "game.creative",
+      "version_macro": "SC_CREATIVE_SERVICE_VERSION",
+      "source_header": "include/sc_creative.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 64,
+      "table_size": 64,
+      "since": "`size >= 64`; 1.0",
+      "purpose": "The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: your own last failed call; on another thread: the last refusal on that thread. Any thread.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: your own last failed call; on another thread: the last refusal on that thread. Any thread.",
+      "ownership": "Caller outputs; host owns toggle state. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Any thread; diagnostic scope as described; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid buffer; TOO_MANY required bytes. Implementation selects newer own/shared-query error on game thread; otherwise thread refusal. self validity and stopped-service rejection unspecified.",
+      "absent_capability": "unspecified",
+      "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on unload/crash.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_creative.h",
+              "token": "(*last_error)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/creative.hpp",
+              "token": "return ref_->last_error(self_, out.data(), &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Creative.cs",
+              "token": "return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (c->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_creative.c",
+        "tests/test_app.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "self validity and stopped-service rejection unspecified.",
+        "Game-service behavior not verified in a game session."
+      ]
+    }
+  ]
+}

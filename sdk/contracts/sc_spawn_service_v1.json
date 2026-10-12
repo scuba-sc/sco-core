@@ -1,0 +1,584 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-spawn-service-v1-spawn-near-player",
+      "kind": "table-method",
+      "symbol": "sc_spawn_service_v1.spawn_near_player",
+      "table": "sc_spawn_service_v1",
+      "service": "spawn.entities",
+      "version_macro": "SC_SPAWN_SERVICE_VERSION",
+      "source_header": "include/sc_spawn.h",
+      "signature": "const char *(*)(const char *, const double *, uint64_t *)",
+      "member_extent": 16,
+      "table_size": 64,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Spawns an entity class (a ship, a vehicle, an item) at offset metres from you, in your current zone's frame. NULL on success with *out_id = the new entity id; else the reason. The id is final at once, but the entity streams in later: a few seconds, up to a minute for a big ship. entity_alive(id) answers 1 once it has. An entity spawned here belongs to no plugin: set_entity_transform refuses it. Use spawn_as for an entity you will move. Implementation initializes out_id to 0 before failure checks.",
+      "buffer_contract": "`const char* (*spawn_near_player)(const char* entity_class, const double offset[3], uint64_t* out_id);`<br>Spawns an entity class (a ship, a vehicle, an item) at offset metres from you, in your current zone's frame. NULL on success with *out_id = the new entity id; else the reason. The id is final at once, but the entity streams in later: a few seconds, up to a minute for a big ship. entity_alive(id) answers 1 once it has. An entity spawned here belongs to no plugin: set_entity_transform refuses it. Use spawn_as for an entity you will move. Implementation initializes out_id to 0 before failure checks.",
+      "ownership": "Spawned entity belongs to no plugin; out ID caller-owned. Failure reason is borrowed; returned string lifetime unspecified; never free.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*spawn_near_player)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*spawn_near_player)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spawn.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "returned string lifetime unspecified;",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spawn-service-v1-class-exists",
+      "kind": "table-method",
+      "symbol": "sc_spawn_service_v1.class_exists",
+      "table": "sc_spawn_service_v1",
+      "service": "spawn.entities",
+      "version_macro": "SC_SPAWN_SERVICE_VERSION",
+      "source_header": "include/sc_spawn.h",
+      "signature": "int (*)(const char *)",
+      "member_extent": 24,
+      "table_size": 64,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "1 if entity_class is a spawnable class on this game build, else 0.",
+      "buffer_contract": "`int (*class_exists)(const char* entity_class);`<br>1 if entity_class is a spawnable class on this game build, else 0.",
+      "ownership": "IDs are session values, not pointers; caller outputs. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*class_exists)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*class_exists)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spawn.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spawn-service-v1-local-player-id",
+      "kind": "table-method",
+      "symbol": "sc_spawn_service_v1.local_player_id",
+      "table": "sc_spawn_service_v1",
+      "service": "spawn.entities",
+      "version_macro": "SC_SPAWN_SERVICE_VERSION",
+      "source_header": "include/sc_spawn.h",
+      "signature": "uint64_t (*)(void)",
+      "member_extent": 32,
+      "table_size": 64,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Your entity id, or 0 before you've spawned.",
+      "buffer_contract": "`uint64_t (*local_player_id)(void);`<br>Your entity id, or 0 before you've spawned.",
+      "ownership": "IDs are session values, not pointers; caller outputs. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*local_player_id)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*local_player_id)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spawn.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spawn-service-v1-player-ship-id",
+      "kind": "table-method",
+      "symbol": "sc_spawn_service_v1.player_ship_id",
+      "table": "sc_spawn_service_v1",
+      "service": "spawn.entities",
+      "version_macro": "SC_SPAWN_SERVICE_VERSION",
+      "source_header": "include/sc_spawn.h",
+      "signature": "uint64_t (*)(void)",
+      "member_extent": 40,
+      "table_size": 64,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "The ship you're aboard, or 0.",
+      "buffer_contract": "`uint64_t (*player_ship_id)(void);`<br>The ship you're aboard, or 0.",
+      "ownership": "IDs are session values, not pointers; caller outputs. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*player_ship_id)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*player_ship_id)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spawn.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spawn-service-v1-entity-alive",
+      "kind": "table-method",
+      "symbol": "sc_spawn_service_v1.entity_alive",
+      "table": "sc_spawn_service_v1",
+      "service": "spawn.entities",
+      "version_macro": "SC_SPAWN_SERVICE_VERSION",
+      "source_header": "include/sc_spawn.h",
+      "signature": "int (*)(uint64_t)",
+      "member_extent": 48,
+      "table_size": 64,
+      "since": "`size >= 48`; 1.1",
+      "purpose": "1.1. 1 while the entity id resolves in the game (spawned and streamed in), else 0; 0 for id 0. Asked afresh on every call. A 1.0 table ends before this field: call it only when size &gt; offsetof(sc_spawn_service_v1, entity_alive).",
+      "buffer_contract": "`int (*entity_alive)(uint64_t entity_id);`<br>1.1. 1 while the entity id resolves in the game (spawned and streamed in), else 0; 0 for id 0. Asked afresh on every call. A 1.0 table ends before this field: call it only when size &gt; offsetof(sc_spawn_service_v1, entity_alive).",
+      "ownership": "IDs are session values, not pointers; caller outputs. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*entity_alive)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*entity_alive)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spawn.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spawn-service-v1-set-entity-transform",
+      "kind": "table-method",
+      "symbol": "sc_spawn_service_v1.set_entity_transform",
+      "table": "sc_spawn_service_v1",
+      "service": "spawn.entities",
+      "version_macro": "SC_SPAWN_SERVICE_VERSION",
+      "source_header": "include/sc_spawn.h",
+      "signature": "int (*)(sco_plugin *, uint64_t, uint64_t, const double *, const double *)",
+      "member_extent": 56,
+      "table_size": 64,
+      "since": "`size >= 56`; 1.2",
+      "purpose": "1.2. Moves and turns an entity: pos (metres) and rot (a unit quaternion, x y z w, the order of sc_spatial.h's player_pose) in zone zone_id's frame. zone_id 0 is the world (root) frame; any other id is that zone's local frame (ids from teleport.spatial: player_pose, zone_of_entity). The entity stays in the zone it's in; the pose is converted to that zone's frame. 1 on success, 0 on failure: wrong thread, a null pointer, rot not finite or of zero length (it is normalized), an id that isn't streamed in, a zone the game pack can't place, or an entity you may not move; the game pack logs the reason (\"[game] warning: set_entity_transform(&lt;id&gt;) -&gt; 0: &lt;reason&gt;\") once per id and reason. A fresh spawn takes seconds to stream in and answers 0 until then: check entity_alive(id) first, and try again on a later tick while it answers 0. You may move: - an entity spawned through spawn_as with your own self, while your plugin is loaded (unloading forgets them; spawn_near_player and the spawn.ship command count for nobody); - your player's own vehicle once the product has registered it as retrieved or delivered by ATC (sco::game::services::RegisterPlayerVehicle; registration depends on the product). self is your plugin's handle, as sco_plugin_load received it. A 1.1 table ends before this field: call it only when size &gt; offsetof(sc_spawn_service_v1, set_entity_transform).",
+      "buffer_contract": "`int (*set_entity_transform)(sco_plugin* self, uint64_t entity_id, uint64_t zone_id, const double pos[3], const double rot[4]);`<br>1.2. Moves and turns an entity: pos (metres) and rot (a unit quaternion, x y z w, the order of sc_spatial.h's player_pose) in zone zone_id's frame. zone_id 0 is the world (root) frame; any other id is that zone's local frame (ids from teleport.spatial: player_pose, zone_of_entity). The entity stays in the zone it's in; the pose is converted to that zone's frame. 1 on success, 0 on failure: wrong thread, a null pointer, rot not finite or of zero length (it is normalized), an id that isn't streamed in, a zone the game pack can't place, or an entity you may not move; the game pack logs the reason (\"[game] warning: set_entity_transform(&lt;id&gt;) -&gt; 0: &lt;reason&gt;\") once per id and reason. A fresh spawn takes seconds to stream in and answers 0 until then: check entity_alive(id) first, and try again on a later tick while it answers 0. You may move: - an entity spawned through spawn_as with your own self, while your plugin is loaded (unloading forgets them; spawn_near_player and the spawn.ship command count for nobody); - your player's own vehicle once the product has registered it as retrieved or delivered by ATC (sco::game::services::RegisterPlayerVehicle; registration depends on the product). self is your plugin's handle, as sco_plugin_load received it. A 1.1 table ends before this field: call it only when size &gt; offsetof(sc_spawn_service_v1, set_entity_transform).",
+      "ownership": "May move only own spawn_as entities or player vehicles registered by product; input arrays borrowed during call; no allocation transfer.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*set_entity_transform)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*set_entity_transform)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spawn.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spawn-service-v1-spawn-as",
+      "kind": "table-method",
+      "symbol": "sc_spawn_service_v1.spawn_as",
+      "table": "sc_spawn_service_v1",
+      "service": "spawn.entities",
+      "version_macro": "SC_SPAWN_SERVICE_VERSION",
+      "source_header": "include/sc_spawn.h",
+      "signature": "const char *(*)(sco_plugin *, const char *, const double *, uint64_t *)",
+      "member_extent": 64,
+      "table_size": 64,
+      "since": "`size >= 64`; 1.2",
+      "purpose": "1.2. spawn_near_player, recorded as yours (self, as sco_plugin_load received it), so set_entity_transform lets you move the entity. Same answers as spawn_near_player, plus \"bad argument\" for a null self. Same size check as set_entity_transform: size &gt; offsetof(sc_spawn_service_v1, spawn_as). Implementation may return tracking-failure reason after successful spawn with out_id nonzero.",
+      "buffer_contract": "`const char* (*spawn_as)(sco_plugin* self, const char* entity_class, const double offset[3], uint64_t* out_id);`<br>1.2. spawn_near_player, recorded as yours (self, as sco_plugin_load received it), so set_entity_transform lets you move the entity. Same answers as spawn_near_player, plus \"bad argument\" for a null self. Same size check as set_entity_transform: size &gt; offsetof(sc_spawn_service_v1, spawn_as). Implementation may return tracking-failure reason after successful spawn with out_id nonzero.",
+      "ownership": "Movement ownership recorded for self, forgotten on unload; this is not an automatic despawn promise. Failure reason borrowed; lifetime unspecified; never free.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "NULL means spawn and tracking succeeded; non-NULL borrowed reason otherwise. Tracking failure can occur after spawn, with nonzero out ID and live unowned/unmovable entity; failure is not rollback.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*spawn_as)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spawn.h",
+              "token": "(*spawn_as)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spawn.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "lifetime unspecified;",
+        "recursive reentrancy unspecified.",
+        "Game-service behavior not verified in a game session."
+      ]
+    }
+  ]
+}

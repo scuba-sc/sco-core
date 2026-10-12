@@ -42,6 +42,18 @@
  ],
  "excluded": [
   {
+   "path": "sdk/contracts/",
+   "why": "Repository contract authority combines core and game tables; consumers use the separately built catalogue."
+  },
+  {
+   "path": "tools/sdk_catalogue.py",
+   "why": "Repository compiler-backed catalogue gate; not part of the kernel source kit."
+  },
+  {
+   "path": "tools/test_sdk_catalogue.py",
+   "why": "Repository catalogue refusal tests; not part of the kernel source kit."
+  },
+  {
    "path": "sdk/package.py",
    "why": "packaging tool"
   },

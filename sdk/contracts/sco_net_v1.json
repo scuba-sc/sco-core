@@ -1,0 +1,482 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-net-v1-is-active",
+      "kind": "table-method",
+      "symbol": "sco_net_v1.is_active",
+      "table": "sco_net_v1",
+      "service": "sco.net",
+      "version_macro": "SCO_NET_VERSION_1_0",
+      "source_header": "include/sco_net.h",
+      "signature": "int (*)(void)",
+      "member_extent": 16,
+      "table_size": 64,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "1 while a session is up (hosting, or joined with the channel table received), else 0.",
+      "buffer_contract": "`int (*is_active)(void);`<br>1 while a session is up (hosting, or joined with the channel table received), else 0.",
+      "ownership": "Caller buffers; sends copied, callbacks borrow buf for call only. Host owns channels/messages; no allocation transfer.",
+      "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
+      "callback_context": "callbacks game thread.",
+      "reentrancy": "Callbacks may call any method in this table.",
+      "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No delivery cancellation API; unload/crash drops channels and queued messages.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_net.h",
+              "token": "(*is_active)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/net.hpp",
+              "token": "bool Active() const noexcept { return t_ && t_->is_active(); }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/net.md",
+              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_net.c",
+        "tests/test_net_service.cpp"
+      ],
+      "limitations": [
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-net-v1-get-peers",
+      "kind": "table-method",
+      "symbol": "sco_net_v1.get_peers",
+      "table": "sco_net_v1",
+      "service": "sco.net",
+      "version_macro": "SCO_NET_VERSION_1_0",
+      "source_header": "include/sco_net.h",
+      "signature": "sco_result (*)(sco_net_peer *, uint32_t *)",
+      "member_extent": 24,
+      "table_size": 64,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "The session's peers, self first, then by id. *inout_count holds out's capacity on entry (out may be NULL with 0) and the number of peers on return; up to the capacity are written. SCO_TOO_MANY: more peers than the capacity (the first ones were written). SCO_OK with 0 when no session is active. SCO_BAD_ARG: inout_count NULL, or out NULL with a nonzero capacity. Element-count handshake, not bytes: writes min(capacity,total) and returns total in inout_count; no session means OK/0.",
+      "buffer_contract": "`sco_result (*get_peers)(sco_net_peer* out, uint32_t* inout_count);`<br>The session's peers, self first, then by id. *inout_count holds out's capacity on entry (out may be NULL with 0) and the number of peers on return; up to the capacity are written. SCO_TOO_MANY: more peers than the capacity (the first ones were written). SCO_OK with 0 when no session is active. SCO_BAD_ARG: inout_count NULL, or out NULL with a nonzero capacity. Element-count handshake, not bytes: writes min(capacity,total) and returns total in inout_count; no session means OK/0.",
+      "ownership": "Caller buffers; sends copied, callbacks borrow buf for call only. Host owns channels/messages; no allocation transfer.",
+      "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
+      "callback_context": "callbacks game thread.",
+      "reentrancy": "Callbacks may call any method in this table.",
+      "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No delivery cancellation API; unload/crash drops channels and queued messages.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_net.h",
+              "token": "(*get_peers)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/net.hpp",
+              "token": "const sco_result r = t_->get_peers(n ? out.data() : nullptr, &n);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/net.md",
+              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_net.c",
+        "tests/test_net_service.cpp"
+      ],
+      "limitations": [
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-net-v1-get-peer-name",
+      "kind": "table-method",
+      "symbol": "sco_net_v1.get_peer_name",
+      "table": "sco_net_v1",
+      "service": "sco.net",
+      "version_macro": "SCO_NET_VERSION_1_0",
+      "source_header": "include/sco_net.h",
+      "signature": "sco_result (*)(uint64_t, char *, uint32_t)",
+      "member_extent": 32,
+      "table_size": 64,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Copies the peer's chosen name (UTF-8) into buf, NUL-terminated, cut to cap - 1 bytes. SCO_NOT_FOUND: no such peer in the active session. SCO_BAD_ARG: buf NULL or cap 0.",
+      "buffer_contract": "`sco_result (*get_peer_name)(uint64_t peer_id, char* buf, uint32_t cap);`<br>Copies the peer's chosen name (UTF-8) into buf, NUL-terminated, cut to cap - 1 bytes. SCO_NOT_FOUND: no such peer in the active session. SCO_BAD_ARG: buf NULL or cap 0.",
+      "ownership": "Caller buffers; sends copied, callbacks borrow buf for call only. Host owns channels/messages; no allocation transfer.",
+      "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
+      "callback_context": "callbacks game thread.",
+      "reentrancy": "Callbacks may call any method in this table.",
+      "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No delivery cancellation API; unload/crash drops channels and queued messages.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_net.h",
+              "token": "(*get_peer_name)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/net.hpp",
+              "token": "if (!t_ || t_->get_peer_name(peer, buf, sizeof buf) != SCO_OK) return {};"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/net.md",
+              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_net.c",
+        "tests/test_net_service.cpp"
+      ],
+      "limitations": [
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-net-v1-send-channel",
+      "kind": "table-method",
+      "symbol": "sco_net_v1.send_channel",
+      "table": "sco_net_v1",
+      "service": "sco.net",
+      "version_macro": "SCO_NET_VERSION_1_0",
+      "source_header": "include/sco_net.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const void *, uint32_t)",
+      "member_extent": 40,
+      "table_size": 64,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Queues len bytes on channel_fqn to the other peers (only the host for SCO_NET_TO_HOST). Copies buf; never blocks. SCO_BAD_ARG: a name outside this plugin's id, len over the channel's max_len, buf NULL with len &gt; 0, or the wrong direction (a FROM_HOST channel from a joiner, a TO_HOST channel from the host). SCO_NOT_FOUND: this plugin hasn't registered the channel. SCO_UNAVAILABLE: no active session. SCO_TOO_MANY: over the send quota, or the plugin's outgoing queue is full; dropped. A message no other peer has a channel for is dropped silently.",
+      "buffer_contract": "`sco_result (*send_channel)(sco_plugin* self, const char* channel_fqn, const void* buf, uint32_t len);`<br>Queues len bytes on channel_fqn to the other peers (only the host for SCO_NET_TO_HOST). Copies buf; never blocks. SCO_BAD_ARG: a name outside this plugin's id, len over the channel's max_len, buf NULL with len &gt; 0, or the wrong direction (a FROM_HOST channel from a joiner, a TO_HOST channel from the host). SCO_NOT_FOUND: this plugin hasn't registered the channel. SCO_UNAVAILABLE: no active session. SCO_TOO_MANY: over the send quota, or the plugin's outgoing queue is full; dropped. A message no other peer has a channel for is dropped silently.",
+      "ownership": "Caller buffers; sends copied, callbacks borrow buf for call only. Host owns channels/messages; no allocation transfer.",
+      "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
+      "callback_context": "callbacks game thread.",
+      "reentrancy": "Callbacks may call any method in this table.",
+      "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "OK means queued, not delivery acknowledgement. Quota/queue failure drops send; no matching peer channel drops silently; unload drops queued messages.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_net.h",
+              "token": "(*send_channel)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/net.hpp",
+              "token": "return t_->send_channel(self_, name_.c_str(), data.data(), static_cast<uint32_t>(data.size()));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/net.md",
+              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_net.c",
+        "tests/test_net_service.cpp"
+      ],
+      "limitations": [
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-net-v1-register-channel",
+      "kind": "table-method",
+      "symbol": "sco_net_v1.register_channel",
+      "table": "sco_net_v1",
+      "service": "sco.net",
+      "version_macro": "SCO_NET_VERSION_1_0",
+      "source_header": "include/sco_net.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, uint32_t, uint32_t, sco_net_on_message, void *)",
+      "member_extent": 48,
+      "table_size": 64,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "Registers channel_fqn (\"&lt;this plugin id&gt;.&lt;name&gt;\") with flags (SCO_NET_*) and the largest message this side accepts or sends, max_len (1..SCO_NET_MAX_UNREL, or 1..SCO_NET_MAX_RELIABLE with SCO_NET_RELIABLE); a longer incoming message is dropped before it is reassembled. cb runs on the game thread for each message; ctx is borrowed until unregister_channel or unload. Works with or without a session. SCO_BAD_ARG: a bad name, a name outside this plugin's id, one already registered, bad flags (FROM_HOST with TO_HOST), a bad max_len or a NULL cb. SCO_TOO_MANY: SCO_NET_MAX_CHANNELS already.",
+      "buffer_contract": "`sco_result (*register_channel)(sco_plugin* self, const char* channel_fqn, uint32_t flags, uint32_t max_len, sco_net_on_message cb, void* ctx);`<br>Registers channel_fqn (\"&lt;this plugin id&gt;.&lt;name&gt;\") with flags (SCO_NET_*) and the largest message this side accepts or sends, max_len (1..SCO_NET_MAX_UNREL, or 1..SCO_NET_MAX_RELIABLE with SCO_NET_RELIABLE); a longer incoming message is dropped before it is reassembled. cb runs on the game thread for each message; ctx is borrowed until unregister_channel or unload. Works with or without a session. SCO_BAD_ARG: a bad name, a name outside this plugin's id, one already registered, bad flags (FROM_HOST with TO_HOST), a bad max_len or a NULL cb. SCO_TOO_MANY: SCO_NET_MAX_CHANNELS already.",
+      "ownership": "Name copied; cb/ctx borrowed until unregister/unload. Callback buf valid for call only; host registry allocation.",
+      "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
+      "callback_context": "callbacks game thread.",
+      "reentrancy": "Callbacks may call any method in this table.",
+      "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "Ends at unregister/unload/crash; incoming oversized payload dropped before reassembly; no callback cancel token.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_net.h",
+              "token": "(*register_channel)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/net.hpp",
+              "token": "c.r_ = t_->register_channel(self_, name, flags, maxLen, &NetChannel::Thunk, c.fn_.get());"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/net.md",
+              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_net.c",
+        "tests/test_net_service.cpp"
+      ],
+      "limitations": [
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-net-v1-unregister-channel",
+      "kind": "table-method",
+      "symbol": "sco_net_v1.unregister_channel",
+      "table": "sco_net_v1",
+      "service": "sco.net",
+      "version_macro": "SCO_NET_VERSION_1_0",
+      "source_header": "include/sco_net.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *)",
+      "member_extent": 56,
+      "table_size": 64,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Removes one of this plugin's channels: no callback runs for it after this returns (on the game thread; from another thread, one already running may finish). SCO_NOT_FOUND: not registered by this plugin.",
+      "buffer_contract": "`sco_result (*unregister_channel)(sco_plugin* self, const char* channel_fqn);`<br>Removes one of this plugin's channels: no callback runs for it after this returns (on the game thread; from another thread, one already running may finish). SCO_NOT_FOUND: not registered by this plugin.",
+      "ownership": "Host drops owned channel; caller ctx can be freed on game thread after return; off-thread an already running callback may finish.",
+      "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
+      "callback_context": "callbacks game thread.",
+      "reentrancy": "Callbacks may call any method in this table.",
+      "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "On game thread no later callback; off-thread callback already running may finish. Further transport timing unspecified.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_net.h",
+              "token": "(*unregister_channel)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/net.hpp",
+              "token": "if (t_) t_->unregister_channel(self_, name_.c_str());"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/net.md",
+              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_net.c",
+        "tests/test_net_service.cpp"
+      ],
+      "limitations": [
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Further transport timing unspecified."
+      ]
+    },
+    {
+      "id": "sco-net-v1-self-peer",
+      "kind": "table-method",
+      "symbol": "sco_net_v1.self_peer",
+      "table": "sco_net_v1",
+      "service": "sco.net",
+      "version_macro": "SCO_NET_VERSION_1_0",
+      "source_header": "include/sco_net.h",
+      "signature": "uint64_t (*)(void)",
+      "member_extent": 64,
+      "table_size": 64,
+      "since": "`size >= 64`; 1.0",
+      "purpose": "This player's peer id in the active session (the host is 1), 0 when none.",
+      "buffer_contract": "`uint64_t (*self_peer)(void);`<br>This player's peer id in the active session (the host is 1), 0 when none.",
+      "ownership": "Caller buffers; sends copied, callbacks borrow buf for call only. Host owns channels/messages; no allocation transfer.",
+      "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
+      "callback_context": "callbacks game thread.",
+      "reentrancy": "Callbacks may call any method in this table.",
+      "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No delivery cancellation API; unload/crash drops channels and queued messages.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_net.h",
+              "token": "(*self_peer)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/net.hpp",
+              "token": "uint64_t SelfPeer() const noexcept { return t_ ? t_->self_peer() : 0; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/net.md",
+              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_net.c",
+        "tests/test_net_service.cpp"
+      ],
+      "limitations": [
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    }
+  ]
+}

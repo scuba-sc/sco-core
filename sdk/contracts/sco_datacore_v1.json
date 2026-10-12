@@ -1,0 +1,705 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-datacore-v1-state",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.state",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "uint32_t (*)(void)",
+      "member_extent": 16,
+      "table_size": 88,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "SCO_DC_OPEN or SCO_DC_LOADED.",
+      "buffer_contract": "`uint32_t (*state)(void);`<br>SCO_DC_OPEN or SCO_DC_LOADED.",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Returns OPEN or LOADED; no sco_result. Absent table NOT_FOUND; stopped-state value unspecified as a contract.",
+      "absent_capability": "Absent table NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*state)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "uint32_t State() const noexcept { return ref_ ? ref_->state() : SCO_DC_LOADED; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "public uint State => _t == null ? 0 : _t->state();"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "lua_pushstring(L, dc->state() == SCO_DC_OPEN ? \"open\" : \"loaded\");"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "stopped-state value unspecified as a contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-begin",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.begin",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t, uint64_t *)",
+      "member_extent": 24,
+      "table_size": 88,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "A new patch owned by self. flags: 0 or SCO_DC_NON_ATOMIC. SCO_BAD_ARG: a bad self or flags. SCO_TOO_MANY: SCO_DC_MAX_PATCHES of this plugin's patches are open or queued for the load. Implementation initializes out_patch to 0 on failure.",
+      "buffer_contract": "`sco_result (*begin)(sco_plugin* self, uint32_t flags, uint64_t* out_patch);`<br>A new patch owned by self. flags: 0 or SCO_DC_NON_ATOMIC. SCO_BAD_ARG: a bad self or flags. SCO_TOO_MANY: SCO_DC_MAX_PATCHES of this plugin's patches are open or queued for the load. Implementation initializes out_patch to 0 on failure.",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*begin)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "const sco_result r = ref_->begin(self_, flags, &id);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "ScoResult r = _t->begin(_plugin.SelfPtr, flags, &id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc->begin(self, flags, &id);"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-set",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.set",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(uint64_t, const char *, const char *, const sco_dc_value *)",
+      "member_extent": 32,
+      "table_size": 88,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "record: a record name, or \"guid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\". field: a field path, name / name[3] / name[Type] joined with '.'. Sets a value in place; v NULL or SCO_DC_NULL sets a null pointer, SCO_DC_INSTANCE points the field at an added instance. Implementation refuses duplicate set of same target/field within one patch with BAD_ARG.",
+      "buffer_contract": "`sco_result (*set)(uint64_t patch, const char* record, const char* field, const sco_dc_value* v);`<br>record: a record name, or \"guid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\". field: a field path, name / name[3] / name[Type] joined with '.'. Sets a value in place; v NULL or SCO_DC_NULL sets a null pointer, SCO_DC_INSTANCE points the field at an added instance. Implementation refuses duplicate set of same target/field within one patch with BAD_ARG.",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*set)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "return appending_ ? t_->append(id_, rec.c_str(), f.c_str(), &v) : t_->set(id_, rec.c_str(), f.c_str(), &v);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "return t->set(Id, r, f, v.Ptr);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc->set(p->id, record, field, v.type == SCO_DC_NULL ? NULL : &v);"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-add-instance",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.add_instance",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(uint64_t, const char *, const char *, const char *, uint64_t *)",
+      "member_extent": 40,
+      "table_size": 88,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "A new instance of struct type, copied from clone_record's clone_field (NULL or \"\": the record's root) or zero-filled (clone_record NULL). out_instance: its id, usable in this patch's SCO_DC_INSTANCE values and set_pointer. Implementation initializes out_instance to 0 on failure.",
+      "buffer_contract": "`sco_result (*add_instance)(uint64_t patch, const char* type, const char* clone_record, const char* clone_field, uint64_t* out_instance);`<br>A new instance of struct type, copied from clone_record's clone_field (NULL or \"\": the record's root) or zero-filled (clone_record NULL). out_instance: its id, usable in this patch's SCO_DC_INSTANCE values and set_pointer. Implementation initializes out_instance to 0 on failure.",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*add_instance)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "const sco_result r = t_->add_instance(id_, ty.c_str(), cr.empty() ? nullptr : cr.c_str(), cf.empty() ? nullptr : cf.c_str(), &id);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "r = t->add_instance(Id, ty, cr, cf, &id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc->add_instance(p->id, type, cloneRecord, cloneField, &id);"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-set-pointer",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.set_pointer",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(uint64_t, const char *, const char *, uint64_t)",
+      "member_extent": 48,
+      "table_size": 88,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "Points a strong or weak pointer field at an added instance. Uses set internally; therefore duplicate-target/field rule and value.size validation apply.",
+      "buffer_contract": "`sco_result (*set_pointer)(uint64_t patch, const char* record, const char* field, uint64_t instance);`<br>Points a strong or weak pointer field at an added instance. Uses set internally; therefore duplicate-target/field rule and value.size validation apply.",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*set_pointer)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "return t_->set_pointer(id_, rec.c_str(), f.c_str(), target.Id());"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "return t->set_pointer(Id, r, f, instance);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc->set_pointer(p->id, record, field, inst->id);"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-append",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.append",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(uint64_t, const char *, const char *, const sco_dc_value *)",
+      "member_extent": 56,
+      "table_size": 88,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Appends one element to an array field: a value, a pointer (SCO_DC_NULL, SCO_DC_INSTANCE), or for an array of structs SCO_DC_INSTANCE, the added instance to copy in.",
+      "buffer_contract": "`sco_result (*append)(uint64_t patch, const char* record, const char* field, const sco_dc_value* v);`<br>Appends one element to an array field: a value, a pointer (SCO_DC_NULL, SCO_DC_INSTANCE), or for an array of structs SCO_DC_INSTANCE, the added instance to copy in.",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*append)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "return appending_ ? t_->append(id_, rec.c_str(), f.c_str(), &v) : t_->set(id_, rec.c_str(), f.c_str(), &v);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "return t->append(Id, r, f, v.Ptr);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc->append(p->id, record, field, v.type == SCO_DC_NULL ? NULL : &v);"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-add-record",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.add_record",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(uint64_t, const char *, const char *, const char *, const char *, const char *, uint64_t *)",
+      "member_extent": 64,
+      "table_size": 88,
+      "since": "`size >= 64`; 1.0 slot; works 1.1",
+      "purpose": "1.1: a new record of struct type named name (unique among records), its root copied from the record clone_record (a name or \"guid:...\", required; a record of the same struct). guid: NULL or \"\" derives a stable one from the plugin id and name (the same at every launch); else \"xxxxxxxx-...\", not zero. file_path: NULL or \"\" is libs/foundry/records/sco/&lt;plugin id&gt;/&lt;name&gt;.xml; else libs/foundry/records/... ending in .xml. out_record: an id like add_instance's (the record's root: \"@&lt;id&gt;\" as a record argument, SCO_DC_INSTANCE as a value); later operations may also name the record by name or GUID, and reference fields take it as SCO_DC_REF. SCO_BAD_ARG: a bad argument, or a name or GUID this patch already adds. The rest (struct has records, name and GUID new to the file, clone's struct) is checked at the load. In the saved .toml it is a [[record]] operation. SCO_UNAVAILABLE on a 1.0 host. Implementation initializes out_record to 0 on failure.",
+      "buffer_contract": "`sco_result (*add_record)(uint64_t patch, const char* type, const char* name, const char* guid, const char* clone_record, const char* file_path, uint64_t* out_record);`<br>1.1: a new record of struct type named name (unique among records), its root copied from the record clone_record (a name or \"guid:...\", required; a record of the same struct). guid: NULL or \"\" derives a stable one from the plugin id and name (the same at every launch); else \"xxxxxxxx-...\", not zero. file_path: NULL or \"\" is libs/foundry/records/sco/&lt;plugin id&gt;/&lt;name&gt;.xml; else libs/foundry/records/... ending in .xml. out_record: an id like add_instance's (the record's root: \"@&lt;id&gt;\" as a record argument, SCO_DC_INSTANCE as a value); later operations may also name the record by name or GUID, and reference fields take it as SCO_DC_REF. SCO_BAD_ARG: a bad argument, or a name or GUID this patch already adds. The rest (struct has records, name and GUID new to the file, clone's struct) is checked at the load. In the saved .toml it is a [[record]] operation. SCO_UNAVAILABLE on a 1.0 host. Implementation initializes out_record to 0 on failure.",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*add_record)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "const sco_result r = t_->add_record(id_, a.c_str(), b.c_str(), c.empty() ? nullptr : c.c_str(), d.c_str(),"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "r = t->add_record(Id, ty, n, g, c, p, &id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc->add_record(p->id, type, name, guid, clone, file, &id);"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-commit",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.commit",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(uint64_t)",
+      "member_extent": 72,
+      "table_size": 88,
+      "since": "`size >= 72`; 1.0",
+      "purpose": "Before the load: queues the patch for it (reports SCO_DC_QUEUED). After it: saves the patch as data/datacore/pending/&lt;plugin id&gt;.toml (written to a temporary file, then renamed over the old one) and reports SCO_DC_QUEUED \"applies at the next launch\"; an empty patch clears the saved one. No more operations on it either way. SCO_BAD_ARG: already committed. SCO_FAILED: the file couldn't be written (the patch stays open; commit again).",
+      "buffer_contract": "`sco_result (*commit)(uint64_t patch);`<br>Before the load: queues the patch for it (reports SCO_DC_QUEUED). After it: saves the patch as data/datacore/pending/&lt;plugin id&gt;.toml (written to a temporary file, then renamed over the old one) and reports SCO_DC_QUEUED \"applies at the next launch\"; an empty patch clears the saved one. No more operations on it either way. SCO_BAD_ARG: already committed. SCO_FAILED: the file couldn't be written (the patch stays open; commit again).",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*commit)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "const sco_result r = t_->commit(id_);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "ScoResult r = t->commit(Id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc ? dc->commit(p->id) : SCO_UNAVAILABLE;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-discard",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.discard",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(uint64_t)",
+      "member_extent": 80,
+      "table_size": 88,
+      "since": "`size >= 80`; 1.0",
+      "purpose": "Drops a patch: an open one, or a committed one before the load. After it was saved or applied only the id is forgotten (delete the saved file by committing an empty patch).",
+      "buffer_contract": "`sco_result (*discard)(uint64_t patch);`<br>Drops a patch: an open one, or a committed one before the load. After it was saved or applied only the id is forgotten (delete the saved file by committing an empty patch).",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*discard)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "const sco_result r = t_->discard(id_);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "ScoResult r = t->discard(Id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc ? dc->discard(p->id) : SCO_UNAVAILABLE;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-datacore-v1-report",
+      "kind": "table-method",
+      "symbol": "sco_datacore_v1.report",
+      "table": "sco_datacore_v1",
+      "service": "sco.datacore",
+      "version_macro": "SCO_DATACORE_VERSION_1_1",
+      "source_header": "include/sco_datacore.h",
+      "signature": "sco_result (*)(uint64_t, uint32_t, sco_dc_report *)",
+      "member_extent": 88,
+      "table_size": 88,
+      "since": "`size >= 88`; 1.0",
+      "purpose": "Entry index: 0 .. operations-1 are the operations in call order, then one entry for the patch itself (op_index SCO_DC_OP_PATCH). out-&gt;size must be at least sizeof(sco_dc_report). SCO_NOT_FOUND past the last entry or for an unknown, discarded or released patch.",
+      "buffer_contract": "`sco_result (*report)(uint64_t patch, uint32_t index, sco_dc_report* out);`<br>Entry index: 0 .. operations-1 are the operations in call order, then one entry for the patch itself (op_index SCO_DC_OP_PATCH). out-&gt;size must be at least sizeof(sco_dc_report). SCO_NOT_FOUND past the last entry or for an unknown, discarded or released patch.",
+      "ownership": "Strings/values copied; host owns patches and instances; IDs, not allocations, cross the ABI. Internal allocation/failure guarantee unspecified.",
+      "thread_affinity": "Any thread; short locks, no wait for game load. Recursive/concurrent same-patch reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_datacore.h",
+              "token": "(*report)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/datacore.hpp",
+              "token": "if (t_->report(id_, i, &rep) != SCO_OK) break;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/DataCore.cs",
+              "token": "ScoResult r = t->report(Id, index, &rep);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = dc->report(p->id, i, &rep);"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_datacore.c",
+        "tests/test_datacore_service.cpp"
+      ],
+      "limitations": [
+        "Internal allocation/failure guarantee unspecified.",
+        "Recursive/concurrent same-patch reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    }
+  ]
+}

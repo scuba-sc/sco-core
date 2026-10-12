@@ -1,0 +1,1276 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-api-host-version",
+      "kind": "table-method",
+      "symbol": "sco_api.host_version",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "const char *(*)(void)",
+      "member_extent": 16,
+      "table_size": 128,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "\"sc-offline 0.8.0\". Static string.",
+      "buffer_contract": "`const char* (*host_version)(void);`<br>\"sc-offline 0.8.0\". Static string.",
+      "ownership": "Borrowed static host string; never free. Internal allocation unspecified.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "No result/error channel. No capability gate. NULL before host version setup possible in implementation; published-host lifetime is host-owned.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; synchronous unless noted.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*host_version)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*host_version)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
+              "token": "return a == null ? \"\" : Utf8.Read(a->host_version()) ?? \"\";"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const char* v = Of(L)->api->host_version();"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Internal allocation unspecified.",
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-has",
+      "kind": "table-method",
+      "symbol": "sco_api.has",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "int (*)(const char *)",
+      "member_extent": 24,
+      "table_size": 128,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "1 if the capability is available on this game build, else 0.",
+      "buffer_contract": "`int (*has)(const char* capability);`<br>1 if the capability is available on this game build, else 0.",
+      "ownership": "Capability string borrowed during call; no allocation transfer; fixed registry lookup.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "1 available; 0 absent/unknown/NULL name. No result/error channel.",
+      "absent_capability": "1 available; 0 absent/unknown/NULL name.",
+      "cleanup": "No cancellation entrypoint; synchronous unless noted.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*has)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "bool Has(const char* capability) const noexcept { return api_ && capability && api_->has(capability) != 0; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
+              "token": "fixed (byte* c = Utf8.Z(capability)) return a->has(c) != 0;"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "lua_pushboolean(L, Of(L)->api->has(luaL_checkstring(L, 1)) != 0);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-run-on-game-thread",
+      "kind": "table-method",
+      "symbol": "sco_api.run_on_game_thread",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, sco_task_fn, void *)",
+      "member_extent": 32,
+      "table_size": 128,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Any thread. Runs fn(ctx) on the game thread, in order, on the next tick. SCO_TOO_MANY only when 65536 tasks are already waiting (the host's cap) or memory runs out.",
+      "buffer_contract": "`sco_result (*run_on_game_thread)(sco_plugin* self, sco_task_fn fn, void* ctx);`<br>Any thread. Runs fn(ctx) on the game thread, in order, on the next tick. SCO_TOO_MANY only when 65536 tasks are already waiting (the host's cap) or memory runs out.",
+      "ownership": "fn/ctx borrowed until execution or owner release; ctx is not copied/freed. First 256 waiting tasks use fixed ring; overflow allocates nodes up to 65,536 waiting tasks.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "Runs fn(ctx) on the game thread, in order, on the next tick.",
+      "reentrancy": "unspecified",
+      "results": "OK queued; BAD_ARG invalid/released self or NULL fn; TOO_MANY at queue hard cap or allocation failure; no capability gate.",
+      "absent_capability": "unspecified",
+      "cleanup": "Queued tasks dropped on unload/failed load/crash; no task-specific cancel or drop notification; caller must clean ctx.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*run_on_game_thread)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "const sco_result r = api_->run_on_game_thread(self_, detail::TaskTrampoline, detail::ToCtx(id));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
+              "token": "ScoResult r = a->run_on_game_thread(_self, &TaskTrampoline, (void*)id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = s->api->run_on_game_thread(s->self, TaskThunk, t);"
+            },
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (s->ntasks >= SCO_LUA_MAX_TASKS) return PushResult(L, SCO_TOO_MANY);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-subscribe",
+      "kind": "table-method",
+      "symbol": "sco_api.subscribe",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, sco_event_fn, void *)",
+      "member_extent": 40,
+      "table_size": 128,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Any thread. Applies from the next dispatch.",
+      "buffer_contract": "`sco_result (*subscribe)(sco_plugin* self, const char* event, sco_event_fn fn, void* ctx);`<br>Any thread. Applies from the next dispatch.",
+      "ownership": "Event name copied; fn/ctx borrowed until unsubscribe/unload. Host allocates copy-on-write subscription list; caller owns ctx.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid/released self, NULL/empty event, NULL fn or duplicate (self,event,fn); TOO_MANY capacity/allocation failure. Missing event producer is not a registration error; no event may arrive.",
+      "absent_capability": "Missing event producer is not a registration error; no event may arrive.",
+      "cleanup": "unsubscribe or owner unload/crash ends delivery; in-flight callback may finish.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*subscribe)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "const sco_result r = api_->subscribe(self_, event, detail::EventTrampoline, detail::ToCtx(id));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
+              "token": "fixed (byte* n = Utf8.Z(ev)) r = _api->subscribe(_self, n, EventFn, (void*)slot.Id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = s->api->subscribe(s->self, event, sco_lua_event_, e);"
+            },
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (lua_rawlen(L, list) >= SCO_LUA_MAX_SUBSCRIBERS) return PushResult(L, SCO_TOO_MANY);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-unsubscribe",
+      "kind": "table-method",
+      "symbol": "sco_api.unsubscribe",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, sco_event_fn)",
+      "member_extent": 48,
+      "table_size": 128,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "Any thread. Applies at once: a running dispatch won't call fn again. Freeing ctx: on the game thread, right after unsubscribe returns (also from inside fn itself). From another thread fn may be running now; call run_on_game_thread after unsubscribe returns and free ctx in that task. Tasks never run while a dispatch is in progress.",
+      "buffer_contract": "`sco_result (*unsubscribe)(sco_plugin* self, const char* event, sco_event_fn fn);`<br>Any thread. Applies at once: a running dispatch won't call fn again. Freeing ctx: on the game thread, right after unsubscribe returns (also from inside fn itself). From another thread fn may be running now; call run_on_game_thread after unsubscribe returns and free ctx in that task. Tasks never run while a dispatch is in progress.",
+      "ownership": "Caller owns fn/ctx. Host may allocate replacement subscription list. Follow callback-quiescence rule before freeing ctx.",
+      "thread_affinity": "Any thread; allowed inside own event callback. Does not join off-thread in-flight callback; other reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "allowed inside own event callback.",
+      "results": "BAD_ARG invalid/released self or NULL event/fn; NOT_FOUND no matching subscription; TOO_MANY replacement-list allocation failure. No capability gate.",
+      "absent_capability": "unspecified",
+      "cleanup": "On successful removal no new callback, including remainder of current dispatch; off-thread already-running callback may finish. Free ctx via later game-thread task.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*unsubscribe)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "s->api->unsubscribe(s->self, it->first.c_str(), detail::EventTrampoline);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
+              "token": "fixed (byte* n = Utf8.Z(slot.Event)) _api->unsubscribe(_self, n, EventFn);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "s->api->unsubscribe(s->self, e->name, sco_lua_event_);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "other reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-status",
+      "kind": "table-method",
+      "symbol": "sco_api.status",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "void (*)(sco_plugin *, const char *)",
+      "member_extent": 56,
+      "table_size": 128,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Shows &lt;plugin&gt;: message on status line. CR/LF become spaces; NULL/invalid self ignored; longer message cut to fit the host buffer.",
+      "buffer_contract": "`void (*status)(sco_plugin* self, const char* message);`<br>Shows &lt;plugin&gt;: message on status line. CR/LF become spaces; NULL/invalid self ignored; longer message cut to fit the host buffer.",
+      "ownership": "Message borrowed for call, copied/sanitized through 256-byte stack buffer; no allocation transfer.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "void; invalid/released self or NULL message silently ignored; CR/LF become spaces and message truncates. No capability gate.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; synchronous unless noted.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*status)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "api_->status(self_, line);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
+              "token": "fixed (byte* m = Utf8.Z(message)) a->status(_self, m);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "s->api->status(s->self, line);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-log",
+      "kind": "table-method",
+      "symbol": "sco_api.log",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "void (*)(sco_plugin *, sco_log_level, const char *)",
+      "member_extent": 64,
+      "table_size": 128,
+      "since": "`size >= 64`; 1.0",
+      "purpose": "Logs [plugin] message on one line; warn/error add a tag, CR/LF become spaces and long message is cut.",
+      "buffer_contract": "`void (*log)(sco_plugin* self, sco_log_level level, const char* message);`<br>Logs [plugin] message on one line; warn/error add a tag, CR/LF become spaces and long message is cut.",
+      "ownership": "Message borrowed for call, copied/sanitized through 512-byte stack buffer; no allocation transfer.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "void; invalid/released self or NULL message silently ignored; CR/LF become spaces and message truncates; unknown level follows info branch. No capability gate.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; synchronous unless noted.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*log)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "api->log(self, SCO_LOG_ERROR, line);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
+              "token": "fixed (byte* m = Utf8.Z(message)) api->log(self, level, m);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "s->api->log(s->self, SCO_LOG_ERROR, line);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-register-command",
+      "kind": "table-method",
+      "symbol": "sco_api.register_command",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, const sco_command *)",
+      "member_extent": 72,
+      "table_size": 128,
+      "since": "`size >= 72`; 1.0",
+      "purpose": "Commands: the one way to use a feature. The host copies cmd, its strings and its arg defs; only fn and ctx must stay valid until the plugin unloads.",
+      "buffer_contract": "`sco_result (*register_command)(sco_plugin* self, const sco_command* cmd);`<br>Commands: the one way to use a feature. The host copies cmd, its strings and its arg defs; only fn and ctx must stay valid until the plugin unloads.",
+      "ownership": "Host copies descriptor strings and argument definitions; only fn/ctx borrowed until unload. Registry slots host-owned; no allocation transfer.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid descriptor/size/stride, args/type/name/prefix or duplicate; TOO_MANY capacity/allocation. Missing command capability gates invocation, not registration.",
+      "absent_capability": "Missing command capability gates invocation, not registration.",
+      "cleanup": "Owner unload/crash removes registration; no individual unregister API.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*register_command)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/command.hpp",
+              "token": "const sco_result r = plugin_.Api()->register_command(plugin_.Self(), &cmd);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Commands.cs",
+              "token": "ScoResult r = api->register_command(_plugin.SelfPtr, &cmd);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = s->api->register_command(s->self, &cmd);"
+            },
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (s->ncmds == SCO_LUA_MAX_COMMANDS) return PushResult(L, SCO_TOO_MANY);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-invoke",
+      "kind": "table-method",
+      "symbol": "sco_api.invoke",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const sco_arg *, uint32_t, sco_invoke_done, void *)",
+      "member_extent": 80,
+      "table_size": 128,
+      "since": "`size >= 80`; 1.0",
+      "purpose": "From the game thread: runs now, calls done (if set) once before returning, and returns the same result. From another thread: copies name and args, queues the call and returns SCO_OK; done then runs exactly once, on the game thread. Any other return (SCO_BAD_ARG, or SCO_TOO_MANY when the queue is full or memory runs out) means nothing was queued and done is never called. A call still queued when the plugin unloads is dropped without calling done.",
+      "buffer_contract": "`sco_result (*invoke)(sco_plugin* self, const char* name, const sco_arg* args, uint32_t nargs, sco_invoke_done done, void* ctx);`<br>From the game thread: runs now, calls done (if set) once before returning, and returns the same result. From another thread: copies name and args, queues the call and returns SCO_OK; done then runs exactly once, on the game thread. Any other return (SCO_BAD_ARG, or SCO_TOO_MANY when the queue is full or memory runs out) means nothing was queued and done is never called. A call still queued when the plugin unloads is dropped without calling done.",
+      "ownership": "On game thread, arguments borrowed during call. Else name/arguments/string values copied into host queue allocations; done/ctx borrowed. reply borrowed during done only.",
+      "thread_affinity": "Any thread; on game thread command/done run synchronously; elsewhere queued and done runs on game thread. Recursive invoke depth/limit unspecified.",
+      "callback_context": "on game thread command/done run synchronously; elsewhere queued and done runs on game thread.",
+      "reentrancy": "unspecified",
+      "results": "Game thread: command result incl NOT_FOUND, BAD_ARG, UNAVAILABLE capability, CRASHED guarded fault, or provider result. Other thread: OK queued, BAD_ARG/TOO_MANY nothing queued. Initial validation can return before done.",
+      "absent_capability": "unspecified",
+      "cleanup": "Queued call dropped on calling owner release without done; non-OK enqueue return means done never runs. No invocation-specific cancellation.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*invoke)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "if (!reply) return api_->invoke(self_, name, args, nargs, nullptr, nullptr);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Plugin.cs",
+              "token": "r = a->invoke(_self, n, block.Args, block.Count, &DoneTrampoline, (void*)id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = s->api->invoke(s->self, name, nargs ? args : NULL, (uint32_t)nargs, DoneCb, &d);"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Runs any command, sc-offline's or a plugin's, now."
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Recursive invoke depth/limit unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-list-commands",
+      "kind": "table-method",
+      "symbol": "sco_api.list_commands",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "uint32_t (*)(const sco_command **, uint32_t)",
+      "member_extent": 88,
+      "table_size": 128,
+      "since": "`size >= 88`; 1.0",
+      "purpose": "Writes up to max command pointers to out; returns the number of live commands. The pointers stay valid until their owning plugin unloads.",
+      "buffer_contract": "`uint32_t (*list_commands)(const sco_command** out, uint32_t max);`<br>Writes up to max command pointers to out; returns the number of live commands. The pointers stay valid until their owning plugin unloads.",
+      "ownership": "out array caller-owned; command pointers host-owned until owner unload/slot reuse. Keep names, not pointers. Internal allocation unspecified.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Returns total live count, not number written; NULL out or max 0 counts only. No result/error channel or capability gate.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; synchronous unless noted.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*list_commands)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*list_commands)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Interop.cs",
+              "token": "public delegate* unmanaged[Cdecl]<ScoCommand**, uint, uint> list_commands;"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "uint32_t n = s->api->list_commands(list, 512);"
+            },
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (n > 512) n = 512;"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Internal allocation unspecified.",
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-provide-service",
+      "kind": "table-method",
+      "symbol": "sco_api.provide_service",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, uint32_t, const void *)",
+      "member_extent": 96,
+      "table_size": 128,
+      "since": "`size >= 96`; 1.1",
+      "purpose": "Any thread. Publishes vtable under name (\"&lt;plugin id&gt;\" or \"&lt;plugin id&gt;.&lt;name&gt;\", [a-z0-9_.], 1-63 chars) with version (major &lt;&lt; 16) &#124; minor. SCO_BAD_ARG: a bad or taken name, or a name outside this plugin's id. Withdrawn when this plugin unloads or crashes, or by release_service. Start the table with a uint32_t size so it can grow.",
+      "buffer_contract": "`sco_result (*provide_service)(sco_plugin* self, const char* name, uint32_t version, const void* vtable);`<br>Any thread. Publishes vtable under name (\"&lt;plugin id&gt;\" or \"&lt;plugin id&gt;.&lt;name&gt;\", [a-z0-9_.], 1-63 chars) with version (major &lt;&lt; 16) &#124; minor. SCO_BAD_ARG: a bad or taken name, or a name outside this plugin's id. Withdrawn when this plugin unloads or crashes, or by release_service. Start the table with a uint32_t size so it can grow.",
+      "ownership": "Host copies name/version, borrows table contents/code until withdrawal or unload; provider retains state ownership. Registry allocation may fail.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid/released self, NULL table, invalid/taken/out-of-prefix name; TOO_MANY allocation. No capability gate.",
+      "absent_capability": "unspecified",
+      "cleanup": "release_service or owner unload/crash withdraws lookup; no cancellation/quiescence guarantee for calls already using table.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*provide_service)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/service.hpp",
+              "token": "return plugin.Api()->provide_service(plugin.Self(), name, version, table);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Services.cs",
+              "token": "fixed (byte* n = Utf8.Z(name)) return a->provide_service(SelfPtr, n, version, table);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-query-service",
+      "kind": "table-method",
+      "symbol": "sco_api.query_service",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(const char *, uint32_t, const void **)",
+      "member_extent": 104,
+      "table_size": 128,
+      "since": "`size >= 104`; 1.1",
+      "purpose": "Any thread. SCO_OK: *out_vtable = the table of the service with this name, same major as min_version and at least as new. SCO_UNAVAILABLE: another major, or older. SCO_NOT_FOUND: none. *out_vtable is NULL unless SCO_OK. A plugin's table goes away when it unloads: query when needed.",
+      "buffer_contract": "`sco_result (*query_service)(const char* name, uint32_t min_version, const void** out_vtable);`<br>Any thread. SCO_OK: *out_vtable = the table of the service with this name, same major as min_version and at least as new. SCO_UNAVAILABLE: another major, or older. SCO_NOT_FOUND: none. *out_vtable is NULL unless SCO_OK. A plugin's table goes away when it unloads: query when needed.",
+      "ownership": "Returns borrowed provider table; never free. Host/game tables live through plugin lifetime. Native provider code remains mapped after handout, not necessarily its state. Handout tracking may allocate.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG NULL name/out; NOT_FOUND absent; UNAVAILABLE incompatible major/older minor; TOO_MANY handout-tracking allocation. *out NULL unless OK.",
+      "absent_capability": "NOT_FOUND absent; UNAVAILABLE incompatible major/older minor",
+      "cleanup": "No cancellation. Native provider hot reload/unload during session refused after handout; shutdown still tears down state. Do not assume held state stays usable after withdrawal/crash.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*query_service)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/service.hpp",
+              "token": "const sco_result r = api->query_service(name, minVersion, &out);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Services.cs",
+              "token": "fixed (byte* n = Utf8.Z(name)) r = a->query_service(n, minVersion, &table);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "s->api->query_service(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_0, &t)"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-release-service",
+      "kind": "table-method",
+      "symbol": "sco_api.release_service",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *)",
+      "member_extent": 112,
+      "table_size": 128,
+      "since": "`size >= 112`; 1.1",
+      "purpose": "Any thread. Withdraws one of this plugin's services. SCO_NOT_FOUND: it publishes nothing by that name.",
+      "buffer_contract": "`sco_result (*release_service)(sco_plugin* self, const char* name);`<br>Any thread. Withdraws one of this plugin's services. SCO_NOT_FOUND: it publishes nothing by that name.",
+      "ownership": "Withdraws borrowed pointer, never frees provider table. Concurrency/quiescence for callers holding it unspecified.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid self or NULL name; NOT_FOUND no owned service (including one already withdrawn). No capability gate; released-self handling not an explicit wrapper check.",
+      "absent_capability": "unspecified",
+      "cleanup": "Stops future lookup; effects on calls already executing unspecified.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*release_service)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/service.hpp",
+              "token": "return plugin.Api()->release_service(plugin.Self(), name);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Services.cs",
+              "token": "fixed (byte* n = Utf8.Z(name)) return a->release_service(SelfPtr, n);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Concurrency/quiescence for callers holding it unspecified.",
+        "reentrancy unspecified.",
+        "effects on calls already executing unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-invoke-raw",
+      "kind": "table-method",
+      "symbol": "sco_api.invoke_raw",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const void *, uint32_t, void *, uint32_t *)",
+      "member_extent": 120,
+      "table_size": 128,
+      "since": "`size >= 120`; 1.1",
+      "purpose": "Game thread. Calls the raw handler registered under name, now: in_size bytes in, up to *inout_out_size bytes out (on return: bytes written, or needed with SCO_TOO_MANY). in may be NULL with in_size 0; out may be NULL with *inout_out_size 0 (asks the size), and inout_out_size NULL when no output is wanted. SCO_NOT_FOUND, SCO_UNAVAILABLE (capability missing), SCO_WRONG_THREAD (other threads), SCO_CRASHED (the handler faulted).",
+      "buffer_contract": "`sco_result (*invoke_raw)(sco_plugin* self, const char* name, const void* in_bytes, uint32_t in_size, void* out_bytes, uint32_t* inout_out_size);`<br>Game thread. Calls the raw handler registered under name, now: in_size bytes in, up to *inout_out_size bytes out (on return: bytes written, or needed with SCO_TOO_MANY). in may be NULL with in_size 0; out may be NULL with *inout_out_size 0 (asks the size), and inout_out_size NULL when no output is wanted. SCO_NOT_FOUND, SCO_UNAVAILABLE (capability missing), SCO_WRONG_THREAD (other threads), SCO_CRASHED (the handler faulted).",
+      "ownership": "in/out are caller buffers borrowed synchronously; layout and byte ownership are handler contract. Host does not keep bytes.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); recursive raw-handler invocation unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid self/name/buffer combinations; WRONG_THREAD; NOT_FOUND; UNAVAILABLE handler gate; CRASHED fault (out size 0); TOO_MANY required size/overstated output; other handler result. Error output-byte contents unspecified.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; synchronous unless noted.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*invoke_raw)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/raw.hpp",
+              "token": "const sco_result r = plugin.Api()->invoke_raw(plugin.Self(), name, in.empty() ? nullptr : in.data(),"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Services.cs",
+              "token": "r = a->invoke_raw(SelfPtr, n, i, (uint)input.Length, o, &size);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "recursive raw-handler invocation unspecified.",
+        "Error output-byte contents unspecified."
+      ]
+    },
+    {
+      "id": "sco-api-register-raw",
+      "kind": "table-method",
+      "symbol": "sco_api.register_raw",
+      "table": "sco_api",
+      "service": "sco_api",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const char *, sco_raw_fn, void *)",
+      "member_extent": 128,
+      "table_size": 128,
+      "since": "`size >= 128`; 1.1",
+      "purpose": "Any thread. Registers fn under name (\"&lt;plugin id&gt;.&lt;name&gt;\", the command name rule), gated on capability (NULL: none). Only fn and ctx are borrowed, until this plugin unloads. SCO_BAD_ARG: a bad or taken name.",
+      "buffer_contract": "`sco_result (*register_raw)(sco_plugin* self, const char* name, const char* capability, sco_raw_fn fn, void* ctx);`<br>Any thread. Registers fn under name (\"&lt;plugin id&gt;.&lt;name&gt;\", the command name rule), gated on capability (NULL: none). Only fn and ctx are borrowed, until this plugin unloads. SCO_BAD_ARG: a bad or taken name.",
+      "ownership": "Name/capability copied; fn/ctx borrowed until unload/crash. Host records and registry own allocations, not ctx.",
+      "thread_affinity": "Any thread; reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid/released self, NULL fn, bad/taken/out-of-prefix name or capability syntax; TOO_MANY raw registry capacity/allocation or 1024 successful wrapper registrations over process lifetime. Missing capability gates invocation, not registration.",
+      "absent_capability": "Missing capability gates invocation, not registration.",
+      "cleanup": "Owner unload/crash removes registration; no individual unregister API.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "(*register_raw)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/raw.hpp",
+              "token": "plugin.Api()->register_raw(plugin.Self(), name, capability, detail::RawTrampoline, detail::ToCtx(id));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Services.cs",
+              "token": "r = a->register_raw(SelfPtr, n, c, &RawTrampoline, (void*)id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_app.cpp",
+        "tests/test_datacore_service.cpp",
+        "tests/test_host.cpp",
+        "tests/test_ipc.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_net_service.cpp",
+        "tests/test_plugins.cpp",
+        "tests/test_sdk.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "reentrancy unspecified."
+      ]
+    }
+  ]
+}

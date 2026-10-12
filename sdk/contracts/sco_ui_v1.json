@@ -1,0 +1,636 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-ui-v1-register-tab",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.register_tab",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const char *, int32_t, sco_ui_draw_fn, void *)",
+      "member_extent": 16,
+      "table_size": 80,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Adds tab id with its title (1-63 bytes) at order: the product shows tabs by ascending order, ties in registration order. SCO_BAD_ARG: a bad or taken id, an id outside this plugin, a bad title, draw NULL. SCO_TOO_MANY: the host's tab table is full.",
+      "buffer_contract": "`sco_result (*register_tab)(sco_plugin* self, const char* id, const char* title, int32_t order, sco_ui_draw_fn draw, void* ctx);`<br>Adds tab id with its title (1-63 bytes) at order: the product shows tabs by ascending order, ties in registration order. SCO_BAD_ARG: a bad or taken id, an id outside this plugin, a bad title, draw NULL. SCO_TOO_MANY: the host's tab table is full.",
+      "ownership": "Strings/arguments copied; draw/ctx borrowed until unregister/unload. Host owns registry; no allocation transfer.",
+      "thread_affinity": "Any thread; draw callbacks game thread. Other recursive reentrancy unspecified.",
+      "callback_context": "draw callbacks game thread.",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "unregister_tab/unload/crash ends draws; off-thread unregister does not join an already-running draw.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*register_tab)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "return t_ ? t_->register_tab(self_, id, title, order, draw, ctx) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "r = _t->register_tab(Self, i, t, order, &DrawTrampoline, (void*)key);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ui.md",
+              "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ui-v1-unregister-tab",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.unregister_tab",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *)",
+      "member_extent": 24,
+      "table_size": 80,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Removes one of this plugin's tabs, and its badge. SCO_NOT_FOUND: it has none by that id.",
+      "buffer_contract": "`sco_result (*unregister_tab)(sco_plugin* self, const char* id);`<br>Removes one of this plugin's tabs, and its badge. SCO_NOT_FOUND: it has none by that id.",
+      "ownership": "Removes own tab and badge. Free ctx immediately on game thread, including inside draw; elsewhere defer freeing via run_on_game_thread.",
+      "thread_affinity": "Any thread; allowed inside own draw. Other reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "allowed inside own draw.",
+      "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*unregister_tab)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "sco_result RemoveTab(const char* id) noexcept { return t_ ? t_->unregister_tab(self_, id) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "fixed (byte* i = Utf8.Z(id)) r = _t->unregister_tab(Self, i);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ui.md",
+              "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ui-v1-set-badge",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.set_badge",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const char *)",
+      "member_extent": 32,
+      "table_size": 80,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Sets the short text the product shows beside the tab title (\"3\", \"new\"; at most 15 bytes); NULL or \"\" clears it. SCO_NOT_FOUND: this plugin has no tab by that id.",
+      "buffer_contract": "`sco_result (*set_badge)(sco_plugin* self, const char* tab_id, const char* text);`<br>Sets the short text the product shows beside the tab title (\"3\", \"new\"; at most 15 bytes); NULL or \"\" clears it. SCO_NOT_FOUND: this plugin has no tab by that id.",
+      "ownership": "Strings/arguments copied; draw/ctx borrowed until unregister/unload. Host owns registry; no allocation transfer.",
+      "thread_affinity": "Any thread; draw callbacks game thread. Other recursive reentrancy unspecified.",
+      "callback_context": "draw callbacks game thread.",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*set_badge)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "return t_ ? t_->set_badge(self_, tabId, text) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "return _t->set_badge(Self, i, t);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ui.md",
+              "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ui-v1-register-overlay",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.register_overlay",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, sco_ui_draw_fn, void *)",
+      "member_extent": 40,
+      "table_size": 80,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Adds overlay id; overlays draw in registration order. SCO_BAD_ARG / SCO_TOO_MANY as for register_tab.",
+      "buffer_contract": "`sco_result (*register_overlay)(sco_plugin* self, const char* id, sco_ui_draw_fn draw, void* ctx);`<br>Adds overlay id; overlays draw in registration order. SCO_BAD_ARG / SCO_TOO_MANY as for register_tab.",
+      "ownership": "Strings/arguments copied; draw/ctx borrowed until unregister/unload. Host owns registry; no allocation transfer.",
+      "thread_affinity": "Any thread; draw callbacks game thread. Other recursive reentrancy unspecified.",
+      "callback_context": "draw callbacks game thread.",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "unregister_overlay/unload/crash ends draws; off-thread unregister does not join an already-running draw.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*register_overlay)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "return t_ ? t_->register_overlay(self_, id, draw, ctx) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "fixed (byte* i = Utf8.Z(id)) r = _t->register_overlay(Self, i, &DrawTrampoline, (void*)key);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ui.md",
+              "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ui-v1-unregister-overlay",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.unregister_overlay",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *)",
+      "member_extent": 48,
+      "table_size": 80,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "SCO_NOT_FOUND: this plugin has no overlay by that id.",
+      "buffer_contract": "`sco_result (*unregister_overlay)(sco_plugin* self, const char* id);`<br>SCO_NOT_FOUND: this plugin has no overlay by that id.",
+      "ownership": "Removes own overlay. Free ctx immediately on game thread, including inside draw; elsewhere defer freeing via run_on_game_thread.",
+      "thread_affinity": "Any thread; allowed inside own draw. Other reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "allowed inside own draw.",
+      "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*unregister_overlay)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "sco_result RemoveOverlay(const char* id) noexcept { return t_ ? t_->unregister_overlay(self_, id) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "fixed (byte* i = Utf8.Z(id)) r = _t->unregister_overlay(Self, i);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ui.md",
+              "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ui-v1-bind-hotkey",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.bind_hotkey",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const char *, const sco_arg *, uint32_t)",
+      "member_extent": 56,
+      "table_size": 80,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Binds chord to the command name (\"&lt;x&gt;.&lt;y&gt;\"; any plugin's or a host feature's) with nargs arguments (args may be NULL with 0), which are copied, strings included. When the product sees the chord it invokes the command through the command registry, as invoke would, with this plugin as the caller; the command needn't exist yet. SCO_BAD_ARG: a bad chord or command name, a bad argument, or the chord taken: bound already (by anyone, this plugin included) or reserved by the product; last_error names the owner. SCO_TOO_MANY: the host's hotkey table is full.",
+      "buffer_contract": "`sco_result (*bind_hotkey)(sco_plugin* self, const char* chord, const char* command, const sco_arg* args, uint32_t nargs);`<br>Binds chord to the command name (\"&lt;x&gt;.&lt;y&gt;\"; any plugin's or a host feature's) with nargs arguments (args may be NULL with 0), which are copied, strings included. When the product sees the chord it invokes the command through the command registry, as invoke would, with this plugin as the caller; the command needn't exist yet. SCO_BAD_ARG: a bad chord or command name, a bad argument, or the chord taken: bound already (by anyone, this plugin included) or reserved by the product; last_error names the owner. SCO_TOO_MANY: the host's hotkey table is full.",
+      "ownership": "Strings/arguments copied; draw/ctx borrowed until unregister/unload. Host owns registry; no allocation transfer.",
+      "thread_affinity": "Any thread; draw callbacks game thread. Other recursive reentrancy unspecified.",
+      "callback_context": "draw callbacks game thread.",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "unbind_hotkey/unload/crash ends binding; cancellation of an already-issued command unspecified.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*bind_hotkey)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "return t_->bind_hotkey(self_, chord, command, args.size() ? args.begin() : nullptr, static_cast<uint32_t>(args.size()));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "return _t->bind_hotkey(Self, c, n, block.Args, block.Count);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = ui->bind_hotkey(s->self, chord, name, nargs ? args : NULL, (uint32_t)nargs);"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "cancellation of an already-issued command unspecified."
+      ]
+    },
+    {
+      "id": "sco-ui-v1-unbind-hotkey",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.unbind_hotkey",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *)",
+      "member_extent": 64,
+      "table_size": 80,
+      "since": "`size >= 64`; 1.0",
+      "purpose": "SCO_NOT_FOUND: this plugin has no binding on that chord (a bad chord included).",
+      "buffer_contract": "`sco_result (*unbind_hotkey)(sco_plugin* self, const char* chord);`<br>SCO_NOT_FOUND: this plugin has no binding on that chord (a bad chord included).",
+      "ownership": "Strings/arguments copied; draw/ctx borrowed until unregister/unload. Host owns registry; no allocation transfer.",
+      "thread_affinity": "Any thread; draw callbacks game thread. Other recursive reentrancy unspecified.",
+      "callback_context": "draw callbacks game thread.",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*unbind_hotkey)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "sco_result UnbindHotkey(const char* chord) noexcept { return t_ ? t_->unbind_hotkey(self_, chord) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "fixed (byte* c = Utf8.Z(chord)) return _t->unbind_hotkey(Self, c);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "return PushUiResult(L, s, ui, ui->unbind_hotkey(s->self, chord));"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ui-v1-normalize-chord",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.normalize_chord",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(const char *, char *, uint32_t *)",
+      "member_extent": 72,
+      "table_size": 80,
+      "since": "`size >= 72`; 1.0",
+      "purpose": "Writes chord's normalized form, NUL-terminated, with the raw-handler size handshake (*inout_size: capacity in; bytes written, or needed with SCO_TOO_MANY, out). SCO_BAD_ARG: not a chord. No plugin handle needed; any thread.",
+      "buffer_contract": "`sco_result (*normalize_chord)(const char* chord, char* out, uint32_t* inout_size);`<br>Writes chord's normalized form, NUL-terminated, with the raw-handler size handshake (*inout_size: capacity in; bytes written, or needed with SCO_TOO_MANY, out). SCO_BAD_ARG: not a chord. No plugin handle needed; any thread.",
+      "ownership": "Strings/arguments copied; draw/ctx borrowed until unregister/unload. Host owns registry; no allocation transfer.",
+      "thread_affinity": "Any thread; draw callbacks game thread. Other recursive reentrancy unspecified.",
+      "callback_context": "draw callbacks game thread.",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid chord/buffer; TOO_MANY required bytes/allocation. Pure normalization needs no self; stopped-service refusal unspecified (implementation does not test started).",
+      "absent_capability": "unspecified",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*normalize_chord)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "const sco_result r = t_->normalize_chord(chord, buf, &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "ScoResult r = Storage.Sized((buf, size) => { fixed (byte* cp = c) return _t->normalize_chord(cp, buf, size); }, out byte[] b);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ui.md",
+              "token": "Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other recursive reentrancy unspecified.",
+        "stopped-service refusal unspecified (implementation does not test started)."
+      ]
+    },
+    {
+      "id": "sco-ui-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sco_ui_v1.last_error",
+      "table": "sco_ui_v1",
+      "service": "sco.ui",
+      "version_macro": "SCO_UI_VERSION_1_0",
+      "source_header": "include/sco_ui.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 80,
+      "table_size": 80,
+      "since": "`size >= 80`; 1.0",
+      "purpose": "The message of this plugin's last refused call (\"\" if none), NUL-terminated, with the size handshake.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The message of this plugin's last refused call (\"\" if none), NUL-terminated, with the size handshake.",
+      "ownership": "Strings/arguments copied; draw/ctx borrowed until unregister/unload. Host owns registry; no allocation transfer.",
+      "thread_affinity": "Any thread; draw callbacks game thread. Other recursive reentrancy unspecified.",
+      "callback_context": "draw callbacks game thread.",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; unload/crash withdraws all UI.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui.h",
+              "token": "(*last_error)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui.hpp",
+              "token": "sco_result r = t_->last_error(self_, s.data(), &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Ui.cs",
+              "token": "return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (ui->last_error(s->self, msg, &size) == SCO_OK && msg[0]) {"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui.c",
+        "tests/test_settings.cpp",
+        "tests/test_ui.cpp"
+      ],
+      "limitations": [
+        "Other recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    }
+  ]
+}

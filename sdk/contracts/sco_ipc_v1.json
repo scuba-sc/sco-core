@@ -1,0 +1,627 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-ipc-v1-create",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.create",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, uint64_t, uint32_t, uint32_t, uint64_t *)",
+      "member_extent": 16,
+      "table_size": 80,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Creates (or, if the peer still holds it, re-opens) Local\\SCO_&lt;plugin id&gt;.&lt;name&gt; with bytes bytes and lays out the sc_ipc_hdr with the bridge's layout_id / layout_version and a new epoch (rings must be laid out again). SCO_BAD_ARG: a bad name or size, or a channel of that name already open. SCO_TOO_MANY: the channel or byte quota is full. SCO_FAILED: the OS refused, or an existing mapping of that name is smaller or another user's.",
+      "buffer_contract": "`sco_result (*create)(sco_plugin* self, const char* name, uint64_t bytes, uint32_t layout_id, uint32_t layout_version, uint64_t* out_channel);`<br>Creates (or, if the peer still holds it, re-opens) Local\\SCO_&lt;plugin id&gt;.&lt;name&gt; with bytes bytes and lays out the sc_ipc_hdr with the bridge's layout_id / layout_version and a new epoch (rings must be laid out again). SCO_BAD_ARG: a bad name or size, or a channel of that name already open. SCO_TOO_MANY: the channel or byte quota is full. SCO_FAILED: the OS refused, or an existing mapping of that name is smaller or another user's.",
+      "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*create)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "c.r_ = t_->create(self_, name, bytes, layoutId, layoutVersion, &id);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ipc-v1-peer-age-ms",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.peer_age_ms",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint32_t *)",
+      "member_extent": 24,
+      "table_size": 80,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Milliseconds since the peer's last beat (capped at UINT32_MAX). SCO_NOT_FOUND: no such channel, or the peer hasn't beaten yet (*out_ms 0).",
+      "buffer_contract": "`sco_result (*peer_age_ms)(sco_plugin* self, uint64_t channel, uint32_t* out_ms);`<br>Milliseconds since the peer's last beat (capped at UINT32_MAX). SCO_NOT_FOUND: no such channel, or the peer hasn't beaten yet (*out_ms 0).",
+      "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*peer_age_ms)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "sco_result PeerAgeMs(uint32_t& ms) const noexcept { return t_ ? t_->peer_age_ms(self_, id_, &ms) : r_; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ipc-v1-block-write",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.block_write",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t, const void *, uint32_t)",
+      "member_extent": 32,
+      "table_size": 80,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Writes a seqlock snapshot of size bytes into the block at offset.",
+      "buffer_contract": "`sco_result (*block_write)(sco_plugin* self, uint64_t channel, uint64_t offset, const void* data, uint32_t size);`<br>Writes a seqlock snapshot of size bytes into the block at offset.",
+      "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*block_write)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "return t_->block_write(self_, id_, offset, data.data(), static_cast<uint32_t>(data.size()));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ipc-v1-block-read",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.block_read",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t, void *, uint32_t)",
+      "member_extent": 40,
+      "table_size": 80,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Reads exactly size bytes of the block at offset. SCO_NOT_FOUND: never written. SCO_BAD_ARG: the writer's snapshot has another size. SCO_FAILED: the writer kept it torn; retry.",
+      "buffer_contract": "`sco_result (*block_read)(sco_plugin* self, uint64_t channel, uint64_t offset, void* out, uint32_t size);`<br>Reads exactly size bytes of the block at offset. SCO_NOT_FOUND: never written. SCO_BAD_ARG: the writer's snapshot has another size. SCO_FAILED: the writer kept it torn; retry.",
+      "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*block_read)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "return t_->block_read(self_, id_, offset, data.data(), static_cast<uint32_t>(data.size()));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ipc-v1-ring-init",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.ring_init",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t, uint64_t, uint32_t)",
+      "member_extent": 48,
+      "table_size": 80,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "Lays out an empty ring at offset with capacity data bytes (a power of two, at least 64), in one direction (SCO_IPC_TO_PEER or SCO_IPC_FROM_PEER). Re-initializing a ring at the same offset resets it. SCO_BAD_ARG: outside the mapping, overlapping another ring, a bad capacity or direction. SCO_TOO_MANY: SCO_IPC_MAX_RINGS already.",
+      "buffer_contract": "`sco_result (*ring_init)(sco_plugin* self, uint64_t channel, uint64_t offset, uint64_t capacity, uint32_t direction);`<br>Lays out an empty ring at offset with capacity data bytes (a power of two, at least 64), in one direction (SCO_IPC_TO_PEER or SCO_IPC_FROM_PEER). Re-initializing a ring at the same offset resets it. SCO_BAD_ARG: outside the mapping, overlapping another ring, a bad capacity or direction. SCO_TOO_MANY: SCO_IPC_MAX_RINGS already.",
+      "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*ring_init)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "return t_ ? t_->ring_init(self_, id_, offset, capacity, direction) : r_;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ipc-v1-ring-push",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.ring_push",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t, uint32_t, const void *, uint32_t)",
+      "member_extent": 56,
+      "table_size": 80,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Appends one record to the SCO_IPC_TO_PEER ring at offset. SCO_TOO_MANY: full now. SCO_NOT_FOUND: no ring laid out there. SCO_BAD_ARG: a FROM_PEER ring, type 0xFFFFFFFF, or a record the ring can never hold.",
+      "buffer_contract": "`sco_result (*ring_push)(sco_plugin* self, uint64_t channel, uint64_t offset, uint32_t type, const void* data, uint32_t size);`<br>Appends one record to the SCO_IPC_TO_PEER ring at offset. SCO_TOO_MANY: full now. SCO_NOT_FOUND: no ring laid out there. SCO_BAD_ARG: a FROM_PEER ring, type 0xFFFFFFFF, or a record the ring can never hold.",
+      "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*ring_push)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "return t_->ring_push(self_, id_, offset, type, data.data(), static_cast<uint32_t>(data.size()));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ipc-v1-ring-pop",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.ring_pop",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t, uint32_t *, void *, uint32_t *)",
+      "member_extent": 64,
+      "table_size": 80,
+      "since": "`size >= 64`; 1.0",
+      "purpose": "Takes the oldest record of the SCO_IPC_FROM_PEER ring at offset, with the size handshake: *inout_size holds out's capacity on entry, the record's size on return; with SCO_TOO_MANY the size needed, and the record stays queued (pass out NULL with *inout_size 0 to ask). out_type may be NULL. SCO_NOT_FOUND: empty, or no ring there. SCO_FAILED: the peer wrote something invalid.",
+      "buffer_contract": "`sco_result (*ring_pop)(sco_plugin* self, uint64_t channel, uint64_t offset, uint32_t* out_type, void* out, uint32_t* inout_size);`<br>Takes the oldest record of the SCO_IPC_FROM_PEER ring at offset, with the size handshake: *inout_size holds out's capacity on entry, the record's size on return; with SCO_TOO_MANY the size needed, and the record stays queued (pass out NULL with *inout_size 0 to ask). out_type may be NULL. SCO_NOT_FOUND: empty, or no ring there. SCO_FAILED: the peer wrote something invalid.",
+      "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*ring_pop)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "const sco_result r = t_->ring_pop(self_, id_, offset, &type, size ? out.data() : nullptr, &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ipc-v1-view",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.view",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, void **, uint64_t *)",
+      "member_extent": 72,
+      "table_size": 80,
+      "since": "`size >= 72`; 1.0",
+      "purpose": "The plugin's own mapping (header included) and its size, for bulk regions. Valid until close or unload; the host still validates everything it reads there.",
+      "buffer_contract": "`sco_result (*view)(sco_plugin* self, uint64_t channel, void** out_base, uint64_t* out_bytes);`<br>The plugin's own mapping (header included) and its size, for bulk regions. Valid until close or unload; the host still validates everything it reads there.",
+      "ownership": "Borrowed own mapping including header; valid until close/unload/crash. Never free; synchronization with close and direct-view access unspecified.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*view)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "if (!t_ || t_->view(self_, id_, &base, &bytes) != SCO_OK) return {};"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "synchronization with close and direct-view access unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-ipc-v1-close",
+      "kind": "table-method",
+      "symbol": "sco_ipc_v1.close",
+      "table": "sco_ipc_v1",
+      "service": "sco.ipc",
+      "version_macro": "SCO_IPC_VERSION_1_0",
+      "source_header": "include/sco_ipc.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 80,
+      "table_size": 80,
+      "since": "`size >= 80`; 1.0",
+      "purpose": "Marks the channel closed for the peer and unmaps it. SCO_NOT_FOUND: no such channel.",
+      "buffer_contract": "`sco_result (*close)(sco_plugin* self, uint64_t channel);`<br>Marks the channel closed for the peer and unmaps it. SCO_NOT_FOUND: no such channel.",
+      "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
+      "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ipc.h",
+              "token": "(*close)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ipc.hpp",
+              "token": "if (t_) t_->close(self_, id_);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/ipc.md",
+              "token": "Lua plugins get no `sco.ipc`"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ipc.c",
+        "tests/test_ipc.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    }
+  ]
+}

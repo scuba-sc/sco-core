@@ -38,6 +38,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/evidence"
           python3 tools/ip_audit.py repo --report "$RUNNER_TEMP/evidence/repo-audit.json"
 
+      - name: SDK contract catalogue and refusal tests
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 tools/sdk_catalogue.py check
+          python3 tools/test_sdk_catalogue.py
+          python3 tools/sdk_catalogue.py build --out "$RUNNER_TEMP/evidence/sdk-catalogue.json" --source-sha "$SOURCE_SHA"
+
       - name: Package every profile twice; the bytes must match (Gate 6)
         run: |
           for p in core game-sc legacy; do

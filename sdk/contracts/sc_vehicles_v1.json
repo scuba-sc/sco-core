@@ -1,0 +1,512 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-vehicles-v1-player-ship",
+      "kind": "table-method",
+      "symbol": "sc_vehicles_v1.player_ship",
+      "table": "sc_vehicles_v1",
+      "service": "game.vehicles",
+      "version_macro": "SC_VEHICLES_SERVICE_VERSION",
+      "source_header": "include/sc_vehicles.h",
+      "signature": "sco_result (*)(uint64_t *)",
+      "member_extent": 16,
+      "table_size": 64,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "The ship you're aboard (standing or seated in it). SCO_OK and the id; SCO_NOT_FOUND when you're in no ship; SCO_UNAVAILABLE before you've spawned or without the capability. game.vehicles.seats.",
+      "buffer_contract": "`sco_result (*player_ship)(uint64_t* out_ship);`<br>The ship you're aboard (standing or seated in it). SCO_OK and the id; SCO_NOT_FOUND when you're in no ship; SCO_UNAVAILABLE before you've spawned or without the capability. game.vehicles.seats.",
+      "ownership": "Caller outputs; IDs/seat indexes are streaming-session values. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_vehicles.h",
+              "token": "(*player_ship)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/vehicles.hpp",
+              "token": "return ref_ ? ref_->player_ship(&ship) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
+              "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->player_ship(&id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = v ? v->player_ship(&ship) : SCO_UNAVAILABLE;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_vehicles.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-vehicles-v1-seats",
+      "kind": "table-method",
+      "symbol": "sc_vehicles_v1.seats",
+      "table": "sc_vehicles_v1",
+      "service": "game.vehicles",
+      "version_macro": "SC_VEHICLES_SERVICE_VERSION",
+      "source_header": "include/sc_vehicles.h",
+      "signature": "sco_result (*)(uint64_t, sc_vehicle_seat *, uint32_t, uint32_t *, uint32_t *)",
+      "member_extent": 24,
+      "table_size": 64,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Fills out[0..max) with ship's seats in the game's order and sets *out_count to how many were written and *out_more to 1 when the ship has more than that (else 0). out may be NULL when max is 0 (then *out_more says whether the ship has any). SCO_NOT_FOUND: ship isn't streamed in or isn't a vehicle. game.vehicles.seats.",
+      "buffer_contract": "`sco_result (*seats)(uint64_t ship, sc_vehicle_seat* out, uint32_t max, uint32_t* out_count, uint32_t* out_more);`<br>Fills out[0..max) with ship's seats in the game's order and sets *out_count to how many were written and *out_more to 1 when the ship has more than that (else 0). out may be NULL when max is 0 (then *out_more says whether the ship has any). SCO_NOT_FOUND: ship isn't streamed in or isn't a vehicle. game.vehicles.seats.",
+      "ownership": "Caller outputs; IDs/seat indexes are streaming-session values. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_vehicles.h",
+              "token": "(*seats)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/vehicles.hpp",
+              "token": "const sco_result r = ref_->seats(ship, out.data(), static_cast<uint32_t>(out.size()), &count, &m);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
+              "token": "fixed (ScVehicleSeat* p = seats) r = _t->seats(ship, p, (uint)seats.Length, &n, &m);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = v ? v->seats(ship, g_vehSeats, (uint32_t)(sizeof(g_vehSeats) / sizeof(g_vehSeats[0])), &n, &more)"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "static sc_vehicle_seat g_vehSeats[256];"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_vehicles.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-vehicles-v1-seat-occupant",
+      "kind": "table-method",
+      "symbol": "sc_vehicles_v1.seat_occupant",
+      "table": "sc_vehicles_v1",
+      "service": "game.vehicles",
+      "version_macro": "SC_VEHICLES_SERVICE_VERSION",
+      "source_header": "include/sc_vehicles.h",
+      "signature": "sco_result (*)(uint64_t, uint32_t, uint64_t *)",
+      "member_extent": 32,
+      "table_size": 64,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "out_actor = the actor in seat seat_index of ship, or 0 when the seat is empty. SCO_FAILED when the seat is occupied but the game pack can't tell by whom (last_error has the raw field); SCO_NOT_FOUND for a ship that isn't streamed in or an index past the last seat. game.vehicles.seats.",
+      "buffer_contract": "`sco_result (*seat_occupant)(uint64_t ship, uint32_t seat_index, uint64_t* out_actor);`<br>out_actor = the actor in seat seat_index of ship, or 0 when the seat is empty. SCO_FAILED when the seat is occupied but the game pack can't tell by whom (last_error has the raw field); SCO_NOT_FOUND for a ship that isn't streamed in or an index past the last seat. game.vehicles.seats.",
+      "ownership": "Caller outputs; IDs/seat indexes are streaming-session values. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_vehicles.h",
+              "token": "(*seat_occupant)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/vehicles.hpp",
+              "token": "return ref_ ? ref_->seat_occupant(ship, seatIndex, &actor) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
+              "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->seat_occupant(ship, seatIndex, &id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = v ? v->seat_occupant(ship, (uint32_t)index, &actor) : SCO_UNAVAILABLE;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_vehicles.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-vehicles-v1-seat",
+      "kind": "table-method",
+      "symbol": "sc_vehicles_v1.seat",
+      "table": "sc_vehicles_v1",
+      "service": "game.vehicles",
+      "version_macro": "SC_VEHICLES_SERVICE_VERSION",
+      "source_header": "include/sc_vehicles.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t, uint32_t)",
+      "member_extent": 40,
+      "table_size": 64,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Puts actor into seat seat_index of ship, moving it out of any seat it's in first. You may seat your player's own actor, or an actor your plugin spawned through spawn.entities' spawn_as or game.actors' spawn_npc (while your plugin is loaded); anything else is SCO_BAD_ARG. SCO_FAILED: the seat isn't usable (no SC_SEAT_USABLE), someone else is in it (nobody is evicted), the actor isn't streamed in yet or has no seat link, or the game faulted. SCO_OK means the game accepted the link; it takes effect within a second or two: check seat_occupant() on a later tick, and call seat() again if it didn't take. game.vehicles.seat.",
+      "buffer_contract": "`sco_result (*seat)(sco_plugin* self, uint64_t actor, uint64_t ship, uint32_t seat_index);`<br>Puts actor into seat seat_index of ship, moving it out of any seat it's in first. You may seat your player's own actor, or an actor your plugin spawned through spawn.entities' spawn_as or game.actors' spawn_npc (while your plugin is loaded); anything else is SCO_BAD_ARG. SCO_FAILED: the seat isn't usable (no SC_SEAT_USABLE), someone else is in it (nobody is evicted), the actor isn't streamed in yet or has no seat link, or the game faulted. SCO_OK means the game accepted the link; it takes effect within a second or two: check seat_occupant() on a later tick, and call seat() again if it didn't take. game.vehicles.seat.",
+      "ownership": "Caller outputs; IDs/seat indexes are streaming-session values. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_vehicles.h",
+              "token": "(*seat)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/vehicles.hpp",
+              "token": "return ref_ ? ref_->seat(self_, actor, ship, seatIndex) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
+              "token": "public ScoResult Seat(ulong actor, ulong ship, uint seatIndex) => _t == null ? ScoResult.Unavailable : _t->seat(Self, actor, ship, seatIndex);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Read-only: scripts can list seats but can't seat, eject or power on"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_vehicles.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-vehicles-v1-eject",
+      "kind": "table-method",
+      "symbol": "sc_vehicles_v1.eject",
+      "table": "sc_vehicles_v1",
+      "service": "game.vehicles",
+      "version_macro": "SC_VEHICLES_SERVICE_VERSION",
+      "source_header": "include/sc_vehicles.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 48,
+      "table_size": 64,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "Takes actor out of the seat it's in (same rule on whose actor as seat()). SCO_FAILED when it isn't seated. game.vehicles.seat.",
+      "buffer_contract": "`sco_result (*eject)(sco_plugin* self, uint64_t actor);`<br>Takes actor out of the seat it's in (same rule on whose actor as seat()). SCO_FAILED when it isn't seated. game.vehicles.seat.",
+      "ownership": "Caller outputs; IDs/seat indexes are streaming-session values. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_vehicles.h",
+              "token": "(*eject)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/vehicles.hpp",
+              "token": "sco_result Eject(uint64_t actor) const noexcept { return ref_ ? ref_->eject(self_, actor) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
+              "token": "public ScoResult Eject(ulong actor) => _t == null ? ScoResult.Unavailable : _t->eject(Self, actor);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Read-only: scripts can list seats but can't seat, eject or power on"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_vehicles.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-vehicles-v1-power-on",
+      "kind": "table-method",
+      "symbol": "sc_vehicles_v1.power_on",
+      "table": "sc_vehicles_v1",
+      "service": "game.vehicles",
+      "version_macro": "SC_VEHICLES_SERVICE_VERSION",
+      "source_header": "include/sc_vehicles.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 56,
+      "table_size": 64,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Sends the game's Flight Ready event to ship's pilot dashboard, as pressing R in the pilot seat does. You may power on the ship you're aboard, your player's own registered vehicles and ships your plugin spawned through spawn_as; anything else is SCO_BAD_ARG. SCO_FAILED while the ship has no dashboard streamed in yet (a big ship takes up to 20 s): try again on a later tick. game.vehicles.flight_ready.",
+      "buffer_contract": "`sco_result (*power_on)(sco_plugin* self, uint64_t ship);`<br>Sends the game's Flight Ready event to ship's pilot dashboard, as pressing R in the pilot seat does. You may power on the ship you're aboard, your player's own registered vehicles and ships your plugin spawned through spawn_as; anything else is SCO_BAD_ARG. SCO_FAILED while the ship has no dashboard streamed in yet (a big ship takes up to 20 s): try again on a later tick. game.vehicles.flight_ready.",
+      "ownership": "Caller outputs; IDs/seat indexes are streaming-session values. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_vehicles.h",
+              "token": "(*power_on)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/vehicles.hpp",
+              "token": "sco_result PowerOn(uint64_t ship) const noexcept { return ref_ ? ref_->power_on(self_, ship) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
+              "token": "public ScoResult PowerOn(ulong ship) => _t == null ? ScoResult.Unavailable : _t->power_on(Self, ship);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "Read-only: scripts can list seats but can't seat, eject or power on"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_vehicles.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "released-handle refusal unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-vehicles-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sc_vehicles_v1.last_error",
+      "table": "sc_vehicles_v1",
+      "service": "game.vehicles",
+      "version_macro": "SC_VEHICLES_SERVICE_VERSION",
+      "source_header": "include/sc_vehicles.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 64,
+      "table_size": 64,
+      "since": "`size >= 64`; 1.0",
+      "purpose": "The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: the newer of your own last failed call (functions with self) and the last failed query (functions without self, by any plugin); ask right after the call. On another thread: the last refusal on that thread. Any thread.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: the newer of your own last failed call (functions with self) and the last failed query (functions without self, by any plugin); ask right after the call. On another thread: the last refusal on that thread. Any thread.",
+      "ownership": "Caller outputs; IDs/seat indexes are streaming-session values. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Any thread; diagnostic scope as described; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid buffer; TOO_MANY required bytes. Game thread selects newer own/shared-query error; other threads their refusal. self validity and stopped-service rejection unspecified; implementation does not enforce them.",
+      "absent_capability": "unspecified",
+      "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_vehicles.h",
+              "token": "(*last_error)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/vehicles.hpp",
+              "token": "return ref_->last_error(self_, out.data(), &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
+              "token": "return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (v->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_vehicles.c",
+        "tests/test_app.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "self validity and stopped-service rejection unspecified;",
+        "Game-service behavior not verified in a game session."
+      ]
+    }
+  ]
+}
