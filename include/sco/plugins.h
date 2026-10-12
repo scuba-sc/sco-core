@@ -284,11 +284,11 @@ void ContainCallouts(std::vector<Plugin>* list);
 // does a fault nested inside it, such as a crashing command it invoked), sco::Release(self),
 // close the module, state Unloaded. If Release fails (TooMany, or WrongThread when called off
 // the game thread) the module stays mapped and the plugin is Crashed with reason
-// "release failed: <RESULT>". If a service table of the plugin was handed out by
-// sco::QueryService (sco::ServiceTableHandedOut), the module is not closed either: the state
-// changes as for any unload, ops.close is skipped, `module` stays set and mod.log says "kept
-// mapped: its service table was handed out" (a caller may still hold the table; the module stays
-// mapped until the process ends). Game thread only. No-op unless Loaded.
+// "release failed: <RESULT>". Routes through UnloadOne and CanUnload: a native whose service
+// table was handed out by sco::QueryService is refused before unload() or Release runs,
+// leaving it Loaded and intact. Use UnloadAll only at host shutdown; it tears down even a
+// handed-out provider but keeps its module mapped until the process ends. Game thread only.
+// No-op unless Loaded.
 void UnloadNative(Plugin& p, const ModuleOps& ops = PlatformModuleOps());
 
 // ---- built-in plugins -----------------------------------------------------------------------
@@ -341,7 +341,7 @@ bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRun
 // ("provides a service in use; restart the game to reload it") when p is a native plugin
 // whose service table was handed out by sco::QueryService, to another plugin or the host:
 // a caller may still hold that table, so p is session-lifetime and every mid-session
-// unload request (sco::app::Reload, the sco.reload command, UnloadOne) must be refused
+// unload request (sco::app::Reload, the sco.reload command, UnloadOne, UnloadNative) must be refused
 // before sco_plugin_unload or sco::Release runs — only a restart of the game reloads it.
 // Lua plugins, data packs, built-ins and natives nobody asked a service of always pass.
 // Host shutdown (UnloadAll) does not ask: it tears everything down, reverse load order.
@@ -356,8 +356,9 @@ bool CanUnload(const Plugin& p, std::string& why);
 void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const ScriptRuntime* runtime = nullptr);
 
 // Unloads every Loaded plugin, last loaded first, built-ins after every other plugin (they are
-// the host's own features, which other plugins may still call while unloading): natives as
-// UnloadNative; built-ins the same without a module to close; scripts by sco::Release(self)
+// the host's own features, which other plugins may still call while unloading): natives run
+// their unload export, release and close-or-pin without the mid-session refusal; built-ins
+// do the same without a module to close; scripts by sco::Release(self)
 // then runtime.unload(self) (state Unloaded; if Release fails the script is kept and the
 // plugin Crashed, as for natives). This is the host shutdown path: it does not ask CanUnload,
 // so a provider whose service table was handed out is unloaded like any other (its module

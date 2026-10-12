@@ -1125,8 +1125,9 @@ static void TestServices() {
     P::SetCallGuard(nullptr);
 #endif
 
-    // Part 3: a provider whose table was handed out stays mapped when it unloads; one nobody asked
-    // for is closed as before. g_closed counts ModuleOps.close calls.
+    // A public mid-session unload must refuse a provider whose table was handed out, before
+    // unload() or Release runs. Only shutdown tears it down (and keeps its module mapped).
+    // A native nobody asked for is still closed. g_closed counts ModuleOps.close calls.
     P::Plugin& pinned = get(again, "svc_prov_b");
     P::Plugin& plain = get(again, "svc_prov_c");
     CHECK(P::LoadNative(pinned, &api, NewOwner(), on, kRecOps));
@@ -1135,23 +1136,36 @@ static void TestServices() {
     const auto* held = static_cast<const FakeService*>(table);
     g_closed.clear();
     g_log.clear();
-    P::UnloadNative(pinned, kRecOps);
-    CHECK(pinned.state == State::Unloaded);                                    // state changes as today
-    CHECK(g_closed.empty());                                                   // but close was skipped
-    CHECK(pinned.module != nullptr);
-    CHECK(Logged("[plugin] svc_prov_b: kept mapped: its service table was handed out"));
-    CHECK(Logged("[plugin] unloaded svc_prov_b"));
-    const int* unloads = static_cast<const int*>(P::PlatformModuleOps().symbol(pinned.module, "fake_unload_calls"));
-    CHECK(unloads && *unloads == 1);                                           // unload() ran once
-    CHECK(sco::QueryService("svc_prov_b.svc", v1, &table) == sco::Result::NotFound);   // withdrawn
-    CHECK(held->ok() == 7);                                                    // the held table still points at mapped code
+    void* const module = pinned.module;
+    sco_plugin* const self = pinned.self;
+    const int* unloads = static_cast<const int*>(P::PlatformModuleOps().symbol(module, "fake_unload_calls"));
+    CHECK(unloads && *unloads == 0);
+    for (int path = 0; path < 2; ++path) {
+        if (path == 0) P::UnloadNative(pinned, kRecOps);
+        else P::UnloadOne(pinned, kRecOps);
+        CHECK(pinned.state == State::Loaded && pinned.module == module && pinned.self == self);
+        CHECK(g_closed.empty() && unloads && *unloads == 0);                    // no teardown
+        CHECK(sco::QueryService("svc_prov_b.svc", v1, &table) == sco::Result::Ok && table == held);
+        CHECK(held->ok() == 7);
+    }
+    CHECK(Logged("unload refused: provides a service in use; restart the game to reload it"));
     g_log.clear();
     P::UnloadNative(plain, kRecOps);
     CHECK(plain.state == State::Unloaded && !plain.module);
     CHECK(g_closed.size() == 1);                                               // closed: nothing was handed out
     CHECK(!Logged("kept mapped"));
 
-    P::UnloadAll(again, kRecOps);
+    size_t expectedCloses = g_closed.size();
+    for (const auto& p : again)
+        if (p.state == State::Loaded && p.manifest.kind == P::Kind::Native &&
+            !sco::ServiceTableHandedOut(p.self)) ++expectedCloses;
+    P::UnloadAll(again, kRecOps);                                              // shutdown ignores refusal
+    CHECK(pinned.state == State::Unloaded && pinned.module == module);
+    CHECK(unloads && *unloads == 1);
+    CHECK(g_closed.size() == expectedCloses);                                 // only unqueried natives closed
+    CHECK(Logged("[plugin] svc_prov_b: kept mapped: its service table was handed out"));
+    CHECK(sco::QueryService("svc_prov_b.svc", v1, &table) == sco::Result::NotFound);
+    CHECK(held->ok() == 7);                                                    // mapped code, not a state guarantee
     P::ContainCallouts(nullptr);
     g_list = nullptr;
     P::SetCallGuard(nullptr);
