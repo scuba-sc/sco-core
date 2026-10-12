@@ -191,6 +191,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_loadout_v1` | 1 | 16 | 1.0 |
 | `sc_quantum_v1` | 4 | 40 | 1.0 |
 | `sc_cvars_v1` | 1 | 16 | 1.0 |
+| `sc_cvars_write_v1` | 2 | 24 | 1.0 |
 | `sc_world_v1` | 3 | 32 | 1.0 |
 | `sc_entities_v1` | 11 | 96 | 1.1 |
 | Native plugin entrypoints | 3 | `sco_plugin_info`: 32 | API 1.1 |
@@ -611,6 +612,17 @@ C/C++ supported; C# and Lua unsupported. No arbitrary console or config file acc
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
 | `sc_cvars_v1.get_bool` | `size >= 16`; 1.0 | `sco_result (*get_bool)(sco_plugin* self, const char* name, uint32_t type, uint32_t* out);`<br>Read one exact allowlisted SQ42 bool; copied 0 or 1, output unchanged on failure. | Live caller handle; copied output; host session-lifetime borrowed table; no allocation transfer. | Game thread only; WRONG_THREAD elsewhere; non-reentrant (FAILED). | BAD_ARG invalid name/type/output/self or released handle; UNAVAILABLE absent capability/admission/adapter/session; FAILED noncanonical backend bool; CRASHED adapter fault latches restart-required. | No mutation in this table. Stop withdraws discovery and refuses cached calls; fault retains adapter context and prevents restart. |
+
+## `sc_cvars_write_v1` — `game.cvars_write` 1.0
+
+Source: [`sc_cvars_write.h`](../include/sc_cvars_write.h), [lifecycle and safe engine seam](game/cvars.md).
+Separate reversible write acceptance; the read table and frozen root ABI are unchanged.
+C/C++ supported; C# and Lua unsupported. Production requires verified offline read/write ports and cleanup.
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_cvars_write_v1.restore_all` | `size >= 24`; 1.0 | `sco_result (*restore_all)(sco_plugin* self);`<br>Restore this live owner's first prior values; release only successfully verified leases, no-op OK if none. | Per-name exclusive live-owner lease; first prior bool retained before mutation; copied scalar inputs; no allocation transfer. | Game thread only; WRONG_THREAD elsewhere; recursive calls refused. | BAD_ARG unknown or released handle; UNAVAILABLE stopped/session-ended/terminal/fault admission; FAILED recursive call. Restore bypasses feature capability loss; engine failure or readback mismatch latches restart-required and retains unrestored leases. | Explicit owner restore, ordinary release via existing spawn dispatcher, game.exit and stop restore first priors; failed restoration retains outstanding leases/context, no retry or replacement until process restart. Loader-retained provider faults skip owner hooks; host session/stop cleanup is independent. |
+| `sc_cvars_write_v1.set_bool` | `size >= 16`; 1.0 | `sco_result (*set_bool)(sco_plugin* self, const char* name, uint32_t type, uint32_t value);`<br>Write a canonical bool to one exact allowlisted name; capture first prior value and verify readback. | Per-name exclusive live-owner lease; first prior bool retained before mutation; copied scalar inputs; no allocation transfer. | Game thread only; WRONG_THREAD elsewhere; recursive calls refused. | BAD_ARG invalid name/type/noncanonical bool/unknown or released handle; UNAVAILABLE admission/capability/adapter/cleanup missing or name held by another owner; engine failure or readback mismatch latches restart-required and retains unrestored leases. | Explicit owner restore, ordinary release via existing spawn dispatcher, game.exit and stop restore first priors; failed restoration retains outstanding leases/context, no retry or replacement until process restart. Loader-retained provider faults skip owner hooks; host session/stop cleanup is independent. |
 
 ## Explicit remaining gaps
 

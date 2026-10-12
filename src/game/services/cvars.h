@@ -11,8 +11,12 @@ struct CvarsPort {
     bool verified = false;
     bool offline_admitted = false;
     sco_result (*read_bool)(void*, uint32_t, uint32_t*) = nullptr;
+    bool write_verified = false; // independent from read verification
+    sco_result (*write_bool)(void*, uint32_t, uint32_t) = nullptr;
 };
 Result SetCvarsPort(const CvarsPort& port); // game thread, stopped only
 Result StartCvars();
-void StopCvars();
+Result StopCvars(); // Failed: restart required, retained backing context/leases
+uint32_t PendingCvarRestores(); // host diagnostic; game thread only
+void ReleaseCvarsOwner(const void* owner); // forwarded from spawn.cpp; no new hook slot
 }

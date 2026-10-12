@@ -43,6 +43,14 @@
  ],
  "excluded": [
   {
+   "path": "tests/abi_game_cvars_write.c",
+   "why": "G7 game-only reversible-write synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
+  },
+  {
+   "path": "tests/test_cvars_write.cpp",
+   "why": "G7 game-only reversible-write synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
+  },
+  {
    "path": "tests/abi_game_cvars.c",
    "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
   },
@@ -252,6 +260,38 @@
   }
  ],
  "components": [
+  {
+   "id": "g7.include.sc_cvars_write.h",
+   "source": "include/sc_cvars_write.h",
+   "destination": "include/sc_cvars_write.h",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "g7.include.scosdk.game.cvars_write.hpp",
+   "source": "include/scosdk/game/cvars_write.hpp",
+   "destination": "include/scosdk/game/cvars_write.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "g7.sdk.contracts.sc_cvars_write_v1.json",
+   "source": "sdk/contracts/sc_cvars_write_v1.json",
+   "destination": "contracts/sc_cvars_write_v1.json",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
   {
    "id": "g7.include.sc_cvars.h",
    "source": "include/sc_cvars.h",

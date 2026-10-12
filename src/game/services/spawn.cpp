@@ -11,6 +11,7 @@
 #include "entities.h"
 #include "creative.h"
 #include "quantum.h"
+#include "cvars.h"
 #include "sco/game/actors.h"
 #include "sco/game/reads.h"
 #include "sco/game/services.h"
@@ -267,6 +268,7 @@ void OnRelease(const void* owner) {
     ReleaseEntitiesOwner(owner);
     ReleaseCreativeOwner(owner);
     ReleaseQuantumOwner(owner);
+    ReleaseCvarsOwner(owner);
 }
 
 // ---- spawn.entities (sc_spawn.h) ---------------------------------------------------------------

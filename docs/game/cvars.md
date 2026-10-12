@@ -16,6 +16,45 @@ capability, admission or stopped runtime is `SCO_UNAVAILABLE`. Reentrant calls
 are `SCO_FAILED`. An adapter-reported `SCO_CRASHED` latches restart-required;
 no more adapter calls or replacement/restart are allowed in that process.
 
+## Separate reversible writes (4B second acceptance)
+
+`game.cvars_write` 1.0 (`sc_cvars_write_v1`, 24 bytes) has `set_bool` and
+`restore_all`. `scosdk::game::CvarsWrite` validates the complete table extent and
+both callbacks; failed reopen discards the old table. C# and Lua remain unsupported.
+Writes need independently verified write callbacks, offline admission, read/write
+capabilities and the existing spawn release dispatcher. They are unavailable if
+that dispatcher failed to install; no ninth kernel release-hook slot was added.
+
+One lease per exact name: the first canonical prior value is saved BEFORE engine
+mutation; repeated same-owner updates preserve it. Another owner receives
+`SCO_UNAVAILABLE` without touching the engine. All writes require readback match.
+Explicit restore removes only the caller's leases and is idempotent when none exist.
+Restoration ignores feature capability loss to permit cleanup, but public calls are
+refused after session/terminal admission closes. No load-time mutation is performed
+by the provider; the test-only consumer deliberately requests one write on load.
+
+Ordinary unload/crash owner cleanup is forwarded by `spawn.cpp` to
+`ReleaseCvarsOwner`. A `game.exit` subscription and `StopCvars` restore all leases
+before closing admission. The host MUST emit session exit/stop while engine context
+is still valid, before replacing/releasing it; an ended session does not auto-reopen
+on `game.ready`. A fresh stop/install/start is required for the next reviewed port.
+The copied port/context must outlive every outstanding lease and any retained fault.
+
+A failed engine write, restore or post-write verification conservatively retains
+unrestored leases, disables both capabilities and latches process restart-required.
+There are no unsafe retries or port replacement after a fault; host diagnostics can
+inspect `PendingCvarRestores`, and `StopCvars` returns `Failed` while withdrawing
+tables. Never free retained engine context merely because discovery was withdrawn.
+A loader-retained provider fault skips ordinary resource hooks; those leases remain
+until the host-owned session/stop restoration (if the engine itself is still trusted).
+
+Synthetic write fixtures cover native load/write/unload twice, actual runtime owner
+release, actual loader retained-provider verdict, first-prior preservation,
+contention, session exit/reset, stop, wrong thread/live handles, unavailable
+admission, failed restore, failed write and false-success readback. The portable
+release dispatcher is a labeled stand-in: Windows `spawn.cpp`/SEH and gameplay
+remain unverified. Only engine callbacks are synthetic; the SDK host/loader are real.
+
 ## Engine boundary and evidence
 
 Game-pack-only `src/game/services/cvars.h` defines a host-injected reviewed port.

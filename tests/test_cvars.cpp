@@ -9,6 +9,7 @@
 #include "../src/api/internal.h"
 using sco::Result;
 namespace C = sco::game::services;
+namespace sco::game::services { bool SpawnReleaseHooked() { return false; } }
 static int pass = 0, fail = 0;
 #define CHECK(x) do { if (x) ++pass; else { ++fail; std::printf("FAIL %d: %s\n", __LINE__, #x); } } while (0)
 static uint32_t values[4] = {1, 0, 1, 0};

@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_cvars_write_v1.restore_all",
+      "table": "sc_cvars_write_v1",
+      "source_header": "include/sc_cvars_write.h",
+      "signature": "sco_result (*)(sco_plugin *)",
+      "version_macro": "SC_CVARS_WRITE_VERSION",
+      "member_extent": 24,
+      "table_size": 24,
+      "service": "game.cvars_write",
+      "id": "sc-cvars-write-v1-restore-all",
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Restore this live owner's first prior values; release only successfully verified leases, no-op OK if none.",
+      "buffer_contract": "`sco_result (*restore_all)(sco_plugin* self);`<br>Restore this live owner's first prior values; release only successfully verified leases, no-op OK if none.",
+      "ownership": "Per-name exclusive live-owner lease; first prior bool retained before mutation; copied scalar inputs; no allocation transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere; recursive calls refused.",
+      "callback_context": "Host-only verified offline engine callbacks; no plugin callbacks.",
+      "reentrancy": "FAILED; cleanup during active adapter call retains lease and requires restart.",
+      "results": "BAD_ARG unknown or released handle; UNAVAILABLE stopped/session-ended/terminal/fault admission; FAILED recursive call. Restore bypasses feature capability loss; engine failure or readback mismatch latches restart-required and retains unrestored leases.",
+      "absent_capability": "Table absent: query_service NOT_FOUND; operation unavailable: UNAVAILABLE. Explicit restore may ignore feature capability loss for cleanup.",
+      "cleanup": "Explicit owner restore, ordinary release via existing spawn dispatcher, game.exit and stop restore first priors; failed restoration retains outstanding leases/context, no retry or replacement until process restart. Loader-retained provider faults skip owner hooks; host session/stop cleanup is independent.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_cvars_write.h",
+              "token": "(*restore_all)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_cvars_write.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/cvars_write.hpp",
+              "token": "table_->restore_all(self_)"
+            }
+          ],
+          "tests": [
+            "tests/test_cvars_extent.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/cvars.md",
+              "token": "C# and Lua remain unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/cvars.md",
+              "token": "C# and Lua remain unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_cvars_write.c",
+        "tests/test_cvars_write.cpp",
+        "tests/test_cvars_extent.cpp",
+        "tests/fixtures/cvars_probe.c"
+      ],
+      "limitations": [
+        "Production engine lookup/get/set signatures/types and native fault boundary unverified; capability OFF.",
+        "Portable dispatcher stand-in; Windows spawn dispatcher, SEH, MSVC and gameplay not verified.",
+        "No arbitrary console, bridge values or persistent config changes."
+      ]
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_cvars_write_v1.set_bool",
+      "table": "sc_cvars_write_v1",
+      "source_header": "include/sc_cvars_write.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, uint32_t, uint32_t)",
+      "version_macro": "SC_CVARS_WRITE_VERSION",
+      "member_extent": 16,
+      "table_size": 24,
+      "service": "game.cvars_write",
+      "id": "sc-cvars-write-v1-set-bool",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Write a canonical bool to one exact allowlisted name; capture first prior value and verify readback.",
+      "buffer_contract": "`sco_result (*set_bool)(sco_plugin* self, const char* name, uint32_t type, uint32_t value);`<br>Write a canonical bool to one exact allowlisted name; capture first prior value and verify readback.",
+      "ownership": "Per-name exclusive live-owner lease; first prior bool retained before mutation; copied scalar inputs; no allocation transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere; recursive calls refused.",
+      "callback_context": "Host-only verified offline engine callbacks; no plugin callbacks.",
+      "reentrancy": "FAILED; cleanup during active adapter call retains lease and requires restart.",
+      "results": "BAD_ARG invalid name/type/noncanonical bool/unknown or released handle; UNAVAILABLE admission/capability/adapter/cleanup missing or name held by another owner; engine failure or readback mismatch latches restart-required and retains unrestored leases.",
+      "absent_capability": "Table absent: query_service NOT_FOUND; operation unavailable: UNAVAILABLE. Explicit restore may ignore feature capability loss for cleanup.",
+      "cleanup": "Explicit owner restore, ordinary release via existing spawn dispatcher, game.exit and stop restore first priors; failed restoration retains outstanding leases/context, no retry or replacement until process restart. Loader-retained provider faults skip owner hooks; host session/stop cleanup is independent.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_cvars_write.h",
+              "token": "(*set_bool)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_cvars_write.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/cvars_write.hpp",
+              "token": "table_->set_bool(self_, name, SC_CVAR_BOOL, value ? 1u : 0u)"
+            }
+          ],
+          "tests": [
+            "tests/test_cvars_extent.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/cvars.md",
+              "token": "C# and Lua remain unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/cvars.md",
+              "token": "C# and Lua remain unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_cvars_write.c",
+        "tests/test_cvars_write.cpp",
+        "tests/test_cvars_extent.cpp",
+        "tests/fixtures/cvars_probe.c"
+      ],
+      "limitations": [
+        "Production engine lookup/get/set signatures/types and native fault boundary unverified; capability OFF.",
+        "Portable dispatcher stand-in; Windows spawn dispatcher, SEH, MSVC and gameplay not verified.",
+        "No arbitrary console, bridge values or persistent config changes."
+      ]
+    }
+  ]
+}
