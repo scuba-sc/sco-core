@@ -47,6 +47,15 @@ jobs:
           python3 sdk/package.py --profile core --out dist-profiles
           python3 sdk/package.py --profile game-sc --out dist-profiles
 
+      - name: Build the core source SDK from an empty directory
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          python3 sdk/package.py --profile core-source --out dist-source
+          python3 tools/ip_audit.py zip dist-source/sco-sdk-core-source-*.zip --profile core-source
+          sdk/test-zip.sh dist-source/sco-sdk-core-source-*.zip
+
       - name: Build and check the examples from the zip
         env:
           SCO_SDK_CSHARP: "1"            # cs_hello: NativeAOT linux-x64, checked like the C examples
@@ -89,6 +98,13 @@ jobs:
         with:
           name: sco-sdk-profiles
           path: dist-profiles/sco-sdk-*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sco-sdk-core-source
+          path: dist-source/sco-sdk-core-source-*.zip
           if-no-files-found: error
           retention-days: 30
 

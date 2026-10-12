@@ -10,11 +10,14 @@ import hashlib
 import importlib.util
 import json
 import os
+from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 
 sys.dont_write_bytecode = True
@@ -93,6 +96,40 @@ class RealManifest(unittest.TestCase):
             for name, h in listed.items():
                 self.assertEqual(hashlib.sha256(z.read(f"{top}/{name}")).hexdigest(), h, f"{prof}: {name}")
 
+    def test_core_source_closure(self):
+        selected = pkg.select(self.m, "core-source")
+        sources = {c["source"] for c in selected}
+        for path in ("CMakeLists.txt", "src/host/sco_host.cpp", "src/app/sco_app.cpp",
+                     "src/api/sco_tasks.cpp", "plugins/lua/sco_lua.c",
+                     "third_party/sqlite/sqlite3.c", "tests/test_host.cpp",
+                     "tools/abi_snapshot.py", "tests/abi/released/sco_api.h"):
+            self.assertIn(path, sources)
+        self.assertFalse(any(s.startswith(("src/game/", "src/datacore/")) for s in sources))
+        self.assertTrue(all(pkg.destination(self.m, "core-source", c) == c["source"] for c in selected))
+        # Metadata must not depend on the omitted game-pack header/version.
+        with unittest.mock.patch.object(pkg, "game_pack", side_effect=AssertionError("game version read")):
+            self.assertIn("-DSCO_GAME_SC=OFF", pkg.versions_txt("core-source", "1.2.0"))
+
+    def test_contract_catalogue_inventory(self):
+        methods = set()
+        for header in sorted(Path(pkg.ROOT, "include").glob("*.h")):
+            text = re.sub(r"/\*.*?\*/|//[^\n]*", "", header.read_text(), flags=re.S)
+            for body, table in re.findall(r"typedef\s+struct\s+\w+\s*\{(.*?)\}\s*(\w+)\s*;", text, re.S):
+                methods.update(f"{table}.{name}" for name in re.findall(r"\(\s*\*\s*(\w+)\s*\)\s*\(", body))
+        methods.update(("sco_plugin_query", "sco_plugin_load", "sco_plugin_unload"))
+        with open(os.path.join(pkg.ROOT, "docs", "contracts.md")) as f:
+            catalogue = f.read()
+        rows = re.findall(r"^\| `(\w+(?:\.\w+)?)` \| (.*)$", catalogue, re.M)
+        found = [name for name, cells in rows if name in methods]
+        self.assertEqual(set(found), methods)
+        self.assertEqual(len(found), len(methods), "duplicate method rows")
+        for name, cells in rows:
+            if name in methods:
+                # Six required facets beyond method name, none empty.
+                facets = cells.rstrip().rstrip("|").split("|")
+                self.assertEqual(len(facets), 6, name)
+                self.assertTrue(all(cell.strip() for cell in facets), name)
+
     def test_public_headers(self):
         core = pkg.public_headers(self.m, ["core"])
         both = pkg.public_headers(self.m, ["core", "game-sc"])
@@ -127,6 +164,17 @@ class Refused(unittest.TestCase):
 
     def comp(self, m, src):
         return next(c for c in m["components"] if c["source"] == src)
+
+    def test_source_refuses_game_implementation(self):
+        m = copy.deepcopy(self.good)
+        m["components"].append({"id": "game.source", "source": "src/game/rows.cpp",
+                                "destination": "src/game/rows.cpp", "profiles": ["core-source"],
+                                "origin": "project-authored", "license": "GPL-3.0-only"})
+        with self.assertRaisesRegex(pkg.ManifestError, "game implementation"):
+            pkg.select(m, "core-source")
+
+    def test_unknown_layout(self):
+        self.refused(lambda m: m["profiles"]["core-source"].update(layout="unknown"), "unknown layout")
 
     def test_wrong_schema(self):
         self.refused(lambda m: m.update(schema_version=2), "schema_version must be 1")

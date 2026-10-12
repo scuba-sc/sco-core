@@ -247,6 +247,14 @@ def golden_lines(path=None):
 def released_header(root=None):
     """The bytes of include/sco_api.h as released at TAG, or (None, why)."""
     root = root or ROOT
+    frozen = os.path.join(root, "tests", "abi", "released", "sco_api.h")
+    is_checkout = False
+    if shutil.which("git"):
+        git_rc, git_root, _ = run(["git", "-C", root, "rev-parse", "--show-toplevel"])
+        is_checkout = git_rc == 0 and os.path.realpath(git_root.decode().strip()) == os.path.realpath(root)
+    if not is_checkout and os.path.isfile(frozen):
+        with open(frozen, "rb") as f:
+            return f.read(), None
     cmd = ["git", "-C", root, "show", "%s:%s" % (TAG, RELEASED)]
     rc, out, err = run(cmd)
     if rc != 0:

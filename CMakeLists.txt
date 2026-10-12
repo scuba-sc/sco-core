@@ -924,9 +924,11 @@ if(SCO_BUILD_TESTS)
     string(REPLACE "entry = hello.dll" "entry = hello.so" _hello_ini "${_hello_ini}")
   endif()
   file(WRITE "${_sim}/hello/plugin.ini" "${_hello_ini}")
-  file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/greeter" "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/travel_pack"
-            "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/quantum_pack"
-       DESTINATION "${_sim}")
+  file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/greeter" DESTINATION "${_sim}")
+  if(SCO_GAME_SC)
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/travel_pack"
+              "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/quantum_pack" DESTINATION "${_sim}")
+  endif()
   add_dependencies(sco-host-sim sco_sim_hello)
   # tests/host_sim.cmake runs the sim and prints "host_sim_examples: FAIL" unless it exits 0 and
   # answers the invoke; CTest needs the reply and no FAIL line.
