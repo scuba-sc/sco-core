@@ -84,9 +84,12 @@ sco_project_target(sco_core)
 # sco-sigcheck don't need hooks.
 if(SCO_GAME_SC)
   file(GLOB SCO_GAME_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/game/*.cpp")
-  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/pak_hooks\\.cpp$")
+  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|diagnostics)\\.cpp$")
   add_library(sco_game_sc STATIC ${SCO_GAME_SOURCES})
   target_link_libraries(sco_game_sc PUBLIC sco_core)
+  add_library(sco_game_diagnostics STATIC src/game/diagnostics.cpp)
+  target_link_libraries(sco_game_diagnostics PUBLIC sco_host)
+  sco_project_target(sco_game_diagnostics)
   sco_project_target(sco_game_sc)
 endif()
 
@@ -98,7 +101,8 @@ target_link_libraries(sco_runtime PUBLIC Threads::Threads)
 sco_project_target(sco_runtime)
 
 # Capability registry and the host's sco_api table.
-add_library(sco_host STATIC src/api/sco_caps.cpp src/host/sco_host.cpp src/host/sco_diagnostics.cpp)
+add_library(sco_host STATIC src/api/sco_caps.cpp src/host/sco_host.cpp src/host/sco_diagnostics.cpp
+  src/host/sco_diagnostics_publisher.cpp)
 target_link_libraries(sco_host PUBLIC sco_runtime sco_core)
 sco_project_target(sco_host)
 
@@ -214,6 +218,11 @@ add_library(sco_settings STATIC src/settings/settings.cpp)
 target_link_libraries(sco_settings PUBLIC sco_host sco_plugins sco_storage sco_ui)
 sco_project_target(sco_settings)
 
+# Read-only startup list/script snapshots; kernel-neutral public sco.content.
+add_library(sco_content STATIC src/content/content.cpp)
+target_link_libraries(sco_content PUBLIC sco_host sco_plugins)
+sco_project_target(sco_content)
+
 # sco.ipc (sco/ipc.h, include/sco_ipc.h over the MIT wire include/sc_ipc.h): named shared-memory
 # channels to another program on the same PC, a host-owned service. The platform half is
 # shm_win.cpp (the real target) or shm_posix.cpp (the host tests); the ring logic is platform-free.
@@ -271,11 +280,11 @@ endif()
 
 # The host kit (sco/app.h): Start / Tick / Stop over the host table, caps, signatures and loader.
 add_library(sco_app STATIC src/app/sco_app.cpp)
-target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_ipc sco_net_service)
+target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service)
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
   # Platform::registerSignatures (sco::game::RegisterGameSignatures).
-  target_link_libraries(sco_app PUBLIC sco_datacore_service sco_game_sc)
+  target_link_libraries(sco_app PUBLIC sco_datacore_service sco_game_sc sco_game_diagnostics)
 endif()
 # The game pack's services (sco/game/services.h, docs/design/game-services.md): teleport.spatial
 # today, published under the owner "game" when the product sets Platform::gameServices. They read
@@ -751,6 +760,41 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_diagnostics_platform)
   add_test(NAME test_diagnostics_platform COMMAND test_diagnostics_platform)
   set_tests_properties(test_diagnostics_platform PROPERTIES ENVIRONMENT "SCO_DIAGNOSTICS_TEST_TMPDIR=${SCO_TEST_OUT}")
+  # Independently compiled source publisher: only copied public SDK declarations.
+  set(_diagnostic_sdk "${CMAKE_CURRENT_BINARY_DIR}/diagnostics-sdk/include")
+  file(MAKE_DIRECTORY "${_diagnostic_sdk}")
+  foreach(_h sco_api.h sco_diagnostics_publisher.h)
+    configure_file("${SCO_INCLUDE_DIR}/${_h}" "${_diagnostic_sdk}/${_h}" COPYONLY)
+  endforeach()
+  add_library(diagnostics_publisher_fixture MODULE sdk/examples/diagnostics_publisher/diagnostics_publisher.c)
+  target_include_directories(diagnostics_publisher_fixture PRIVATE "${_diagnostic_sdk}")
+  sco_project_target(diagnostics_publisher_fixture)
+  if(APPLE)
+    target_link_options(diagnostics_publisher_fixture PRIVATE "-Wl,-undefined,error")
+  elseif(UNIX)
+    target_link_options(diagnostics_publisher_fixture PRIVATE "-Wl,--no-undefined")
+  endif()
+  file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/abi_diagnostics_publisher.cpp"
+    CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_diagnostics_publisher.c\"\n")
+  add_library(sco_abi_diagnostics_publisher_c OBJECT tests/abi_diagnostics_publisher.c)
+  add_library(sco_abi_diagnostics_publisher_cxx OBJECT "${CMAKE_CURRENT_BINARY_DIR}/abi_diagnostics_publisher.cpp")
+  set(_diagnostic_pins sco_abi_diagnostics_publisher_c sco_abi_diagnostics_publisher_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_diagnostics_publisher_short OBJECT tests/abi_diagnostics_publisher.c)
+    target_compile_options(sco_abi_diagnostics_publisher_short PRIVATE -fshort-enums -Wpedantic)
+    list(APPEND _diagnostic_pins sco_abi_diagnostics_publisher_short)
+  endif()
+  foreach(_t IN LISTS _diagnostic_pins)
+    target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${_t})
+  endforeach()
+  add_executable(test_diagnostics_publishers tests/test_diagnostics_publishers.cpp)
+  target_link_libraries(test_diagnostics_publishers PRIVATE sco_app)
+  add_dependencies(test_diagnostics_publishers diagnostics_publisher_fixture ${_diagnostic_pins})
+  sco_project_target(test_diagnostics_publishers)
+  add_test(NAME test_diagnostics_publishers COMMAND test_diagnostics_publishers
+    "$<TARGET_FILE:diagnostics_publisher_fixture>" "${CMAKE_CURRENT_BINARY_DIR}/tests/out")
+
   add_executable(test_runtime_diagnostics_snapshot
     tests/test_runtime_diagnostics_snapshot.cpp tests/test_runtime_diagnostics_services.cpp)
   target_link_libraries(test_runtime_diagnostics_snapshot PRIVATE sco_app)
@@ -798,6 +842,29 @@ if(SCO_BUILD_TESTS)
   # sco.settings: the declarations' values, the service over the real host table and storage,
   # persistence across a restart, settings.changed. Host build, no game.
   add_executable(test_settings tests/test_settings.cpp)
+  add_executable(test_content tests/test_content.cpp tests/abi_content.c)
+  set(_content_inc "${CMAKE_CURRENT_BINARY_DIR}/content_public_include")
+  file(MAKE_DIRECTORY "${_content_inc}")
+  foreach(h sco_api.h sco_content.h)
+    configure_file("${SCO_INCLUDE_DIR}/${h}" "${_content_inc}/${h}" COPYONLY)
+  endforeach()
+  add_library(content_reader_fixture MODULE sdk/examples/content_reader/content_reader.c)
+  target_include_directories(content_reader_fixture PRIVATE "${_content_inc}")
+  sco_warnings(content_reader_fixture)
+  if(UNIX AND NOT APPLE)
+    target_link_options(content_reader_fixture PRIVATE -Wl,--no-undefined)
+  endif()
+  add_dependencies(test_content content_reader_fixture)
+  if(NOT MSVC)
+    add_library(sco_abi_content_short_enums OBJECT tests/abi_content.c)
+    target_include_directories(sco_abi_content_short_enums PRIVATE "${SCO_INCLUDE_DIR}")
+    target_compile_options(sco_abi_content_short_enums PRIVATE -fshort-enums -Wpedantic)
+    sco_warnings(sco_abi_content_short_enums)
+    add_dependencies(test_content sco_abi_content_short_enums)
+  endif()
+  target_link_libraries(test_content PRIVATE sco_app)
+  sco_project_target(test_content)
+  add_test(NAME test_content COMMAND test_content "${SCO_TEST_OUT}" "$<TARGET_FILE:content_reader_fixture>")
   target_link_libraries(test_settings PRIVATE sco_settings)
   sco_project_target(test_settings)
   add_test(NAME test_settings COMMAND test_settings "${SCO_TEST_OUT}")

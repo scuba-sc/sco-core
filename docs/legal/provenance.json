@@ -15,6 +15,196 @@
  },
  "entries": [
 {
+ "path": "include/sco_diagnostics_publisher.h",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "include/scosdk/diagnostics_publisher.hpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "src/host/sco_diagnostics_publisher.cpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "tests/test_diagnostics_publishers.cpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "tests/abi_diagnostics_publisher.c",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "include/sco/game/diagnostics.h",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "src/game/diagnostics.cpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "sdk/examples/diagnostics_publisher/**",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "sdk/contracts/sco_diagnostics_publisher_v1.json",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+{
+ "path": "docs/design/diagnostics-publishers.md",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G17 default-off metadata source and synthetic fixture; no personal identifiers, proprietary data or MIT grant."
+},
+  {
+   "path": "tools/test_content_gate.py",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G14-only synthetic catalogue, local archive membership, public-header module and content fixture probe. No network, game extracts or release authorization."
+  },
+   {
+    "path": "include/sco_content.h",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "include/scosdk/content.hpp",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "include/sco/content.h",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "src/content/**",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "tests/*content*",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "sdk/examples/content_reader/**",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "sdk/contracts/sco_content_v1.json",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+   {
+    "path": "docs/design/content-access.md",
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "copyright": "2026 the sco-core contributors",
+    "status": "reviewed",
+    "reviewer": "agent draft; maintainer approval pending",
+    "date": "2026-10-12",
+    "note": "G14 project-authored content snapshot contract, implementation, documentation or synthetic fixtures. No game extracts, MIT grant, runtime network or release authorization."
+   },
+{
   "path": "include/sco/diagnostics*.h",
   "origin": "project-authored",
   "license": "GPL-3.0-only",

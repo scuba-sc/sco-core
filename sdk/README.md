@@ -67,6 +67,14 @@ checks fixed ZIP timestamps/modes and absence of checkout/output paths. This pro
 within one Python/zlib environment, not across compression-library versions. Packaged repository
 document links are pinned to the source commit rather than a moving branch.
 
+## Read-only pack content
+
+New hosts expose `sco.content` 1.0 (`sco_content.h`, `scosdk/content.hpp`) for
+bounded copied startup lists and XML scripts. See [data packs](docs/data-packs.md)
+and `examples/content_reader`. Native C/C++ only; no file paths, execution rights,
+C#/Lua route or implicit product base-list import. SDK 2.0.0's existing release
+predates the service. Frozen plugin ABI 1.1 is unchanged.
+
 ## Renderer-neutral widget UI
 
 New C/C++ plugins use `sco.widgets` 1.0 (`sco_widgets.h`, `scosdk/widgets.hpp`):

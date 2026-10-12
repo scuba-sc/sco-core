@@ -28,6 +28,7 @@ install(TARGETS sco-plugin-check RUNTIME DESTINATION bin)
 sco_add_plugin(hello SOURCES examples/hello/hello.c INI examples/hello/plugin.ini)
 sco_add_plugin(cpp_hello SOURCES examples/cpp_hello/cpp_hello.cpp INI examples/cpp_hello/plugin.ini)
 sco_add_plugin(widgets SOURCES examples/widgets/widgets.c INI examples/widgets/plugin.ini)
+sco_add_plugin(content_reader SOURCES examples/content_reader/content_reader.c INI examples/content_reader/plugin.ini)
 sco_add_plugin(my_plugin SOURCES template/plugin.c INI template/plugin.ini)
 # The Star Citizen extension's examples (sco-sdk-game-sc), when it is unpacked here.
 foreach(ex travel_pack quantum_pack)

@@ -99,6 +99,8 @@ struct Platform {
     // file until its first Reload (on Windows that file is locked until then). A product turns it on
     // for a developer switch. A failed copy logs and falls back to the original.
     bool loadFromCopies = false;
+    // Default-off diagnostic sources; no channel/consent inferred from this config.
+    diagnostics::SourceOptions diagnosticSources;
 };
 
 // Starts the host kit (see above). Game thread: it becomes the game thread. False, and nothing

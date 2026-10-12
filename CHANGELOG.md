@@ -13,6 +13,24 @@ What each change means for plugin authors and for products built on sco-core (sc
   Complete member-extent/null guards, shared instruction/memory budgets and real
   neutral-host lifecycle fixtures; archive-contained `widgets_lua` example.
   Frozen ABI unchanged; GPU rendering/gameplay not verified.
+- **G17 diagnostics publishers (#141):** add default-off Star Citizen minimal
+  metadata snapshots and a host-owned, selected-owner `sco.diagnostics.publisher`
+  1.0 ingress for fixed advisory plugin health. Sources require explicit opt-in
+  and positive host offline admission; copy into the existing immutable host
+  diagnostics path without plugin callbacks, scanner execution or side channels.
+  Extra source fields stay internal: runtime JSON v1 is unchanged and arbitrary
+  plugin fields/gameplay data are not accepted. Optional SDK example ships
+  disabled; synthetic module, ABI and truncated-tail fixtures added. Frozen
+  `sco_api` unchanged. Windows/MSVC, endpoint security and gameplay not verified.
+
+- **G14 content access (#135):** audit confirms the private content index and
+  command registry lacked a public list/script read route. Add kernel-neutral
+  `sco.content` 1.0 with bounded copied startup records/bytes, link-safe reads,
+  whole-pack refusal, dependency propagation, and guarded C++ access. Packs are
+  prepared before consumer code loads; code-provider dependencies are explicitly
+  refused. Public C example, synthetic module/layout tests, catalogue, packaging
+  and provenance added. Frozen `sco_api` unchanged; no allowlist expansion.
+  Not run in game; C#/Lua and product step-2C migration remain downstream.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,

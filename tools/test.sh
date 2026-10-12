@@ -442,7 +442,7 @@ done
 # The host kit (sco/app.h): built-ins, the fake plugins m0 and m11, greeter and travel_pack through
 # sco::app (ASan+UBSan). Then sco-host-sim over the SDK examples, laid out like data/plugins with
 # hello built here as a shared library (CMake: CTest host_sim_examples).
-APP=("$ROOT/src/host/sco_diagnostics.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp"
+APP=("$ROOT/src/content/content.cpp" "$ROOT/src/host/sco_diagnostics.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp"
      "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$SQLITE_ASAN"
      "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${NETSVC_SRC[@]}" "$OUT/sha2_asan.o"
      "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}")

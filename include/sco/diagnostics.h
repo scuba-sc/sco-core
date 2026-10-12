@@ -1,7 +1,8 @@
 #pragma once
 // Host-only, game-neutral C++ copies. No plugin ABI export, IPC, MCP or authorization.
-// Step 1 of docs/design/runtime-mcp.md. Product publishers/policy remain future work (#141).
+// Immutable host observations and default-off source publishers (#141). Endpoint policy is separate.
 #include "sco/diagnostics_services.h"
+#include "sco_diagnostics_publisher.h"
 #include "sco/plugins.h"
 #include <deque>
 #include <memory>
@@ -49,14 +50,29 @@ struct LifecycleMetadata {
     std::vector<CapabilityMetadata> capabilities;
     bool capabilitiesTruncated = false, restartRequired = false;
 };
-// Reserved host-side source slots: no publishers or new v1 plugin-authored JSON fields.
-// Game packs supply metadata only, never game types; both source slots absent by default.
+// Host-source options never authorize an endpoint. Positive offline admission and
+// explicit source opt-ins are independent of plugin/game-service enablement.
+struct SourceOptions {
+    bool gamePack = false, diagnosticsPlugin = false, offlineAuthorized = false;
+    std::string diagnosticsPluginId; // trusted host selection, never serialized
+    std::optional<std::string> gameBuild; // actual host-observed build, not verified-build pin
+};
+// Metadata only, never game types. Extra source fields are NOT runtime JSON v1.
 struct GamePackMetadata {
     std::optional<std::string> version, gameBuild;
+    std::optional<uint64_t> observedMs = std::nullopt;
 };
 struct DiagnosticsPluginMetadata {
-    bool available = false; // a later reviewed/versioned publisher, NOT arbitrary fields
+    bool available = false;
+    sco_diagnostics_health health = SCO_DIAGNOSTICS_HEALTH_UNKNOWN; // untrusted advisory
+    std::optional<uint64_t> observedMs = std::nullopt;
 };
+// Game thread; disabled options publish no service; selected live owner pushes
+// copied fixed fields. Capture reads copies only and never invokes plugin code.
+Result StartPublisher(const SourceOptions& options);
+void StopPublisher(); // before shutdown callouts, clears retained source
+std::optional<DiagnosticsPluginMetadata> CopyPublisherMetadata(uint64_t nowMs);
+const sco_diagnostics_publisher_v1* PublisherTable(); // internal host/test seam
 struct OptionalSources {
     std::optional<GamePackMetadata> gamePack;
     std::optional<DiagnosticsPluginMetadata> diagnosticsPlugin;
