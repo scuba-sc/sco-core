@@ -125,8 +125,13 @@ end }
     r = Invoke(g_caller, "gaplay.hp");
     CHECK(r.r == SCO_OK && r.text == "50.5 0.0 / not_found local_player: you're not spawned yet");
     if (r.text != "50.5 0.0 / not_found local_player: you're not spawned yet") std::printf("  gaplay.hp -> %s\n", r.text.c_str());
+    CHECK(ReloadScript(l));   // reopens the read-only adapter with a new Lua state
+    CHECK(Invoke(g_caller, "gaplay.ids").text == "11 -9223372036854775786");
+    CHECK(Invoke(g_caller, "gaplay.hp").text == "50.5 0.0 / not_found local_player: you're not spawned yet");
     Unload(l);
     CHECK(sco::host::WithdrawGameService(SC_ACTORS_NAME) == Result::Ok);
+    CHECK(ReloadScript(none));   // adapter registered, but no service: no leaked table from gaplay
+    Unload(none);
 }
 
 // ---- sco.game.entities (read-only over game.entities; a stand-in table) --------------------------
@@ -354,6 +359,10 @@ static void TestNoAdapter() {
     Loaded l = Load("noadapter");
     CHECK(l.p && l.p->state == State::Loaded);
     const sc_game_player_died died = { sizeof(died), 0, 7, 0 };
+    sco::Dispatch(SC_GAME_EVENT_PLAYER_DIED, &died);
+    CHECK(Logged("[noadapter] died nil"));
+    CHECK(ReloadScript(l));
+    g_log.clear();
     sco::Dispatch(SC_GAME_EVENT_PLAYER_DIED, &died);
     CHECK(Logged("[noadapter] died nil"));
     Unload(l);

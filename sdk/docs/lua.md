@@ -26,6 +26,32 @@ Limits, per script:
 
 A disabled script stays listed but does nothing: its event callbacks stop, its commands answer `unavailable`, and `sco.subscribe`, `sco.register_command` and `sco.run_on_game_thread` return `false, "unavailable"` (a script disabled while it loads is refused). `mod.log` gets `[<id>] error: script disabled: <why>`.
 
+## Reload and cleanup
+
+Script-only plugins remain reloadable: Lua cannot publish native service tables,
+so merely reading a host service does not make the script a session-lifetime native
+provider. Reload runs on the game thread at a safe point, not inside an executing
+callback. It releases the old owner before closing its Lua state and runs the new
+entry script with a fresh owner/state.
+
+Old subscriptions, commands, pending tasks and hotkeys are withdrawn before the
+new script runs. Storage rolls back an unfinished transaction; committed data
+survives. Reload does not lift step, memory, task or subscription limits. A fresh
+state can run again after a budget violation, but an overrun disables that state
+in the same way as before reload.
+
+The game adapter is optional and separate from the neutral runtime. Linking it
+alone exposes nothing: the host must register it, and its tables appear only for
+published services when each new script state opens. Game queries stay read-only;
+DataCore retains its separately documented patch API. Neither a reload nor a
+missing adapter grants native access, game mutation methods, files or FFI. Reload
+of a script is not reload of its native service providers.
+
+`tests/test_lua.cpp` exercises the real loader's mid-session unload/load path with
+pending callbacks/resources and repeated budget failures. The same target runs
+with `SCO_GAME_SC=OFF`; game-contract cases additionally check adapter absence,
+missing services and present read-only services across reload with the pack enabled.
+
 ## `sco` functions
 
 | Function | Returns | Does |
