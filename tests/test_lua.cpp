@@ -2,9 +2,9 @@
 // Discover -> LoadScript -> sco_lua_load, with sco::host::BuildApi's sco_api underneath. Host
 // build, no game. The "game thread" is this test's main thread.
 //   tools/test.sh
-#include "dcb_builder.h"
 #include "sco/caps.h"
 #ifndef SCO_KERNEL_ONLY
+#include "dcb_builder.h"
 #include "sco/datacore_service.h"   // TestDataCore (game pack)
 #endif
 #include "sco/host.h"

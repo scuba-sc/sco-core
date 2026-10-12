@@ -54,6 +54,12 @@ class KernelDependenciesTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("4 compiled objects", result.stdout)
 
+    def test_shared_library_soname_is_metadata_not_input(self):
+        # Native plugins have a SONAME such as m0.so, not an input in the build root.
+        self.configure("add_library(native_plugin SHARED lua.c)\n")
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_header_only_game_implementation_is_rejected(self):
         header = self.root / "src" / "game" / "inline.h"
         header.parent.mkdir(parents=True)

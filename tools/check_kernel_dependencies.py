@@ -59,6 +59,9 @@ def link_tokens(tokens, build, stack=()):
     for token in tokens:
         if token.startswith("-Wl,"):
             yield from link_tokens(token[4:].split(","), build, stack)
+        elif token.startswith(("@rpath/", "@loader_path/", "@executable_path/")):
+            # Mach-O runtime paths are metadata, not linker response files.
+            yield token
         elif token.startswith("@"):
             response = (build / token[1:]).resolve()
             if response in stack:
@@ -68,6 +71,29 @@ def link_tokens(tokens, build, stack=()):
             yield token
 
 
+def link_inputs(command, build):
+    """Expand inputs, excluding outputs and SONAME/install-name metadata."""
+    tokens = list(link_tokens(shlex.split(command), build))
+    if not tokens:
+        return
+    tool = Path(tokens[0]).name
+    if tool.endswith("ranlib"):
+        return
+    if tool.endswith("ar"):
+        # CMake emits ar <operation> <output archive> <object inputs>, then ranlib.
+        yield from tokens[3:]
+        return
+    it = iter(tokens[1:])
+    for token in it:
+        if token in ("-o", "-soname", "--soname", "-install_name", "-rpath", "--rpath"):
+            if next(it, None) is None:
+                raise DependencyError(f"link option has no value: {token}")
+            continue
+        if token.startswith(("--soname=", "--rpath=")):
+            continue
+        yield token
+
+
 def check_links(build):
     links = sorted(build.glob("CMakeFiles/**/*.dir/link.txt"))
     if not links:
@@ -75,7 +101,8 @@ def check_links(build):
     objects = set()
     libraries = set()
     for link in links:
-        for token in link_tokens(shlex.split(link.read_text()), build):
+        for token in (token for command in link.read_text().splitlines()
+                      for token in link_inputs(command, build)):
             if game_input(token) or game_source(token):
                 raise DependencyError(f"game link input in {link.relative_to(build)}: {token}")
             if not token.startswith("-") and re.search(r"\.(?:o|a|lib|so(?:\..*)?|dylib)$", token):
