@@ -47,8 +47,12 @@
    "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
    },
    {
-   "path": "tests/test_language_routes",
-   "why": "Game-contract-only C/C++ language fixtures; excluded from the neutral source kit."
+   "path": "tests/test_language_routes.c",
+   "why": "Game-contract-only C language fixture; excluded from the neutral source kit."
+  },
+  {
+   "path": "tests/test_language_routes.cpp",
+   "why": "Game-contract-only C++ language fixture; excluded from the neutral source kit."
   },
   {
    "path": "tools/sco-core-mcp/",
