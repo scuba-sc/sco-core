@@ -72,10 +72,14 @@ jobs:
       - name: Package every profile and audit each archive with its own SBOM
         run: |
           v=$(tr -d '\r\n' < sdk/VERSION)
+          gp=$(sed -n 's/^#define SCO_GAME_PACK_VERSION "\([0-9.]*\)"$/\1/p' include/sc_game_pack.h)
+          test -n "$gp" || { echo 'SCO_GAME_PACK_VERSION not found in include/sc_game_pack.h'; exit 1; }
           for profile in core game-sc legacy core-source; do
             python3 sdk/package.py --profile "$profile" --out dist
             if [ "$profile" = legacy ]; then
               archive="dist/sco-sdk-$v.zip"
+            elif [ "$profile" = game-sc ]; then
+              archive="dist/sco-sdk-game-sc-$gp.zip"
             else
               archive="dist/sco-sdk-$profile-$v.zip"
             fi
@@ -89,8 +93,10 @@ jobs:
           CXX: clang++
         run: |
           v=$(tr -d '\r\n' < sdk/VERSION)
+          gp=$(sed -n 's/^#define SCO_GAME_PACK_VERSION "\([0-9.]*\)"$/\1/p' include/sc_game_pack.h)
+          test -n "$gp" || { echo 'SCO_GAME_PACK_VERSION not found in include/sc_game_pack.h'; exit 1; }
           sdk/test-zip.sh "dist/sco-sdk-core-$v.zip"
-          sdk/test-zip.sh "dist/sco-sdk-core-$v.zip" "dist/sco-sdk-game-sc-$v.zip"
+          sdk/test-zip.sh "dist/sco-sdk-core-$v.zip" "dist/sco-sdk-game-sc-$gp.zip"
           sdk/test-zip.sh "dist/sco-sdk-$v.zip"
           sdk/test-zip.sh "dist/sco-sdk-core-source-$v.zip"
 
