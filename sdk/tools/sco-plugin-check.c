@@ -696,7 +696,6 @@ static int   ntasks;
 static int widget_running = 1;
 static int widget_dispatching;
 static uint32_t widget_callback_logs, widget_callback_invokes;
-static const sco_widgets_v1 widget_api;
 
 static int copy_str(char* dst, size_t cap, const char* src) {
     if (!src) { dst[0] = 0; return 1; }
