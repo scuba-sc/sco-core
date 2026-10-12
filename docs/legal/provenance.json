@@ -14,116 +14,176 @@
   "note": "The project's copyright notices say 'the sco-core contributors' (as sc_ipc.h does). The maintainer, scubamount, is the only contributor so far; the commit identities 'yerts' and 'scubamount' are both the maintainer."
  },
  "entries": [
-{
-  "path": "include/sc_loadout.h",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-},
-{
-  "path": "include/scosdk/game/loadout.hpp",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-},
-{
-  "path": "src/game/services/loadout.*",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-},
-{
-  "path": "sdk/contracts/sc_loadout_v1.json",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-},
-{
-  "path": "tests/abi_game_loadout.c",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-},
-{
-  "path": "tests/game_contracts/loadout/**",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-},
-{
-  "path": "docs/game/loadout.md",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-},
-{
-  "path": "include/sco/diagnostics*.h",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
-},
-{
-  "path": "src/host/sco_diagnostics.cpp",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
-},
-{
-  "path": "tests/test_runtime_diagnostics_*.cpp",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
-},
-{
-  "path": "docs/log-privacy.md",
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "copyright": "2026 the sco-core contributors",
-  "status": "reviewed",
-  "reviewer": "agent draft; maintainer approval pending",
-  "date": "2026-10-12",
-  "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
-},
+  {
+   "path": "include/sc_quantum.h",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Bounded offline quantum contract/control state and synthetic fixtures. No engine implementation, game extracts, licence exception or release authorization."
+  },
+  {
+   "path": "src/game/services/quantum.*",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Bounded offline quantum contract/control state and synthetic fixtures. No engine implementation, game extracts, licence exception or release authorization."
+  },
+  {
+   "path": "tests/abi_game_quantum.c",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Bounded offline quantum contract/control state and synthetic fixtures. No engine implementation, game extracts, licence exception or release authorization."
+  },
+  {
+   "path": "tests/test_quantum.cpp",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Bounded offline quantum contract/control state and synthetic fixtures. No engine implementation, game extracts, licence exception or release authorization."
+  },
+  {
+   "path": "sdk/contracts/sc_quantum_v1.json",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Bounded offline quantum contract/control state and synthetic fixtures. No engine implementation, game extracts, licence exception or release authorization."
+  },
+  {
+   "path": "docs/quantum.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Bounded offline quantum contract/control state and synthetic fixtures. No engine implementation, game extracts, licence exception or release authorization."
+  },
+  {
+   "path": "include/sc_loadout.h",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+  },
+  {
+   "path": "include/scosdk/game/loadout.hpp",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+  },
+  {
+   "path": "src/game/services/loadout.*",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+  },
+  {
+   "path": "sdk/contracts/sc_loadout_v1.json",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+  },
+  {
+   "path": "tests/abi_game_loadout.c",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+  },
+  {
+   "path": "tests/game_contracts/loadout/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+  },
+  {
+   "path": "docs/game/loadout.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+  },
+  {
+   "path": "include/sco/diagnostics*.h",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
+  },
+  {
+   "path": "src/host/sco_diagnostics.cpp",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
+  },
+  {
+   "path": "tests/test_runtime_diagnostics_*.cpp",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
+  },
+  {
+   "path": "docs/log-privacy.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Runtime MCP step-1 host-only copied metadata/capture and synthetic no-game fixtures. No external endpoint, game extracts, new MIT grant or release authorization. Implementation is part of the neutral core-source development kit only; not a public plugin ABI."
+  },
   {
    "path": "docs/design/runtime-mcp.md",
    "origin": "project-authored",
@@ -326,7 +386,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
+   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
   },
   {
    "path": "include/sc_net.h",
@@ -336,7 +396,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
+   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
   },
   {
    "path": "include/sc_titanlink.h",
@@ -346,7 +406,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
+   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
   },
   {
    "path": "include/sc_voxel_bridge.h",
@@ -356,7 +416,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
+   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
   },
   {
    "path": "sdk/examples/quantum_pack/**",

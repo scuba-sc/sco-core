@@ -75,8 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **117 table methods across 14 tables,
-plus 3 plugin entrypoints: 120 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **123 table methods across 16 tables,
+plus 3 plugin entrypoints: 126 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -189,6 +189,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_vehicles_v1` | 7 | 64 | 1.0 |
 | `sc_creative_v1` | 7 | 64 | 1.0 |
 | `sc_loadout_v1` | 1 | 16 | 1.0 |
+| `sc_quantum_v1` | 4 | 40 | 1.0 |
 | `sc_world_v1` | 3 | 32 | 1.0 |
 | `sc_entities_v1` | 11 | 96 | 1.1 |
 | Native plugin entrypoints | 3 | `sco_plugin_info`: 32 | API 1.1 |
@@ -588,6 +589,18 @@ C/C++ native routes only; C# and sandboxed Lua mutation are unsupported.
 | Method | Since | Buffer / call contract | Ownership | Thread affinity | Results | Cleanup |
 |---|---|---|---|---|---|---|
 | `sc_loadout_v1.apply` | `size >= 16`; 1.0 | `sco_result (*apply)(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report);`<br>Synchronous typed offline local-player equip: 1..16 unique slots, fixed ASCII item classes, per-slot APPLIED/UNSUPPORTED/ITEM_MISSING/FAILED/UNAVAILABLE and applied count. Entire batch structural validation precedes engine calls; partial apply is not rolled back. | Caller owns full-size request/report and frozen item array (exact item_stride). No allocation transfer; inputs copied to bounded stack storage; pointers borrowed only during call. Only local player is targeted. | Game thread only; WRONG_THREAD without output or engine access. | BAD_ARG for null/foreign/released self, short structs, zero count, wrong stride, nonzero reserved fields, duplicate slots or malformed class; TOO_MANY above 16. Structural refusals leave report unchanged. UNAVAILABLE for missing engine/verification/capability/offline admission, with per-slot UNAVAILABLE. OK iff all applied; FAILED for partial/slot refusals or guarded backend fault. | No pending requests, ownership tickets, persistence or unload rollback. Successful equip survives consumer unload. Table session-lifetime; stop withdraws after consumers unload. Backend fault disables apply until process restart; do not retry cached calls after shutdown. |
+
+
+## `sc_quantum_v1` — game.quantum 1.0
+
+See [offline quantum](quantum.md). Production engine bridge unavailable; synthetic control-state evidence only.
+
+| Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
+|---|---|---|---|---|---|---|
+| `sc_quantum_v1.enable` | `size >= 16`; 1.0 | `sco_result (*enable)(sco_plugin* self, uint32_t on);`<br>on is 0 or 1. Claim the single controller after offline/drive admission; repeat enable by that owner is idempotent. Disable clears holding and ownership. Competing owner is refused. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
+| `sc_quantum_v1.hold` | `size >= 24`; 1.0 | `sco_result (*hold)(sco_plugin* self, uint32_t milliseconds);`<br>Refresh the owned hold lease for 1..1000 milliseconds from the latest game tick. No drive or any block refuses holding. Expiry is serviced by the next game tick. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
+| `sc_quantum_v1.release` | `size >= 32`; 1.0 | `sco_result (*release)(sco_plugin* self);`<br>Cancel holding while retaining enable and ownership. Repeated own release is idempotent. Unclaimed or foreign release is NOT_FOUND. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
+| `sc_quantum_v1.state` | `size >= 40`; 1.0 | `sco_result (*state)(sco_plugin* self, sc_quantum_state* out);`<br>Caller sets out->size to at least 32. Copy only the known prefix: enabled/held, phase, block, integer-millionth progress and opaque session generation. Unavailable observations return idle/zero and a block; early refusals leave output unchanged. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
 
 ## Explicit remaining gaps
 

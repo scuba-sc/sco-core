@@ -42,15 +42,19 @@
   "site"
  ],
  "excluded": [
-{
-  "path": "tests/game_contracts/loadout/",
-  "why": "Repository-only G6 typed loadout provider/native-boundary and catalogue fixtures; game-specific, never neutral core-source."
-},
+  {
+   "path": "tests/test_quantum.cpp",
+   "why": "Repository-only synthetic quantum bridge fixture; game implementation excluded from kernel source kit."
+  },
+  {
+   "path": "tests/game_contracts/loadout/",
+   "why": "Repository-only G6 typed loadout provider/native-boundary and catalogue fixtures; game-specific, never neutral core-source."
+  },
   {
    "path": "tests/game_contracts/conformance/",
    "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
-   },
-   {
+  },
+  {
    "path": "tests/test_language_routes.c",
    "why": "Game-contract-only C language fixture; excluded from the neutral source kit."
   },
@@ -232,99 +236,131 @@
   }
  ],
  "components": [
-{
-  "id": "include.sc_loadout.h",
-  "source": "include/sc_loadout.h",
-  "destination": "include/sc_loadout.h",
-  "profiles": [
+  {
+   "id": "include.sc_quantum.h",
+   "source": "include/sc_quantum.h",
+   "destination": "include/sc_quantum.h",
+   "profiles": [
     "game-sc"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "public_header": true
-},
-{
-  "id": "include.scosdk.game.loadout.hpp",
-  "source": "include/scosdk/game/loadout.hpp",
-  "destination": "include/scosdk/game/loadout.hpp",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "source.tests.abi_game_quantum.c",
+   "source": "tests/abi_game_quantum.c",
+   "destination": "tests/abi_game_quantum.c",
+   "profiles": [
     "game-sc"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "public_header": true
-},
-{
-  "id": "docs.game.loadout.md",
-  "source": "docs/game/loadout.md",
-  "destination": "docs/game/loadout.md",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "docs.quantum.md",
+   "source": "docs/quantum.md",
+   "destination": "docs/quantum.md",
+   "profiles": [
     "game-sc"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "tests.abi_game_loadout.c",
-  "source": "tests/abi_game_loadout.c",
-  "destination": "tests/abi_game_loadout.c",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "include.sc_loadout.h",
+   "source": "include/sc_loadout.h",
+   "destination": "include/sc_loadout.h",
+   "profiles": [
     "game-sc"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only",
-  "group": "game-contract"
-},
-{
-  "id": "source.include.sco.diagnostics.h",
-  "source": "include/sco/diagnostics.h",
-  "destination": "include/sco/diagnostics.h",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.game.loadout.hpp",
+   "source": "include/scosdk/game/loadout.hpp",
+   "destination": "include/scosdk/game/loadout.hpp",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "docs.game.loadout.md",
+   "source": "docs/game/loadout.md",
+   "destination": "docs/game/loadout.md",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "tests.abi_game_loadout.c",
+   "source": "tests/abi_game_loadout.c",
+   "destination": "tests/abi_game_loadout.c",
+   "profiles": [
+    "game-sc"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "source.include.sco.diagnostics.h",
+   "source": "include/sco/diagnostics.h",
+   "destination": "include/sco/diagnostics.h",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "source.include.sco.diagnostics_services.h",
-  "source": "include/sco/diagnostics_services.h",
-  "destination": "include/sco/diagnostics_services.h",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.diagnostics_services.h",
+   "source": "include/sco/diagnostics_services.h",
+   "destination": "include/sco/diagnostics_services.h",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "source.src.host.sco_diagnostics.cpp",
-  "source": "src/host/sco_diagnostics.cpp",
-  "destination": "src/host/sco_diagnostics.cpp",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.host.sco_diagnostics.cpp",
+   "source": "src/host/sco_diagnostics.cpp",
+   "destination": "src/host/sco_diagnostics.cpp",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "source.tests.test_runtime_diagnostics_snapshot.cpp",
-  "source": "tests/test_runtime_diagnostics_snapshot.cpp",
-  "destination": "tests/test_runtime_diagnostics_snapshot.cpp",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_runtime_diagnostics_snapshot.cpp",
+   "source": "tests/test_runtime_diagnostics_snapshot.cpp",
+   "destination": "tests/test_runtime_diagnostics_snapshot.cpp",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
-{
-  "id": "source.tests.test_runtime_diagnostics_services.cpp",
-  "source": "tests/test_runtime_diagnostics_services.cpp",
-  "destination": "tests/test_runtime_diagnostics_services.cpp",
-  "profiles": [
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_runtime_diagnostics_services.cpp",
+   "source": "tests/test_runtime_diagnostics_services.cpp",
+   "destination": "tests/test_runtime_diagnostics_services.cpp",
+   "profiles": [
     "core-source"
-  ],
-  "origin": "project-authored",
-  "license": "GPL-3.0-only"
-},
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
   {
    "id": "include.sco_widgets.h",
    "source": "include/sco_widgets.h",
@@ -403,7 +439,9 @@
    "id": "source.tests.test_widgets_app.cpp",
    "source": "tests/test_widgets_app.cpp",
    "destination": "tests/test_widgets_app.cpp",
-   "profiles": ["core-source"],
+   "profiles": [
+    "core-source"
+   ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
   },

@@ -12,6 +12,7 @@
 #include "entities.h"
 #include "creative.h"
 #include "loadout.h"
+#include "quantum.h"
 #include "world.h"
 #include "events.h"
 #include "sco/engine/zone.h"
@@ -298,21 +299,23 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
-    // Typed loadout table is discoverable, but engine equip remains unavailable.
-    r = StartLoadout();
+    r = StartLoadout(); // no verified engine backend at production start
     if (r != Result::Ok) {
-        StopCreative();
-        StopEntities();
-        StopEvents();
-        StopWorld();
-        StopVehicles();
-        StopActors();
-        StopSpawn();
+        StopCreative(); StopEntities(); StopEvents(); StopWorld();
+        StopVehicles(); StopActors(); StopSpawn();
+        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
+    r = StartQuantum(); // default bridge remains unavailable until engine acceptance
+    if (r != Result::Ok) {
+        StopLoadout(); StopCreative(); StopEntities(); StopEvents(); StopWorld();
+        StopVehicles(); StopActors(); StopSpawn();
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
     r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
     if (r != Result::Ok) {
+        StopQuantum();
         StopLoadout();
         StopCreative();
         StopEntities();
@@ -334,6 +337,7 @@ Result Start() {
 void Stop() {
     if (!g_started) return;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
+    StopQuantum();
     StopLoadout();
     StopCreative();
     StopEntities();
