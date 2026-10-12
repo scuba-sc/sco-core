@@ -22,7 +22,7 @@ bool FindEntityByNameEx(const char* name,uintptr_t& entity,uint64_t& id) {
     entity=0; id=0;
     if (!name || !*name || !sco::SigReady("spawn.find_entity_by_name")) return false;
     __try {
-        using Fn=void(__fastcall*)(uintptr_t,uint64_t*,const char*);
+        using Fn=uint64_t*(__fastcall*)(uintptr_t,uint64_t*,const char*);
         uint64_t h=0;
         if(!EntitySystem()) return false;
         reinterpret_cast<Fn>(sco::Sig("spawn.find_entity_by_name"))(EntitySystem(),&h,name);

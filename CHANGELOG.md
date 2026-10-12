@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Offline hangar/ATC continuation port (#131):** preserve scoped offline hub,
+  hangar/bubble/gateway/retention and pad-token mechanics in the game pack.
+  Synchronous bounded handoff keeps caller frames alive after take, falls back on
+  untaken timeout and closes admission safely on shutdown. Focused portable lifetime,
+  reentrancy, timeout, overflow and shutdown fixtures; Windows gameplay not verified.
+
 - **Offline hangar lift composition (#131):** enable the row-validated sole lift
   hook owner and preserve lower/spawn/raise plus store-down/store/raise mechanics.
   Shared lift-watch fixture checks exact timeout, unknown state and one-shot fallback;

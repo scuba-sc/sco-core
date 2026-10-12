@@ -58,4 +58,3 @@ void RunDeliveries(DWORD now) {
         g_deliveries.erase(g_deliveries.begin() + i);
     }
 }
-

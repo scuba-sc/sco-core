@@ -18,7 +18,7 @@ Result Catalog::Configure(const Config& c) {
         std::size_t n=0;
         while (n<64 && name[n]) {
             const unsigned char ch = static_cast<unsigned char>(name[n]);
-            if (!std::isalnum(ch) && ch!='_' && ch!='-' && ch!='.') return Result::InvalidConfig;
+            if (!((ch>='a' && ch<='z') || (ch>='A' && ch<='Z') || (ch>='0' && ch<='9')) && ch!='_' && ch!='-' && ch!='.') return Result::InvalidConfig;
             ++n;
         }
         if (!n || n==64) return Result::InvalidConfig;
@@ -31,8 +31,8 @@ Result Catalog::Configure(const Config& c) {
     return Result::Ok;
 }
 Result Start(const Config& c) {
-    std::lock_guard guard(lock);
-    if (status.configured) return Result::AlreadyStarted;
+    std::unique_lock guard(lock);
+    if (status.configured || status.stopped) return Result::AlreadyStarted;
     Catalog next;
     const auto validation=next.Configure(c);
     if(validation!=Result::Ok) return validation;
@@ -45,23 +45,41 @@ Result Start(const Config& c) {
     catalog=next;
     status.configured=true; status.catalogCount=catalog.count;
     admitted.store(true); status.admitted=true;
-    status.installed=InstallCatalog();
+    guard.unlock(); // Engine/hooks/log callbacks must never run under the status mutex.
+    const bool catalogInstalled=InstallCatalog();
     InstallFleet();
+    InstallHangars();
+    SetFleetCaps(); SetHangarCaps();
+    LogFleet(); LogHangars();
+    guard.lock(); status.installed=catalogInstalled;
     return status.installed ? Result::Ok : Result::Unavailable;
 #endif
 }
-Status Snapshot() { std::lock_guard guard(lock); return status; }
+Status Snapshot() {
+    std::lock_guard guard(lock); Status copy=status;
+#ifdef _WIN32
+    copy.ready=FleetReady() | HangarReady();
+#endif
+    return copy;
+}
 void Pump(uint32_t now) {
 #ifdef _WIN32
-    if(admitted.load()) TickFleet(now);
+    if(admitted.load()) {
+        TickHangars(now);
+        static uint32_t last=0;
+        if(now-last>=100) { last=now; TickFleet(now); }
+    }
 #else
     (void)now;
 #endif
 }
 void Stop() {
-    std::lock_guard guard(lock);
-    admitted.store(false); status.admitted=false; status.stopped=true;
+    {
+        std::lock_guard guard(lock);
+        admitted.store(false); status.admitted=false; status.stopped=true;
+    }
 #ifdef _WIN32
+    CloseHangars();
     CloseFleet();
 #endif
 }

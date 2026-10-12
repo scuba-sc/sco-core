@@ -21,5 +21,11 @@ void TickFleet(uint32_t now);
 void TickHangars(uint32_t now);
 void CloseFleet();
 void CloseHangars();
+uint32_t FleetReady();
+uint32_t HangarReady();
+void LogFleet();
+void LogHangars();
+void SetFleetCaps();
+void SetHangarCaps();
 #endif
 } // namespace sco::game::asop_host

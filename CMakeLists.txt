@@ -347,11 +347,11 @@ endif()
 
 # Host-only offline fleet composition: never linked into the neutral kernel.
 if(SCO_GAME_SC)
-  add_library(sco_asop_host STATIC src/game/asop_host/config.cpp)
+  add_library(sco_asop_host STATIC src/game/asop_host/config.cpp src/game/asop_host/handoff.cpp)
   target_link_libraries(sco_asop_host PUBLIC sco_game_sc Threads::Threads)
   if(WIN32)
     target_sources(sco_asop_host PRIVATE src/game/asop_host/catalog_win.cpp
-      src/game/asop_host/support_win.cpp src/game/asop_host/fleet_win.cpp)
+      src/game/asop_host/support_win.cpp src/game/asop_host/fleet_win.cpp src/game/asop_host/hangar_win.cpp)
     target_link_libraries(sco_asop_host PUBLIC sco_game_services sco_hook)
   endif()
   sco_project_target(sco_asop_host)

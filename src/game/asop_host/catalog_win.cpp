@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Ported from sc-offline hooks.cpp; bounded user-supplied classes, runtime GUID lookup only.
 #include "engine.h"
+#include "sco/game/asop.h"
 #include <intrin.h>
 #include <cstdlib>
 #include <initializer_list>
@@ -145,8 +146,89 @@ bool HookFunction(uint8_t* target,size_t stolen,void* detour,void** original) {
 uintptr_t EntitySystem() { const auto* p=reinterpret_cast<uintptr_t*>(sco::Sig("teleport.entity_system")); return p ? *p : 0; }
 bool AsopEnabled() { return admitted.load(); }
 bool Fleet_UseGameList() { return settings.catalog==CatalogMode::Game; }
+constexpr size_t kSlotUrn=0x1698;
+constexpr size_t kAsopAtcId=sco::game::asop::kKioskAtc;
+using RetrieveVehicleFn=void(__fastcall*)(uintptr_t,uintptr_t);
+static RetrieveVehicleFn g_origRetrieveVehicle=nullptr;
+using StrCtorFn          = void*(__fastcall*)(void* out, const char* s);
+using StrDtorFn          = void(__fastcall*)(void* s);
+using GetATCCompFn       = uint64_t*(__fastcall*)(uint64_t* out, uint64_t entityId);
+using RequestTakingOffFn = void(__fastcall*)(uintptr_t atc, uint64_t player, void* location, uint64_t vehicle,
+                                             bool spawnVehicle, void* archetype, void* padFilter);
+static StrCtorFn          g_strCtor = nullptr;
+
+static StrDtorFn          g_strDtor = nullptr;
+
+static GetATCCompFn       g_getATCComp = nullptr;
+static RequestTakingOffFn g_requestTakingOff = nullptr;
+
+// fleet.retrieve_atc: asop.fleet_retrieve checks the kiosk ATC id load (+0xC7) and the
+// GetATCComponent call (+0xDD, atc.get_component); fleet.takeoff_command the g_ATC_requestTakeOff
+// command whose calls give the CryString ctor / dtor and RequestTakingOff.
+static bool PrepareRetrieveVehicle() {
+    g_getATCComp       = reinterpret_cast<GetATCCompFn>(sco::Sig("atc.get_component"));
+    g_strCtor          = reinterpret_cast<StrCtorFn>(sco::Sig("fleet.string_ctor"));
+    g_strDtor          = reinterpret_cast<StrDtorFn>(sco::Sig("fleet.string_dtor"));
+    g_requestTakingOff = reinterpret_cast<RequestTakingOffFn>(sco::Sig("fleet.request_taking_off"));
+    return true;
+}
+
+static int SlotShipIndex(uintptr_t slot) {
+    __try {
+        const uintptr_t urn = slot + kSlotUrn;
+        if (Rd<uint16_t>(urn) != kUrnType || Rd<uint8_t>(urn + 0x20) != kUrnIdGuid) return -1;
+        const uint64_t id = Rd<uint64_t>(urn + 0x10);
+        const int i = static_cast<int>(static_cast<uint32_t>(id));
+        return (id & 0xFFFFFFFF00000000ull) == kShipUrnMarker && i < g_shipCount ? i : -1;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -1;
+    }
+}
+
+const char* RequestShipFromAtc(uint64_t atcEntity, uint64_t player, const char* shipClass) {
+    if (!g_getATCComp || !g_requestTakingOff) return "the ATC functions weren't found";
+    __try {
+        uint64_t handle[2] = {};
+        g_getATCComp(handle, atcEntity);
+        const uintptr_t atc = handle[0] & kPtrMask;
+        if (!atc) return "this terminal has no spaceport ATC";
+        if (!player) return "player not spawned";
+        alignas(16) uint8_t location[32] = {};
+        void* archetype = nullptr;
+        void* padFilter = nullptr;
+        g_strCtor(location, "");
+        g_strCtor(&archetype, shipClass);
+        g_strCtor(&padFilter, "");
+        g_requestTakingOff(atc, player, location, 0, true, &archetype, &padFilter);
+        g_strDtor(&padFilter);
+        g_strDtor(&archetype);
+        g_strDtor(location);
+        return nullptr;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return "fault while asking the ATC";
+    }
+}
+
+static void __fastcall Hook_RetrieveVehicle(uintptr_t asop, uintptr_t slot) {
+    if (!admitted.load()) { g_origRetrieveVehicle(asop,slot); return; }
+    const int i = SlotShipIndex(slot);
+    // With the ASOP Retrieve (fleet.cpp) on, the game's own retrieve runs: it reaches the ATC with
+    // the stored ship, where asking the ATC directly for a class would lock the station's terminals.
+    if (i < 0 || Fleet_RetrieveActive()) { g_origRetrieveVehicle(asop, slot); return; }
+    uint64_t atc = 0;
+    __try { atc = Rd<uint64_t>(asop + kAsopAtcId); } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    if (const char* err = RequestShipFromAtc(atc, LocalPlayerEntityId(), g_ships[i].name))
+        Log("[fleet] retrieve %s failed: %s", g_ships[i].name, err);
+    else Log("[fleet] retrieve %s: asked the spaceport ATC for a hangar/pad", g_ships[i].name);
+}
+
 bool InstallCatalog() {
     if (!reads::Ready() || !sco::SigReady("fleet.entitlements_result")) return false;
-    return HookFunction(sco::Sig("fleet.entitlements_result"),5,reinterpret_cast<void*>(&Hook_EntitlementsResult),reinterpret_cast<void**>(&g_origEntitlementsResult));
+    const bool installed=HookFunction(sco::Sig("fleet.entitlements_result"),5,reinterpret_cast<void*>(&Hook_EntitlementsResult),reinterpret_cast<void**>(&g_origEntitlementsResult));
+    const char* rows[]={"asop.fleet_retrieve","atc.get_component","fleet.string_ctor","fleet.string_dtor","fleet.request_taking_off"};
+    bool ready=true; for(const char* row:rows) ready &= sco::SigReady(row);
+    if(ready && PrepareRetrieveVehicle())
+        HookFunction(sco::Sig("asop.fleet_retrieve"),5,reinterpret_cast<void*>(&Hook_RetrieveVehicle),reinterpret_cast<void**>(&g_origRetrieveVehicle));
+    return installed;
 }
 } // namespace sco::game::asop_host

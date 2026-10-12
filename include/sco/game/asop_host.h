@@ -19,8 +19,14 @@ struct Config {
     const char* const* shipClasses = nullptr;
     std::size_t shipCount = 0;
 };
+// Live installed groups, not gameplay certification. Readiness disappears on Stop.
+enum Ready : uint32_t {
+    Terminal=1u<<0, Caller=1u<<1, List=1u<<2, Deliver=1u<<3,
+    Claim=1u<<4, Retrieve=1u<<5, Lift=1u<<6, Store=1u<<7,
+    Hangar=1u<<8, Tokens=1u<<9, Diagnostics=1u<<10
+};
 struct Status { bool configured = false, admitted = false, installed = false, stopped = false;
-                std::size_t catalogCount = 0; };
+                std::size_t catalogCount = 0; uint32_t ready = 0; };
 // Start once after signatures AND guarded game services are ready, before engine callers run.
 // Explicit config replaces product environment/filesystem globals. Copies bounded classes.
 Result Start(const Config& config);

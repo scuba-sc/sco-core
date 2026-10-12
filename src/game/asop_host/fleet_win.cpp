@@ -147,7 +147,7 @@ uintptr_t* g_gameSlot = nullptr;          // &gEnv->pGame
 size_t     g_callerSlot = 0;              // pGame vtable offset of the caller lookup
 uint8_t    g_inventoryKind = 0;
 uintptr_t* g_insuranceConfig = nullptr;   // &cached SInsuranceComponentConfig*
-volatile LONG64 g_player = 0;             // the player's entity id, refreshed every tick 
+volatile LONG64 g_player = 0;             // the player's entity id, refreshed every tick
 
 thread_local bool t_ourFetch = false;     // our own replay: don't capture it
 
@@ -375,7 +375,7 @@ bool MarkStored(uintptr_t provider, const StoredView& s) {
         alignas(16) uint8_t urn[0x40] = {};
         memcpy(urn, entry + kVehicleUrn, kVehicleUrnSize);
         alignas(16) uint64_t inventory[3] = { s.inventory[0], s.inventory[1], s.inventory[2] };
-        uint64_t added[3] = {}, extra[3] = {};   // empty std::vectors; `added` is left to leak 
+        uint64_t added[3] = {}, extra[3] = {};   // empty std::vectors; `added` is left to leak
         g_setDelivered(provider, added, urn, inventory, s.vehicle, extra);
         return true;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -733,6 +733,7 @@ bool __fastcall Hook_StoreToken(uintptr_t capture, const uintptr_t* token) {
 
 // The lift manager's close handler, only to learn each manager's component .
 void __fastcall Hook_LiftHandler(uintptr_t component, uintptr_t event, uintptr_t a3, uintptr_t a4) {
+    if (!On(kLift) && !On(kStore)) { g_liftHandlerOrig(component,event,a3,a4); return; }
     const uint64_t manager = component ? EntityIdOfComponent(component) : 0;
     if (manager) {
         Lock l;
@@ -1502,6 +1503,11 @@ void TickFleet(uint32_t now) {
     RunTerminalRefreshes(now);
 }
 
+uint32_t FleetReady() {
+    uint32_t mask=0;
+    for(int i=0;i<kFeatureCount;++i) if(On(static_cast<Feature>(i))) mask |= 1u<<i;
+    return mask;
+}
 void CloseFleet() {
     g_enabled=false;
     for(auto& feature:g_features) feature.on.store(false);

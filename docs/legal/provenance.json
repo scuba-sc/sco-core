@@ -16,7 +16,7 @@
  "entries": [
   {
    "path": "src/game/asop_host/**",
-   "origin": "project-authored; ported project code from sc-offline",
+   "origin": "project-authored",
    "license": "GPL-3.0-only",
    "copyright": "2026 the sco-core contributors",
    "status": "reviewed",
