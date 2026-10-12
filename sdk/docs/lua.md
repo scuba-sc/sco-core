@@ -34,7 +34,7 @@ provider. Reload runs on the game thread at a safe point, not inside an executin
 callback. It releases the old owner before closing its Lua state and runs the new
 entry script with a fresh owner/state.
 
-Old subscriptions, commands, pending tasks and hotkeys are withdrawn before the
+Old subscriptions, commands, pending tasks, widget panels and hotkeys are withdrawn before the
 new script runs. Storage rolls back an unfinished transaction; committed data
 survives. Reload does not lift step, memory, task or subscription limits. A fresh
 state can run again after a budget violation, but an overrun disables that state
@@ -70,6 +70,70 @@ missing services and present read-only services across reload with the pack enab
 | `sco.unbind_hotkey(chord)` | `true` or `false, why, message` | Removes the script's own binding |
 
 `err` is the result name from the C API in lower case: `"bad_arg"`, `"unavailable"`, `"not_found"`, `"too_many"`, `"crashed"`.
+
+## Renderer-neutral widgets (`sco.widgets` 1.0)
+
+`sco.widgets` is always present. `available()` is true only when both complete,
+nonnull table methods exist; `set_panel(id, title, nodes[, fn])` and
+`remove_panel(id)` independently check their method and return `true` or
+`false, err`. An absent/short/null service or disabled script returns
+`false, "unavailable"`; the table is queried on each call, not cached.
+
+```lua
+if sco.widgets.available() then
+  assert(sco.widgets.set_panel("my_plugin.main", "Example", {
+    {kind="column", id=1},
+    {kind="label", id=2, parent=1, label="Plain text"},
+    {kind="button", id=3, parent=1, label="Press"},
+    {kind="toggle", id=4, parent=1, label="Enabled", value=false}
+  }, function(panel, event)
+    if event.kind == "button" then sco.log("info", panel .. " pressed") end
+  end))
+end
+```
+
+`nodes` is a dense, one-based array of flat **preorder** nodes (not nested children).
+Node `id` is a nonzero uint32 integer, unique within the panel. Optional `parent`
+is `0` or a preceding `row`/`column` ID whose subtree remains contiguous.
+Fields are read raw, never via `__index`/`__len`; unknown fields, sparse arrays,
+wrong Lua types, embedded NUL and malformed host data are `bad_arg`.
+
+| `kind` | Specific fields |
+|---|---|
+| `label`, `button` | `label` (required nonempty for button) |
+| `toggle` | nonempty `label`, boolean `value` (default false) |
+| `slider` | nonempty `label`, finite numeric `value`, `minimum`, `maximum` |
+| `combo`, `list` | nonempty `label`, dense string `items`, **zero-based** `index` (`-1` = none) |
+| `text_input` | nonempty `label`, string `text` |
+| `table` | row-major string `items`, integer `columns` (1..16) |
+| `row`, `column` | layout grouping; no value/items/text |
+
+All nodes accept boolean `disabled` (default false); disabled ancestors also
+suppress interaction. Unused fields must remain absent/zero, as in the native
+contract. Strings must be valid UTF-8. IDs/titles are at most 63 bytes, node
+labels/text/items 255 bytes, 256 nodes/panel, 256 items/node, 64 panels and 4096
+live nodes across owners. Over-limit node data/host capacity returns `too_many`;
+malformed ID/title returns `bad_arg`. Transient conversion buffers are charged
+against Lua memory, and bounded parsing loops against the instruction budget.
+
+On success the host copies all declarative data. Mutating the original table
+later changes nothing; submit a complete replacement. Failure preserves the old
+tree **and callback**. The registry retains `fn` until successful replacement,
+removal or ordinary unload; callers need not keep their own reference.
+
+`fn(panel_id, event)` receives a copied Lua table with `node_id` and lowercase
+`kind`. Button has no payload; toggle adds boolean `value`, slider numeric
+`value`, combo/list integer `index`, and text input string `text`. No events
+exist for labels/tables/layout. Callbacks run under the host owner's callout
+and the existing shared Lua sandbox budget; errors are caught/logged and an
+overrun disables the script. They may invoke commands or replace/remove their
+panel; queued old-generation events are discarded. A currently executing
+callback remains rooted on the Lua stack during reentrant replacement/removal.
+Ordinary unload withdraws panels/events before closing the Lua state.
+
+See [widgets](widgets.md) and [the Lua example](../examples/widgets_lua).
+The targeted real-loader fixture is `ctest -R '^test_lua_widgets$'`; headless
+synthetic events do not certify production GPU rendering or gameplay.
 
 ## Commands
 

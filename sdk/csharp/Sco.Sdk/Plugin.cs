@@ -330,6 +330,8 @@ namespace Sco.Sdk
             return ScoResult.Ok;
         }
 
+        partial void ReleaseWidgets();
+
         /// <summary>Removes everything the SDK holds for this plugin: registry entries (so a late
         /// host call finds nothing), event slots and the native string arena.</summary>
         internal void Release()
@@ -341,6 +343,7 @@ namespace Sco.Sdk
                     foreach (Handler h in s.Handlers) h.Alive = false;
                 _slots.Clear();
                 Registry.RemoveOwner(this);
+                ReleaseWidgets();
                 Arena.FreeAll();
                 _api = null;
                 _self = null;

@@ -14,6 +14,7 @@
 #include "sco/status.h"
 #include "sco/storage.h"
 #include "sco/ui.h"
+#include "sco/widgets.h"
 #include "../plugins/lua/sco_lua.h"
 #include "../plugins/lua/sco_lua_ext.h"   // the extension registry (TestExtensions)
 #ifndef SCO_KERNEL_ONLY   // the game adapter (plugins/lua/sco_lua_game.c) and the tables it reads
@@ -114,6 +115,398 @@ static bool HasCommand(const char* name) {
 static sco_plugin* g_caller;   // a second plugin that invokes the scripts' commands
 
 // ---- the SDK's own example, sdk/examples/greeter ---------------------------------------------
+
+class LuaWidgetRenderer final : public sco::widgets::Renderer {
+public:
+    std::vector<sco::widgets::Event> events;
+    void Render(const sco::widgets::Panel&, std::vector<sco::widgets::Event>& out) override { out = events; }
+};
+
+static void TestWidgets() {
+    Write("widgetsnone", R"lua(
+        assert(type(sco.widgets) == "table")
+        assert(not sco.widgets.available())
+        assert(select(2, sco.widgets.set_panel("widgetsnone.main", "Example", {
+          {kind="label", id=1, label="Hello"}})) == "unavailable")
+        assert(select(2, sco.widgets.remove_panel("widgetsnone.main")) == "unavailable")
+    )lua");
+    Loaded none = Load("widgetsnone");
+    CHECK(none.p && none.p->state == State::Loaded);
+    if (none.p && none.p->state != State::Loaded) std::printf("  widgetsnone: %s\n", none.p->reason.c_str());
+    Unload(none);
+    CHECK(sco::widgets::Start() == Result::Ok);
+    Write("widgetslua", R"lua(
+        assert(sco.widgets.available())
+        assert(sco.widgets.set_panel("widgetslua.main", "Example", {
+          {kind="label", id=1, label="Hello"}}))
+    )lua");
+    Loaded live = Load("widgetslua");
+    CHECK(live.p && live.p->state == State::Loaded);
+    if (live.p && live.p->state != State::Loaded) std::printf("  widgetslua: %s\n", live.p->reason.c_str());
+    const auto panels = sco::widgets::Panels();
+    CHECK(panels.size() == 1 && panels[0].nodes.size() == 1 && panels[0].nodes[0].label == "Hello");
+    Unload(live);
+    CHECK(sco::widgets::Panels().empty());
+    sco::widgets::Stop();
+}
+
+static void TestWidgetsTypedEvents() {
+    CHECK(sco::widgets::Start() == Result::Ok);
+    Write("widgetstyped", R"lua(
+        local w, seen = sco.widgets, {}
+        local nodes = {
+          {kind="column", id=1}, {kind="row", id=2, parent=1},
+          {kind="label", id=3, parent=2, label="Plain ## text"},
+          {kind="button", id=4, parent=2, label="Press"},
+          {kind="toggle", id=5, parent=1, label="Enabled", value=false},
+          {kind="slider", id=6, parent=1, label="Speed", value=0.5, minimum=0, maximum=1},
+          {kind="combo", id=7, parent=1, label="Mode", items={"Alpha", "Beta"}, index=0},
+          {kind="list", id=8, parent=1, label="List", items={"One", "Two"}, index=-1},
+          {kind="text_input", id=9, parent=1, label="Name", text="Initial"},
+          {kind="table", id=10, parent=1, items={"A", "B", "C", "D"}, columns=2},
+          {kind="button", id=11, label="Disabled", disabled=true}
+        }
+        assert(w.set_panel("widgetstyped.main", "Typed", nodes, function(panel, event)
+          assert(panel == "widgetstyped.main")
+          assert(type(event.node_id) == "number" and type(event.kind) == "string")
+          if event.kind == "button" then
+            assert(event.value == nil and event.index == nil and event.text == nil)
+            assert(sco.invoke("widgetstyped.ping"))
+          elseif event.kind == "toggle" then
+            assert(event.value == true and type(event.value) == "boolean")
+          elseif event.kind == "slider" then assert(event.value == 0.75)
+          elseif event.kind == "combo" then assert(event.index == 1)
+          elseif event.kind == "list" then assert(event.index == 0)
+          elseif event.kind == "text_input" then assert(event.text == "Edited")
+          else error("unexpected event kind") end
+          seen[#seen+1] = event.kind
+        end))
+        nodes[3].label="mutated"; nodes[7].items[1]="mutated"; nodes[9].text="mutated"
+        nodes = nil
+        for i=1,200 do local garbage = string.rep("x", 1024) end
+        assert(sco.register_command{name="widgetstyped.ping", title="Ping", fn=function() return "pong" end})
+        assert(sco.register_command{name="widgetstyped.seen", title="Seen", fn=function() return table.concat(seen, ",") end})
+        assert(sco.register_command{name="widgetstyped.remove", title="Remove", fn=function()
+          assert(w.remove_panel("widgetstyped.main"))
+          assert(select(2, w.remove_panel("widgetstyped.main")) == "not_found")
+          return "removed" end})
+    )lua");
+    Loaded live = Load("widgetstyped");
+    CHECK(live.p && live.p->state == State::Loaded);
+    if (live.p && live.p->state != State::Loaded) std::printf("  widgetstyped: %s\n", live.p->reason.c_str());
+    const auto panels = sco::widgets::Panels();
+    CHECK(panels.size() == 1 && panels[0].nodes.size() == 11);
+    if (!panels.empty() && panels[0].nodes.size() == 11) {
+        CHECK(panels[0].nodes[2].label == "Plain ## text" && panels[0].nodes[6].items[0] == "Alpha" && panels[0].nodes[8].text == "Initial");
+        CHECK(panels[0].nodes[10].flags == SCO_WIDGET_DISABLED && panels[0].nodes[9].columns == 2);
+    }
+    LuaWidgetRenderer renderer;
+    renderer.events = {{4,SCO_WIDGET_BUTTON}, {5,SCO_WIDGET_TOGGLE,0,1}, {6,SCO_WIDGET_SLIDER,0,0.75},
+                       {7,SCO_WIDGET_COMBO,1}, {8,SCO_WIDGET_LIST,0}, {9,SCO_WIDGET_TEXT_INPUT,0,0,"Edited"},
+                       {11,SCO_WIDGET_BUTTON}};
+    CHECK(sco::widgets::RenderPanel("widgetstyped.main", renderer) == Result::Ok);
+    CHECK(Invoke(g_caller, "widgetstyped.seen").text == "button,toggle,slider,combo,list,text_input");
+    CHECK(Invoke(g_caller, "widgetstyped.remove").text == "removed");
+    CHECK(sco::widgets::Panels().empty());
+    Unload(live);
+    sco::widgets::Stop();
+}
+
+static const sco_widgets_v1* g_widgetsFixture = nullptr;
+static sco_result WidgetsFixtureQuery(const char* name, uint32_t version, const void** out) {
+    CHECK(strcmp(name, SCO_WIDGETS_NAME) == 0 && version == SCO_WIDGETS_VERSION_1_0);
+    *out = g_widgetsFixture;
+    return SCO_OK;
+}
+
+static void TestWidgetsServiceTables() {
+    CHECK(sco::widgets::Start() == Result::Ok);
+    sco_api api = *g_api;
+    api.query_service = WidgetsFixtureQuery;
+    const char* missing = R"lua(
+      assert(not sco.widgets.available())
+      assert(select(2,sco.widgets.set_panel("widgetstables.main","Test",{{kind="label",id=1,label="Test"}})) == "unavailable")
+      assert(select(2,sco.widgets.remove_panel("widgetstables.main")) == "unavailable")
+    )lua";
+    Write("widgetstables", missing);
+    auto probe = [&] {
+        Loaded l = Load("widgetstables", &api);
+        CHECK(l.p && l.p->state == State::Loaded);
+        if (l.p && l.p->state != State::Loaded) std::printf("  widgetstables: %s\n", l.p->reason.c_str());
+        Unload(l);
+    };
+    api.size = static_cast<uint32_t>(offsetof(sco_api, query_service)); probe();
+    api.size = static_cast<uint32_t>(offsetof(sco_api, query_service) + sizeof(api.query_service) - 1); probe();
+    api.size = sizeof(api); api.query_service = nullptr; probe();
+    api.query_service = WidgetsFixtureQuery; g_widgetsFixture = nullptr; probe();
+    sco_widgets_v1 table = *sco::widgets::Table();
+    g_widgetsFixture = &table;
+    table.size = sizeof(uint32_t); probe();
+    table.size = static_cast<uint32_t>(offsetof(sco_widgets_v1, set_panel) + sizeof(table.set_panel) - 1); probe();
+    void* partial=std::malloc(table.size); std::memcpy(partial,&table,table.size);
+    g_widgetsFixture=static_cast<const sco_widgets_v1*>(partial); probe(); std::free(partial);
+    g_widgetsFixture=&table;
+    table = *sco::widgets::Table(); table.set_panel = nullptr; table.remove_panel = nullptr; probe();
+    table = *sco::widgets::Table();
+    Write("widgetstables", R"lua(
+      assert(not sco.widgets.available())
+      assert(sco.widgets.set_panel("widgetstables.main","Test",{{kind="label",id=1,label="Test"}}))
+      assert(select(2,sco.widgets.remove_panel("widgetstables.main")) == "unavailable")
+    )lua");
+    table.size = static_cast<uint32_t>(offsetof(sco_widgets_v1, remove_panel) + sizeof(table.remove_panel) - 1); probe();
+    partial=std::malloc(table.size); std::memcpy(partial,&table,table.size);
+    g_widgetsFixture=static_cast<const sco_widgets_v1*>(partial); probe(); std::free(partial);
+    g_widgetsFixture=&table;
+    table.size = sizeof(table); table.remove_panel = nullptr; probe();
+    CHECK(sco::widgets::Panels().empty());
+    g_widgetsFixture = nullptr;
+    sco::widgets::Stop();
+}
+
+static void TestWidgetsInvalid() {
+    CHECK(sco::widgets::Start() == Result::Ok);
+    Write("widgetsbad", R"lua(
+      local w=sco.widgets
+      local good={{kind="button",id=1,label="Original"}}
+      assert(w.set_panel("widgetsbad.main","Original",good,function() sco.log("info","original callback") end))
+      local function bad(nodes, expected, id, title, fn)
+        local ok,err=w.set_panel(id or "widgetsbad.main",title or "Invalid",nodes,fn)
+        assert(not ok and err==(expected or "bad_arg"),tostring(err))
+      end
+      bad({}); bad(nil); bad({true}); bad({{kind="other",id=1}})
+      bad({{kind="label",id=0,label="x"}}); bad({{kind="label",id=2^32,label="x"}})
+      bad({{kind="label",id=1.0,label="x"}}); bad({{kind="label",label="x"}})
+      bad({{kind="button",id=1,label=""}})
+      bad({{kind="label",id=1,label=123}}); bad({{kind="label",id=1,label="x\0y"}})
+      bad({{kind="label",id=1,label=string.char(255)}})
+      bad({{kind="label",id=1,label=string.rep("x",256)}},"too_many")
+      bad({{kind="label",id=1,label=string.rep("x",256).."\0"}},"too_many")
+      bad(good,nil,"other.main"); bad(good,nil,"widgetsbad..main")
+      bad(good,nil,"widgetsbad."..string.rep("x",64)); bad(good,nil,nil,string.rep("x",64))
+      bad(good,nil,nil,"x\0y"); bad(good,nil,"widgetsbad.main\0x")
+      bad(good,nil,nil,nil,true)
+      bad({{kind="label",id=1,label="x",disabled=1}})
+      bad({{kind="button",id=1,label="x",text="unused"}})
+      bad({{kind="toggle",id=1,label="x",value=1}})
+      bad({{kind="slider",id=1,label="x",value=0/0,minimum=0,maximum=1}})
+      bad({{kind="slider",id=1,label="x",value=2,minimum=0,maximum=1}})
+      bad({{kind="slider",id=1,label="x",value=0,minimum=1,maximum=0}})
+      bad({{kind="combo",id=1,label="x",items={"a"},index=1}})
+      bad({{kind="list",id=1,label="x",items={"a"},index=-2}})
+      bad({{kind="combo",id=1,label="x",items={false}}})
+      bad({{kind="combo",id=1,label="x",items={"a",extra="b"}}})
+      bad({{kind="table",id=1,items={"a"},columns=2}})
+      bad({{kind="table",id=1,items={},columns=17}},"too_many")
+      bad({{kind="row",id=1},{kind="label",id=2,parent=3,label="x"}})
+      bad({{kind="label",id=1,label="x"},{kind="button",id=1,label="y"}})
+      bad({{kind="row",id=1},{kind="label",id=2,parent=1,label="x"},
+           {kind="label",id=3,label="x"},{kind="label",id=4,parent=1,label="x"}})
+      bad({good[1],extra=good[1]})
+      local too={}; for i=1,257 do too[i]={kind="label",id=i,label="x"} end; bad(too,"too_many")
+      local items={}; for i=1,257 do items[i]="x" end
+      bad({{kind="combo",id=1,label="x",items=items}},"too_many")
+      bad({{kind="label",id=1,label="x",typo=true}})
+      assert(sco.register_command{name="widgetsbad.status",title="Status",fn=function() return "valid" end})
+    )lua");
+    Loaded l=Load("widgetsbad");
+    CHECK(l.p && l.p->state == State::Loaded);
+    if (l.p && l.p->state != State::Loaded) std::printf("  widgetsbad: %s\n", l.p->reason.c_str());
+    const auto panels=sco::widgets::Panels();
+    CHECK(panels.size()==1 && panels[0].title=="Original" && panels[0].nodes[0].label=="Original");
+    LuaWidgetRenderer renderer; renderer.events={{1,SCO_WIDGET_BUTTON}};
+    CHECK(sco::widgets::RenderPanel("widgetsbad.main",renderer)==Result::Ok);
+    CHECK(Logged("[widgetsbad] original callback"));
+    Unload(l); sco::widgets::Stop();
+}
+
+// Test-only extension: force collection to measure registry ownership, not GC heuristics.
+static lua_State* g_widgetState = nullptr;
+static int WidgetTestGc(lua_State* L) { lua_gc(L, LUA_GCCOLLECT); return 0; }
+static int WidgetTestPauseGc(lua_State* L) { lua_gc(L, LUA_GCSTOP); return 0; }
+static void WidgetTestOpen(lua_State* L) {
+    g_widgetState = L;
+    lua_pushcfunction(L, WidgetTestGc); lua_setfield(L, -2, "widget_test_gc");
+    lua_pushcfunction(L, WidgetTestPauseGc); lua_setfield(L, -2, "widget_test_pause_gc");
+}
+static const sco_lua_extension kWidgetTestExtension = { "widgets-test", WidgetTestOpen, nullptr };
+
+static void TestWidgetsLifetime() {
+    CHECK(sco::widgets::Start() == Result::Ok);
+    Write("widgetslife", R"lua(
+      local w, weak, seen = sco.widgets, setmetatable({}, {__mode="v"}), {}
+      local nodes={{kind="button",id=1,label="Click"}}
+      local old=function(panel)
+        seen[#seen+1]="old"
+        assert(w.set_panel(panel,"New",nodes,weak.new))
+        sco.widget_test_gc() -- removing registry root must not destroy currently running closure
+        seen[#seen+1]="old completed"
+      end
+      local new=function(panel)
+        seen[#seen+1]="new"
+        assert(w.remove_panel(panel))
+        sco.widget_test_gc()
+        seen[#seen+1]="new completed"
+      end
+      weak.old=old; weak.new=new
+      assert(w.set_panel("widgetslife.main","Old",nodes,old))
+      old=nil
+      local rejected=function() error("rejected callback ran") end; weak.rejected=rejected
+      assert(select(2,w.set_panel("widgetslife.main","Invalid",{
+        {kind="label",id=1,label="a"},{kind="label",id=1,label="b"}},rejected))=="bad_arg")
+      rejected=nil
+      sco.widget_test_gc(); assert(weak.old ~= nil and weak.rejected == nil)
+      -- Hold the next closure until the reentrant replacement; then drop our last strong reference.
+      assert(sco.register_command{name="widgetslife.gc",title="GC",fn=function()
+        new=nil; sco.widget_test_gc()
+        return tostring(weak.old==nil).." "..tostring(weak.new~=nil) end})
+      assert(sco.register_command{name="widgetslife.removed",title="Removed",fn=function()
+        sco.widget_test_gc(); return tostring(weak.new==nil).." "..table.concat(seen,",") end})
+    )lua");
+    Loaded l=Load("widgetslife");
+    CHECK(l.p && l.p->state==State::Loaded);
+    if (l.p && l.p->state!=State::Loaded) std::printf("  widgetslife: %s\n",l.p->reason.c_str());
+    LuaWidgetRenderer renderer; renderer.events={{1,SCO_WIDGET_BUTTON},{1,SCO_WIDGET_BUTTON}};
+    CHECK(sco::widgets::RenderPanel("widgetslife.main",renderer)==Result::Ok);
+    CHECK(Invoke(g_caller,"widgetslife.gc").text=="true true");
+    CHECK(sco::widgets::RenderPanel("widgetslife.main",renderer)==Result::Ok);
+    CHECK(Invoke(g_caller,"widgetslife.removed").text=="true old,old completed,new,new completed");
+    CHECK(sco::widgets::Panels().empty());
+    Unload(l);
+
+    Write("widgetspin", R"lua(
+      assert(sco.widgets.set_panel("widgetspin.main","Budget",{{kind="button",id=1,label="Spin"}},
+        function() sco.log("info","widget spin entered"); while true do pcall(function() while true do end end) end end))
+    )lua");
+    Loaded spin=Load("widgetspin");
+    CHECK(spin.p && spin.p->state==State::Loaded);
+    CHECK(sco::widgets::RenderPanel("widgetspin.main",renderer)==Result::Ok);
+    CHECK(!sco_lua_alive(spin.p->self) && Logged("script disabled: ran past its step budget"));
+    size_t entered=0; for (const auto& line:g_log) if (line.find("[widgetspin] widget spin entered")!=std::string::npos) ++entered;
+    CHECK(entered==1); // queued second event skipped after disabling
+    Unload(spin);
+    CHECK(sco::widgets::Panels().empty());
+    CHECK(sco::widgets::RenderPanel("widgetspin.main",renderer)==Result::NotFound);
+
+    Write("widgetsunload", R"lua(
+      assert(sco.widgets.set_panel("widgetsunload.main","Unload",{{kind="button",id=1,label="Click"}},
+        function() error("stale unload callback") end))
+    )lua");
+    Loaded unloaded=Load("widgetsunload");
+    CHECK(unloaded.p && unloaded.p->state==State::Loaded);
+    class UnloadRenderer final : public sco::widgets::Renderer {
+    public:
+        Loaded* loaded=nullptr;
+        void Render(const sco::widgets::Panel&,std::vector<sco::widgets::Event>& out) override {
+            out={{1,SCO_WIDGET_BUTTON},{1,SCO_WIDGET_BUTTON}};
+            Unload(*loaded); // invalidate snapshot before event delivery
+        }
+    } unloadRenderer;
+    unloadRenderer.loaded=&unloaded;
+    CHECK(sco::widgets::RenderPanel("widgetsunload.main",unloadRenderer)==Result::Crashed);
+    CHECK(sco::widgets::Panels().empty() && !Logged("stale unload callback"));
+    sco::widgets::Stop();
+}
+
+static sco_widget_event_fn g_widgetCallback = nullptr;
+static void* g_widgetContext = nullptr;
+static bool g_failWidgetRemove = false;
+static bool g_collectWidgetSet = false;
+static sco_result WidgetCaptureSet(sco_plugin* self,const char* id,const char* title,
+    const sco_widget_node* nodes,uint32_t count,uint32_t stride,sco_widget_event_fn fn,void* ctx) {
+    if (g_collectWidgetSet) lua_gc(g_widgetState,LUA_GCCOLLECT);
+    const auto r=sco::widgets::Table()->set_panel(self,id,title,nodes,count,stride,fn,ctx);
+    if (r==SCO_OK) { g_widgetCallback=fn; g_widgetContext=ctx; }
+    return r;
+}
+static sco_result WidgetCaptureRemove(sco_plugin* self,const char* id) {
+    return g_failWidgetRemove ? SCO_WRONG_THREAD : sco::widgets::Table()->remove_panel(self,id);
+}
+static void TestWidgetsCallbackBoundary() {
+    CHECK(sco::widgets::Start()==Result::Ok);
+    sco_api api=*g_api; api.query_service=WidgetsFixtureQuery;
+    sco_widgets_v1 table=*sco::widgets::Table(); table.set_panel=WidgetCaptureSet; table.remove_panel=WidgetCaptureRemove;
+    g_widgetsFixture=&table;
+    Write("widgetwire",R"lua(
+      local weak=setmetatable({},{__mode="v"})
+      local fn=function(_,e) assert(e.text=="Good"); sco.log("info","wire good") end
+      weak.fn=fn
+      assert(sco.widgets.set_panel("widgetwire.main","Boundary",{{kind="text_input",id=1,label="Name",text=""}},fn))
+      fn=nil
+      assert(sco.register_command{name="widgetwire.remove",title="Remove",fn=function()
+        local ok,err=sco.widgets.remove_panel("widgetwire.main")
+        sco.widget_test_gc(); return tostring(ok).." "..tostring(err).." "..tostring(weak.fn~=nil) end})
+    )lua");
+    Loaded l=Load("widgetwire",&api); CHECK(l.p && l.p->state==State::Loaded);
+    CHECK(g_widgetCallback && g_widgetContext);
+    if (g_widgetCallback) {
+        sco_widget_event event{sizeof(sco_widget_event),1,SCO_WIDGET_TEXT_INPUT,0,0,"Good"};
+        g_widgetCallback(nullptr,&event,g_widgetContext);
+        g_widgetCallback("widgetwire.main",nullptr,g_widgetContext);
+        event.size=sizeof(event)-1; g_widgetCallback("widgetwire.main",&event,g_widgetContext);
+        void* partial=std::malloc(event.size); std::memcpy(partial,&event,event.size);
+        g_widgetCallback("widgetwire.main",static_cast<const sco_widget_event*>(partial),g_widgetContext); std::free(partial);
+        event.size=sizeof(event); event.text=nullptr; g_widgetCallback("widgetwire.main",&event,g_widgetContext);
+        CHECK(!Logged("wire good") && !Logged("[widgetwire] error: widget event:"));
+        g_failWidgetRemove=true;
+        CHECK(Invoke(g_caller,"widgetwire.remove").text=="false wrong_thread true");
+        event.text="Good"; g_widgetCallback("widgetwire.main",&event,g_widgetContext);
+        CHECK(Logged("[widgetwire] wire good"));
+        g_failWidgetRemove=false;
+        CHECK(Invoke(g_caller,"widgetwire.remove").text=="true nil false");
+    }
+    Unload(l);
+    g_collectWidgetSet=true;
+    Write("widgetweak",R"lua(
+      sco.widget_test_pause_gc()
+      assert(sco.widgets.set_panel("widgetweak.main","Weak source",setmetatable({
+        {kind="label",id=1,label=string.rep("q",255)}},{__mode="v"})))
+    )lua");
+    Loaded weak=Load("widgetweak",&api); CHECK(weak.p && weak.p->state==State::Loaded);
+    const auto weakPanels=sco::widgets::Panels();
+    CHECK(weakPanels.size()==1 && weakPanels[0].nodes[0].label==std::string(255,'q'));
+    Unload(weak); g_collectWidgetSet=false;
+    g_widgetCallback=nullptr; g_widgetContext=nullptr; g_widgetsFixture=nullptr; g_failWidgetRemove=false;
+    sco::widgets::Stop();
+}
+
+static void TestWidgetsBounds() {
+    CHECK(sco::widgets::Start()==Result::Ok);
+    Write("widgetbounds",R"lua(
+      local nodes={}; for i=1,256 do nodes[i]={kind="label",id=i,label=string.rep("x",255)} end
+      for p=1,16 do assert(sco.widgets.set_panel("widgetbounds.p"..p,"Bounds",nodes)) end
+      assert(select(2,sco.widgets.set_panel("widgetbounds.extra","Bounds",{{kind="label",id=1,label="x"}}))=="too_many")
+      for p=1,16 do assert(sco.widgets.remove_panel("widgetbounds.p"..p)) end
+      local items={}; for i=1,256 do items[i]="x" end
+      local id="widgetbounds."..string.rep("x",50)
+      assert(#id==63)
+      assert(sco.widgets.set_panel(id,string.rep("t",63),{{kind="table",id=1,items=items,columns=16}}))
+      assert(sco.widgets.remove_panel(id))
+      for p=1,64 do assert(sco.widgets.set_panel("widgetbounds.p"..p,"Bounds",{{kind="button",id=1,label="x"}},function() end)) end
+      assert(select(2,sco.widgets.set_panel("widgetbounds.extra","Bounds",{{kind="button",id=1,label="x"}},function() end))=="too_many")
+      assert(sco.widgets.set_panel("widgetbounds.p1","Replace at capacity",{{kind="label",id=1,label="x"}}))
+      assert(sco.widgets.remove_panel("widgetbounds.p1"))
+      assert(sco.widgets.set_panel("widgetbounds.extra","Reused slot",{{kind="button",id=1,label="x"}},function() end))
+    )lua");
+    Loaded l=Load("widgetbounds"); CHECK(l.p && l.p->state==State::Loaded);
+    if(l.p && l.p->state!=State::Loaded) std::printf("  widgetbounds: %s\n",l.p->reason.c_str());
+    CHECK(sco::widgets::Panels().size()==64);
+    Unload(l); CHECK(sco::widgets::Panels().empty()); sco::widgets::Stop();
+}
+
+static void TestWidgetsExample(const fs::path& sdk) {
+    fs::copy(sdk / "examples/widgets_lua",g_root / "widgets_lua",fs::copy_options::recursive);
+    Loaded absent=Load("widgets_lua"); CHECK(absent.p && absent.p->state==State::Loaded);
+    CHECK(Invoke(g_caller,"widgets_lua.state").text=="0 events"); Unload(absent);
+    CHECK(sco::widgets::Start()==Result::Ok);
+    Loaded l=Load("widgets_lua"); CHECK(l.p && l.p->state==State::Loaded);
+    const auto panels=sco::widgets::Panels(); CHECK(panels.size()==1 && panels[0].nodes.size()==10);
+    LuaWidgetRenderer renderer;
+    renderer.events={{4,SCO_WIDGET_BUTTON},{5,SCO_WIDGET_TOGGLE,0,1},{6,SCO_WIDGET_SLIDER,0,0.75},
+      {7,SCO_WIDGET_COMBO,1},{8,SCO_WIDGET_LIST,0},{9,SCO_WIDGET_TEXT_INPUT,0,0,"Edited"}};
+    CHECK(sco::widgets::RenderPanel("widgets_lua.main",renderer)==Result::Ok);
+    CHECK(Invoke(g_caller,"widgets_lua.state").text=="6 events");
+    Unload(l); CHECK(sco::widgets::Panels().empty()); sco::widgets::Stop();
+}
 
 static void TestGreeterExample(const fs::path& sdk) {
     fs::copy(sdk / "examples/greeter", g_root / "greeter", fs::copy_options::recursive);
@@ -901,6 +1294,19 @@ int main(int argc, char** argv) {
     g_root = fs::path(argv[2]) / "lua-plugins";
     fs::remove_all(g_root);
     fs::create_directories(g_root);
+    if (argc > 3 && strcmp(argv[3], "widgets") == 0) {
+        CHECK(sco_lua_add_extension(&kWidgetTestExtension) == SCO_OK);
+        TestWidgets();
+        TestWidgetsTypedEvents();
+        TestWidgetsServiceTables();
+        TestWidgetsInvalid();
+        TestWidgetsLifetime();
+        TestWidgetsCallbackBoundary();
+        TestWidgetsBounds();
+        TestWidgetsExample(argv[1]);
+        std::printf("sco-lua widgets tests: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
     TestGreeterExample(argv[1]);
     TestTable();
     TestHotkeys();

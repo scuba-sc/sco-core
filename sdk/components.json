@@ -1149,6 +1149,76 @@
    "license": "GPL-3.0-only"
   },
   {
+      "id": "csharp.Sco.Sdk.Widgets.cs",
+      "source": "sdk/csharp/Sco.Sdk/Widgets.cs",
+      "destination": "csharp/Sco.Sdk/Widgets.cs",
+      "profiles": [
+          "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+  },
+  {
+      "id": "csharp.Sco.Sdk.WidgetsInterop.cs",
+      "source": "sdk/csharp/Sco.Sdk/WidgetsInterop.cs",
+      "destination": "csharp/Sco.Sdk/WidgetsInterop.cs",
+      "profiles": [
+          "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+  },
+  {
+      "id": "csharp.Sco.Sdk.Tests.WidgetsTests.cs",
+      "source": "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
+      "destination": "csharp/Sco.Sdk.Tests/WidgetsTests.cs",
+      "profiles": [
+          "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+  },
+  {
+      "id": "csharp.Sco.Sdk.Tests.WidgetsPins.cs",
+      "source": "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs",
+      "destination": "csharp/Sco.Sdk.Tests/WidgetsPins.cs",
+      "profiles": [
+          "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+  },
+  {
+      "id": "examples.cs_widgets.WidgetsExample.cs",
+      "source": "sdk/examples/cs_widgets/WidgetsExample.cs",
+      "destination": "examples/cs_widgets/WidgetsExample.cs",
+      "profiles": [
+          "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+  },
+  {
+      "id": "examples.cs_widgets.cs_widgets.csproj",
+      "source": "sdk/examples/cs_widgets/cs_widgets.csproj",
+      "destination": "examples/cs_widgets/cs_widgets.csproj",
+      "profiles": [
+          "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+  },
+  {
+      "id": "examples.cs_widgets.plugin.ini",
+      "source": "sdk/examples/cs_widgets/plugin.ini",
+      "destination": "examples/cs_widgets/plugin.ini",
+      "profiles": [
+          "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+  },
+  {
    "id": "csharp.Sco.Sdk.Commands.cs",
    "source": "sdk/csharp/Sco.Sdk/Commands.cs",
    "destination": "csharp/Sco.Sdk/Commands.cs",
@@ -1582,6 +1652,30 @@
     "core",
     "core-source"
    ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.widgets_lua.CMakeLists.txt",
+   "source": "sdk/examples/widgets_lua/CMakeLists.txt",
+   "destination": "examples/widgets_lua/CMakeLists.txt",
+   "profiles": ["core", "core-source"],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.widgets_lua.main.lua",
+   "source": "sdk/examples/widgets_lua/main.lua",
+   "destination": "examples/widgets_lua/main.lua",
+   "profiles": ["core", "core-source"],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "examples.widgets_lua.plugin.ini",
+   "source": "sdk/examples/widgets_lua/plugin.ini",
+   "destination": "examples/widgets_lua/plugin.ini",
+   "profiles": ["core", "core-source"],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
   },
