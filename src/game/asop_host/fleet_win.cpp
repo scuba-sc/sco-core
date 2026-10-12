@@ -919,20 +919,7 @@ void RunPadSpawns(DWORD now) {
 }
 
 // Raise the lift once the ship is on it: the spawn's own open event does it; Open after 4 s if not.
-void RunLiftWatches(DWORD now) {
-    for (size_t i = 0; i < g_liftWatches.size();) {
-        LiftWatch& w = g_liftWatches[i];
-        const int32_t state = LiftStateOf(w.manager);
-        LogLiftState("Retrieve", w.manager, state, w.lastState);
-        if (state == kOpenIdle || now - w.spawnedAt > kLiftWatchMs) { g_liftWatches.erase(g_liftWatches.begin() + i); continue; }
-        if (state == kClosedIdle && !w.opened && now - w.spawnedAt > kLiftOpenFallbackMs) {
-            w.opened = true;
-            Log("[asop] Retrieve: the lift is still down %lu ms after the spawn; raising it", now - w.spawnedAt);
-            if (!CallLift(g_liftOpen, w.manager)) Log("[asop] Retrieve: lift open request faulted");
-        }
-        ++i;
-    }
-}
+#include "lift_watch.inc"
 
 void MatchSpawnedVehicles(const std::vector<SpawnedVehicle>& spawned, DWORD now) {
     for (const SpawnedVehicle& v : spawned)
@@ -1359,7 +1346,7 @@ void InstallFleet() {
     g_enabled = admitted.load();
     if (!g_enabled) return;
     for (FeatureState& f : g_features) f.on = AsopCapabilityRows(f.cap, f.why, sizeof(f.why));
-    Off(kLift,"lift composition not installed yet");
+    // Lift capability remains row-validated; install its sole close-handler owner below.
     // A Retrieve uses the lift : it needs both groups.
     if (g_features[kRetrieve].on && !g_features[kLift].on) Off(kRetrieve, "needs the hangar ship lift (hangar.lift isn't ready)");
 

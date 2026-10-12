@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Offline hangar lift composition (#131):** enable the row-validated sole lift
+  hook owner and preserve lower/spawn/raise plus store-down/store/raise mechanics.
+  Shared lift-watch fixture checks exact timeout, unknown state and one-shot fallback;
+  Windows lift gameplay not verified.
+
 - **Offline fleet operations (#131):** port existing ASOP delivery/store/retrieve,
   list refresh/claim timeout and ATC request mechanics to the host-only game pack,
   using guarded core reads/spawn helpers rather than product symbols. Shared original

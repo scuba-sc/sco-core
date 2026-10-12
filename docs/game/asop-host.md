@@ -28,8 +28,12 @@ refresh, unstow takeover, retrieved-id matching and ATC cancellation are now in
 `fleet_win.cpp`. Raw offsets/continuation mechanics remain game-pack-owned.
 Existing guarded reads/spawn/mover registration replace product teleport/spawner
 symbols. Only the internal delivery setup cvar is writable; no console route is
-exposed. Stored ships remain session-only. Lift-dependent retrieval stays unavailable
-until lift composition is installed. The fixture compiles the same `delivery.inc`
+exposed. Stored ships remain session-only. Lift-dependent retrieval requires successful row checks and installation of the
+sole lift close-handler owner. Existing pad-spawn lower/wait/timeout fallback,
+platform spawn (capacity-zero borrowed engine string), spawned-id matching and
+store-down/store/raise loops are preserved. The shared `lift_watch.inc` fixture
+checks ClosedIdle/OpenIdle, unavailable/unknown state, exact timeout boundary and
+one-shot raising. It does not prove physical lift movement. The fixture compiles the same `delivery.inc`
 loop, checking settle timing, duplicate refusal, unavailable spawn/store and timeout.
 These synthetic primitive outcomes are not engine or gameplay evidence.
 
