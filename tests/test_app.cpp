@@ -809,7 +809,18 @@ static void* RlOpen(const fs::path& f, std::string& e) {
     return P::PlatformModuleOps().open(f, e);
 }
 static void* RlSymbol(void* m, const char* n) { return P::PlatformModuleOps().symbol(m, n); }
-static void RlClose(void* m) { ++g_closed; P::PlatformModuleOps().close(m); }
+static bool g_probeWithdrawal = false;
+static std::vector<bool> g_withdrawalHidden;
+static void RlClose(void* m) {
+    ++g_closed;
+    if (g_probeWithdrawal) {
+        const void* table = nullptr;
+        const sco_api* api = sco::host::BuildApi({ "test-app 1.0" });
+        const sco_result r = api->query_service("m11.svc", 1u << 16, &table);
+        g_withdrawalHidden.push_back(r != SCO_OK && !table);
+    }
+    P::PlatformModuleOps().close(m);
+}
 
 static void WriteText(const fs::path& f, const std::string& text) {
     std::ofstream(f, std::ios::binary) << text;
@@ -1057,6 +1068,19 @@ static void TestReload(const fs::path& out) {
     r = Invoke("sco.reload", { Str("svc_provider") });                        // the command surfaces the why
     CHECK(r.r == sco::Result::Failed && r.text == "provides a service in use; restart the game to reload it");
     CHECK(Invoke("svc_caller.ok").r == sco::Result::Ok);                      // the consumer still works
+    // The C API and UI do not supply alternative administrative teardown paths.
+    sco_arg reloadArg{};
+    reloadArg.type = SCO_ARG_STRING;
+    reloadArg.v.s = "svc_provider";
+    sco_plugin* caller = Find("svc_caller")->self;
+    CHECK(api->invoke(caller, "sco.reload", &reloadArg, 1, nullptr, nullptr) == SCO_FAILED);
+    CHECK(sco::ui::Table()->bind_hotkey(caller, "ctrl+alt+r", "sco.reload", &reloadArg, 1) == SCO_OK);
+    std::string uiReply;
+    CHECK(sco::ui::Dispatch("ctrl+alt+r", &uiReply) == sco::Result::Failed &&
+          uiReply == "provides a service in use; restart the game to reload it");
+    CHECK(sco::ui::Table()->unbind_hotkey(caller, "ctrl+alt+r") == SCO_OK);
+    CHECK(FakeUnloads("svc_provider") == unloads && g_closed == closed &&
+          StateOf("svc_provider") == State::Loaded && ReloadFiles(root / "svc_provider") == 0);
 
     // A copy that can't be made changes nothing: the plugin keeps running.
     const fs::path entry = root / "m11" / Find("m11")->manifest.entry;
@@ -1094,6 +1118,195 @@ static void TestReload(const fs::path& out) {
     sco::app::Stop();
     CHECK(ReloadFiles(root / "m0") == 0 && ReloadFiles(root / "m11") == 0);
     fs::remove_all(out / "reload", ec);
+}
+
+// A native provider, a diamond of Lua dependents and an unrelated script. Dependencies name
+// both an id and a service; leaf sorts first so folder order cannot stand in for dependency order.
+static void TestReloadCascade(const fs::path& out) {
+    const fs::path base = out / "reload_cascade";
+    const fs::path root = base / "plugins";
+    std::error_code ec;
+    fs::remove_all(base, ec);
+    fs::create_directories(root);
+    fs::copy(out / "plugins" / "m11", root / "m11", fs::copy_options::recursive);
+    fs::copy(out / "plugins" / "svc_provider", root / "svc_provider", fs::copy_options::recursive);
+    {
+        std::ofstream ini(root / "svc_provider" / "plugin.ini", std::ios::app);
+        ini << "\nrequires = b_user\n";
+    }
+    auto makeLua = [&](const char* id, const char* needs) {
+        fs::create_directories(root / id);
+        WriteText(root / id / "plugin.ini", std::string("id = ") + id + "\nname = " + id +
+                  "\nversion = 1.0.0\napi = 1.0\nkind = lua\nentry = main.lua\n" +
+                  (*needs ? std::string("requires = ") + needs + "\n" : ""));
+        WriteText(root / id / "main.lua", "-- no service query: the provider remains reloadable\n");
+    };
+    makeLua("a_leaf", "b_user, z_user.svc, svc_provider.svc");
+    makeLua("b_user", "m11.svc");
+    makeLua("z_user", "m11");
+    makeLua("unrelated", "");
+    makeLua("off_user", "m11");
+    WriteText(root / "off_user" / "disabled", "");
+    const std::string busyScript =
+        "sco.register_command{ name = 'b_user.reload_provider', title = 'Reload', fn = function()\n"
+        "  local ok, name, reply = sco.invoke('sco.reload', 'm11')\n"
+        "  return tostring(ok) .. ' ' .. tostring(name) .. ' ' .. tostring(reply)\nend }\n";
+    WriteText(root / "b_user" / "main.lua", busyScript);
+    sco::app::Platform pf;
+    pf.pluginRoot = root;
+    pf.pluginsEnabled = true;
+    pf.scripts = &kLua;
+    pf.moduleOps = P::ModuleOps{ RlOpen, RlSymbol, RlClose };
+    CHECK(sco::app::Start(pf));
+    static const int providerTable = 42;
+    auto publishProvider = [&] {
+        CHECK(sco::ProvideService(Find("m11")->self, "m11", "m11.svc", 1u << 16, &providerTable) == sco::Result::Ok);
+    };
+    publishProvider();
+    const sco_plugin* provider = Find("m11")->self;
+    const sco_plugin* user = Find("b_user")->self;
+    const sco_plugin* leaf = Find("a_leaf")->self;
+    const sco_plugin* other = Find("z_user")->self;
+    const sco_plugin* unrelated = Find("unrelated")->self;
+    g_log.clear();
+    std::string why;
+    g_withdrawalHidden.clear();
+    g_probeWithdrawal = true;
+    CHECK(sco::app::Reload("m11", &why) == sco::Result::Ok && why.empty());
+    g_probeWithdrawal = false;
+    CHECK((g_withdrawalHidden == std::vector<bool>{ true, true }));
+    CHECK((Unloaded() == std::vector<std::string>{ "a_leaf", "z_user", "svc_provider", "b_user", "m11" }));
+    CHECK(Find("m11")->self != provider && Find("b_user")->self != user &&
+          Find("a_leaf")->self != leaf && Find("z_user")->self != other);
+    CHECK(Find("unrelated")->self == unrelated && StateOf("unrelated") == State::Loaded);
+    CHECK(Find("m11")->loadOrder < Find("b_user")->loadOrder &&
+          Find("b_user")->loadOrder < Find("svc_provider")->loadOrder &&
+          Find("svc_provider")->loadOrder < Find("z_user")->loadOrder &&
+          Find("z_user")->loadOrder < Find("a_leaf")->loadOrder);
+    CHECK(StateOf("off_user") == State::Disabled && !Find("off_user")->self);
+
+    // A dependent's callout is on the stack: refuse the entire group before even making copies.
+    provider = Find("m11")->self;
+    user = Find("b_user")->self;
+    const fs::path providerCopy = Find("m11")->reloadCopy;
+    g_log.clear();
+    Reply busy = Invoke("b_user.reload_provider");
+    CHECK(busy.r == sco::Result::Ok && busy.text == "false failed busy: a callout of b_user is running");
+    CHECK(Unloaded().empty() && Find("m11")->self == provider && Find("b_user")->self == user);
+    CHECK(Find("m11")->reloadCopy == providerCopy && ReloadFiles(root / "m11") == 1);
+
+    // The second native copy fails after the first is prepared. Nothing unloads; temporary
+    // copies and reservations are rolled back, so a subsequent command reload can succeed.
+    const fs::path entry = root / "svc_provider" / Find("svc_provider")->manifest.entry;
+    fs::rename(entry, entry.string() + ".bak");
+    CHECK(sco::app::Reload("m11", &why) == sco::Result::Failed && why.rfind("cannot copy ", 0) == 0);
+    CHECK(Unloaded().empty() && Find("m11")->self == provider && Find("b_user")->self == user);
+    CHECK(ReloadFiles(root / "m11") == 1 && ReloadFiles(root / "svc_provider") == 1);
+    fs::rename(entry.string() + ".bak", entry);
+    Reply command = Invoke("sco.reload", { Str("m11") });
+    CHECK(command.r == sco::Result::Ok && command.text == "reloaded m11");
+    CHECK(Find("m11")->self != provider && Find("b_user")->self != user);
+    CHECK((Unloaded() == std::vector<std::string>{ "a_leaf", "z_user", "svc_provider", "b_user", "m11" }));
+
+    // A load failure refuses its transitive dependents without running them, but the other
+    // branch and the unrelated plugin remain loaded. Old dependent copies are not left behind.
+    WriteText(root / "b_user" / "main.lua", "this is not lua (\n");
+    g_log.clear();
+    CHECK(sco::app::Reload("m11", &why) == sco::Result::Failed && why.rfind("b_user: main.lua:", 0) == 0);
+    CHECK(StateOf("m11") == State::Loaded && StateOf("z_user") == State::Loaded);
+    CHECK(StateOf("b_user") == State::Refused && StateOf("a_leaf") == State::Refused &&
+          StateOf("svc_provider") == State::Refused);
+    CHECK(Find("a_leaf")->reason.rfind("requires b_user:", 0) == 0 &&
+          Find("svc_provider")->reason.rfind("requires b_user:", 0) == 0);
+    CHECK(ReloadFiles(root / "svc_provider") == 0);
+    CHECK(Find("unrelated")->self == unrelated && StateOf("unrelated") == State::Loaded);
+    sco::app::Stop();
+
+    // An unload fault must stop before that dependent's providers are touched. Surviving
+    // reservations are cancelled; independent unloaded branches recover, its leaf is refused.
+    WriteText(root / "b_user" / "main.lua", busyScript);
+    CHECK(sco::app::Start(pf));
+    publishProvider();
+    provider = Find("m11")->self;
+    user = Find("b_user")->self;
+    const_cast<P::Plugin*>(Find("svc_provider"))->exports.unload = Fault;
+    g_log.clear();
+    CHECK(sco::app::Reload("m11", &why) == sco::Result::Failed && why.rfind("unload failed: svc_provider:", 0) == 0);
+    CHECK(Find("m11")->self == provider && Find("b_user")->self == user &&
+          StateOf("m11") == State::Loaded && StateOf("b_user") == State::Loaded);
+    CHECK(StateOf("svc_provider") == State::Crashed && StateOf("a_leaf") == State::Refused &&
+          StateOf("z_user") == State::Loaded);
+    CHECK(Find("a_leaf")->reason.rfind("requires svc_provider:", 0) == 0);
+    CHECK(ReloadFiles(root / "m11") == 0 && ReloadFiles(root / "svc_provider") == 0);
+    const void* available = nullptr;
+    CHECK(sco::host::BuildApi({ "test-app 1.0" })->query_service("m11.svc", 2u << 16, &available) == SCO_UNAVAILABLE && !available);
+    sco::app::Stop();
+
+    // A table handed out by a dependent, not the requested provider, still blocks the whole
+    // group. Refusal preserves every owner, service identity, module and original copy count.
+    CHECK(sco::app::Start(pf));
+    publishProvider();
+    provider = Find("m11")->self;
+    user = Find("b_user")->self;
+    const sco_plugin* service = Find("svc_provider")->self;
+    const sco_api* api = sco::host::BuildApi({ "test-app 1.0" });
+    const void* table = nullptr;
+    CHECK(api->query_service("svc_provider.svc", 1u << 16, &table) == SCO_OK && table);
+    const int closed = g_closed;
+    g_log.clear();
+    g_opened.clear();
+    CHECK(sco::app::Reload("m11", &why) == sco::Result::Failed &&
+          why == "provides a service in use; restart the game to reload it");
+    CHECK(Unloaded().empty() && g_opened.empty() && g_closed == closed);
+    CHECK(Find("m11")->self == provider && Find("b_user")->self == user && Find("svc_provider")->self == service);
+    CHECK(ReloadFiles(root / "m11") == 0 && ReloadFiles(root / "svc_provider") == 0);
+    CHECK(FakeUnloads("m11") == 0 && FakeUnloads("svc_provider") == 0);
+    const void* same = nullptr;
+    CHECK(api->query_service("svc_provider.svc", 1u << 16, &same) == SCO_OK && same == table);
+    // Failure must not leave the earlier provider in withdrawal: its service still resolves.
+    CHECK(api->query_service("m11.svc", 1u << 16, &same) == SCO_OK && same);
+    sco::app::Stop();
+    fs::remove_all(base, ec);
+}
+
+static void TestReloadNonCodeDependents(const fs::path& out) {
+    const fs::path base = out / "reload_noncode";
+    const fs::path root = base / "plugins";
+    std::error_code ec;
+    fs::remove_all(base, ec);
+    fs::create_directories(root / "pack");
+    fs::copy(out / "plugins" / "m0", root / "m0", fs::copy_options::recursive);
+    WriteText(root / "pack" / "plugin.ini",
+              "id = pack\nname = Pack\nversion = 1.0.0\napi = 1.0\nkind = data\nrequires = m0\n");
+    sco::app::Platform pf;
+    pf.pluginRoot = root;
+    pf.pluginsEnabled = true;
+    pf.moduleOps = P::ModuleOps{ RlOpen, RlSymbol, RlClose };
+    CHECK(sco::app::Start(pf));
+    const sco_plugin* before = Find("m0")->self;
+    CHECK(StateOf("pack") == State::Loaded);
+    g_log.clear();
+    std::string why;
+    CHECK(sco::app::Reload("m0", &why) == sco::Result::Failed && why == "pack cannot join a reload cascade");
+    CHECK(Unloaded().empty() && Find("m0")->self == before && ReloadFiles(root / "m0") == 0);
+    sco::app::Stop();
+    fs::remove_all(root / "pack", ec);
+
+    pf.builtins = kBuiltins;
+    pf.nBuiltins = 1;
+    CHECK(sco::app::Start(pf));
+    // Built-ins have no plugin.ini. A host can supply resolved dependencies in its own metadata;
+    // exercise that boundary without changing the public plugin ABI or adding a builtin manifest.
+    auto* builtin = const_cast<P::Plugin*>(Find("core1"));
+    builtin->after.push_back("m0");
+    before = Find("m0")->self;
+    const sco_plugin* core = builtin->self;
+    g_log.clear();
+    CHECK(sco::app::Reload("m0", &why) == sco::Result::Failed && why == "core1 cannot join a reload cascade");
+    CHECK(Unloaded().empty() && Find("m0")->self == before && builtin->self == core &&
+          ReloadFiles(root / "m0") == 0);
+    sco::app::Stop();
+    fs::remove_all(base, ec);
 }
 
 // ---- [settings]: declared in plugin.ini, read by a script, set by the product, kept across a restart ----
@@ -1214,6 +1427,8 @@ int main(int argc, char** argv) {
     TestApp(argv[1], argv[2]);
     TestBuiltinIdConflict(argv[2]);
     TestReload(argv[2]);
+    TestReloadCascade(argv[2]);
+    TestReloadNonCodeDependents(argv[2]);
     TestAppSettings(argv[2]);
     TestReloadSettings(argv[2]);
     TestBuiltinLoader(sco::host::BuildApi({ "test-app 1.0" }), fs::path(argv[2]) / "plugins");

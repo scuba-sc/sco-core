@@ -1,15 +1,15 @@
 # Design: service-table lifetime audit
 
-Status: source audit of `0ce4ab8`, with the `UnloadNative` refusal bypass repaired in this change. No plugin ABI growth. This is an inventory of the current implementation, not a lease or crash-safety guarantee. See [service safety](service-safety.md) for the historical proposal and [plugins](../plugins.md#hot-reload) for the supported reload contract.
+Status: source audit of `0ce4ab8`, updated for atomic administrative withdrawal, built-in provider refusal, queried failed-load retention and dependent reload cascades. No plugin ABI growth. This is an inventory of the current implementation, not a lease or crash-safety guarantee. See [service safety](service-safety.md) for the historical proposal and [plugins](../plugins.md#hot-reload) for the supported reload contract.
 
 ## Scope and result
 
-A service table is the opaque pointer published through `provide_service`, not a signature-row table, VFS mount table, command-list view or IPC data mapping. The inventory covers core, game pack, SDK accessors and native provider lifecycle. Source locations below are repository-relative definition/registration lines in the audited tree; loader lines are unchanged by the one-line routing fix.
+A service table is the opaque pointer published through `provide_service`, not a signature-row table, VFS mount table, command-list view or IPC data mapping. The inventory covers core, game pack, SDK accessors and native provider lifecycle. Source locations in the census are repository-relative definition/registration lines from the original audited tree. Updated lifecycle paths are identified by function name, not stale loader line numbers.
 
 - **13 built-in named tables:** six owned by the host token and seven by the game-pack token. These are compiled-in services, not `plugins::Kind::Builtin` instances.
-- **Four implemented mid-session unload/reload entry functions:** `ReloadCommand`, `app::Reload`, `UnloadOne`, `UnloadNative`. All four now reach `CanUnload`; the first two through the reload path, the last two through `UnloadOne`. Previously, `UnloadNative` called `UnloadCode` directly and tore down a handed-out provider's state despite keeping its module mapped.
-- Shutdown, failed-load cleanup, faults, explicit service withdrawal and owner release are **different operations**, not silently counted as guarded unload requests. Their exceptions and remaining risks are listed below.
-- There is no dependent-cascading reload, automatic file watcher or dedicated C/UI reload entry in this repository. `requires` controls startup ordering/checks, not cascade teardown. UI and C callers can invoke the named `sco.reload` command.
+- **Four mid-session entry functions:** `ReloadCommand`, `app::Reload`, `UnloadOne`, `UnloadNative`. All four reach the single `UnloadGate` in `src/plugins/loader.cpp`. `CanUnload` is only an advisory inspection; `BeginUnload` atomically closes query/publication admission before any teardown. Built-in plugin owners follow the same rule as native owners.
+- **Failed-load cleanup also reaches `UnloadGate`:** if a table was queried during load, the loader refuses the load and closes new admission, but retains backing state, exports, owner resources and native code. No unload export, owner release or script-runtime unload runs. Host callouts are suppressed by `ContainCallouts` for Refused entries. Shutdown, faults, explicit withdrawal and direct runtime owner release remain separate operations with the limits below.
+- `app::Reload` now includes transitively loaded `requires` dependents, using resolved `Plugin::after` edges. It reserves the whole group before copies or teardown, unloads dependents before providers and reloads providers first. Busy, handed-out or non-reloadable members refuse the entire group. There is still no file watcher or dedicated C/UI reload entry; UI and C callers invoke `sco.reload`.
 
 ## Ownership and what a hand-out protects
 
@@ -17,9 +17,17 @@ A service table is the opaque pointer published through `provide_service`, not a
 
 The hand-out mark survives `ReleaseService` and owner release. The unit is **owner**, not service or consumer: one successful lookup, even by the provider itself, makes every table of that native owner session-lifetime for administrative unload/reload. Owner handles are never reused (`host::NewPlugin`, `src/host/sco_host.cpp:296`). There is no release-reference API; `release_service` only withdraws a name. `ServiceRef` in the SDK is a pointer holder, not a counted reference.
 
-`CanUnload` (`src/plugins/loader.cpp:211`) consults this mark only for `Kind::Native`. A refusal precedes `sco_plugin_unload` and `Release`, leaving the provider Loaded and intact. `KeepMapped` (`:198`), used by `CloseOrKeep` (`:221`), is a separate last-line module pin after withdrawal. **A mapped DLL is not proof that heap-allocated table storage, plugin objects or game state are still alive.** Crash and shutdown consumers must not infer that a stale raw table is callable.
+`UnloadGate` (`src/plugins/loader.cpp`) applies to every plugin owner with a `self`, including `Kind::Builtin`. A refusal precedes unload exports and `Release`, leaving a loaded provider intact. `KeepMapped`, used by `CloseOrKeep`, remains a separate last-line module pin after withdrawal. **A mapped DLL is not proof that heap-allocated table storage, plugin objects or game state are still alive.** Crash and shutdown consumers must not infer that a stale raw table is callable.
 
 Registry operations are any-thread and mutex-protected. Plugin lifecycle/list mutation is a **game-thread caller contract** (`include/sco/plugins.h`); most loader functions do not independently reject a wrong-thread call. `app::Reload` does reject one (`src/app/sco_app.cpp:235`). A lookup's thread permission never relaxes a table entry's own thread rule.
+
+## Atomic admission and failed-load retention
+
+`ServiceWithdrawal` (`src/api/sco_services.cpp`) holds the same mutex as `QueryService` and `ProvideService`. It inspects the whole owner group and records every withdrawing owner before releasing the lock. Administrative refusal or allocation failure leaves the whole group unchanged. A successful reservation prevents both new queries and republication (`Unavailable`, null query output), including calls synchronously inside an unload export or on a joined worker. An earlier successful query records its hand-out before the gate can run, so the gate refuses teardown instead. The mutex is never held while plugin code runs.
+
+`CanUnload` calls `UnloadGate` in inspection mode; every actual unload rechecks using withdrawal mode. `app::Reload` uses `BeginUnload` for its entire dependent group, then `UnloadOne` reuses those reservations. Copy failure cancels reservations without teardown. An unload failure stops before that dependent's providers are touched; only still-Loaded survivors have their reservations cancelled. Released, Refused and Crashed owners are not reopened by cancellation.
+
+A non-OK native/built-in load or script-runtime load uses failed-load mode: close admission even when already handed out, and refuse destructive cleanup if so. The entry stays Refused with a retention reason; cached pointers are not revoked. SDK/provider code may have already invalidated its own state inside load, independently of the host. This is a host cleanup guarantee, not a guarantee that an arbitrary failed provider remains callable.
 
 ## Built-in table census
 
@@ -47,7 +55,7 @@ Host service Start/Stop may be called on any thread according to their headers; 
 
 ### Native and built-in plugin providers
 
-`host::ProvideServiceC` (`src/host/sco_host.cpp:223`) publishes with the plugin's `self` owner and id prefix. `Kind::Builtin` may publish by the same route; its code never unmaps, but its unload function can destroy backing state. `app::Reload` rejects built-ins; a direct `UnloadOne` accepts them because `CanUnload` only protects natives. No concrete product built-in table is defined here: products supply `Platform::builtins`. The loader cannot enumerate arbitrary third-party table layouts or prove their storage lifetime.
+`host::ProvideServiceC` (`src/host/sco_host.cpp`) publishes with the plugin's `self` owner and id prefix. `Kind::Builtin` may publish by the same route; its code never unmaps, but its unload function can destroy backing state. Direct `UnloadOne` now refuses a built-in whose table was handed out. `app::Reload` still rejects built-in targets and rejects a cascade containing a built-in dependent. No concrete product built-in table is defined here: products supply `Platform::builtins`. The loader cannot enumerate arbitrary third-party table layouts or prove provider-managed storage lifetime.
 
 The repository's native example providers are `cpp_hello.greeter` (`sdk/examples/cpp_hello/cpp_hello.cpp:31,62`: static `kGreeter`) and `cs_hello.greeter` (`sdk/examples/cs_hello/CsHello.cs:35,68–74`: a once-allocated, never-freed NativeMemory table). Both publish 1.0 under their native plugin owner; their greet function is independent of per-plugin mutable state. Their lifecycle/export entry points are game-thread calls; raw service calls have no host dispatcher. Tests additionally publish synthetic `svc_provider`/`svc_prov_b/c/d.svc` (`tests/fixtures/plugins/native/fake_plugin.c`, mode 11) and stand-in tables; these are fixtures, not shipped host services. Lua exposes no `provide_service` binding (`plugins/lua/sco_lua.c:1233`).
 
@@ -114,40 +122,37 @@ These native helpers return a queried pointer internally, on the script/game thr
 
 N = native plugin owner (`p.self`); B = built-in plugin owner; L = script owner. H/G as above. The table separates request entry functions from internal sinks; counting every wrapper as a separate independent safety check would overstate coverage.
 
-| Function/path; location | Owner; thread rule | Routes through `CanUnload`? / effect |
+| Function/path; location | Owner; thread rule | Gate / effect |
 |---|---|---|
-| `ReloadCommand`, `src/app/sco_app.cpp:46` | Target N/L; command runs game thread | **Yes**, via `Reload` |
-| `app::Reload`, `src/app/sco_app.cpp:230` | Target N/L; game thread enforced | **Yes**, :245 before copy/unload; `UnloadOne` checks again. B/data rejected |
-| `UnloadNative`, `src/plugins/loader.cpp:444` | N; game-thread contract | **Yes after this fix**, via `UnloadOne`; previously bypassed it |
-| `UnloadOne`, `src/plugins/loader.cpp:528` | N/B/L; game-thread contract | **Yes**, :531 before teardown; B/L/data pass predicate |
-| C API `invoke` / `host::InvokeC`, `src/host/sco_host.cpp:189` | Command caller; any thread, off-thread queued | **Indirectly**, when name is `sco.reload`; no C unload/reload function exists |
-| UI hotkey `ui::Dispatch`, `src/ui/ui.cpp:617` | Hotkey binder; invokes command, off-thread queued | **Indirectly**, when bound name is `sco.reload`; UI has no provider teardown entry |
-| `UnloadOneNow`, `src/plugins/loader.cpp:518` | N/B/L; game thread | No local check; private sink, called only by checked `UnloadOne` or shutdown `UnloadAll` |
-| `UnloadCode`, `src/plugins/loader.cpp:431` | N/B; game thread | No local check; guarded unload export, ReleaseOwner, CloseOrKeep. Only reachable through preceding sink |
-| `UnloadScript`, `src/plugins/loader.cpp:509` | L; game thread | No local check; Release before runtime unload; Lua cannot publish native service tables |
-| `app::Stop`, `src/app/sco_app.cpp:206` | All plugin owners, then H/G; game-thread contract | **Shutdown exception**; game.exit, UnloadAll, service Stops and residual withdrawals |
-| `UnloadAll`, `src/plugins/loader.cpp:564` | All Loaded N/B/L; game thread | **Shutdown exception**, calls UnloadOneNow directly, newest first and B last; handed-out N stays mapped |
-| `QueryAndLoad`, `src/plugins/loader.cpp:239` | New N/B; game thread | **Failed-load exception**; load fault -> Crash; non-OK result -> ReleaseOwner then RefuseLoad |
-| `LoadNative`, `src/plugins/loader.cpp:284` | New N; game thread | No unload refusal; Ready-only open, missing export -> RefuseLoad; not a live-provider reload entry |
-| `LoadBuiltin`, `src/plugins/loader.cpp:338` | New B; game thread | No unload refusal; Ready-only QueryAndLoad, no module |
-| `RefuseLoad`, `src/plugins/loader.cpp:228` | N/B; game thread | No check; CloseOrKeep then clear exports/state Refused; failed load, not administrative unload |
-| `CloseOrKeep`, `src/plugins/loader.cpp:221`; `CloseModule`, :54 / :62 | N; game thread | No refusal; **pin** via KeepMapped before ModuleOps.close -> FreeLibrary/dlclose |
-| `LoadScript` refusal/error cleanup, `src/plugins/loader.cpp:465` | L; game thread | No native provider; ReleaseOwner, runtime unload on non-OK script load |
-| `Crash`, `src/plugins/loader.cpp:135` | N/B/L; game thread | **Fault exception**, ReleaseOwner and Crashed; never closes module |
-| `MarkCrashed`, `src/plugins/loader.cpp:345` | Loaded N/B/L; game thread | No refusal; delegates to Crash, cannot leave faulting plugin enabled merely because it provided a table |
-| `CallPlugin`, `ContainedCallout`, `src/plugins/loader.cpp:399,413` | Callout owner or faulting N provider | No refusal; CallPlugin faults -> MarkCrashed or BlameProvider; lifecycle game-thread contract |
-| `BlameProvider`, `BlameTask`, `BlameProviderNow`, `src/plugins/loader.cpp:389,382,370` | Faulting N provider | No refusal; off-thread provider verdict posted to game thread before MarkCrashed; queue failure leaves it enabled and logs |
-| `ReleaseOwner`, `ReleaseFailed`, `src/plugins/loader.cpp:117,127` | N/B/L; Release requires game thread | No refusal; runtime Release, or Crashed/kept loaded on release failure |
-| `sco::Release`, `src/api/sco_tasks.cpp:218` | Any runtime owner; game thread enforced | No loader predicate; removes services/callbacks/tasks and runs resource release hooks, never closes DLL |
-| `ReleaseService`, `detail::ReleaseServices`, `src/api/sco_services.cpp:95,106` | Published owner; any thread, registry lock | No refusal; withdraws names only, hand-out mark retained; no provider teardown itself |
-| `host::ReleaseServiceC`, `src/host/sco_host.cpp:232` | Valid plugin self; any thread | No refusal; explicit C service withdrawal, not native unload |
-| `WithdrawHostService(s)`, `src/host/sco_host.cpp:324,326` | H; any thread | No predicate; named/all registry withdrawal; no module teardown |
-| `WithdrawGameService(s)`, `src/host/sco_host.cpp:347,349` | G; any thread | No predicate; named/all registry withdrawal; no module teardown |
-| Host and game service Stop functions | H/G; see census | No predicate; resource teardown and withdrawal; normal app path is after plugin unload; startup rollback also uses game Stops |
-| `Disable`, `Failed`, `plugins/lua/sco_lua.c:199,217` | L; script/game thread | No provider table; alive=0, unsubscribes script events; state not freed here |
-| `sco_lua_unload`, `Close`, `plugins/lua/sco_lua.c:1314,1273` | L; game thread, no active script depth | No provider table; frees script state; load-error cleanup also calls Close |
-| `CopyForReload`, `RemoveReloadCopies`, `src/plugins/loader.cpp:542,553` | Native filesystem copies; lifecycle game thread | No provider teardown; copies/removes paths, never calls ModuleOps.close |
-| Cascading reload of `requires` dependents / watcher | None implemented | Not applicable; `UnmetRequires` in Reload checks target's dependencies, not consumers |
+| `ReloadCommand`, `src/app/sco_app.cpp` | N/L; game thread | `Reload` -> `BeginUnload` -> `UnloadGate` for the entire cascade |
+| `app::Reload`, `src/app/sco_app.cpp` | N/L; game thread enforced | Group inspection, atomic reservation, then each `UnloadOne`; B/data members rejected |
+| `UnloadNative`, `src/plugins/loader.cpp` | N; game-thread contract | `UnloadOne` -> `BeginUnload` -> `UnloadGate` |
+| `UnloadOne`, `src/plugins/loader.cpp` | N/B/L; game-thread contract | Atomic `UnloadGate` before any export, runtime unload or Release |
+| C API `invoke` / `host::InvokeC`, `src/host/sco_host.cpp` | Any thread, off-thread queued | `sco.reload` uses the same command path; no C lifecycle bypass |
+| UI hotkey `ui::Dispatch`, `src/ui/ui.cpp` | Any thread, off-thread queued | Bound `sco.reload` uses the same command path; no UI lifecycle bypass |
+| `UnloadOneNow`, `src/plugins/loader.cpp` | N/B/L; game thread | Private sink after administrative reservation; shutdown exception below |
+| `UnloadCode`, `src/plugins/loader.cpp` | N/B; game thread | Private unload export, ReleaseOwner and CloseOrKeep; no separate predicate |
+| `UnloadScript`, `src/plugins/loader.cpp` | L; game thread | Private Release/runtime unload sink after administrative reservation |
+| `app::Stop`, `src/app/sco_app.cpp` | All plugin owners, then H/G | **Shutdown exception**, game.exit, UnloadAll, service Stops and withdrawals |
+| `UnloadAll`, `src/plugins/loader.cpp` | Loaded N/B/L; game thread | **Shutdown exception**, UnloadOneNow, newest first and B last; queried N stays mapped |
+| `QueryAndLoad`, `src/plugins/loader.cpp` | New N/B; game thread | Non-OK load -> `UnloadGate` failed-load mode; queried backing state retained; load fault -> Crash unchanged |
+| `LoadNative`, `LoadBuiltin`, `src/plugins/loader.cpp` | New N/B; game thread | Ready-only load; shared QueryAndLoad cleanup. Pre-load export/info refusals have no newly published owner |
+| `RefuseLoad`, `src/plugins/loader.cpp` | N/B; game thread | Clears exports and closes only after eligible cleanup; queried failed loads do not reach this sink |
+| `CloseOrKeep`, `CloseModule`, `src/plugins/loader.cpp` | N | Final module pin, not a backing-state guarantee or alternative administrative unload |
+| `LoadScript`, `src/plugins/loader.cpp` | L; game thread | Failure cleanup -> `UnloadGate` before Release or runtime unload; Lua cannot publish tables, but a host runtime can |
+| `Crash`, `MarkCrashed`, `src/plugins/loader.cpp` | N/B/L; game thread | **Fault exception**, owner release and Crashed; module retained; unchanged here |
+| `CallPlugin`, `ContainedCallout`, `src/plugins/loader.cpp` | Callout owner or faulting N | Fault -> MarkCrashed or BlameProvider; not administrative unload |
+| `BlameProvider`, `BlameTask`, `BlameProviderNow`, `src/plugins/loader.cpp` | Faulting N | Off-thread verdict posted to game thread; queue-failure behavior unchanged |
+| `ReleaseOwner`, `ReleaseFailed`, `src/plugins/loader.cpp` | N/B/L | Internal Release helpers used after gate or by explicit fault/shutdown exceptions |
+| `sco::Release`, `src/api/sco_tasks.cpp` | Runtime owner; game thread enforced | Direct runtime cleanup, not a loader administrative request; release hooks may tear down resources |
+| `ReleaseService`, `detail::ReleaseServices`, `src/api/sco_services.cpp` | Published owner; any thread, lock | Name withdrawal only; hand-out mark and loader reservation are preserved |
+| `host::ReleaseServiceC`, `src/host/sco_host.cpp` | Valid self; any thread | Explicit service-name withdrawal, not unload |
+| `WithdrawHostService(s)`, `WithdrawGameService(s)`, `src/host/sco_host.cpp` | H/G; any thread | Registry withdrawal, not backing-state teardown |
+| Host/game service Stop functions | H/G; see census | Compiled-in resource teardown, not Kind::Builtin plugin unload; unchanged |
+| `Disable`, `Failed`, `sco_lua_unload`, `Close`, `plugins/lua/sco_lua.c` | L; script/game thread | Lua-owned runtime state; no native table publication binding |
+| `CopyForReload`, `RemoveReloadCopies`, `src/plugins/loader.cpp` | Filesystem copies | No provider teardown or ModuleOps.close |
+| Cascading reload of `requires` dependents | `app::Reload`, game thread | Entire loaded dependent closure reserved through the single loader gate; reverse teardown, forward load |
+| Automatic file watcher | None implemented | Not applicable |
 
 Resource release hooks are additional teardown sinks, not table/module owners: `OnRelease` in `src/storage/storage.cpp:772`, `src/settings/settings.cpp:237`, `src/ui/ui.cpp:440`, `src/ipc/ipc.cpp:372`, `src/net/service.cpp:613`, `src/datacore/service.cpp:390`; game `spawn.cpp:263` delegates to `ReleaseActorsOwner` (`actors.cpp:649`), `ReleaseEntitiesOwner` (`entities.cpp:1095`), `ReleaseCreativeOwner` (`creative.cpp:666`). They run on the game thread through `sco::Release`; they close/despawn/reset the released consumer's resources, do not ask CanUnload and do not revoke cached tables held by other consumers.
 
@@ -157,18 +162,17 @@ SDK provider-side teardown is reached from the guarded unload export, not throug
 
 The standalone checker is a different one-plugin host: `sdk/tools/sco-plugin-check.c:891` always sets its query out-pointer null and returns NotFound/BadArg. It cannot hand out a provider table; its `check_native` shutdown calls the unload export at :1074 and intentionally leaves the module mapped. `tools/sco-host-sim.cpp:234` instead shuts down through `app::Stop`. Neither supplies a hidden live-session reload path.
 
-`tests/test_plugins.cpp`, `TestServices`, now checks both public single-plugin unload routes with a real provider DLL and held table: state/module/self unchanged, unload counter zero, no close, same table still resolving and callable. A plain native still unloads/closes. `UnloadAll` still runs the provider's unload once, withdraws its name and keeps its module mapped. The changed test failed against the original direct `UnloadNative -> UnloadCode` implementation, then passed after routing through `UnloadOne`. `tests/test_app.cpp`, `TestReload`, already checks app reload and `sco.reload` refusal, copy/close/unload counters, consumer behavior and shutdown.
+`tests/test_plugins.cpp`: `TestServices` covers real-DLL refusal through both public unload routes and terminal module pinning. `TestAtomicUnloadAdmission` deterministically queries and attempts republication inside the unload export, with an additional joined worker query (no sleeps). `TestBuiltinServiceUnloadRefusal` proves unload exports and release hooks cannot destroy queried built-in backing state, even after explicit withdrawal/republication. `TestFailedLoadServiceRetention` covers native and built-in non-OK loads; `TestFailedScriptServiceRetention` covers a publishing host script runtime. Each new path was observed failing before its fix. `tests/test_app.cpp`: `TestReload` covers app, command, C API invoke and UI dispatch refusal; `TestReloadCascade` covers transitive/diamond ordering, whole-group reservation, copy rollback, busy and handed-out dependents, and partial-failure behavior; `TestReloadNonCodeDependents` covers built-in/data cascade refusal.
 
 Local verification uses the kernel-only CMake `test_plugins` and `test_app` targets. That covers the refusal logic and real host shared-library loading, not the Windows SEH stack walk or game-pack Stop behavior in a running game. Not run in game. The full local `tools/test.sh` path is not used because of the known unrelated macOS warning-as-error failures in the VFS/pak code.
 
-## Open: lifecycle centralization and fault behavior
+## Open: provider withdrawal, fault behavior and shutdown
 
-These findings are recorded, not changed by this audit:
+The atomic administrative race, built-in plugin refusal and queried failed-load cleanup findings are repaired above. These remaining findings are not changed here:
 
-- **Concurrent lookup versus administrative unload:** `CanUnload` releases the registry lock before unload runs. An any-thread query can first hand out a table after that check (or synchronously inside the unload export) and before Release withdraws it. CloseOrKeep will pin the code afterward, but state teardown has already happened. There is no atomic admission/teardown gate; checked routing alone is not a proof against this race.
-- **Explicit withdrawal/republication:** release_service withdraws a name, not a reference. A provider may subsequently free/replace dynamic table memory while existing consumers retain it. Built-ins pass CanUnload and their state can also be torn down without unmapping code. Centralizing all lifecycle/withdrawal rules needs its own change.
-- **Fault and failed-load behavior:** Crash releases provider-owned resources despite handed-out tables and keeps code mapped. A plugin can publish and have its table queried during load, then fail loading; cleanup still releases it. There is no provider-call wrapper, lease, availability guard or stale-state guarantee. Off-thread calls outside a host guard are not contained; POSIX's default guard contains nothing. The queued provider-blame path differs from owner blame and is not general thread-safe lifecycle permission.
+- **Explicit withdrawal/republication:** release_service withdraws a name, not a reference. Outside a loader reservation, a provider may subsequently free/replace dynamic table memory while existing consumers retain it. The host gate cannot constrain arbitrary provider-managed teardown or replacement.
+- **Fault behavior:** Crash releases provider-owned resources despite handed-out tables and keeps code mapped. There is no provider-call wrapper, lease, availability guard or stale-state guarantee. Off-thread calls outside a host guard are not contained; POSIX's default guard contains nothing. The queued provider-blame path differs from owner blame and is not general thread-safe lifecycle permission.
 - **Shutdown ordering:** reverse declared load order and built-ins-last is not a graph of all actual queried dependencies. A consumer without a declared requires may unload after a provider. Stop is terminal for consumers; do not keep calling raw tables during/after shutdown based only on module pinning. Crash/killed-process shutdown is best effort.
 - **Static getters and SDK caches:** native Table() getters return a non-null static address even after Stop. SDK copies do not automatically invalidate on withdrawal/fault/Stop. C# typed Open methods can retain the old pointer on failed reopen; lookup-again is not a lease either. Do not strengthen this into an all-functions-return-Unavailable claim: UI chord normalization is pure, DataCore state is a state value, and Net predicates can return 0.
 
-None of those findings changes `sco_api.h`, service table layouts, crash policy or dependency-reload policy in this change.
+`sco_api.h`, service table layouts, fault policy, shutdown ordering and SDK caches are unchanged. Dependent reload policy changes only as described above; raw table references are never revoked.

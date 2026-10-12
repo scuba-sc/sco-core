@@ -201,19 +201,56 @@ static bool KeepMapped(const Plugin& p) {
     return true;
 }
 
-// A native plugin whose service table was handed out is session-lifetime. True when p may be
-// unloaded while the game runs; false with `why` set when the request must be refused: a table of
-// p's was handed out by query_service (to another plugin or the host), so a caller may still hold
-// it and unloading p would tear its state down under that pointer. The refusal happens before
-// sco_plugin_unload and before sco::Release, so nothing of p's is touched. Only a restart of the
-// game reloads such a plugin. Lua plugins, data packs, built-ins and natives nobody asked a
-// service of always pass. Host shutdown (UnloadAll) does not ask: it tears everything down.
-bool CanUnload(const Plugin& p, std::string& why) {
+// All administrative lifecycle decisions come through this gate. Advisory checks do not
+// reserve; actual teardown reserves the entire group under the same lock as QueryService.
+// Never hold that lock across plugin code (unload may query synchronously or on a worker).
+enum class UnloadAdmission { Inspect, Withdraw, FailedLoad };
+static bool UnloadGate(const std::vector<const Plugin*>& group, std::string& why,
+                       UnloadAdmission admission) {
     why.clear();
-    if (p.manifest.kind != Kind::Native || !p.self) return true;
-    if (!sco::ServiceTableHandedOut(p.self)) return true;
-    why = "provides a service in use; restart the game to reload it";
-    return false;
+    std::vector<const void*> owners;
+    try {
+        owners.reserve(group.size());
+        for (const Plugin* p : group)
+            if (p && p->self) owners.push_back(p->self);
+    } catch (...) {
+        why = "cannot reserve service admission: TOO_MANY";
+        return false;
+    }
+    bool inUse = false;
+    const Result r = sco::ServiceWithdrawal(owners.data(), owners.size(),
+        admission != UnloadAdmission::Inspect, admission == UnloadAdmission::FailedLoad, inUse);
+    if (inUse) {
+        why = "provides a service in use; restart the game to reload it";
+        return false;
+    }
+    if (r != Result::Ok) {
+        why = std::string("cannot reserve service admission: ") + sco::ResultName(r);
+        return false;
+    }
+    return true;
+}
+
+bool CanUnload(const Plugin& p, std::string& why) {
+    return UnloadGate({ &p }, why, UnloadAdmission::Inspect);
+}
+
+bool BeginUnload(const std::vector<Plugin*>& group, std::string& why) {
+    try {
+        return UnloadGate(std::vector<const Plugin*>(group.begin(), group.end()), why, UnloadAdmission::Withdraw);
+    } catch (...) {
+        why = "cannot reserve service admission: TOO_MANY";
+        return false;
+    }
+}
+
+void CancelUnload(const std::vector<Plugin*>& group) {
+    // Cancel one at a time without allocations: only still-live survivors can be reopened.
+    for (const Plugin* p : group)
+        if (p && p->self && p->state == State::Loaded) {
+            const void* owner = p->self;
+            sco::CancelServiceWithdrawal(&owner, 1);
+        }
 }
 
 // Closes p's module (natives) unless KeepMapped; p.module stays set while the module does, so a
@@ -266,8 +303,19 @@ static bool QueryAndLoad(Plugin& p, const sco_api* api, sco_plugin* self, const 
     if (const uint32_t code = Guarded(LoadThunk, &l)) { Crash(p, "sco_plugin_load", code); return false; }
     if (p.state != State::Ready) return false;   // a nested fault already marked it (and released it)
     if (l.result != SCO_OK) {
-        if (const Result r = ReleaseOwner(p); r != Result::Ok) return ReleaseFailed(p, r);   // keep it mapped
-        return RefuseLoad(p, std::string("sco_plugin_load returned ") + sco::ResultName(static_cast<Result>(l.result)), ops);
+        const std::string failure = std::string("sco_plugin_load returned ") +
+            sco::ResultName(static_cast<Result>(l.result));
+        std::string why;
+        if (!UnloadGate({ &p }, why, UnloadAdmission::FailedLoad)) {
+            // A nested consumer already holds the provider's state: disable host callouts and
+            // new table admission, but do not release resources, clear exports or close code.
+            p.state = State::Refused;
+            p.reason = failure + "; backing state retained: " + why;
+            sco::Log("[plugin] refused %s: %s", IdOf(p), p.reason.c_str());
+            return false;
+        }
+        if (const Result r = ReleaseOwner(p); r != Result::Ok) return ReleaseFailed(p, r);
+        return RefuseLoad(p, failure, ops);
     }
 
     p.state = State::Loaded;
@@ -464,8 +512,16 @@ static void ScriptThunk(void* c) {
 
 bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRuntime& runtime) {
     if (p.state != State::Ready || p.manifest.kind != Kind::Lua) return false;
-    auto refuse = [&](std::string why) {
+    auto refuse = [&](std::string why, bool unload = false) {
+        std::string admission;
+        if (!UnloadGate({ &p }, admission, UnloadAdmission::FailedLoad)) {
+            p.state = State::Refused;
+            p.reason = why + "; backing state retained: " + admission;
+            sco::Log("[plugin] refused %s: %s", IdOf(p), p.reason.c_str());
+            return false;
+        }
         if (const Result r = ReleaseOwner(p); r != Result::Ok) return ReleaseFailed(p, r);
+        if (unload) runtime.unload(self);
         p.state = State::Refused;
         p.reason = std::move(why);
         sco::Log("[plugin] refused %s: %s", IdOf(p), p.reason.c_str());
@@ -491,12 +547,9 @@ bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRun
     if (const uint32_t code = Guarded(ScriptThunk, &k)) { Crash(p, "the script runtime", code); return false; }
     if (p.state != State::Ready) return false;   // a nested fault already marked it
     if (k.result != SCO_OK) {
-        // Release first, then free the script (as UnloadScript does): until Release the runtime
-        // holds callbacks into the script state.
-        if (const Result r = ReleaseOwner(p); r != Result::Ok) return ReleaseFailed(p, r);   // script kept
-        runtime.unload(self);
+        // Admission gate, then Release, then runtime unload: no alternate failed-load teardown.
         return refuse(k.err[0] ? std::string(k.err) : std::string("script load returned ") +
-                      sco::ResultName(static_cast<Result>(k.result)));
+                      sco::ResultName(static_cast<Result>(k.result)), true);
     }
     p.state = State::Loaded;
     p.reason.clear();
@@ -514,7 +567,7 @@ static void UnloadScript(Plugin& p, const ScriptRuntime* runtime) {
 }
 
 // The teardown of one Loaded plugin, without the session-lifetime check: UnloadAll (host
-// shutdown) must unload everything, so it calls this directly; UnloadOne asks CanUnload first.
+// shutdown) must unload everything, so it calls this directly; UnloadOne reserves admission first.
 static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* runtime) {
     if (p.state != State::Loaded) return;
     switch (p.manifest.kind) {
@@ -528,7 +581,7 @@ static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* r
 void UnloadOne(Plugin& p, const ModuleOps& ops, const ScriptRuntime* runtime) {
     if (p.state != State::Loaded) return;
     std::string why;
-    if (!CanUnload(p, why)) {   // session-lifetime provider: refuse, leave it Loaded and intact
+    if (!BeginUnload({ &p }, why)) {   // atomic refusal or reservation before any teardown
         sco::Log("[plugin] %s: unload refused: %s", IdOf(p), why.c_str());
         return;
     }
