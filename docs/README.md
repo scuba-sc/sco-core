@@ -85,6 +85,8 @@ Client-specific instructions live in the integration guide, not in this index.
    checks and existing Pages publication workflow.
 5. [IP policy](../IP_POLICY.md), [third-party notices](../THIRD_PARTY_NOTICES.md)
    and [dependency inventory](legal/third-party-inventory.md).
+6. [Design: opt-in runtime MCP](design/runtime-mcp.md): owner-approved decisions
+   (2026-10-12), not implemented; metadata-only runtime group and security/fixture acceptance.
 
 ### Historical designs and evidence
 

@@ -15,6 +15,46 @@
  },
  "entries": [
   {
+   "path": "docs/design/runtime-mcp.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Project-authored step-0 design adapted to owner-approved placement A. Remaining policy decisions are explicitly pending. No runtime implementation, game extracts, licence grant or release authorization. Repository-only documentation."
+  },
+  {
+   "path": "SECURITY.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Project-authored support/scope and GitHub security-reporting policy. Disabled private vulnerability reporting is disclosed; owner enablement required. No personal reporting identity or repository settings changed."
+  },
+  {
+   "path": "tools/sco-core-mcp/runtime_schema/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Proposed exact diagnostics JSON schemas and entirely synthetic request/response golden vectors; not captured host/game output, runtime code or an additional MIT interface grant. Excluded from every SDK profile by the existing MCP directory exclusion."
+  },
+  {
+   "path": "tools/sco-core-mcp/test_runtime_schema.py",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Repository-only stdlib schema/vector refusal test reusing tools/ip_audit.py validation. No runtime imports, dependency, IPC or game access; original discovery server/test files unchanged."
+  },
+  {
    "path": "tests/game_contracts/conformance/**",
    "origin": "project-authored",
    "license": "GPL-3.0-only",
