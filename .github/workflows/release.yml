@@ -1,112 +1,302 @@
 name: release
 
-# Publishes an SDK release when a tag sdk-v<version> is pushed. The tag must match sdk/VERSION. The
-# package job packages the SDK and checks it exactly as the sdk workflow does (the C# layout test against the
-# ABI pins, every example built and checked from the zip, cs_hello published with NativeAOT), then
-# the release job creates the GitHub release with the zip, its .sha256 file and the tag's CHANGELOG section as notes.
-#
-# Releasing: set sdk/VERSION, add a "## sdk-v<version> (<date>)" section to CHANGELOG.md, merge;
-# the maintainer then commits docs/legal/release-decisions/sdk-v<version>.json approving that
-# commit (docs/legal/release-checklist.md) and tags the commit that adds the record: git tag
-# sdk-v<version> && git push origin sdk-v<version>. The release job refuses unless the record
-# validates against docs/legal/release-approval.schema.json and approves the tagged commit or its
-# parent with only release decisions changed since.
+# Promote, never rebuild: a pushed sdk-v<version> tag must contain the reviewed release.json
+# at docs/legal/release-decisions/<tag>.json and its .json.sig SSH signature. release-candidate.yml
+# builds the bytes first; the maintainer copies its run/artifact IDs and complete hash inventory,
+# signs with ssh-keygen -Y sign -n sco-release-v1, commits both approval files, then tags.
+# verify downloads only the approved artifact IDs and checks the signature, payload and provenance.
+# publish uploads a complete DRAFT, lists and re-downloads every asset, re-verifies, then publishes.
+# Both jobs use environment release; its SCO_RELEASE_ALLOWED_SIGNERS variable must hold the
+# trusted SSH allowed_signers content. Only publish has repository write access.
 
 on:
   push:
     tags: ['sdk-v*']
 
-# Two jobs: package builds and checks the SDK with read-only access to the repository; release, which
-# runs no build step, is the only one that can write, and only creates the release from package's files.
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  package:
+  verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: read
+      actions: read
     outputs:
-      version: ${{ steps.tag.outputs.version }}
+      run-id: ${{ steps.payload.outputs.run-id }}
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # Manifest source must equal this tag or be its approval-only ancestor.
+
+      - name: Load trusted signers from the release environment
+        env:
+          ALLOWED_SIGNERS: ${{ vars.SCO_RELEASE_ALLOWED_SIGNERS }}
+        run: |
+          if [ -z "${ALLOWED_SIGNERS//[[:space:]]/}" ]; then
+            echo 'no trusted signer configured'; exit 1
+          fi
+          printf '%s\n' "$ALLOWED_SIGNERS" > "$RUNNER_TEMP/allowed_signers"
+          echo "ALLOWED_SIGNERS_FILE=$RUNNER_TEMP/allowed_signers" >> "$GITHUB_ENV"
+
+      - name: Download the approved candidate by exact artifact IDs
+        id: payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import io
+          import json
+          import os
+          import re
+          import stat
+          import subprocess
+          import zipfile
+          from pathlib import Path
+
+          repo, tag = os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_REF_NAME']
+          manifest = Path('docs/legal/release-decisions') / f'{tag}.json'
+          approval = json.loads(manifest.read_text())
+          def positive_id(value):
+              if type(value) is not int or value <= 0:
+                  raise SystemExit('invalid builder run ID or artifact ID')
+              return value
+          run_id = positive_id(approval['builder']['run_id'])
+          names, artifact_ids = set(), {}
+          for artifact in approval['artifacts']:
+              name = artifact['name']
+              if (not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name)
+                      or name in {'release.json', 'release.json.sig'} or name in names):
+                  raise SystemExit('unsafe, duplicate or reserved payload name')
+              names.add(name)
+              artifact_ids.setdefault(positive_id(artifact['artifact_id']), set()).add(name)
+          if not names:
+              raise SystemExit('empty approved payload')
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+          run = api(f'repos/{repo}/actions/runs/{run_id}')
+          if (run['path'] != '.github/workflows/release-candidate.yml'
+                  or run['event'] != 'workflow_dispatch' or run['head_branch'] != 'main'
+                  or run['status'] != 'completed' or run['conclusion'] != 'success'):
+              raise SystemExit('approved builder is not a successful main release-candidate run')
+          payload = Path('payload')
+          payload.mkdir()
+          downloaded = set()
+          for artifact_id in sorted(artifact_ids):
+              metadata = api(f'repos/{repo}/actions/artifacts/{artifact_id}')
+              if metadata['expired'] or metadata['workflow_run']['id'] != run_id:
+                  raise SystemExit('artifact is expired or belongs to another builder run')
+              archive = subprocess.check_output([
+                  'gh', 'api', f'repos/{repo}/actions/artifacts/{artifact_id}/zip',
+              ])
+              with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+                  for member in bundle.infolist():
+                      # upload-artifact stores this payload flat. Never extract arbitrary paths.
+                      if (member.filename not in artifact_ids[artifact_id] or member.filename in downloaded
+                              or member.is_dir() or stat.S_ISLNK(member.external_attr >> 16)):
+                          raise SystemExit('unexpected, duplicate or unsafe candidate member')
+                      (payload / member.filename).write_bytes(bundle.read(member))
+                      downloaded.add(member.filename)
+          if downloaded != names:
+              raise SystemExit('candidate does not contain exactly the approved file set')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'run-id={run_id}\n')
+          PY
+
+      - name: Verify the signed approval and complete payload
+        env:
+          RUN_ID: ${{ steps.payload.outputs.run-id }}
+        run: |
+          python3 tools/release_verify.py verify \
+            --manifest "docs/legal/release-decisions/$GITHUB_REF_NAME.json" \
+            --signature "docs/legal/release-decisions/$GITHUB_REF_NAME.json.sig" \
+            --allowed-signers "$ALLOWED_SIGNERS_FILE" --payload-dir payload \
+            --tag "$GITHUB_REF_NAME" --source-sha "$GITHUB_SHA" --run-id "$RUN_ID"
+
+      - name: Verify provenance for every approved payload file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for file in payload/*; do
+            gh attestation verify "$file" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-candidate.yml" \
+              --deny-self-hosted-runners
+          done
+
+      - name: Transfer only the verified bytes to publish
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verified-release-payload
+          path: payload/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
+          merge-multiple: true
+          path: payload
+
+      - name: Load trusted signers from the release environment
+        env:
+          ALLOWED_SIGNERS: ${{ vars.SCO_RELEASE_ALLOWED_SIGNERS }}
+        run: |
+          if [ -z "${ALLOWED_SIGNERS//[[:space:]]/}" ]; then
+            echo 'no trusted signer configured'; exit 1
+          fi
+          printf '%s\n' "$ALLOWED_SIGNERS" > "$RUNNER_TEMP/allowed_signers"
+          echo "ALLOWED_SIGNERS_FILE=$RUNNER_TEMP/allowed_signers" >> "$GITHUB_ENV"
 
       - name: The tag matches sdk/VERSION and has a CHANGELOG section
-        id: tag
         run: |
           v=$(tr -d '\r\n' < sdk/VERSION)
           if [ "$GITHUB_REF_NAME" != "sdk-v$v" ]; then
-            echo "tag $GITHUB_REF_NAME doesn't match sdk/VERSION ($v)"; exit 1
+            echo "tag $GITHUB_REF_NAME does not match sdk/VERSION ($v)"; exit 1
           fi
           awk -v t="$GITHUB_REF_NAME" '
             $0 ~ "^## " { if (on) exit; if (index($0, "## " t " ") == 1 || $0 == "## " t) { on = 1; next } }
-            on { print }' CHANGELOG.md > notes.md
-          if [ ! -s notes.md ]; then echo "CHANGELOG.md has no '## $GITHUB_REF_NAME' section"; exit 1; fi
+            on { print }' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
+            echo "CHANGELOG.md has no '## $GITHUB_REF_NAME' section"; exit 1
+          fi
           echo "VERSION=$v" >> "$GITHUB_ENV"
-          echo "version=$v" >> "$GITHUB_OUTPUT"
 
-      - name: Install Lua 5.4
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lua5.4
-
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: 8.0.x
-
-      - name: C# SDK layout test against tests/abi_*.c
-        run: dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c tests/abi_game_actors.c tests/abi_game_vehicles.c tests/abi_game_world.c tests/abi_game_events.c tests/abi_game_entities.c tests/abi_game_creative.c
-
-      # Release hardening Gate G: a person approved this exact commit
-      # (docs/legal/release-decisions/<tag>.json, validated against its JSON Schema). CI never
-      # writes the record.
-      - name: The release is approved for this commit
-        run: python3 tools/ip_audit.py release --approval "docs/legal/release-decisions/$GITHUB_REF_NAME.json" --tag "$GITHUB_REF_NAME"
-
-      - name: Repository audit (Gates 1, 2, 4)
-        run: python3 tools/ip_audit.py repo
-
-      - name: Package the SDK
-        run: python3 sdk/package.py --profile legacy --out dist   # the release zip keeps sdk-v1.1.0's shape until consumers move
-
-      - name: Audit the zip (Gates 3, 5, 6) and write its SBOM
-        run: python3 tools/ip_audit.py zip "dist/sco-sdk-$VERSION.zip" --profile legacy --sbom "dist/sco-sdk-$VERSION.spdx.json"
-
-      - name: Build and check the examples from the zip
-        env:
-          SCO_SDK_CSHARP: "1"
-        run: sdk/test-zip.sh dist/sco-sdk-*.zip
-
-      - name: Checksum
-        run: (cd dist && sha256sum "sco-sdk-$VERSION.zip" > "sco-sdk-$VERSION.zip.sha256")
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release-files
-          path: |
-            dist/sco-sdk-${{ steps.tag.outputs.version }}.zip
-            dist/sco-sdk-${{ steps.tag.outputs.version }}.zip.sha256
-            dist/sco-sdk-${{ steps.tag.outputs.version }}.spdx.json
-            notes.md
-          if-no-files-found: error
-
-  release:
-    needs: package
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write   # creating the release; nothing else
-    steps:
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: release-files
-
-      - name: Create the release
+      - name: Re-check the transfer, create a complete draft, and re-download its exact assets
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.package.outputs.version }}
+          RUN_ID: ${{ needs.verify.outputs.run-id }}
         run: |
-          zip="dist/sco-sdk-$VERSION.zip"
-          sbom="dist/sco-sdk-$VERSION.spdx.json"
-          test -f "$zip" && test -f "$zip.sha256" && test -f "$sbom" && test -s notes.md
-          gh release create "$GITHUB_REF_NAME" "$zip" "$zip.sha256" "$sbom" \
-            --repo "$GITHUB_REPOSITORY" --title "sco-core SDK $VERSION" --notes-file notes.md --verify-tag
+          python3 tools/release_verify.py verify \
+            --manifest "docs/legal/release-decisions/$GITHUB_REF_NAME.json" \
+            --signature "docs/legal/release-decisions/$GITHUB_REF_NAME.json.sig" \
+            --allowed-signers "$ALLOWED_SIGNERS_FILE" --payload-dir payload \
+            --tag "$GITHUB_REF_NAME" --source-sha "$GITHUB_SHA" --run-id "$RUN_ID"
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          repo, tag = os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_REF_NAME']
+          manifest = Path('docs/legal/release-decisions') / f'{tag}.json'
+          signature = manifest.with_suffix('.json.sig')
+          approval = json.loads(manifest.read_text())
+          names = [artifact['name'] for artifact in approval['artifacts']]
+          staging = Path(os.environ['RUNNER_TEMP']) / 'release-approval'
+          staging.mkdir()
+          (staging / 'release.json').write_bytes(manifest.read_bytes())
+          (staging / 'release.json.sig').write_bytes(signature.read_bytes())
+          # Draft creation does not refuse existing drafts: explicitly refuse any existing release.
+          def tagged_releases():
+              pages = json.loads(subprocess.check_output([
+                  'gh', 'api', '--paginate', '--slurp', f'repos/{repo}/releases?per_page=100',
+              ], text=True))
+              return [release for page in pages for release in page if release['tag_name'] == tag]
+          if tagged_releases():
+              raise SystemExit('a draft or published release already exists for this tag')
+          subprocess.run([
+              'gh', 'release', 'create', tag,
+              *[str(Path('payload') / name) for name in names],
+              str(staging / 'release.json'), str(staging / 'release.json.sig'),
+              '--repo', repo, '--draft', '--verify-tag',
+              '--title', f"sco-core SDK {os.environ['VERSION']}",
+              '--notes-file', str(Path(os.environ['RUNNER_TEMP']) / 'notes.md'),
+          ], check=True)
+          # GET /releases/tags/{tag} retrieves published releases, not drafts.
+          matches = tagged_releases()
+          if len(matches) != 1 or not matches[0]['draft']:
+              raise SystemExit('release is not the unique expected draft')
+          release = matches[0]
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f"DRAFT_RELEASE_ID={release['id']}\n")
+          pages = json.loads(subprocess.check_output([
+              'gh', 'api', '--paginate', '--slurp',
+              f"repos/{repo}/releases/{release['id']}/assets?per_page=100",
+          ], text=True))
+          assets = [asset for page in pages for asset in page]
+          (Path(os.environ['RUNNER_TEMP']) / 'draft-assets.json').write_text(json.dumps(assets))
+          expected = set(names) | {'release.json', 'release.json.sig'}
+          if len(assets) != len(expected) or {asset['name'] for asset in assets} != expected:
+              raise SystemExit('draft assets do not exactly match the approved release set')
+          downloaded = Path('downloaded')
+          downloaded.mkdir()
+          for asset in assets:
+              if asset['state'] != 'uploaded':
+                  raise SystemExit('draft asset upload is incomplete')
+              print(f"Draft asset {asset['id']}: {asset['name']}", flush=True)
+              data = subprocess.check_output([
+                  'gh', 'api', f"repos/{repo}/releases/assets/{asset['id']}",
+                  '-H', 'Accept: application/octet-stream',
+              ])
+              (downloaded / asset['name']).write_bytes(data)
+          # The downloaded approval must equal the tag's committed approval, byte for byte.
+          for name, original in [('release.json', manifest), ('release.json.sig', signature)]:
+              path = downloaded / name
+              if path.read_bytes() != original.read_bytes():
+                  raise SystemExit('draft approval differs from the committed approval')
+              path.unlink() # The verifier's payload directory must contain only manifest files.
+          PY
+          python3 tools/release_verify.py verify \
+            --manifest "docs/legal/release-decisions/$GITHUB_REF_NAME.json" \
+            --signature "docs/legal/release-decisions/$GITHUB_REF_NAME.json.sig" \
+            --allowed-signers "$ALLOWED_SIGNERS_FILE" --payload-dir downloaded \
+            --tag "$GITHUB_REF_NAME" --source-sha "$GITHUB_SHA" --run-id "$RUN_ID"
+          # A failure above intentionally leaves a draft for investigation, never a public release.
+
+      - name: Publish only the same unique, verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          repo, tag = os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_REF_NAME']
+          release_id = int(os.environ['DRAFT_RELEASE_ID'])
+          def api_pages(path):
+              return json.loads(subprocess.check_output([
+                  'gh', 'api', '--paginate', '--slurp', path,
+              ], text=True))
+          releases = [r for page in api_pages(f'repos/{repo}/releases?per_page=100')
+                      for r in page if r['tag_name'] == tag]
+          if len(releases) != 1 or releases[0]['id'] != release_id or not releases[0]['draft']:
+              raise SystemExit('verified draft changed or its tag is ambiguous')
+          assets = [a for page in api_pages(f'repos/{repo}/releases/{release_id}/assets?per_page=100')
+                    for a in page]
+          original = json.loads((Path(os.environ['RUNNER_TEMP']) / 'draft-assets.json').read_text())
+          def identity(items):
+              return sorted((a['id'], a['name'], a['size'], a['state'], a['updated_at']) for a in items)
+          if identity(assets) != identity(original):
+              raise SystemExit('draft asset inventory changed after verification')
+          subprocess.run(['gh', 'release', 'edit', tag, '--repo', repo, '--draft=false'], check=True)
+          published = json.loads(subprocess.check_output([
+              'gh', 'api', f'repos/{repo}/releases/{release_id}',
+          ], text=True))
+          if published['draft'] or published['tag_name'] != tag:
+              raise SystemExit('the verified draft was not published')
+          print(published['html_url'])
+          PY

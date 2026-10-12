@@ -1,0 +1,185 @@
+name: release-candidate
+
+# Build once on the selected main commit, after every mandatory check succeeds on that SHA.
+# Dispatch with the prospective sdk-v<version> tag (no tag is created here). The single immutable
+# release-candidate artifact contains all four SDK archives, their SBOMs and SHA256SUMS.
+# Copy its run ID, artifact ID, file sizes and hashes from the summary into release.json, review,
+# sign and commit the approval, then tag. release.yml promotes those exact bytes without rebuilding.
+# Repository access is read-only; only candidate can mint provenance attestations, not releases.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Prospective SDK tag matching sdk/VERSION (sdk-v<version>)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prerequisites:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Read check runs and their owning workflow runs, never just an ambiguous job name.
+    permissions:
+      contents: read
+      checks: read
+      actions: read
+    steps:
+      - name: Require successful mandatory workflows on the exact source SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          repo, sha = os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_SHA']
+          if os.environ['GITHUB_REF'] != 'refs/heads/main':
+              raise SystemExit('release candidates must be built from main')
+          required = {
+              'cmake': {'linux', 'kernel-only', 'windows'},
+              'sdk': {'package', 'windows', 'csharp-host-sim'},
+              'test': {'test'},
+              'ip-compliance': {'audit'},
+          }
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+          pages = json.loads(subprocess.check_output([
+              'gh', 'api', '--paginate', '--slurp',
+              f'repos/{repo}/commits/{sha}/check-runs?filter=latest&per_page=100',
+          ], text=True))
+          runs, latest = {}, {}
+          for page in pages:
+              for check in page['check_runs']:
+                  if check['app']['slug'] != 'github-actions' or check['head_sha'] != sha:
+                      continue
+                  match = re.search(r'/actions/runs/(\d+)/job/', check.get('details_url') or '')
+                  if not match:
+                      continue
+                  run_id = match.group(1)
+                  if run_id not in runs:
+                      runs[run_id] = api(f'repos/{repo}/actions/runs/{run_id}')
+                  run = runs[run_id]
+                  if (run['head_sha'] != sha or run['event'] != 'push'
+                          or run['head_branch'] != 'main'):
+                      continue
+                  for workflow, jobs in required.items():
+                      if run['path'] != f'.github/workflows/{workflow}.yml' or check['name'] not in jobs:
+                          continue
+                      key = f"{workflow}/{check['name']}"
+                      if key not in latest or check['id'] > latest[key][0]['id']:
+                          latest[key] = (check, run)
+          failures = []
+          for workflow, jobs in required.items():
+              for job in sorted(jobs):
+                  key = f'{workflow}/{job}'
+                  pair = latest.get(key)
+                  passed = (pair is not None and pair[0]['status'] == 'completed'
+                            and pair[0]['conclusion'] == 'success'
+                            and pair[1]['status'] == 'completed'
+                            and pair[1]['conclusion'] == 'success')
+                  print(f"{key}: {'success' if passed else 'REFUSED'} ({sha})")
+                  if not passed:
+                      failures.append(key)
+          if failures:
+              raise SystemExit('mandatory checks missing or not successful: ' + ', '.join(failures))
+          PY
+
+  candidate:
+    needs: prerequisites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate the prospective tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          v=$(tr -d '\r\n' < sdk/VERSION)
+          test "$RELEASE_TAG" = "sdk-v$v" || { echo 'tag does not match sdk/VERSION'; exit 1; }
+          git check-ref-format "refs/tags/$RELEASE_TAG"
+
+      - name: Repository audit
+        run: python3 tools/ip_audit.py repo
+
+      - name: Install Lua 5.4
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lua5.4
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Package every profile and audit each archive with its own SBOM
+        run: |
+          v=$(tr -d '\r\n' < sdk/VERSION)
+          for profile in core game-sc legacy core-source; do
+            python3 sdk/package.py --profile "$profile" --out dist
+            if [ "$profile" = legacy ]; then
+              archive="dist/sco-sdk-$v.zip"
+            else
+              archive="dist/sco-sdk-$profile-$v.zip"
+            fi
+            python3 tools/ip_audit.py zip "$archive" --profile "$profile" --sbom "${archive%.zip}.spdx.json"
+          done
+
+      - name: Exercise each archive (game-sc is an overlay on core)
+        env:
+          SCO_SDK_CSHARP: "1"
+          CC: clang
+          CXX: clang++
+        run: |
+          v=$(tr -d '\r\n' < sdk/VERSION)
+          sdk/test-zip.sh "dist/sco-sdk-core-$v.zip"
+          sdk/test-zip.sh "dist/sco-sdk-core-$v.zip" "dist/sco-sdk-game-sc-$v.zip"
+          sdk/test-zip.sh "dist/sco-sdk-$v.zip"
+          sdk/test-zip.sh "dist/sco-sdk-core-source-$v.zip"
+
+      - name: Inventory the complete release payload
+        run: python3 tools/release_verify.py inventory --payload-dir dist --out dist/SHA256SUMS
+
+      - name: Attest every payload file
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Upload the immutable candidate
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-candidate
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Approval inputs (copy every file, including SHA256SUMS)
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f"## Candidate for {os.environ['RELEASE_TAG']}\n\n")
+              summary.write(f"Source SHA: `{os.environ['GITHUB_SHA']}`\n\n")
+              summary.write(f"builder.run_id: `{os.environ['GITHUB_RUN_ID']}`\n\n")
+              summary.write(f"artifacts[].artifact_id (same bundle for every file): `{os.environ['ARTIFACT_ID']}`\n\n")
+              summary.write('| artifacts[].name | bytes | sha256 |\n|---|---:|---|\n')
+              for path in sorted(Path('dist').iterdir()):
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  summary.write(f'| {path.name} | {path.stat().st_size} | `{digest}` |\n')
+          PY
