@@ -319,9 +319,10 @@ public:
         return Invoke(name, args.begin(), static_cast<uint32_t>(args.size()), reply);
     }
     sco_result Invoke(const char* name, const sco_arg* args, uint32_t nargs, std::string* reply = nullptr) noexcept;
-    // Runs a command and calls done(result, reply) once, on the game thread (before returning
-    // when called from it). Any return but SCO_OK means done is never called. A call still queued
-    // when the plugin unloads is dropped and done is not called.
+    // Runs a command and calls done(result, reply) once, on the game thread. From the game thread
+    // that happens before returning, with the same result. From another thread any return but
+    // SCO_OK means done is never called. A call still queued when the plugin unloads is dropped
+    // and done is not called.
     sco_result InvokeAsync(const char* name, std::initializer_list<sco_arg> args,
                            std::function<void(sco_result, const char*)> done) noexcept;
 
