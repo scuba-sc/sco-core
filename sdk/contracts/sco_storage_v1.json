@@ -21,7 +21,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -113,7 +113,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -205,7 +205,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -297,7 +297,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -381,15 +381,15 @@
       "member_extent": 48,
       "table_size": 128,
       "since": "`size >= 48`; 1.0",
-      "purpose": "SCO_BAD_ARG: one is already open. Until commit nothing the plugin writes is durable; a crash, an unload or rollback undoes all of it.",
-      "buffer_contract": "`sco_result (*begin)(sco_plugin* self);`<br>SCO_BAD_ARG: one is already open. Until commit nothing the plugin writes is durable; a crash, an unload or rollback undoes all of it.",
+      "purpose": "SCO_BAD_ARG: one is already open. Until commit nothing the plugin writes is durable; ordinary unload, non-retained crash cleanup or rollback undoes all of it. Retained-provider faults skip rollback/close hooks and require restart.",
+      "buffer_contract": "`sco_result (*begin)(sco_plugin* self);`<br>SCO_BAD_ARG: one is already open. Until commit nothing the plugin writes is durable; ordinary unload, non-retained crash cleanup or rollback undoes all of it. Retained-provider faults skip rollback/close hooks and require restart.",
       "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
       "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "rollback or unload/crash undoes uncommitted writes; no per-call interrupt API.",
+      "cleanup": "rollback or ordinary unload/non-retained crash cleanup undoes uncommitted writes; no per-call interrupt API. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -481,7 +481,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "Synchronous; no cancellation API; successful commit durable and not undone by unload.",
+      "cleanup": "Synchronous; no cancellation API; successful commit durable and not undone by unload. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -665,7 +665,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -757,7 +757,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -853,7 +853,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -949,7 +949,7 @@
       "reentrancy": "unspecified",
       "results": "Common storage failures; BAD_ARG NULL output; NOT_FOUND unknown/non-owned cursor; *out_count initialized to 0.",
       "absent_capability": "unspecified",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -1044,7 +1044,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -1140,7 +1140,7 @@
       "reentrancy": "unspecified",
       "results": "Common storage failures; NOT_FOUND unknown/non-owned cursor; BAD_ARG invalid buffer/index; TOO_MANY required bytes. Does not require a current row.",
       "absent_capability": "unspecified",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -1231,7 +1231,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -1327,7 +1327,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND.",
-      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",

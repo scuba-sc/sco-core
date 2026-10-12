@@ -7,7 +7,7 @@ Tag `sdk-v1.2.0`, zip `sco-sdk-1.2.0.zip`. Prepared on 2026-10-10; **the tag is 
 | What | Version | Where |
 |---|---|---|
 | Kernel (the SDK) | 1.2.0 | `sdk/VERSION`, tag `sdk-v1.2.0` |
-| Plugin ABI | 1.1, unchanged | `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h` (byte for byte as in sdk-v1.1.0; `tests/abi_v1.c` unchanged) |
+| Plugin ABI | 1.1, unchanged | `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h` (ABI declarations/layout unchanged since sdk-v1.1.0; licensing comment revised; `tests/abi_v1.c` unchanged) |
 | Star Citizen game pack | 0.3.0 (was 0.2.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
 | Verified game build | 4.10.196.36804, PE timestamp `0x6ac64e6f` | rows verified by sigcheck; in-game verification pending |
 
@@ -15,7 +15,7 @@ Tag `sdk-v1.2.0`, zip `sco-sdk-1.2.0.zip`. Prepared on 2026-10-10; **the tag is 
 
 ## Compatibility
 
-Plugins built with sdk-v1.1.0 keep loading: nothing in `sco_api.h` or in a released service table changed. Every new table is a new header with its own pin (`tests/abi_*.c`); `game.actors` 1.1 and `game.entities` 1.1 append functions to tables that were new in this release's development, and a caller that asked for 1.0 never reads past the end it knows. Check `size` before calling a function a later minor added, as the headers say.
+Plugins built with sdk-v1.1.0 keep loading: the ABI declarations/layout in `sco_api.h` and released service tables are unchanged. The licensing comment in `sco_api.h` changed, so the header is not byte-for-byte identical. Every new table is a new header with its own pin (`tests/abi_*.c`); `game.actors` 1.1 and `game.entities` 1.1 append functions to tables that were new in this release's development, and a caller that asked for 1.0 never reads past the end it knows. Check `size` before calling a function a later minor added, as the headers say.
 
 ## What is new
 
@@ -34,7 +34,7 @@ Plugins built with sdk-v1.1.0 keep loading: nothing in `sco_api.h` or in a relea
 
 Wrappers: C++ (`scosdk/game/`), C# (`Sco.Sdk.Game`) and read-only Lua (`sco.game.*`). `teleport.spatial` and `spawn.entities` were sc-offline's built-in tables and keep their names and layouts.
 
-**Kernel and host services:** hot reload of one plugin (`sco.reload`, `sco::app::Reload`); typed `[settings]` in `plugin.ini` and the `sco.settings` 1.0 service; plugins load in `requires` order, service names included; a fault is blamed on the plugin whose code faulted and a provider whose table was handed out is never unmapped; command slots are recycled on unload; `sco.net` 1.0 and `sco.ipc` 1.0 with the MIT wires `sc_net.h` and `sc_ipc.h` and the bridge layouts `sc_titanlink.h` and `sc_voxel_bridge.h`; the kernel builds and tests without the game pack.
+**Kernel and host services:** hot reload of a target and every transitively loaded dependent (`sco.reload`, `sco::app::Reload`), with whole-group refusal for unsafe or non-reloadable members, reverse-dependency unload and forward-dependency reload ([reload contract](../plugins.md#hot-reload)); typed `[settings]` in `plugin.ini` and the `sco.settings` 1.0 service; plugins load in `requires` order, service names included; a fault is blamed on the plugin whose code faulted and a provider whose table was handed out is never unmapped; command slots are recycled on unload; `sco.net` 1.0 and `sco.ipc` 1.0 with the MIT wires `sc_net.h` and `sc_ipc.h` and the bridge layouts `sc_titanlink.h` and `sc_voxel_bridge.h`; the kernel builds and tests without the game pack.
 
 ## What is not verified, and what is off
 

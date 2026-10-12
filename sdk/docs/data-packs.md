@@ -14,7 +14,7 @@ data\plugins\travel_pack\
 |---|---|---|
 | `missions\` | `*.cwmission` | `mission` |
 | `rules\` | `*.rules` | `rules` |
-| `scripts\` | `*.xml`, in any subfolder depth | `script` |
+| `scripts\` | `*.xml`, up to 16 subfolder levels below `scripts\`; deeper content is ignored | `script` |
 | `lists\` | `*.txt` | `list` |
 | `datacore\` | `*.toml` | `datacore`: changes to game data ([below](#game-data-datacore)) |
 

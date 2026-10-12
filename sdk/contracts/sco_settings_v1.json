@@ -21,7 +21,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -109,7 +109,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -197,7 +197,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -285,7 +285,7 @@
       "reentrancy": "unspecified",
       "results": "Common settings errors; TOO_MANY reports required NUL-inclusive bytes without writing string; inout_size reset on other failure. Caller text untouched on failure.",
       "absent_capability": "unspecified",
-      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -372,7 +372,7 @@
       "reentrancy": "unspecified",
       "results": "BAD_ARG invalid/released self or buffer; UNAVAILABLE stopped; TOO_MANY required bytes or allocation. Empty string if no recorded failure; diagnostic completeness unspecified.",
       "absent_capability": "unspecified",
-      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",

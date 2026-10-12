@@ -79,7 +79,8 @@ Each line is `name = type [default V] [min N] [max N] [label "text"] [help "text
 | `requires` leads in a circle (`a` needs `b`, `b` needs `a`; a plugin naming itself counts) | `refused: requires cycle: a -> b -> a` |
 | A plugin you require is refused, disabled or fails to load | `refused: requires <id>: plugin '<id>' is <state> (<reason>)` |
 | Everything checks out | `loaded` |
-| The plugin faulted in a callback | `crashed` (it is never called again this session) |
+| A callback fault takes the ordinary resource-release path | `crashed` (it is never called again this session) |
+| A provider fault requires retaining backing state (for example, its service table was handed out) | `faulted`: host callouts and service lookup are withdrawn, but backing state and resources are retained; restart the game. Cached tables are not made safe to call, and no recovery is guaranteed |
 
 `sco-plugin-check <folder>` applies the same rules on your machine, except the ones that need the other installed plugins (a missing provider, a cycle between two plugins, a provider that fails to load): only the real host sees those. It refuses a plugin that requires itself.
 

@@ -18,7 +18,7 @@ The plugin creates it; the other program (the **peer**) opens it by name and nev
 - **Name:** `Local\SCO_<plugin id>.<channel>`, built by the host. A plugin can't choose `Global\`, another plugin's prefix or any other name.
 - **Access:** the current user only (the mapping's security descriptor names that user as owner and grants nobody else). If a mapping of that name already exists, the host uses it only when the current user owns it and it is large enough.
 - **Sizes:** 4 KiB to 256 MiB per channel, 512 MiB over a plugin's open channels, 16 channels per plugin, 32 rings per channel.
-- **Lifetime:** when the plugin closes the channel, unloads or crashes, the host marks it closed (`SC_IPC_GONE` for the peer at once), stops its heartbeat and unmaps it.
+- **Lifetime:** explicit `close` or ordinary owner-release cleanup (including non-retained `crashed` cleanup) marks the channel closed (`SC_IPC_GONE` for the peer at once), stops its heartbeat and unmaps it. Restart-required retained-provider faults skip the resource-release hook: channels/mappings remain retained, even though host scheduling/lookup is withdrawn. Terminal IPC shutdown closes any remaining channels.
 
 ```text
 offset 0     sc_ipc_hdr   64 bytes: magic "SCIO", version, owner/peer pid, epoch, heartbeats,
@@ -55,7 +55,7 @@ if (sc_ipc_attach(base, mbi.RegionSize, MY_LAYOUT_ID, 1, &ch) == SC_IPC_OK &&
 - **Results** are `int`: `SC_IPC_OK` (0), `FULL`, `EMPTY`, `TOO_SMALL` (pop: `*inout_size` holds the size needed, the record stays queued), `BAD_ARG`, `CORRUPT` (the other side wrote something impossible; nothing is read), `EPOCH` (the channel or ring was re-created: attach again), `BUSY` (a block or the header is mid-write: retry), `NOT_READY`, `MISMATCH` (another wire version, layout or block size), `GONE` (closed).
 - **Epoch:** sc-offline bumps the header's epoch each time it re-creates the channel (a restart while you kept the mapping). Your views remember the epoch they attached under; `SC_IPC_EPOCH` means re-attach (`sc_ipc_check` tells without touching a ring).
 - **Heartbeats** are `GetTickCount64()` milliseconds, one clock for both processes. sc-offline beats from its host tick; `sc_ipc_owner_age_ms` tells how long ago. Pick a timeout (a few seconds) and treat the link as down past it, or at `SC_IPC_GONE`.
-- **Never block:** every call returns at once; poll from your own loop or frame.
+- **Wire polling:** ring/block operations do not wait for the peer or for data; poll from your own loop or frame. This is not a lock-free or bounded-latency guarantee for host-service calls (see [the plugin side](#the-plugins-side-scoipc-10)).
 
 ## Rings and blocks
 
@@ -94,4 +94,4 @@ What each field means and what the other side must do (beats, timeouts, the chec
 | `view` | The plugin's own mapping, for bulk regions (video frames); valid until close or unload |
 | `close` | Marks it closed for the peer and unmaps it |
 
-Any thread; calls never block. Channels are `uint64_t` ids. C++: [`scosdk/ipc.hpp`](../include/scosdk/ipc.hpp) (`sco::sdk::Ipc`, `IpcChannel`, which closes on destruction). Lua plugins get no `sco.ipc` ([plugin rules](../sdk/docs/plugin-rules.md)). Host side: [`sco/ipc.h`](../include/sco/ipc.h); the host kit starts it, ticks the heartbeat and stops it after every plugin unloads.
+Any thread. Host-service calls take blocking global/per-channel mutexes; close also takes the channel lock. The wire operations do not wait for the peer, but complete host calls are not lock-free and have no bounded-latency guarantee. Channels are `uint64_t` ids. C++: [`scosdk/ipc.hpp`](../include/scosdk/ipc.hpp) (`sco::sdk::Ipc`, `IpcChannel`, which closes on destruction). Lua plugins get no `sco.ipc` ([plugin rules](../sdk/docs/plugin-rules.md)). Host side: [`sco/ipc.h`](../include/sco/ipc.h); the host kit starts it, ticks the heartbeat and stops it after the terminal plugin-teardown pass (retained faulted instances are not entered).

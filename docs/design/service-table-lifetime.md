@@ -183,7 +183,7 @@ A shutdown unload callback may use its own still-live state and cleanup APIs. It
 
 ### Lifecycle coverage matrix
 
-CTest registers whole executables, not each C++ test function. `ctest -N` enumerated 34 kernel tests before the new shutdown gate; the current kernel list has **35**, and the game-pack configuration has **43**:
+CTest registers whole executables, not each C++ test function. **Historical census (2026-10-11, audit of `0ce4ab8`):** `ctest -N` enumerated 34 kernel tests before the new shutdown gate; the audit then recorded **35** kernel tests and **43** with the game pack. The following list preserves that historical inventory, not the current kernel/game split; game ABI pins are now conditional on `SCO_GAME_SC`. For the current configured inventory, use `ctest --test-dir <build> -N` with `SCO_BUILD_TESTS=ON` and state the `SCO_GAME_SC` setting and Python availability. Registrations in [`CMakeLists.txt`](../../CMakeLists.txt) have since changed, including language-route and SDK conformance coverage.
 
 ```text
 abi_v1 abi_freeze abi_storage abi_settings abi_game_vehicles abi_game_entities
@@ -194,7 +194,7 @@ abi_voxel_bridge abi_game_world abi_game_events abi_game_actors
  test_lua test_app test_shutdown_drain host_sim_examples
 ```
 
-The game-pack configuration adds `test_death_events`, `test_pak`, `test_datacore`, `test_datacore_patch`, `test_datacore_pack`, `dcb_pack`, `test_datacore_service` and `dcb_tool`. The new `test_shutdown_drain` executes only the shutdown cases (`CMakeLists.txt:910`); `tools/test.sh` runs the same dedicated executable mode.
+In that historical census the game-pack configuration added `test_death_events`, `test_pak`, `test_datacore`, `test_datacore_patch`, `test_datacore_pack`, `dcb_pack`, `test_datacore_service` and `dcb_tool`. `test_shutdown_drain` executes only the shutdown cases; `tools/test.sh` runs the same dedicated executable mode.
 
 | Requested row | Existing evidence | Gap filled / limits |
 |---|---|---|

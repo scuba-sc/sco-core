@@ -21,7 +21,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on unload/crash, except kept entities.",
+      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -115,7 +115,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on unload/crash, except kept entities.",
+      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -209,7 +209,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on unload/crash, except kept entities.",
+      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -303,7 +303,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on unload/crash, except kept entities.",
+      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -399,7 +399,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on unload/crash, except kept entities.",
+      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -495,7 +495,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on unload/crash, except kept entities.",
+      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -591,7 +591,7 @@
       "reentrancy": "callback runs game thread and may call unwatch/unload",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "unwatch/unload/crash ends delivery; callback may unwatch itself or unload without further events. Oldest queued events dropped under overflow (256 held per watch).",
+      "cleanup": "unwatch/ordinary unload/non-retained crash cleanup ends delivery; callback may unwatch itself or unload without further events. Oldest queued events dropped under overflow (256 held per watch). Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Fault quarantine stops guarded delivery without removing the retained watch.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -781,7 +781,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on unload/crash, except kept entities.",
+      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -877,7 +877,7 @@
       "reentrancy": "unspecified",
       "results": "BAD_ARG invalid/released non-NULL self or buffer; TOO_MANY required bytes. NULL self selects no-self failures; stopped-service refusal unspecified (no started check).",
       "absent_capability": "unspecified",
-      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on unload/crash, except kept entities.",
+      "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",

@@ -89,7 +89,7 @@ Two events on the bus, on the game thread, each starting with its size:
 | Waiting to go out | 1 MiB per plugin (then `SCO_TOO_MANY`) |
 | Waiting for your next tick | 1,024 messages or 4 MiB per plugin (more are dropped) |
 
-When your plugin unloads or crashes, the host removes its channels and every message still queued for it or by it.
+On ordinary owner release (including unload or non-retained `crashed` cleanup), the network release hook removes the plugin's channels and messages still queued for it or by it. Restart-required retained-provider faults skip this resource hook: host callbacks are suppressed, but channels and queued network state are not removed by quarantine alone. Terminal network shutdown clears remaining state.
 
 ## Who can connect (the product's side)
 

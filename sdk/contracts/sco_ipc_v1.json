@@ -21,7 +21,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -101,7 +101,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -181,7 +181,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -261,7 +261,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -341,7 +341,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -421,7 +421,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -501,7 +501,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -581,7 +581,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -662,7 +662,7 @@
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
       "absent_capability": "Absent table: query_service NOT_FOUND",
-      "cleanup": "No in-flight cancellation; close/unload/crash marks closed and unmaps channels.",
+      "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
           "status": "direct",

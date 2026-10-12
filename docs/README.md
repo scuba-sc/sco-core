@@ -44,7 +44,7 @@ Start with the [README](../README.md) for what sco-core is. Pick your path below
 | [Adding a signature](adding-signatures.md) | Moving a feature's addresses into a table, and the rules rows follow |
 | [ASOP, hangar and ATC rows](game/asop.md) | The 62 rows behind ship terminals, lifts, hangars and ATC, their capabilities and root causes |
 | [Building, missions, cvars and quantum rows](game/world.md) | The 37 rows behind build mode, the mission system, cvar storage and quantum boost, their capabilities |
-| [Contracts rows](game/contracts.md) | The 83 rows and 15 capabilities behind sc-offline's contracts feature |
+| [Contracts rows](game/contracts.md) | The 82 rows and 15 capabilities behind sc-offline's contracts feature |
 | [Features rows](game/features.md) | The rows moved out of sc-offline's five FindPattern scans, and their capabilities |
 | [Offline patches and startup rows](game/offline.md) | The 60 rows and 19 capabilities behind sc-offline's offline patches, boot and startup hooks |
 | [Mining row](game/mining.md) | The row behind natural mining: the biome builder's cell function, its checks and capability |

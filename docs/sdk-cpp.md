@@ -93,9 +93,11 @@ SCO_PLUGIN(Hello, "hello", "1.0.0", "you");
 | `RunOnGameThread(std::function<void()>)` | Queues the task; see [Lifetimes](#lifetimes) |
 | `Subscribe(event, std::function<void(const void* data)>)` | Returns a `Subscription`; see [Lifetimes](#lifetimes) |
 | `Invoke(name, {args...}, &reply)` | Runs a command. From the game thread it runs now and fills `reply`; from another thread it is queued, returns `SCO_OK`, and the reply is lost |
-| `InvokeAsync(name, {args...}, done)` | Runs a command and calls `done(result, reply)` once on the game thread; any other return than `SCO_OK` means `done` is never called |
+| `InvokeAsync(name, {args...}, done)` | Runs a command with completion on the game thread; see the completion rules below |
 
 `MakeArg(3)`, `MakeArg(2.5)`, `MakeArg("Ada")` and `MakeArg(true)` build the `sco_arg` values for `Invoke`.
+
+On the game thread, a dispatched `InvokeAsync` calls `done(result, reply)` before returning the same command result, including a non-`SCO_OK` result, unless the calling plugin has been released. Pre-dispatch failures (validation, allocation or runtime admission) do not call `done`. From another thread, `SCO_OK` means queued; a non-`SCO_OK` return means nothing was queued and `done` will not run. A queued call dropped when the calling plugin unloads has no completion callback.
 
 ## Commands
 

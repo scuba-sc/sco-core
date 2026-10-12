@@ -114,7 +114,7 @@
       "reentrancy": "unspecified",
       "results": "OK stays loaded; any other return rejects load; guarded fault disables plugin. Missing required capabilities handled by discovery; load-specific absence policy belongs to plugin",
       "absent_capability": "Missing required capabilities handled by discovery; load-specific absence policy belongs to plugin",
-      "cleanup": "Failed load/crash removes registrations and queued work; do not rely on unload being called after failed load",
+      "cleanup": "Ordinary failed-load/non-retained crash cleanup removes registrations, queued work and owned resources. If a nested consumer obtained the provider table during load, a failed load is refused with backing state retained: no owner release, resource hooks, export clearing or module closure. Exposed-provider faults instead become terminal faulted with retained state and restart required. Do not rely on unload after a failed load.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -207,7 +207,7 @@
       "reentrancy": "unspecified",
       "results": "void, no error result; loader guards faults. Capability availability during teardown unspecified",
       "absent_capability": "unspecified",
-      "cleanup": "Shutdown or permitted reload; crashed/failed-load instances need not receive it. Host withdraws registrations; native code whose table was handed out remains mapped, not live state",
+      "cleanup": "Terminal shutdown or permitted reload; crashed/failed-load instances need not receive it. Live-session unload/reload of a provider whose table was handed out is refused. Retained-provider faults skip unload/resource hooks and require restart; mapped code does not make cached calls safe.",
       "language_mappings": {
         "c": {
           "status": "direct",

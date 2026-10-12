@@ -21,6 +21,7 @@ It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned ser
 ## Using it from C
 
 ```c
+#include <stddef.h>
 #include "sco_ui.h"
 
 static int clicks;
@@ -33,16 +34,21 @@ static void draw_hello(void* frame, void* ctx) {
 
 sco_result sco_plugin_load(const sco_api* api, sco_plugin* self) {
     const sco_ui_v1* ui = NULL;
-    if (api->size > offsetof(sco_api, query_service) &&
+    if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &&
+        api->query_service &&
         api->query_service(SCO_UI_NAME, SCO_UI_VERSION_1_0, (const void**)&ui) == SCO_OK) {
-        ui->register_tab(self, "hello.main", "Hello", 100, draw_hello, &clicks);
-        ui->set_badge(self, "hello.main", "new");
+        if (ui && ui->size >= offsetof(sco_ui_v1, register_tab) + sizeof(ui->register_tab) && ui->register_tab)
+            ui->register_tab(self, "hello.main", "Hello", 100, draw_hello, &clicks);
+        if (ui && ui->size >= offsetof(sco_ui_v1, set_badge) + sizeof(ui->set_badge) && ui->set_badge)
+            ui->set_badge(self, "hello.main", "new");
         sco_arg who = { SCO_ARG_STRING };
         who.v.s = "Pilot";
-        if (ui->bind_hotkey(self, "ctrl+alt+h", "hello.wave", &who, 1) != SCO_OK) {
+        if (ui && ui->size >= offsetof(sco_ui_v1, bind_hotkey) + sizeof(ui->bind_hotkey) &&
+            ui->bind_hotkey && ui->bind_hotkey(self, "ctrl+alt+h", "hello.wave", &who, 1) != SCO_OK) {
             char why[128];
             uint32_t n = sizeof why;
-            if (ui->last_error(self, why, &n) == SCO_OK) api->log(self, SCO_LOG_WARN, why);   /* "ctrl+alt+h is bound by ..." */
+            if (ui->size >= offsetof(sco_ui_v1, last_error) + sizeof(ui->last_error) &&
+                ui->last_error && ui->last_error(self, why, &n) == SCO_OK && api->log) api->log(self, SCO_LOG_WARN, why);   /* "ctrl+alt+h is bound by ..." */
         }
     }
     return SCO_OK;   /* a host without UI: keep working without it */
@@ -98,7 +104,7 @@ Every function that takes `self` answers `SCO_BAD_ARG` for a handle the host did
 
 - `draw(frame, ctx)` runs on the **game thread**, during the product's frame, when the product draws that tab (usually: the menu is open on it) or every frame for an overlay.
 - `frame` is the product's frame context, passed through untouched: sc-offline passes its ImGui context. It is valid only during the call. sco-core never looks at it; what a plugin may do with it is the product's contract (sc-offline: ImGui calls inside the tab's area, with the ImGui version sc-offline ships).
-- A draw runs as a **callout of its plugin**, under the same crash guard as its commands, events and tasks (`sco::plugins::ContainCallouts`). A fault in it disables that plugin and releases it, which withdraws all of its UI; every other plugin keeps drawing. The crash reason names the tab or overlay: `crashed in hello.main (0xC0000005)`.
+- A draw runs as a **callout of its plugin**, under the same crash guard as its commands, events and tasks (`sco::plugins::ContainCallouts`). A fault disables that plugin. Ordinary non-retained crash cleanup releases all of its UI; an exposed provider becomes restart-required `faulted` and retains tabs, overlays, badges and hotkeys without release hooks. Its guarded draws stop, but snapshots still enumerate retained entries. Every other plugin keeps drawing. The crash reason names the tab or overlay: `crashed in hello.main (0xC0000005)`.
 - Nothing is locked while a draw runs: it may register, unregister (itself included) and set badges. An overlay removed during a pass is not called; one added during a pass draws from the next one.
 - **Freeing `ctx`** after `unregister_tab` / `unregister_overlay`: on the game thread, as soon as the call returns (also from inside the draw itself). From another thread the game thread may be inside `draw` right now: call `run_on_game_thread` after unregister returns and free `ctx` in that task, as for `unsubscribe`.
 
@@ -125,13 +131,13 @@ The host normalizes a chord to lower case, the modifiers in the order `ctrl`, `a
 ## Threads
 
 - Registration, badges, hotkeys, `normalize_chord` and `last_error`: any thread. Calls are serialized by one lock; it is never held while plugin code runs.
-- Draws: the game thread only (`DrawTab` answers `WrongThread` elsewhere), because crash containment releases a faulting plugin, and `Release` runs on the game thread. A product whose renderer runs on another thread draws plugin UI from the game thread's side of its frame.
+- Draws: the game thread only (`DrawTab` answers `WrongThread` elsewhere), because crash containment quarantines a faulting plugin, and ordinary `Release` runs on the game thread. A product whose renderer runs on another thread draws plugin UI from the game thread's side of its frame.
 - `Dispatch`: any thread. On the game thread the command runs now and the reply comes back; from another thread the invoke is queued for the next tick (`Ok`) and the reply is dropped.
 
 ## Unload, crash and shutdown
 
-- When a plugin unloads, fails its load or crashes, the host releases it, and a release hook removes everything it registered: tabs, badges, overlays, hotkeys and its last error. Every later call naming its handle is `SCO_BAD_ARG`. Its chords are free for others.
-- `sco::app::Stop` stops the service after every plugin has unloaded: `sco.ui` is withdrawn, the reservations cleared, and the table answers `SCO_UNAVAILABLE`.
+- On ordinary unload, ordinary failed-load cleanup or non-retained crash cleanup, the host releases the owner: the release hook removes tabs, badges, overlays, hotkeys and its last error; its chords become free and later calls naming its handle are `SCO_BAD_ARG`. Restart-required retained-provider faults skip these hooks and retain resources, though guarded callbacks stop. If a nested consumer received a provider table before its load failed, the instance becomes `refused` with backing state retained: no owner release, resource hooks, export clearing or module closure. This is distinct from the fault path. See [native entrypoint contracts](contracts.md#native-plugin-entrypoints).
+- `sco::app::Stop` closes runtime admission before tearing down still-loaded plugins, then stops the service: `sco.ui` is withdrawn, all remaining entries and reservations are cleared, and the table answers `SCO_UNAVAILABLE`. Retained faulted instances are not entered during plugin teardown.
 
 ## Settings
 
@@ -178,7 +184,7 @@ for (const sco::settings::Page& page : sco::settings::Pages()) {      // one per
 | `Pages()`, `Entries(plugin)` | Snapshots, any thread: `Entry` is the declaration and the current value; `Page` adds the plugin's first tab id |
 | `SetBool` / `SetInt` / `SetFloat` / `SetString(plugin, name, v)` | What a widget calls (game thread; `SetString` sets a string or an enum choice). Checks the declaration, stores the value, dispatches `settings.changed`. `Ok` also for the current value (silent). `BadArg`: another type, out of range, not a choice. `NotFound`, `WrongThread`, or storage's error (then nothing changed) |
 
-A plugin that unloads or crashes drops off `Pages()` with the rest of its registrations. The values are kept in the plugin's storage namespace ([plugin.ini](plugins.md#typed-settings-settings) says how a stale one is dropped).
+Ordinary unload and non-retained crash cleanup remove the plugin from `Pages()`. Restart-required retained-provider faults skip the settings release hook, so retained declarations still appear in snapshots. The values are kept in the plugin's storage namespace ([plugin.ini](plugins.md#typed-settings-settings) says how a stale one is dropped).
 
 ## Hosting it
 

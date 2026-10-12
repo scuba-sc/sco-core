@@ -7,7 +7,7 @@ It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned ser
 ## Contents
 
 - [Using it from C](#using-it-from-c)
-- [Using it from C++](#using-it-from-c)
+- [Using it from C++](#using-it-from-c-1)
 - [The table](#the-table)
 - [Threads](#threads)
 - [Transactions and crash safety](#transactions-and-crash-safety)
@@ -87,7 +87,8 @@ All functions take the plugin's `self`; the plugin can only reach its own databa
 | `exec(self, sql, params, n, &changes)` | Runs one statement; rows are dropped | `BAD_ARG` refused or malformed; `FAILED` ran and failed; `TOO_MANY` quota |
 | `query(self, sql, params, n, &cursor)` | Opens a cursor before the first row | as `exec`; `TOO_MANY` 64 cursors open |
 | `step(self, cursor)` | Next row | `NOT_FOUND` no more rows (or not this plugin's cursor) |
-| `column_count`, `column`, `column_name` | Read the current row; TEXT and BLOB are copied with the size handshake | `BAD_ARG` no row, index out of range |
+| `column_count` / `column_name` | Cursor metadata; available before the first `step` and for an empty result set, without a current row. Column names use the size handshake | `NOT_FOUND` invalid cursor; `BAD_ARG` invalid arguments or name index out of range |
+| `column` | Reads a value from the current row; TEXT and BLOB are copied with the size handshake | `NOT_FOUND` invalid cursor; `BAD_ARG` no current row, invalid arguments or index out of range |
 | `close(self, cursor)` | Closes a cursor | `NOT_FOUND` |
 | `last_error(self, out, &size)` | The message of the plugin's last failed call | |
 
@@ -100,14 +101,14 @@ The rules from `sco_api.h` hold, plus:
 
 ## Threads
 
-Any thread. Each plugin's calls run one at a time: a call waits while another call of the same plugin runs, and different plugins never wait for each other. Calls are short and synchronous; a statement that runs past the time budget (1 s by default) is interrupted with `SCO_FAILED`, so the game thread never waits for longer than that on another thread of its own plugin.
+Any thread. Calls are synchronous and serialised per plugin database: a call acquires an untimed mutex and may wait for another thread of the same plugin. The statement-execution budget (1 s by default, `Options::budgetMs`) starts only after that lock is acquired and the database is opened; SQLite's progress handler interrupts an over-budget statement with `SCO_FAILED`. It does not bound mutex wait, database opening or total call latency, so it is not a guarantee that the game thread returns within one second.
 
 The transaction and the cursors belong to the plugin, not to the thread: a `put` from a second thread while the first has a transaction open joins that transaction. A plugin that writes from several threads and uses transactions coordinates its own threads.
 
 ## Transactions and crash safety
 
 - Databases run in WAL mode with `synchronous = FULL`: a `put`, `del` or `exec` outside a transaction, and a `commit`, are durable when they return, across a crash of the game or of the machine. (The host can choose `NORMAL`, `Options::durable = false`: still consistent after any crash, but a power cut may drop the last commits.)
-- Outside a transaction every call is its own transaction. Between `begin` and `commit` nothing is durable; a crash, a kill, an unload or `rollback` undoes all of it. `begin` takes the write lock at once (`BEGIN IMMEDIATE`).
+- Outside a transaction every call is its own transaction. Between `begin` and `commit` nothing is durable; process termination, ordinary unload cleanup or `rollback` undoes all of it. A restart-required retained-provider fault is not immediate rollback (see [lifetime](#unload-crash-and-shutdown)). `begin` takes the write lock at once (`BEGIN IMMEDIATE`).
 - A batch of writes is much faster inside one transaction: each autocommit write waits for the disk.
 - Transactions go through `begin`, `commit` and `rollback` only; `BEGIN`, `COMMIT`, `SAVEPOINT` and `RELEASE` in SQL are refused, so the host always knows the state.
 
@@ -138,16 +139,16 @@ The connection is also built defensively: `SQLITE_DBCONFIG_DEFENSIVE` on, untrus
 | One TEXT or BLOB in SQL | 16 MiB |
 | Open cursors | 64 per plugin (`SCO_STORAGE_MAX_CURSORS`) |
 | Database size | 64 MiB per plugin by default (`Options::quotaBytes`, as `max_page_count`); a write past it is `SCO_TOO_MANY`, deleting still works |
-| Time per call | 1 s by default (`Options::budgetMs`), then `SCO_FAILED` "statement ran past its time budget" |
+| Statement-execution budget | 1 s by default (`Options::budgetMs`), checked by SQLite's progress handler; over-budget execution returns `SCO_FAILED` "statement ran past its time budget". Not a mutex-wait or total-call deadline |
 | Waiting for a lock another process holds | 1 s by default (`Options::busyTimeoutMs`), then `SCO_FAILED` |
 
 ## Unload, crash and shutdown
 
-When a plugin unloads, fails to load or crashes, `sco::Release(self)` runs a release hook that rolls back the plugin's open transaction, closes its cursors and closes its database. From then on every call naming that `self` is `SCO_BAD_ARG`, from any thread. A reload of the plugin (a new handle) opens the same file and sees what was committed; the old handle's cursor ids mean nothing to it.
+Ordinary unload, ordinary failed-load cleanup and non-retained `crashed` cleanup run the resource-release hook (through `sco::Release(self)` or the fault-resource path). It rolls back the plugin's open transaction and closes its cursors and database. Restart-required exposed-provider faults deliberately skip that hook: host scheduling/lookup is withdrawn, but storage resources and any open transaction remain retained until terminal storage shutdown. A failed load is a separate exception: if a nested consumer already obtained the provider's table, the loader records `refused` with `backing state retained` and returns without `Release(self)`, resource hooks, export clearing or module closure. Neither case promises immediate rollback or closure. After ordinary owner release, calls naming that `self` return `SCO_BAD_ARG` from any thread. A successful reload uses a new handle, opens the same file and sees committed data; old cursor ids are not valid for it.
 
-The host reads and writes plugin memory (keys, values, SQL, buffers) only while it holds no lock, so a bad pointer from a plugin faults in plugin-facing code with nothing held, and the crash guard can still release the plugin.
+The host reads and writes plugin memory (keys, values, SQL, buffers) only while it holds no lock, so a bad pointer from a plugin faults in plugin-facing code with nothing held, and the crash guard can quarantine the owner without those locks held; whether resource hooks run still depends on the retention rules above.
 
-At shutdown `sco::app::Stop` unloads every plugin first, then stops storage: `sco.storage` is withdrawn, any transaction still open is rolled back and every database is closed. Calls through a table still held answer `SCO_UNAVAILABLE`.
+At terminal shutdown `sco::app::Stop` closes runtime admission and unloads still-loaded plugins (retained faulted instances are not entered), then stops storage: `sco.storage` is withdrawn, any transaction still open is rolled back and every database is closed, including databases retained by the fault/failed-load exceptions above. Calls through a held storage table then answer `SCO_UNAVAILABLE`; this does not authorise calls through a retained peer-provider table.
 
 ## Hosting it
 
