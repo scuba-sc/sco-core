@@ -1,0 +1,479 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-owned-v1-retain-build",
+      "kind": "table-method",
+      "symbol": "sc_owned_v1.retain_build",
+      "table": "sc_owned_v1",
+      "service": "game.owned",
+      "version_macro": "SC_OWNED_VERSION_1_0",
+      "source_header": "include/sc_owned.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 16,
+      "table_size": 56,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Idempotently mark an existing caller-owned game.entities spawn as retained for loaded-plugin undo/clear; keep refuses it and unload removes it.",
+      "buffer_contract": "`sco_result (*retain_build)(sco_plugin* self, uint64_t entity_id);`<br>Idempotently mark an existing caller-owned game.entities spawn as retained for loaded-plugin undo/clear; keep refuses it and unload removes it.",
+      "ownership": "Explicit retained entities ownership while loaded; NPC authority is actors-only. Owner-scoped receipts, caller outputs; fixed global bounds of 1024 each, no cross-boundary allocation.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. No recursive reentry.",
+      "callback_context": "No caller callbacks. Existing game-pack primitives only.",
+      "reentrancy": "No recursive reentry.",
+      "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*retain_build)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_owned.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*retain_build)"
+            }
+          ],
+          "tests": [
+            "tests/test_owned_removal.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "C# game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "Lua game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_owned.c",
+        "tests/test_owned_removal.cpp",
+        "tools/test_g9_owned_contract.py"
+      ],
+      "limitations": [
+        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
+        "C# and Lua routes unsupported."
+      ]
+    },
+    {
+      "id": "sc-owned-v1-remove-build",
+      "kind": "table-method",
+      "symbol": "sc_owned_v1.remove_build",
+      "table": "sc_owned_v1",
+      "service": "game.owned",
+      "version_macro": "SC_OWNED_VERSION_1_0",
+      "source_header": "include/sc_owned.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t *)",
+      "member_extent": 24,
+      "table_size": 56,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Remove a retained caller-owned build placement through existing entities despawn; ticket 0 on refusal, SCO_OK is initiation only.",
+      "buffer_contract": "`sco_result (*remove_build)(sco_plugin* self, uint64_t entity_id, uint64_t* out_ticket);`<br>Remove a retained caller-owned build placement through existing entities despawn; ticket 0 on refusal, SCO_OK is initiation only.",
+      "ownership": "Explicit retained entities ownership while loaded; NPC authority is actors-only. Owner-scoped receipts, caller outputs; fixed global bounds of 1024 each, no cross-boundary allocation.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. No recursive reentry.",
+      "callback_context": "No caller callbacks. Existing game-pack primitives only.",
+      "reentrancy": "No recursive reentry.",
+      "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*remove_build)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_owned.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*remove_build)"
+            }
+          ],
+          "tests": [
+            "tests/test_owned_removal.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "C# game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "Lua game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_owned.c",
+        "tests/test_owned_removal.cpp",
+        "tools/test_g9_owned_contract.py"
+      ],
+      "limitations": [
+        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
+        "C# and Lua routes unsupported."
+      ]
+    },
+    {
+      "id": "sc-owned-v1-remove-npc",
+      "kind": "table-method",
+      "symbol": "sc_owned_v1.remove_npc",
+      "table": "sc_owned_v1",
+      "service": "game.owned",
+      "version_macro": "SC_OWNED_VERSION_1_0",
+      "source_header": "include/sc_owned.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t *)",
+      "member_extent": 32,
+      "table_size": 56,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Remove only caller-owned game.actors NPCs through actors despawn; no entity/spawn_as/player ownership union. Ticket 0 on refusal; SCO_OK is initiation only.",
+      "buffer_contract": "`sco_result (*remove_npc)(sco_plugin* self, uint64_t npc_id, uint64_t* out_ticket);`<br>Remove only caller-owned game.actors NPCs through actors despawn; no entity/spawn_as/player ownership union. Ticket 0 on refusal; SCO_OK is initiation only.",
+      "ownership": "Explicit retained entities ownership while loaded; NPC authority is actors-only. Owner-scoped receipts, caller outputs; fixed global bounds of 1024 each, no cross-boundary allocation.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. No recursive reentry.",
+      "callback_context": "No caller callbacks. Existing game-pack primitives only.",
+      "reentrancy": "No recursive reentry.",
+      "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*remove_npc)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_owned.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*remove_npc)"
+            }
+          ],
+          "tests": [
+            "tests/test_owned_removal.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "C# game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "Lua game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_owned.c",
+        "tests/test_owned_removal.cpp",
+        "tools/test_g9_owned_contract.py"
+      ],
+      "limitations": [
+        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
+        "C# and Lua routes unsupported."
+      ]
+    },
+    {
+      "id": "sc-owned-v1-remove-seat-npc",
+      "kind": "table-method",
+      "symbol": "sc_owned_v1.remove_seat_npc",
+      "table": "sc_owned_v1",
+      "service": "game.owned",
+      "version_macro": "SC_OWNED_VERSION_1_0",
+      "source_header": "include/sc_owned.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint32_t, uint64_t, uint64_t *)",
+      "member_extent": 40,
+      "table_size": 56,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Fresh seat occupant must match expected actors-owned NPC; foreign/player/unknown occupants are refused. Ticket 0 on refusal; SCO_OK is initiation only.",
+      "buffer_contract": "`sco_result (*remove_seat_npc)(sco_plugin* self, uint64_t ship, uint32_t seat_index, uint64_t expected_npc, uint64_t* out_ticket);`<br>Fresh seat occupant must match expected actors-owned NPC; foreign/player/unknown occupants are refused. Ticket 0 on refusal; SCO_OK is initiation only.",
+      "ownership": "Explicit retained entities ownership while loaded; NPC authority is actors-only. Owner-scoped receipts, caller outputs; fixed global bounds of 1024 each, no cross-boundary allocation.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. No recursive reentry.",
+      "callback_context": "No caller callbacks. Existing game-pack primitives only.",
+      "reentrancy": "No recursive reentry.",
+      "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*remove_seat_npc)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_owned.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*remove_seat_npc)"
+            }
+          ],
+          "tests": [
+            "tests/test_owned_removal.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "C# game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "Lua game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_owned.c",
+        "tests/test_owned_removal.cpp",
+        "tools/test_g9_owned_contract.py"
+      ],
+      "limitations": [
+        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
+        "C# and Lua routes unsupported."
+      ]
+    },
+    {
+      "id": "sc-owned-v1-receipt",
+      "kind": "table-method",
+      "symbol": "sc_owned_v1.receipt",
+      "table": "sc_owned_v1",
+      "service": "game.owned",
+      "version_macro": "SC_OWNED_VERSION_1_0",
+      "source_header": "include/sc_owned.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, sc_removal_receipt *)",
+      "member_extent": 48,
+      "table_size": 56,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "Read owner-scoped REQUESTED initiation record, never alive-based completion. A short size-prefixed record is untouched; sufficient output payload clears on failure.",
+      "buffer_contract": "`sco_result (*receipt)(sco_plugin* self, uint64_t ticket, sc_removal_receipt* out);`<br>Read owner-scoped REQUESTED initiation record, never alive-based completion. A short size-prefixed record is untouched; sufficient output payload clears on failure.",
+      "ownership": "Explicit retained entities ownership while loaded; NPC authority is actors-only. Owner-scoped receipts, caller outputs; fixed global bounds of 1024 each, no cross-boundary allocation.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. No recursive reentry.",
+      "callback_context": "No caller callbacks. Existing game-pack primitives only.",
+      "reentrancy": "No recursive reentry.",
+      "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*receipt)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_owned.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*receipt)"
+            }
+          ],
+          "tests": [
+            "tests/test_owned_removal.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "C# game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "Lua game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_owned.c",
+        "tests/test_owned_removal.cpp",
+        "tools/test_g9_owned_contract.py"
+      ],
+      "limitations": [
+        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
+        "C# and Lua routes unsupported."
+      ]
+    },
+    {
+      "id": "sc-owned-v1-forget",
+      "kind": "table-method",
+      "symbol": "sc_owned_v1.forget",
+      "table": "sc_owned_v1",
+      "service": "game.owned",
+      "version_macro": "SC_OWNED_VERSION_1_0",
+      "source_header": "include/sc_owned.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 56,
+      "table_size": 56,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Forget owner-scoped receipt to reclaim capacity; not cancellation, completion or renewed ownership.",
+      "buffer_contract": "`sco_result (*forget)(sco_plugin* self, uint64_t ticket);`<br>Forget owner-scoped receipt to reclaim capacity; not cancellation, completion or renewed ownership.",
+      "ownership": "Explicit retained entities ownership while loaded; NPC authority is actors-only. Owner-scoped receipts, caller outputs; fixed global bounds of 1024 each, no cross-boundary allocation.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. No recursive reentry.",
+      "callback_context": "No caller callbacks. Existing game-pack primitives only.",
+      "reentrancy": "No recursive reentry.",
+      "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*forget)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_owned.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_owned.h",
+              "token": "(*forget)"
+            }
+          ],
+          "tests": [
+            "tests/test_owned_removal.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "C# game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/owned-removal.md",
+              "token": "Lua game.owned is unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_owned.c",
+        "tests/test_owned_removal.cpp",
+        "tools/test_g9_owned_contract.py"
+      ],
+      "limitations": [
+        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
+        "C# and Lua routes unsupported."
+      ]
+    }
+  ]
+}

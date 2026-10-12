@@ -47,6 +47,14 @@
    "why": "Game-pack synthetic owner/filter/camera policy fixture; repository only, not in neutral source kit."
   },
   {
+   "path": "tests/test_owned_removal.cpp",
+   "why": "Repository-only synthetic G9 game ownership/removal provider fixture."
+  },
+  {
+   "path": "tools/test_g9_owned_contract.py",
+   "why": "Repository-only targeted G9 contract, layout, catalogue and package gate."
+  },
+  {
    "path": "tests/game_contracts/conformance/",
    "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
    },
@@ -854,6 +862,15 @@
    "profiles": [
     "game-sc"
    ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.sc_owned.h",
+   "source": "include/sc_owned.h",
+   "destination": "include/sc_owned.h",
+   "profiles": ["game-sc"],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
    "public_header": true
@@ -3314,6 +3331,15 @@
    "profiles": [
     "game-sc"
    ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
+  },
+  {
+   "id": "source.tests.abi_game_owned.c",
+   "source": "tests/abi_game_owned.c",
+   "destination": "tests/abi_game_owned.c",
+   "profiles": ["game-sc"],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
    "group": "game-contract"

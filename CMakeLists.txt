@@ -273,7 +273,8 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/events.cpp
-                                       src/game/services/entities.cpp src/game/services/creative.cpp)
+                                       src/game/services/entities.cpp src/game/services/creative.cpp
+                                       src/game/services/owned.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
@@ -712,6 +713,14 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_game_actors
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ga_targets})
 
+  endif()
+
+  if(SCO_GAME_SC)
+    add_executable(test_owned_removal tests/test_owned_removal.cpp tests/abi_game_owned.c
+                   src/game/services/owned.cpp)
+    target_link_libraries(test_owned_removal PRIVATE sco_host)
+    sco_project_target(test_owned_removal)
+    add_test(NAME test_owned_removal COMMAND test_owned_removal)
   endif()
 
   add_executable(test_core tests/test_core.cpp)

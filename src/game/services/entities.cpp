@@ -20,6 +20,7 @@
 // 20 s after the player has spawned, logging what that run has to confirm ("[game] game.entities
 // diag: ..." lines in mod.log); it changes nothing else.
 #include "entities.h"
+#include "owned.h"
 #include "actors.h"
 #include "spawn.h"
 #include "../../api/internal.h"   // detail::Released
@@ -795,7 +796,8 @@ sco_result SvcSetTransform(sco_plugin* self, uint64_t id, uint64_t zoneId, const
 void PruneOwned() {
     const uint64_t now = Now();
     for (size_t i = 0; i < g_owned.size();) {
-        if (now - g_owned[i].at >= kPruneAgeMs && !EntityAlive(g_owned[i].id)) {
+        if (!BuildRetainedBy(g_owned[i].owner, g_owned[i].id) &&
+            now - g_owned[i].at >= kPruneAgeMs && !EntityAlive(g_owned[i].id)) {
             g_owned[i] = g_owned.back();
             g_owned.pop_back();
         } else {
@@ -842,6 +844,7 @@ sco_result SvcDespawn(sco_plugin* self, uint64_t id) {
         g_owned[i] = g_owned.back();
         g_owned.pop_back();
         RemoveEntityLater(id);
+        DropBuildRetention(self, id);
         return SCO_OK;
     }
     return Fail(self, Result::NotFound, "despawn: %llu is not an entity this plugin spawned with game.entities (or it's despawned already)",
@@ -856,6 +859,8 @@ sco_result SvcKeep(sco_plugin* self, uint64_t id) {
     if (!who) return Fail(nullptr, Result::BadArg, "keep: self is not a loaded plugin's handle");
     if (!g_started || !g_canSpawn) return Unavailable(self, "keep", kCapSpawn, g_whySpawn);
     if (!id) return Fail(self, Result::BadArg, "keep: id 0");
+    if (BuildRetainedBy(self, id))
+        return Fail(self, Result::Failed, "keep: retained build ownership must stay loaded for undo; remove through game.owned");
     for (size_t i = 0; i < g_owned.size(); ++i) {
         if (g_owned[i].owner != self || g_owned[i].id != id) continue;
         g_owned[i] = g_owned.back();
@@ -1011,6 +1016,8 @@ void ResetState() {
 
 }  // namespace
 
+bool EntitiesOwnedBy(const void* owner, uint64_t id) { return OwnedBy(owner, id); }
+
 Result StartEntities() {
     if (g_started) return Result::Ok;
     char env[8] = "";
@@ -1056,11 +1063,14 @@ Result StartEntities() {
     LogCap(kCapQuery, g_canQuery, g_whyQuery);
     LogCap(kCapWatch, g_canWatch, g_whyWatch);
     g_started = true;
+    const Result owned = StartOwned();
+    if (owned != Result::Ok) { StopEntities(); return owned; }
     return Result::Ok;
 }
 
 void StopEntities() {
     if (!g_started) return;
+    StopOwned();
     RemoveHooks();
     // Every plugin has unloaded (Stop runs after UnloadAll), so anything still owned belongs to a
     // plugin whose release failed: ask the game to remove it now (game.actors is still started).

@@ -19,6 +19,14 @@ As of sco-core `main` at `2197dfb` (2026-10-11, with `game.actors.died`), game p
 
 ## Service tables and capabilities
 
+**Unreleased G9 addition:** `game.owned` 1.0 ([header](../../include/sc_owned.h),
+[policy](../design/owned-removal.md)) is a game-pack composition over the existing
+entities/actors removal and seat-read capabilities below, not a new engine binding.
+Only synthetic provider/ownership fixtures and header layout checks are supplied;
+**not run in game or on Windows/MSVC runtime**. Its receipts record initiation,
+not disappearance. Retained build ownership lasts only while loaded and ordinary
+unload removes placements. C/C++ direct routes; C#/Lua unsupported.
+
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
 | `teleport.spatial` ([`sc_spatial.h`](../../include/sc_spatial.h)) | 1.0 | the four `teleport.*` rows (the product's capability `teleport`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
