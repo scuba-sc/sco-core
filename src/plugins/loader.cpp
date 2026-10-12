@@ -443,7 +443,7 @@ static void UnloadCode(Plugin& p, const ModuleOps* ops) {
 
 void UnloadNative(Plugin& p, const ModuleOps& ops) {
     if (p.state != State::Loaded || p.manifest.kind != Kind::Native) return;
-    UnloadCode(p, &ops);
+    UnloadOne(p, ops);   // public mid-session entry: use the same refusal as reload
 }
 
 // ---- scripts --------------------------------------------------------------------------------

@@ -109,6 +109,8 @@ This limits damage. It is not a sandbox: stack corruption, `__fastfail` and `/GS
 
 ### Hot reload
 
+The [service-table lifetime audit](design/service-table-lifetime.md) inventories table owners, query/accessor paths, thread rules and every unload/reload/withdrawal path, including shutdown and fault exceptions.
+
 `sco::app::Reload(id)` (the host command `sco.reload <id>`, [API](api.md#scoapph-the-host-kit)) unloads one plugin and loads it again while the game runs, on the game thread:
 
 1. **Native:** the entry DLL is copied to `<folder>/.reload-<n>-<entry>`. The copy sits next to the original, so its dependencies still resolve from the plugin folder, and the original can be rebuilt while the copy is mapped. (`Platform::loadFromCopies` makes `Start` map every native from a copy too; without it a native's own file is mapped, and locked on Windows, until its first reload.) A copy that can't be made changes nothing: the plugin keeps running.
