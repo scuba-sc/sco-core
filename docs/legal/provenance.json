@@ -15,6 +15,16 @@
  },
  "entries": [
   {
+   "path": "tests/game_contracts/conformance/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "needs-review",
+   "reviewer": "agent draft; maintainer review pending",
+   "date": "2026-10-12",
+   "note": "Public-ABI native consumers and synthetic game-service response fixtures authored for this project; no extracted game material. Repository-only, excluded from every SDK profile. Runtime, loader and service lifetime gates are reused, not replaced."
+  },
+  {
    "path": "site/package-lock.json",
    "origin": "project-authored",
    "license": "GPL-3.0-only",

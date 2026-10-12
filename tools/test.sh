@@ -364,6 +364,19 @@ PLUGINS=("$ROOT/src/plugins/manifest.cpp" "$ROOT/src/plugins/settings_ini.cpp" "
   -ldl -o "$OUT/test_plugins"
 "$OUT/test_plugins" "$ROOT/tests/fixtures/plugins" "$OUT"
 
+# Independent C SDK workflow consumers on the neutral host: public game contract tables,
+# real loader/runtime, synthetic engine responses. CMake: sdk_conformance.
+CONF=$OUT/sdk_conformance/plugins
+for id in conformance conformance_peer; do
+  mkdir -p "$CONF/$id"
+  printf 'id = %s\nname = SDK conformance\nversion = 1.0.0\napi = 1.1\nkind = native\nentry = %s.so\n' "$id" "$id" > "$CONF/$id/plugin.ini"
+  "$CC" -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -I "$ROOT/include" \
+    "${SHARED[@]}" -DCONSUMER_ID="\"$id\"" "$ROOT/tests/game_contracts/conformance/consumer.c" -o "$CONF/$id/$id.so"
+done
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/game_contracts/conformance/host.cpp" \
+  "${PLUGINS[@]:0:5}" "${HOST[@]:1}" -ldl -o "$OUT/test_sdk_conformance"
+"$OUT/test_sdk_conformance" "$CONF" "$PLUG"
+
 # sco.ui (sco/ui.h, sco_ui.h, scosdk/ui.hpp): built-in plugins under the loader's crash guard (a
 # signal-based stand-in here), registration from threads beside a frame, so both sanitizer sets.
 UI=("$ROOT/tests/test_ui.cpp" "$ROOT/src/ui/ui.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/sco_caps.cpp"

@@ -43,6 +43,10 @@
  ],
  "excluded": [
   {
+   "path": "tests/game_contracts/conformance/",
+   "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
+  },
+  {
    "path": "tools/sco-core-mcp/",
    "why": "Repository-only, read-only SDK catalogue discovery aid; not a runtime component or SDK package."
   },

@@ -903,6 +903,31 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_plugins
            COMMAND test_plugins "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/plugins" "${SCO_TEST_OUT}")
 
+  if(SCO_GAME_SC)
+    # Public game CONTRACT consumers on the neutral host, not game implementation.
+    # Kept outside core-source; no game library is linked into this fixture.
+    set(_conformance "${SCO_TEST_OUT}/sdk_conformance/plugins")
+    foreach(id conformance conformance_peer)
+      file(WRITE "${_conformance}/${id}/plugin.ini"
+           "id = ${id}\nname = SDK conformance\nversion = 1.0.0\napi = 1.1\nkind = native\nentry = ${id}.${_ext}\n")
+      add_library(sco_sdk_${id} SHARED tests/game_contracts/conformance/consumer.c)
+      target_include_directories(sco_sdk_${id} PRIVATE "${SCO_INCLUDE_DIR}")
+      target_compile_definitions(sco_sdk_${id} PRIVATE "CONSUMER_ID=\"${id}\"")
+      set_target_properties(sco_sdk_${id} PROPERTIES
+        OUTPUT_NAME ${id} PREFIX "" SUFFIX ".${_ext}"
+        LIBRARY_OUTPUT_DIRECTORY "$<1:${_conformance}/${id}>"
+        RUNTIME_OUTPUT_DIRECTORY "$<1:${_conformance}/${id}>")
+      sco_project_target(sco_sdk_${id})
+    endforeach()
+    add_executable(test_sdk_conformance tests/game_contracts/conformance/host.cpp)
+    target_link_libraries(test_sdk_conformance PRIVATE sco_host sco_plugins)
+    add_dependencies(test_sdk_conformance sco_sdk_conformance sco_sdk_conformance_peer sco_fake_svc_provider)
+    sco_project_target(test_sdk_conformance)
+    add_test(NAME sdk_conformance
+             COMMAND test_sdk_conformance "${_conformance}" "${_plug}")
+    set_tests_properties(sdk_conformance PROPERTIES LABELS "sdk;game-contract;neutral-host")
+  endif()
+
   add_executable(test_lua tests/test_lua.cpp)
   target_link_libraries(test_lua PRIVATE sco_plugins sco_host sco_lua sco_ui sco_storage sco_settings)
   if(SCO_GAME_SC)
