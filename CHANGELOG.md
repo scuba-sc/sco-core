@@ -4,6 +4,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Faulted native providers are restart-required, not recovered.** Attributed faults withdraw lookup and host scheduling; handed-out providers retain their state and mapped code without unload or resource release hooks. Logs, plugin reports and reload refusal tell the player to restart the game. Off-thread faults outside a host guard remain uncontained; cached tables and native process integrity are not guaranteed. No plugin ABI change.
 - **Service-table unload admission is atomic across lifecycle paths:** a single loader gate blocks new queries before teardown, protects built-in provider state, retains backing state after a queried failed load, and reserves the entire dependent reload cascade before any member changes. Command, UI and host API reload routes share this gate; the plugin ABI is unchanged.
 
 - **Direct native unload now respects service-table lifetime**, matching `UnloadOne`, app reload and `sco.reload`: `UnloadNative` refuses a native whose table was handed out before its unload export or owner release runs. Shutdown still tears it down while keeping its module mapped. The [lifetime audit](docs/design/service-table-lifetime.md) inventories built-in tables, accessors and lifecycle paths, and separates administrative refusal from fault/withdrawal/shutdown behavior. `TestServices` proves refusal through both public unload routes and retained shutdown pinning; `sco_api.h` and all table layouts are unchanged.

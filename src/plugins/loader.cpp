@@ -5,9 +5,11 @@
 #include "sco/runtime.h"
 #include "sco/status.h"
 #include "internal.h"
+#include "../api/internal.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -133,9 +135,24 @@ static bool ReleaseFailed(Plugin& p, Result r) {
 }
 
 static void Crash(Plugin& p, const char* where, uint32_t code) {
-    ReleaseOwner(p);
-    p.state = State::Crashed;
+    // Reject callouts/registration and withdraw lookup before inspecting the permanent
+    // hand-out mark. No raw table is revoked or made safe by this operation.
+    const bool pendingVerdict = p.self && sco::detail::Released(p.self);
+    p.state = State::Faulted;   // reject nested/later callouts before touching registrations
+    if (p.self && sco::detail::QuarantineOwner(p.self) != Result::Ok) {
+        sco::Log("[plugin] %s: fault quiescence failed; stopping the process", IdOf(p));
+        std::abort();   // cannot establish safe scheduling/admission: never claim recovery
+    }
+    const bool retain = p.self && (sco::ServiceTableHandedOut(p.self) || pendingVerdict);
     p.reason = CrashReason(where, code);
+    if (retain) {
+        p.reason += "; state retained, restart the game (no recovery guaranteed)";
+        sco::Log("[plugin] %s faulted: %s", IdOf(p), p.reason.c_str());
+        sco::Status("plugin %s faulted; restart the game", IdOf(p));
+        return;
+    }
+    p.state = State::Crashed;
+    if (p.self) sco::detail::ReleaseFaultResources(p.self);
     sco::Log("[plugin] %s %s and was disabled", IdOf(p), p.reason.c_str());
     sco::Status("plugin %s crashed and was disabled", IdOf(p));
 }
@@ -211,8 +228,13 @@ static bool UnloadGate(const std::vector<const Plugin*>& group, std::string& why
     std::vector<const void*> owners;
     try {
         owners.reserve(group.size());
-        for (const Plugin* p : group)
+        for (const Plugin* p : group) {
+            if (p && p->state == State::Faulted) {
+                why = "faulted; restart the game (no recovery guaranteed)";
+                return false;
+            }
             if (p && p->self) owners.push_back(p->self);
+        }
     } catch (...) {
         why = "cannot reserve service admission: TOO_MANY";
         return false;
@@ -222,6 +244,10 @@ static bool UnloadGate(const std::vector<const Plugin*>& group, std::string& why
         admission != UnloadAdmission::Inspect, admission == UnloadAdmission::FailedLoad, inUse);
     if (inUse) {
         why = "provides a service in use; restart the game to reload it";
+        return false;
+    }
+    if (r == Result::Crashed) {
+        why = "faulted; restart the game (no recovery guaranteed)";
         return false;
     }
     if (r != Result::Ok) {
@@ -247,7 +273,7 @@ bool BeginUnload(const std::vector<Plugin*>& group, std::string& why) {
 void CancelUnload(const std::vector<Plugin*>& group) {
     // Cancel one at a time without allocations: only still-live survivors can be reopened.
     for (const Plugin* p : group)
-        if (p && p->self && p->state == State::Loaded) {
+        if (p && p->self && p->state == State::Loaded && !sco::detail::Released(p->self)) {
             const void* owner = p->self;
             sco::CancelServiceWithdrawal(&owner, 1);
         }
@@ -412,7 +438,7 @@ static Plugin* FindCulprit(const Plugin& owner, const detail::FaultTrace& trace)
     return nullptr;
 }
 
-// A provider faulted inside a service call made from `caller`'s callout. Marks it Crashed; one
+// A provider faulted inside a service call made from `caller`'s callout. Applies the fault policy; one
 // that is not Loaded any more (crashed already, or unloaded with its module kept mapped) only gets
 // a log line. Game thread.
 static void BlameProviderNow(Plugin& culprit, const char* where, uint32_t code) {
@@ -432,26 +458,33 @@ static void BlameTask(void* c) {
     BlameProviderNow(*b->culprit, b->where, b->code);
 }
 
-// MarkCrashed is game-thread only (it releases the owner and edits the Plugin), so off the game
-// thread the verdict is queued as a task and applied there.
+// Plugin state/reason mutation is game-thread only. Off-thread faults quiesce host lookup/work
+// without resource teardown immediately, then queue the state/reason verdict.
 static void BlameProvider(Plugin& culprit, const Plugin& caller, uint32_t code) {
     Blame tmp{ &culprit, code, {} };
     std::snprintf(tmp.where, sizeof(tmp.where), "a service call from %s", IdOf(caller));
     if (sco::OnGameThread()) { BlameProviderNow(culprit, tmp.where, code); return; }
+    // Quiesce before queuing the game-thread state/reason update. This never frees backing
+    // resources, even if no table was handed out; no later host callout may enter the provider.
+    if (sco::detail::QuarantineOwner(culprit.self) != Result::Ok) {
+        sco::Log("[plugin] %s: cannot quiesce faulted provider; stopping the process", IdOf(culprit));
+        std::abort();
+    }
     Blame* b = new (std::nothrow) Blame(tmp);
     if (b && sco::Post(BlameTask, b, nullptr) == sco::Result::Ok) return;
     delete b;
-    sco::Log("[plugin] %s faulted in %s (0x%08X); could not queue it, so it stays enabled", IdOf(culprit), tmp.where, code);
+    sco::Log("[plugin] %s faulted in %s (0x%08X); cannot queue fault state; stopping the process", IdOf(culprit), tmp.where, code);
+    std::abort();
 }
 
 bool CallPlugin(Plugin& p, const char* where, void (*thunk)(void*), void* ctx) {
-    if (p.state != State::Loaded || !thunk) return false;
+    if (p.state != State::Loaded || !thunk || sco::detail::Released(p.self)) return false;
     detail::FaultTrace trace;
     ++p.running;
     const uint32_t code = GuardedTraced(thunk, ctx, trace);
     --p.running;
     if (code) {
-        if (Plugin* culprit = FindCulprit(p, trace)) BlameProvider(*culprit, p, code);   // p's callout was aborted; p is fine
+        if (Plugin* culprit = FindCulprit(p, trace)) BlameProvider(*culprit, p, code);   // p's callout was aborted; attribution is not proof of healthy state
         else MarkCrashed(p, where, code);
         return false;
     }
@@ -640,7 +673,7 @@ std::string Describe(const Plugin& p) {
     s += p.manifestOk ? KindName(p.manifest.kind) : "?";
     s += ' ';
     s += StateName(p.state);
-    if ((p.state == State::Refused || p.state == State::Crashed) && !p.reason.empty()) { s += ": "; s += p.reason; }
+    if ((p.state == State::Refused || p.state == State::Crashed || p.state == State::Faulted) && !p.reason.empty()) { s += ": "; s += p.reason; }
     return s;
 }
 

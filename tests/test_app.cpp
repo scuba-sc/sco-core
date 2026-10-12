@@ -1115,7 +1115,26 @@ static void TestReload(const fs::path& out) {
     for (const auto& name : g_opened) fromCopy += name.rfind(".reload-", 0) == 0;
     CHECK(fromCopy == 4 && g_opened.size() == 4);                            // m0, m11, svc_caller, svc_provider
     CHECK(!Find("m0")->reloadCopy.empty() && sco::app::Reload("m0") == sco::Result::Ok);
+
+    // An attributed provider fault is terminal for this instance, not a recoverable reload.
+    const P::Plugin* provider = Find("svc_provider");
+    const void* heldFaultTable = nullptr;
+    CHECK(api->query_service("svc_provider.svc", 1u << 16, &heldFaultTable) == SCO_OK && heldFaultTable);
+    void* const faultModule = provider->module;
+    const int faultTicks = FakeTicks("svc_provider");
+    const int faultCloses = g_closed;
+    P::MarkCrashed(*const_cast<P::Plugin*>(provider), "attributed service fault", 0xC0000005u);
+    CHECK(StateOf("svc_provider") == State::Faulted && provider->module == faultModule);
+    CHECK(api->query_service("svc_provider.svc", 1u << 16, &t1) == SCO_NOT_FOUND && !t1);
+    sco::app::Tick(9);
+    CHECK(FakeTicks("svc_provider") == faultTicks && FakeUnloads("svc_provider") == 0 && g_closed == faultCloses);
+    P::LogReport(sco::app::Plugins(), true);
+    CHECK(Logged("svc_provider 1.0.0 native faulted:") && Logged("restart the game"));
+    r = Invoke("sco.reload", { Str("svc_provider") });
+    CHECK(r.r == sco::Result::Failed && r.text.find("faulted") != std::string::npos &&
+          r.text.find("restart the game") != std::string::npos);
     sco::app::Stop();
+    CHECK(StateOf("svc_provider") == State::Faulted && provider->module == faultModule && FakeUnloads("svc_provider") == 0);
     CHECK(ReloadFiles(root / "m0") == 0 && ReloadFiles(root / "m11") == 0);
     fs::remove_all(out / "reload", ec);
 }

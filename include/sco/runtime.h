@@ -72,8 +72,10 @@ Result RemoveReleaseHook(ReleaseHook hook);
 // so a table from a built-in stays valid for the life of any plugin that queried it).
 // A native plugin whose table was handed out is never unmapped by the plugin loader, even after it
 // unloads or crashes (ServiceTableHandedOut): a caller that kept the table jumps into code that is
-// still there, running against the provider's torn-down state, which is the provider's to guard.
-// A fault inside such a call is blamed on the provider, not on the caller (sco/plugins.h).
+// still there. An attributed handed-out provider fault retains backing state without release
+// hooks, but that state may already be corrupted: retained code/state is NOT callable safety.
+// Restart the game; cached raw pointers are not revoked. Shutdown and failed non-OK load cleanup
+// remain separate teardown paths. Attribution is partial, not process recovery (sco/plugins.h).
 
 constexpr size_t kMaxServiceNameLen = 63;
 
@@ -102,7 +104,9 @@ bool ServiceTableHandedOut(const void* owner);
 // Loader admission gate, serialized with query/provide_service. With withdraw=true, reserve
 // the whole group atomically: subsequent queries/publications return Unavailable until cancel.
 // Failed (in use) and TooMany leave every owner unchanged unless allowInUse is set (failed load:
-// hide admission but retain backing state). `inUse` reports whether any table was handed out.
+// hide admission but retain backing state). Released/quarantined owners return Crashed for
+// administrative requests; cancellation never reopens their existing reservations.
+// `inUse` reports whether any table was handed out.
 Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
                          bool allowInUse, bool& inUse);
 void CancelServiceWithdrawal(const void* const* owners, size_t count);

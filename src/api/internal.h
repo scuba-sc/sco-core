@@ -19,7 +19,7 @@ struct CallScope {
 // SetCalloutGuard installed when owner is non-null. False when the call did not complete.
 bool Callout(const void* owner, const char* where, TaskFn thunk, void* ctx);
 
-// True once Release(owner) has started. Checked under each module's own lock, in the same
+// True once Release(owner) or fault quarantine has started. Checked under each module's own lock, in the same
 // critical section that adds the item, so nothing an owner adds can outlive its Release.
 bool Released(const void* owner);
 
@@ -44,6 +44,15 @@ long ReleaseSubscriptions(const void* owner);
 long ReleaseCommands(const void* owner);
 long ReleaseServices(const void* owner);
 long ReleaseRaw(const void* owner);
+
+// Fault-only quiescence: reject new registrations, withdraw services and scheduled work,
+// but never run resource release hooks. The loader keeps the owner and module until exit.
+// Any thread; existing raw-table calls are not interrupted or made safe.
+// Failure requires a controlled stop: quiescence has not been fully established.
+Result QuarantineOwner(const void* owner);
+// Runs only host resource release hooks, on the game thread. The fault path calls this
+// only after quarantine, and only if no table was handed out.
+void ReleaseFaultResources(const void* owner);
 
 // Calls visit(position, slot, gen, cmd, ctx) for each live command in registration order, with
 // the registry locked, and returns how many are live. `slot` (< kMaxCommands) is the registry slot
