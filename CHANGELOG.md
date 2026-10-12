@@ -4,14 +4,21 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Lua `sco.widgets` 1.0 (#143):** sandboxed bounded declarative panels for all eight
+  widget kinds and ROW/COLUMN, typed copied events, registry-rooted callbacks until
+  successful replacement/removal or unload, atomic failures and reentrant updates.
+  Complete member-extent/null guards, shared instruction/memory budgets and real
+  neutral-host lifecycle fixtures; archive-contained `widgets_lua` example.
+  Frozen ABI unchanged; GPU rendering/gameplay not verified.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner
   release cleanup. Optional host-only ImGui adapter, synthetic headless renderer
   tests and archive-built `widgets` example/checker; no plugin renderer dependency.
   Frozen `sco_api` 1.1 and legacy `sco.ui` draw callbacks/hotkeys remain unchanged.
-  C# and Lua routes are explicitly deferred in scubamount/sco-core #142/#143
-  (follow-ups to #139); this does not claim complete language parity or GPU/game validation.
+  C# is deferred in scubamount/sco-core #142 (follow-up to #139); Lua support is
+  listed above. This does not claim complete language parity or GPU/game validation.
 - **Runtime MCP step 1 — copied host snapshots:** game-thread chunked immutable plugin/lifecycle/signature/capability copies, locked service metadata with bounded withdrawal history, generation-bound pages and a default-inactive keyed structured capture buffer. No QueryService/table probes, plugin callbacks or SDK/game method calls during capture; no diagnostics channel or MCP-server change. Reserve absent host metadata slots for the game-pack and optional diagnostics-plugin publishers in #141; publishers and policy are not implemented. The frozen ABI is unchanged. Synthetic `test_runtime_diagnostics_snapshot` runs in CTest and the shell build, including `SCO_GAME_SC=OFF`. **Not run in game.**
 
 - **First-plugin documentation:** add a published-archive download/checksum/copy/rename/build/check walkthrough, explicit Windows deployment limits and diagnostics; curate the documentation index for six audiences and publish the guide through the existing site allowlist. No behavior or ABI change.

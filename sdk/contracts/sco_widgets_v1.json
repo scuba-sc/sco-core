@@ -62,32 +62,34 @@
           "tests": []
         },
         "lua": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/design/widgets.md",
-              "token": "Lua: **unsupported/deferred**"
+              "path": "plugins/lua/sco_lua.c",
+              "token": "t->set_panel(s->self"
             },
             {
-              "path": "docs/design/widgets.md",
-              "token": "https://github.com/scubamount/sco-core/issues/143"
+              "path": "plugins/lua/sco_lua.c",
+              "token": "t->remove_panel(s->self"
             }
           ],
-          "tests": []
+          "tests": ["tests/test_lua.cpp"]
         }
       },
       "examples": [
-        "sdk/examples/widgets/widgets.c"
+        "sdk/examples/widgets/widgets.c",
+        "sdk/examples/widgets_lua/main.lua"
       ],
       "tests": [
         "tests/abi_widgets.c",
         "tests/test_widgets.cpp",
         "tests/test_widgets_sdk.cpp",
+        "tests/test_lua.cpp",
         "sdk/test-zip.sh"
       ],
       "limitations": [
         "C# renderer-neutral adapter unsupported/deferred: scubamount/sco-core #142, follow-up to #139.",
-        "Lua renderer-neutral adapter unsupported/deferred: scubamount/sco-core #143, follow-up to #139.",
+        "Lua uses bounded declarative tables, registry-rooted callbacks and shared sandbox budgets; no native FFI or draw callbacks.",
         "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
       ]
     },
@@ -152,32 +154,34 @@
           "tests": []
         },
         "lua": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/design/widgets.md",
-              "token": "Lua: **unsupported/deferred**"
+              "path": "plugins/lua/sco_lua.c",
+              "token": "t->set_panel(s->self"
             },
             {
-              "path": "docs/design/widgets.md",
-              "token": "https://github.com/scubamount/sco-core/issues/143"
+              "path": "plugins/lua/sco_lua.c",
+              "token": "t->remove_panel(s->self"
             }
           ],
-          "tests": []
+          "tests": ["tests/test_lua.cpp"]
         }
       },
       "examples": [
-        "sdk/examples/widgets/widgets.c"
+        "sdk/examples/widgets/widgets.c",
+        "sdk/examples/widgets_lua/main.lua"
       ],
       "tests": [
         "tests/abi_widgets.c",
         "tests/test_widgets.cpp",
         "tests/test_widgets_sdk.cpp",
+        "tests/test_lua.cpp",
         "sdk/test-zip.sh"
       ],
       "limitations": [
         "C# renderer-neutral adapter unsupported/deferred: scubamount/sco-core #142, follow-up to #139.",
-        "Lua renderer-neutral adapter unsupported/deferred: scubamount/sco-core #143, follow-up to #139.",
+        "Lua uses bounded declarative tables, registry-rooted callbacks and shared sandbox budgets; no native FFI or draw callbacks.",
         "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
       ]
     }

@@ -1003,12 +1003,13 @@ if(SCO_BUILD_TESTS)
   endif()
 
   add_executable(test_lua tests/test_lua.cpp)
-  target_link_libraries(test_lua PRIVATE sco_plugins sco_host sco_lua sco_ui sco_storage sco_settings)
+  target_link_libraries(test_lua PRIVATE sco_plugins sco_host sco_lua sco_ui sco_storage sco_settings sco_widgets)
   if(SCO_GAME_SC)
     target_link_libraries(test_lua PRIVATE sco_datacore_service sco_lua_game)   # TestDataCore, the sco.game tests
   endif()
   sco_project_target(test_lua)
   add_test(NAME test_lua COMMAND test_lua "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}")
+  add_test(NAME test_lua_widgets COMMAND test_lua "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}/widgets" widgets)
 
   # The host kit with built-ins, two fake plugins, greeter and travel_pack.
   add_executable(test_app tests/test_app.cpp)

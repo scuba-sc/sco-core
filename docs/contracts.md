@@ -388,9 +388,9 @@ the frozen sco_api ABI or the legacy sco.ui draw-context/hotkey route. Limits:
 Strings are copied UTF-8, plain text; callbacks and context are borrowed. All
 methods/events are game-thread only. Events update retained state then dispatch
 under the owner guard; replacing/removing a panel invalidates pending generations.
-C is direct; C++ has `scosdk/widgets.hpp`. C# is unsupported/deferred in
-[#142](https://github.com/scubamount/sco-core/issues/142), Lua in
-[#143](https://github.com/scubamount/sco-core/issues/143), follow-ups to #139.
+C is direct; C++ has `scosdk/widgets.hpp`; Lua has bounded `sco.widgets` tables
+and registry-rooted typed callbacks. C# is unsupported/deferred in
+[#142](https://github.com/scubamount/sco-core/issues/142), a follow-up to #139.
 The optional ImGui adapter is host-only; plugins never include it.
 
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |

@@ -17,6 +17,7 @@
 #include "sco_settings.h"
 #include "sco_storage.h"
 #include "sco_ui.h"
+#include "sco_widgets.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -36,6 +37,7 @@ typedef struct Script Script;
 typedef struct EventSub { Script* s; int live; char name[NAME_MAX_]; } EventSub;
 typedef struct CmdCtx   { Script* s; int ref; char name[NAME_MAX_]; } CmdCtx;
 typedef struct Task     { Script* s; int ref; struct Task* prev; struct Task* next; } Task;
+typedef struct WidgetCtx { Script* s; int ref; char id[SCO_WIDGETS_MAX_ID + 1]; } WidgetCtx;
 
 struct Script {
     int used, alive;
@@ -52,6 +54,7 @@ struct Script {
     int ncmds;
     Task* tasks;   /* queued run_on_game_thread calls */
     int ntasks;    /* how many: each runs with a fresh budget, so they are capped */
+    WidgetCtx widgets[SCO_WIDGETS_MAX_PANELS]; /* stable contexts; registry roots owned functions */
 };
 
 void sco_lua_event_(const char* event, const void* data, void* ctx);   /* every Lua subscription */
@@ -1163,6 +1166,286 @@ static int L_unbind_hotkey(lua_State* L) {
     return PushUiResult(L, s, ui, ui->unbind_hotkey(s->self, chord));
 }
 
+/* ---- sco.widgets: copied declarative panels, no draw callback/renderer ABI ---------------- */
+
+#define WIDGET_HAS(t, member) ((t) && (t)->size >= offsetof(sco_widgets_v1, member) + sizeof((t)->member) && (t)->member)
+static const sco_widgets_v1* WidgetsTable(const Script* s) {
+    const void* t = NULL;
+    if (s->api->size < offsetof(sco_api, query_service) + sizeof(s->api->query_service) ||
+        !s->api->query_service) return NULL;
+    if (s->api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_0, &t) != SCO_OK) return NULL;
+    return (const sco_widgets_v1*)t;
+}
+
+static int L_widgets_available(lua_State* L) {
+    const Script* s = Of(L);
+    const sco_widgets_v1* t = s->alive ? WidgetsTable(s) : NULL;
+    lua_pushboolean(L, WIDGET_HAS(t, set_panel) && WIDGET_HAS(t, remove_panel));
+    return 1;
+}
+
+/* Never coerce numbers to text or silently truncate embedded NUL bytes. */
+static sco_result WidgetString(lua_State* L, int at, size_t max, sco_result long_result, const char** out) {
+    if (lua_type(L, at) != LUA_TSTRING) return SCO_BAD_ARG;
+    size_t len = 0;
+    const char* text = lua_tolstring(L, at, &len);
+    if (len > max) return long_result; /* Bound the scan before inspecting bytes. */
+    if (memchr(text, 0, len)) return SCO_BAD_ARG;
+    *out = text;
+    return SCO_OK;
+}
+
+static const char* const kWidgetKinds[] = {
+    "label", "button", "toggle", "slider", "combo", "list", "text_input", "table", "row", "column"
+};
+
+static void WidgetField(lua_State* L, int table, const char* key) {
+    lua_pushstring(L, key);
+    lua_rawget(L, table);
+}
+
+static sco_result WidgetInteger(lua_State* L, int table, const char* key, int64_t min, int64_t max, int64_t* out) {
+    WidgetField(L, table, key);
+    if (!lua_isnil(L, -1)) {
+        if (!lua_isinteger(L, -1)) { lua_pop(L, 1); return SCO_BAD_ARG; }
+        const lua_Integer v = lua_tointeger(L, -1);
+        if (v < min || v > max) { lua_pop(L, 1); return SCO_BAD_ARG; }
+        *out = v;
+    }
+    lua_pop(L, 1);
+    return SCO_OK;
+}
+
+static sco_result WidgetNumber(lua_State* L, int table, const char* key, double* out) {
+    WidgetField(L, table, key);
+    if (!lua_isnil(L, -1)) {
+        if (lua_type(L, -1) != LUA_TNUMBER) { lua_pop(L, 1); return SCO_BAD_ARG; }
+        *out = lua_tonumber(L, -1);
+    }
+    lua_pop(L, 1);
+    return SCO_OK;
+}
+
+/* Raw, dense sequences only: do not invoke __len/__index or accept hidden tails. */
+static sco_result WidgetSequence(lua_State* L, int at, size_t max, size_t* count) {
+    if (!lua_istable(L, at)) return SCO_BAD_ARG;
+    at = lua_absindex(L, at);
+    *count = lua_rawlen(L, at);
+    if (*count > max) return SCO_TOO_MANY;
+    size_t seen = 0;
+    lua_pushnil(L);
+    while (lua_next(L, at)) {
+        sco_lua_step(L, 1);
+        const int valid = lua_isinteger(L, -2) && lua_tointeger(L, -2) > 0 &&
+                          (uint64_t)lua_tointeger(L, -2) <= *count;
+        lua_pop(L, 1);
+        if (!valid) { lua_pop(L, 1); return SCO_BAD_ARG; }
+        ++seen;
+    }
+    return seen == *count ? SCO_OK : SCO_BAD_ARG;
+}
+
+static void WidgetRoot(lua_State* L, int roots) {
+    lua_pushvalue(L, -1);
+    lua_rawseti(L, roots, (lua_Integer)lua_rawlen(L, roots) + 1);
+}
+
+/* Node/array buffers are budget-charged Lua userdata. Strong temporary roots
+ * retain every borrowed string even when the input tree contains weak tables. */
+static sco_result WidgetNode(lua_State* L, int node, int roots, sco_widget_node* n) {
+    static const char* const keys[] = { "id", "parent", "kind", "disabled", "label", "text",
+        "value", "minimum", "maximum", "index", "columns", "items" };
+    lua_pushnil(L);
+    while (lua_next(L, node)) {
+        sco_lua_step(L, 1);
+        int known = 0;
+        const char* key = NULL;
+        if (WidgetString(L, -2, 16, SCO_BAD_ARG, &key) == SCO_OK)
+            for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i)
+                if (!strcmp(key, keys[i])) { known = 1; break; }
+        lua_pop(L, 1);
+        if (!known) { lua_pop(L, 1); return SCO_BAD_ARG; }
+    }
+    int64_t v = 0;
+    sco_result r = WidgetInteger(L, node, "id", 1, UINT32_MAX, &v);
+    if (r != SCO_OK || !v) return SCO_BAD_ARG;
+    n->id = (uint32_t)v;
+    v = 0; r = WidgetInteger(L, node, "parent", 0, UINT32_MAX, &v);
+    if (r != SCO_OK) return r;
+    n->parent = (uint32_t)v;
+    WidgetField(L, node, "kind");
+    const char* kind = NULL;
+    r = WidgetString(L, -1, 16, SCO_BAD_ARG, &kind);
+    if (r == SCO_OK) for (uint32_t k = 0; k < 10; ++k)
+        if (!strcmp(kind, kWidgetKinds[k])) { n->kind = k + 1; break; }
+    lua_pop(L, 1);
+    if (r != SCO_OK || !n->kind) return SCO_BAD_ARG;
+    WidgetField(L, node, "disabled");
+    if (!lua_isnil(L, -1) && lua_type(L, -1) != LUA_TBOOLEAN) { lua_pop(L, 1); return SCO_BAD_ARG; }
+    n->flags = lua_toboolean(L, -1) ? SCO_WIDGET_DISABLED : 0;
+    lua_pop(L, 1);
+    const char** fields[] = { &n->label, &n->text };
+    const char* names[] = { "label", "text" };
+    for (int i = 0; i < 2; ++i) {
+        WidgetField(L, node, names[i]);
+        if (!lua_isnil(L, -1)) {
+            r = WidgetString(L, -1, SCO_WIDGETS_MAX_TEXT, SCO_TOO_MANY, fields[i]);
+            if (r == SCO_OK) WidgetRoot(L, roots);
+        }
+        lua_pop(L, 1);
+        if (r != SCO_OK) return r;
+    }
+    if (n->kind == SCO_WIDGET_TOGGLE) {
+        WidgetField(L, node, "value");
+        if (!lua_isnil(L, -1) && lua_type(L, -1) != LUA_TBOOLEAN) { lua_pop(L, 1); return SCO_BAD_ARG; }
+        n->value = lua_toboolean(L, -1) ? 1 : 0;
+        lua_pop(L, 1);
+    } else {
+        r = WidgetNumber(L, node, "value", &n->value);
+        if (r != SCO_OK) return r;
+    }
+    r = WidgetNumber(L, node, "minimum", &n->minimum);
+    if (r == SCO_OK) r = WidgetNumber(L, node, "maximum", &n->maximum);
+    if (r != SCO_OK) return r;
+    v = 0; r = WidgetInteger(L, node, "index", INT32_MIN, INT32_MAX, &v);
+    if (r != SCO_OK) return r;
+    n->index = (int32_t)v;
+    v = 0; r = WidgetInteger(L, node, "columns", 0, UINT32_MAX, &v);
+    if (r != SCO_OK) return r;
+    n->columns = (uint32_t)v;
+    WidgetField(L, node, "items");
+    if (!lua_isnil(L, -1)) {
+        size_t count = 0;
+        r = WidgetSequence(L, -1, SCO_WIDGETS_MAX_ITEMS, &count);
+        if (r != SCO_OK) { lua_pop(L, 1); return r; }
+        const int items = lua_gettop(L);
+        n->item_count = (uint32_t)count;
+        if (count) {
+            const char** ptrs = (const char**)lua_newuserdatauv(L, count * sizeof(*ptrs), 0);
+            WidgetRoot(L, roots);
+            lua_pop(L, 1);
+            n->items = ptrs;
+            for (size_t i = 0; i < count; ++i) {
+                sco_lua_step(L, 1);
+                lua_rawgeti(L, items, (lua_Integer)i + 1);
+                r = WidgetString(L, -1, SCO_WIDGETS_MAX_TEXT, SCO_TOO_MANY, &ptrs[i]);
+                if (r == SCO_OK) WidgetRoot(L, roots);
+                lua_pop(L, 1);
+                if (r != SCO_OK) { lua_pop(L, 1); return r; }
+            }
+        }
+    }
+    lua_pop(L, 1);
+    return SCO_OK;
+}
+
+static WidgetCtx* WidgetFind(Script* s, const char* id) {
+    for (uint32_t i = 0; i < SCO_WIDGETS_MAX_PANELS; ++i)
+        if (s->widgets[i].id[0] && !strcmp(s->widgets[i].id, id)) return &s->widgets[i];
+    return NULL;
+}
+
+static void WidgetForget(lua_State* L, WidgetCtx* ctx) {
+    if (!ctx) return;
+    luaL_unref(L, LUA_REGISTRYINDEX, ctx->ref);
+    memset(ctx, 0, sizeof(*ctx));
+}
+
+typedef struct WidgetCall { WidgetCtx* ctx; const char* panel; const sco_widget_event* event; } WidgetCall;
+static int WidgetBody(lua_State* L) {
+    WidgetCall* call = (WidgetCall*)lua_touserdata(L, 1);
+    const sco_widget_event* e = call->event;
+    /* Root on stack before Lua runs: reentrant replace/remove may unref this function. */
+    lua_rawgeti(L, LUA_REGISTRYINDEX, call->ctx->ref);
+    lua_pushstring(L, call->panel);
+    lua_createtable(L, 0, 3);
+    lua_pushinteger(L, e->node_id); lua_setfield(L, -2, "node_id");
+    lua_pushstring(L, kWidgetKinds[e->kind - 1]); lua_setfield(L, -2, "kind");
+    switch (e->kind) {
+        case SCO_WIDGET_TOGGLE: lua_pushboolean(L, e->value != 0); lua_setfield(L, -2, "value"); break;
+        case SCO_WIDGET_SLIDER: lua_pushnumber(L, e->value); lua_setfield(L, -2, "value"); break;
+        case SCO_WIDGET_COMBO: case SCO_WIDGET_LIST:
+            lua_pushinteger(L, e->index); lua_setfield(L, -2, "index"); break;
+        case SCO_WIDGET_TEXT_INPUT: lua_pushstring(L, e->text); lua_setfield(L, -2, "text"); break;
+        default: break;
+    }
+    lua_call(L, 2, 0);
+    return 0;
+}
+
+static void WidgetThunk(const char* panel, const sco_widget_event* e, void* userdata) {
+    WidgetCtx* ctx = (WidgetCtx*)userdata;
+    Script* s = ctx ? ctx->s : NULL;
+    if (!s || !s->used || !s->alive || !s->L || !ctx->id[0] || !panel || strcmp(panel, ctx->id) ||
+        !e || e->size < sizeof(*e) || e->kind < SCO_WIDGET_BUTTON || e->kind > SCO_WIDGET_TEXT_INPUT ||
+        !e->node_id || (e->kind == SCO_WIDGET_TEXT_INPUT && !e->text) ||
+        g_depth >= MAX_DEPTH || !lua_checkstack(s->L, 4)) return;
+    const int top = lua_gettop(s->L);
+    WidgetCall call = { ctx, panel, e };
+    const int st = Enter(s, WidgetBody, &call);
+    if (st != LUA_OK) Failed(s, "widget event", st);
+    lua_settop(s->L, top);
+}
+
+static int L_widgets_set_panel(lua_State* L) {
+    Script* s = Of(L);
+    const sco_widgets_v1* t = s->alive ? WidgetsTable(s) : NULL;
+    if (!WIDGET_HAS(t, set_panel)) return PushResult(L, SCO_UNAVAILABLE);
+    const char *id = NULL, *title = NULL;
+    sco_result r = WidgetString(L, 1, SCO_WIDGETS_MAX_ID, SCO_BAD_ARG, &id);
+    if (r == SCO_OK) r = WidgetString(L, 2, SCO_WIDGETS_MAX_TITLE, SCO_BAD_ARG, &title);
+    if (r != SCO_OK || !lua_istable(L, 3)) return PushResult(L, SCO_BAD_ARG);
+    if (!lua_isnoneornil(L, 4) && !lua_isfunction(L, 4)) return PushResult(L, SCO_BAD_ARG);
+    size_t count = 0;
+    r = WidgetSequence(L, 3, SCO_WIDGETS_MAX_NODES, &count);
+    if (r != SCO_OK) return PushResult(L, r);
+    if (!count) return PushResult(L, SCO_BAD_ARG);
+    luaL_checkstack(L, 8, "widget tree");
+    lua_settop(L, 4);
+    sco_widget_node* nodes = (sco_widget_node*)lua_newuserdatauv(L, count * sizeof(*nodes), 0);
+    memset(nodes, 0, count * sizeof(*nodes));
+    lua_createtable(L, (int)count, 0);
+    const int roots = lua_gettop(L);
+    for (size_t i = 0; i < count; ++i) {
+        sco_lua_step(L, 1);
+        lua_rawgeti(L, 3, (lua_Integer)i + 1);
+        if (!lua_istable(L, -1)) return PushResult(L, SCO_BAD_ARG);
+        const int node = lua_gettop(L);
+        nodes[i].size = sizeof(*nodes);
+        r = WidgetNode(L, node, roots, &nodes[i]);
+        if (r != SCO_OK) return PushResult(L, r);
+        lua_pop(L, 1);
+    }
+    WidgetCtx* old = WidgetFind(s, id);
+    WidgetCtx* ctx = old;
+    const int callback = lua_isfunction(L, 4);
+    if (callback && !ctx) for (uint32_t i = 0; i < SCO_WIDGETS_MAX_PANELS; ++i)
+        if (!s->widgets[i].id[0]) { ctx = &s->widgets[i]; break; }
+    if (callback && !ctx) return PushResult(L, SCO_TOO_MANY);
+    int ref = LUA_NOREF;
+    if (callback) { lua_pushvalue(L, 4); ref = luaL_ref(L, LUA_REGISTRYINDEX); }
+    r = t->set_panel(s->self, id, title, nodes, (uint32_t)count, sizeof(*nodes),
+                     callback ? WidgetThunk : NULL, callback ? ctx : NULL);
+    if (r == SCO_OK) {
+        WidgetForget(L, old);
+        if (callback) { ctx->s = s; ctx->ref = ref; Copy(ctx->id, sizeof(ctx->id), id); }
+    } else if (callback) luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    CheckBudget(L);
+    return PushResult(L, r);
+}
+
+static int L_widgets_remove_panel(lua_State* L) {
+    Script* s = Of(L);
+    const sco_widgets_v1* t = s->alive ? WidgetsTable(s) : NULL;
+    if (!WIDGET_HAS(t, remove_panel)) return PushResult(L, SCO_UNAVAILABLE);
+    const char* id = NULL;
+    sco_result r = WidgetString(L, 1, SCO_WIDGETS_MAX_ID, SCO_BAD_ARG, &id);
+    if (r == SCO_OK) r = t->remove_panel(s->self, id);
+    if (r == SCO_OK) WidgetForget(L, WidgetFind(s, id));
+    CheckBudget(L);
+    return PushResult(L, r);
+}
+
 /* setmetatable without finalizers: Lua runs __gc with hooks off, out of the budget's reach. */
 static int L_setmetatable(lua_State* L) {
     if (lua_istable(L, 2)) {
@@ -1255,6 +1538,13 @@ static int SetupBody(lua_State* L) {
         static const luaL_Reg sefns[] = { { "get", L_settings_get }, { NULL, NULL } };
         luaL_newlib(L, sefns);
         lua_setfield(L, -2, "settings");
+    }
+    {
+        static const luaL_Reg wfns[] = {
+            { "available", L_widgets_available }, { "set_panel", L_widgets_set_panel },
+            { "remove_panel", L_widgets_remove_panel }, { NULL, NULL } };
+        luaL_newlib(L, wfns);
+        lua_setfield(L, -2, "widgets");
     }
     for (int i = 0; i < g_nextensions; ++i)          /* optional adapters (sco_lua_ext.h): sco.datacore, sco.game */
         g_extensions[i]->open(L);

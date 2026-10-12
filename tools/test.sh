@@ -435,8 +435,9 @@ done
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -isystem "$LUA_SRC" "$ROOT/tests/test_lua.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" \
   "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" \
   "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}" "$ROOT/src/storage/storage.cpp" "$SQLITE_ASAN" \
-  "${LUA_OBJS[@]}" -ldl -lm -o "$OUT/test_lua"
+  "$ROOT/src/widgets/widgets.cpp" "${LUA_OBJS[@]}" -ldl -lm -o "$OUT/test_lua"
 "$OUT/test_lua" "$ROOT/sdk" "$OUT"
+"$OUT/test_lua" "$ROOT/sdk" "$OUT/widgets" widgets
 
 # The host kit (sco/app.h): built-ins, the fake plugins m0 and m11, greeter and travel_pack through
 # sco::app (ASan+UBSan). Then sco-host-sim over the SDK examples, laid out like data/plugins with
