@@ -15,6 +15,36 @@
  },
  "entries": [
   {
+   "path": "site/package-lock.json",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Generated dependency-resolution metadata, not vendored package source. Third-party package licence metadata remains under each package's own terms, not this file's project licence. Direct dependencies Astro 7.3.8, Starlight 0.42.6 and Pagefind 1.5.2 are MIT; the complete transitive lockfile inventory is recorded in site/dependency-licenses.json. Review bundled code, licence texts and notices before publishing the site. Neither dependencies nor built assets are included in SDK packages."
+  },
+  {
+   "path": "site/dependency-licenses.json",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Generated audit inventory of every package in site/package-lock.json. Package licences are reported as dependency metadata, not relicensed under GPL-3.0-only. This inventory does not replace upstream licence texts or distribution notices."
+  },
+  {
+   "path": "site/**",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Project-authored documentation, components, styles, configuration and generation/test scripts. Installed node_modules and generated build output are not tracked. Third-party build dependencies retain their own licences; see site/dependency-licenses.json and the lockfile audit note. The entire site is excluded from every SDK package profile; CI builds a static artifact without publishing it."
+  },
+  {
    "path": "plugins/lua/third_party/lua/**",
    "origin": "third-party",
    "license": "MIT",

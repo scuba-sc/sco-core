@@ -38,12 +38,17 @@
   "third_party/sqlite",
   "tools",
   "docs/contracts.md",
-  "CMakeLists.txt"
+  "CMakeLists.txt",
+  "site"
  ],
  "excluded": [
   {
    "path": "tools/sco-core-mcp/",
    "why": "Repository-only, read-only SDK catalogue discovery aid; not a runtime component or SDK package."
+  },
+  {
+   "path": "site/",
+   "why": "Repository documentation site, dependency metadata and generated static assets; excluded from every SDK package profile."
   },
   {
    "path": "sdk/contracts/",
