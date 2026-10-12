@@ -30,6 +30,7 @@ struct Cidr {
 struct Scope {
     bool any = false;          // opt-in: every address (the LAN rule off)
     std::vector<Cidr> allow;   // extra ranges beside the LAN ones
+    bool allowOnly = false;   // host broker: ONLY allow, no implicit LAN/memory/any bypass
 };
 
 // "100.64.0.0/10", "fd00::/8"; an address without "/n" is a single host. false for anything

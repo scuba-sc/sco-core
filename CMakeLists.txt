@@ -239,7 +239,7 @@ sco_project_target(sco_net)
 # sco.net service (sco/net/session.h, include/sco_net.h): the network thread, channel ownership,
 # quotas, the LAN rule (scope.cpp) and UDP, a host-owned service. The platform half is udp_win.cpp
 # (Winsock, the real target) or udp_posix.cpp (the host tests).
-add_library(sco_net_service STATIC src/net/service.cpp src/net/scope.cpp)
+add_library(sco_net_service STATIC src/net/service.cpp src/net/scope.cpp src/net/control.cpp)
 if(WIN32)
   target_sources(sco_net_service PRIVATE src/net/udp_win.cpp)
   target_link_libraries(sco_net_service PRIVATE ws2_32)
@@ -818,6 +818,13 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_net_service PRIVATE sco_net_service)
   sco_project_target(test_net_service)
   add_test(NAME test_net_service COMMAND test_net_service)
+  # Host control uses only an injected synthetic IPv4 transport: no live sockets.
+  add_executable(test_net_control tests/test_net_control.cpp
+    src/net/service.cpp src/net/scope.cpp src/net/control.cpp)
+  # Same production backend, but UDP is replaced by failing socket traps in the fixture.
+  target_link_libraries(test_net_control PRIVATE sco_net sco_host Threads::Threads)
+  sco_project_target(test_net_control)
+  add_test(NAME test_net_control COMMAND test_net_control)
 
   # sco.ui over the real host table, with built-in plugins under the loader's crash guard.
   add_executable(test_ui tests/test_ui.cpp)

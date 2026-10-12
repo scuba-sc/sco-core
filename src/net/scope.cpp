@@ -147,6 +147,11 @@ bool InCidr(const Cidr& c, const Endpoint& e) {
 }
 
 bool InScope(const Scope& s, const Endpoint& e) {
+    if (s.allowOnly) {
+        for (const Cidr& c : s.allow)
+            if (InCidr(c, e)) return true;
+        return false;
+    }
     if (e.family == Endpoint::kMemory) return true;
     if (e.family != Endpoint::kIpv4 && e.family != Endpoint::kIpv6) return false;
     if (s.any || IsLan(e)) return true;

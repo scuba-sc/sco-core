@@ -25,6 +25,16 @@ What each change means for plugin authors and for products built on sco-core (sc
   offline/EAC state refuses; no plugin ABI/authority change. Portable fixture only;
   Windows gameplay not verified.
 
+- **Host-only private-session control v1 (G13):** default-off `SessionControlV1`
+  wraps the existing `sco.net` host/join/leave backend with per-request local
+  consent and up to 16 exact private LAN/CGNAT VPN IPv4 addresses. No implicit
+  LAN expansion, public destinations, remembered secrets, plugin service or
+  remote commands; reconfiguration and terminal teardown close owned sessions.
+  Kernel-only ASan/UBSan synthetic transport test covers authentication refusal,
+  malformed/out-of-scope datagrams, quotas, stale peers and teardown with UDP
+  replaced by failing socket traps. Frozen `sco_api` 1.1 is untouched.
+  Product UI/firewall integration and Windows/private-LAN/game checks remain pending.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner

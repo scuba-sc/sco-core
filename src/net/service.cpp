@@ -784,6 +784,7 @@ Result Host(const HostOptions& o) {
         }
         s->raw = s->socket.get();
         Log("[net] hosting on UDP port %u (%s)", static_cast<unsigned>(s->socket->Port()),
+            o.scope.allowOnly ? "explicit address allow-list only" :
             o.scope.any ? "any address" : o.scope.allow.empty() ? "LAN only" : "LAN and the allow-list");
     }
     s->scoped = std::make_unique<ScopedTransport>(*s->raw, o.scope);

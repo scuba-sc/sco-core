@@ -7,6 +7,7 @@
 | [`include/sco_net.h`](../include/sco_net.h) | The service table `sco_net_v1`, plain C, pinned by `tests/abi_net.c` |
 | [`include/scosdk/net.hpp`](../include/scosdk/net.hpp) | The C++20 wrapper: `Net`, `NetChannel` |
 | `include/sco/net/session.h` | The **product's** side (host, join, leave). Not for plugins |
+| `include/sco/net/control.h` | Supported **host-source** control v1: configuration/consent broker. Core-source kit only, not a plugin contract |
 
 ## What a plugin can and can't do
 
@@ -92,6 +93,82 @@ Two events on the bus, on the game thread, each starting with its size:
 On ordinary owner release (including unload or non-retained `crashed` cleanup), the network release hook removes the plugin's channels and messages still queued for it or by it. Restart-required retained-provider faults skip this resource hook: host callbacks are suppressed, but channels and queued network state are not removed by quarantine alone. Terminal network shutdown clears remaining state.
 
 ## Who can connect (the product's side)
+
+### Host-source private-session control v1
+
+New host integrations use `sco::net::SessionControlV1` from
+`include/sco/net/control.h`, linked through `sco_net_service`. This is a neutral
+C++ source composition contract (same source/toolchain as the host), **not** a
+versioned C plugin service, command registration, wire message handler or new
+member of `sco_api`/`sco_net_v1`. It ships only in the `core-source` profile.
+The existing backend remains available for legacy hosts and is not silently
+retrofitted with consent; hosts must route their local controls through the broker.
+No C#/Lua/plugin route or multiplayer feature extraction is added here.
+
+- **Default off:** construction and `Configure` open no socket and start no
+  session. `ControlPolicyV1::enabled` defaults false. When enabled,
+  `allowedAddresses` must contain 1–16 unique exact numeric IPv4 addresses:
+  RFC 1918 private, loopback, link-local, or CGNAT (`100.64.0.0/10`) VPN addresses.
+  CIDRs, hostnames, public destinations, IPv6, duplicate addresses and empty or
+  oversized allowlists are refused. CGNAT use must be on the owner's chosen VPN;
+  the broker cannot verify routing. It is not a public internet session facility.
+- **Fresh local consent:** every `Host(ControlHostRequestV1)` or
+  `Join(ControlJoinRequestV1)` requires `consent = true` from a host-owned local
+  confirmation. Do not set it from a peer message, plugin command or restored
+  preference. An enabled policy is not consent to start. Leave needs no consent.
+  The host UI remains responsible for authenticating the human action: trusted
+  native in-process code is not sandboxed by this broker.
+- **Narrow filtering:** both receive and send use `Scope::allowOnly`, which
+  removes implicit LAN, `any` and synthetic-memory exceptions. Join must match
+  an approved exact address before calling the backend, including with an
+  injected transport. Hosts accept only datagrams from approved addresses, then
+  the backend's existing passphrase authentication. This is address filtering,
+  not proof of the OS firewall/interface policy or confidentiality. UDP may bind
+  all IPv4 interfaces; the launcher must still implement its owner-approved
+  firewall/network restriction and restoration policy independently.
+- **No remembered secret:** request passphrases are borrowed `string_view`s,
+  required each time, 1–256 bytes without embedded NUL. The broker has no secret,
+  persistence, history or logging field. The existing backend copies session
+  credentials into volatile session state until teardown; this does **not**
+  promise cryptographic memory zeroization. Names use existing `ValidName`
+  validation; port must be nonzero, host peer limit 2–16. Messages remain
+  authenticated but not encrypted; never send personal information or secrets.
+- **Lifecycle/thread contract:** use one broker on one serialized host control
+  thread, as for backend Host/Join/Leave; do not call it from network callbacks,
+  mix direct backend session changes with it, or access it concurrently. Start
+  `sco.net` first. Reconfiguration always leaves its owned session, including
+  when replacement policy is invalid (fails closed to disabled). Leave and Stop
+  are idempotent; Stop is terminal, disables/clears policy, and cannot reopen.
+  Destruction calls Stop. Destroy/Stop before `sco.net::Stop` and before freeing
+  the injected transport. No plugin service/lifetime authority is granted.
+- **Results:** disabled/stopped/service absent → `Unavailable`; missing consent
+  → `Failed`; invalid request/policy or existing backend session → `BadArg`;
+  socket failure → backend `Failed`. `Ok` means backend start accepted, not a
+  completed join. Observe existing `net.state`, `GetState` and `LastReason` for
+  asynchronous authentication/full/timeout/refusal results. No automatic reconnect.
+
+`tests/test_net_control.cpp` configures `ServiceOptions::thread = false` and a
+virtual clock, injects synthetic IPv4 datagrams through the real session backend,
+and replaces UDP functions with failing traps (no platform UDP source is linked
+into that executable). It covers consent/default-off, address rejection and
+pre-framing filtering, wrong-passphrase host/join refusal, successful host and
+join, malformed frames, quotas, stale peers, empty-secret retry and teardown.
+Build/run only this fixture:
+
+```sh
+cmake -S . -B build-g13 -G Ninja -DSCO_GAME_SC=OFF -DSCO_SANITIZE=address,undefined
+cmake --build build-g13 --target test_net_control sco_net_service
+ctest --test-dir build-g13 -R '^test_net_control$' -V
+```
+
+**Decision pending owner:** exact private-host addresses only are the conservative
+v1 policy; wider CIDRs, other VPN ranges, IPv6 and persisted consent/secret support
+are not approved or implemented. Product menu/launcher migration, firewall
+packet-policy proof and two owner-operated Windows offline instances remain
+pending. Synthetic tests do not certify private-LAN, official-server blocking,
+rendering or gameplay behavior. Nothing in G10 is changed.
+
+### Legacy backend policy (not the broker defaults)
 
 For product authors (sc-offline); plugins never see this. `sco::net::Host(HostOptions)` binds UDP 64091 (by default) and accepts players who know the passphrase; `sco::net::Join(JoinOptions)` joins one by numeric IPv4 address; `sco::net::Leave(reason)` ends it. Nothing listens or connects until one of them is called.
 
