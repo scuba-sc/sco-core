@@ -437,7 +437,9 @@ class RealManifest(unittest.TestCase):
                 write = target.find("ms:WriteLinesToFile", ns)
                 assert write is not None
                 self.assertEqual(write.get("Lines"), "$(IncludePath)")
-                self.assertEqual(Path(write.attrib["File"]), work / "build" / f"system-{lang}.txt")
+                # The verifier may write the canonical path (macOS: /private/var vs /var).
+                self.assertEqual(Path(write.attrib["File"]).resolve(),
+                                 (work / "build" / f"system-{lang}.txt").resolve())
                 self.assertEqual(write.get("Overwrite"), "true")
                 cmake = (work / "CMakeLists.txt").read_text()
                 self.assertIn("VS_USER_PROPS", cmake)
