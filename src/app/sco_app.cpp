@@ -1,6 +1,7 @@
 // The host kit: Start / Tick / Stop over the game core, caps, the host table and the loader.
 // Everything runs on the game thread; the state below is touched by nothing else.
 #include "sco/app.h"
+#include "../ipc/diagnostics_worker.h"
 #include "../api/internal.h"
 #include "sco/caps.h"
 #include "sco/content.h"
@@ -41,22 +42,27 @@ plugins::ContentIndex        g_index;
 const sco_api*               g_api = nullptr;   // what Reload loads with
 plugins::Options             g_opts;
 diagnostics::SnapshotStore   g_diagnostics;
+diagnostics::Capture         g_diagnosticCapture;
+diagnostics::ipc::Worker     g_diagnosticWorker(g_diagnostics,g_diagnosticCapture);
+std::vector<plugins::State>  g_diagnosticStates;
 std::optional<uint64_t>       g_lastDiagnosticTick;
 bool                         g_gameServicesPublished = false;
 bool                         g_reloading = false;
 bool                         g_reloadCommand = false;   // sco.reload is registered (once per process)
 
 uint64_t DiagnosticNow() {
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count());
+    return diagnostics::ipc::ClockNow();
 }
 void CopyDiagnostics(uint64_t now) noexcept {
     try {
         diagnostics::HostMetadata host;
         if (g_platform.hostVersion) host.hostVersion = g_platform.hostVersion;
+        host.hostBuild = g_platform.runtimeInspection.hostBuild;
+        host.sourceSha = g_platform.runtimeInspection.sourceSha;
         host.readiness = "ready";
         diagnostics::LifecycleMetadata game;
         game.lifecycle = "ready"; game.lastTickMs = g_lastDiagnosticTick;
+        game.offlineAdmission = diagnostics::Authorized(g_platform.runtimeInspection) ? "authorized" : "unknown";
         game.gameServicesRequested = g_platform.gameServices;
 #ifdef SCO_GAME_SERVICES
         game.gameServicesBuilt = true;
@@ -72,6 +78,19 @@ void CopyDiagnostics(uint64_t now) noexcept {
         // Copies only: no plugin callbacks, service queries or provider execution.
         g_diagnostics.Begin(g_list, std::move(host), std::move(game), now, std::move(sources));
         g_diagnostics.Advance(now);
+        if(diagnostics::Authorized(g_platform.runtimeInspection)){
+            if(g_diagnosticStates.size()!=g_list.size())g_diagnosticStates.assign(g_list.size(),plugins::State::Off);
+            for(size_t i=0;i<g_list.size();++i){const auto& p=g_list[i];
+                const void* key=p.self?static_cast<const void*>(p.self):static_cast<const void*>(&p);
+                if(g_diagnosticCapture.AssignKey(key,p.manifest.id)&&g_diagnosticStates[i]!=p.state){
+                    diagnostics::HostEvent event=diagnostics::HostEvent::Ready;
+                    if(p.state==plugins::State::Loaded)event=diagnostics::HostEvent::Loaded;
+                    else if(p.state==plugins::State::Refused)event=diagnostics::HostEvent::Refused;
+                    else if(p.state==plugins::State::Faulted)event=diagnostics::HostEvent::Faulted;
+                    g_diagnosticCapture.RecordHost(key,event,now);g_diagnosticStates[i]=p.state;
+                }
+            }
+        }else g_diagnosticCapture.Stop();
     } catch (...) {
         g_diagnostics.Reset(); // observation failure must not fail a game/plugin operation
     }
@@ -275,7 +294,13 @@ bool Start(const Platform& platform) {
 
     const Result r = Dispatch("game.ready", nullptr);
     if (r != Result::Ok) Log("[app] game.ready: %s", ResultName(r));
-    CopyDiagnostics(DiagnosticNow());
+    const auto diagnosticNow=DiagnosticNow();
+    if(diagnostics::Authorized(pf.runtimeInspection))
+        g_diagnosticCapture.Start(diagnosticNow,pf.runtimeInspection.freeFormConsent);
+    diagnostics::SetLogCapture(&g_diagnosticCapture);
+    g_diagnosticStates.clear();
+    CopyDiagnostics(diagnosticNow);
+    g_diagnosticWorker.Start(pf.runtimeInspection);
     return true;
 }
 
@@ -294,6 +319,8 @@ void Stop() {
     if (!g_started || g_stopping) return;
     if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return; }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
+    g_diagnosticWorker.Stop(); // revoke and close BEFORE any exit/unload callout
+    diagnostics::SetLogCapture(nullptr);
     g_diagnostics.Reset(); // invalidate observations BEFORE game.exit and plugin teardown
     diagnostics::StopPublisher(); // cached publisher calls refuse before any unload export
     const Result r = Dispatch("game.exit", nullptr);

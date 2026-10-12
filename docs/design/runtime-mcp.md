@@ -1,6 +1,13 @@
 # Design: opt-in local runtime MCP inspection
 
-Status: **steps 1–2 implemented locally; runtime MCP tools are not implemented**. The owner
+Status: **step 3 host policy/collector implemented locally; tests NOT RUN**.
+Current task explicitly selects separate `tools/sco-core-mcp-runtime` (placement B),
+superseding the historical placement A sections below. Discovery stays unchanged.
+Windows effective-identity ACL proof and manual offline acceptance are **NOT VERIFIED**.
+Step 3 adds default-off `Platform::runtimeInspection`, atomic product offline
+admission/revocation and a bounded protected OS collector; see [runtime-audit.md](../runtime-audit.md).
+
+Historical step-0 decisions (placement A is superseded): The owner
 approved placement **A**, an opt-in runtime tool group inside the existing
 `tools/sco-core-mcp` stdio server and all eight defaults on **2026-10-12**;
 the runtime data-source decision is recorded below and tracked in

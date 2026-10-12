@@ -201,6 +201,12 @@
     }
   ],
   "components": [
+    {"id": "source.include.sco.diagnostics_policy.h", "source": "include/sco/diagnostics_policy.h", "destination": "include/sco/diagnostics_policy.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.src.ipc.diagnostics_audit.h", "source": "src/ipc/diagnostics_audit.h", "destination": "src/ipc/diagnostics_audit.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.src.ipc.diagnostics_audit.cpp", "source": "src/ipc/diagnostics_audit.cpp", "destination": "src/ipc/diagnostics_audit.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.src.ipc.diagnostics_worker.h", "source": "src/ipc/diagnostics_worker.h", "destination": "src/ipc/diagnostics_worker.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.test_runtime_diagnostics_policy.cpp", "source": "tests/test_runtime_diagnostics_policy.cpp", "destination": "tests/test_runtime_diagnostics_policy.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.test_runtime_diagnostics_audit_win.cpp", "source": "tests/test_runtime_diagnostics_audit_win.cpp", "destination": "tests/test_runtime_diagnostics_audit_win.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {
       "id": "include.sco_diagnostics_publisher.h",
       "source": "include/sco_diagnostics_publisher.h",

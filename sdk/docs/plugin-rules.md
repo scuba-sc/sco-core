@@ -12,6 +12,12 @@ Only these two, and only through the host's services:
 Both are host services, `sco.ipc` 1.0 ([IPC](../../docs/ipc.md)) and `sco.net` 1.0 ([multiplayer messages](../../docs/net.md)); a plugin can't open or join a session, only use the channels the product's session gives it. The design is [design/multiplayer.md](../../docs/design/multiplayer.md). A native plugin can technically open its own sockets or shared memory (it runs with the game's rights), so this is a review rule, not a sandbox.
 
 ## What a plugin may not do
+Runtime diagnostics is a separate host-only read boundary, not a plugin IPC
+permission or an SDK table. Product `Platform::runtimeInspection` stays off;
+positive trusted offline admission, operator disclosure consent and protected
+audit acknowledgement are mandatory. Revocation precedes exit/unload callouts.
+Neither plugin enablement nor game-service publication authorizes inspection.
+See [protected audit](../../docs/runtime-audit.md); no network/tunnel or recovery claim.
 
 These are permanent:
 

@@ -7,7 +7,19 @@
 #include <filesystem>
 #include <limits>
 #include <set>
+#include <chrono>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 namespace sco::diagnostics::ipc {
+uint64_t ClockNow() {
+#ifdef _WIN32
+    return GetTickCount64();
+#else
+    return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
+}
 namespace {
 constexpr uint32_t kMagic=0x31444753, kBytes=262144, kRequest=4096, kResponse=65536;
 constexpr uint64_t kRequestOffset=128,kResponseOffset=33088;
@@ -143,6 +155,8 @@ Result Geometry(platform::Mapping& m,const Credentials& c,sc_ipc_chan& chan,sc_i
 }
 struct Host::State {
     SnapshotStore& snapshots;Capture& capture;FixtureAudit* audit=nullptr;Options options;
+    std::shared_ptr<audit::Collector> collector; bool production=false;
+    uint64_t ackDeadline=0,deniedCount=0,lastDeniedAudit=0;
     // Permanent host token only: never a sco_plugin* or public C table route.
     const void* owner=sco::host::HostOwner(); platform::Mapping map; Credentials credentials;
     sc_ipc_chan channel{};sc_ipc_ring_view request{},response{};
@@ -150,7 +164,21 @@ struct Host::State {
     int phase=0;uint64_t nextPeer=1,nextHost=1,lastNow=0,authStart=0,readStart=0,lastRead=0,handshakeDeadline=0;
     uint32_t authCount=0,readCount=0,burst=0;Id handshakeId{};
     explicit State(SnapshotStore& s,Capture& c):snapshots(s),capture(c){}
-    bool Ack(uint16_t op,const Id& id,uint64_t now,const char* outcome,uint32_t bytes=0){return audit&&audit->Acknowledge({op,id,now,bytes,outcome});}
+    bool Admitted() const { return !production || Authorized(options.policy); }
+    bool Ack(uint16_t op,const Id& id,uint64_t now,const char* outcome,uint32_t bytes=0){
+        if(!production)return audit&&audit->Acknowledge({op,id,now,bytes,outcome});
+        if(!collector)return false;
+        const bool denial=std::strcmp(outcome,"rate_limited")==0;
+        if(denial){++deniedCount;if(lastDeniedAudit&&now-lastDeniedAudit<1000)return true;}
+        audit::Coordinates coordinates;coordinates.session=credentials.session;
+        coordinates.build=credentials.build.value_or("unknown");
+        coordinates.aggregateCount=denial?deniedCount:1;
+        const auto deadline=ackDeadline?ackDeadline:ClockNow()+2000;
+        const auto receipt=collector->Append({op,id,now,bytes,outcome},coordinates,deadline);
+        const bool accepted=audit::Acknowledged(receipt,deadline,ClockNow());
+        if(accepted&&denial){deniedCount=0;lastDeniedAudit=now;}
+        return accepted;
+    }
     void Wipe(){sco_wipe(credentials.secret.data(),32);sco_wipe(client.data(),32);sco_wipe(host.data(),32);sco_wipe(peerKey.data(),32);sco_wipe(hostKey.data(),32);}
 };
 Host::Host(SnapshotStore& s,Capture& c):state_(std::make_unique<State>(s,c)){}
@@ -160,10 +188,18 @@ void Host::Stop(){auto& s=*state_;if(s.map.base){s.Ack(5,{},s.lastNow,"closed");
 Result Host::Start(const Options& options,FixtureAudit* audit,uint64_t now) {
     if(!options.enabled)return Result::Disabled;
 #ifndef SCO_RUNTIME_DIAGNOSTICS_FIXTURE
-    (void)audit;(void)now;return Result::Disabled;
-#else
+    if(audit)return Result::Disabled; // fixture acknowledgements cannot authorize production
+#endif
     auto& s=*state_;if(s.map.base)return Result::Busy;
-    if(!audit)return Result::Audit;
+    s.production = audit==nullptr;
+    if(s.production){
+        if(!Authorized(options.policy))return Result::Disabled;
+        if(!options.policy.collector)return Result::Audit;
+        const auto deadline=ClockNow()+2000;
+        const auto receipt=options.policy.collector->Verify(deadline);
+        if(!audit::Protected(receipt,deadline,ClockNow()))return Result::Audit;
+        s.collector=options.policy.collector;
+    }
     if(!Label(options.hostBuild)||now>kMaxMonotonicMs)return Result::Corrupt;
     const auto path=std::filesystem::path(options.credentialPath).lexically_normal();
     if(!path.is_absolute()||path.string()!=options.credentialPath||options.excludedRoots.empty())return Result::Unavailable;
@@ -184,10 +220,11 @@ Result Host::Start(const Options& options,FixtureAudit* audit,uint64_t now) {
     // Never delete a pre-existing credential on exclusive-creation failure.
     if(!platform::WriteCredential(options.credentialPath,Credential(s.credentials))){sc_ipc_close(&s.channel);platform::Close(s.map);s.Wipe();s.channel={};s.audit=nullptr;return Result::Unavailable;}
     if(!s.Ack(0,{},now,"opened")){Stop();return Result::Audit;}return Result::Ok;
-#endif
 }
+Result Host::Start(const Options& options,uint64_t now){return Start(options,nullptr,now);}
 Result Host::Poll(uint64_t now) {
     auto& s=*state_;if(!s.map.base)return Result::Disabled;
+    if(!s.Admitted()){Stop();s.capture.Stop();return Result::Disabled;}
     auto fail=[&](Result r){s.Ack(0,{},now,"refused");Stop();return r;};
     if(now<s.lastNow||now>kMaxMonotonicMs)return fail(Result::Corrupt);s.lastNow=now;
     auto geometry=Rings(s.map,s.credentials,s.channel,s.request,s.response,now);if(geometry!=Result::Ok)return fail(geometry);
@@ -201,6 +238,7 @@ Result Host::Poll(uint64_t now) {
     if(r!=Result::Ok)return fail(r);
     if(f.session!=s.credentials.session||f.epoch!=s.credentials.epoch)return fail(Result::Epoch);
     if(f.deadline<now||f.deadline-now>2000)return fail(Result::Deadline);
+    s.ackDeadline=f.deadline;
     if(!Coordinates(f,s.credentials,1,s.phase==0?0:s.nextPeer,now))return fail(Result::Auth);
     json::Object input;if(!json::Parse(f.payload,input))return fail(Result::Corrupt);
     if(s.phase==0){
@@ -243,7 +281,10 @@ Result Host::Poll(uint64_t now) {
         return Result::Audit;
     }
     // Recheck deadline/transport after audit acknowledgement: no cached observation escapes revoked geometry.
-    if(Rings(s.map,s.credentials,s.channel,s.request,s.response,now)!=Result::Ok)return fail(Result::Corrupt);
+    if(!s.Admitted()){Stop();s.capture.Stop();return Result::Disabled;}
+    const auto completed=s.production?ClockNow():now;
+    if(completed>=f.deadline)return fail(Result::Deadline);
+    if(Rings(s.map,s.credentials,s.channel,s.request,s.response,completed)!=Result::Ok)return fail(Result::Corrupt);
     if(!Push(s.response,reply,s.hostKey))return fail(Result::Corrupt);return Result::Ok;
 }
 struct Peer::State {
