@@ -43,6 +43,10 @@
  ],
  "excluded": [
   {
+   "path": "tests/test_world_control.cpp",
+   "why": "Game-pack synthetic owner/filter/camera policy fixture; repository only, not in neutral source kit."
+  },
+  {
    "path": "tests/game_contracts/conformance/",
    "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
    },
@@ -798,6 +802,39 @@
    "origin": "project-authored",
    "license": "GPL-3.0-only",
    "public_header": true
+  },
+  {
+    "id": "include.sc_world_control.h",
+    "source": "include/sc_world_control.h",
+    "destination": "include/sc_world_control.h",
+    "profiles": [
+      "game-sc"
+    ],
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "public_header": true
+  },
+  {
+    "id": "include.scosdk.game.world_control.hpp",
+    "source": "include/scosdk/game/world_control.hpp",
+    "destination": "include/scosdk/game/world_control.hpp",
+    "profiles": [
+      "game-sc"
+    ],
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "public_header": true
+  },
+  {
+    "id": "tests.abi_world_control.c",
+    "source": "tests/abi_world_control.c",
+    "destination": "tests/abi_world_control.c",
+    "profiles": [
+      "game-sc"
+    ],
+    "origin": "project-authored",
+    "license": "GPL-3.0-only",
+    "group": "game-contract"
   },
   {
    "id": "include.sc_world.h",

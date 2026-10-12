@@ -4,6 +4,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G5 (#126): `game.world.control` 1.0** adds owner-validated bounded filtered
+  rays and exclusive reversible free-camera leases, with native C/C++ routes,
+  synthetic restoration/ownership/fault fixtures and ABI/catalogue/package pins.
+  `game.world` 1.0 and frozen `sco_api` remain unchanged. New production
+  capabilities are OFF: no verified offline engine adapter, no guessed offsets.
+  Ordinary unload/stop restoration is policy-tested; Windows/game not verified.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner

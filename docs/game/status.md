@@ -31,6 +31,7 @@ As of sco-core `main` at `2197dfb` (2026-10-11, with `game.actors.died`), game p
 | `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.0 | `game.world.raycast_filtered`, `game.world.free_camera` | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.0 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | camera field of view | none | BLOCKED |

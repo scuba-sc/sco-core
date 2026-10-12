@@ -32,6 +32,15 @@ Not a table: the capability `game.mining` (the row `mining.cell`, [mining](game/
 - The `watch` type is a class name (exact, case-sensitive) or `PREFIX*`. Refused with `SCO_BAD_ARG` and a reason: `NULL`, empty, a lone `*`, a `*` that isn't the last character (`A*B`, `**`, `*A`), more than 63 characters, and any byte that isn't printable ASCII (0x21 to 0x7E) or is `?`. The host matches before calling the plugin; events reach it a tick later, in order, up to 256 held per watch (the oldest are dropped and logged).
 - The implementations are in `src/game/services/` (library `sco_game_services`, Windows only: game reads run under SEH). Builds without them log `[app] game services not built` and go on.
 
+## Optional G5 world control (disabled)
+
+`game.world.control` 1.0 ([header](../include/sc_world_control.h),
+[contract](design/world-control.md)) supplies filtered aim rays and bounded,
+owner-exclusive reversible camera leases via a separate table. Native C/C++
+only; C#/Lua unsupported. Both `game.world.raycast_filtered` and
+`game.world.free_camera` are OFF pending a verified offline engine adapter;
+synthetic policy tests do not certify gameplay. Existing world reads unchanged.
+
 ## Events
 
 The game pack puts low-volume events on the kernel event bus (design decision 8; entity streaming is the type-filtered watch on `game.entities` instead). Subscribe by name with `sco_api`'s `subscribe`, `Plugin::Subscribe`, C# `GameEvents` or Lua `sco.subscribe`. The data argument is a pointer to a size-prefixed struct from [`sc_game_events.h`](../include/sc_game_events.h); copy what you keep. Handlers run on the game thread, from the host's tick, a frame or two after the game did it: the game pack's hooks only record the occurrence into a small fixed ring (a mutex held for a few stores, no allocation, no calls out) and never run plugin code. A hook is installed only when its capability's rows are OK, and an event whose capability isn't ready never fires.

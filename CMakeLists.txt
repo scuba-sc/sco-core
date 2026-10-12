@@ -272,7 +272,7 @@ if(SCO_GAME_SC AND WIN32)
   add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
-                                       src/game/services/world.cpp src/game/services/events.cpp
+                                       src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
@@ -660,7 +660,12 @@ if(SCO_BUILD_TESTS)
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events)
+    list(APPEND _abi_bridge_pins game_world game_events world_control)
+    add_executable(test_world_control tests/test_world_control.cpp src/game/services/world_control.cpp)
+    target_include_directories(test_world_control PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_world_control PRIVATE sco_runtime)
+    sco_project_target(test_world_control)
+    add_test(NAME world_control COMMAND test_world_control)
   endif()
   foreach(_b IN LISTS _abi_bridge_pins)
     set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")
