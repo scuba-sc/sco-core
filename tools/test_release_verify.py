@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -18,7 +19,8 @@ class ReleaseVerifyTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name) / "checkout"
+        self.root.mkdir()
         self.payload = self.root / "payload"
         self.payload.mkdir()
         (self.payload / "sdk.zip").write_bytes(b"archive")
@@ -33,7 +35,7 @@ class ReleaseVerifyTests(unittest.TestCase):
                      "user.email=maintainer@example.invalid", "commit", "-qm", "fixture")
         self.sha = self.command("git", "rev-parse", "HEAD").stdout.decode().strip()
         self.manifest = self.root / "release.json"
-        self.signers = self.root / "allowed-signers"
+        self.signers = Path(self.temp.name) / "allowed-signers"
         self.record = {
             "schema_version": 2, "tag": "sdk-v9.9.9",
             "source": {"repo": "scubamount/sco-core", "sha": self.sha, "dependencies": []},
@@ -63,7 +65,7 @@ class ReleaseVerifyTests(unittest.TestCase):
         if not self.signers.exists():
             self.signers.write_text("sco-maintainer " + keyfile.with_suffix(".pub").read_text())
 
-    def verify(self, **overrides):
+    def verify(self, *, env=None, **overrides):
         options = {"manifest": self.manifest, "signature": self.root / "release.json.sig",
                    "allowed-signers": self.signers, "payload-dir": self.payload,
                    "tag": "sdk-v9.9.9", "source-sha": self.sha, "run-id": 123,
@@ -73,7 +75,7 @@ class ReleaseVerifyTests(unittest.TestCase):
         for k, v in options.items():
             if v is not None:
                 args.extend(["--" + k, str(v)])
-        return subprocess.run(args, cwd=self.root, capture_output=True, text=True)
+        return subprocess.run(args, cwd=self.root, capture_output=True, text=True, env=env)
 
     def write_record(self):
         self.manifest.write_text(json.dumps(self.record, indent=2) + "\n")
@@ -169,6 +171,35 @@ class ReleaseVerifyTests(unittest.TestCase):
         self.sign(key="wrong-key")
         self.assert_refused(self.verify(), "signature verification failed")
 
+    def test_revoked_key(self):
+        self.write_record()
+        self.sign()
+        self.signers.write_text("# signing key removed from the independent policy\n")
+        self.assert_refused(self.verify(), "signature verification failed")
+
+    def test_checkout_trust_file_refused(self):
+        self.write_record()
+        self.sign()
+        inside = self.root / "allowed-signers"
+        inside.write_bytes(self.signers.read_bytes())
+        self.assert_refused(self.verify(**{"allowed-signers": inside}), "trust file is inside the checkout")
+
+    def test_symlink_to_checkout_trust_file_refused(self):
+        self.write_record()
+        self.sign()
+        inside = self.root / "allowed-signers"
+        inside.write_bytes(self.signers.read_bytes())
+        outside_link = Path(self.temp.name) / "trust-link"
+        outside_link.symlink_to(inside)
+        self.assert_refused(self.verify(**{"allowed-signers": outside_link}), "trust file is inside the checkout")
+
+    def test_checkout_subdirectory_trust_file_refused(self):
+        self.write_record()
+        self.sign()
+        inside = self.root / "sdk/allowed-signers"
+        inside.write_bytes(self.signers.read_bytes())
+        self.assert_refused(self.verify(**{"allowed-signers": inside}), "trust file is inside the checkout")
+
     def test_wrong_namespace(self):
         self.write_record()
         self.sign(namespace="wrong-namespace")
@@ -196,6 +227,25 @@ class ReleaseVerifyTests(unittest.TestCase):
         self.write_record()
         self.sign()
         (self.payload / "sdk.spdx.json").write_bytes(b"sbom-v2")
+        self.assert_refused(self.verify(), "artifact SHA256 mismatch")
+
+    def test_wrong_source_archive(self):
+        source = self.payload / "core-source.zip"
+        source.write_bytes(b"synthetic source archive v1")
+        self.record["artifacts"].append({
+            "name": source.name, "role": "source", "size": source.stat().st_size,
+            "sha256": hashlib.sha256(source.read_bytes()).hexdigest(), "artifact_id": 456,
+        })
+        self.write_record()
+        self.sign()
+        source.write_bytes(b"synthetic source archive v2")
+        self.assert_refused(self.verify(), "artifact SHA256 mismatch")
+
+    def test_regenerated_zip_after_approval(self):
+        self.write_record()
+        self.sign()
+        # Same size, different bytes: a rebuilt file is not the approved candidate.
+        (self.payload / "sdk.zip").write_bytes(b"rebuilt")
         self.assert_refused(self.verify(), "artifact SHA256 mismatch")
 
     def test_changed_size(self):
@@ -281,6 +331,26 @@ class ReleaseVerifyTests(unittest.TestCase):
         self.sign()
         shutil.rmtree(self.root / ".git")
         self.assert_refused(self.verify(), "git results unavailable")
+
+    def failed_git_command(self, command):
+        published = self.approval_commit()
+        binary = shutil.which("git")
+        self.assertIsNotNone(binary)
+        assert binary is not None
+        shim_dir = Path(self.temp.name) / "bin"
+        shim_dir.mkdir()
+        shim = shim_dir / "git"
+        shim.write_text('#!/bin/sh\nif [ "$3" = ' + shlex.quote(command)
+                        + ' ]; then exit 2; fi\nexec ' + shlex.quote(binary) + ' "$@"\n')
+        shim.chmod(0o755)
+        env = dict(os.environ, PATH=str(shim_dir) + os.pathsep + os.environ["PATH"])
+        self.assert_refused(self.verify(env=env, **{"source-sha": published}), "git results unavailable")
+
+    def test_failed_ancestry_command(self):
+        self.failed_git_command("merge-base")
+
+    def test_failed_diff_command(self):
+        self.failed_git_command("diff")
 
     def test_missing_source_object(self):
         self.record["source"]["sha"] = "a" * 40
