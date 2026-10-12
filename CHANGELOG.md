@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Signed release manifests:** `tools/release_verify.py` binds publication approval to exact payload hashes, source and recursive dependency commits, builder identity and a maintainer SSH signature; negative tests cover tampering and fail-closed refusals.
+
 - **Faulted native providers are restart-required, not recovered.** Attributed faults withdraw lookup and host scheduling; handed-out providers retain their state and mapped code without unload or resource release hooks. Logs, plugin reports and reload refusal tell the player to restart the game. Off-thread faults outside a host guard remain uncontained; cached tables and native process integrity are not guaranteed. No plugin ABI change.
 - **Service-table unload admission is atomic across lifecycle paths:** a single loader gate blocks new queries before teardown, protects built-in provider state, retains backing state after a queried failed load, and reserves the entire dependent reload cascade before any member changes. Command, UI and host API reload routes share this gate; the plugin ABI is unchanged.
 

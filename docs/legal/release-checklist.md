@@ -31,7 +31,72 @@ A failed or skipped mandatory check blocks the release. Nothing in CI creates a 
 - [ ] **G:** the maintainer checks the commit and the zip hashes from the CI run, and qualified counsel reviews any open material legal question.
 - [ ] **G:** the maintainer commits the approval record, then tags. Publishing is a separate act from CI going green.
 
-## Approval record
+## Signed release manifest (schema version 2)
+
+`release.json` extends the existing
+[`release-approval.schema.json`](release-approval.schema.json), not a separate approval schema.
+The schema keeps version 1 compatibility through `oneOf`; signed publication verification accepts
+only version 2. Unknown properties, duplicate keys at any depth, non-finite JSON numbers and
+missing or malformed values are refused. No signing keys belong in the repository.
+
+Required fields:
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | Integer `2` |
+| `tag` | SDK tag, exactly the caller's `--tag` |
+| `source.repo`, `source.sha` | `scubamount/sco-core` and the full lowercase 40-hex commit used to build the candidate; equal to the published `--source-sha` or its ancestor with only `docs/legal/release-decisions/` changed |
+| `source.dependencies` | Array of `{path, sha}` for every recursive submodule, rooted at the source checkout; exact equality with pinned gitlinks, including nested dependencies |
+| `components_manifest_sha256` | SHA-256 of the exact `sdk/components.json` blob at `source.sha` |
+| `builder.workflow_path`, `builder.workflow_sha` | Regular `.github/workflows/*.yml` or `*.yaml` file at the pinned workflow commit; this commit may differ from the source checkout commit |
+| `builder.run_id`, `builder.run_attempt` | Positive integers, with run id exactly `--run-id` when supplied |
+| `artifacts` | Nonempty array of `{name, role, size, sha256, artifact_id}`; roles are `zip`, `source`, `sbom`, `notices`, `evidence`, `checksums`; positive build-artifact id per entry (several files may share an id) |
+| `profiles` | Exactly `["core", "game-sc", "legacy"]`, in that order |
+| `distribution.status` | Only `approved-for-publication` passes; `internal-only` and `hold` are explicit refusals |
+| `approved_by`, `approved_at` | Nonblank maintainer identity and RFC 3339 UTC timestamp (`Z` or `+00:00`); no future approvals; maximum age seven days by default |
+
+The manifest is an inventory, not a replacement for the repository, ZIP, licence and legal gates
+above. Each archive keeps its own packager-generated `VERSIONS.txt` and `SHA256SUMS` metadata;
+the release-level inventory binds archives, source, SBOMs, notices and evidence together.
+
+The **exact file bytes** are the canonical signed message: do not parse, reformat or regenerate
+`release.json` after signing. Keep the manifest and its detached signature outside the payload
+directory to avoid a self-referential hash. Payloads are flat directories of safe regular
+basenames, never symlinks or nested directories. Every payload file, including the generated
+`SHA256SUMS`, must appear exactly once in the manifest, with its actual byte size and SHA-256.
+
+```sh
+python3 tools/release_verify.py inventory --payload-dir payload --out payload/SHA256SUMS
+# Assemble and review release.json with hashes including payload/SHA256SUMS, then sign it.
+ssh-keygen -Y sign -f "$SIGNING_KEY" -n sco-release-v1 release.json
+python3 tools/release_verify.py verify \
+  --manifest release.json --signature release.json.sig \
+  --allowed-signers "$TRUSTED_ALLOWED_SIGNERS" --payload-dir payload \
+  --tag "$TAG" --source-sha "$PUBLISHED_SHA" --run-id "$BUILD_RUN_ID" --max-age-days 7
+```
+
+Run from the publication checkout. `--source-sha` is the commit being published (the tagged
+commit), not necessarily the candidate build commit in `source.sha`. The built commit must equal
+the published commit or be its ancestor, with every changed path under
+`docs/legal/release-decisions/`. This permits committing the signed approval after building
+without accepting source changes. Missing Git objects, failed ancestry/diff commands, non-ancestor
+source or any other changed path refuse publication. The pinned source object and initialized
+recursive submodules must be available; workflow files and dependencies are checked at the
+manifest's pinned commits, never replaced by the approval commit.
+The allowed-signers file is supplied explicitly from an independent trust source outside the
+checkout (for CI, a protected environment value). It must authorize identity `sco-maintainer`
+for namespace `sco-release-v1`; the verifier never chooses a repository signing key or trust file.
+`approved_by` is signed attribution, not the SSH principal: authorization always comes from that
+external allowed-signers policy. Builder ids are signed provenance, not a live GitHub API query;
+the caller supplies the trusted expected run id to bind the downloaded run's artifacts.
+
+Exit `0` means every check passed. Every refusal exits `1`, emits one `refused: ` line per failed
+check to stderr and does not echo untrusted values or subprocess output. `--now <RFC3339>` is for
+reproducible tests only; publication must use the actual UTC clock. CI runs
+`python3 tools/test_release_verify.py` with freshly generated throwaway Ed25519 keys; signature
+tests skip with an explicit message only if `ssh-keygen` is absent.
+
+## Legacy approval record (schema version 1)
 
 `docs/legal/release-decisions/<tag>.json`, where `<tag>` is the tag being pushed (for example
 `sdk-v1.3.0.json`). It is a JSON object validated against
@@ -44,8 +109,10 @@ artifact role (`sdk-core` → `core`, `sdk-game-sc` → `game-sc`, `sdk-legacy` 
 names are unique; and, with `--artifacts DIR`, the directory is exactly the listed set (bytes and
 sha256 per file).
 
-The record is **not yet signed**: `approver.key_fingerprint` is recorded, but no signature is
-verified. Until that lands, Gate G rests on the git history and the maintainer's own commit.
+The version 1 record is **unsigned**: `approver.key_fingerprint` is recorded, but no signature is
+verified by `ip_audit.py release`. It remains supported for existing records, not as a substitute
+for signed-manifest verification. Version 2 requires the verifier below; the legacy command
+refuses it instead of treating a schema-valid manifest as publication authority.
 
 Synthetic example (every value fake: `a`*40 commits, `b`*64 hashes, identity `maintainer`):
 

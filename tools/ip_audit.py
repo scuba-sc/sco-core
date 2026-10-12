@@ -72,7 +72,7 @@ RFC3339 = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\
 # (a test walks the shipped schema and fails on any keyword not in this set).
 SCHEMA_KEYWORDS = {"$schema", "$id", "title", "type", "properties", "required", "additionalProperties",
                    "items", "const", "enum", "pattern", "format", "minLength", "maxLength",
-                   "minimum", "maximum", "minItems", "maxItems", "uniqueItems"}
+                   "minimum", "maximum", "minItems", "maxItems", "uniqueItems", "oneOf"}
 # Archive limits, four times what the legacy zip actually holds (sdk/package.py --profile legacy:
 # 116 entries, 1,334,638 bytes uncompressed in total, its largest entry 426,845 bytes and its best
 # compression 8.2:1). A release that outgrows them raises these constants on purpose.
@@ -203,6 +203,25 @@ def tracked(root):
     except (OSError, subprocess.CalledProcessError) as e:
         raise AuditError(f"git ls-files failed in {root}: {e}")
     return sorted(p for p in out.decode("utf-8").split("\0") if p)
+
+
+def load_json_strict(data):
+    """Decode JSON without duplicate keys or non-finite numbers, including nested objects."""
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise AuditError("duplicate JSON key")
+            result[key] = value
+        return result
+
+    def constant(_value):
+        raise AuditError("non-finite JSON number")
+
+    try:
+        return json.loads(data, object_pairs_hook=pairs, parse_constant=constant)
+    except (ValueError, UnicodeError, RecursionError) as exc:
+        raise AuditError("invalid JSON") from exc
 
 
 def load_json(root, rel):
@@ -617,6 +636,20 @@ def validate_schema(instance, schema, where, fails):
     for kw in schema:
         if kw not in SCHEMA_KEYWORDS:
             raise AuditError(f"{APPROVAL_SCHEMA}: keyword {kw!r} at {where} is not implemented by this validator")
+    if "oneOf" in schema:
+        results = []
+        for sub in schema["oneOf"]:
+            errors = []
+            validate_schema(instance, sub, where, errors)
+            results.append((sub, errors))
+        if sum(not errors for _sub, errors in results) != 1:
+            # Keep useful diagnostics for a known version; never select by truthiness.
+            version = instance.get("schema_version") if isinstance(instance, dict) else None
+            selected = [errors for sub, errors in results
+                        if sub.get("properties", {}).get("schema_version", {}).get("const") == version]
+            fails.extend(selected[0] if len(selected) == 1 and selected[0]
+                         else [f"{where}: must match exactly one approval schema version"])
+        return
     t = schema.get("type")
     if t is not None and not json_type_ok(instance, t):
         fails.append(f"{where}: {short_json(instance)} is not of type {t!r}")
@@ -675,6 +708,8 @@ def schema_keywords(schema):
         out.update(node)
         for sub in node.get("properties", {}).values():
             walk(sub)
+        for sub in node.get("oneOf", []):
+            walk(sub)
         for group in ("$defs", "definitions"):
             for sub in node.get(group, {}).values():
                 walk(sub)
@@ -698,10 +733,10 @@ def audit_release(approval, tag, root=ROOT, artifacts_dir=None):
     r = Report("release approval")
     try:
         with open(approval, encoding="utf-8") as f:
-            record = json.load(f)
+            record = load_json_strict(f.read())
     except OSError as e:
         raise AuditError(f"{approval}: can't read it ({e})")
-    except ValueError as e:
+    except (ValueError, AuditError) as e:
         raise AuditError(f"{approval}: not valid JSON ({e})")
     schema = load_json(ROOT, APPROVAL_SCHEMA)   # the validator's schema ships with the tool, not the repo under test
     fails = []
@@ -709,6 +744,10 @@ def audit_release(approval, tag, root=ROOT, artifacts_dir=None):
     r.check(f"record against {APPROVAL_SCHEMA}", 1, fails)
     if fails:
         return r   # semantics on a record that failed the schema would only read missing keys
+    if record["schema_version"] != 1:
+        r.check("release approval semantics (Gate G)", 1,
+                ["signed manifests require tools/release_verify.py verify"])
+        return r
     sem, now = [], datetime.datetime.now(datetime.timezone.utc)
     if record["decision"] != "approve":
         sem.append(f"the decision is {record['decision']!r}, not 'approve'; CI never publishes on a hold")
