@@ -154,6 +154,14 @@
    "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
   },
   {
+   "path": "tools/release_verify.py",
+   "why": "Release publication verifier; not part of the kernel source kit."
+  },
+  {
+   "path": "tools/test_release_verify.py",
+   "why": "Release publication verifier tests; not part of the kernel source kit."
+  },
+  {
    "path": "tools/sco-dcb.cpp",
    "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
   },

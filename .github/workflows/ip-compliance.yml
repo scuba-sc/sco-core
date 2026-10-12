@@ -55,7 +55,9 @@ jobs:
           for s in $RUNNER_TEMP/evidence/*.spdx.json; do pyspdxtools -i "$s"; done
 
       - name: Negative tests (Gate 7)
-        run: python3 tools/test_ip_audit.py
+        run: |
+          python3 tools/test_ip_audit.py
+          python3 tools/test_release_verify.py
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
