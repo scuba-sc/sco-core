@@ -1,0 +1,497 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-spatial-v1-player-pose",
+      "kind": "table-method",
+      "symbol": "sc_spatial_v1.player_pose",
+      "table": "sc_spatial_v1",
+      "service": "teleport.spatial",
+      "version_macro": "SC_SPATIAL_SERVICE_VERSION",
+      "source_header": "include/sc_spatial.h",
+      "signature": "int (*)(double *, double *, uint64_t *)",
+      "member_extent": 16,
+      "table_size": 56,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Your position (pos, metres) and orientation (rot, a unit quaternion in the game's (x, y, z, w) order) in the zone you're in, and that zone's id.",
+      "buffer_contract": "`int (*player_pose)(double pos[3], double rot_xyzw[4], uint64_t* zone_id);`<br>Your position (pos, metres) and orientation (rot, a unit quaternion in the game's (x, y, z, w) order) in the zone you're in, and that zone's id.",
+      "ownership": "Caller buffers; IDs are borrowed session values, not pointers. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; wrong thread/missing teleport or unreadable game state: 0. Outputs only written on 1. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous query.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*player_pose)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*player_pose)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spatial.c"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spatial-v1-zone-of-entity",
+      "kind": "table-method",
+      "symbol": "sc_spatial_v1.zone_of_entity",
+      "table": "sc_spatial_v1",
+      "service": "teleport.spatial",
+      "version_macro": "SC_SPATIAL_SERVICE_VERSION",
+      "source_header": "include/sc_spatial.h",
+      "signature": "int (*)(uint64_t, uint64_t *)",
+      "member_extent": 24,
+      "table_size": 56,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "The id of the zone an entity is in (your ship's, a spawned entity's).",
+      "buffer_contract": "`int (*zone_of_entity)(uint64_t entity_id, uint64_t* zone_id);`<br>The id of the zone an entity is in (your ship's, a spawned entity's).",
+      "ownership": "Caller buffers; IDs are borrowed session values, not pointers. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; wrong thread/missing teleport or unreadable game state: 0. Outputs only written on 1. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous query.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*zone_of_entity)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*zone_of_entity)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spatial.c"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spatial-v1-local-to-world",
+      "kind": "table-method",
+      "symbol": "sc_spatial_v1.local_to_world",
+      "table": "sc_spatial_v1",
+      "service": "teleport.spatial",
+      "version_macro": "SC_SPATIAL_SERVICE_VERSION",
+      "source_header": "include/sc_spatial.h",
+      "signature": "int (*)(uint64_t, const double *, double *)",
+      "member_extent": 32,
+      "table_size": 56,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "A position in zone zone_id to the world frame, and back.",
+      "buffer_contract": "`int (*local_to_world)(uint64_t zone_id, const double local[3], double world[3]);`<br>A position in zone zone_id to the world frame, and back.",
+      "ownership": "Caller buffers; IDs are borrowed session values, not pointers. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; wrong thread/missing teleport or unreadable game state: 0. Outputs only written on 1. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous query.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*local_to_world)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*local_to_world)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spatial.c"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spatial-v1-world-to-local",
+      "kind": "table-method",
+      "symbol": "sc_spatial_v1.world_to_local",
+      "table": "sc_spatial_v1",
+      "service": "teleport.spatial",
+      "version_macro": "SC_SPATIAL_SERVICE_VERSION",
+      "source_header": "include/sc_spatial.h",
+      "signature": "int (*)(uint64_t, const double *, double *)",
+      "member_extent": 40,
+      "table_size": 56,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Converts world[3] doubles to zone-local local[3] doubles; zone 0 is world; outputs written only on return 1.",
+      "buffer_contract": "`int (*world_to_local)(uint64_t zone_id, const double world[3], double local[3]);`<br>Converts world[3] doubles to zone-local local[3] doubles; zone 0 is world; outputs written only on return 1.",
+      "ownership": "Caller buffers; IDs are borrowed session values, not pointers. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; wrong thread/missing teleport or unreadable game state: 0. Outputs only written on 1. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous query.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*world_to_local)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*world_to_local)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spatial.c"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spatial-v1-zone-to-zone",
+      "kind": "table-method",
+      "symbol": "sc_spatial_v1.zone_to_zone",
+      "table": "sc_spatial_v1",
+      "service": "teleport.spatial",
+      "version_macro": "SC_SPATIAL_SERVICE_VERSION",
+      "source_header": "include/sc_spatial.h",
+      "signature": "int (*)(uint64_t, uint64_t, const double *, double *)",
+      "member_extent": 48,
+      "table_size": 56,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "A position in zone `from` to zone `to` (either may be 0, the world).",
+      "buffer_contract": "`int (*zone_to_zone)(uint64_t from, uint64_t to, const double in[3], double out[3]);`<br>A position in zone `from` to zone `to` (either may be 0, the world).",
+      "ownership": "Caller buffers; IDs are borrowed session values, not pointers. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; wrong thread/missing teleport or unreadable game state: 0. Outputs only written on 1. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous query.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*zone_to_zone)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*zone_to_zone)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spatial.c"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-spatial-v1-zone-name",
+      "kind": "table-method",
+      "symbol": "sc_spatial_v1.zone_name",
+      "table": "sc_spatial_v1",
+      "service": "teleport.spatial",
+      "version_macro": "SC_SPATIAL_SERVICE_VERSION",
+      "source_header": "include/sc_spatial.h",
+      "signature": "int (*)(uint64_t, char *, uint32_t)",
+      "member_extent": 56,
+      "table_size": 56,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "The zone's name (\"OOC_Stanton_2b_Daymar\"), NUL-terminated and cut to fit cap bytes.",
+      "buffer_contract": "`int (*zone_name)(uint64_t zone_id, char* out, uint32_t cap);`<br>The zone's name (\"OOC_Stanton_2b_Daymar\"), NUL-terminated and cut to fit cap bytes.",
+      "ownership": "Caller buffers; IDs are borrowed session values, not pointers. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; wrong thread/missing teleport or unreadable game state: 0. Outputs only written on 1. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous query.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*zone_name)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_spatial.h",
+              "token": "(*zone_name)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "The host-owned services each have a class."
+            },
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "| Class | Service | Does |"
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "The script sees only:"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "There is no `io`, `os`, `package`, `require`, `debug`, `dofile`, `loadfile` or FFI"
+            },
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_spatial.c"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "Game-service behavior not verified in a game session."
+      ]
+    }
+  ]
+}

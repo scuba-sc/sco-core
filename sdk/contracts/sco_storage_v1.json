@@ -1,0 +1,1122 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-storage-v1-put",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.put",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const void *, uint32_t)",
+      "member_extent": 16,
+      "table_size": 128,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Writes value (value_size bytes; value may be NULL with 0), replacing any old one. Durable when it returns, unless a transaction is open. SCO_TOO_MANY: the plugin's quota is full.",
+      "buffer_contract": "`sco_result (*put)(sco_plugin* self, const char* key, const void* value, uint32_t value_size);`<br>Writes value (value_size bytes; value may be NULL with 0), replacing any old one. Durable when it returns, unless a transaction is open. SCO_TOO_MANY: the plugin's quota is full.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*put)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "return t_->put(self_, key, value.data(), static_cast<uint32_t>(value.size()));"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "return _t->put(Self, k, v, (uint)value.Length);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = st->put(s->self, key, value, (uint32_t)n);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-get",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.get",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, void *, uint32_t *)",
+      "member_extent": 24,
+      "table_size": 128,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Reads a value with the size handshake. SCO_NOT_FOUND: no such key (*inout_size 0).",
+      "buffer_contract": "`sco_result (*get)(sco_plugin* self, const char* key, void* out, uint32_t* inout_size);`<br>Reads a value with the size handshake. SCO_NOT_FOUND: no such key (*inout_size 0).",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*get)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "const sco_result r = t_->get(self_, key, size ? out.data() : nullptr, &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "return Sized((buf, size) => { fixed (byte* kp = k) return _t->get(Self, kp, buf, size); }, out value);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "sco_result r = st->get(s->self, key, NULL, &size);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-del",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.del",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *)",
+      "member_extent": 32,
+      "table_size": 128,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Removes a key. SCO_NOT_FOUND: there was none.",
+      "buffer_contract": "`sco_result (*del)(sco_plugin* self, const char* key);`<br>Removes a key. SCO_NOT_FOUND: there was none.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*del)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "sco_result Delete(const char* key) noexcept { return t_ ? t_->del(self_, key) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "fixed (byte* k = Utf8.Z(key)) return _t->del(Self, k);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = st->del(s->self, key);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-next-key",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.next_key",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const char *, char *, uint32_t *)",
+      "member_extent": 40,
+      "table_size": 128,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "The first key that starts with prefix (NULL or \"\": any key) and sorts after \"after\" (NULL: from the start), in byte order, copied NUL-terminated with the size handshake. Iterate by passing the last key back as after. SCO_NOT_FOUND: no more keys.",
+      "buffer_contract": "`sco_result (*next_key)(sco_plugin* self, const char* prefix, const char* after, char* out, uint32_t* inout_size);`<br>The first key that starts with prefix (NULL or \"\": any key) and sorts after \"after\" (NULL: from the start), in byte order, copied NUL-terminated with the size handshake. Iterate by passing the last key back as after. SCO_NOT_FOUND: no more keys.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*next_key)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "const sco_result r = t_->next_key(self_, prefix, out.empty() ? nullptr : last.c_str(), buf, &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "return _t->next_key(Self, pp, ap, buf, size);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = st->next_key(s->self, prefix, after, key, &size);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-begin",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.begin",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *)",
+      "member_extent": 48,
+      "table_size": 128,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "SCO_BAD_ARG: one is already open. Until commit nothing the plugin writes is durable; a crash, an unload or rollback undoes all of it.",
+      "buffer_contract": "`sco_result (*begin)(sco_plugin* self);`<br>SCO_BAD_ARG: one is already open. Until commit nothing the plugin writes is durable; a crash, an unload or rollback undoes all of it.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "rollback or unload/crash undoes uncommitted writes; no per-call interrupt API.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*begin)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "sco_result Begin() noexcept { return t_ ? t_->begin(self_) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "public ScoResult Begin() => _t == null ? ScoResult.Unavailable : _t->begin(Self);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "StoreTx(L, st ? st->begin : NULL, st, s)"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-commit",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.commit",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *)",
+      "member_extent": 56,
+      "table_size": 128,
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Makes everything since begin durable. SCO_BAD_ARG: none open.",
+      "buffer_contract": "`sco_result (*commit)(sco_plugin* self);`<br>Makes everything since begin durable. SCO_BAD_ARG: none open.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "Synchronous; no cancellation API; successful commit durable and not undone by unload.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*commit)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "sco_result Commit() noexcept { return t_ ? t_->commit(self_) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "public ScoResult Commit() => _t == null ? ScoResult.Unavailable : _t->commit(Self);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "StoreTx(L, st ? st->commit : NULL, st, s)"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-rollback",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.rollback",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *)",
+      "member_extent": 64,
+      "table_size": 128,
+      "since": "`size >= 64`; 1.0",
+      "purpose": "Undoes everything since begin. SCO_BAD_ARG: none open.",
+      "buffer_contract": "`sco_result (*rollback)(sco_plugin* self);`<br>Undoes everything since begin. SCO_BAD_ARG: none open.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "Synchronous rollback, not a request to interrupt another thread's running statement.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*rollback)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "sco_result Rollback() noexcept { return t_ ? t_->rollback(self_) : SCO_UNAVAILABLE; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "public ScoResult Rollback() => _t == null ? ScoResult.Unavailable : _t->rollback(Self);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "StoreTx(L, st ? st->rollback : NULL, st, s)"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-exec",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.exec",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const sco_sql_value *, uint32_t, int64_t *)",
+      "member_extent": 72,
+      "table_size": 128,
+      "since": "`size >= 72`; 1.0",
+      "purpose": "Runs one statement with nparams bound parameters (?, ?NNN, :name in index order; nparams must equal the statement's count; params may be NULL with 0). Rows it returns are dropped. out_changes (optional): rows changed. SCO_BAD_ARG: not exactly one statement, a syntax error, a wrong parameter count, or something storage refuses (ATTACH, DETACH, BEGIN, COMMIT, SAVEPOINT, VACUUM, a PRAGMA outside the list in docs/storage.md, schema changes to a table or index named sco_*). SCO_FAILED: it ran and failed (a constraint, its time budget, the database busy); last_error says why. SCO_TOO_MANY: the quota is full.",
+      "buffer_contract": "`sco_result (*exec)(sco_plugin* self, const char* sql, const sco_sql_value* params, uint32_t nparams, int64_t* out_changes);`<br>Runs one statement with nparams bound parameters (?, ?NNN, :name in index order; nparams must equal the statement's count; params may be NULL with 0). Rows it returns are dropped. out_changes (optional): rows changed. SCO_BAD_ARG: not exactly one statement, a syntax error, a wrong parameter count, or something storage refuses (ATTACH, DETACH, BEGIN, COMMIT, SAVEPOINT, VACUUM, a PRAGMA outside the list in docs/storage.md, schema changes to a table or index named sco_*). SCO_FAILED: it ran and failed (a constraint, its time budget, the database busy); last_error says why. SCO_TOO_MANY: the quota is full.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*exec)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "return t_->exec(self_, sql, params.size() ? params.begin() : nullptr, static_cast<uint32_t>(params.size()), changes);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "r = _t->exec(Self, s, block.Values, block.Count, &c);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "const sco_result r = st->exec(s->self, sql, n ? params : NULL, n, &changes);"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-query",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.query",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const sco_sql_value *, uint32_t, uint64_t *)",
+      "member_extent": 80,
+      "table_size": 128,
+      "since": "`size >= 80`; 1.0",
+      "purpose": "Prepares one statement as exec does and opens a cursor before its first row. Close it when done. SCO_TOO_MANY: SCO_STORAGE_MAX_CURSORS already open. out_cursor initialized to 0 before validation; caller must close cursor even after end-of-rows.",
+      "buffer_contract": "`sco_result (*query)(sco_plugin* self, const char* sql, const sco_sql_value* params, uint32_t nparams, uint64_t* out_cursor);`<br>Prepares one statement as exec does and opens a cursor before its first row. Close it when done. SCO_TOO_MANY: SCO_STORAGE_MAX_CURSORS already open. out_cursor initialized to 0 before validation; caller must close cursor even after end-of-rows.",
+      "ownership": "Host-owned cursor ID; close when done. SQL/parameters copied during call, TEXT needs no NUL; no SQLite memory crosses ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*query)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "c.r_ = t_->query(self_, sql, params.size() ? params.begin() : nullptr, static_cast<uint32_t>(params.size()), &id);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "r = _t->query(Self, s, block.Values, block.Count, &id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "sco_result r = st->query(s->self, sql, n ? params : NULL, n, &c->id);"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-step",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.step",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 88,
+      "table_size": 128,
+      "since": "`size >= 88`; 1.0",
+      "purpose": "Moves to the next row. SCO_OK: a row is ready. SCO_NOT_FOUND: no more rows, or an id this plugin doesn't hold. SCO_FAILED / SCO_TOO_MANY: as for exec.",
+      "buffer_contract": "`sco_result (*step)(sco_plugin* self, uint64_t cursor);`<br>Moves to the next row. SCO_OK: a row is ready. SCO_NOT_FOUND: no more rows, or an id this plugin doesn't hold. SCO_FAILED / SCO_TOO_MANY: as for exec.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*step)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "sco_result Next() noexcept { return t_ ? t_->step(self_, id_) : r_; }"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "public ScoResult Next() => _id == 0 ? ScoResult.NotFound : _s.Table->step(_s.SelfFor, _id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "r = st->step(s->self, c->id);"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-column-count",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.column_count",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint32_t *)",
+      "member_extent": 96,
+      "table_size": 128,
+      "since": "`size >= 96`; 1.0",
+      "purpose": "Returns number of columns of a held cursor into required uint32_t out_count; no current row needed; output initialized to 0.",
+      "buffer_contract": "`sco_result (*column_count)(sco_plugin* self, uint64_t cursor, uint32_t* out_count);`<br>Returns number of columns of a held cursor into required uint32_t out_count; no current row needed; output initialized to 0.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Common storage failures; BAD_ARG NULL output; NOT_FOUND unknown/non-owned cursor; *out_count initialized to 0.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*column_count)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "if (t_) t_->column_count(self_, id_, &n);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "return _id != 0 && _s.Table->column_count(_s.SelfFor, _id, &n) == ScoResult.Ok ? (int)n : 0;"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "r = st->column_count(s->self, c->id, &ncols);"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-column",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.column",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint32_t, sco_sql_value *, void *, uint32_t *)",
+      "member_extent": 104,
+      "table_size": 128,
+      "since": "`size >= 104`; 1.0",
+      "purpose": "Column index of the current row. out gets the type and value; TEXT and BLOB bytes go to buf with the size handshake (TEXT NUL-terminated; inout_size NULL: no bytes wanted). SCO_BAD_ARG: no current row, or index out of range.",
+      "buffer_contract": "`sco_result (*column)(sco_plugin* self, uint64_t cursor, uint32_t index, sco_sql_value* out, void* buf, uint32_t* inout_size);`<br>Column index of the current row. out gets the type and value; TEXT and BLOB bytes go to buf with the size handshake (TEXT NUL-terminated; inout_size NULL: no bytes wanted). SCO_BAD_ARG: no current row, or index out of range.",
+      "ownership": "Caller owns descriptor and byte buffer. TEXT/BLOB descriptor v.p is NULL; numeric values copied. Host may allocate staging text.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*column)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "if (t_) t_->column(self_, id_, index, &v, nullptr, nullptr);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "ScoResult r = _id == 0 ? ScoResult.NotFound : _s.Table->column(_s.SelfFor, _id, (uint)i, &value, null, null);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "sco_result r = st->column(s->self, cur, i, &v, NULL, NULL);"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-column-name",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.column_name",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint32_t, char *, uint32_t *)",
+      "member_extent": 112,
+      "table_size": 128,
+      "since": "`size >= 112`; 1.0",
+      "purpose": "The column's name, NUL-terminated, with the size handshake.",
+      "buffer_contract": "`sco_result (*column_name)(sco_plugin* self, uint64_t cursor, uint32_t index, char* out, uint32_t* inout_size);`<br>The column's name, NUL-terminated, with the size handshake.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Common storage failures; NOT_FOUND unknown/non-owned cursor; BAD_ARG invalid buffer/index; TOO_MANY required bytes. Does not require a current row.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*column_name)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*column_name)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "return Storage.Sized((buf, size) => _s.Table->column_name(_s.SelfFor, _id, (uint)i, buf, size), out byte[] b) == ScoResult.Ok"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "r = st->column_name(s->self, c->id, i, name, &size);"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-close",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.close",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 120,
+      "table_size": 128,
+      "since": "`size >= 120`; 1.0",
+      "purpose": "Closes a cursor. SCO_NOT_FOUND: this plugin holds no cursor by that id.",
+      "buffer_contract": "`sco_result (*close)(sco_plugin* self, uint64_t cursor);`<br>Closes a cursor. SCO_NOT_FOUND: this plugin holds no cursor by that id.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*close)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "if (t_) t_->close(self_, id_);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "if (_id != 0 && _s.Table != null) _s.Table->close(_s.SelfFor, _id);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (st) st->close(Of(L)->self, c->id);"
+            },
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "**Cursors** are the runtime's: `sql` closes its cursor on every path"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-storage-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sco_storage_v1.last_error",
+      "table": "sco_storage_v1",
+      "service": "sco.storage",
+      "version_macro": "SCO_STORAGE_VERSION_1_0",
+      "source_header": "include/sco_storage.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 128,
+      "table_size": 128,
+      "since": "`size >= 128`; 1.0",
+      "purpose": "The message of this plugin's last failed call (\"\" if none), NUL-terminated, with the size handshake.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The message of this plugin's last failed call (\"\" if none), NUL-terminated, with the size handshake.",
+      "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
+      "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "cleanup": "No cancellation entrypoint; unload/crash rolls back transaction and closes cursors/database.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage.h",
+              "token": "(*last_error)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage.hpp",
+              "token": "sco_result r = t_->last_error(self_, s.data(), &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Storage.cs",
+              "token": "return Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "st->last_error(s->self, msg, &size)"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/notebook/main.lua"
+      ],
+      "tests": [
+        "tests/abi_storage.c",
+        "tests/test_lua.cpp",
+        "tests/test_settings.cpp",
+        "tests/test_storage.cpp"
+      ],
+      "limitations": [
+        "Same-call recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-settings-v1-get-bool",
+      "kind": "table-method",
+      "symbol": "sco_settings_v1.get_bool",
+      "table": "sco_settings_v1",
+      "service": "sco.settings",
+      "version_macro": "SCO_SETTINGS_VERSION_1_0",
+      "source_header": "include/sco_settings.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, int32_t *)",
+      "member_extent": 16,
+      "table_size": 48,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "out = 0 or 1. SCO_BAD_ARG: not a bool setting, a NULL name or out, or a bad self.",
+      "buffer_contract": "`sco_result (*get_bool)(sco_plugin* self, const char* name, int32_t* out);`<br>out = 0 or 1. SCO_BAD_ARG: not a bool setting, a NULL name or out, or a bad self.",
+      "ownership": "Caller outputs; host owns settings; no allocation transfer. String/error copy may allocate internally.",
+      "thread_affinity": "Any thread; memory reads under lock. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_settings.h",
+              "token": "(*get_bool)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/settings.hpp",
+              "token": "const sco_result r = t_->get_bool(self_, name, &v);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Settings.cs",
+              "token": "fixed (byte* n = Utf8.Z(name)) r = _t->get_bool(Self, n, &v);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if ((r = st->get_bool(s->self, name, &b)) == SCO_OK) { lua_pushboolean(L, b); return 1; }"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_settings.c",
+        "tests/test_settings.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-settings-v1-get-int",
+      "kind": "table-method",
+      "symbol": "sco_settings_v1.get_int",
+      "table": "sco_settings_v1",
+      "service": "sco.settings",
+      "version_macro": "SCO_SETTINGS_VERSION_1_0",
+      "source_header": "include/sco_settings.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, int64_t *)",
+      "member_extent": 24,
+      "table_size": 48,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "SCO_BAD_ARG: not an int setting (a float or enum included).",
+      "buffer_contract": "`sco_result (*get_int)(sco_plugin* self, const char* name, int64_t* out);`<br>SCO_BAD_ARG: not an int setting (a float or enum included).",
+      "ownership": "Caller outputs; host owns settings; no allocation transfer. String/error copy may allocate internally.",
+      "thread_affinity": "Any thread; memory reads under lock. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_settings.h",
+              "token": "(*get_int)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/settings.hpp",
+              "token": "return t_ ? t_->get_int(self_, name, &out) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Settings.cs",
+              "token": "fixed (byte* n = Utf8.Z(name)) r = _t->get_int(Self, n, &v);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (r == SCO_BAD_ARG && (r = st->get_int(s->self, name, &i)) == SCO_OK) { lua_pushinteger(L, (lua_Integer)i); return 1; }"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_settings.c",
+        "tests/test_settings.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-settings-v1-get-float",
+      "kind": "table-method",
+      "symbol": "sco_settings_v1.get_float",
+      "table": "sco_settings_v1",
+      "service": "sco.settings",
+      "version_macro": "SCO_SETTINGS_VERSION_1_0",
+      "source_header": "include/sco_settings.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, double *)",
+      "member_extent": 32,
+      "table_size": 48,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "SCO_BAD_ARG: not a float setting.",
+      "buffer_contract": "`sco_result (*get_float)(sco_plugin* self, const char* name, double* out);`<br>SCO_BAD_ARG: not a float setting.",
+      "ownership": "Caller outputs; host owns settings; no allocation transfer. String/error copy may allocate internally.",
+      "thread_affinity": "Any thread; memory reads under lock. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_settings.h",
+              "token": "(*get_float)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/settings.hpp",
+              "token": "return t_ ? t_->get_float(self_, name, &out) : SCO_UNAVAILABLE;"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Settings.cs",
+              "token": "fixed (byte* n = Utf8.Z(name)) r = _t->get_float(Self, n, &v);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (r == SCO_BAD_ARG && (r = st->get_float(s->self, name, &f)) == SCO_OK) { lua_pushnumber(L, (lua_Number)f); return 1; }"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_settings.c",
+        "tests/test_settings.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-settings-v1-get-string",
+      "kind": "table-method",
+      "symbol": "sco_settings_v1.get_string",
+      "table": "sco_settings_v1",
+      "service": "sco.settings",
+      "version_macro": "SCO_SETTINGS_VERSION_1_0",
+      "source_header": "include/sco_settings.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, char *, uint32_t *)",
+      "member_extent": 40,
+      "table_size": 48,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "A string setting's text, or an enum setting's choice, with the size handshake.",
+      "buffer_contract": "`sco_result (*get_string)(sco_plugin* self, const char* name, char* out, uint32_t* inout_size);`<br>A string setting's text, or an enum setting's choice, with the size handshake.",
+      "ownership": "Caller outputs; host owns settings; no allocation transfer. String/error copy may allocate internally.",
+      "thread_affinity": "Any thread; memory reads under lock. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Common settings errors; TOO_MANY reports required NUL-inclusive bytes without writing string; inout_size reset on other failure. Caller text untouched on failure.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_settings.h",
+              "token": "(*get_string)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/settings.hpp",
+              "token": "const sco_result r = t_->get_string(self_, name, s.data(), &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Settings.cs",
+              "token": "ScoResult r = Storage.Sized((buf, size) => { fixed (byte* np = n) return _t->get_string(Self, np, buf, size); }, out byte[] b);"
+            }
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "if (r == SCO_BAD_ARG && (r = st->get_string(s->self, name, buf, &size)) == SCO_OK) { lua_pushlstring(L, buf, size - 1); return 1; }"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_settings.c",
+        "tests/test_settings.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified."
+      ]
+    },
+    {
+      "id": "sco-settings-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sco_settings_v1.last_error",
+      "table": "sco_settings_v1",
+      "service": "sco.settings",
+      "version_macro": "SCO_SETTINGS_VERSION_1_0",
+      "source_header": "include/sco_settings.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 48,
+      "table_size": 48,
+      "since": "`size >= 48`; 1.0",
+      "purpose": "The message of this plugin's last failed call (\"\" if none), NUL-terminated, with the size handshake.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The message of this plugin's last failed call (\"\" if none), NUL-terminated, with the size handshake.",
+      "ownership": "Caller outputs; host owns settings; no allocation transfer. String/error copy may allocate internally.",
+      "thread_affinity": "Any thread; memory reads under lock. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid/released self or buffer; UNAVAILABLE stopped; TOO_MANY required bytes or allocation. Empty string if no recorded failure; diagnostic completeness unspecified.",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_settings.h",
+              "token": "(*last_error)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/settings.hpp",
+              "token": "sco_result r = t_->last_error(self_, s.data(), &size);"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Settings.cs",
+              "token": "return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : \"\";"
+            }
+          ]
+        },
+        "lua": {
+          "status": "restricted",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "st->last_error(s->self, msg, &size)"
+            },
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "static int L_settings_get(lua_State* L)"
+            }
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_settings.c",
+        "tests/test_settings.cpp"
+      ],
+      "limitations": [
+        "Recursive reentrancy unspecified.",
+        "diagnostic completeness unspecified."
+      ]
+    }
+  ]
+}

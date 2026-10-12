@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-plugin-query",
+      "kind": "entrypoint",
+      "symbol": "sco_plugin_query",
+      "table": null,
+      "service": "native-plugin",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "const sco_plugin_info *(void)",
+      "member_extent": null,
+      "table_size": null,
+      "since": "API 1.0; returned info must cover 32-byte `sco_plugin_info`",
+      "purpose": "`const sco_plugin_info* sco_plugin_query(void)`; info.size set to sizeof, name/version/author UTF-8 NUL strings",
+      "buffer_contract": "`const sco_plugin_info* sco_plugin_query(void)`; info.size set to sizeof, name/version/author UTF-8 NUL strings",
+      "ownership": "Plugin-owned static info/string storage valid until DLL unload; host copies checked metadata. Never free from host",
+      "thread_affinity": "Query-thread identity unspecified; recursive reentrancy unspecified",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "NULL info, undersized info, major mismatch, newer minor, mismatched plugin id or guarded fault refuses load; no capability gate",
+      "absent_capability": "unspecified",
+      "cleanup": "No cancellation entrypoint; query does not register a cleanup notification",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "sco_plugin_query(void)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "extern \"C\" SCO_EXPORT const sco_plugin_info* sco_plugin_query(void)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/examples/cs_hello/CsHello.cs",
+              "token": "[UnmanagedCallersOnly(EntryPoint = \"sco_plugin_query\")]"
+            },
+            {
+              "path": "sdk/examples/cs_hello/CsHello.cs",
+              "token": "PluginExports.Query("
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`)"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_plugins.cpp"
+      ],
+      "limitations": [
+        "Query-thread identity unspecified;",
+        "recursive reentrancy unspecified"
+      ]
+    },
+    {
+      "id": "sco-plugin-load",
+      "kind": "entrypoint",
+      "symbol": "sco_plugin_load",
+      "table": null,
+      "service": "native-plugin",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "sco_result (const sco_api *, sco_plugin *)",
+      "member_extent": null,
+      "table_size": null,
+      "since": "API 1.0; received API fields gated by size",
+      "purpose": "`sco_result sco_plugin_load(const sco_api* api, sco_plugin* self)`",
+      "buffer_contract": "`sco_result sco_plugin_load(const sco_api* api, sco_plugin* self)`",
+      "ownership": "Borrowed host API and opaque self valid until unload; plugin owns its private state/allocations; internal allocation unspecified",
+      "thread_affinity": "Game thread per API reference; recursive load reentrancy unspecified",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "OK stays loaded; any other return rejects load; guarded fault disables plugin. Missing required capabilities handled by discovery; load-specific absence policy belongs to plugin",
+      "absent_capability": "Missing required capabilities handled by discovery; load-specific absence policy belongs to plugin",
+      "cleanup": "Failed load/crash removes registrations and queued work; do not rely on unload being called after failed load",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "sco_plugin_load(const sco_api* api, sco_plugin* self)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "extern \"C\" SCO_EXPORT sco_result sco_plugin_load(const sco_api* api, sco_plugin* self)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/examples/cs_hello/CsHello.cs",
+              "token": "[UnmanagedCallersOnly(EntryPoint = \"sco_plugin_load\")]"
+            },
+            {
+              "path": "sdk/examples/cs_hello/CsHello.cs",
+              "token": "PluginExports.Load<Hello>("
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`)"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_plugins.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified",
+        "recursive load reentrancy unspecified"
+      ]
+    },
+    {
+      "id": "sco-plugin-unload",
+      "kind": "entrypoint",
+      "symbol": "sco_plugin_unload",
+      "table": null,
+      "service": "native-plugin",
+      "version_macro": "SCO_API_MAJOR/SCO_API_MINOR",
+      "source_header": "include/sco_api.h",
+      "signature": "void (void)",
+      "member_extent": null,
+      "table_size": null,
+      "since": "API 1.0; no sized parameter",
+      "purpose": "`void sco_plugin_unload(void)`; final normal lifecycle call for that instance",
+      "buffer_contract": "`void sco_plugin_unload(void)`; final normal lifecycle call for that instance",
+      "ownership": "Plugin frees its own state and stops its workers; host owns API/self/registries; borrowed external pointers must not be freed",
+      "thread_affinity": "Normal host lifecycle uses game-thread release; an independent export thread guarantee and recursive reentrancy are unspecified",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "void, no error result; loader guards faults. Capability availability during teardown unspecified",
+      "absent_capability": "unspecified",
+      "cleanup": "Shutdown or permitted reload; crashed/failed-load instances need not receive it. Host withdraws registrations; native code whose table was handed out remains mapped, not live state",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_api.h",
+              "token": "sco_plugin_unload(void)"
+            }
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/plugin.hpp",
+              "token": "extern \"C\" SCO_EXPORT void sco_plugin_unload(void)"
+            }
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/examples/cs_hello/CsHello.cs",
+              "token": "[UnmanagedCallersOnly(EntryPoint = \"sco_plugin_unload\")]"
+            },
+            {
+              "path": "sdk/examples/cs_hello/CsHello.cs",
+              "token": "PluginExports.Unload("
+            }
+          ]
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "sdk/docs/lua.md",
+              "token": "A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`)"
+            }
+          ]
+        }
+      },
+      "examples": [
+        "sdk/examples/hello/hello.c",
+        "sdk/examples/cpp_hello/cpp_hello.cpp",
+        "sdk/examples/cs_hello/CsHello.cs"
+      ],
+      "tests": [
+        "tests/abi_v1.c",
+        "tests/test_plugins.cpp"
+      ],
+      "limitations": [
+        "an independent export thread guarantee and recursive reentrancy are unspecified",
+        "Capability availability during teardown unspecified"
+      ]
+    }
+  ]
+}
