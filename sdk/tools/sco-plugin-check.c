@@ -12,8 +12,9 @@
  *   lua:    checks the entry script exists (syntax is checked separately with luac -p).
  *   native: loads the plugin, runs sco_plugin_query and sco_plugin_load against a stand-in
  *           sco_api, fires game.ready and a few ticks, runs every command that takes no
- *           arguments (and the one given with --invoke), then sco_plugin_unload.
- * --cap NAME makes has(NAME) answer 1 (default: every capability is missing). Give a --cap for a
+ *           arguments (and the one given with --invoke), then sco_plugin_unload. Retained
+ *           sco.widgets panels get one deterministic headless interaction pass before commands.
+ * --cap NAME makes has(NAME) answer 1 (default: only the built-in sco.widgets service is present). Give a --cap for a
  * capability or a host or game service the plugin requires; a plugin id or another plugin's
  * service is only found by the real host, which sees the other plugins.
  *
@@ -42,6 +43,7 @@
 #include <string.h>
 
 #include "sco_api.h"
+#include "sco_widgets.h"
 
 static int failures;
 
@@ -691,6 +693,10 @@ static cmd   cmds[MAX_CMDS];
 static int   ncmds;
 static task  tasks[MAX_TASKS];
 static int   ntasks;
+static int widget_running = 1;
+static int widget_dispatching;
+static uint32_t widget_callback_logs, widget_callback_invokes;
+static const sco_widgets_v1 widget_api;
 
 static int copy_str(char* dst, size_t cap, const char* src) {
     if (!src) { dst[0] = 0; return 1; }
@@ -715,11 +721,252 @@ static int valid_command_name(const char* n) {
     return dot && prev != '.';
 }
 
+/* ---- renderer-neutral retained widgets (headless stand-in only) ---------- */
+/* Single-threaded, bounded copies; not a native-pointer validator, renderer,
+ * game-thread detector or crash guard. Only callback fn/ctx remain borrowed. */
+typedef struct widget_node_copy {
+    sco_widget_node node;
+    char label[SCO_WIDGETS_MAX_TEXT + 1u];
+    char text[SCO_WIDGETS_MAX_TEXT + 1u];
+    char** items;
+    int disabled;
+} widget_node_copy;
+
+typedef struct widget_panel_copy {
+    char id[SCO_WIDGETS_MAX_ID + 1u];
+    char title[SCO_WIDGETS_MAX_TITLE + 1u];
+    widget_node_copy* nodes;
+    uint32_t count;
+    uint64_t generation;
+    sco_widget_event_fn fn;
+    void* ctx;
+} widget_panel_copy;
+
+static widget_panel_copy* widget_panels[SCO_WIDGETS_MAX_PANELS];
+static uint32_t widget_total_nodes;
+static uint64_t widget_generation;
+
+/* Read at most max+1 bytes, then reject malformed/overlong UTF-8, surrogates
+ * and codepoints beyond U+10FFFF. Native pointers still must be readable. */
+static int widget_string(char* dst, const char* src, size_t max, int required) {
+    size_t n = 0, i = 0;
+    if (!src) { dst[0] = 0; return !required; }
+    while (n <= max && src[n]) ++n;
+    if (n > max || (required && !n)) return 0;
+    while (i < n) {
+        const unsigned char c = (unsigned char)src[i++];
+        uint32_t cp, lower;
+        size_t extra, j;
+        if (c < 0x80u) continue;
+        if (c >= 0xc2u && c <= 0xdfu) { cp = c & 0x1fu; extra = 1; lower = 0x80u; }
+        else if (c >= 0xe0u && c <= 0xefu) { cp = c & 0x0fu; extra = 2; lower = 0x800u; }
+        else if (c >= 0xf0u && c <= 0xf4u) { cp = c & 7u; extra = 3; lower = 0x10000u; }
+        else return 0;
+        if (extra > n - i) return 0;
+        for (j = 0; j < extra; ++j) {
+            const unsigned char b = (unsigned char)src[i++];
+            if ((b & 0xc0u) != 0x80u) return 0;
+            cp = (cp << 6) | (b & 0x3fu);
+        }
+        if (cp < lower || cp > 0x10ffffu || (cp >= 0xd800u && cp <= 0xdfffu)) return 0;
+    }
+    memcpy(dst, src, n + 1u);
+    return 1;
+}
+
+/* Node text limits return TOO_MANY, malformed UTF-8 returns BAD_ARG. IDs and
+ * titles deliberately keep BAD_ARG for invalid/overlong syntax. */
+static sco_result widget_text_error(const char* src) {
+    size_t n = 0;
+    if (src) while (n <= SCO_WIDGETS_MAX_TEXT && src[n]) ++n;
+    return n > SCO_WIDGETS_MAX_TEXT ? SCO_TOO_MANY : SCO_BAD_ARG;
+}
+
+static int widget_id(char* dst, const char* id) {
+    const size_t plen = strlen(plugin_id);
+    return widget_string(dst, id, SCO_WIDGETS_MAX_ID, 1) && valid_command_name(dst) &&
+           !strncmp(dst, plugin_id, plen) && dst[plen] == '.';
+}
+
+static void widget_free(widget_panel_copy* panel) {
+    uint32_t i, j;
+    if (!panel) return;
+    for (i = 0; i < panel->count; ++i) {
+        widget_node_copy* n = &panel->nodes[i];
+        if (n->items) {
+            for (j = 0; j < n->node.item_count; ++j) free(n->items[j]);
+            free(n->items);
+        }
+    }
+    free(panel->nodes);
+    free(panel);
+}
+
+static int widget_find(const char* id) {
+    uint32_t i;
+    for (i = 0; i < SCO_WIDGETS_MAX_PANELS; ++i)
+        if (widget_panels[i] && !strcmp(widget_panels[i]->id, id)) return (int)i;
+    return -1;
+}
+
+static sco_result widget_set_panel(sco_plugin* self, const char* id, const char* title,
+                                   const sco_widget_node* nodes, uint32_t count, uint32_t stride,
+                                   sco_widget_event_fn fn, void* ctx) {
+    char checked_id[SCO_WIDGETS_MAX_ID + 1u] = {0}, checked_title[SCO_WIDGETS_MAX_TITLE + 1u] = {0};
+    uint32_t stack[SCO_WIDGETS_MAX_NODES], depth = 0, i, j, old_count = 0;
+    int slot;
+    widget_panel_copy* panel;
+    widget_panel_copy* old;
+    sco_result error = SCO_BAD_ARG;
+    if (!widget_running) return SCO_UNAVAILABLE;
+    if (self != &the_plugin || !widget_id(checked_id, id) ||
+        !widget_string(checked_title, title, SCO_WIDGETS_MAX_TITLE, 1) || !nodes || !count ||
+        stride < sizeof(sco_widget_node) || stride % _Alignof(sco_widget_node) ||
+        (uintptr_t)nodes % _Alignof(sco_widget_node) ||
+        (size_t)stride > SIZE_MAX / count) return SCO_BAD_ARG;
+    if (count > SCO_WIDGETS_MAX_NODES) return SCO_TOO_MANY;
+    slot = widget_find(checked_id);
+    if (slot >= 0) old_count = widget_panels[slot]->count;
+    else {
+        for (i = 0; i < SCO_WIDGETS_MAX_PANELS; ++i) if (!widget_panels[i]) break;
+        if (i == SCO_WIDGETS_MAX_PANELS) return SCO_TOO_MANY;
+        slot = (int)i;
+    }
+    if (count > SCO_WIDGETS_MAX_TOTAL_NODES - (widget_total_nodes - old_count) ||
+        widget_generation == UINT64_MAX) return SCO_TOO_MANY;
+    panel = (widget_panel_copy*)calloc(1, sizeof *panel);
+    if (!panel) return SCO_TOO_MANY;
+    panel->nodes = (widget_node_copy*)calloc(count, sizeof *panel->nodes);
+    if (!panel->nodes) { free(panel); return SCO_TOO_MANY; }
+    panel->count = count;
+    memcpy(panel->id, checked_id, sizeof checked_id);
+    memcpy(panel->title, checked_title, sizeof checked_title);
+    panel->fn = fn;
+    panel->ctx = ctx;
+    for (i = 0; i < count; ++i) {
+        const sco_widget_node* in = (const sco_widget_node*)((const char*)nodes + (size_t)i * stride);
+        widget_node_copy* out = &panel->nodes[i];
+        uint32_t parent_index = 0;
+        int have_parent = 0;
+        if (in->size < sizeof *in || in->size > stride || !in->id ||
+            in->kind < SCO_WIDGET_LABEL || in->kind > SCO_WIDGET_COLUMN ||
+            (in->flags & ~SCO_WIDGET_DISABLED)) goto reject;
+        for (j = 0; j < i; ++j) if (panel->nodes[j].node.id == in->id) goto reject;
+        /* Active layout ancestors enforce both preceding-parent and contiguous
+         * preorder subtrees: a closed ancestor cannot be re-entered. */
+        if (!in->parent) depth = 0;
+        else {
+            for (j = 0; j < depth; ++j)
+                if (panel->nodes[stack[j]].node.id == in->parent) {
+                    parent_index = stack[j]; depth = j + 1u; have_parent = 1; break;
+                }
+            if (!have_parent) goto reject;
+        }
+        out->node = *in;
+        out->node.items = NULL; /* even a zero-length array must not retain caller storage */
+        out->disabled = (in->flags & SCO_WIDGET_DISABLED) != 0 ||
+                        (have_parent && panel->nodes[parent_index].disabled);
+        if (!widget_string(out->label, in->label, SCO_WIDGETS_MAX_TEXT,
+                           in->kind >= SCO_WIDGET_BUTTON && in->kind <= SCO_WIDGET_TEXT_INPUT)) {
+            error = widget_text_error(in->label); goto reject;
+        }
+        out->node.label = in->label ? out->label : NULL;
+        /* Require all unused payload fields to be zero/NULL. */
+        if (in->kind != SCO_WIDGET_TEXT_INPUT && in->text) goto reject;
+        if (in->kind != SCO_WIDGET_TOGGLE && in->kind != SCO_WIDGET_SLIDER && in->value != 0) goto reject;
+        if (in->kind != SCO_WIDGET_SLIDER && (in->minimum != 0 || in->maximum != 0)) goto reject;
+        if (in->kind != SCO_WIDGET_COMBO && in->kind != SCO_WIDGET_LIST &&
+            in->index != 0 && in->index != -1) goto reject;
+        if (in->kind != SCO_WIDGET_TABLE && in->columns) goto reject;
+        if (in->kind != SCO_WIDGET_COMBO && in->kind != SCO_WIDGET_LIST && in->kind != SCO_WIDGET_TABLE &&
+            (in->items || in->item_count)) goto reject;
+        if (in->kind == SCO_WIDGET_TOGGLE && in->value != 0 && in->value != 1) goto reject;
+        if (in->kind == SCO_WIDGET_SLIDER && (!isfinite(in->value) || !isfinite(in->minimum) ||
+            !isfinite(in->maximum) || in->minimum > in->maximum ||
+            in->value < in->minimum || in->value > in->maximum)) goto reject;
+        if (in->kind == SCO_WIDGET_TEXT_INPUT) {
+            if (!widget_string(out->text, in->text, SCO_WIDGETS_MAX_TEXT, 0)) {
+                error = widget_text_error(in->text); goto reject;
+            }
+            out->node.text = out->text;
+        }
+        if (in->item_count > SCO_WIDGETS_MAX_ITEMS || in->columns > SCO_WIDGETS_MAX_COLUMNS) {
+            error = SCO_TOO_MANY; goto reject;
+        }
+        if ((in->item_count && !in->items) || (!in->item_count && in->items)) goto reject;
+        if ((in->kind == SCO_WIDGET_COMBO || in->kind == SCO_WIDGET_LIST) &&
+            (in->index < -1 || (in->index >= 0 && (uint32_t)in->index >= in->item_count))) goto reject;
+        if (in->kind == SCO_WIDGET_TABLE && (!in->columns || in->item_count % in->columns)) goto reject;
+        if (in->item_count) {
+            out->items = (char**)calloc(in->item_count, sizeof *out->items);
+            if (!out->items) { error = SCO_TOO_MANY; goto reject; }
+            for (j = 0; j < in->item_count; ++j) {
+                char value[SCO_WIDGETS_MAX_TEXT + 1u];
+                size_t bytes;
+                if (!in->items[j] || !widget_string(value, in->items[j], SCO_WIDGETS_MAX_TEXT, 0)) {
+                    error = widget_text_error(in->items[j]); goto reject;
+                }
+                bytes = strlen(value) + 1u;
+                out->items[j] = (char*)malloc(bytes);
+                if (!out->items[j]) { error = SCO_TOO_MANY; goto reject; }
+                memcpy(out->items[j], value, bytes);
+            }
+            out->node.items = (const char* const*)out->items;
+        }
+        if (in->kind == SCO_WIDGET_ROW || in->kind == SCO_WIDGET_COLUMN) stack[depth++] = i;
+    }
+    /* Publish only after every validation/allocation has succeeded. */
+    old = widget_panels[slot];
+    panel->generation = ++widget_generation;
+    widget_panels[slot] = panel;
+    widget_total_nodes = widget_total_nodes - old_count + count;
+    widget_free(old);
+    printf("  widgets set %s nodes=%u generation=%llu\n", panel->id, (unsigned)count,
+           (unsigned long long)panel->generation);
+    return SCO_OK;
+reject:
+    widget_free(panel);
+    return error;
+}
+
+static sco_result widget_remove_panel(sco_plugin* self, const char* id) {
+    char checked_id[SCO_WIDGETS_MAX_ID + 1u];
+    widget_panel_copy* old;
+    int slot;
+    if (!widget_running) return SCO_UNAVAILABLE;
+    if (self != &the_plugin || !widget_id(checked_id, id)) return SCO_BAD_ARG;
+    slot = widget_find(checked_id);
+    if (slot < 0) return SCO_NOT_FOUND;
+    old = widget_panels[slot];
+    widget_panels[slot] = NULL;
+    widget_total_nodes -= old->count;
+    widget_free(old);
+    printf("  widgets remove %s\n", checked_id);
+    return SCO_OK;
+}
+
+static const sco_widgets_v1 widget_api = {
+    sizeof(sco_widgets_v1), 0, widget_set_panel, widget_remove_panel
+};
+
+static void widget_stop(void) {
+    uint32_t i, removed = 0;
+    widget_running = 0;
+    for (i = 0; i < SCO_WIDGETS_MAX_PANELS; ++i) {
+        if (widget_panels[i]) ++removed;
+        widget_free(widget_panels[i]);
+        widget_panels[i] = NULL;
+    }
+    widget_total_nodes = 0;
+    printf("  widgets unload removed=%u retained=0 callbacks=0\n", (unsigned)removed);
+}
+
 static const char* host_version(void) { return "sco-plugin-check " "1.0"; }
 
 static int has(const char* capability) {
     int i;
     if (!capability) return 0;
+    if (!strcmp(capability, SCO_WIDGETS_NAME)) return widget_running;
     for (i = 0; i < ncaps; ++i)
         if (!strcmp(caps[i], capability)) return 1;
     return 0;
@@ -772,6 +1019,7 @@ static void status(sco_plugin* self, const char* message) {
 static void log_(sco_plugin* self, sco_log_level level, const char* message) {
     static const char* names[] = { "info", "warn", "error" };
     if (self != &the_plugin || !message || (unsigned)level > SCO_LOG_ERROR) { api_fail("log with a bad self, level or message"); return; }
+    if (widget_dispatching) ++widget_callback_logs;
     printf("  log     [%s] %s: %s\n", plugin_id, names[level], message);
 }
 
@@ -869,6 +1117,10 @@ static sco_result invoke(sco_plugin* self, const char* name, const sco_arg* args
             break;
         }
     if (i == ncmds) reply[0] = 0;
+    if (widget_dispatching) {
+        ++widget_callback_invokes;
+        printf("  widgets invoke %s result=%u reply=\"%s\"\n", name, (unsigned)r, reply);
+    }
     if (done) done(r, reply, ctx);
     return r;
 }
@@ -879,8 +1131,8 @@ static uint32_t list_commands(const sco_command** out, uint32_t max) {
     return (uint32_t)ncmds;
 }
 
-/* 1.1. The checker loads one plugin, so services and raw handlers are only listed; nothing
- * can be found or invoked. */
+/* 1.1. Only the built-in widgets service is queryable. Plugin-provided
+ * services and raw handlers are listed, not connected to other plugins. */
 static sco_result provide_service(sco_plugin* self, const char* name, uint32_t version, const void* vtable) {
     (void)self;
     if (!name || !vtable) return SCO_BAD_ARG;
@@ -889,9 +1141,14 @@ static sco_result provide_service(sco_plugin* self, const char* name, uint32_t v
 }
 
 static sco_result query_service(const char* name, uint32_t min_version, const void** out) {
-    (void)min_version;
     if (out) *out = NULL;
-    return name && out ? SCO_NOT_FOUND : SCO_BAD_ARG;
+    if (!name || !out) return SCO_BAD_ARG;
+    if (strcmp(name, SCO_WIDGETS_NAME)) return SCO_NOT_FOUND;
+    if (!widget_running) return SCO_NOT_FOUND;
+    if ((min_version >> 16) != (SCO_WIDGETS_VERSION_1_0 >> 16) ||
+        min_version > SCO_WIDGETS_VERSION_1_0) return SCO_UNAVAILABLE;
+    *out = &widget_api;
+    return SCO_OK;
 }
 
 static sco_result release_service(sco_plugin* self, const char* name) {
@@ -939,6 +1196,102 @@ static const char* result_name(sco_result r) {
         case SCO_FAILED: return "failed";
         default: return "?";
     }
+}
+
+/* A pass snapshots event payloads and panel generations, not plugin pointers.
+ * Replacing/removing any panel suppresses its stale pending events, including
+ * remove+re-add in the same slot. Replacement trees wait for a future pass. */
+typedef struct widget_pending_event {
+    uint32_t slot, node_index;
+    uint64_t generation;
+    char panel_id[SCO_WIDGETS_MAX_ID + 1u];
+    char text[SCO_WIDGETS_MAX_TEXT + 1u];
+    sco_widget_event event;
+} widget_pending_event;
+
+static const char* widget_kind_name(uint32_t kind) {
+    static const char* const names[] = {
+        "?", "LABEL", "BUTTON", "TOGGLE", "SLIDER", "COMBO", "LIST", "TEXT_INPUT", "TABLE", "ROW", "COLUMN"
+    };
+    return kind <= SCO_WIDGET_COLUMN ? names[kind] : "?";
+}
+
+static void widget_simulate(void) {
+    widget_pending_event pending[SCO_WIDGETS_MAX_EVENTS];
+    uint32_t i, j, count = 0, delivered = 0, stale = 0, limited = 0;
+    if (!widget_running) return;
+    for (i = 0; i < SCO_WIDGETS_MAX_PANELS; ++i) {
+        const widget_panel_copy* panel = widget_panels[i];
+        if (!panel) continue;
+        printf("  widgets panel %s title=\"%s\" nodes=%u\n", panel->id, panel->title, (unsigned)panel->count);
+        for (j = 0; j < panel->count; ++j) {
+            const widget_node_copy* node = &panel->nodes[j];
+            const sco_widget_node* n = &node->node;
+            widget_pending_event* p;
+            printf("  widgets node %s id=%u parent=%u kind=%u(%s) disabled=%d label=\"%s\"\n",
+                   panel->id, (unsigned)n->id, (unsigned)n->parent, (unsigned)n->kind,
+                   widget_kind_name(n->kind), node->disabled, n->label ? n->label : "");
+            if (!panel->fn || node->disabled || n->kind < SCO_WIDGET_BUTTON || n->kind > SCO_WIDGET_TEXT_INPUT ||
+                ((n->kind == SCO_WIDGET_COMBO || n->kind == SCO_WIDGET_LIST) && !n->item_count)) continue;
+            if (count == SCO_WIDGETS_MAX_EVENTS) { ++limited; continue; }
+            p = &pending[count++];
+            memset(p, 0, sizeof *p);
+            p->slot = i; p->node_index = j; p->generation = panel->generation;
+            memcpy(p->panel_id, panel->id, sizeof p->panel_id);
+            p->event.size = sizeof p->event;
+            p->event.node_id = n->id; p->event.kind = n->kind;
+            switch (n->kind) {
+                case SCO_WIDGET_TOGGLE: p->event.value = n->value == 0 ? 1 : 0; break;
+                case SCO_WIDGET_SLIDER:
+                    /* Half first so even [-DBL_MAX,DBL_MAX] stays finite. */
+                    p->event.value = n->minimum * 0.5 + n->maximum * 0.5;
+                    /* Half-subnormal endpoints can round toward zero. */
+                    if (p->event.value < n->minimum) p->event.value = n->minimum;
+                    if (p->event.value > n->maximum) p->event.value = n->maximum;
+                    if (p->event.value == n->value)
+                        p->event.value = n->value == n->maximum ? n->minimum : n->maximum;
+                    break;
+                case SCO_WIDGET_COMBO: case SCO_WIDGET_LIST:
+                    p->event.index = (n->index + 1) % (int32_t)n->item_count; break;
+                case SCO_WIDGET_TEXT_INPUT:
+                    strcpy(p->text, !strcmp(node->text, "headless input") ? "headless input (2)" : "headless input");
+                    p->event.text = p->text; break;
+                default: break;
+            }
+        }
+    }
+    for (i = 0; i < count; ++i) {
+        widget_pending_event* p = &pending[i];
+        widget_panel_copy* panel = widget_panels[p->slot];
+        widget_node_copy* node;
+        sco_widget_event_fn fn;
+        void* ctx;
+        int before_failures = failures;
+        uint32_t before_logs = widget_callback_logs, before_invokes = widget_callback_invokes;
+        if (!panel || panel->generation != p->generation) { ++stale; continue; }
+        node = &panel->nodes[p->node_index];
+        if (p->event.kind == SCO_WIDGET_TOGGLE || p->event.kind == SCO_WIDGET_SLIDER) node->node.value = p->event.value;
+        if (p->event.kind == SCO_WIDGET_COMBO || p->event.kind == SCO_WIDGET_LIST) node->node.index = p->event.index;
+        if (p->event.kind == SCO_WIDGET_TEXT_INPUT) strcpy(node->text, p->text);
+        fn = panel->fn; ctx = panel->ctx;
+        printf("  widgets event %s node=%u kind=%u(%s) value=%.17g index=%d text=\"%s\"\n",
+               p->panel_id, (unsigned)p->event.node_id, (unsigned)p->event.kind,
+               widget_kind_name(p->event.kind), p->event.value, (int)p->event.index, p->event.text ? p->event.text : "");
+        widget_dispatching = 1;
+        fn(p->panel_id, &p->event, ctx);
+        widget_dispatching = 0;
+        ++delivered;
+        /* Never dereference panel/node/fn/ctx after the plugin callout: the
+         * callback may have removed its panel and freed its own context. */
+        printf("  widgets callback %s node=%u returned logs=%u invokes=%u\n", p->panel_id,
+               (unsigned)p->event.node_id, (unsigned)(widget_callback_logs - before_logs),
+               (unsigned)(widget_callback_invokes - before_invokes));
+        if (failures != before_failures) {
+            printf("  widgets events stopped after checker-detected callback failure (no crash containment)\n");
+            break;
+        }
+    }
+    printf("  widgets events delivered=%u stale=%u limited=%u\n", (unsigned)delivered, (unsigned)stale, (unsigned)limited);
 }
 
 /* Parses text as the type the command's arg def wants. */
@@ -1040,11 +1393,12 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
     api.register_raw = register_raw;
 
     r = load(&api, &the_plugin);
-    if (r != SCO_OK) { fail("sco_plugin_load returned %s", result_name(r)); unload(); return; }
+    if (r != SCO_OK) { fail("sco_plugin_load returned %s", result_name(r)); unload(); widget_stop(); return; }
     printf("  load    ok: %d command(s)\n", ncmds);
 
     dispatch("game.ready", NULL);
     for (i = 1; i <= 3; ++i) tick((uint32_t)(i * 100));
+    widget_simulate();
 
     for (i = 0; i < ncmds; ++i) {
         char reply[256];
@@ -1072,6 +1426,7 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
 
     dispatch("game.exit", NULL);
     unload();
+    widget_stop();
     printf("  unload  ok\n");
     /* Not closed: a check run ends here, and some C runtimes dislike unloading mid-exit. */
 }

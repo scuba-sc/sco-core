@@ -229,6 +229,174 @@
  ],
  "components": [
   {
+   "id": "include.sco_widgets.h",
+   "source": "include/sco_widgets.h",
+   "destination": "include/sco_widgets.h",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "include.scosdk.widgets.hpp",
+   "source": "include/scosdk/widgets.hpp",
+   "destination": "include/scosdk/widgets.hpp",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "source.include.sco.widgets.h",
+   "source": "include/sco/widgets.h",
+   "destination": "include/sco/widgets.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.widgets_imgui.h",
+   "source": "include/sco/widgets_imgui.h",
+   "destination": "include/sco/widgets_imgui.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.widgets.widgets.cpp",
+   "source": "src/widgets/widgets.cpp",
+   "destination": "src/widgets/widgets.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.widgets.imgui_adapter.cpp",
+   "source": "src/widgets/imgui_adapter.cpp",
+   "destination": "src/widgets/imgui_adapter.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_widgets.c",
+   "source": "tests/abi_widgets.c",
+   "destination": "tests/abi_widgets.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_widgets_app.cpp",
+   "source": "tests/test_widgets_app.cpp",
+   "destination": "tests/test_widgets_app.cpp",
+   "profiles": ["core-source"],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_widgets.cpp",
+   "source": "tests/test_widgets.cpp",
+   "destination": "tests/test_widgets.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_widgets_sdk.cpp",
+   "source": "tests/test_widgets_sdk.cpp",
+   "destination": "tests/test_widgets_sdk.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.design.widgets.md",
+   "source": "docs/design/widgets.md",
+   "destination": "docs/design/widgets.md",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.ui.md",
+   "source": "docs/ui.md",
+   "destination": "docs/ui.md",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "sdk.docs.widgets.md",
+   "source": "sdk/docs/widgets.md",
+   "destination": "docs/widgets.md",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "sdk.examples.widgets.widgets.c",
+   "source": "sdk/examples/widgets/widgets.c",
+   "destination": "examples/widgets/widgets.c",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "sdk.examples.widgets.CMakeLists.txt",
+   "source": "sdk/examples/widgets/CMakeLists.txt",
+   "destination": "examples/widgets/CMakeLists.txt",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "sdk.examples.widgets.plugin.ini",
+   "source": "sdk/examples/widgets/plugin.ini",
+   "destination": "examples/widgets/plugin.ini",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
    "id": "game.tests.game_contracts.hook_lengths.inc",
    "source": "tests/game_contracts/hook_lengths.inc",
    "destination": "tests/game_contracts/hook_lengths.inc",
@@ -1533,7 +1701,8 @@
    "source": "sdk/third_party/imgui/LICENSE.txt",
    "destination": "third_party/imgui/LICENSE.txt",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "third-party",
    "license": "MIT",
@@ -1544,7 +1713,8 @@
    "source": "sdk/third_party/imgui/README.md",
    "destination": "third_party/imgui/README.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "third-party",
    "license": "MIT",
@@ -1555,7 +1725,8 @@
    "source": "sdk/third_party/imgui/imconfig.h",
    "destination": "third_party/imgui/imconfig.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "third-party",
    "license": "MIT",
@@ -1567,7 +1738,8 @@
    "source": "sdk/third_party/imgui/imgui.h",
    "destination": "third_party/imgui/imgui.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "third-party",
    "license": "MIT",

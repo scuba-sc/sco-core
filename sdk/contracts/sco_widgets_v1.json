@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-widgets-v1-set-panel",
+      "kind": "table-method",
+      "symbol": "sco_widgets_v1.set_panel",
+      "table": "sco_widgets_v1",
+      "service": "sco.widgets",
+      "version_macro": "SCO_WIDGETS_VERSION_1_0",
+      "source_header": "include/sco_widgets.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const char *, const sco_widget_node *, uint32_t, uint32_t, sco_widget_event_fn, void *)",
+      "member_extent": 16,
+      "table_size": 24,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Atomically adds/replaces an owned complete preorder tree. ID/title <=63 bytes; 1..256 nodes, aligned stride >=80 and node size within stride. Unique nonzero node IDs, parent 0 or preceding active ROW/COLUMN; all subtrees contiguous. Copies valid UTF-8 labels/text/items <=255 bytes; 256 items/node and 16 table columns. Zero unused fields; finite/ranged numeric values and valid selections. Failure preserves old tree/callback.",
+      "buffer_contract": "`sco_result (*set_panel)(sco_plugin* self, const char* id, const char* title, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride, sco_widget_event_fn fn, void* ctx);`<br>Atomically adds/replaces an owned complete preorder tree. ID/title <=63 bytes; 1..256 nodes, aligned stride >=80 and node size within stride. Unique nonzero node IDs, parent 0 or preceding active ROW/COLUMN; all subtrees contiguous. Copies valid UTF-8 labels/text/items <=255 bytes; 256 items/node and 16 table columns. Zero unused fields; finite/ranged numeric values and valid selections. Failure preserves old tree/callback.",
+      "ownership": "Host deep-copies tree/strings on success; fn/ctx borrowed until successful replacement/removal or ordinary owner release. No allocation transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard.",
+      "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned.",
+      "reentrancy": "Callbacks may invoke commands or replace/remove own panel; generation change drops remaining stale events, new tree renders next pass. Registry lock not held during plugin code.",
+      "results": "OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG malformed owner/ID/title/tree/size/stride/data; TOO_MANY limits or allocation failure. Failure atomic.",
+      "absent_capability": "query_service NOT_FOUND absent service; UNAVAILABLE incompatible version. No game capability or renderer requirement.",
+      "cleanup": "Successful replacement/removal and ordinary owner release discard stale-generation events and end borrowed callbacks. Fault guard stops delivery; retained-provider faults skip ordinary resource release until restart. No separate cancel token.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_widgets.h",
+              "token": "(*set_panel)"
+            }
+          ],
+          "tests": [
+            "tests/abi_widgets.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/widgets.hpp",
+              "token": "return table_->set_panel(self_, id, title, nodes, count, stride, fn, ctx);"
+            }
+          ],
+          "tests": [
+            "tests/test_widgets_sdk.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/widgets.md",
+              "token": "C#: **unsupported/deferred**"
+            },
+            {
+              "path": "docs/design/widgets.md",
+              "token": "https://github.com/scubamount/sco-core/issues/142"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/widgets.md",
+              "token": "Lua: **unsupported/deferred**"
+            },
+            {
+              "path": "docs/design/widgets.md",
+              "token": "https://github.com/scubamount/sco-core/issues/143"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [
+        "sdk/examples/widgets/widgets.c"
+      ],
+      "tests": [
+        "tests/abi_widgets.c",
+        "tests/test_widgets.cpp",
+        "tests/test_widgets_sdk.cpp",
+        "sdk/test-zip.sh"
+      ],
+      "limitations": [
+        "C# renderer-neutral adapter unsupported/deferred: scubamount/sco-core #142, follow-up to #139.",
+        "Lua renderer-neutral adapter unsupported/deferred: scubamount/sco-core #143, follow-up to #139.",
+        "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
+      ]
+    },
+    {
+      "id": "sco-widgets-v1-remove-panel",
+      "kind": "table-method",
+      "symbol": "sco_widgets_v1.remove_panel",
+      "table": "sco_widgets_v1",
+      "service": "sco.widgets",
+      "version_macro": "SCO_WIDGETS_VERSION_1_0",
+      "source_header": "include/sco_widgets.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *)",
+      "member_extent": 24,
+      "table_size": 24,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Removes an owned panel. Absent ID returns NOT_FOUND; success ends pending callbacks for that generation and permits immediate ctx destruction, including inside its callback. Failure preserves the panel.",
+      "buffer_contract": "`sco_result (*remove_panel)(sco_plugin* self, const char* id);`<br>Removes an owned panel. Absent ID returns NOT_FOUND; success ends pending callbacks for that generation and permits immediate ctx destruction, including inside its callback. Failure preserves the panel.",
+      "ownership": "Host releases copied tree and borrowed callback registration, never frees plugin ctx; caller may free ctx after success.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard.",
+      "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned.",
+      "reentrancy": "Callbacks may invoke commands or replace/remove own panel; generation change drops remaining stale events, new tree renders next pass. Registry lock not held during plugin code.",
+      "results": "OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG invalid/released owner or malformed ID; NOT_FOUND absent owned panel. Failure leaves registration unchanged.",
+      "absent_capability": "query_service NOT_FOUND absent service; UNAVAILABLE incompatible version. No game capability or renderer requirement.",
+      "cleanup": "Successful replacement/removal and ordinary owner release discard stale-generation events and end borrowed callbacks. Fault guard stops delivery; retained-provider faults skip ordinary resource release until restart. No separate cancel token.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_widgets.h",
+              "token": "(*remove_panel)"
+            }
+          ],
+          "tests": [
+            "tests/abi_widgets.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/widgets.hpp",
+              "token": "return table_->remove_panel(self_, id);"
+            }
+          ],
+          "tests": [
+            "tests/test_widgets_sdk.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/widgets.md",
+              "token": "C#: **unsupported/deferred**"
+            },
+            {
+              "path": "docs/design/widgets.md",
+              "token": "https://github.com/scubamount/sco-core/issues/142"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/widgets.md",
+              "token": "Lua: **unsupported/deferred**"
+            },
+            {
+              "path": "docs/design/widgets.md",
+              "token": "https://github.com/scubamount/sco-core/issues/143"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [
+        "sdk/examples/widgets/widgets.c"
+      ],
+      "tests": [
+        "tests/abi_widgets.c",
+        "tests/test_widgets.cpp",
+        "tests/test_widgets_sdk.cpp",
+        "sdk/test-zip.sh"
+      ],
+      "limitations": [
+        "C# renderer-neutral adapter unsupported/deferred: scubamount/sco-core #142, follow-up to #139.",
+        "Lua renderer-neutral adapter unsupported/deferred: scubamount/sco-core #143, follow-up to #139.",
+        "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
+      ]
+    }
+  ]
+}

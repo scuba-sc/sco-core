@@ -622,6 +622,16 @@ Within major version 1:
 
 [`tests/abi_v1.c`](../tests/abi_v1.c) enforces this. It pins, with static asserts, every struct's size and field offsets, every enum value and size, both version numbers, and the parameter types of every function and callback. `tools/test.sh` compiles it with `-Werror` as C11 and C++20 for the host, again with `-fshort-enums`, and for `x86_64-pc-windows-msvc`, so CI fails on any change. Since `sdk-v1.1.0` the file is append-only: an addition gets new lines, and an existing line never changes.
 
+## Renderer-neutral widget service
+
+`sco.widgets` 1.0 is a separate size-prefixed host service declared in
+[`sco_widgets.h`](../include/sco_widgets.h). It copies retained declarative panels
+and dispatches guarded game-thread events without exposing renderer types.
+[`Widget design`](design/widgets.md) defines the data, limits, lifetime and
+versioning; [`UI docs`](ui.md) distinguish it
+from the retained legacy `sco.ui` draw-context route. Frozen `sco_api` 1.1 is
+unchanged. C/C++ routes ship first; C# and Lua are deferred to #142 and #143.
+
 ## ABI freeze
 
 Version 1.1 is frozen: no change that would break a plugin built against the released header can land unnoticed. Three things hold it, all run by `tools/test.sh` and by CTest (`abi_v1`, `abi_freeze`, `test_plugins`), on Linux, macOS and Windows, in kernel-only builds too:

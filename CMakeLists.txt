@@ -192,6 +192,21 @@ add_library(sco_ui STATIC src/ui/ui.cpp)
 target_link_libraries(sco_ui PUBLIC sco_host)
 sco_project_target(sco_ui)
 
+# Renderer-neutral retained UI is always part of the kernel. Products optionally
+# compile the ImGui adapter against their own host-side ImGui implementation.
+add_library(sco_widgets STATIC src/widgets/widgets.cpp)
+target_link_libraries(sco_widgets PUBLIC sco_host)
+sco_project_target(sco_widgets)
+option(SCO_WIDGETS_IMGUI "Build the host-only ImGui widget adapter" OFF)
+set(SCO_WIDGETS_IMGUI_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/imgui" CACHE PATH
+    "Directory containing the host's imgui.h and imconfig.h")
+if(SCO_WIDGETS_IMGUI)
+  add_library(sco_widgets_imgui STATIC src/widgets/imgui_adapter.cpp)
+  target_link_libraries(sco_widgets_imgui PUBLIC sco_widgets)
+  target_include_directories(sco_widgets_imgui PRIVATE "${SCO_WIDGETS_IMGUI_INCLUDE_DIR}")
+  sco_project_target(sco_widgets_imgui)
+endif()
+
 # sco.settings (sco/settings.h, include/sco_settings.h): the typed [settings] of plugin.ini, their
 # values (kept in the plugin's sco.storage namespace) and what the product's menu draws; a host-owned
 # service, read-only to plugins.
@@ -244,7 +259,7 @@ endif()
 
 # The host kit (sco/app.h): Start / Tick / Stop over the host table, caps, signatures and loader.
 add_library(sco_app STATIC src/app/sco_app.cpp)
-target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_settings sco_ipc sco_net_service)
+target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_ipc sco_net_service)
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
   # Platform::registerSignatures (sco::game::RegisterGameSignatures).
@@ -526,6 +541,28 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_ui
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ui_targets})
 
+  # The sco.widgets table pin (tests/abi_widgets.c), the same three ways.
+  set(_abi_widgets_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_widgets.cpp")
+  file(CONFIGURE OUTPUT "${_abi_widgets_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_widgets.c\"\n")
+  add_library(sco_abi_widgets_c OBJECT tests/abi_widgets.c)
+  add_library(sco_abi_widgets_cxx OBJECT "${_abi_widgets_cxx}")
+  set(_abi_widgets_targets sco_abi_widgets_c sco_abi_widgets_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_widgets_short_enums OBJECT tests/abi_widgets.c)
+    target_compile_options(sco_abi_widgets_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_widgets_targets sco_abi_widgets_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_widgets_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_widgets
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_widgets_targets})
+
   if(SCO_GAME_SC)
   # The sco.datacore table pin (tests/abi_datacore.c), the same three ways.
   set(_abi_datacore_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_datacore.cpp")
@@ -761,6 +798,23 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_ui PRIVATE sco_ui sco_plugins)
   sco_project_target(test_ui)
   add_test(NAME test_ui COMMAND test_ui)
+
+  add_executable(test_widgets tests/test_widgets.cpp)
+  target_link_libraries(test_widgets PRIVATE sco_widgets)
+  sco_project_target(test_widgets)
+  add_test(NAME test_widgets COMMAND test_widgets)
+
+  add_executable(test_widgets_app tests/test_widgets_app.cpp)
+  target_link_libraries(test_widgets_app PRIVATE sco_app)
+  sco_project_target(test_widgets_app)
+  add_test(NAME test_widgets_app COMMAND test_widgets_app)
+
+  add_executable(test_widgets_sdk tests/test_widgets_sdk.cpp src/widgets/imgui_adapter.cpp)
+  target_link_libraries(test_widgets_sdk PRIVATE sco_widgets)
+  target_include_directories(test_widgets_sdk PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/imgui")
+  target_compile_definitions(test_widgets_sdk PRIVATE SCO_TEST_IMGUI_ADAPTER)
+  sco_project_target(test_widgets_sdk)
+  add_test(NAME test_widgets_sdk COMMAND test_widgets_sdk)
 
   add_executable(test_hook tests/test_hook.cpp)
   target_link_libraries(test_hook PRIVATE sco_hook)

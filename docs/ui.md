@@ -1,6 +1,21 @@
-# UI: the `sco.ui` service
+# UI: neutral widgets and legacy `sco.ui`
 
-Plugins put UI in the product's menu and bind keys to commands without touching the product's renderer. A plugin registers a **tab** (a page in the menu) or an **overlay** (drawn over the game every frame) with a draw function, and the product calls that function during its own frame. A plugin binds a **hotkey**, a key chord, to a command, and the product runs the command through the command registry when the key is pressed. sco-core keeps the registry: ids, order, lifetime and the hotkey table. It draws nothing and contains no ImGui and no game code; sc-offline renders what is registered with its ImGui menu.
+## Renderer-neutral widgets (`sco.widgets`)
+
+For new native UI, use **`sco.widgets` 1.0**, the retained renderer-neutral service
+in [`sco_widgets.h`](../include/sco_widgets.h) and [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp).
+The host owns rendering; plugins submit copied preorder trees and receive typed
+game-thread events. See [widget design](design/widgets.md) and
+[SDK widget guide](../sdk/docs/widgets.md). C/C++ are supported; C# and Lua are
+explicitly deferred in [#142](https://github.com/scubamount/sco-core/issues/142)
+and [#143](https://github.com/scubamount/sco-core/issues/143).
+
+The sections below document the **legacy, still-supported `sco.ui` route**. Its
+opaque draw context is host-specific (sc-offline passes an ImGui context), so a
+drawing plugin on that route remains coupled to the host renderer ABI. Adding
+widgets does not change existing tabs/overlays, badges, hotkeys or their callbacks.
+
+Legacy plugins register draw callbacks in the product's menu and bind keys to commands. Draw callbacks use the product's renderer contract; only the registry is renderer-neutral. A plugin registers a **tab** (a page in the menu) or an **overlay** (drawn over the game every frame) with a draw function, and the product calls that function during its own frame. A plugin binds a **hotkey**, a key chord, to a command, and the product runs the command through the command registry when the key is pressed. sco-core's legacy UI registry keeps ids, order, lifetime and the hotkey table. That registry draws nothing and has no ImGui or game dependency; sc-offline renders it with its ImGui menu. The separate retained-widget service has an optional host-only renderer adapter.
 
 It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned services](api-v1.md#host-owned-services)) named `sco.ui`, version 1.0, found with the ordinary `query_service` of sco_api 1.1. `sco_api.h` is unchanged; the table is declared in [`include/sco_ui.h`](../include/sco_ui.h) (plain C) and pinned by [`tests/abi_ui.c`](../tests/abi_ui.c). The host kit (`sco::app::Start`) always publishes it.
 

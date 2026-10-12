@@ -17,13 +17,13 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | Path | What |
 |---|---|
 | `include/sco_api.h` | The only header a native C plugin includes |
-| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core); `sco_datacore.h` (Star Citizen extension) |
+| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core); `sco_datacore.h` (Star Citizen extension) |
 | `include/sc_*.h` | Core: the MIT wires and bridge layouts (`sc_ipc.h`, `sc_net.h`, `sc_titanlink.h`, `sc_voxel_bridge.h`). Star Citizen extension: the game pack's service tables and events (`sc_spatial.h`, `sc_spawn.h`, `sc_actors.h`, `sc_vehicles.h`, `sc_world.h`, `sc_entities.h`, `sc_creative.h`, `sc_game_events.h`; [game services](../docs/game-services.md), [status](../docs/game/status.md)) and its version (`sc_game_pack.h`) |
 | `include/scosdk/` | The C++20 layer over `sco_api.h`, header-only: [C++ plugins](#c-plugins). `scosdk/game/` and `scosdk/datacore.hpp` come with the Star Citizen extension |
 | `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins-1). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |
 | `cmake/sco-plugin.cmake` | `sco_add_plugin()` and `sco_add_pack()`: build a plugin and lay it out |
 | `template/` | A native plugin to copy and rename |
-| `examples/` | `hello` (native C), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
+| `examples/` | `hello` (native C), `widgets` (native C, retained neutral UI), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
 | `tools/sco-plugin-check.c` | Checks a built plugin folder on your machine, without the game |
 | `tools/lua-check.lua` | Runs a Lua plugin against a stand-in `sco` table, without the game |
 | `docs/` | [plugin.ini](docs/plugin-ini.md), [data packs](docs/data-packs.md), [Lua](docs/lua.md), [plugin rules](docs/plugin-rules.md), [API reference](../docs/api-v1.md), [C++ SDK](../docs/sdk-cpp.md), [C# SDK](../docs/sdk-csharp.md) |
@@ -67,7 +67,22 @@ checks fixed ZIP timestamps/modes and absence of checkout/output paths. This pro
 within one Python/zlib environment, not across compression-library versions. Packaged repository
 document links are pinned to the source commit rather than a moving branch.
 
+## Renderer-neutral widget UI
+
+New C/C++ plugins use `sco.widgets` 1.0 (`sco_widgets.h`, `scosdk/widgets.hpp`):
+retained copied trees, typed game-thread events and no plugin renderer linkage.
+The [widget guide](docs/widgets.md) and `examples/widgets` show all eight widgets
+plus ROW/COLUMN layout with synthetic data. `sco-plugin-check` supplies deterministic
+headless interaction coverage. The C# route is deferred in
+[#142](https://github.com/scubamount/sco-core/issues/142); the Lua route is deferred
+in [#143](https://github.com/scubamount/sco-core/issues/143), both follow-ups to #139.
+Do not treat the existing C#/Lua `sco.ui` features as support for neutral widgets.
+The optional host-only adapter is source-kit code, never a public plugin header.
+
 ## Optional ImGui: a host-specific third-party ABI
+
+This is the legacy `sco.ui` draw-context route, which remains supported; neutral
+widget plugins neither include ImGui headers nor link its implementation.
 
 ImGui is **optional**. Non-drawing plugins need neither its headers nor implementation;
 the kernel UI registry passes an opaque draw context and does not depend on ImGui.
@@ -85,7 +100,7 @@ The label/number alone is insufficient; check the SHA-256 pins:
 | `imconfig.h` | `1353bfa59da16eec481723fd4e5d910356f0406b79e3c4142e0c9867bafffab5` |
 | `LICENSE.txt` | `173506a2d6f7fb67990d257fb2507f188690eca39060c39469ae7bef43aae2a3` |
 
-Drawing plugins must use the implementation from that targeted host revision,
+Legacy `sco.ui` drawing plugins must use the implementation from that targeted host revision,
 unmodified `imconfig.h`, matching ABI-affecting definitions and compatible compiler
 settings. Bind the host's context and allocator only during a draw call. Rebuild
 when the host changes its ImGui snapshot or configuration; there is no generic
@@ -159,7 +174,7 @@ cmake --build build
 cmake --install build --prefix out
 ```
 
-`out/data/plugins/` now holds `hello/`, `cpp_hello/`, `greeter/`, `notebook/` and `my_plugin/` (the template), plus `travel_pack/` and `quantum_pack/` when the Star Citizen extension is unpacked over the core SDK, laid out the way sc-offline reads them, and `out/bin/` holds `sco-plugin-check`.
+`out/data/plugins/` now holds `hello/`, `cpp_hello/`, `widgets/`, `greeter/`, `notebook/` and `my_plugin/` (the template), plus `travel_pack/` and `quantum_pack/` when the Star Citizen extension is unpacked over the core SDK, laid out the way sc-offline reads them, and `out/bin/` holds `sco-plugin-check`.
 
 ## Check a plugin
 

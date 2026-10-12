@@ -36,6 +36,7 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 | [`scosdk/game/vehicles.hpp`](../include/scosdk/game/vehicles.hpp) | `sco::sdk::game::Vehicles`: the ship you're aboard, its seats, `Seat` / `Eject` / `PowerOn` for your own actors and ships (the game service `game.vehicles`, [`sc_vehicles.h`](../include/sc_vehicles.h); [API](api-v1.md#gamevehicles-10-game-pack)); not in `scosdk.hpp` |
 | [`scosdk/game/creative.hpp`](../include/scosdk/game/creative.hpp) | `sco::sdk::game::Creative`: `SetGodMode`, `SetFlyMode`, `SetFlySpeed`, `SetInfiniteAmmo`, `SetInfiniteShipAmmo`, `State`, `LastError` (the game service `game.creative`, [`sc_creative.h`](../include/sc_creative.h); [API](api-v1.md#gamecreative-10-game-pack)); toggles you switch on go off when your plugin unloads; not in `scosdk.hpp` |
 | [`scosdk/settings.hpp`](../include/scosdk/settings.hpp) | `Settings`, `AsSettingsChanged`: read the typed `[settings]` of your `plugin.ini` (the host service `sco.settings`, [`sco_settings.h`](../include/sco_settings.h)); not in `scosdk.hpp`, include it when you use settings |
+| [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp) | `Widgets`: renderer-neutral retained panels and events (`sco.widgets` 1.0); include explicitly |
 | [`scosdk/ui.hpp`](../include/scosdk/ui.hpp) | `Ui`: tabs, overlays, badges and hotkeys (the host service `sco.ui`, [`sco_ui.h`](../include/sco_ui.h)); not in `scosdk.hpp`, include it when you use UI |
 | [`scosdk/game/actors.hpp`](../include/scosdk/game/actors.hpp) | `sco::sdk::game::Actors`: `LocalPlayer`, `SpawnNpc`, `Despawn`, `Health`, `State` (game.actors 1.1; `Health`'s `max` is 0, `State` is `SCO_UNAVAILABLE` until `game.actors.state` is ready), `LastError`, `LastReadError` (the game pack's service `game.actors`, [`sc_actors.h`](../include/sc_actors.h); [game services](game-services.md)); not in `scosdk.hpp` |
 | [`scosdk/game/world.hpp`](../include/scosdk/game/world.hpp) | `sco::sdk::game::World`: `Raycast(zone, from, dir, maxDist, hit)`, `Camera(pos, rot, zone)` (world frame; no field of view), `LastError` (the game pack's service `game.world`, [`sc_world.h`](../include/sc_world.h); [API](api-v1.md#gameworld-10-game-pack)); not in `scosdk.hpp` |
@@ -185,7 +186,23 @@ if (dc.Open(*this) == SCO_OK) {
 - Every call is `noexcept` and answers `sco_result`; `AddInstance` returns a `DataCoreInstance` with its own `Result()`. `AddRecord(type, name, cloneRecord, guid = "", filePath = "")` returns a `DataCoreInstance` too, the new record's root (empty `guid`: a stable one derived from the plugin id and name; empty `filePath`: `libs/foundry/records/sco/<plugin id>/<name>.xml`); its `Result()` is `SCO_UNAVAILABLE` on a sco.datacore 1.0 host, and `dc.AddRecordSupported()` says beforehand. `DataCoreRef{ "Record" }` sets a reference field.
 - Results arrive with the event `datacore.applied` (`Subscribe`; data: `sco_dc_applied`).
 
+## Renderer-neutral widgets
+
+`scosdk/widgets.hpp` (include explicitly, not through the umbrella) provides
+`sco::sdk::Widgets` over `sco.widgets` 1.0. `Open(api, self)` or `Open(plugin)`
+discovers it; `SetPanel(id, title, nodes, count, fn, ctx)` atomically replaces a
+complete copied tree and `RemovePanel(id)` ends callbacks. Each method checks the
+full member extent and NULL function pointer. The object overload borrows an
+`OnEvent(const char*, const sco_widget_event&)` receiver and catches exceptions
+before they cross the C ABI. All methods/events are game-thread only.
+See [widget contract](design/widgets.md) and the
+[renderer-free example](../sdk/examples/widgets/widgets.c). This route has no
+ImGui types or link requirement.
+
 ## UI
+
+The following `Ui` draw-context route remains supported and host-renderer-specific;
+it is not the retained `Widgets` API.
 
 `sco::sdk::Ui` wraps the host service [`sco.ui`](ui.md): tabs and overlays the product draws through your draw function, badges, and hotkeys bound to commands. Keep the `Ui` for the plugin's life.
 

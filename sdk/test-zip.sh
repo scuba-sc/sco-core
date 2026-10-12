@@ -16,7 +16,8 @@
 # SCO_SDK_CSHARP=1 also runs the C# SDK's test and publishes cs_hello with NativeAOT (needs the
 # .NET 8 SDK, and on Windows Visual Studio's linker), then checks it like the C examples.
 #
-# Exit 0 = the zip is complete and every example builds and passes its check.
+# SCO_SDK_WIDGETS_ONLY=1 <core.zip> builds/checks only widgets + sco-plugin-check from that archive.
+# Exit 0 = the selected archive check passed (all examples unless narrowed above).
 set -euo pipefail
 SDK=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
@@ -186,6 +187,43 @@ for target in targets:
                 sys.exit(f"archive-only include violation: {data['name']} has a checkout compiler flag")
 print("zip: native target includes resolve only inside extracted SDK")
 PY
+# Focused archive proof: build only the checker + widget target. Normal CI also
+# exercises this example below after installing the complete SDK example set.
+check_widgets() {
+  "$1" "$2" | tee "$WORK/widgets.txt"
+  "$PY" - "$WORK/widgets.txt" <<'PY'
+import re
+from pathlib import Path
+import sys
+text = Path(sys.argv[1]).read_text()
+kinds = {int(n) for n in re.findall(r'widgets node widgets\.main .*?kind=(\d+)\(', text)}
+events = re.findall(r'^  widgets event widgets\.main .*?kind=(\d+)\(', text, re.M)
+assert kinds == set(range(1, 11)), f"widget kind coverage: {sorted(kinds)}"
+assert sorted(map(int, events)) == [2, 3, 4, 5, 6, 7], f"event coverage: {events}"
+assert len(re.findall(r'widgets: event ', text)) == 6, "plugin callback logs missing"
+assert 'widgets callback widgets.main node=4 returned logs=2 invokes=1' in text, "callback-to-command route missing"
+assert 'widgets remove widgets.main' in text, "remove_panel not exercised"
+assert 'widgets unload removed=0 retained=0 callbacks=0' in text, "unload cleanup missing"
+assert 'OK: 0 failure(s)' in text, "checker failed"
+print("zip: widgets all 10 kinds, 6 callbacks, command reentrancy and unload OK")
+PY
+}
+if [ "${SCO_SDK_WIDGETS_ONLY:-0}" = 1 ]; then
+  [ $# -eq 1 ] || { echo "widget-only check requires one plugin SDK archive"; exit 1; }
+  [ -f "$ROOT/include/sco_widgets.h" ] && [ -f "$ROOT/include/scosdk/widgets.hpp" ]
+  [ ! -e "$ROOT/include/sco/widgets_imgui.h" ] && [ ! -e "$ROOT/src/widgets/imgui_adapter.cpp" ] \
+    || { echo "plugin SDK contains host-only adapter"; exit 1; }
+  cmake --build "$WORK/build" --config Release --target sco-plugin-check widgets
+  mkdir -p "$WORK/plugin/widgets"
+  cp "$ROOT/examples/widgets/plugin.ini" "$WORK/plugin/widgets/"
+  BUILT="$WORK/build"
+  [ -f "$BUILT/Release/widgets.dll" ] && BUILT="$BUILT/Release"
+  cp "$BUILT/widgets.dll" "$WORK/plugin/widgets/"
+  CHECK="$BUILT/sco-plugin-check"
+  [ -f "$CHECK.exe" ] && CHECK="$CHECK.exe"
+  check_widgets "$CHECK" "$WORK/plugin/widgets"
+  exit 0
+fi
 # The external compile proof uses compiler dependency output, not the target
 # include-directory model above. Overlay headers use the composed profile closure.
 if [ $# -ge 2 ]; then
@@ -200,6 +238,7 @@ cmake --install "$WORK/build" --config Release --prefix "$WORK/out"
 CHECK="$WORK/out/bin/sco-plugin-check"
 P="$WORK/out/data/plugins"
 
+check_widgets "$CHECK" "$P/widgets"
 "$CHECK" "$P/hello"
 "$CHECK" "$P/hello" --cap teleport --invoke hello.wave "Pilot One" | tee "$WORK/hello.txt"
 grep -q 'invoke  hello.wave -> ok "Hello, Pilot One"' "$WORK/hello.txt"

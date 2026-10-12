@@ -18,6 +18,7 @@
 #include "sco/signatures.h"
 #include "sco/storage.h"
 #include "sco/ui.h"
+#include "sco/widgets.h"
 #include <algorithm>
 #include <cstdio>
 #include <system_error>
@@ -112,6 +113,8 @@ bool Start(const Platform& platform) {
     }
     const Result ur = ui::Start();
     if (ur != Result::Ok) Log("[app] ui not started: %s", ResultName(ur));
+    const Result wr = widgets::Start();
+    if (wr != Result::Ok) Log("[app] widgets not started: %s", ResultName(wr));
     const Result str = settings::Start();   // after storage: kept values are read from it
     if (str != Result::Ok) Log("[app] settings not started: %s", ResultName(str));
     const Result ir = ipc::Start();
@@ -222,6 +225,7 @@ void Stop() {
     storage::Stop();
     net::Stop();   // leaves any session
     ipc::Stop();
+    widgets::Stop();
     ui::Stop();
 #ifndef SCO_KERNEL_ONLY
     datacore::service::Stop();
