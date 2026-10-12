@@ -126,7 +126,7 @@ Any SQLite statement on its own database, one per call (trailing whitespace and 
 | `CREATE VIRTUAL TABLE`, `DROP` of one | Not needed; keeps the module surface small |
 | Every `PRAGMA` except: `table_info`, `table_xinfo`, `table_list`, `index_list`, `index_info`, `index_xinfo`, `foreign_key_list`, `foreign_key_check`, `integrity_check`, `quick_check`, `user_version`, `application_id`, `foreign_keys`, `data_version`, `freelist_count`, `page_count`, and reading `page_size` | Journal, sync, page, cache, mmap and file settings are the host's |
 
-The connection is also built defensively: `SQLITE_DBCONFIG_DEFENSIVE` on, untrusted schema, double-quoted strings off, no URI file names, no symlinked database file, no extension loading (not compiled in), temporary data in memory. See [third_party/sqlite](../third_party/sqlite/README.md) for the compile options.
+The connection is also built defensively: `SQLITE_DBCONFIG_DEFENSIVE` on, untrusted schema, double-quoted strings off, no URI file names, no symlinked database file, no extension loading (not compiled in), temporary data in memory. The host-owned storage directory is created and canonicalized before opening a database, so directory aliases such as macOS `/var` work. The database filename itself is never canonicalized; `SQLITE_OPEN_NOFOLLOW` still rejects existing or dangling database-file symlinks. See [third_party/sqlite](../third_party/sqlite/README.md) for the compile options.
 
 ## Limits
 

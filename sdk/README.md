@@ -128,6 +128,14 @@ synthetic host tests. `python3 sdk/test_package.py` also verifies the manifest-c
 game exclusions, exact public-header membership (including nested includes), and
 configures, builds and runs every neutral CTest from a freshly extracted archive.
 This full extracted-root regression runs both locally and in the existing SDK CI job.
+External C/C++ example sources are copied outside the extraction and compiled against
+its installed headers. Compiler dependency output must identify each SDK header as
+an exact approved public destination in `components.json`; directory prefixes do not
+approve nested files. Macro, transitive and system-marked includes are checked, and
+hidden checkout dependencies are refused. `test-zip.sh` runs the same check, or use
+`package.py --profile core --check-installed-headers <extracted-root>` directly.
+Packaging refuses recognized PEM/OpenSSH private-key and GitHub token shapes before
+writing ZIP bytes; this bounded check does not recognize every possible secret.
 CI also inspects the full checkout's kernel-only target graph,
 compiler depfiles, compiled objects and link inputs; symbol scans are supplementary.
 

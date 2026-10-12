@@ -41,9 +41,12 @@ import hashlib
 import io
 import json
 import os
+from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 
 SDK = os.path.dirname(os.path.abspath(__file__))
@@ -264,6 +267,136 @@ def check_example_headers(m, profile, text, source):
             continue
         if delimiter == '"' or header.startswith(("scosdk/", "sco_", "sc_", "sco/")) or header == "imgui.h":
             raise ManifestError(f"{profile}: {source} includes unshipped public header {header}")
+
+
+def check_installed_example_headers(m, profile, root, work):
+    """Compile external copies of installed C/C++ examples; police actual dependencies.
+
+    Compiler/toolchain headers are allowed, but every SDK header must resolve to
+    an exact public manifest destination. No include-directory prefix grants access
+    to private or unshipped SDK files. Macro and transitive includes are checked too.
+    """
+    root, work = Path(root).resolve(), Path(work).resolve()
+    reached = closure(m, profile)
+    components = [c for c in m["components"] if reached & set(c["profiles"])]
+    public = {str(root / destination(m, profile, c)): destination(m, profile, c)
+              for c in components if c.get("public_header")}
+    examples = [c for c in components if c["source"].startswith(("sdk/examples/", "sdk/template/"))
+                and c["source"].endswith((".c", ".cpp", ".h", ".hpp"))]
+    units = [c for c in examples if c["source"].endswith((".c", ".cpp"))]
+    if not units:
+        raise ManifestError(f"{profile}: installed example compilation would be empty")
+    work.mkdir(parents=True, exist_ok=True)
+    if any(work.iterdir()):
+        raise ManifestError(f"{profile}: compiler proof workspace must be empty")
+    local = set()
+    for c in examples:
+        installed = root / destination(m, profile, c)
+        if not installed.is_file() or installed.resolve() != installed:
+            raise ManifestError(f"{profile}: missing or redirected installed example {installed}")
+        external = work / destination(m, profile, c)
+        external.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(installed, external)
+        local.add(str(external))
+    for header in public:
+        if not Path(header).is_file() or str(Path(header).resolve()) != header:
+            raise ManifestError(f"{profile}: missing or redirected installed public header {header}")
+
+    def cmake_path(path):
+        return '[=[' + str(path).replace('\\', '/') + ']=]'
+
+    lines = ['cmake_minimum_required(VERSION 3.20)',
+             'if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_SYSROOT)',
+             '  execute_process(COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE CMAKE_OSX_SYSROOT '
+             'OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)',
+             'endif()', 'project(sdk_header_proof C CXX)',
+             # Own stable dependency outputs, independent of Make/Ninja consumption.
+             'set(CMAKE_DEPFILE_FLAGS_C "")', 'set(CMAKE_DEPFILE_FLAGS_CXX "")',
+             'foreach(lang C CXX)',
+             '  set(system_dirs "${CMAKE_${lang}_IMPLICIT_INCLUDE_DIRECTORIES}")',
+             '  list(APPEND system_dirs "${CMAKE_SYSROOT}" "${CMAKE_OSX_SYSROOT}")',
+             '  if(MSVC)',
+             '    list(APPEND system_dirs "$ENV{INCLUDE}")',
+             '  endif()',
+             '  string(REPLACE ";" "\\n" system_dirs "${system_dirs}")',
+             '  file(WRITE "${CMAKE_BINARY_DIR}/system-${lang}.txt" "${system_dirs}")',
+             'endforeach()']
+    include_dirs = sorted({str(Path(p).parent) for p in public if
+                           not Path(p).relative_to(root).as_posix().startswith('include/')}
+                          | {str(root / 'include')})
+    for i, c in enumerate(units):
+        source = work / destination(m, profile, c)
+        lines += [f'add_library(proof{i} OBJECT {cmake_path(source)})',
+                  f'target_include_directories(proof{i} PRIVATE ' +
+                  ' '.join(map(cmake_path, include_dirs)) + ')',
+                  f'set_target_properties(proof{i} PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON '
+                  'CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)',
+                  'if(MSVC)',
+                  f'  target_compile_options(proof{i} PRIVATE /sourceDependencies '
+                  f'"${{CMAKE_BINARY_DIR}}/proof{i}.json")',
+                  'elseif(CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$" AND '
+                  'CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")',
+                  # -MD, not -MMD: even an SDK file treated as a system header is checked.
+                  f'  target_compile_options(proof{i} PRIVATE -MD -MF '
+                  f'"${{CMAKE_BINARY_DIR}}/proof{i}.d" -MT sdk_header_proof)',
+                  'else()',
+                  '  message(FATAL_ERROR "No supported compiler dependency format")',
+                  'endif()']
+    (work / 'CMakeLists.txt').write_text('\n'.join(lines) + '\n')
+    build = work / 'build'
+    env = os.environ.copy()
+    # Ambient flags are not part of the installed SDK contract. MSVC's INCLUDE
+    # is retained for its toolchain, then bounded by the checks below.
+    for key in ('CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH', 'OBJC_INCLUDE_PATH',
+                'CFLAGS', 'CXXFLAGS', 'CPPFLAGS', 'LDFLAGS', 'CL', '_CL_', 'CMAKE_PREFIX_PATH'):
+        env.pop(key, None)
+    for command in (['cmake', '-S', str(work), '-B', str(build)],
+                    ['cmake', '--build', str(build), '--config', 'Release']):
+        result = subprocess.run(command, cwd=work, env=env, capture_output=True, text=True)
+        if result.returncode:
+            raise ManifestError(f"{profile}: installed example compile failed:\n{result.stdout}{result.stderr}")
+
+    def beneath(path, parent):
+        return path == parent or parent in path.parents
+
+    seen_public, languages = set(), set()
+    checkout = Path(ROOT).resolve()
+    for i, c in enumerate(units):
+        lang = 'C' if c['source'].endswith('.c') else 'CXX'
+        languages.add(lang)
+        system = [Path(p).resolve() for p in (build / f'system-{lang}.txt').read_text().splitlines() if p]
+        depfile, msdep = build / f'proof{i}.d', build / f'proof{i}.json'
+        if msdep.exists():
+            data = json.loads(msdep.read_text(encoding='utf-8-sig'))['Data']
+            dependencies = [data['Source'], *data['Includes']]
+        elif depfile.exists():
+            text = depfile.read_text().replace('\\\n', '')
+            target, separator, body = text.partition(':')
+            if target != 'sdk_header_proof' or not separator:
+                raise ManifestError(f"{profile}: invalid compiler dependency target for {c['source']}")
+            dependencies = [re.sub(r'\\(.)', r'\1', p).replace('$$', '$')
+                            for p in re.findall(r'(?:\\.|[^\s])+', body)]
+        else:
+            raise ManifestError(f"{profile}: compiler dependency output absent for {c['source']}")
+        source = str(work / destination(m, profile, c))
+        resolved = {str((build / p).resolve()) for p in dependencies}
+        if source not in resolved or not resolved & set(public):
+            raise ManifestError(f"{profile}: compiler dependency proof empty for {c['source']}")
+        for dep in sorted(resolved):
+            path = Path(dep)
+            if dep in public:
+                seen_public.add(public[dep])
+            elif dep in local:
+                continue
+            elif not beneath(path, root) and not beneath(path, checkout) and any(
+                    p != Path(p.anchor) and not beneath(p, root) and not beneath(p, checkout)
+                    and beneath(path, p) for p in system):
+                continue
+            else:
+                raise ManifestError(f"{profile}: {c['source']} resolved dependency {dep} "
+                                    "outside approved installed files")
+    return {'translation_units': len(units), 'languages': sorted(languages),
+            'public_headers': sorted(seen_public)}
 
 
 def define(text, name, pattern, where):
@@ -547,6 +680,14 @@ def archive_entries(m, profile):
 
 
 def archive_bytes(top, entries):
+    # Fail before writing any archive. This is a bounded credential-shape check,
+    # not a claim that arbitrary secrets can be recognized from their contents.
+    credential = re.compile(rb"-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----|"
+                            rb"\bgh[pousr]_[A-Za-z0-9]{36,}\b|"
+                            rb"\bgithub_pat_[A-Za-z0-9_]{22,}\b")
+    for name, (data, _) in entries.items():
+        if credential.search(data):
+            raise ManifestError(f"private credential in archive member {name}")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for name in sorted(entries):
@@ -577,9 +718,17 @@ def main():
     ap.add_argument("--out", default=os.path.join(SDK, "out"))
     ap.add_argument("--check", action="store_true", help="validate the manifest and every profile; write nothing")
     ap.add_argument("--list-headers", metavar="PROFILES", help="comma list; print their public headers")
+    ap.add_argument("--check-installed-headers", metavar="ROOT",
+                    help="compile installed external examples and check exact public dependencies")
     args = ap.parse_args()
     try:
         m = load_manifest()
+        if args.check_installed_headers:
+            with tempfile.TemporaryDirectory(prefix="sdk-header-proof-") as work:
+                proof = check_installed_example_headers(m, args.profile, args.check_installed_headers, work)
+            print(f"{args.profile}: {proof['translation_units']} external C/C++ examples compiled; "
+                  f"{len(proof['public_headers'])} exact installed public header dependencies approved")
+            return
         if args.list_headers:
             print("\n".join(public_headers(m, args.list_headers.split(","))))
             return

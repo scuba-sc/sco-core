@@ -171,10 +171,20 @@ Result Open(Db& d) {
         Log("[storage] %s: %s", d.id.c_str(), d.error.c_str());
         return Result::Failed;
     }
+    // SQLite's NOFOLLOW rejects aliases in any path component, including macOS
+    // /var. Resolve only the host-owned parent, never the database filename:
+    // resolving the whole file would silently follow a plugin's database symlink.
+    const fs::path dir = fs::canonical(d.dir, ec);
+    if (ec) {
+        d.error = "cannot resolve " + Utf8(d.dir) + ": " + ec.message();
+        Log("[storage] %s: %s", d.id.c_str(), d.error.c_str());
+        return Result::Failed;
+    }
+    const fs::path file = dir / d.file.filename();
     // No URI names, no symlinked database file, no shared mutex (calls are serialized by d.lock).
     const int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX |
                       SQLITE_OPEN_NOFOLLOW | SQLITE_OPEN_EXRESCODE;
-    int rc = sqlite3_open_v2(Utf8(d.file).c_str(), &d.db, flags, nullptr);
+    int rc = sqlite3_open_v2(Utf8(file).c_str(), &d.db, flags, nullptr);
     if (rc == SQLITE_OK) {
         sqlite3_db_config(d.db, SQLITE_DBCONFIG_DEFENSIVE, 1, nullptr);
         sqlite3_db_config(d.db, SQLITE_DBCONFIG_TRUSTED_SCHEMA, 0, nullptr);
