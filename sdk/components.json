@@ -154,6 +154,14 @@
    "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
   },
   {
+   "path": "tools/release_promote.py",
+   "why": "Release promotion tooling; not part of the kernel source kit."
+  },
+  {
+   "path": "tools/test_release_promote.py",
+   "why": "Release promotion tests; not part of the kernel source kit."
+  },
+  {
    "path": "tools/release_verify.py",
    "why": "Release publication verifier; not part of the kernel source kit."
   },

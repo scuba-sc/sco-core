@@ -134,6 +134,10 @@ def digest_file(path):
 
 
 def signature(args, data):
+    # An approval checkout must never supply its own authorization policy.
+    root = Path(os.fsdecode(git(Path.cwd(), "rev-parse", "--show-toplevel")).strip()).resolve()
+    if args.allowed_signers.resolve().is_relative_to(root):
+        raise Refusal("trust file is inside the checkout")
     try:
         result = subprocess.run(
             ["ssh-keygen", "-Y", "verify", "-f", str(args.allowed_signers),

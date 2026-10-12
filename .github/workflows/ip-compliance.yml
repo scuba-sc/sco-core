@@ -44,20 +44,21 @@ jobs:
             python3 sdk/package.py --profile $p --out "$RUNNER_TEMP/dist-a"
             python3 sdk/package.py --profile $p --out "$RUNNER_TEMP/dist-b"
           done
-          (cd "$RUNNER_TEMP/dist-a" && sha256sum *.zip) > $RUNNER_TEMP/evidence/SHA256SUMS
-          (cd "$RUNNER_TEMP/dist-b" && sha256sum *.zip) | diff - $RUNNER_TEMP/evidence/SHA256SUMS
+          (cd "$RUNNER_TEMP/dist-a" && sha256sum ./*.zip) > "$RUNNER_TEMP/evidence/SHA256SUMS"
+          (cd "$RUNNER_TEMP/dist-b" && sha256sum ./*.zip) | diff - "$RUNNER_TEMP/evidence/SHA256SUMS"
 
       - name: Audit each zip and write its SBOM (Gates 3, 5, 6)
         run: |
-          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-core-*.zip --profile core --sbom $RUNNER_TEMP/evidence/sco-sdk-core.spdx.json --report $RUNNER_TEMP/evidence/core-audit.json
-          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-game-sc-*.zip --profile game-sc --sbom $RUNNER_TEMP/evidence/sco-sdk-game-sc.spdx.json --report $RUNNER_TEMP/evidence/game-sc-audit.json
-          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-[0-9]*.zip --profile legacy --sbom $RUNNER_TEMP/evidence/sco-sdk-legacy.spdx.json --report $RUNNER_TEMP/evidence/legacy-audit.json
-          for s in $RUNNER_TEMP/evidence/*.spdx.json; do pyspdxtools -i "$s"; done
+          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-core-*.zip --profile core --sbom "$RUNNER_TEMP/evidence/sco-sdk-core.spdx.json" --report "$RUNNER_TEMP/evidence/core-audit.json"
+          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-game-sc-*.zip --profile game-sc --sbom "$RUNNER_TEMP/evidence/sco-sdk-game-sc.spdx.json" --report "$RUNNER_TEMP/evidence/game-sc-audit.json"
+          python3 tools/ip_audit.py zip "$RUNNER_TEMP/dist-a"/sco-sdk-[0-9]*.zip --profile legacy --sbom "$RUNNER_TEMP/evidence/sco-sdk-legacy.spdx.json" --report "$RUNNER_TEMP/evidence/legacy-audit.json"
+          for s in "$RUNNER_TEMP"/evidence/*.spdx.json; do pyspdxtools -i "$s"; done
 
       - name: Negative tests (Gate 7)
         run: |
           python3 tools/test_ip_audit.py
           python3 tools/test_release_verify.py
+          python3 tools/test_release_promote.py
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

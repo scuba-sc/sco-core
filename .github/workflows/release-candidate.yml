@@ -28,67 +28,15 @@ jobs:
       checks: read
       actions: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Require successful mandatory workflows on the exact source SHA
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import re
-          import subprocess
-
-          repo, sha = os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_SHA']
-          if os.environ['GITHUB_REF'] != 'refs/heads/main':
-              raise SystemExit('release candidates must be built from main')
-          required = {
-              'cmake': {'linux', 'kernel-only', 'windows'},
-              'sdk': {'package', 'windows', 'csharp-host-sim'},
-              'test': {'test'},
-              'ip-compliance': {'audit'},
-          }
-          def api(path):
-              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
-          pages = json.loads(subprocess.check_output([
-              'gh', 'api', '--paginate', '--slurp',
-              f'repos/{repo}/commits/{sha}/check-runs?filter=latest&per_page=100',
-          ], text=True))
-          runs, latest = {}, {}
-          for page in pages:
-              for check in page['check_runs']:
-                  if check['app']['slug'] != 'github-actions' or check['head_sha'] != sha:
-                      continue
-                  match = re.search(r'/actions/runs/(\d+)/job/', check.get('details_url') or '')
-                  if not match:
-                      continue
-                  run_id = match.group(1)
-                  if run_id not in runs:
-                      runs[run_id] = api(f'repos/{repo}/actions/runs/{run_id}')
-                  run = runs[run_id]
-                  if (run['head_sha'] != sha or run['event'] != 'push'
-                          or run['head_branch'] != 'main'):
-                      continue
-                  for workflow, jobs in required.items():
-                      if run['path'] != f'.github/workflows/{workflow}.yml' or check['name'] not in jobs:
-                          continue
-                      key = f"{workflow}/{check['name']}"
-                      if key not in latest or check['id'] > latest[key][0]['id']:
-                          latest[key] = (check, run)
-          failures = []
-          for workflow, jobs in required.items():
-              for job in sorted(jobs):
-                  key = f'{workflow}/{job}'
-                  pair = latest.get(key)
-                  passed = (pair is not None and pair[0]['status'] == 'completed'
-                            and pair[0]['conclusion'] == 'success'
-                            and pair[1]['status'] == 'completed'
-                            and pair[1]['conclusion'] == 'success')
-                  print(f"{key}: {'success' if passed else 'REFUSED'} ({sha})")
-                  if not passed:
-                      failures.append(key)
-          if failures:
-              raise SystemExit('mandatory checks missing or not successful: ' + ', '.join(failures))
-          PY
+          python3 tools/release_promote.py prerequisites
 
   candidate:
     needs: prerequisites
@@ -168,18 +116,4 @@ jobs:
           ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          python3 - <<'PY'
-          import hashlib
-          import os
-          from pathlib import Path
-
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write(f"## Candidate for {os.environ['RELEASE_TAG']}\n\n")
-              summary.write(f"Source SHA: `{os.environ['GITHUB_SHA']}`\n\n")
-              summary.write(f"builder.run_id: `{os.environ['GITHUB_RUN_ID']}`\n\n")
-              summary.write(f"artifacts[].artifact_id (same bundle for every file): `{os.environ['ARTIFACT_ID']}`\n\n")
-              summary.write('| artifacts[].name | bytes | sha256 |\n|---|---:|---|\n')
-              for path in sorted(Path('dist').iterdir()):
-                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
-                  summary.write(f'| {path.name} | {path.stat().st_size} | `{digest}` |\n')
-          PY
+          python3 tools/release_promote.py summary

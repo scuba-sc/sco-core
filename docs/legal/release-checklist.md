@@ -90,6 +90,10 @@ manifest's pinned commits, never replaced by the approval commit.
 The allowed-signers file is supplied explicitly from an independent trust source outside the
 checkout (for CI, a protected environment value). It must authorize identity `sco-maintainer`
 for namespace `sco-release-v1`; the verifier never chooses a repository signing key or trust file.
+The verifier resolves the supplied trust path and the Git checkout root, and refuses any trust
+file inside that root, including an outside symlink whose target is inside. Path location cannot
+prove policy independence: a caller must still obtain the outside file from the protected trust
+source, not copy repository-controlled bytes out of the checkout or use a hard-link alias.
 `approved_by` is signed attribution, not the SSH principal: authorization always comes from that
 external allowed-signers policy. Builder ids are signed provenance, not a live GitHub API query;
 the caller supplies the trusted expected run id to bind the downloaded run's artifacts.
@@ -99,6 +103,60 @@ check to stderr and does not echo untrusted values or subprocess output. `--now 
 reproducible tests only; publication must use the actual UTC clock. CI runs
 `python3 tools/test_release_verify.py` with freshly generated throwaway Ed25519 keys; signature
 tests skip with an explicit message only if `ssh-keygen` is absent.
+
+## Release refusal matrix
+
+`V` means `tools/test_release_verify.py` (`ReleaseVerifyTests`); `P` means
+`tools/test_release_promote.py` (`PromotionTests`); `S` means the same promotion test file's
+`SignedPromotionTests`. Mixed rows name tests from both files/classes. Existing verifier cases
+are reused, not copied. Every negative case asserts a refusal; the signed integration cases
+use the real verifier CLI, Git and throwaway OpenSSH keys with an injected, offline GitHub client.
+`test_offline_signed_candidate_draft_publish_round_trip` is the passing round-trip control;
+its create/edit responses are synthetic and perform no GitHub writes.
+
+| Refusal | Test name(s) |
+|---|---|
+| Missing / malformed SHA | V: `test_missing_sha`, `test_malformed_sha` |
+| Blank approval identity / date | V: `test_blank_approver`, `test_blank_date` |
+| Duplicate JSON keys (including nested) | V: `test_duplicate_keys`, `test_nested_duplicate_keys` |
+| Unknown JSON properties (including nested) | V: `test_unknown_property`, `test_nested_unknown_property` |
+| Expired approval record | V: `test_expired_record`, `test_age_fractional_second_expired` |
+| Nonexistent Git object | V: `test_missing_source_object`, `test_unknown_published_object_refused` |
+| Failed Git command (object, ancestry, diff) | V: `test_missing_git_results`, `test_failed_ancestry_command`, `test_failed_diff_command` |
+| Wrong signing key / namespace | V: `test_wrong_key`, `test_wrong_namespace` |
+| Revoked key (removed from allowed-signers) | V: `test_revoked_key` |
+| Checkout-local trust file, including symlink target | V: `test_checkout_trust_file_refused`, `test_checkout_subdirectory_trust_file_refused`, `test_symlink_to_checkout_trust_file_refused` |
+| Extra ZIP / missing ZIP | P/V: `test_fetch_extra_member`, `test_missing_file` |
+| Swapped SBOM | V: `test_swapped_sbom` |
+| Wrong core source archive | V: `test_wrong_source_archive` |
+| Changed payload size / hash | V/S: `test_changed_size`, `test_fetch_changed_candidate_bytes` |
+| Duplicate payload filename / ZIP member | V/P: `test_duplicate_filename`, `test_fetch_duplicate_member` |
+| Stale or different expected run ID | V: `test_different_run_id` |
+| Expired Actions artifact | P: `test_fetch_expired_artifact` |
+| Artifact from another builder run / wrong approved artifact ID | P: `test_fetch_different_builder_run`, `test_fetch_member_from_wrong_approved_artifact_is_refused` |
+| Regenerated payload or approval after signing | V: `test_regenerated_zip_after_approval`, `test_signature_over_modified_bytes` |
+| ZIP traversal member | P: `test_fetch_path_traversal_member`, `test_fetch_absolute_path_member`, `test_fetch_backslash_member` |
+| ZIP symlink member | P: `test_fetch_symlink_member` |
+| ZIP directory member | P: `test_fetch_directory_member` |
+| Skipped required check | P: `test_prerequisites_skipped_job` |
+| Cancelled required check | P: `test_prerequisites_cancelled_job` |
+| Neutral required check | P: `test_prerequisites_neutral_job` |
+| Missing / failed required check | P: `test_prerequisites_missing_job`, `test_prerequisites_missing_conclusion`, `test_prerequisites_failed_job` |
+| Green check on a different SHA (check or owning run) | P: `test_prerequisites_wrong_check_sha`, `test_prerequisites_wrong_run_sha` |
+| Builder not on main / not release-candidate workflow | P: `test_fetch_wrong_builder_branch`, `test_fetch_wrong_builder_workflow` |
+| Partial profile success / failed owning workflow | V/P: `test_partial_profiles`, `test_prerequisites_partial_job_success_in_failed_workflow` |
+| Draft asset set differs (extra, missing, duplicate) | P: `test_draft_extra_asset`, `test_draft_missing_asset`, `test_draft_duplicate_asset_name` |
+| Draft asset bytes differ (payload, approval, signature) | S/P: `test_draft_payload_bytes_mismatch`, `test_draft_manifest_bytes_mismatch`, `test_draft_signature_bytes_mismatch` |
+| Existing draft or published release for tag | P: `test_draft_existing_draft_refused_before_create`, `test_draft_existing_published_release_refused_before_create` |
+| Verified draft identity / inventory changes before publication | P: `test_publish_replaced_draft_id`, `test_publish_asset_id_changed`, `test_publish_asset_size_changed`, `test_publish_asset_updated_at_changed` |
+| Non-approval source change after building | V: `test_non_approval_change_refused` |
+
+The workflow's `fetch`, `prerequisites`, `draft`, `publish` and `summary` calls are implemented
+in `tools/release_promote.py`. All GitHub commands use one injectable client boundary;
+unit tests never reach the network. Workflow permission scopes, signature checks,
+attestation verification and draft-before-publication ordering remain unchanged.
+These tests prove the local refusal logic, not GitHub environment protection or live attestations.
+Live candidate download and draft upload require a separately authorized maintainer run.
 
 ## Legacy approval record (schema version 1)
 
