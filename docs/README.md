@@ -6,6 +6,8 @@ Start with the [README](../README.md) for what sco-core is. Pick your path below
 
 | Doc | What |
 |---|---|
+| [Agent and IDE integration](agent-integration.md) | Local SDK discovery MCP launcher, explicit read-only tool allowlist and maintainer-owned Copilot code review configuration |
+| [Reference snapshots](reference-snapshots.md) | Bind the catalogue and examples to exact SDK archive/source inputs; preview and unapproved candidate inventories |
 | [Plugin SDK](../sdk/README.md) | Build the examples, start from the template, check and install a plugin |
 | [Plugin API v1](api-v1.md) | `sco_api.h`: exports, the host table, commands, events, capabilities, threading, compatibility, layout |
 | [C++ SDK](sdk-cpp.md) | `include/scosdk/`: the C++20 layer over `sco_api.h`: plugin class, commands, services, raw handlers, storage, lifetimes, the exception boundary |

@@ -11,6 +11,7 @@ export default defineConfig({
     sidebar: [
       { label: 'Overview', slug: 'index' },
       { label: 'Services', items: [{ autogenerate: { directory: 'services' } }] },
+      { label: 'Language mappings', items: [{ autogenerate: { directory: 'languages' } }] },
       { label: 'Engineering guides', items: [{ autogenerate: { directory: 'guides' } }] },
     ],
     // Starlight builds its default local Pagefind search index; no remote provider.

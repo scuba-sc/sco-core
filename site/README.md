@@ -63,6 +63,56 @@ Pagefind indexes/fragments. Negative arms prove the leak detector catches both
 content and filenames. With Node present, `npm ci` must have been run so the
 sentinel test can build with the same locked dependencies.
 
+## Search, navigation and snapshot acceptance
+
+`python3 site/scripts/test_site.py --built site/dist` also drives a fresh headless
+Chrome/Chromium through Node's built-in WebSocket/CDP (no added npm package).
+Set `CHROME_BIN` when the browser is not in a standard location. A missing browser
+is an explicit skipped check, not keyboard/search acceptance. The runner checks:
+
+- Seven service, C-symbol, wrapper-token and editorial task-phrase queries against
+  the actual Pagefind browser worker, JavaScript, WASM and compressed index. Each
+  expected entry must occur in the first 20 hits and identify the same source,
+  preview, examples, capability absence and catalogue language status.
+- Search shortcut focus, Tab to a result, Enter navigation and Escape closure;
+  real long tables/code at desktop and narrow widths without document overflow.
+  The runner holds Starlight's idle-scheduled Pagefind initialization beyond
+  document load on both navigations, then waits for the real search input before
+  sending each shortcut. Document load alone does not make that input focusable.
+  For an additional slow-CPU probe, set `SCO_DOCS_CPU_THROTTLE=6` (CDP slowdown).
+- No nonlocal page/search requests or script exceptions, all generated/built
+  deep links/anchors, ID route stability under record reordering, and refusal of
+  retired task-search targets and duplicate IDs. Task phrases are editorial
+  discovery terms for canonical contracts, never newly supported API aliases.
+- Four static language views (`c`, `cpp`, `csharp`, `lua`) preserve every record's
+  status, including unsupported Lua game mutations. These are metadata views,
+  not new runtime capabilities or a claim that every method is available.
+- Private sentinel exclusion from generated/built files, compressed search and
+  captured build logs, plus negative detector tests for plaintext/gzip/filenames.
+
+Search is approximate: an unknown query can return unrelated existing entries.
+The test records this behavior and verifies those hits resolve to the same
+snapshot; it does **not** assert zero results or treat a search hit as alias
+support. Check the symbol and language/capability status. There is no established
+historical deployed-site URL inventory in this proof: current canonical-ID
+stability is tested, but any eventual old-site alias/redirect migration must be
+specified and tested separately. No new private/internal docs are imported to
+improve search ranking. The compiler-backed catalogue producer remains the
+signature/semantic drift gate; renderer tests alone cannot establish those facts.
+
+See [reference snapshots](../docs/reference-snapshots.md) for source/archive
+binding and `python3 site/scripts/test_snapshot.py` for its targeted tests and
+one archived C `hello` build. All-example compilation against the intended
+candidate, permitted snapshot integration into the canonical release inventory,
+and exact-hash maintainer approval remain owed. Neither this sidecar nor the
+site artifact is automatically included in SDK ZIPs or approved for publication.
+
+See [agent integration](../docs/agent-integration.md) for the explicit six-tool
+Copilot launcher and `python3 tools/sco-core-mcp/test_integration.py` for the
+local initialization/annotations proof. Administrator settings, runner setup and
+an observed Copilot code-review tool call remain owed. No Pages deployment,
+Copilot settings, setup workflow, release tag, signing or runtime ABI is changed.
+
 ## Dependencies and licensing
 
 Direct dependencies are exactly pinned: Starlight 0.42.6, Astro 7.3.8 and

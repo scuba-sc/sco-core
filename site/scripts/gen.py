@@ -19,6 +19,13 @@ BASE = '/sco-core'
 SOURCE_ROOT = 'https://github.com/scubamount/sco-core/blob/'
 STATUSES = {'direct', 'typed-wrapper', 'restricted', 'unsupported'}
 LANGUAGES = ('c', 'cpp', 'csharp', 'lua')
+# Editorial task phrases, not API aliases or claims of additional entrypoints.
+TASK_TERMS = {
+    'sco-api-run-on-game-thread': 'schedule game thread task',
+    'sco-storage-v1-query': 'open SQL cursor',
+    'sco-api-query-service': 'find service table',
+    'sc-actors-v1-spawn-npc': 'spawn NPC',
+}
 LINK = re.compile(r'(?P<image>!?)\[(?P<label>[^\]\n]*)\]\((?P<target>[^\s)]+)\)')
 
 
@@ -160,6 +167,9 @@ def render_record(record, catalogue, doc_routes):
         out.extend('- [' + name + '](' + source_link(name, sha) + ')' for name in record[key])
         if not record[key]:
             out.append('None identified in the catalogue; this is not proof none can exist.')
+    if record['id'] in TASK_TERMS:
+        out += ['\n## Find by task', TASK_TERMS[record['id']],
+                'This is a search phrase for the existing contract, not an additional API alias.']
     out.append('\nABI pins prove layout, not semantic behavior or a live game session.')
     # Evidence tokens include wrapper names and Lua adapters, making those terms
     # discoverable by the built-in Pagefind body index without invented aliases.
@@ -182,6 +192,8 @@ def generate(root, catalogue, output, release_tag=None):
     ids = [r['id'] for r in records]
     if not records or len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9-]+', id_) for id_ in ids):
         raise ValueError('Empty, duplicate or unsafe record identifiers')
+    if not set(TASK_TERMS) <= set(ids):
+        raise ValueError('Task search term references a retired or missing record')
     services = sorted({r['service'] for r in records})
     if len(services) != len({service_id(s) for s in services}):
         raise ValueError('Service route collision')
@@ -198,6 +210,14 @@ def generate(root, catalogue, output, release_tag=None):
         parts += ['\n## Contract records']
         parts += ['- [' + r['symbol'] + '](' + route('reference/' + r['id']) + ')' for r in records if r['service'] == service]
         pages['services/' + service_id(service)] = page(service, '\n'.join(parts), catalogue, release_tag)
+    for language in LANGUAGES:
+        parts = ['Static language view. Status is authoritative catalogue metadata, '
+                 'not a runtime support filter. Unsupported entries remain explicit.\n',
+                 '| Contract | Service | Status |', '| --- | --- | --- |']
+        parts += ['| [' + r['symbol'] + '](' + route('reference/' + r['id']) + ') | '
+                  + cell(r['service']) + ' | **' + r['language_mappings'][language]['status'] + '** |'
+                  for r in records]
+        pages['languages/' + language] = page(language + ' language mappings', '\n'.join(parts), catalogue, release_tag)
     for name in docs:
         text = (root / name).read_text(encoding='utf-8')
         title = re.search(r'^#\s+(.+)$', text, re.M)
@@ -210,6 +230,8 @@ def generate(root, catalogue, output, release_tag=None):
             '[Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json)',
             '\n## Services']
     home += ['- [' + name + '](' + route('services/' + service_id(name)) + ')' for name in services]
+    home += ['\n## Language mappings']
+    home += ['- [' + language + '](' + route('languages/' + language) + ')' for language in LANGUAGES]
     home += ['\n## Engineering guides']
     home += ['- [' + name + '](' + route(doc_routes[name]) + ')' for name in docs]
     home += ['\n## Reading rules', catalogue['contract_context']['reading_rules'],
