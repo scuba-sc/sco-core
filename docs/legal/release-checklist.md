@@ -10,26 +10,30 @@ machine and which need a person. Machine checks collect evidence; they are not a
 | Gate | Check | Where |
 |---|---|---|
 | A, 3 | Kernel builds and tests with `SCO_GAME_SC=OFF`; no game-pack object or symbol in it | `cmake.yml` `kernel-only` |
-| A | The core SDK zip builds and passes from its own files; it includes no extension header and names no game C# type | `sdk.yml` (`sdk/test-zip.sh <core.zip>`), `tools/ip_audit.py zip --profile core` |
-| A | The Star Citizen extension unpacked over the core builds and passes; overwrites no core file, and keeps its own `VERSIONS.txt.game-sc` / `SHA256SUMS.game-sc` | `sdk.yml` (`sdk/test-zip.sh <core.zip> <game-sc.zip>`) |
+| A | The core SDK zip builds and passes from its own files; it includes no extension header and names no game C# type | `sdk.yml`, `release-candidate.yml` (`sdk/test-zip.sh <core.zip>`), `tools/ip_audit.py zip --profile core` |
+| A | The Star Citizen extension unpacked over the core builds and passes; overwrites no core file, and keeps its own `VERSIONS.txt.game-sc` / `SHA256SUMS.game-sc` | `sdk.yml`, `release-candidate.yml` (`sdk/test-zip.sh <core.zip> <game-sc.zip>`) |
+| A | The core source archive builds a kernel and exercises the synthetic host from an empty directory, without the game implementation | `sdk.yml`, `release-candidate.yml` (`sdk/test-zip.sh <core-source.zip>`) |
 | A | ABI v1.1 pins unchanged (`tests/abi_*.c`, C# `Pins.cs`/`GamePins.cs`) | `test.yml`, `sdk.yml` |
 | B, 1 | Every tracked file matches a `docs/legal/provenance.json` entry; none `unresolved` | `ip-compliance.yml` (`tools/ip_audit.py repo`) |
-| C, 2 | No binary or refused-extension file outside the exact-hash allowlist, in the repository or any zip | `ip-compliance.yml` |
+| C, 2 | No binary or refused-extension file outside the exact-hash allowlist, in the repository or any zip | `ip-compliance.yml`, `release-candidate.yml` |
 | C, D, 4 | Vendored files match their pinned hashes; licence texts and notices present and shipped; `sdk/components.json` and `provenance.json` agree; REUSE 3.3 compliant | `ip-compliance.yml` (`ip_audit.py repo`, `reuse lint`) |
-| E, 5 | SPDX 2.3 SBOM per zip, bound to commit and zip hash, validated | `ip-compliance.yml`, `release.yml` |
+| E, 5 | SPDX 2.3 SBOM per zip, bound to commit and zip hash | `ip-compliance.yml`, `release-candidate.yml` (`ip_audit.py zip --sbom`); SPDX validation in `ip-compliance.yml` |
 | E, 6 | Each profile packaged twice gives the same bytes; each profile's `SHA256SUMS` matches every entry | `ip-compliance.yml`, `sdk/test_package.py` |
 | E, 7 | Each check refuses a synthetic defect (52 cases) | `ip-compliance.yml` (`tools/test_ip_audit.py`) |
-| G | The release job refuses unless `docs/legal/release-decisions/<tag>.json` validates against `docs/legal/release-approval.schema.json`, names the tagged commit (or its parent, with only release decisions changed), is unexpired and approves publication | `release.yml` (`tools/ip_audit.py release --tag`) |
+| G | All eight required jobs succeed on the exact builder SHA; workflow ownership disambiguates the two `windows` checks | `release-candidate.yml` `prerequisites` |
+| G | Trusted SSH signature, approval and complete payload verified; downloads use approved run/artifact IDs, never a name or latest run; each file's attestation names this repository and candidate workflow | `release.yml` `verify` (`tools/release_verify.py verify`, `gh attestation verify`) |
+| G | Only verified bytes are uploaded, with the committed approval and signature, to a draft; exact asset inventory is listed, downloaded and re-verified before publication | `release.yml` `publish` |
 
-A failed or skipped mandatory check blocks the release. Nothing in CI creates a tag.
+A failed, missing, skipped, cancelled or neutral mandatory check blocks the candidate. Nothing in
+CI creates a tag. Candidate generation and public promotion are separate operations.
 
 ## Needs a person
 
 - [ ] **F:** the CHANGELOG section and the README describe what ships (core vs. extension) and claim no more than the checks show.
 - [ ] **B:** every `needs-review` entry the release ships has a decision in `docs/legal/release-decisions/`, or the release leaves that component out. Since the synthetic example data (2026-10-11), no SDK zip ships one; the game pack's entries ship in none.
 - [ ] **D:** counsel has reviewed the plugin-licence wording ([option A, chosen 2026-10-11](release-decisions/2026-10-11-plugin-licence.md)), or the release states nothing stronger than it.
-- [ ] **G:** the maintainer checks the commit and the zip hashes from the CI run, and qualified counsel reviews any open material legal question.
-- [ ] **G:** the maintainer commits the approval record, then tags. Publishing is a separate act from CI going green.
+- [ ] **G:** the maintainer checks the source commit, candidate run, artifact IDs and every file hash, and qualified counsel reviews any open material legal question.
+- [ ] **G:** the maintainer signs and commits the approval record, then tags. Publishing is a separate act from CI going green.
 
 ## Signed release manifest (schema version 2)
 
@@ -144,3 +148,78 @@ Synthetic example (every value fake: `a`*40 commits, `b`*64 hashes, identity `ma
  "exceptions": []
 }
 ```
+
+## Maintainer configuration (before the first release)
+
+Create the GitHub environment **`release`** with the intended deployment reviewers and tag policy.
+Set its environment variable **`SCO_RELEASE_ALLOWED_SIGNERS`** to the trusted OpenSSH
+`allowed_signers` file content, not a private key. For example, an entry has the form
+`sco-maintainer namespaces="sco-release-v1" ssh-ed25519 <public-key>`. The verifier always
+authorizes the SSH principal `sco-maintainer`; `approved_by` is signed attribution, not the principal.
+Both promotion jobs read this environment; only `publish` gets
+`contents: write`. An empty variable fails with **`no trusted signer configured`**. Trust is never
+loaded from an allowed-signers file committed alongside an approval.
+
+The candidate workflow has read-only repository/check/run access. Only its `candidate` job gets
+`id-token: write` and `attestations: write`, to attest the public repository's payload files.
+No candidate job can create or modify a release. Configuration is a maintainer action, not a CI step.
+
+## Releasing
+
+1. Set `sdk/VERSION`, add a `## sdk-v<version> (<date>)` section to `CHANGELOG.md`, and merge
+   the intended source changes into `main`. Wait for **cmake/linux, cmake/kernel-only,
+   cmake/windows, sdk/package, sdk/windows, sdk/csharp-host-sim, test/test and
+   ip-compliance/audit** to succeed on that exact main commit.
+2. Manually dispatch **`release-candidate.yml` on that main commit**, with input
+   `tag: sdk-v<version>`. It checks those prerequisites, builds `core`, `game-sc`, `legacy` and
+   `core-source`, audits each archive, writes its SBOM, and exercises each zip (the extension
+   overlays core). It writes `SHA256SUMS`, attests every payload file and uploads one immutable
+   artifact named **`release-candidate`**. Do not push a tag yet.
+3. Download and review that candidate. Copy the summary's **`builder.run_id`**, artifact ID,
+   **every filename, byte size and SHA-256** into the approval manifest, including the SBOMs and
+   `SHA256SUMS` itself. Every `artifacts[]` entry names its `artifact_id`; all files in the single
+   candidate bundle use the same ID. Save this `release.json` at
+   `docs/legal/release-decisions/sdk-v<version>.json`. Complete the other required approval
+   fields; a hash inventory alone is not publication approval. Never select a later run by name.
+4. Review the complete approval and sign its exact bytes with the trusted maintainer key:
+   ```sh
+   ssh-keygen -Y sign -f <maintainer-key> -n sco-release-v1 docs/legal/release-decisions/sdk-v<version>.json
+   ```
+   The detached signature is `docs/legal/release-decisions/sdk-v<version>.json.sig`. Any JSON
+   edit after signing requires signing again. Keep the private key outside the repository.
+5. Commit **both JSON and signature** on top of the approved source, changing only release
+   decisions since the candidate source commit. Verify the approval locally against the original
+   downloaded payload (the allowed-signers file comes from a separately trusted source):
+   ```sh
+   python3 tools/release_verify.py verify \
+     --manifest docs/legal/release-decisions/sdk-v<version>.json \
+     --signature docs/legal/release-decisions/sdk-v<version>.json.sig \
+     --allowed-signers <trusted-allowed-signers-file> --payload-dir <candidate-payload-dir> \
+     --tag sdk-v<version> --source-sha <approval-commit-sha> --run-id <candidate-run-id>
+   ```
+   If the source changes, or the candidate expires or fails the verifier's age policy, build a
+   fresh candidate and review/sign a new approval. Do not bypass a refusal.
+6. The maintainer tags and pushes the commit containing the signed approval:
+   `git tag sdk-v<version> && git push origin sdk-v<version>`.
+   `release.yml` **never rebuilds**: it downloads the approved IDs, verifies the signed manifest
+   and every payload file's provenance, and transfers the verified payload to `publish` by exact
+   artifact ID. The release environment's protection rules apply before promotion.
+7. `publish` creates a **draft** with exactly the manifest's payload files plus **`release.json`**
+   and **`release.json.sig`**, using the tag's CHANGELOG section as notes. It lists and downloads
+   every draft asset, compares the approval files with the tag, and verifies the downloaded payload
+   again. Only then does it make the draft public. It never uses `--clobber`. A failed round trip
+   leaves a draft for investigation; do not manually publish it or replace its assets to bypass CI.
+
+## Signed approval record
+
+The tag's committed `docs/legal/release-decisions/<tag>.json` is published as `release.json`, with
+its detached `.json.sig` published as `release.json.sig`. The signature namespace is
+**`sco-release-v1`**. `tools/release_verify.py verify` is the promotion gate; the older unsigned
+approval check by itself is insufficient.
+
+The workflow reads `builder.run_id`, `artifacts[].name` and `artifacts[].artifact_id`. The manifest
+must bind the complete payload inventory, source and approval metadata required by the verifier.
+Candidate summaries include the outer `SHA256SUMS` file's own hash, even though an inventory
+cannot include its own hash inside itself. Artifact IDs identify the immutable Actions bundle;
+SHA-256 values bind the individual files. A successful candidate run is evidence, not a signature
+or approval to publish.
