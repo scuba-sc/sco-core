@@ -178,8 +178,13 @@ void ReadsAndNoSideEffects() {
     for(auto count:calls)CHECK(count==0);CHECK(!sco::ServiceTableHandedOut(&owner));sco::Release(&owner);
 }
 int main(int argc,char** argv) {
-    CHECK(argc==3);sco::SetGameThread();root=argv[2];const auto dir=std::filesystem::path(argv[1])/"runtime-diagnostics-ipc";
-    std::filesystem::create_directories(dir);std::filesystem::permissions(dir,std::filesystem::perms::owner_all);path=(dir/"session.json").string();
+    CHECK(argc==3);sco::SetGameThread();root=std::filesystem::canonical(argv[2]).string();
+    const auto dir=std::filesystem::path(argv[1])/"runtime-diagnostics-ipc";
+    std::filesystem::create_directories(dir);std::filesystem::permissions(dir,std::filesystem::perms::owner_all);
+    // The build output is a trusted fixture location, but may be spelled through
+    // an alias (notably /tmp on macOS). Resolve only that directory: the transport
+    // must continue refusing symlink components and credential-file aliases.
+    path=(std::filesystem::canonical(dir)/"session.json").string();
     Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
     CHECK(!std::filesystem::exists(path));std::filesystem::remove(dir);std::cout<<"runtime diagnostics IPC: literals, real transport, mutual auth, hostile peers and zero side effects passed\n";
 }
