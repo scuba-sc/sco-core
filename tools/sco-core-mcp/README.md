@@ -116,6 +116,13 @@ client supports an allowlist, enable only the six names above. Build the catalog
 **before** starting the client. No API keys, tokens, or secrets are needed. To
 avoid sharing example contents, remove `--repo-root` and its following path.
 
+## Copilot CLI and IDE integration
+
+See [the engineering integration guide](../../docs/agent-integration.md) for
+client-specific configuration, the literal-launcher acceptance check and the
+remaining administrator/runner acceptance steps. It does not install a
+`.github/mcp.json`, modify repository settings or imply a hosted server.
+
 ## GitHub Copilot repository configuration
 
 A repository administrator configures this on GitHub under **Settings > Copilot >

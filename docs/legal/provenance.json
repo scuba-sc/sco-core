@@ -23,6 +23,36 @@
    "reviewer": "agent draft; maintainer review pending",
    "date": "2026-10-12",
    "note": "Public-ABI native consumers and synthetic game-service response fixtures authored for this project; no extracted game material. Repository-only, excluded from every SDK profile. Runtime, loader and service lifetime gates are reused, not replaced."
+   },
+   {
+   "path": "docs/agent-integration.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Project-authored engineering instructions and JSON launcher snippets derived from the local server interface and linked GitHub documentation; no vendor documentation or orchestration prompts copied. Repository settings remain maintainer-owned."
+  },
+  {
+   "path": "docs/reference-snapshots.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Project-authored engineering documentation for local source/archive binding; no release approval, signing or deployment authority."
+  },
+  {
+   "path": "tools/sco-core-mcp/test_integration.py",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Project-authored stdlib test of the literal public documentation launcher and read-only discovery annotations; no Copilot account or repository setting access."
   },
   {
    "path": "site/package-lock.json",

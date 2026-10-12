@@ -209,6 +209,8 @@ class SiteTests(unittest.TestCase):
                 result = subprocess.run(['npm', 'run', 'build'], cwd=output, capture_output=True, text=True,
                                         env={**os.environ, 'ASTRO_TELEMETRY_DISABLED': '1'})
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                for token in SENTINELS:
+                    self.assertNotIn(token, result.stdout + result.stderr, 'Private sentinel in build logs')
                 pages, links = check_built(output / 'dist')
                 check_leaks(output / 'dist', FORBIDDEN + SENTINELS)
                 print('Sentinel build: clean HTML, static JSON and compressed Pagefind;', pages, 'pages;', links, 'links')
@@ -251,11 +253,55 @@ class SiteTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             print(result.stdout.strip())
 
+    def test_language_views_and_stable_routes(self):
+        with tempfile.TemporaryDirectory(prefix='site-language-') as work:
+            output = Path(work)
+            self.generate(ROOT, output)
+            docs = output / 'src/content/docs'
+            for language in gen.LANGUAGES:
+                text = (docs / ('languages/' + language + '.md')).read_text()
+                for record in self.catalogue['records']:
+                    self.assertIn(gen.route('reference/' + record['id']), text)
+                    self.assertIn('**' + record['language_mappings'][language]['status'] + '**', text)
+                self.assertIn('Unsupported entries remain explicit', text)
+            npc = next(r for r in self.catalogue['records'] if r['id'] == 'sc-actors-v1-spawn-npc')
+            self.assertEqual(npc['language_mappings']['lua']['status'], 'unsupported')
+            lua = (docs / 'languages/lua.md').read_text()
+            self.assertIn('| [' + npc['symbol'] + '](' + gen.route('reference/' + npc['id'])
+                          + ') | ' + npc['service'] + ' | **unsupported** |', lua)
+            routes = {p.relative_to(docs).as_posix() for p in docs.rglob('*.md')}
+            reordered = deepcopy(self.catalogue)
+            reordered['records'].reverse()
+            gen.generate(ROOT, reordered, output)
+            self.assertEqual(routes, {p.relative_to(docs).as_posix() for p in docs.rglob('*.md')})
+
+    def test_retired_search_target_and_duplicate_record_refused(self):
+        for kind in ('retired', 'duplicate'):
+            bad = deepcopy(self.catalogue)
+            if kind == 'retired':
+                bad['records'] = [r for r in bad['records'] if r['id'] != 'sco-api-query-service']
+            else:
+                bad['records'].append(deepcopy(bad['records'][0]))
+            with tempfile.TemporaryDirectory(prefix='site-invalid-') as work:
+                with self.subTest(kind=kind), self.assertRaises(ValueError):
+                    gen.generate(ROOT, bad, Path(work))
+
+    def test_actual_search_and_keyboard_navigation(self):
+        if BUILT is None:
+            self.skipTest('Use --built site/dist for browser navigation verification')
+        self.assertIsNotNone(shutil.which('node'), 'Node required for browser navigation')
+        result = subprocess.run(['node', str(ROOT / 'site/scripts/test_navigation.mjs'), str(BUILT)],
+                                capture_output=True, text=True, timeout=60)
+        if result.returncode == 77:
+            self.skipTest(result.stderr.strip())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        print(result.stdout.strip())
+
     def test_supplied_build(self):
         if BUILT is None:
             self.skipTest('Use --built site/dist for built-output verification')
         pages, links = check_built(BUILT)
-        expected = len(self.catalogue['records']) + len({r['service'] for r in self.catalogue['records']}) + len(gen.inputs(ROOT)) + 1
+        expected = len(self.catalogue['records']) + len({r['service'] for r in self.catalogue['records']}) + len(gen.inputs(ROOT)) + len(gen.LANGUAGES) + 1
         self.assertEqual(pages, expected + 1)  # Starlight's generated 404 page.
         print('Built site:', pages, 'HTML pages;', links, 'internal links resolved; Pagefind present')
 
