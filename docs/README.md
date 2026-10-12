@@ -97,4 +97,3 @@ These are dated plans/audits, not substitutes for current contracts:
 [multiplayer/bridges](design/multiplayer.md), [VFS/DataCore](design/vfs-datacore.md),
 [release-hardening baseline](legal/release-hardening-baseline.md) and
 [plugin-licensing options](legal/plugin-licensing-options.md).
-
