@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Windows extracted-SDK verification:** the archive-test job checks out the packaging verifier and its complete manifest inputs, rather than only the shell runner. Builds remain confined to extracted SDK headers, with compiler-resolved checkout leakage refused.
+
 - **Extracted SDK storage and public-header proof:** storage resolves host-owned directory aliases before SQLite opens the database, fixing macOS temporary-root failures without permitting database-file symlinks. External C/C++ examples now compile with exact compiler-resolved installed public-header membership checks; hidden checkout and unshipped nested dependencies are refused. Packaging also refuses recognized private-key and GitHub credential shapes before writing an archive. No plugin ABI change.
 
 - **Optional ImGui coupling is host-specific, not the frozen C ABI:** document the exact source/configuration match and public-header hashes, drawing-plugin rebuild requirements and absence of cross-version raw-context compatibility; non-drawing plugins do not require ImGui.

@@ -389,6 +389,27 @@ class RealManifest(unittest.TestCase):
                 self.assertIn("include/sco_api.h", proof["public_headers"])
                 self.assertIn("include/scosdk/scosdk.hpp", proof["public_headers"])
 
+    def test_windows_archive_verifier_checkout_has_manifest_inputs(self):
+        """Replay the Windows job's checkout; verifier tools must exist outside the archive."""
+        workflow = Path(pkg.ROOT, ".github/workflows/sdk.yml").read_text()
+        windows = workflow.split("\n  windows:\n", 1)[1].split("\n  csharp-host-sim:\n", 1)[0]
+        sparse = re.search(r"^          sparse-checkout: (.+)$", windows, re.M)
+        with tempfile.TemporaryDirectory(prefix="archive-verifier-") as tmp:
+            checkout = Path(tmp, "checkout")
+            subprocess.run(["git", "clone", "--quiet", "--shared", "--no-checkout",
+                            pkg.ROOT, str(checkout)], check=True)
+            if sparse:
+                subprocess.run(["git", "-C", str(checkout), "sparse-checkout", "set",
+                                "--no-cone", sparse.group(1)], check=True)
+            subprocess.run(["git", "-C", str(checkout), "checkout", "--quiet", "HEAD"], check=True)
+            root = self.installed_fixture("core", tmp)
+            # Use an unrelated cwd and a path containing spaces, like a native Git Bash invocation.
+            result = subprocess.run([sys.executable, str(checkout / "sdk/package.py"),
+                                     "--profile", "core", "--check-installed-headers", str(root)],
+                                    cwd=tmp, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("exact installed public header dependencies approved", result.stdout)
+
     def test_installed_header_cli(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = self.installed_fixture("core", tmp)
