@@ -1,4 +1,4 @@
-// teleport.spatial 1.0 (sc_spatial.h) from the game pack, and the game services' start and stop
+// teleport.spatial 1.0 (sc_spatial.h), game.spatial 1.0 (sc_game_spatial.h), and game services' start/stop
 // (spawn.entities 1.2 is in spawn.cpp, game.actors 1.1 in actors.cpp, game.vehicles 1.0 in vehicles.cpp,
 // game.world 1.0 in world.cpp, the game.* bus events in events.cpp).
 // Moved from sc-offline's teleport built-in (src/builtins/teleport_plugin.cpp): a tick
@@ -7,6 +7,8 @@
 // every tick; a zone queried that isn't in it yet is read on the spot.
 #include "sco/game/services.h"
 #include "spawn.h"
+#include "relocation.h"
+#include "spatial_model.h"
 #include "actors.h"
 #include "vehicles.h"
 #include "entities.h"
@@ -38,6 +40,8 @@ using engine::Vector3d;
 using reads::ZoneFrame;
 
 bool             g_started = false;
+engine::ZoneTree g_metadataZones; // strict, complete chains only, <= 256 observed IDs
+spatial::Snapshot g_metadata;
 engine::ZoneTree g_zones;          // cleared and refilled every tick; ids and transforms only
 constexpr int    kChainMax = 16;   // zones per chain; the game's run about 6 deep
 
@@ -142,11 +146,109 @@ void Feed(const ZoneFrame* f, int n) {
     }
 }
 
+// A skipped/truncated/mirrored chain cannot establish direct ancestry. Verify every
+// original parent against the copied chain; do not infer systems from name strings.
+bool Ready();
+
+int ExactChain(uint64_t id, bool player, ZoneFrame* out) {
+    __try {
+        uintptr_t zone = 0;
+        if (player) {
+            uintptr_t actor, entity;
+            if (!reads::LocalPlayer(actor, entity)) return 0;
+            zone = reads::EntityZone(entity);
+        } else {
+            zone = reads::ZoneFromId(id);
+        }
+        if (!zone) return 0;
+        const int n = reads::ReadZoneChain(zone, out, kChainMax);
+        if (!n || (!player && out[0].id != id)) return 0;
+        for (int i = 0; i < n; ++i) {
+            if (!zone || reads::ZoneId(zone) != out[i].id ||
+                reads::ZoneFromId(out[i].id) != zone || !RightHanded(out[i].axis)) return 0;
+            for (int k = 0; k < 3; ++k) {
+                if (!std::isfinite(out[i].origin[k])) return 0;
+                for (int j = 0; j < 3; ++j) if (!std::isfinite(out[i].axis[k][j])) return 0;
+            }
+            zone = reads::ZoneParent(zone);
+        }
+        return zone ? 0 : n;
+    } __except (EXCEPTION_EXECUTE_HANDLER) { return 0; }
+}
+
+bool ObserveChain(const ZoneFrame* f, int n) {
+    if (n <= 0) return false;
+    engine::ZoneTree chain;
+    for (int i = 0; i < n; ++i) {
+        const Transform world = WorldFrame(f[i]);
+        Transform local = world;
+        if (i + 1 < n) {
+            const Transform parent = WorldFrame(f[i + 1]);
+            local = {parent.InverseTransformPoint(world.position),
+                     (parent.rotation.Conjugate() * world.rotation).Normalized(), 1.0};
+        }
+        chain.Set(f[i].id, i + 1 < n ? f[i + 1].id : 0, f[i].name, local);
+    }
+    if (!g_metadata.Observe(chain, f[0].id)) return false;
+    // Snapshot can drop all descendants after ancestry/name changes. Rebuild only
+    // accepted bounded records, preserving existing frame data for unchanged IDs.
+    for (int i = 0; i < n; ++i) {
+        engine::Zone z;
+        if (chain.Find(f[i].id, &z)) g_metadataZones.Set(z.id, z.parentId, z.name, (&z)->local);
+    }
+    // Clear stale frame entries; they must never enable conversion after invalidation.
+    // The source is bounded; rebuilding copies no game pointers.
+    engine::ZoneTree accepted;
+    for (uint32_t i = 0; i < g_metadata.Count(); ++i) {
+        engine::Zone z;
+        if (g_metadataZones.Find(g_metadata.Id(i), &z)) accepted.Set(z.id, z.parentId, z.name, (&z)->local);
+    }
+    g_metadataZones.Clear();
+    for (uint32_t i = 0; i < g_metadata.Count(); ++i) {
+        engine::Zone z;
+        if (accepted.Find(g_metadata.Id(i), &z)) g_metadataZones.Set(z.id, z.parentId, z.name, (&z)->local);
+    }
+    return true;
+}
+
+bool ObserveId(uint64_t id) {
+    if (!id) return true;
+    ZoneFrame chain[kChainMax];
+    return ObserveChain(chain, ExactChain(id, false, chain));
+}
+
+// Refuse mid-tick streaming/reparenting instead of returning a cached ID as live.
+bool MetadataLive() {
+    __try {
+        for (uint32_t i = 0; i < g_metadata.Count(); ++i) {
+            const uint64_t id = g_metadata.Id(i);
+            const uintptr_t zone = reads::ZoneFromId(id);
+            sc_game_zone record = {}; record.size = sizeof(record);
+            if (!zone || reads::ZoneId(zone) != id || !g_metadata.Get(id, &record)) return false;
+            const uintptr_t parent = reads::ZoneParent(zone);
+            const uint64_t parentId = parent ? reads::ZoneId(parent) : 0;
+            if (!spatial::ParentMatches(record.parent_id, parent != 0, parentId,
+                                        parent && parentId && reads::ZoneFromId(parentId) == parent)) return false;
+        }
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+
+bool MetadataReady() {
+    if (!Ready()) return false;
+    if (MetadataLive()) return true;
+    g_metadata.Reset(); g_metadataZones.Clear();
+    return false;
+}
+
 void RefreshZones() {
     g_zones.Clear();
+    g_metadata.Reset();
+    g_metadataZones.Clear();
     if (!reads::Ready()) return;
     ZoneFrame chain[kChainMax];
     Feed(chain, ChainOfPlayer(chain));
+    ObserveChain(chain, ExactChain(0, true, chain));
 }
 
 bool Ready() { return g_started && reads::Ready() && OnGameThread(); }
@@ -162,19 +264,6 @@ bool EnsureZone(uint64_t zoneId) {
 
 Vector3d V(const double p[3]) { return { p[0], p[1], p[2] }; }
 void     Out(const Vector3d& v, double p[3]) { p[0] = v.x; p[1] = v.y; p[2] = v.z; }
-
-// The rotation of zone id's frame in the world: its parents' rotations composed down to it.
-bool WorldRotation(uint64_t zoneId, Quatd* out) {
-    Quatd q = Quatd::Identity();
-    for (int depth = 0; zoneId; ++depth) {
-        engine::Zone z;
-        if (depth >= engine::ZoneTree::kMaxDepth || !g_zones.Find(zoneId, &z)) return false;
-        q = z.local.rotation * q;
-        zoneId = z.parentId;
-    }
-    *out = q.Normalized();
-    return true;
-}
 
 int SvcPlayerPose(double pos[3], double rot[4], uint64_t* zoneId) {
     if (!Ready() || !pos || !rot || !zoneId) return 0;
@@ -228,6 +317,37 @@ int SvcZoneName(uint64_t zoneId, char* out, uint32_t cap) {
     return 1;
 }
 
+int SvcPoseToZone(uint64_t from, uint64_t to, const double pos[3], const double rot[4],
+                  double outPos[3], double outRot[4]) {
+    if (!MetadataReady() || !ObserveId(from) || !ObserveId(to)) return 0;
+    // Observing the second frame may invalidate an earlier reparented frame.
+    return spatial::Convert(g_metadataZones, from, to, pos, rot, outPos, outRot) ? 1 : 0;
+}
+
+int SvcZoneRecord(uint64_t id, sc_game_zone* out) {
+    if (!MetadataReady() || !id || !out || out->size < sizeof(*out) || !ObserveId(id)) return 0;
+    return g_metadata.Get(id, out) ? 1 : 0;
+}
+
+int SvcFindZone(const char* name, sc_game_zone* out) {
+    return MetadataReady() && g_metadata.Find(name, out) ? 1 : 0;
+}
+
+int SvcListZones(uint64_t epoch, uint32_t offset, sc_game_zone* out, uint32_t stride,
+                 uint32_t cap, uint32_t* count, uint32_t* more, uint64_t* outEpoch) {
+    return MetadataReady() && g_metadata.List(epoch, offset, out, stride, cap, count, more, outEpoch) ? 1 : 0;
+}
+
+const sc_game_spatial_v1 kGameSpatial = {
+    sizeof(sc_game_spatial_v1), SvcPoseToZone, SvcZoneRecord, SvcFindZone, SvcListZones,
+};
+
+void WithdrawSpatial() {
+    StopRelocation();
+    host::WithdrawGameService(SC_GAME_SPATIAL_NAME);
+    host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+}
+
 const sc_spatial_v1 kSpatial = {
     sizeof(sc_spatial_v1), SvcPlayerPose, SvcZoneOfEntity, SvcLocalToWorld, SvcWorldToLocal, SvcZoneToZone, SvcZoneName,
 };
@@ -241,22 +361,29 @@ Result Start() {
     if (!reads::Init()) Log("[game] teleport.* rows not OK: teleport.spatial answers 0 (see the [core] lines)");
     Result r = host::ProvideGameService(SC_SPATIAL_SERVICE_NAME, SC_SPATIAL_SERVICE_VERSION, &kSpatial);
     if (r != Result::Ok) return r;
-    r = StartSpawn();
+    r = host::ProvideGameService(SC_GAME_SPATIAL_NAME, SC_GAME_SPATIAL_VERSION, &kGameSpatial);
     if (r != Result::Ok) {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
+    r = StartRelocation();
+    if (r != Result::Ok) { WithdrawSpatial(); return r; }
+    r = StartSpawn();
+    if (r != Result::Ok) {
+        WithdrawSpatial();
         return r;
     }
     r = StartActors();
     if (r != Result::Ok) {
         StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        WithdrawSpatial();
         return r;
     }
     r = StartVehicles();
     if (r != Result::Ok) {
         StopActors();
         StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        WithdrawSpatial();
         return r;
     }
     r = StartWorld();
@@ -264,7 +391,7 @@ Result Start() {
         StopVehicles();
         StopActors();
         StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        WithdrawSpatial();
         return r;
     }
     r = StartEvents();
@@ -273,7 +400,7 @@ Result Start() {
         StopVehicles();
         StopActors();
         StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        WithdrawSpatial();
         return r;
     }
     r = StartEntities();
@@ -283,7 +410,7 @@ Result Start() {
         StopVehicles();
         StopActors();
         StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        WithdrawSpatial();
         return r;
     }
     r = StartCreative();
@@ -294,7 +421,7 @@ Result Start() {
         StopVehicles();
         StopActors();
         StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        WithdrawSpatial();
         return r;
     }
     r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
@@ -306,10 +433,11 @@ Result Start() {
         StopVehicles();
         StopActors();
         StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        WithdrawSpatial();
         return r;
     }
     g_started = true;
+    Log("[game] game.spatial 1.0 published: observed chains only; system identity unknown");
     Log("[game] game services published: %s 1.0, %s 1.2, %s 1.1, %s 1.0, %s 1.0, %s 1.0, %s 1.0 (+ the game.* events)", SC_SPATIAL_SERVICE_NAME,
         SC_SPAWN_SERVICE_NAME, SC_ACTORS_NAME, SC_VEHICLES_SERVICE_NAME, SC_WORLD_NAME, SC_ENTITIES_NAME,
         SC_CREATIVE_SERVICE_NAME);
@@ -326,7 +454,9 @@ void Stop() {
     StopVehicles();
     StopActors();
     StopSpawn();
-    host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+    WithdrawSpatial();
+    g_metadata.Reset();
+    g_metadataZones.Clear();
     g_zones.Clear();
     g_started = false;
 }
@@ -342,12 +472,7 @@ uint64_t ZoneOfEntity(uint64_t entityId) {
 bool PoseToZone(uint64_t from, uint64_t to, const double pos[3], const double rot[4], double outPos[3],
                 double outRot[4]) {
     if (!Ready() || !EnsureZone(from) || !EnsureZone(to)) return false;
-    Vector3d p;
-    Quatd rf, rt;
-    if (!g_zones.Transform(from, to, V(pos), &p) || !WorldRotation(from, &rf) || !WorldRotation(to, &rt)) return false;
-    Out(p, outPos);
-    engine::ToXYZW((rt.Conjugate() * rf * engine::FromXYZW(rot)).Normalized(), outRot);
-    return true;
+    return spatial::Convert(g_zones, from, to, pos, rot, outPos, outRot);
 }
 
 }  // namespace sco::game::services

@@ -138,6 +138,14 @@
     {
       "path": "sdk/add_host_adapter_components.py",
       "why": "Repository-only host-source packaging verification/integration tool; not shipped in SDK profiles."
+    },
+    {
+      "path": "tests/test_relocation.cpp",
+      "why": "Repository-only G2 game-provider fixture; excluded from neutral source kit."
+    },
+    {
+      "path": "tests/test_game_spatial.cpp",
+      "why": "Repository-only G3 game-provider shared-logic fixture; excluded from the neutral source kit."
     }
   ],
   "components": [
@@ -5816,6 +5824,49 @@
       "license": "GPL-3.0-only",
       "group": "host-source-sc",
       "public_header": false
+    },
+    {
+      "id": "include.sc_relocation.h",
+      "source": "include/sc_relocation.h",
+      "destination": "include/sc_relocation.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "tests.abi_relocation.c",
+      "source": "tests/abi_relocation.c",
+      "destination": "tests/abi_relocation.c",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "include.sc_game_spatial.h",
+      "source": "include/sc_game_spatial.h",
+      "destination": "include/sc_game_spatial.h",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "source.tests.abi_game_spatial.c",
+      "source": "tests/abi_game_spatial.c",
+      "destination": "tests/abi_game_spatial.c",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
     }
   ]
 }

@@ -700,6 +700,106 @@
       "reviewer": "agent draft; maintainer approval pending",
       "date": "2026-10-12",
       "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
+    },
+    {
+      "path": "include/sc_relocation.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+    },
+    {
+      "path": "src/game/services/relocation*",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+    },
+    {
+      "path": "tests/abi_relocation.c",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+    },
+    {
+      "path": "tests/test_relocation.cpp",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+    },
+    {
+      "path": "sdk/contracts/sc_relocation_v1.json",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+    },
+    {
+      "path": "include/sc_game_spatial.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+    },
+    {
+      "path": "src/game/services/spatial_model.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+    },
+    {
+      "path": "tests/abi_game_spatial.c",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+    },
+    {
+      "path": "tests/test_game_spatial.cpp",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+    },
+    {
+      "path": "sdk/contracts/sc_game_spatial_v1.json",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
     }
   ],
   "pinned": {

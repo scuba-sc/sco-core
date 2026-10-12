@@ -1,5 +1,17 @@
 # Plugin API v1 reference (`sco_api.h`)
 
+## Unreleased spatial extensions
+
+`game.spatial` 1.0 supplies full position/quaternion conversion and bounded copied
+observed-zone metadata, exact unique observed-name lookup and epoch-pinned pages
+([contract](contracts.md)). System identity remains unknown; observed root is not
+a system. `game.relocation` 1.0 defines owner-scoped request/cancel/status and
+streaming-aware completion machinery, but production mutation is **unavailable**
+until host admission, system classification and validated transport are grounded.
+Both are game-pack tables, native C/raw C++ only, size/full-pointer/null guarded.
+Synthetic tests passed; Windows and gameplay not verified. The frozen base ABI
+and `teleport.spatial` 1.0 remain unchanged.
+
 Version 1.1, released in `sdk-v1.1.0`. This is the plain-C interface a plugin uses to talk to its host (sc-offline). It is the only header a plugin includes; the C++ headers in `include/sco/` are internal and are not part of it.
 
 **Status: stable.** Since `sdk-v1.1.0` the header, this page and [`tests/abi_v1.c`](../tests/abi_v1.c) only grow: version 1 adds fields and functions at the end of structs and never changes what was released (see [Compatibility](#compatibility)). sco-core implements the table ([`sco::host::BuildApi`](api.md#scohosth-the-hosts-sco_api-table)) and the loader ([Plugins](plugins.md)); sc-offline hosts it.

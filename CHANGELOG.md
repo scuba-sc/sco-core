@@ -55,6 +55,15 @@ What each change means for plugin authors and for products built on sco-core (sc
   plugin patch service or frozen ABI change. Legacy offline mutations and product
   migration remain separate; not run in game.
 - **G16 local Star Citizen host-source kit:** `host-source-sc` packages the neutral kernel plus complete tracked game implementation, DataCore, private headers, vendored dependencies and synthetic test inputs in a standalone source layout. Existing SPDX SBOM, provenance and checksum generation is retained; an extracted-archive regression builds the G1 host adapter targets with `SCO_GAME_SC=ON`, runs five synthetic host fixtures and checks `core-source` game exclusions. All six private adapter files are included. No plugin ABI, CI/release workflow, publication or attestation change; Windows/game validation and human-controlled asset publication remain owed.
+- **G2 relocation foundation:** size-prefixed `game.relocation` request/cancel/status and tested owner-scoped streaming completion state machinery. Production mutation remains **unavailable** until host safety/session admission, system classification and validated transport are grounded; not Windows/game verified.
+
+- **G3 `game.spatial` 1.0:** new size-prefixed native C/raw C++ full-pose conversion
+  plus bounded copied zone records, exact observed-name lookup and epoch-pinned
+  pages. At most 256 observed IDs/64 records per page; complete rigid ancestry only,
+  no global scanner or raw pointers. `teleport.spatial` 1.0 and `sco_api` 1.1 stay
+  unchanged. Root ancestry is exposed, but system classification remains explicitly
+  unknown rather than guessed. C#/Lua unsupported; portable synthetic/ABI fixtures,
+  **not verified on Windows or in game**.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,

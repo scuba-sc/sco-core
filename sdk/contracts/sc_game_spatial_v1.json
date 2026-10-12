@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-game-spatial-v1-pose-to-zone",
+      "kind": "table-method",
+      "symbol": "sc_game_spatial_v1.pose_to_zone",
+      "table": "sc_game_spatial_v1",
+      "service": "game.spatial",
+      "version_macro": "SC_GAME_SPATIAL_VERSION",
+      "source_header": "include/sc_game_spatial.h",
+      "signature": "int (*)(uint64_t, uint64_t, const double *, const double *, double *, double *)",
+      "member_extent": 16,
+      "table_size": 40,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Convert finite position (metres) and nonzero quaternion x/y/z/w between complete readable rigid zone frames, normalizing rotation; world frame is 0. Position conversion stops at the common ancestor. Outputs may alias corresponding inputs; output arrays must not overlap. Null/nonfinite input or norm below 1e-12 refuses. Outputs unchanged on 0.",
+      "buffer_contract": "`int (*pose_to_zone)(uint64_t from, uint64_t to, const double pos[3], const double rot_xyzw[4], double out_pos[3], double out_rot_xyzw[4]);`<br>Convert finite position (metres) and nonzero quaternion x/y/z/w between complete readable rigid zone frames, normalizing rotation; world frame is 0. Position conversion stops at the common ancestor. Outputs may alias corresponding inputs; output arrays must not overlap. Null/nonfinite input or norm below 1e-12 refuses. Outputs unchanged on 0.",
+      "ownership": "Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer.",
+      "thread_affinity": "Game thread only; non-reentrant; no callbacks.",
+      "callback_context": "No callbacks.",
+      "reentrancy": "Recursive calls unsupported.",
+      "results": "1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0.",
+      "absent_capability": "Absent table: query_service NOT_FOUND. Missing game readiness: 0.",
+      "cleanup": "Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "(*pose_to_zone)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_spatial.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "(*pose_to_zone)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_spatial.c",
+            "tests/test_game_spatial.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_spatial.c",
+        "tests/test_game_spatial.cpp"
+      ],
+      "limitations": [
+        "Synthetic shared-logic fixtures only; Windows SEH/provider and live game not verified.",
+        "Observed chains only, not exhaustive streamed-world discovery.",
+        "System classification ungrounded: system_id is always unknown (0).",
+        "Raw native calls do not promise process recovery after arbitrary pointer misuse or allocation failure."
+      ]
+    },
+    {
+      "id": "sc-game-spatial-v1-zone-record",
+      "kind": "table-method",
+      "symbol": "sc_game_spatial_v1.zone_record",
+      "table": "sc_game_spatial_v1",
+      "service": "game.spatial",
+      "version_macro": "SC_GAME_SPATIAL_VERSION",
+      "source_header": "include/sc_game_spatial.h",
+      "signature": "int (*)(uint64_t, sc_game_zone *)",
+      "member_extent": 24,
+      "table_size": 40,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Observe one nonzero streamed zone ID and its complete ancestry, then copy a size-prefixed 144-byte record. out->size must be at least sizeof(sc_game_zone); preserve size and unknown caller tail. parent_id is direct parent; root_id is the observed outermost zone, not a certified system. system_id remains 0 with SYSTEM_UNKNOWN. Full 95-byte copied names conservatively set NAME_TRUNCATED. Outputs unchanged on 0.",
+      "buffer_contract": "`int (*zone_record)(uint64_t zone_id, sc_game_zone* out);`<br>Observe one nonzero streamed zone ID and its complete ancestry, then copy a size-prefixed 144-byte record. out->size must be at least sizeof(sc_game_zone); preserve size and unknown caller tail. parent_id is direct parent; root_id is the observed outermost zone, not a certified system. system_id remains 0 with SYSTEM_UNKNOWN. Full 95-byte copied names conservatively set NAME_TRUNCATED. Outputs unchanged on 0.",
+      "ownership": "Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer.",
+      "thread_affinity": "Game thread only; non-reentrant; no callbacks.",
+      "callback_context": "No callbacks.",
+      "reentrancy": "Recursive calls unsupported.",
+      "results": "1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0.",
+      "absent_capability": "Absent table: query_service NOT_FOUND. Missing game readiness: 0.",
+      "cleanup": "Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "(*zone_record)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_spatial.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "(*zone_record)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_spatial.c",
+            "tests/test_game_spatial.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_spatial.c",
+        "tests/test_game_spatial.cpp"
+      ],
+      "limitations": [
+        "Synthetic shared-logic fixtures only; Windows SEH/provider and live game not verified.",
+        "Observed chains only, not exhaustive streamed-world discovery.",
+        "System classification ungrounded: system_id is always unknown (0).",
+        "Raw native calls do not promise process recovery after arbitrary pointer misuse or allocation failure."
+      ]
+    },
+    {
+      "id": "sc-game-spatial-v1-find-zone",
+      "kind": "table-method",
+      "symbol": "sc_game_spatial_v1.find_zone",
+      "table": "sc_game_spatial_v1",
+      "service": "game.spatial",
+      "version_macro": "SC_GAME_SPATIAL_VERSION",
+      "source_header": "include/sc_game_spatial.h",
+      "signature": "int (*)(const char *, sc_game_zone *)",
+      "member_extent": 32,
+      "table_size": 40,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Exact case-sensitive nonempty name of at most 95 bytes; copy the unique observed match only. Ambiguous, absent or possibly truncated names refuse. Does not discover unseen zones. out->size must be at least sizeof(sc_game_zone); preserve size and unknown caller tail. Outputs unchanged on 0.",
+      "buffer_contract": "`int (*find_zone)(const char* name, sc_game_zone* out);`<br>Exact case-sensitive nonempty name of at most 95 bytes; copy the unique observed match only. Ambiguous, absent or possibly truncated names refuse. Does not discover unseen zones. out->size must be at least sizeof(sc_game_zone); preserve size and unknown caller tail. Outputs unchanged on 0.",
+      "ownership": "Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer.",
+      "thread_affinity": "Game thread only; non-reentrant; no callbacks.",
+      "callback_context": "No callbacks.",
+      "reentrancy": "Recursive calls unsupported.",
+      "results": "1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0.",
+      "absent_capability": "Absent table: query_service NOT_FOUND. Missing game readiness: 0.",
+      "cleanup": "Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "(*find_zone)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_spatial.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "(*find_zone)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_spatial.c",
+            "tests/test_game_spatial.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_spatial.c",
+        "tests/test_game_spatial.cpp"
+      ],
+      "limitations": [
+        "Synthetic shared-logic fixtures only; Windows SEH/provider and live game not verified.",
+        "Observed chains only, not exhaustive streamed-world discovery.",
+        "System classification ungrounded: system_id is always unknown (0).",
+        "Raw native calls do not promise process recovery after arbitrary pointer misuse or allocation failure."
+      ]
+    },
+    {
+      "id": "sc-game-spatial-v1-list-zones",
+      "kind": "table-method",
+      "symbol": "sc_game_spatial_v1.list_zones",
+      "table": "sc_game_spatial_v1",
+      "service": "game.spatial",
+      "version_macro": "SC_GAME_SPATIAL_VERSION",
+      "source_header": "include/sc_game_spatial.h",
+      "signature": "int (*)(uint64_t, uint32_t, sc_game_zone *, uint32_t, uint32_t, uint32_t *, uint32_t *, uint64_t *)",
+      "member_extent": 40,
+      "table_size": 40,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Copied page sorted by zone ID from at most 256 explicitly observed zones, never exhaustive world discovery. epoch=0 selects current set; nonzero epoch must match. Tick refresh, additions/changes, invalidation and stop expire epochs. cap at most 64; stride is aligned to 8 bytes and in [144,4096]; every offered slot has size at least 144. cap=0 allows NULL out and counts remaining entries. offset may equal total. out_count is copied elements; out_more is remaining after this page; out_epoch pins later pages. Validate all slots before writing; preserve caller size and unknown tails. Outputs unchanged on 0.",
+      "buffer_contract": "`int (*list_zones)(uint64_t epoch, uint32_t offset, sc_game_zone* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_more, uint64_t* out_epoch);`<br>Copied page sorted by zone ID from at most 256 explicitly observed zones, never exhaustive world discovery. epoch=0 selects current set; nonzero epoch must match. Tick refresh, additions/changes, invalidation and stop expire epochs. cap at most 64; stride is aligned to 8 bytes and in [144,4096]; every offered slot has size at least 144. cap=0 allows NULL out and counts remaining entries. offset may equal total. out_count is copied elements; out_more is remaining after this page; out_epoch pins later pages. Validate all slots before writing; preserve caller size and unknown tails. Outputs unchanged on 0.",
+      "ownership": "Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer.",
+      "thread_affinity": "Game thread only; non-reentrant; no callbacks.",
+      "callback_context": "No callbacks.",
+      "reentrancy": "Recursive calls unsupported.",
+      "results": "1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0.",
+      "absent_capability": "Absent table: query_service NOT_FOUND. Missing game readiness: 0.",
+      "cleanup": "Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "(*list_zones)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_spatial.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "(*list_zones)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_spatial.c",
+            "tests/test_game_spatial.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_game_spatial.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_spatial.c",
+        "tests/test_game_spatial.cpp"
+      ],
+      "limitations": [
+        "Synthetic shared-logic fixtures only; Windows SEH/provider and live game not verified.",
+        "Observed chains only, not exhaustive streamed-world discovery.",
+        "System classification ungrounded: system_id is always unknown (0).",
+        "Raw native calls do not promise process recovery after arbitrary pointer misuse or allocation failure."
+      ]
+    }
+  ]
+}

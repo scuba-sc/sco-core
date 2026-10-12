@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-relocation-v1-request",
+      "kind": "table-method",
+      "symbol": "sc_relocation_v1.request",
+      "table": "sc_relocation_v1",
+      "service": "game.relocation",
+      "version_macro": "SC_RELOCATION_VERSION",
+      "source_header": "include/sc_relocation.h",
+      "signature": "sco_result (*)(sco_plugin *, const sc_relocation_request *, uint64_t *)",
+      "member_extent": 16,
+      "table_size": 32,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal; admission is not completion.",
+      "buffer_contract": "`sco_result (*request)(sco_plugin* self, const sc_relocation_request* request, uint64_t* out_ticket);`<br>Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal; admission is not completion.",
+      "ownership": "Local player only; owner-scoped opaque tickets. No arbitrary entity/pointer/owner writes. Copied request and caller-owned output. 32 retained terminal tickets; oldest terminal evicted at admission.",
+      "thread_affinity": "Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state.",
+      "callback_context": "No callbacks; bounded tick-driven work.",
+      "reentrancy": "Non-reentrant.",
+      "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
+      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "(*request)"
+            }
+          ],
+          "tests": [
+            "tests/abi_relocation.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "(*request)"
+            }
+          ],
+          "tests": [
+            "tests/abi_relocation.c",
+            "tests/test_relocation.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_relocation.c",
+        "tests/test_relocation.cpp"
+      ],
+      "limitations": [
+        "Production relocation unavailable until grounded host safety/session admission, certified system classification and validated transport exist.",
+        "Synthetic shared-logic and fake-provider fixtures only; Windows/MSVC, game provider and gameplay not verified."
+      ]
+    },
+    {
+      "id": "sc-relocation-v1-cancel",
+      "kind": "table-method",
+      "symbol": "sc_relocation_v1.cancel",
+      "table": "sc_relocation_v1",
+      "service": "game.relocation",
+      "version_macro": "SC_RELOCATION_VERSION",
+      "source_header": "include/sc_relocation.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 24,
+      "table_size": 32,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Owner-only idempotent cancellation of a known ticket. Does not undo movement already initiated. Foreign or evicted tickets are NOT_FOUND. Zero ticket is BAD_ARG.",
+      "buffer_contract": "`sco_result (*cancel)(sco_plugin* self, uint64_t ticket);`<br>Owner-only idempotent cancellation of a known ticket. Does not undo movement already initiated. Foreign or evicted tickets are NOT_FOUND. Zero ticket is BAD_ARG.",
+      "ownership": "Local player only; owner-scoped opaque tickets. No arbitrary entity/pointer/owner writes. Copied request and caller-owned output. 32 retained terminal tickets; oldest terminal evicted at admission.",
+      "thread_affinity": "Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state.",
+      "callback_context": "No callbacks; bounded tick-driven work.",
+      "reentrancy": "Non-reentrant.",
+      "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
+      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "(*cancel)"
+            }
+          ],
+          "tests": [
+            "tests/abi_relocation.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "(*cancel)"
+            }
+          ],
+          "tests": [
+            "tests/abi_relocation.c",
+            "tests/test_relocation.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_relocation.c",
+        "tests/test_relocation.cpp"
+      ],
+      "limitations": [
+        "Production relocation unavailable until grounded host safety/session admission, certified system classification and validated transport exist.",
+        "Synthetic shared-logic and fake-provider fixtures only; Windows/MSVC, game provider and gameplay not verified."
+      ]
+    },
+    {
+      "id": "sc-relocation-v1-status",
+      "kind": "table-method",
+      "symbol": "sc_relocation_v1.status",
+      "table": "sc_relocation_v1",
+      "service": "game.relocation",
+      "version_macro": "SC_RELOCATION_VERSION",
+      "source_header": "include/sc_relocation.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, sc_relocation_status *)",
+      "member_extent": 32,
+      "table_size": 32,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Owner-only copied status; caller size at least 24. Preserve caller size and unknown tail. Pending, complete, cancelled or failed plus bounded reason and applied flag. Status does not advance work. Foreign or evicted ticket NOT_FOUND; output unchanged on failure.",
+      "buffer_contract": "`sco_result (*status)(sco_plugin* self, uint64_t ticket, sc_relocation_status* out);`<br>Owner-only copied status; caller size at least 24. Preserve caller size and unknown tail. Pending, complete, cancelled or failed plus bounded reason and applied flag. Status does not advance work. Foreign or evicted ticket NOT_FOUND; output unchanged on failure.",
+      "ownership": "Local player only; owner-scoped opaque tickets. No arbitrary entity/pointer/owner writes. Copied request and caller-owned output. 32 retained terminal tickets; oldest terminal evicted at admission.",
+      "thread_affinity": "Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state.",
+      "callback_context": "No callbacks; bounded tick-driven work.",
+      "reentrancy": "Non-reentrant.",
+      "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
+      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "(*status)"
+            }
+          ],
+          "tests": [
+            "tests/abi_relocation.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "(*status)"
+            }
+          ],
+          "tests": [
+            "tests/abi_relocation.c",
+            "tests/test_relocation.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "include/sc_relocation.h",
+              "token": "C# and Lua unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_relocation.c",
+        "tests/test_relocation.cpp"
+      ],
+      "limitations": [
+        "Production relocation unavailable until grounded host safety/session admission, certified system classification and validated transport exist.",
+        "Synthetic shared-logic and fake-provider fixtures only; Windows/MSVC, game provider and gameplay not verified."
+      ]
+    }
+  ]
+}

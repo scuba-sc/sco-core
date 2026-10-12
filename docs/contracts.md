@@ -77,6 +77,8 @@ symbol in a built binary.
 
 The mechanically enumerated inventory is **122 table methods across 17 tables,
 plus 3 plugin entrypoints: 125 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **126 table methods across 17 tables,
+plus 3 plugin entrypoints: 129 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -85,6 +87,20 @@ contract is distinguished from an implementation observation. **Unspecified** me
 no guarantee is established here; it is not permission to rely on observed behavior.
 Game-service behavior has not been verified in a game session; see
 [game service status](game/status.md). This document does not upgrade that status.
+
+
+## game.relocation 1.0 (`sc_relocation_v1`)
+
+Local-player request/cancel/status contract; game pack only. Production mutation is
+**unavailable**, pending grounded host admission, system classifier and transport.
+Portable fixtures test shared machinery, not gameplay. Native C/raw C++ supported;
+C# and Lua unsupported. Frozen sco_api and legacy teleport.spatial unchanged.
+
+| Member | Since | Buffer contract | Ownership | Thread | Results | Cleanup |
+|---|---|---|---|---|---|---|
+| `sc_relocation_v1.request` | `size >= 16`; 1.0 | `sco_result (*request)(sco_plugin* self, const sc_relocation_request* request, uint64_t* out_ticket);`<br>Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal; admission is not completion. | Local player only; owner-scoped opaque tickets. No arbitrary entity/pointer/owner writes. Copied request and caller-owned output. 32 retained terminal tickets; oldest terminal evicted at admission. | Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state. | SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure. | Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo. |
+| `sc_relocation_v1.cancel` | `size >= 24`; 1.0 | `sco_result (*cancel)(sco_plugin* self, uint64_t ticket);`<br>Owner-only idempotent cancellation of a known ticket. Does not undo movement already initiated. Foreign or evicted tickets are NOT_FOUND. Zero ticket is BAD_ARG. | Local player only; owner-scoped opaque tickets. No arbitrary entity/pointer/owner writes. Copied request and caller-owned output. 32 retained terminal tickets; oldest terminal evicted at admission. | Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state. | SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure. | Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo. |
+| `sc_relocation_v1.status` | `size >= 32`; 1.0 | `sco_result (*status)(sco_plugin* self, uint64_t ticket, sc_relocation_status* out);`<br>Owner-only copied status; caller size at least 24. Preserve caller size and unknown tail. Pending, complete, cancelled or failed plus bounded reason and applied flag. Status does not advance work. Foreign or evicted ticket NOT_FOUND; output unchanged on failure. | Local player only; owner-scoped opaque tickets. No arbitrary entity/pointer/owner writes. Copied request and caller-owned output. 32 retained terminal tickets; oldest terminal evicted at admission. | Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state. | SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure. | Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo. |
 
 ## Workflow language evidence and limits
 
@@ -184,7 +200,9 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sco_content_v1` | 2 | 24 | 1.0 |
 | `sco_ui_v1` | 9 | 80 | 1.0 |
 | `sco_widgets_v1` | 2 | 24 | 1.0 |
+| `sc_relocation_v1` | 3 | 32 | 1.0 |
 | `sc_spatial_v1` | 6 | 56 | 1.0 |
+| `sc_game_spatial_v1` | 4 | 40 | 1.0 |
 | `sc_spawn_service_v1` | 7 | 64 | 1.2 |
 | `sc_actors_v1` | 6 | 56 | 1.1 |
 | `sc_vehicles_v1` | 7 | 64 | 1.0 |
@@ -606,6 +624,40 @@ Native C/C++ only; no C#/Lua binding. Synthetic checked; not run in game.
 | Method | Since | Buffer / input contract | Ownership | Thread affinity | Results / refusal | Cleanup |
 |---|---|---|---|---|---|---|
 | `sco_diagnostics_publisher_v1.submit` | `size >= 16`; 1.0 | `sco_result (*submit)(sco_plugin* self, const sco_diagnostics_observation_v1* observation);`<br>Copies a size-prefixed 8-byte observation; no pointers retained, output, text, identifiers or arbitrary fields. | Host-owned source buffer; selected live plugin only. Advisory health never establishes host/game readiness or faults. | Game thread only; synchronous memory copy, no callbacks or transport. | Query NOT_FOUND when default-off/absent; BAD_ARG invalid/released/unselected owner or null/short/unknown record; WRONG_THREAD off game thread; UNAVAILABLE stopped/terminal shutdown; TOO_MANY excess rate or allocation failure. | Host Stop clears ingress before shutdown callouts. Release/quarantine suppresses source; new owner starts empty. Borrowed table is process-lifetime; service reopen clears records. |
+## game.spatial: `sc_game_spatial_v1`
+
+Source: [`sc_game_spatial.h`](../include/sc_game_spatial.h),
+[provider](../src/game/services/spatial.cpp),
+[shared portable logic](../src/game/services/spatial_model.h),
+[layout/C route](../tests/abi_game_spatial.c),
+[synthetic fixture](../tests/test_game_spatial.cpp).
+
+Separate 1.0 table; `teleport.spatial` remains frozen. Native C and raw C++ only;
+C# and Lua unsupported. This is bounded **observation**, not a global memory dump,
+exhaustive streamed-zone scanner or unloaded-destination catalogue. Player ancestry
+is copied each tick; explicit ID observations and full-pose queries can add complete
+readable chains. The strict provider refuses skipped, mirrored, truncated, cyclic
+or unreadable ancestry; at most 16 frames per game-read chain, 256 admitted IDs,
+64 output records per page. IDs are revalidated before metadata/pose calls;
+unstreaming/reparenting invalidates the observation set. Copied metadata is a
+historical observation within its epoch, not continuous engine liveness.
+
+**Root is not system:** no grounded star-system classifier exists in the available
+reads. `root_id` describes only confirmed outermost ancestry; `system_id` is 0 and
+`SC_GAME_ZONE_SYSTEM_UNKNOWN` is always set. Do not use it as relocation authorization
+or infer system identity from a name. That part of G3 remains safely unavailable.
+No game pointers, memory bytes, player/account identifiers, assets or global scan.
+Epochs expire at tick refresh, set changes, invalidation and stop; consumers restart
+paging after refusal and never persist epoch validity across sessions. Synchronous,
+no callbacks, no ownership mutation or inputs retained. Native service-table fault
+containment is not certified. **Not verified on Windows or in game.**
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_game_spatial_v1.pose_to_zone` | `size >= 16`; 1.0 | `int (*pose_to_zone)(uint64_t from, uint64_t to, const double pos[3], const double rot_xyzw[4], double out_pos[3], double out_rot_xyzw[4]);`<br>Convert finite position (metres) and nonzero quaternion x/y/z/w between complete readable rigid zone frames, normalizing rotation; world frame is 0. Position conversion stops at the common ancestor. Outputs may alias corresponding inputs; output arrays must not overlap. Null/nonfinite input or norm below 1e-12 refuses. Outputs unchanged on 0. | Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer. | Game thread only; non-reentrant; no callbacks. | 1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0. | Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission. |
+| `sc_game_spatial_v1.zone_record` | `size >= 24`; 1.0 | `int (*zone_record)(uint64_t zone_id, sc_game_zone* out);`<br>Observe one nonzero streamed zone ID and its complete ancestry, then copy a size-prefixed 144-byte record. out->size must be at least sizeof(sc_game_zone); preserve size and unknown caller tail. parent_id is direct parent; root_id is the observed outermost zone, not a certified system. system_id remains 0 with SYSTEM_UNKNOWN. Full 95-byte copied names conservatively set NAME_TRUNCATED. Outputs unchanged on 0. | Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer. | Game thread only; non-reentrant; no callbacks. | 1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0. | Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission. |
+| `sc_game_spatial_v1.find_zone` | `size >= 32`; 1.0 | `int (*find_zone)(const char* name, sc_game_zone* out);`<br>Exact case-sensitive nonempty name of at most 95 bytes; copy the unique observed match only. Ambiguous, absent or possibly truncated names refuse. Does not discover unseen zones. out->size must be at least sizeof(sc_game_zone); preserve size and unknown caller tail. Outputs unchanged on 0. | Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer. | Game thread only; non-reentrant; no callbacks. | 1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0. | Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission. |
+| `sc_game_spatial_v1.list_zones` | `size >= 40`; 1.0 | `int (*list_zones)(uint64_t epoch, uint32_t offset, sc_game_zone* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_more, uint64_t* out_epoch);`<br>Copied page sorted by zone ID from at most 256 explicitly observed zones, never exhaustive world discovery. epoch=0 selects current set; nonzero epoch must match. Tick refresh, additions/changes, invalidation and stop expire epochs. cap at most 64; stride is aligned to 8 bytes and in [144,4096]; every offered slot has size at least 144. cap=0 allows NULL out and counts remaining entries. offset may equal total. out_count is copied elements; out_more is remaining after this page; out_epoch pins later pages. Validate all slots before writing; preserve caller size and unknown tails. Outputs unchanged on 0. | Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer. | Game thread only; non-reentrant; no callbacks. | 1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0. | Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission. |
 
 ## Explicit remaining gaps
 
