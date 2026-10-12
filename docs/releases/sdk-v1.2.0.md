@@ -8,7 +8,7 @@ Tag `sdk-v1.2.0`, zip `sco-sdk-1.2.0.zip`. Prepared on 2026-10-10; **the tag is 
 |---|---|---|
 | Kernel (the SDK) | 1.2.0 | `sdk/VERSION`, tag `sdk-v1.2.0` |
 | Plugin ABI | 1.1, unchanged | `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h` (byte for byte as in sdk-v1.1.0; `tests/abi_v1.c` unchanged) |
-| Star Citizen game pack | 0.2.0 (was 0.1.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
+| Star Citizen game pack | 0.3.0 (was 0.2.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
 | Verified game build | 4.10.196.36804, PE timestamp `0x6ac64e6f` | rows verified by sigcheck; in-game verification pending |
 
 `VERSIONS.txt` in the zip states the same four lines, generated from the headers by `sdk/package.py`.
@@ -38,7 +38,7 @@ Wrappers: C++ (`scosdk/game/`), C# (`Sco.Sdk.Game`) and read-only Lua (`sco.game
 
 ## What is not verified, and what is off
 
-- Every game row resolves on 4.10.196.36804 in `sco-sigcheck` (317 rows, from two reports on the same exe; no single run covers the exact release commit). **None of the game services above has been run in a game session since it landed.** Tables that ran in game as sc-offline built-ins on 2026-10-09 (teleport, spawn and its mover) are the same code moved, not a verification of the game pack's copy.
+- Every game row resolves on 4.10.196.36804 in `sco-sigcheck` (316 rows: the actor-death change removed the redundant `contracts.actor_kill` row, and the post-removal run on the same exe resolves 316/316). **None of the game services above has been run in a game session since it landed.** Tables that ran in game as sc-offline built-ins on 2026-10-09 (teleport, spawn and its mover) are the same code moved, not a verification of the game pack's copy.
 - Off until an in-game check: `game.entities.watch`, `game.entities.query_radius`, `game.events.vehicle_seat` (`game.vehicle.boarded` / `exited` are reserved and never fire) and `game.actors.state`.
 - Not published: the camera's field of view (blocked: nothing pins which value is on screen); the entity and normal of a ray hit and the killer of `game.player.died` (zero); an actor's maximum health (zero).
 - Game patches move rows: a patch that does is a game-pack patch release (`game-sc-vX.Y`), not a new kernel version.

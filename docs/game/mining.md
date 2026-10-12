@@ -35,4 +35,4 @@ Hooking, and applying `flags |= 0x8`, stay in the product.
 
 ## Uniqueness in 4.10.196.36804
 
-The label string occurs once in the image and is loaded by one `lea` in .text; the function is `mining.cell` = 0x265FB10. The row reports `AMBIG` if a patch adds a second load. Checked with `sco-sigcheck -v` on the mining branch (all 311 rows OK in `sigcheck-mining.txt`; the merged tree has 317 rows, see [status](status.md)) and with one checked byte changed in a copy of the exe (`mining.cell` fails with the reason of the `+0x441` check).
+The label string occurs once in the image and is loaded by one `lea` in .text; the function is `mining.cell` = 0x265FB10. The row reports `AMBIG` if a patch adds a second load. Checked with `sco-sigcheck -v` on the mining branch (all 311 rows OK in `sigcheck-mining.txt`; the merged tree has 316 rows, see [status](status.md)) and with one checked byte changed in a copy of the exe (`mining.cell` fails with the reason of the `+0x441` check).

@@ -8,7 +8,7 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | `data` | Files only: missions, rules, scripts, lists and game-data overrides (`datacore\*.toml`). Runs no code | [`examples/travel_pack`](examples/travel_pack), [`examples/quantum_pack`](examples/quantum_pack) |
 | `lua` | A Lua 5.4 script, run in a sandbox by sc-offline's bundled Lua runtime | [`examples/greeter`](examples/greeter), [`examples/notebook`](examples/notebook) (storage) |
 
-> **SDK 1.2.0** (tag `sdk-v1.2.0`; the plugin ABI is **1.1**, unchanged since `sdk-v1.1.0`; Star Citizen game pack 0.2.0; `VERSIONS.txt` in the zip says so, with the verified game build). The API is stable: version 1 only grows, so a plugin built with this SDK keeps loading in later 1.x hosts. In sc-offline, plugin loading is switched off by default; `plugins = on` in `sc-offline.ini` turns it on.
+> **SDK 1.2.0** (tag `sdk-v1.2.0`; the plugin ABI is **1.1**, unchanged since `sdk-v1.1.0`; Star Citizen game pack 0.3.0; `VERSIONS.txt` in the zip says so, with the verified game build). The API is stable: version 1 only grows, so a plugin built with this SDK keeps loading in later 1.x hosts. In sc-offline, plugin loading is switched off by default; `plugins = on` in `sc-offline.ini` turns it on.
 
 **Native plugins run with the game's full rights.** Only install plugins you trust; sc-offline doesn't review them. Plugins never connect to Cloud Imperium Games' servers; the only connections allowed are local IPC (`sco.ipc`) and private LAN/VPN co-presence through `sco.net`, both host services: see [Plugin rules](docs/plugin-rules.md).
 
