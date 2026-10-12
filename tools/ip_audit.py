@@ -100,7 +100,7 @@ def trailing_problem(rel):
     return None
 
 
-def structure_problems(infos, top, safe_rel):
+def structure_problems(infos, top, safe_rel, limits=None):
     """(problems, readable): every structural refusal for an archive's entries, and the entries
     (relative name -> info) that passed and may be read.
 
@@ -110,10 +110,12 @@ def structure_problems(infos, top, safe_rel):
     checked on the declared sizes first, so a zip bomb is refused before anything is unpacked;
     when the count or the total is over its limit nothing is read at all.
     """
+    max_entries, max_entry_bytes, max_total_bytes, max_ratio = limits or (
+        MAX_ENTRIES, MAX_ENTRY_BYTES, MAX_TOTAL_BYTES, MAX_RATIO)
     problems = []
     readable = {}
-    if len(infos) > MAX_ENTRIES:
-        problems.append(f"{len(infos)} entries, over the {MAX_ENTRIES}-entry limit")
+    if len(infos) > max_entries:
+        problems.append(f"{len(infos)} entries, over the {max_entries}-entry limit")
         return problems, readable
     seen, folded, total = set(), {}, 0
     for i in infos:
@@ -140,19 +142,19 @@ def structure_problems(infos, top, safe_rel):
         if (i.external_attr >> 16) & 0o170000 == 0o120000:
             problems.append(f"{n}: a symlink")
             continue
-        if i.file_size > MAX_ENTRY_BYTES:
-            problems.append(f"{n}: {i.file_size} bytes uncompressed, over the {MAX_ENTRY_BYTES}-byte limit")
+        if i.file_size > max_entry_bytes:
+            problems.append(f"{n}: {i.file_size} bytes uncompressed, over the {max_entry_bytes}-byte limit")
             continue
-        if i.compress_size and i.file_size / i.compress_size > MAX_RATIO:
+        if i.compress_size and i.file_size / i.compress_size > max_ratio:
             problems.append(f"{n}: {i.file_size} bytes compress to {i.compress_size} "
-                            f"({i.file_size // i.compress_size}:1), over the {MAX_RATIO}:1 limit")
+                            f"({i.file_size // i.compress_size}:1), over the {max_ratio}:1 limit")
             continue
         seen.add(n)
         folded[fold] = n
         readable[rel] = i
         total += i.file_size
-    if total > MAX_TOTAL_BYTES:
-        problems.append(f"{total} bytes uncompressed in total, over the {MAX_TOTAL_BYTES}-byte limit")
+    if total > max_total_bytes:
+        problems.append(f"{total} bytes uncompressed in total, over the {max_total_bytes}-byte limit")
         return problems, {}
     return problems, readable
 
@@ -385,16 +387,20 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         if len(tops) != 1:
             fails.append(f"the archive must hold one top folder, holds {sorted(tops)}")
         top = sorted(tops)[0] if tops else ""
-        problems, readable = structure_problems(infos, top, pkg.safe_rel)
+        # The source kit ships the 9+ MiB SQLite amalgamation. Keep existing plugin
+        # profile limits unchanged; source-only bounds remain finite and checked.
+        limits = (1024, 16 * 1024 * 1024, 64 * 1024 * 1024, 64) if profile == "core-source" else None
+        entry_limit = limits[1] if limits else MAX_ENTRY_BYTES
+        problems, readable = structure_problems(infos, top, pkg.safe_rel, limits)
         fails += problems
         names, content = [], {}
         for rel, i in readable.items():
             # Bounded read: an entry that unpacks to more than its header claims is stopped at the
             # limit, so a lying header can't decompress a bomb past the check.
             with z.open(i) as f:
-                data = f.read(MAX_ENTRY_BYTES + 1)
-            if len(data) > MAX_ENTRY_BYTES:
-                fails.append(f"{i.filename}: unpacks past the {MAX_ENTRY_BYTES}-byte limit")
+                data = f.read(entry_limit + 1)
+            if len(data) > entry_limit:
+                fails.append(f"{i.filename}: unpacks past the {entry_limit}-byte limit")
                 continue
             if len(data) != i.file_size:
                 fails.append(f"{i.filename}: declares {i.file_size} bytes, holds {len(data)}")
@@ -406,12 +412,12 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         # Manifest equality: exactly the selected components, byte-identical (links are rewritten
         # in .md files, so those are compared after package.py's own rewrite).
         fails = []
-        expected = {c["destination"]: c for c in chosen}
+        expected = {pkg.destination(m, profile, c): c for c in chosen}
         generated = set(pkg.metadata_names(m, profile))
         for rel in names:
             if rel not in expected and rel not in generated:
                 fails.append(f"{rel}: in the archive but not selected by {COMPONENTS} for {profile}")
-        zip_paths = {c["source"]: c["destination"] for c in chosen}
+        zip_paths = {c["source"]: pkg.destination(m, profile, c) for c in chosen}
         dirs = {}
         for src, dst in zip_paths.items():
             s, d = os.path.dirname(src), os.path.dirname(dst)
@@ -475,7 +481,17 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         third = [d for d, c in expected.items() if c["origin"] == "third-party" and c["source"] != "LICENSE"]
         for d in third:
             folder = os.path.dirname(d)
-            if not any(n.startswith(folder + "/") and re.search(r"(?i)/(LICENSE|COPYING)[^/]*$", n) for n in names):
+            if profile == "core-source":
+                parents = [folder]
+                while "/" in parents[-1]:
+                    parents.append(os.path.dirname(parents[-1]))
+                has_licence = f"LICENSES/{expected[d]['license']}.txt" in content or any(
+                    os.path.dirname(n) in parents and re.search(r"(?i)/(LICENSE|COPYING)[^/]*$", n)
+                    for n in names)
+            else:
+                has_licence = any(n.startswith(folder + "/") and re.search(r"(?i)/(LICENSE|COPYING)[^/]*$", n)
+                                  for n in names)
+            if not has_licence:
                 fails.append(f"{d}: third-party, but no licence file ships beside it in {folder}/")
         if third and "THIRD_PARTY_NOTICES.md" not in content:
             fails.append("THIRD_PARTY_NOTICES.md: third-party code ships without the notices file")
@@ -766,7 +782,7 @@ def main(argv=None):
     a.add_argument("--root", default=ROOT)
     b = sub.add_parser("zip")
     b.add_argument("archive")
-    b.add_argument("--profile", required=True, choices=["core", "game-sc", "legacy"])
+    b.add_argument("--profile", required=True, choices=["core", "core-source", "game-sc", "legacy"])
     b.add_argument("--sbom")
     b.add_argument("--report")
     b.add_argument("--root", default=ROOT)

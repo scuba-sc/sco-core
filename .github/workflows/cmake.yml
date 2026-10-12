@@ -45,24 +45,21 @@ jobs:
         env:
           CC: clang
           CXX: clang++
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DSCO_SANITIZE=address,undefined -DSCO_GAME_SC=OFF
+        run: |
+          mkdir -p build
+          # Include object targets (including header-only ABI pins) in the actual target graph.
+          printf '%s\n' 'set(GRAPHVIZ_OBJECT_LIBS TRUE)' > build/CMakeGraphVizOptions.cmake
+          cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug \
+            -DSCO_SANITIZE=address,undefined -DSCO_GAME_SC=OFF \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON --graphviz=build/kernel-targets.dot
 
       - name: Build
         run: cmake --build build --parallel
 
-      - name: No game pack object was built
+      - name: Kernel-only dependency check
         run: |
-          if find build -name '*.o' | grep -E '/src/(game|datacore)/'; then
-            echo "game pack objects in a kernel-only build"; exit 1
-          fi
-          if nm -C --defined-only build/*.a 2>/dev/null | grep -E 'RegisterGameSignatures|datacore::'; then
-            echo "game pack symbols in a kernel library"; exit 1
-          fi
-          # No object may compile game pack implementation code, even header-only: the depfiles list
-          # every file each object was built from. (The public game headers' ABI pins still build here.)
-          if find build -name '*.o.d' -print0 | xargs -0 -r grep -lE '/src/(game|datacore)/'; then
-            echo "an object in a kernel-only build includes game pack implementation code"; exit 1
-          fi
+          python3 tools/test_kernel_dependencies.py
+          python3 tools/check_kernel_dependencies.py build
 
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 300

@@ -8,6 +8,7 @@ Plugins are native DLLs and run with the game's full rights. Only install plugin
 
 ## Contents
 
+- [Service contract catalogue](contracts.md) — every public table method and plugin entrypoint, with sizes, ownership, threading, failures and cancellation
 - [Rules](#rules)
 - [Versions and export macro](#versions-and-export-macro)
 - [Results and log levels](#results-and-log-levels)

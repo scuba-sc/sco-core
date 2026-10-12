@@ -21,17 +21,26 @@
     "game-sc"
    ],
    "about": "Everything in one zip, as sdk-v1.1.0 shipped. Not game-neutral. Kept until consumers move to core + game-sc."
+  },
+  "core-source": {
+   "zip": "sco-sdk-core-source-{version}",
+   "version_from": "sdk/VERSION",
+   "layout": "source",
+   "about": "Kernel source-development archive: host/runtime, native and Lua loaders, required vendored code, CMake, tools and synthetic tests. No game implementation. Public ABI header pins remain."
   }
  },
  "covers": [
   "include",
-  "sdk"
+  "sdk",
+  "src",
+  "tests",
+  "plugins/lua",
+  "third_party/sqlite",
+  "tools",
+  "docs/contracts.md",
+  "CMakeLists.txt"
  ],
  "excluded": [
-  {
-   "path": "include/sco/",
-   "why": "the kernel's internal headers; not part of the plugin ABI"
-  },
   {
    "path": "sdk/package.py",
    "why": "packaging tool"
@@ -51,6 +60,122 @@
   {
    "path": "sdk/test_package.py",
    "why": "packaging test"
+  },
+  {
+   "path": "src/game/",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "src/datacore/",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "include/sco/game/",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "include/sco/datacore",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "plugins/lua/sco_lua_game.",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "tests/fixtures/datacore/",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "tests/test_datacore",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "tests/test_death_events.cpp",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "tests/test_pak.cpp",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "tests/dcb_",
+   "why": "Game implementation or game-only synthetic test; excluded from the kernel source kit."
+  },
+  {
+   "path": "include/sco/datacore.h",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "include/sco/datacore_pack.h",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "include/sco/datacore_service.h",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "plugins/lua/sco_lua_game.c",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "plugins/lua/sco_lua_game.h",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tests/dcb_builder.h",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tests/dcb_pack.cmake",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tests/dcb_tool.cmake",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tests/test_datacore.cpp",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tests/test_datacore_pack.cpp",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tests/test_datacore_patch.cpp",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tests/test_datacore_service.cpp",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tools/ip_audit.py",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tools/sco-dcb.cpp",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tools/sco-sigcheck.cpp",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tools/sigcheck.sh",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tools/test-win.sh",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tools/test.sh",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
+  },
+  {
+   "path": "tools/test_ip_audit.py",
+   "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
   }
  ],
  "components": [
@@ -59,7 +184,8 @@
    "source": "include/sco_api.h",
    "destination": "include/sco_api.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -70,7 +196,8 @@
    "source": "include/sco_storage.h",
    "destination": "include/sco_storage.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -81,7 +208,8 @@
    "source": "include/sco_ui.h",
    "destination": "include/sco_ui.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -92,7 +220,8 @@
    "source": "include/sco_settings.h",
    "destination": "include/sco_settings.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -103,7 +232,8 @@
    "source": "include/sco_datacore.h",
    "destination": "include/sco_datacore.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -114,7 +244,8 @@
    "source": "include/sco_ipc.h",
    "destination": "include/sco_ipc.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -125,7 +256,8 @@
    "source": "include/sc_ipc.h",
    "destination": "include/sc_ipc.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "MIT",
@@ -136,7 +268,8 @@
    "source": "include/sco_net.h",
    "destination": "include/sco_net.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -147,7 +280,8 @@
    "source": "include/sc_net.h",
    "destination": "include/sc_net.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "MIT",
@@ -158,7 +292,8 @@
    "source": "include/sc_titanlink.h",
    "destination": "include/sc_titanlink.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "group": "bridges",
    "origin": "project-authored",
@@ -170,7 +305,8 @@
    "source": "include/sc_voxel_bridge.h",
    "destination": "include/sc_voxel_bridge.h",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "group": "bridges",
    "origin": "project-authored",
@@ -182,7 +318,8 @@
    "source": "include/sc_spatial.h",
    "destination": "include/sc_spatial.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -193,7 +330,8 @@
    "source": "include/sc_spawn.h",
    "destination": "include/sc_spawn.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -204,7 +342,8 @@
    "source": "include/sc_actors.h",
    "destination": "include/sc_actors.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -215,7 +354,8 @@
    "source": "include/sc_vehicles.h",
    "destination": "include/sc_vehicles.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -226,7 +366,8 @@
    "source": "include/sc_creative.h",
    "destination": "include/sc_creative.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -237,7 +378,8 @@
    "source": "include/sc_world.h",
    "destination": "include/sc_world.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -248,7 +390,8 @@
    "source": "include/sc_game_events.h",
    "destination": "include/sc_game_events.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -259,7 +402,8 @@
    "source": "include/sc_entities.h",
    "destination": "include/sc_entities.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -270,7 +414,8 @@
    "source": "include/sc_game_pack.h",
    "destination": "include/sc_game_pack.h",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -311,7 +456,8 @@
    "source": "include/scosdk/command.hpp",
    "destination": "include/scosdk/command.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -322,7 +468,8 @@
    "source": "include/scosdk/datacore.hpp",
    "destination": "include/scosdk/datacore.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -333,7 +480,8 @@
    "source": "include/scosdk/ipc.hpp",
    "destination": "include/scosdk/ipc.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -344,7 +492,8 @@
    "source": "include/scosdk/net.hpp",
    "destination": "include/scosdk/net.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -355,7 +504,8 @@
    "source": "include/scosdk/plugin.hpp",
    "destination": "include/scosdk/plugin.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -366,7 +516,8 @@
    "source": "include/scosdk/raw.hpp",
    "destination": "include/scosdk/raw.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -377,7 +528,8 @@
    "source": "include/scosdk/scosdk.hpp",
    "destination": "include/scosdk/scosdk.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -388,7 +540,8 @@
    "source": "include/scosdk/service.hpp",
    "destination": "include/scosdk/service.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -399,7 +552,8 @@
    "source": "include/scosdk/settings.hpp",
    "destination": "include/scosdk/settings.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -410,7 +564,8 @@
    "source": "include/scosdk/storage.hpp",
    "destination": "include/scosdk/storage.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -421,7 +576,8 @@
    "source": "include/scosdk/ui.hpp",
    "destination": "include/scosdk/ui.hpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -432,7 +588,8 @@
    "source": "include/scosdk/game/actors.hpp",
    "destination": "include/scosdk/game/actors.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -443,7 +600,8 @@
    "source": "include/scosdk/game/creative.hpp",
    "destination": "include/scosdk/game/creative.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -454,7 +612,8 @@
    "source": "include/scosdk/game/entities.hpp",
    "destination": "include/scosdk/game/entities.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -465,7 +624,8 @@
    "source": "include/scosdk/game/events.hpp",
    "destination": "include/scosdk/game/events.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -476,7 +636,8 @@
    "source": "include/scosdk/game/vehicles.hpp",
    "destination": "include/scosdk/game/vehicles.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -487,7 +648,8 @@
    "source": "include/scosdk/game/world.hpp",
    "destination": "include/scosdk/game/world.hpp",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -499,7 +661,8 @@
    "destination": "LICENSE",
    "profiles": [
     "core",
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "third-party",
    "license": "GPL-3.0-only",
@@ -510,7 +673,8 @@
    "source": "THIRD_PARTY_NOTICES.md",
    "destination": "THIRD_PARTY_NOTICES.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -520,7 +684,8 @@
    "source": "sdk/VERSION",
    "destination": "VERSION",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -530,7 +695,8 @@
    "source": "sdk/README.md",
    "destination": "README.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -540,7 +706,8 @@
    "source": "sdk/CMakeLists.txt",
    "destination": "CMakeLists.txt",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -550,7 +717,8 @@
    "source": "sdk/cmake/sco-plugin.cmake",
    "destination": "cmake/sco-plugin.cmake",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -820,7 +988,8 @@
    "source": "sdk/template/CMakeLists.txt",
    "destination": "template/CMakeLists.txt",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -830,7 +999,8 @@
    "source": "sdk/template/plugin.c",
    "destination": "template/plugin.c",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -840,7 +1010,8 @@
    "source": "sdk/template/plugin.ini",
    "destination": "template/plugin.ini",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -850,7 +1021,8 @@
    "source": "sdk/examples/cpp_hello/CMakeLists.txt",
    "destination": "examples/cpp_hello/CMakeLists.txt",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -860,7 +1032,8 @@
    "source": "sdk/examples/cpp_hello/cpp_hello.cpp",
    "destination": "examples/cpp_hello/cpp_hello.cpp",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -870,7 +1043,8 @@
    "source": "sdk/examples/cpp_hello/plugin.ini",
    "destination": "examples/cpp_hello/plugin.ini",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -880,7 +1054,8 @@
    "source": "sdk/examples/cs_hello/.gitignore",
    "destination": "examples/cs_hello/.gitignore",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -890,7 +1065,8 @@
    "source": "sdk/examples/cs_hello/CsHello.cs",
    "destination": "examples/cs_hello/CsHello.cs",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -900,7 +1076,8 @@
    "source": "sdk/examples/cs_hello/README.md",
    "destination": "examples/cs_hello/README.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -910,7 +1087,8 @@
    "source": "sdk/examples/cs_hello/cs_hello.csproj",
    "destination": "examples/cs_hello/cs_hello.csproj",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -920,7 +1098,8 @@
    "source": "sdk/examples/cs_hello/plugin.ini",
    "destination": "examples/cs_hello/plugin.ini",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -930,7 +1109,8 @@
    "source": "sdk/examples/greeter/CMakeLists.txt",
    "destination": "examples/greeter/CMakeLists.txt",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -940,7 +1120,8 @@
    "source": "sdk/examples/greeter/main.lua",
    "destination": "examples/greeter/main.lua",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -950,7 +1131,8 @@
    "source": "sdk/examples/greeter/plugin.ini",
    "destination": "examples/greeter/plugin.ini",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -960,7 +1142,8 @@
    "source": "sdk/examples/hello/CMakeLists.txt",
    "destination": "examples/hello/CMakeLists.txt",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -970,7 +1153,8 @@
    "source": "sdk/examples/hello/hello.c",
    "destination": "examples/hello/hello.c",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -980,7 +1164,8 @@
    "source": "sdk/examples/hello/plugin.ini",
    "destination": "examples/hello/plugin.ini",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -990,7 +1175,8 @@
    "source": "sdk/examples/notebook/CMakeLists.txt",
    "destination": "examples/notebook/CMakeLists.txt",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1000,7 +1186,8 @@
    "source": "sdk/examples/notebook/main.lua",
    "destination": "examples/notebook/main.lua",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1010,7 +1197,8 @@
    "source": "sdk/examples/notebook/plugin.ini",
    "destination": "examples/notebook/plugin.ini",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1020,7 +1208,8 @@
    "source": "sdk/examples/quantum_pack/CMakeLists.txt",
    "destination": "examples/quantum_pack/CMakeLists.txt",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1030,7 +1219,8 @@
    "source": "sdk/examples/quantum_pack/plugin.ini",
    "destination": "examples/quantum_pack/plugin.ini",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1040,7 +1230,8 @@
    "source": "sdk/examples/quantum_pack/datacore/eos.toml",
    "destination": "examples/quantum_pack/datacore/eos.toml",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1051,7 +1242,8 @@
    "source": "sdk/examples/travel_pack/CMakeLists.txt",
    "destination": "examples/travel_pack/CMakeLists.txt",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1061,7 +1253,8 @@
    "source": "sdk/examples/travel_pack/plugin.ini",
    "destination": "examples/travel_pack/plugin.ini",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1071,7 +1264,8 @@
    "source": "sdk/examples/travel_pack/lists/locations.txt",
    "destination": "examples/travel_pack/lists/locations.txt",
    "profiles": [
-    "game-sc"
+    "game-sc",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -1082,7 +1276,8 @@
    "source": "sdk/tools/lua-check.lua",
    "destination": "tools/lua-check.lua",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1092,7 +1287,8 @@
    "source": "sdk/tools/sco-plugin-check.c",
    "destination": "tools/sco-plugin-check.c",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1102,7 +1298,8 @@
    "source": "sdk/docs/data-packs.md",
    "destination": "docs/data-packs.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1112,7 +1309,8 @@
    "source": "sdk/docs/lua.md",
    "destination": "docs/lua.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1122,7 +1320,8 @@
    "source": "sdk/docs/plugin-ini.md",
    "destination": "docs/plugin-ini.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1132,7 +1331,8 @@
    "source": "sdk/docs/plugin-rules.md",
    "destination": "docs/plugin-rules.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1188,7 +1388,8 @@
    "source": "docs/api-v1.md",
    "destination": "docs/api-v1.md",
    "profiles": [
-    "core"
+    "core",
+    "core-source"
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
@@ -1242,6 +1443,2167 @@
    ],
    "origin": "project-authored",
    "license": "GPL-3.0-only"
+  },
+  {
+   "id": "docs.contracts.md",
+   "source": "docs/contracts.md",
+   "destination": "docs/contracts.md",
+   "profiles": [
+    "core",
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.CMakeLists.txt",
+   "source": "CMakeLists.txt",
+   "destination": "CMakeLists.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.docs.building.md",
+   "source": "docs/building.md",
+   "destination": "docs/building.md",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.app.h",
+   "source": "include/sco/app.h",
+   "destination": "include/sco/app.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.caps.h",
+   "source": "include/sco/caps.h",
+   "destination": "include/sco/caps.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.engine.types.h",
+   "source": "include/sco/engine/types.h",
+   "destination": "include/sco/engine/types.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.engine.zone.h",
+   "source": "include/sco/engine/zone.h",
+   "destination": "include/sco/engine/zone.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.hook.h",
+   "source": "include/sco/hook.h",
+   "destination": "include/sco/hook.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.host.h",
+   "source": "include/sco/host.h",
+   "destination": "include/sco/host.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.ipc.h",
+   "source": "include/sco/ipc.h",
+   "destination": "include/sco/ipc.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.log.h",
+   "source": "include/sco/log.h",
+   "destination": "include/sco/log.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.net.core.h",
+   "source": "include/sco/net/core.h",
+   "destination": "include/sco/net/core.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.net.reliable.h",
+   "source": "include/sco/net/reliable.h",
+   "destination": "include/sco/net/reliable.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.net.scope.h",
+   "source": "include/sco/net/scope.h",
+   "destination": "include/sco/net/scope.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.net.session.h",
+   "source": "include/sco/net/session.h",
+   "destination": "include/sco/net/session.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.net.sha2.h",
+   "source": "include/sco/net/sha2.h",
+   "destination": "include/sco/net/sha2.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.net.transport.h",
+   "source": "include/sco/net/transport.h",
+   "destination": "include/sco/net/transport.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.net.udp.h",
+   "source": "include/sco/net/udp.h",
+   "destination": "include/sco/net/udp.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.net.wire.h",
+   "source": "include/sco/net/wire.h",
+   "destination": "include/sco/net/wire.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.pe_file.h",
+   "source": "include/sco/pe_file.h",
+   "destination": "include/sco/pe_file.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.plugins.h",
+   "source": "include/sco/plugins.h",
+   "destination": "include/sco/plugins.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.runtime.h",
+   "source": "include/sco/runtime.h",
+   "destination": "include/sco/runtime.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.scan.h",
+   "source": "include/sco/scan.h",
+   "destination": "include/sco/scan.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.settings.h",
+   "source": "include/sco/settings.h",
+   "destination": "include/sco/settings.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.signatures.h",
+   "source": "include/sco/signatures.h",
+   "destination": "include/sco/signatures.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.status.h",
+   "source": "include/sco/status.h",
+   "destination": "include/sco/status.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.storage.h",
+   "source": "include/sco/storage.h",
+   "destination": "include/sco/storage.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.ui.h",
+   "source": "include/sco/ui.h",
+   "destination": "include/sco/ui.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.include.sco.vfs.h",
+   "source": "include/sco/vfs.h",
+   "destination": "include/sco/vfs.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.plugins.lua.README.md",
+   "source": "plugins/lua/README.md",
+   "destination": "plugins/lua/README.md",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.plugins.lua.sco_lua.c",
+   "source": "plugins/lua/sco_lua.c",
+   "destination": "plugins/lua/sco_lua.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.plugins.lua.sco_lua.h",
+   "source": "plugins/lua/sco_lua.h",
+   "destination": "plugins/lua/sco_lua.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.plugins.lua.sco_lua_ext.h",
+   "source": "plugins/lua/sco_lua_ext.h",
+   "destination": "plugins/lua/sco_lua_ext.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.plugins.lua.sco_lua_user.h",
+   "source": "plugins/lua/sco_lua_user.h",
+   "destination": "plugins/lua/sco_lua_user.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.LICENSE",
+   "source": "plugins/lua/third_party/lua/LICENSE",
+   "destination": "plugins/lua/third_party/lua/LICENSE",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.VERSION",
+   "source": "plugins/lua/third_party/lua/VERSION",
+   "destination": "plugins/lua/third_party/lua/VERSION",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lapi.c",
+   "source": "plugins/lua/third_party/lua/src/lapi.c",
+   "destination": "plugins/lua/third_party/lua/src/lapi.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lapi.h",
+   "source": "plugins/lua/third_party/lua/src/lapi.h",
+   "destination": "plugins/lua/third_party/lua/src/lapi.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lauxlib.c",
+   "source": "plugins/lua/third_party/lua/src/lauxlib.c",
+   "destination": "plugins/lua/third_party/lua/src/lauxlib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lauxlib.h",
+   "source": "plugins/lua/third_party/lua/src/lauxlib.h",
+   "destination": "plugins/lua/third_party/lua/src/lauxlib.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lbaselib.c",
+   "source": "plugins/lua/third_party/lua/src/lbaselib.c",
+   "destination": "plugins/lua/third_party/lua/src/lbaselib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lcode.c",
+   "source": "plugins/lua/third_party/lua/src/lcode.c",
+   "destination": "plugins/lua/third_party/lua/src/lcode.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lcode.h",
+   "source": "plugins/lua/third_party/lua/src/lcode.h",
+   "destination": "plugins/lua/third_party/lua/src/lcode.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lcorolib.c",
+   "source": "plugins/lua/third_party/lua/src/lcorolib.c",
+   "destination": "plugins/lua/third_party/lua/src/lcorolib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lctype.c",
+   "source": "plugins/lua/third_party/lua/src/lctype.c",
+   "destination": "plugins/lua/third_party/lua/src/lctype.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lctype.h",
+   "source": "plugins/lua/third_party/lua/src/lctype.h",
+   "destination": "plugins/lua/third_party/lua/src/lctype.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ldblib.c",
+   "source": "plugins/lua/third_party/lua/src/ldblib.c",
+   "destination": "plugins/lua/third_party/lua/src/ldblib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ldebug.c",
+   "source": "plugins/lua/third_party/lua/src/ldebug.c",
+   "destination": "plugins/lua/third_party/lua/src/ldebug.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ldebug.h",
+   "source": "plugins/lua/third_party/lua/src/ldebug.h",
+   "destination": "plugins/lua/third_party/lua/src/ldebug.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ldo.c",
+   "source": "plugins/lua/third_party/lua/src/ldo.c",
+   "destination": "plugins/lua/third_party/lua/src/ldo.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ldo.h",
+   "source": "plugins/lua/third_party/lua/src/ldo.h",
+   "destination": "plugins/lua/third_party/lua/src/ldo.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ldump.c",
+   "source": "plugins/lua/third_party/lua/src/ldump.c",
+   "destination": "plugins/lua/third_party/lua/src/ldump.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lfunc.c",
+   "source": "plugins/lua/third_party/lua/src/lfunc.c",
+   "destination": "plugins/lua/third_party/lua/src/lfunc.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lfunc.h",
+   "source": "plugins/lua/third_party/lua/src/lfunc.h",
+   "destination": "plugins/lua/third_party/lua/src/lfunc.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lgc.c",
+   "source": "plugins/lua/third_party/lua/src/lgc.c",
+   "destination": "plugins/lua/third_party/lua/src/lgc.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lgc.h",
+   "source": "plugins/lua/third_party/lua/src/lgc.h",
+   "destination": "plugins/lua/third_party/lua/src/lgc.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.linit.c",
+   "source": "plugins/lua/third_party/lua/src/linit.c",
+   "destination": "plugins/lua/third_party/lua/src/linit.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.liolib.c",
+   "source": "plugins/lua/third_party/lua/src/liolib.c",
+   "destination": "plugins/lua/third_party/lua/src/liolib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ljumptab.h",
+   "source": "plugins/lua/third_party/lua/src/ljumptab.h",
+   "destination": "plugins/lua/third_party/lua/src/ljumptab.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.llex.c",
+   "source": "plugins/lua/third_party/lua/src/llex.c",
+   "destination": "plugins/lua/third_party/lua/src/llex.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.llex.h",
+   "source": "plugins/lua/third_party/lua/src/llex.h",
+   "destination": "plugins/lua/third_party/lua/src/llex.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.llimits.h",
+   "source": "plugins/lua/third_party/lua/src/llimits.h",
+   "destination": "plugins/lua/third_party/lua/src/llimits.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lmathlib.c",
+   "source": "plugins/lua/third_party/lua/src/lmathlib.c",
+   "destination": "plugins/lua/third_party/lua/src/lmathlib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lmem.c",
+   "source": "plugins/lua/third_party/lua/src/lmem.c",
+   "destination": "plugins/lua/third_party/lua/src/lmem.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lmem.h",
+   "source": "plugins/lua/third_party/lua/src/lmem.h",
+   "destination": "plugins/lua/third_party/lua/src/lmem.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.loadlib.c",
+   "source": "plugins/lua/third_party/lua/src/loadlib.c",
+   "destination": "plugins/lua/third_party/lua/src/loadlib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lobject.c",
+   "source": "plugins/lua/third_party/lua/src/lobject.c",
+   "destination": "plugins/lua/third_party/lua/src/lobject.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lobject.h",
+   "source": "plugins/lua/third_party/lua/src/lobject.h",
+   "destination": "plugins/lua/third_party/lua/src/lobject.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lopcodes.c",
+   "source": "plugins/lua/third_party/lua/src/lopcodes.c",
+   "destination": "plugins/lua/third_party/lua/src/lopcodes.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lopcodes.h",
+   "source": "plugins/lua/third_party/lua/src/lopcodes.h",
+   "destination": "plugins/lua/third_party/lua/src/lopcodes.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lopnames.h",
+   "source": "plugins/lua/third_party/lua/src/lopnames.h",
+   "destination": "plugins/lua/third_party/lua/src/lopnames.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.loslib.c",
+   "source": "plugins/lua/third_party/lua/src/loslib.c",
+   "destination": "plugins/lua/third_party/lua/src/loslib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lparser.c",
+   "source": "plugins/lua/third_party/lua/src/lparser.c",
+   "destination": "plugins/lua/third_party/lua/src/lparser.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lparser.h",
+   "source": "plugins/lua/third_party/lua/src/lparser.h",
+   "destination": "plugins/lua/third_party/lua/src/lparser.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lprefix.h",
+   "source": "plugins/lua/third_party/lua/src/lprefix.h",
+   "destination": "plugins/lua/third_party/lua/src/lprefix.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lstate.c",
+   "source": "plugins/lua/third_party/lua/src/lstate.c",
+   "destination": "plugins/lua/third_party/lua/src/lstate.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lstate.h",
+   "source": "plugins/lua/third_party/lua/src/lstate.h",
+   "destination": "plugins/lua/third_party/lua/src/lstate.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lstring.c",
+   "source": "plugins/lua/third_party/lua/src/lstring.c",
+   "destination": "plugins/lua/third_party/lua/src/lstring.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lstring.h",
+   "source": "plugins/lua/third_party/lua/src/lstring.h",
+   "destination": "plugins/lua/third_party/lua/src/lstring.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lstrlib.c",
+   "source": "plugins/lua/third_party/lua/src/lstrlib.c",
+   "destination": "plugins/lua/third_party/lua/src/lstrlib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ltable.c",
+   "source": "plugins/lua/third_party/lua/src/ltable.c",
+   "destination": "plugins/lua/third_party/lua/src/ltable.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ltable.h",
+   "source": "plugins/lua/third_party/lua/src/ltable.h",
+   "destination": "plugins/lua/third_party/lua/src/ltable.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ltablib.c",
+   "source": "plugins/lua/third_party/lua/src/ltablib.c",
+   "destination": "plugins/lua/third_party/lua/src/ltablib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ltm.c",
+   "source": "plugins/lua/third_party/lua/src/ltm.c",
+   "destination": "plugins/lua/third_party/lua/src/ltm.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.ltm.h",
+   "source": "plugins/lua/third_party/lua/src/ltm.h",
+   "destination": "plugins/lua/third_party/lua/src/ltm.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lua.h",
+   "source": "plugins/lua/third_party/lua/src/lua.h",
+   "destination": "plugins/lua/third_party/lua/src/lua.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lua.hpp",
+   "source": "plugins/lua/third_party/lua/src/lua.hpp",
+   "destination": "plugins/lua/third_party/lua/src/lua.hpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.luaconf.h",
+   "source": "plugins/lua/third_party/lua/src/luaconf.h",
+   "destination": "plugins/lua/third_party/lua/src/luaconf.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lualib.h",
+   "source": "plugins/lua/third_party/lua/src/lualib.h",
+   "destination": "plugins/lua/third_party/lua/src/lualib.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lundump.c",
+   "source": "plugins/lua/third_party/lua/src/lundump.c",
+   "destination": "plugins/lua/third_party/lua/src/lundump.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lundump.h",
+   "source": "plugins/lua/third_party/lua/src/lundump.h",
+   "destination": "plugins/lua/third_party/lua/src/lundump.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lutf8lib.c",
+   "source": "plugins/lua/third_party/lua/src/lutf8lib.c",
+   "destination": "plugins/lua/third_party/lua/src/lutf8lib.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lvm.c",
+   "source": "plugins/lua/third_party/lua/src/lvm.c",
+   "destination": "plugins/lua/third_party/lua/src/lvm.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lvm.h",
+   "source": "plugins/lua/third_party/lua/src/lvm.h",
+   "destination": "plugins/lua/third_party/lua/src/lvm.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lzio.c",
+   "source": "plugins/lua/third_party/lua/src/lzio.c",
+   "destination": "plugins/lua/third_party/lua/src/lzio.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.plugins.lua.third_party.lua.src.lzio.h",
+   "source": "plugins/lua/third_party/lua/src/lzio.h",
+   "destination": "plugins/lua/third_party/lua/src/lzio.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.src.api.internal.h",
+   "source": "src/api/internal.h",
+   "destination": "src/api/internal.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.api.sco_caps.cpp",
+   "source": "src/api/sco_caps.cpp",
+   "destination": "src/api/sco_caps.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.api.sco_commands.cpp",
+   "source": "src/api/sco_commands.cpp",
+   "destination": "src/api/sco_commands.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.api.sco_events.cpp",
+   "source": "src/api/sco_events.cpp",
+   "destination": "src/api/sco_events.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.api.sco_raw.cpp",
+   "source": "src/api/sco_raw.cpp",
+   "destination": "src/api/sco_raw.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.api.sco_services.cpp",
+   "source": "src/api/sco_services.cpp",
+   "destination": "src/api/sco_services.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.api.sco_tasks.cpp",
+   "source": "src/api/sco_tasks.cpp",
+   "destination": "src/api/sco_tasks.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.app.sco_app.cpp",
+   "source": "src/app/sco_app.cpp",
+   "destination": "src/app/sco_app.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.engine.zone.cpp",
+   "source": "src/engine/zone.cpp",
+   "destination": "src/engine/zone.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.hook.sco_hook.cpp",
+   "source": "src/hook/sco_hook.cpp",
+   "destination": "src/hook/sco_hook.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.host.sco_host.cpp",
+   "source": "src/host/sco_host.cpp",
+   "destination": "src/host/sco_host.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.ipc.ipc.cpp",
+   "source": "src/ipc/ipc.cpp",
+   "destination": "src/ipc/ipc.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.ipc.shm.h",
+   "source": "src/ipc/shm.h",
+   "destination": "src/ipc/shm.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.ipc.shm_posix.cpp",
+   "source": "src/ipc/shm_posix.cpp",
+   "destination": "src/ipc/shm_posix.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.ipc.shm_win.cpp",
+   "source": "src/ipc/shm_win.cpp",
+   "destination": "src/ipc/shm_win.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.net.core.cpp",
+   "source": "src/net/core.cpp",
+   "destination": "src/net/core.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.net.reliable.cpp",
+   "source": "src/net/reliable.cpp",
+   "destination": "src/net/reliable.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.net.scope.cpp",
+   "source": "src/net/scope.cpp",
+   "destination": "src/net/scope.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.net.service.cpp",
+   "source": "src/net/service.cpp",
+   "destination": "src/net/service.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.net.sha2.c",
+   "source": "src/net/sha2.c",
+   "destination": "src/net/sha2.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.net.udp_posix.cpp",
+   "source": "src/net/udp_posix.cpp",
+   "destination": "src/net/udp_posix.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.net.udp_win.cpp",
+   "source": "src/net/udp_win.cpp",
+   "destination": "src/net/udp_win.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.net.wire.cpp",
+   "source": "src/net/wire.cpp",
+   "destination": "src/net/wire.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.plugins.content.cpp",
+   "source": "src/plugins/content.cpp",
+   "destination": "src/plugins/content.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.plugins.discover.cpp",
+   "source": "src/plugins/discover.cpp",
+   "destination": "src/plugins/discover.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.plugins.guard_win.cpp",
+   "source": "src/plugins/guard_win.cpp",
+   "destination": "src/plugins/guard_win.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.plugins.internal.h",
+   "source": "src/plugins/internal.h",
+   "destination": "src/plugins/internal.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.plugins.loader.cpp",
+   "source": "src/plugins/loader.cpp",
+   "destination": "src/plugins/loader.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.plugins.manifest.cpp",
+   "source": "src/plugins/manifest.cpp",
+   "destination": "src/plugins/manifest.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.plugins.settings_ini.cpp",
+   "source": "src/plugins/settings_ini.cpp",
+   "destination": "src/plugins/settings_ini.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.sco_image_win.cpp",
+   "source": "src/sco_image_win.cpp",
+   "destination": "src/sco_image_win.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.sco_log_status.cpp",
+   "source": "src/sco_log_status.cpp",
+   "destination": "src/sco_log_status.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.sco_pe_file.cpp",
+   "source": "src/sco_pe_file.cpp",
+   "destination": "src/sco_pe_file.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.sco_scan.cpp",
+   "source": "src/sco_scan.cpp",
+   "destination": "src/sco_scan.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.sco_signatures.cpp",
+   "source": "src/sco_signatures.cpp",
+   "destination": "src/sco_signatures.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.settings.settings.cpp",
+   "source": "src/settings/settings.cpp",
+   "destination": "src/settings/settings.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.storage.storage.cpp",
+   "source": "src/storage/storage.cpp",
+   "destination": "src/storage/storage.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.ui.ui.cpp",
+   "source": "src/ui/ui.cpp",
+   "destination": "src/ui/ui.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.vfs.compose.cpp",
+   "source": "src/vfs/compose.cpp",
+   "destination": "src/vfs/compose.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.vfs.internal.h",
+   "source": "src/vfs/internal.h",
+   "destination": "src/vfs/internal.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.src.vfs.table.cpp",
+   "source": "src/vfs/table.cpp",
+   "destination": "src/vfs/table.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi.released.sco_api.h",
+   "source": "tests/abi/released/sco_api.h",
+   "destination": "tests/abi/released/sco_api.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi.sco_api-v1.1.golden",
+   "source": "tests/abi/sco_api-v1.1.golden",
+   "destination": "tests/abi/sco_api-v1.1.golden",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_datacore.c",
+   "source": "tests/abi_datacore.c",
+   "destination": "tests/abi_datacore.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_game_actors.c",
+   "source": "tests/abi_game_actors.c",
+   "destination": "tests/abi_game_actors.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_game_creative.c",
+   "source": "tests/abi_game_creative.c",
+   "destination": "tests/abi_game_creative.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_game_entities.c",
+   "source": "tests/abi_game_entities.c",
+   "destination": "tests/abi_game_entities.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_game_events.c",
+   "source": "tests/abi_game_events.c",
+   "destination": "tests/abi_game_events.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_game_vehicles.c",
+   "source": "tests/abi_game_vehicles.c",
+   "destination": "tests/abi_game_vehicles.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_game_world.c",
+   "source": "tests/abi_game_world.c",
+   "destination": "tests/abi_game_world.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_ipc.c",
+   "source": "tests/abi_ipc.c",
+   "destination": "tests/abi_ipc.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_net.c",
+   "source": "tests/abi_net.c",
+   "destination": "tests/abi_net.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_sc_net.c",
+   "source": "tests/abi_sc_net.c",
+   "destination": "tests/abi_sc_net.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_settings.c",
+   "source": "tests/abi_settings.c",
+   "destination": "tests/abi_settings.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_spatial.c",
+   "source": "tests/abi_spatial.c",
+   "destination": "tests/abi_spatial.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_spawn.c",
+   "source": "tests/abi_spawn.c",
+   "destination": "tests/abi_spawn.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_storage.c",
+   "source": "tests/abi_storage.c",
+   "destination": "tests/abi_storage.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_titanlink.c",
+   "source": "tests/abi_titanlink.c",
+   "destination": "tests/abi_titanlink.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_ui.c",
+   "source": "tests/abi_ui.c",
+   "destination": "tests/abi_ui.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_v1.c",
+   "source": "tests/abi_v1.c",
+   "destination": "tests/abi_v1.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.abi_voxel_bridge.c",
+   "source": "tests/abi_voxel_bridge.c",
+   "destination": "tests/abi_voxel_bridge.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.native.fake_plugin.c",
+   "source": "tests/fixtures/plugins/native/fake_plugin.c",
+   "destination": "tests/fixtures/plugins/native/fake_plugin.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.native.frozen_v11_plugin.c",
+   "source": "tests/fixtures/plugins/native/frozen_v11_plugin.c",
+   "destination": "tests/fixtures/plugins/native/frozen_v11_plugin.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.README.md",
+   "source": "tests/fixtures/plugins/tree/README.md",
+   "destination": "tests/fixtures/plugins/tree/README.md",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.badapi.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/badapi/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/badapi/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.broken.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/broken/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/broken/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.hello.hello.dll",
+   "source": "tests/fixtures/plugins/tree/hello/hello.dll",
+   "destination": "tests/fixtures/plugins/tree/hello/hello.dll",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.hello.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/hello/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/hello/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.luamod.main.lua",
+   "source": "tests/fixtures/plugins/tree/luamod/main.lua",
+   "destination": "tests/fixtures/plugins/tree/luamod/main.lua",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.luamod.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/luamod/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/luamod/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.mismatch.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/mismatch/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/mismatch/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.needcap.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/needcap/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/needcap/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.newminor.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/newminor/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/newminor/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.noentry.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/noentry/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/noentry/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.noini.readme.txt",
+   "source": "tests/fixtures/plugins/tree/noini/readme.txt",
+   "destination": "tests/fixtures/plugins/tree/noini/readme.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.offswitch.disabled",
+   "source": "tests/fixtures/plugins/tree/offswitch/disabled",
+   "destination": "tests/fixtures/plugins/tree/offswitch/disabled",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.offswitch.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/offswitch/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/offswitch/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.datacore.drive.toml",
+   "source": "tests/fixtures/plugins/tree/pack/datacore/drive.toml",
+   "destination": "tests/fixtures/plugins/tree/pack/datacore/drive.toml",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.datacore.notes.txt",
+   "source": "tests/fixtures/plugins/tree/pack/datacore/notes.txt",
+   "destination": "tests/fixtures/plugins/tree/pack/datacore/notes.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.lists.ships.txt",
+   "source": "tests/fixtures/plugins/tree/pack/lists/ships.txt",
+   "destination": "tests/fixtures/plugins/tree/pack/lists/ships.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.lists.sub.ignored.txt",
+   "source": "tests/fixtures/plugins/tree/pack/lists/sub/ignored.txt",
+   "destination": "tests/fixtures/plugins/tree/pack/lists/sub/ignored.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.missions.A.CWMISSION",
+   "source": "tests/fixtures/plugins/tree/pack/missions/A.CWMISSION",
+   "destination": "tests/fixtures/plugins/tree/pack/missions/A.CWMISSION",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.missions.b.cwmission",
+   "source": "tests/fixtures/plugins/tree/pack/missions/b.cwmission",
+   "destination": "tests/fixtures/plugins/tree/pack/missions/b.cwmission",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.missions.notes.md",
+   "source": "tests/fixtures/plugins/tree/pack/missions/notes.md",
+   "destination": "tests/fixtures/plugins/tree/pack/missions/notes.md",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/pack/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/pack/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.rules.arena.rules",
+   "source": "tests/fixtures/plugins/tree/pack/rules/arena.rules",
+   "destination": "tests/fixtures/plugins/tree/pack/rules/arena.rules",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.scripts.deep.er.nested.xml",
+   "source": "tests/fixtures/plugins/tree/pack/scripts/deep/er/nested.xml",
+   "destination": "tests/fixtures/plugins/tree/pack/scripts/deep/er/nested.xml",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.scripts.deep.readme.txt",
+   "source": "tests/fixtures/plugins/tree/pack/scripts/deep/readme.txt",
+   "destination": "tests/fixtures/plugins/tree/pack/scripts/deep/readme.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.scripts.top.xml",
+   "source": "tests/fixtures/plugins/tree/pack/scripts/top.xml",
+   "destination": "tests/fixtures/plugins/tree/pack/scripts/top.xml",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.pack.stray.cwmission",
+   "source": "tests/fixtures/plugins/tree/pack/stray.cwmission",
+   "destination": "tests/fixtures/plugins/tree/pack/stray.cwmission",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.zpack.missions.b.cwmission",
+   "source": "tests/fixtures/plugins/tree/zpack/missions/b.cwmission",
+   "destination": "tests/fixtures/plugins/tree/zpack/missions/b.cwmission",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.fixtures.plugins.tree.zpack.plugin.ini",
+   "source": "tests/fixtures/plugins/tree/zpack/plugin.ini",
+   "destination": "tests/fixtures/plugins/tree/zpack/plugin.ini",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.host_sim.cmake",
+   "source": "tests/host_sim.cmake",
+   "destination": "tests/host_sim.cmake",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.net_mem.h",
+   "source": "tests/net_mem.h",
+   "destination": "tests/net_mem.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_app.cpp",
+   "source": "tests/test_app.cpp",
+   "destination": "tests/test_app.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_core.cpp",
+   "source": "tests/test_core.cpp",
+   "destination": "tests/test_core.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_hook.cpp",
+   "source": "tests/test_hook.cpp",
+   "destination": "tests/test_hook.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_host.cpp",
+   "source": "tests/test_host.cpp",
+   "destination": "tests/test_host.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_ipc.cpp",
+   "source": "tests/test_ipc.cpp",
+   "destination": "tests/test_ipc.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_lua.cpp",
+   "source": "tests/test_lua.cpp",
+   "destination": "tests/test_lua.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_net.cpp",
+   "source": "tests/test_net.cpp",
+   "destination": "tests/test_net.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_net_service.cpp",
+   "source": "tests/test_net_service.cpp",
+   "destination": "tests/test_net_service.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_plugins.cpp",
+   "source": "tests/test_plugins.cpp",
+   "destination": "tests/test_plugins.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_runtime.cpp",
+   "source": "tests/test_runtime.cpp",
+   "destination": "tests/test_runtime.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_sdk.cpp",
+   "source": "tests/test_sdk.cpp",
+   "destination": "tests/test_sdk.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_settings.cpp",
+   "source": "tests/test_settings.cpp",
+   "destination": "tests/test_settings.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_spatial.cpp",
+   "source": "tests/test_spatial.cpp",
+   "destination": "tests/test_spatial.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_storage.cpp",
+   "source": "tests/test_storage.cpp",
+   "destination": "tests/test_storage.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_ui.cpp",
+   "source": "tests/test_ui.cpp",
+   "destination": "tests/test_ui.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tests.test_vfs.cpp",
+   "source": "tests/test_vfs.cpp",
+   "destination": "tests/test_vfs.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.third_party.sqlite.README.md",
+   "source": "third_party/sqlite/README.md",
+   "destination": "third_party/sqlite/README.md",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "blessing"
+  },
+  {
+   "id": "source.third_party.sqlite.sqlite3.c",
+   "source": "third_party/sqlite/sqlite3.c",
+   "destination": "third_party/sqlite/sqlite3.c",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "blessing"
+  },
+  {
+   "id": "source.third_party.sqlite.sqlite3.h",
+   "source": "third_party/sqlite/sqlite3.h",
+   "destination": "third_party/sqlite/sqlite3.h",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "blessing"
+  },
+  {
+   "id": "source.tools.abi_snapshot.py",
+   "source": "tools/abi_snapshot.py",
+   "destination": "tools/abi_snapshot.py",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tools.check_kernel_dependencies.py",
+   "source": "tools/check_kernel_dependencies.py",
+   "destination": "tools/check_kernel_dependencies.py",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tools.sco-host-sim.cpp",
+   "source": "tools/sco-host-sim.cpp",
+   "destination": "tools/sco-host-sim.cpp",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.tools.test_kernel_dependencies.py",
+   "source": "tools/test_kernel_dependencies.py",
+   "destination": "tools/test_kernel_dependencies.py",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.LICENSES.GPL-3.0-only.txt",
+   "source": "LICENSES/GPL-3.0-only.txt",
+   "destination": "LICENSES/GPL-3.0-only.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "GPL-3.0-only"
+  },
+  {
+   "id": "source.LICENSES.MIT.txt",
+   "source": "LICENSES/MIT.txt",
+   "destination": "LICENSES/MIT.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "MIT"
+  },
+  {
+   "id": "source.LICENSES.blessing.txt",
+   "source": "LICENSES/blessing.txt",
+   "destination": "LICENSES/blessing.txt",
+   "profiles": [
+    "core-source"
+   ],
+   "origin": "third-party",
+   "license": "blessing"
   }
  ]
 }

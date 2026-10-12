@@ -49,6 +49,21 @@ verify_zip() {   # verify_zip <zip>: unpack into its own folder; its SHA256SUMS 
 }
 verify_zip 1 "$ZIP"
 ROOT=$VERIFIED
+# The source profile uses repository layout, not the plugin-example install layout.
+if [ -d "$ROOT/src/host" ]; then
+  [ $# -eq 1 ] || { echo "a source kit is not an overlay"; exit 1; }
+  for path in src/game src/datacore include/sco/game plugins/lua/sco_lua_game.c third_party/tomlplusplus; do
+    [ ! -e "$ROOT/$path" ] || { echo "source kit contains excluded implementation: $path"; exit 1; }
+  done
+  cmake -S "$ROOT" -B "$WORK/build" -DCMAKE_BUILD_TYPE=Debug \
+    -DSCO_GAME_SC=OFF -DSCO_BUILD_TESTS=ON
+  cmake --build "$WORK/build" --config Debug --parallel
+  # Focused exercise of host/runtime and the no-git, frozen-header path.
+  ctest --test-dir "$WORK/build" -C Debug --output-on-failure \
+    -R '^(abi_freeze|test_host|test_runtime|test_plugins|host_sim_examples)$'
+  echo "sdk source zip: kernel built and synthetic host tests passed without game implementation"
+  exit 0
+fi
 if [ $# -ge 2 ]; then
   # The extension goes over the core: no file of one may overwrite a file of the other, and each
   # zip's own VERSIONS.txt / SHA256SUMS survives (the overlay profile's are named after it).

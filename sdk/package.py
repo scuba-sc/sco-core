@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Packages the sco SDK. What goes in a zip is decided by sdk/components.json and nothing else.
 
-    sdk/package.py [--profile core|game-sc|legacy] [--out DIR]   # default: legacy, sdk/out
+    sdk/package.py [--profile core|core-source|game-sc|legacy] [--out DIR]   # default: legacy, sdk/out
     sdk/package.py --check                                        # validate the manifest only
     sdk/package.py --list-headers core,game-sc                    # public headers of those profiles
 
@@ -11,6 +11,8 @@ Profiles (sdk/components.json "profiles"):
   game-sc  sco-sdk-game-sc-<SCO_GAME_PACK_VERSION>.zip: the optional Star Citizen extension (game
            service tables and events, DataCore, their wrappers, game examples and docs). Unpacked
            over the core SDK of the version its VERSIONS.txt names.
+  core-source sco-sdk-core-source-<sdk/VERSION>.zip: the kernel source-development kit,
+           keeping repository paths, with synthetic tests and no game implementation.
   legacy   sco-sdk-<sdk/VERSION>.zip: core and game-sc in one zip, as sdk-v1.1.0 shipped. Not
            game-neutral; kept until the consumers move to core + game-sc.
 
@@ -126,6 +128,8 @@ def load_manifest(path=MANIFEST, root=ROOT):
             bad = [r for r in refs if r not in profiles or r == name]
             if bad:
                 raise ManifestError(f"profile {name}: {key} names unknown profile(s) {', '.join(bad)}")
+        if p.get("layout", "sdk") not in ("sdk", "source"):
+            raise ManifestError(f"profile {name}: unknown layout")
         if not p.get("zip") or not p.get("version_from"):
             raise ManifestError(f"profile {name}: needs zip and version_from")
     comps = m.get("components")
@@ -164,9 +168,10 @@ def load_manifest(path=MANIFEST, root=ROOT):
             raise ManifestError(f"component {cid}: source {c['source']} listed twice")
         srcs.add(c["source"])
         for prof in c["profiles"]:
-            key = (prof, c["destination"])
+            dst = destination(m, prof, c)
+            key = (prof, dst)
             if key in dsts:
-                raise ManifestError(f"components {dsts[key]} and {cid}: same destination {c['destination']} in {prof}")
+                raise ManifestError(f"components {dsts[key]} and {cid}: same destination {dst} in {prof}")
             dsts[key] = cid
     # Coverage: nothing under a covered folder is shipped or skipped by accident.
     excluded = m.get("excluded", [])
@@ -184,15 +189,23 @@ def load_manifest(path=MANIFEST, root=ROOT):
         written = {}
         for c in comps:
             if set(c["profiles"]) & reached:
-                other = written.get(c["destination"])
+                dst = destination(m, name, c)
+                other = written.get(dst)
                 if other is not None and other != c["id"]:
-                    raise ManifestError(f"profile {name}: {other} and {c['id']} both write {c['destination']}")
-                written[c["destination"]] = c["id"]
+                    raise ManifestError(f"profile {name}: {other} and {c['id']} both write {dst}")
+                written[dst] = c["id"]
     unclassified = [p for p in tracked_files(root)
                     if any(p == c or p.startswith(c + "/") for c in covers) and p not in srcs and not is_excluded(p)]
     if unclassified:
         raise ManifestError("not classified in sdk/components.json: " + ", ".join(sorted(unclassified)))
+    for name in profiles:
+        select(m, name)
     return m
+
+
+def destination(m, profile, component):
+    """Source-development archives retain repository layout; plugin kits retain SDK layout."""
+    return component["source"] if m["profiles"][profile].get("layout") == "source" else component["destination"]
 
 
 def select(m, profile):
@@ -206,11 +219,18 @@ def select(m, profile):
         game = [c["id"] for c in chosen if "game-sc" in c["profiles"] and c["source"] != "LICENSE"]
         if game:
             raise ManifestError(f"core would hold game-sc components: {', '.join(game)}")
+    if profile == "core-source":
+        forbidden = ("src/game/", "src/datacore/", "include/sco/game/", "include/sco/datacore",
+                     "plugins/lua/sco_lua_game.", "third_party/tomlplusplus/")
+        game = [c["source"] for c in chosen if c["source"].startswith(forbidden)]
+        if game:
+            raise ManifestError("core-source would hold game implementation: " + ", ".join(game))
     seen = {}
     for c in chosen:
-        if c["destination"] in seen and seen[c["destination"]] != c["id"]:
-            raise ManifestError(f"{profile}: {seen[c['destination']]} and {c['id']} both write {c['destination']}")
-        seen[c["destination"]] = c["id"]
+        dst = destination(m, profile, c)
+        if dst in seen and seen[dst] != c["id"]:
+            raise ManifestError(f"{profile}: {seen[dst]} and {c['id']} both write {dst}")
+        seen[dst] = c["id"]
     return chosen
 
 
@@ -260,6 +280,10 @@ def game_pack():
 def versions_txt(profile, version):
     """VERSIONS.txt: every line comes from a header the zip ships (or, for game-sc, the core it needs)."""
     abi = abi_version()
+    if profile == "core-source":
+        return (f"sco SDK core source {version}\n\nplugin ABI (sco_api.h): {abi}\n"
+                "Configure with -DSCO_GAME_SC=OFF. Game implementation is not included.\n"
+                "The frozen release header is hash-checked by tools/abi_snapshot.py.\n")
     if profile == "core":
         return (f"sco SDK core {version}\n\nkernel (sdk/VERSION, tag sdk-v{version}): {version}\n"
                 f"plugin ABI (sco_api.h): {abi}\n\nThe Star Citizen game services are a separate extension, "
@@ -309,7 +333,7 @@ def build(m, profile, out):
     p = m["profiles"][profile]
     version = sdk_version() if p["version_from"] == "sdk/VERSION" else game_pack()[0]
     top = p["zip"].format(version=version, game_pack_version=version)
-    zip_paths = {c["source"]: c["destination"] for c in chosen}
+    zip_paths = {c["source"]: destination(m, profile, c) for c in chosen}
     dirs = {}
     for src, dst in zip_paths.items():   # folders: the source folder maps to the destination folder
         s, d = os.path.dirname(src), os.path.dirname(dst)
@@ -320,7 +344,8 @@ def build(m, profile, out):
     for c in chosen:
         full = os.path.join(ROOT, c["source"])
         with open(full, "rb") as f:
-            entries[c["destination"]] = (fix_links(c["source"], c["destination"], f.read(), zip_paths, dirs),
+            dst = destination(m, profile, c)
+            entries[dst] = (fix_links(c["source"], dst, f.read(), zip_paths, dirs),
                                          os.access(full, os.X_OK))
     versions_name, sums_name = metadata_names(m, profile)
     entries[versions_name] = (versions_txt(profile, version).encode("ascii"), False)

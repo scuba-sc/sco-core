@@ -38,9 +38,30 @@ public headers of a profile).
 
 | Zip | Holds |
 |---|---|
+| `sco-sdk-core-source-<version>.zip` | Kernel source-development kit in repository layout: host/runtime, loaders, required vendored Lua/SQLite, CMake build, tools and synthetic tests. Build with `-DSCO_GAME_SC=OFF`; no game implementation. Public game ABI headers and their layout-only pins are retained, not game services |
 | `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Its version is `sdk/VERSION` alone |
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
+
+## Build the kernel source kit
+
+The source-development zip is independent of the plugin SDK zips; do not overlay them.
+Unpack it into an empty directory, then use CMake 3.20+, a C11/C++20 compiler and Python 3:
+
+```sh
+cmake -S . -B build -DSCO_GAME_SC=OFF -DSCO_BUILD_TESTS=ON
+cmake --build build --config Debug --parallel
+ctest --test-dir build -C Debug --output-on-failure -R '^(abi_freeze|test_host|test_runtime|test_plugins|host_sim_examples)$'
+```
+
+`src/game`, `src/datacore`, game-private headers and the Lua game adapter are absent.
+The released 1.1 header in `tests/abi/released/sco_api.h` is checked against the
+existing golden SHA-256, so the frozen-plugin test needs neither Git nor a network.
+The source kit is not the complete game-pack source and cannot build `SCO_GAME_SC=ON`.
+`package.py --profile core-source` produces it; `test-zip.sh <source.zip>` verifies
+checksums, configures and builds from the extracted files alone, then runs the focused
+synthetic host tests. CI also inspects the full checkout's kernel-only target graph,
+compiler depfiles, compiled objects and link inputs; symbol scans are supplementary.
 
 ## Build the examples
 
