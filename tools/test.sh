@@ -18,6 +18,14 @@ ABI=(-Wall -Wextra -Wpedantic -Werror -I "$ROOT/include" -fsyntax-only)
 clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_v1.c"
 clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_v1.c"
 echo "abi_v1: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
+# The ABI freeze (tools/abi_snapshot.py): compiles a probe against include/sco_api.h and compares
+# its sizeof / _Alignof / offsetof / enum / macro output with tests/abi/sco_api-v1.1.golden, then
+# checks that include/sco_api.h as released at tag sdk-v1.1.0 hashes to the sha256 the golden
+# records (comment-only changes since then are expected, so the pin is the semantic surface, not
+# the bytes). There is no auto-update: a difference prints the diff and fails; a deliberate 1.x
+# addition edits the golden by hand in the same PR.
+PYTHON=${PYTHON:-python3}
+"$PYTHON" "$ROOT/tools/abi_snapshot.py" check --cc "$CC"
 # The sco.storage table (tests/abi_storage.c), the same five ways.
 "$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_storage.c"
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_storage.c"
@@ -340,6 +348,16 @@ plugin svc_caller 12
 mkdir -p "$PLUG/text"
 printf 'id = text\nname = Not a library\nversion = 1\napi = 1.0\nkind = native\nentry = text.so\n' > "$PLUG/text/plugin.ini"
 echo "not a shared library" > "$PLUG/text/text.so"
+# The ABI freeze's old binary: tests/fixtures/plugins/native/frozen_v11_plugin.c compiled against
+# include/sco_api.h exactly as released at sdk-v1.1.0 (the tag's header, extracted by
+# tools/abi_snapshot.py; nothing binary is committed), loaded by test_plugins.cpp. Keep in step
+# with CMakeLists.txt and tools/test-win.sh.
+FROZEN=$OUT/frozen_v11/v11
+mkdir -p "$FROZEN" "$OUT/frozen_v11_include"
+"$PYTHON" "$ROOT/tools/abi_snapshot.py" released-header "$OUT/frozen_v11_include/sco_api.h"
+printf 'id = v11\nname = Frozen 1.1\nversion = 1.1.0\napi = 1.1\nkind = native\nentry = v11.so\n' > "$FROZEN/plugin.ini"
+"$CC" -std=c11 -O1 -Wall -Wextra -Werror -I "$OUT/frozen_v11_include" "${SHARED[@]}" \
+  "$ROOT/tests/fixtures/plugins/native/frozen_v11_plugin.c" -o "$FROZEN/v11.so"
 PLUGINS=("$ROOT/src/plugins/manifest.cpp" "$ROOT/src/plugins/settings_ini.cpp" "$ROOT/src/plugins/discover.cpp" "$ROOT/src/plugins/loader.cpp" \
          "$ROOT/src/plugins/content.cpp" "$ROOT/src/sco_log_status.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_plugins.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" \

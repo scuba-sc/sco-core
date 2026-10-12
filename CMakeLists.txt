@@ -363,6 +363,31 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_v1
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_targets})
 
+  # The ABI freeze (tools/abi_snapshot.py): the compiled surface of include/sco_api.h against
+  # tests/abi/sco_api-v1.1.golden, plus the sha256 of the header as released at sdk-v1.1.0. The
+  # probe is built here (any compiler, MSVC included) and only run by this test, so `cmake --build`
+  # alone stays green and ctest carries the verdict. Header-only, so the kernel-only build runs it
+  # too. Needs python3 (CI has it) and the git tag (fetched by the tool when missing).
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND)
+    set(_freeze_probe "${CMAKE_CURRENT_BINARY_DIR}/abi_freeze_probe.c")
+    execute_process(COMMAND "${Python3_EXECUTABLE}"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/tools/abi_snapshot.py" gen "${_freeze_probe}"
+                    RESULT_VARIABLE _freeze_gen)
+    if(NOT _freeze_gen EQUAL 0)
+      message(FATAL_ERROR "tools/abi_snapshot.py gen failed")
+    endif()
+    add_executable(abi_freeze_probe "${_freeze_probe}")
+    target_include_directories(abi_freeze_probe PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(abi_freeze_probe)
+    add_test(NAME abi_freeze
+             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/abi_snapshot.py"
+                     check --bin "$<TARGET_FILE:abi_freeze_probe>")
+  else()
+    message(WARNING "python3 not found: the abi_freeze test is not registered "
+                    "(run tools/test.sh, which uses it too)")
+  endif()
+
   # The sco.storage table pin (tests/abi_storage.c), the same three ways.
   set(_abi_storage_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_storage.cpp")
   file(CONFIGURE OUTPUT "${_abi_storage_cxx}"
@@ -825,9 +850,42 @@ if(SCO_BUILD_TESTS)
     file(WRITE "${_plug}/text/text.so" "not a shared library\n")
   endif()
 
+  # The ABI freeze's old binary: tests/fixtures/plugins/native/frozen_v11_plugin.c built against
+  # include/sco_api.h exactly as released at sdk-v1.1.0 (the tag's header, written here by
+  # tools/abi_snapshot.py; no binary is committed) and loaded by test_plugins. Keep in step with
+  # tools/test.sh and tools/test-win.sh.
+  set(_frozen "${SCO_TEST_OUT}/frozen_v11/v11")
+  set(_frozen_inc "${SCO_TEST_OUT}/frozen_v11_include")
+  file(REMOVE_RECURSE "${SCO_TEST_OUT}/frozen_v11" "${_frozen_inc}")
+  file(WRITE "${_frozen}/plugin.ini"
+       "id = v11\nname = Frozen 1.1\nversion = 1.1.0\napi = 1.1\nkind = native\nentry = v11.${_ext}\n")
+  if(Python3_Interpreter_FOUND)
+    execute_process(COMMAND "${Python3_EXECUTABLE}"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/tools/abi_snapshot.py"
+                            released-header "${_frozen_inc}/sco_api.h"
+                    RESULT_VARIABLE _frozen_hdr)
+    if(NOT _frozen_hdr EQUAL 0)
+      message(FATAL_ERROR "tools/abi_snapshot.py released-header failed "
+                          "(the sdk-v1.1.0 tag must be reachable: git fetch origin tag sdk-v1.1.0)")
+    endif()
+    add_library(sco_frozen_v11 SHARED tests/fixtures/plugins/native/frozen_v11_plugin.c)
+    target_include_directories(sco_frozen_v11 PRIVATE "${_frozen_inc}")
+    set_target_properties(sco_frozen_v11 PROPERTIES
+      OUTPUT_NAME v11 PREFIX "" SUFFIX ".${_ext}"
+      LIBRARY_OUTPUT_DIRECTORY "$<1:${_frozen}>"
+      RUNTIME_OUTPUT_DIRECTORY "$<1:${_frozen}>")
+    sco_warnings(sco_frozen_v11)
+  else()
+    message(WARNING "python3 not found: the frozen sdk-v1.1.0 plugin is not built; "
+                    "test_plugins' frozen-plugin test will report it missing")
+  endif()
+
   add_executable(test_plugins tests/test_plugins.cpp)
   target_link_libraries(test_plugins PRIVATE sco_plugins)
   add_dependencies(test_plugins ${_fake_targets})
+  if(TARGET sco_frozen_v11)
+    add_dependencies(test_plugins sco_frozen_v11)
+  endif()
   sco_project_target(test_plugins)
   add_test(NAME test_plugins
            COMMAND test_plugins "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/plugins" "${SCO_TEST_OUT}")
