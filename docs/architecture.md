@@ -114,6 +114,46 @@ The runtime is C++ and internal (version 0). The plain-C [`sco_api.h`](../includ
 
 **Hot reload.** `sco::app::Reload(id)` (also the host command `sco.reload`) reloads the target and every transitively loaded dependent, using the discovered `requires` edges. It preflights the entire group and refuses it before teardown if any member is non-reloadable, busy, missing requirements or has handed out a service table. It unloads dependents before providers and reloads providers before dependents, each under a new handle: natives from fresh DLL copies, Lua plugins by running their scripts again. Unrelated plugins stay loaded. Details and failure semantics: [Plugins: hot reload](plugins.md#hot-reload).
 
+## Copied host diagnostics (runtime MCP step 1)
+
+[`sco/diagnostics.h`](../include/sco/diagnostics.h) is an internal C++ observation
+facility, not a plugin ABI or RPC. `sco::app::Start` begins a copy after startup;
+`Tick` advances it on the game thread and begins at most one refresh per second.
+`Stop` invalidates the store before `game.exit` and plugin teardown. The any-thread
+`DiagnosticSnapshot()` accessor returns only a completed `shared_ptr<const Snapshot>`;
+workers never traverse `app::Plugins()` or ask the game thread to refresh on demand.
+No diagnostics channel, credential, MCP registration or product authorization is added.
+The frozen `sco_api` is unchanged.
+
+Construction advances at most four work units per call, checking a soft 1 ms budget
+between units. One bounded registry copy and the final sort are individual units;
+existing mutex contention cannot be promised to stay under 1 ms. An observation is
+an interval copy, not simultaneous sampling of all registries: its timestamp is the
+**earliest** source time, so a slow build remains honestly stale. Only a complete,
+sorted generation becomes visible; two generations and 64 local continuation tokens
+are retained. Tokens are lookup-only, tool/filter/generation-bound, invalidated by
+session reset, and expire after 60 seconds. An expired generation returns
+`snapshot_changed`, not page one. Inventories cap at 1024 and carry truncation/loss.
+
+Service metadata is copied under the existing registry mutex without table reads or
+`QueryService`. Withdrawal history is bounded and best-effort; observation allocation
+failure never rejects a successful publication or withdrawal. Exposure means the
+owner has handed out **any** table, not a counted consumer lease. Owner/category/size
+remain unknown unless explicitly registered by trusted host code; even a registered
+size is a metadata assertion, never a size-prefix probe. Signature state comes from
+existing results, without resolver/scanner execution or addresses/patterns. Actual
+load/resolution generations are unknown rather than substituting load order or
+snapshot generation. Capability gates are copied, never tested by invoking a method.
+
+The optional `GamePackMetadata` and `DiagnosticsPluginMetadata` source slots are
+absent by default. They reserve space for [#141](https://github.com/scubamount/sco-core/issues/141),
+not publishers, gameplay records, game types or new plugin-authored v1 JSON fields.
+Capture is a separate keyed host-only facility, inactive until explicitly started;
+step 1 installs no capture into a product or the ordinary logger. See
+[log privacy](log-privacy.md) and the [phased design](design/runtime-mcp.md#phased-pr-plan-and-acceptance).
+Synthetic acceptance is `test_runtime_diagnostics_snapshot`; timing under Windows,
+protected audit/security permissions and gameplay remain unverified. **Not run in game.**
+
 ## Limits
 
 | Limit | Value | What happens at the limit |

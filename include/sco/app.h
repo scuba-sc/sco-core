@@ -48,6 +48,7 @@
 // host::WithdrawHostServices (host and game services outlive every plugin),
 // ContainCallouts(nullptr).
 #include "sco/plugins.h"
+#include "sco/diagnostics.h"
 #include "sco/runtime.h"
 #include "sco/scan.h"
 #include <cstddef>
@@ -126,6 +127,10 @@ void Stop();
 // Every plugin of the last Start: built-ins first, then discovered folders. Stable from Start
 // to the next Start (never resized in between).
 const std::vector<plugins::Plugin>& Plugins();
+
+// Internal host metadata only, never an SDK table or authorization. Any-thread immutable
+// completed copy; null during construction and after Stop (invalidated before teardown).
+std::shared_ptr<const diagnostics::Snapshot> DiagnosticSnapshot();
 
 // Cascading hot reload on the game thread. The host command "sco.reload <plugin id>" and
 // product UI/API callers use this same entry point. Reloads the target and every transitively

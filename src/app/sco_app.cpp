@@ -20,6 +20,7 @@
 #include "sco/ui.h"
 #include "sco/widgets.h"
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <system_error>
 #include <utility>
@@ -37,8 +38,38 @@ std::vector<plugins::Plugin> g_list;     // never resized while ContainCallouts 
 plugins::ContentIndex        g_index;
 const sco_api*               g_api = nullptr;   // what Reload loads with
 plugins::Options             g_opts;
+diagnostics::SnapshotStore   g_diagnostics;
+std::optional<uint64_t>       g_lastDiagnosticTick;
+bool                         g_gameServicesPublished = false;
 bool                         g_reloading = false;
 bool                         g_reloadCommand = false;   // sco.reload is registered (once per process)
+
+uint64_t DiagnosticNow() {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+}
+void CopyDiagnostics(uint64_t now) noexcept {
+    try {
+        diagnostics::HostMetadata host;
+        if (g_platform.hostVersion) host.hostVersion = g_platform.hostVersion;
+        host.readiness = "ready";
+        diagnostics::LifecycleMetadata game;
+        game.lifecycle = "ready"; game.lastTickMs = g_lastDiagnosticTick;
+        game.gameServicesRequested = g_platform.gameServices;
+#ifdef SCO_GAME_SERVICES
+        game.gameServicesBuilt = true;
+#else
+        game.gameServicesBuilt = false;
+#endif
+        game.gameServicesPublished = g_gameServicesPublished;
+        // No authorization inferred, publisher callbacks or optional game types. #141 sources
+        // remain absent. The endpoint/policy work will decide when anything leaves the host.
+        g_diagnostics.Begin(g_list, std::move(host), std::move(game), now);
+        g_diagnostics.Advance(now);
+    } catch (...) {
+        g_diagnostics.Reset(); // observation failure must not fail a game/plugin operation
+    }
+}
 
 // What a plugin's `requires` may name that is already there at discovery: a capability, or a
 // service the host or the game pack published (sco.storage, game.vehicles). Plugin services are
@@ -84,6 +115,9 @@ bool Start(const Platform& platform) {
     }
     SetGameThread();
     sco::detail::SetRuntimeStopping(false);
+    g_diagnostics.Reset();
+    diagnostics::ResetServiceDiagnosticHistory();
+    g_lastDiagnosticTick.reset(); g_gameServicesPublished = false;
     g_platform = platform;
     const Platform& pf = g_platform;
 
@@ -124,6 +158,7 @@ bool Start(const Platform& platform) {
     if (pf.gameServices) {
 #ifdef SCO_GAME_SERVICES
         const Result gr = game::services::Start();
+        g_gameServicesPublished = gr == Result::Ok;
         if (gr != Result::Ok) Log("[app] game services not started: %s", ResultName(gr));
 #else
         Log("[app] game services not built (SCO_GAME_SC off, or not Windows)");
@@ -199,6 +234,7 @@ bool Start(const Platform& platform) {
 
     const Result r = Dispatch("game.ready", nullptr);
     if (r != Result::Ok) Log("[app] game.ready: %s", ResultName(r));
+    CopyDiagnostics(DiagnosticNow());
     return true;
 }
 
@@ -208,6 +244,8 @@ void Tick(uint32_t nowMs) {
     if (r != Result::Ok) Log("[app] tick: %s", ResultName(r));
     ipc::Tick();   // the owner heartbeat of every sco.ipc channel
     net::Tick();   // sco.net messages and events received since the last tick
+    g_lastDiagnosticTick = DiagnosticNow();
+    CopyDiagnostics(*g_lastDiagnosticTick);
 }
 
 void Stop() {
@@ -215,6 +253,7 @@ void Stop() {
     if (!g_started || g_stopping) return;
     if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return; }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
+    g_diagnostics.Reset(); // invalidate observations BEFORE game.exit and plugin teardown
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
@@ -377,6 +416,7 @@ Result Reload(std::string_view id, std::string* why) {
 }
 
 const std::vector<plugins::Plugin>& Plugins() { return g_list; }
+std::shared_ptr<const diagnostics::Snapshot> DiagnosticSnapshot() { return g_diagnostics.Latest(); }
 
 const plugins::ContentIndex& Content() { return g_index; }
 

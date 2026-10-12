@@ -1,11 +1,14 @@
 // Services: function tables published by one owner and found by name (sco/runtime.h).
 #include "sco/runtime.h"
+#include "sco/diagnostics_services.h"
 #include "internal.h"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace sco {
@@ -19,6 +22,9 @@ struct Service {
     const void* table;
 };
 
+#ifdef SCO_RUNTIME_DIAGNOSTICS_FIXTURE
+std::atomic<uint64_t> g_fixtureQueryCalls{0}; // no counter/export in non-test builds
+#endif
 std::mutex           g_lock;
 std::atomic<bool>    g_stopped{ false };
 std::vector<Service> g_services;
@@ -29,6 +35,29 @@ std::vector<const void*> g_handedOut;
 // Admission reservations are separate from publication: explicit withdrawal/republication must
 // not reopen a provider while its unload export is destroying state.
 std::vector<const void*> g_withdrawing;
+
+// Diagnostic sidecars are independent of publication storage. Their allocation failures
+// must never turn a successful provide/withdraw/release into a registry failure.
+struct DiagnosticDetails {
+    const void* owner;
+    std::string name;
+    std::optional<std::string> ownerId;
+    std::string category;
+    std::optional<uint32_t> tableSize;
+};
+struct WithdrawalRecord {
+    const void* owner;  // opaque internal key only; never copied out or dereferenced
+    diagnostics::ServiceMetadata metadata;
+};
+// Erase/replacement maintenance must stay allocation-free and non-throwing, so observation
+// bookkeeping cannot add a failure path to provide/release.
+static_assert(std::is_nothrow_move_assignable<DiagnosticDetails>::value);
+static_assert(std::is_nothrow_move_assignable<WithdrawalRecord>::value);
+std::vector<DiagnosticDetails> g_diagnosticDetails;
+std::vector<WithdrawalRecord> g_withdrawalHistory;
+bool g_diagnosticHistoryLost = false;
+constexpr size_t kMaxDiagnosticServices = 1024;
+
 bool Withdrawing(const void* owner) {
     return std::find(g_withdrawing.begin(), g_withdrawing.end(), owner) != g_withdrawing.end();
 }
@@ -43,6 +72,75 @@ bool ValidServiceName(const char* name) {
         if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) return false;
     }
     return true;
+}
+
+bool Exposed(const void* owner) {
+    return std::find(g_handedOut.begin(), g_handedOut.end(), owner) != g_handedOut.end();
+}
+
+// Requires g_lock. No service table is examined here (not even a size prefix).
+diagnostics::ServiceMetadata Describe(const Service& s) {
+    diagnostics::ServiceMetadata item{ s.name, s.version, std::nullopt, "unknown", "published",
+                                      Exposed(s.owner), std::nullopt, std::nullopt };
+    for (const auto& details : g_diagnosticDetails) {
+        if (details.owner != s.owner || details.name != s.name) continue;
+        item.ownerId = details.ownerId;
+        item.ownerCategory = details.category;
+        item.tableSize = details.tableSize;
+        break;
+    }
+    if (g_stopped.load()) {
+        item.status = "admission_blocked";
+        item.reason = "runtime_stopping";
+    } else if (Withdrawing(s.owner)) {
+        item.status = "admission_blocked";
+        item.reason = "owner_withdrawing";
+    }
+    return item;
+}
+
+void ForgetDiagnosticDetails(const Service& s) noexcept {
+    g_diagnosticDetails.erase(std::remove_if(g_diagnosticDetails.begin(), g_diagnosticDetails.end(),
+        [&](const DiagnosticDetails& details) { return details.owner == s.owner && details.name == s.name; }),
+        g_diagnosticDetails.end());
+}
+
+void ForgetOldWithdrawal(const char* name) noexcept {
+    g_withdrawalHistory.erase(std::remove_if(g_withdrawalHistory.begin(), g_withdrawalHistory.end(),
+        [&](const WithdrawalRecord& record) { return record.metadata.service == name; }),
+        g_withdrawalHistory.end());
+}
+
+void RecordWithdrawal(const Service& s) noexcept {
+    try {
+        auto item = Describe(s);
+        item.status = "withdrawn";
+        item.reason = "service_withdrawn";
+        if (g_withdrawalHistory.size() == kMaxDiagnosticServices) {
+            g_withdrawalHistory.erase(g_withdrawalHistory.begin());
+            g_diagnosticHistoryLost = true;
+        }
+        g_withdrawalHistory.push_back({ s.owner, std::move(item) });
+    } catch (...) {
+        g_diagnosticHistoryLost = true;
+    }
+    ForgetDiagnosticDetails(s);
+}
+
+bool ValidOwnerId(const char* id) {
+    if (!id) return true;
+    const size_t n = strnlen(id, 32);
+    if (n == 0 || n > 31) return false;
+    for (size_t i = 0; i < n; ++i)
+        if (!((id[i] >= 'a' && id[i] <= 'z') || (id[i] >= '0' && id[i] <= '9') || id[i] == '_'))
+            return false;
+    return true;
+}
+
+bool ValidCategory(const char* category) {
+    if (!category || strnlen(category, 10) > 9) return false;
+    return strcmp(category, "host") == 0 || strcmp(category, "game_pack") == 0 ||
+           strcmp(category, "plugin") == 0 || strcmp(category, "unknown") == 0;
 }
 
 }  // namespace
@@ -72,10 +170,14 @@ Result ProvideService(const void* owner, const char* prefix, const char* name, u
     } catch (...) {
         return Result::TooMany;
     }
+    ForgetOldWithdrawal(name);
     return Result::Ok;
 }
 
 Result QueryService(const char* name, uint32_t minVersion, const void** out) {
+#ifdef SCO_RUNTIME_DIAGNOSTICS_FIXTURE
+    g_fixtureQueryCalls.fetch_add(1);
+#endif
     if (out) *out = nullptr;
     if (!name || !out) return Result::BadArg;
     std::lock_guard<std::mutex> hold(g_lock);
@@ -149,6 +251,7 @@ Result ReleaseService(const void* owner, const char* name) {
     std::lock_guard<std::mutex> hold(g_lock);
     for (size_t i = 0; i < g_services.size(); ++i)
         if (g_services[i].owner == owner && g_services[i].name == name) {
+            RecordWithdrawal(g_services[i]);
             g_services.erase(g_services.begin() + static_cast<std::ptrdiff_t>(i));
             return Result::Ok;
         }
@@ -159,8 +262,70 @@ long detail::ReleaseServices(const void* owner) {
     std::lock_guard<std::mutex> hold(g_lock);
     long n = 0;
     for (size_t i = g_services.size(); i-- > 0;)
-        if (g_services[i].owner == owner) { g_services.erase(g_services.begin() + static_cast<std::ptrdiff_t>(i)); ++n; }
+        if (g_services[i].owner == owner) {
+            RecordWithdrawal(g_services[i]);
+            g_services.erase(g_services.begin() + static_cast<std::ptrdiff_t>(i));
+            ++n;
+        }
     return n;
 }
+
+namespace diagnostics {
+#ifdef SCO_RUNTIME_DIAGNOSTICS_FIXTURE
+uint64_t FixtureQueryServiceCalls() { return g_fixtureQueryCalls.load(); }
+#endif
+
+ServiceInventory CopyServiceMetadata() {
+    std::lock_guard<std::mutex> hold(g_lock);
+    ServiceInventory result;
+    const size_t liveCount = std::min(g_services.size(), kMaxDiagnosticServices);
+    const size_t historyCount = std::min(g_withdrawalHistory.size(), kMaxDiagnosticServices - liveCount);
+    result.truncated = g_diagnosticHistoryLost || liveCount < g_services.size() ||
+                       historyCount < g_withdrawalHistory.size();
+    try {
+        result.items.reserve(liveCount + historyCount);
+        for (size_t i = 0; i < liveCount; ++i) result.items.push_back(Describe(g_services[i]));
+        // If active publications consume the snapshot cap, prefer the newest history.
+        for (size_t i = 0; i < historyCount; ++i) {
+            const auto& record = g_withdrawalHistory[g_withdrawalHistory.size() - 1 - i];
+            auto item = record.metadata;
+            item.exposed = Exposed(record.owner);
+            result.items.push_back(std::move(item));
+        }
+    } catch (...) {
+        result.truncated = true;
+    }
+    std::sort(result.items.begin(), result.items.end(),
+        [](const ServiceMetadata& a, const ServiceMetadata& b) { return a.service < b.service; });
+    return result;
+}
+
+Result SetServiceDiagnosticMetadata(const void* owner, const char* name, const char* safeOwnerId,
+                                    const char* category, std::optional<uint32_t> tableSize) {
+    if (!owner || !ValidServiceName(name) || !ValidOwnerId(safeOwnerId) || !ValidCategory(category) ||
+        (tableSize && *tableSize > 65536)) return Result::BadArg;
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (std::none_of(g_services.begin(), g_services.end(),
+        [&](const Service& s) { return s.owner == owner && s.name == name; })) return Result::NotFound;
+    try {
+        DiagnosticDetails details{ owner, name, std::nullopt, category, tableSize };
+        if (safeOwnerId) details.ownerId = safeOwnerId;
+        const auto found = std::find_if(g_diagnosticDetails.begin(), g_diagnosticDetails.end(),
+            [&](const DiagnosticDetails& d) { return d.owner == owner && d.name == name; });
+        if (found == g_diagnosticDetails.end()) g_diagnosticDetails.push_back(std::move(details));
+        else *found = std::move(details);
+    } catch (...) {
+        return Result::TooMany;
+    }
+    return Result::Ok;
+}
+
+void ResetServiceDiagnosticHistory() {
+    std::lock_guard<std::mutex> hold(g_lock);
+    g_withdrawalHistory.clear();
+    g_diagnosticHistoryLost = false;
+}
+
+}  // namespace diagnostics
 
 }  // namespace sco
