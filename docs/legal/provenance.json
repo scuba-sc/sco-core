@@ -19,12 +19,12 @@
    "origin": "project-authored",
    "license": "GPL-3.0-only",
    "copyright": "2026 the sco-core contributors",
-   "status": "needs-review",
-   "reviewer": "agent draft; maintainer review pending",
+   "status": "reviewed",
+   "reviewer": "scubamount (maintainer)",
    "date": "2026-10-12",
-   "note": "Public-ABI native consumers and synthetic game-service response fixtures authored for this project; no extracted game material. Repository-only, excluded from every SDK profile. Runtime, loader and service lifetime gates are reused, not replaced."
-   },
-   {
+   "note": "Public-ABI native consumers and synthetic game-service response fixtures authored for this project; no extracted game material. Repository-only, excluded from every SDK profile. Runtime, loader and service lifetime gates are reused, not replaced. Maintainer accepted 2026-10-12 (release-decisions/2026-10-12-distribution-scope.md)."
+  },
+  {
    "path": "docs/agent-integration.md",
    "origin": "project-authored",
    "license": "GPL-3.0-only",
@@ -176,7 +176,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
+   "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
   },
   {
    "path": "include/sc_net.h",
@@ -186,7 +186,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
+   "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
   },
   {
    "path": "include/sc_titanlink.h",
@@ -196,7 +196,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
+   "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
   },
   {
    "path": "include/sc_voxel_bridge.h",
@@ -206,7 +206,7 @@
    "status": "reviewed",
    "reviewer": "agent draft; maintainer approval pending",
    "date": "2026-10-11",
-   "note": "per-file MIT interface grant (CONTRIBUTING.md \u00a7 License)"
+   "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
   },
   {
    "path": "sdk/examples/quantum_pack/**",
@@ -233,33 +233,33 @@
    "origin": "interoperability-derived",
    "license": "GPL-3.0-only",
    "copyright": "2026 the sco-core contributors",
-   "status": "needs-review",
-   "reviewer": "agent draft; maintainer approval pending",
-   "date": "2026-10-11",
+   "status": "reviewed",
+   "reviewer": "scubamount (maintainer)",
+   "date": "2026-10-12",
    "issue": "game-pack",
-   "note": "Signature rows: byte patterns and referenced string/function names found by the maintainer's own analysis (docs/adding-signatures.md). Separately assessed; outside the core SDK."
+   "note": "Signature rows: byte patterns and referenced string/function names found by the maintainer's own analysis (docs/adding-signatures.md). Separately assessed; outside the core SDK. Maintainer accepted 2026-10-12 (release-decisions/2026-10-12-game-implementation.md); implementation and product export stay on hold under that decision."
   },
   {
    "path": "include/sco/game/**",
    "origin": "interoperability-derived",
    "license": "GPL-3.0-only",
    "copyright": "2026 the sco-core contributors",
-   "status": "needs-review",
-   "reviewer": "agent draft; maintainer approval pending",
-   "date": "2026-10-11",
+   "status": "reviewed",
+   "reviewer": "scubamount (maintainer)",
+   "date": "2026-10-12",
    "issue": "game-pack",
-   "note": "Game pack internals; see src/game/**."
+   "note": "Game pack internals; see src/game/**. Maintainer accepted 2026-10-12 (release-decisions/2026-10-12-game-implementation.md); implementation and product export stay on hold under that decision."
   },
   {
    "path": "tests/fixtures/datacore/**",
    "origin": "interoperability-derived",
    "license": "GPL-3.0-only",
    "copyright": "2026 the sco-core contributors",
-   "status": "needs-review",
-   "reviewer": "agent draft; maintainer approval pending",
-   "date": "2026-10-11",
+   "status": "reviewed",
+   "reviewer": "scubamount (maintainer)",
+   "date": "2026-10-12",
    "issue": "game-pack",
-   "note": "Synthetic DataCore packs; some use real record names. Built fixture data only, no game bytes."
+   "note": "Synthetic DataCore packs; some use real record names. Built fixture data only, no game bytes. Maintainer accepted 2026-10-12 (release-decisions/2026-10-12-game-implementation.md); implementation and product export stay on hold under that decision."
   },
   {
    "path": "include/**",
