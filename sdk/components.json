@@ -42,6 +42,10 @@
  ],
  "excluded": [
   {
+   "path": "tools/sco-core-mcp/",
+   "why": "Repository-only, read-only SDK catalogue discovery aid; not a runtime component or SDK package."
+  },
+  {
    "path": "sdk/contracts/",
    "why": "Repository contract authority combines core and game tables; consumers use the separately built catalogue."
   },
