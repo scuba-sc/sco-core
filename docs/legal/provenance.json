@@ -14,6 +14,36 @@
   "note": "The project's copyright notices say 'the sco-core contributors' (as sc_ipc.h does). The maintainer, scubamount, is the only contributor so far; the commit identities 'yerts' and 'scubamount' are both the maintainer."
  },
  "entries": [
+  {
+   "path": "src/game/asop_host/**",
+   "origin": "project-authored; ported project code from sc-offline",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Host-only offline fleet mechanics ported from sc-offline 1ac5308a65ac0ba7955e4108bd1dc800449cfa69 src/hooks.cpp, src/fleet.cpp and src/services.cpp. New composition and synthetic fixtures project-authored; no game extracts or GUID tables. All files excluded from SDK archives by src/game/ exclusion."
+  },
+  {
+   "path": "include/sco/game/asop_host.h",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Host-source-only game configuration; not plugin authority or public_header. Excluded from SDK archives by include/sco/game/ exclusion."
+  },
+  {
+   "path": "docs/game/asop-host.md",
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "copyright": "2026 the sco-core contributors",
+   "status": "reviewed",
+   "reviewer": "agent draft; maintainer approval pending",
+   "date": "2026-10-12",
+   "note": "Repository-only host composition documentation and evidence limits; not an SDK archive member."
+  },
 {
   "path": "include/sco/diagnostics*.h",
   "origin": "project-authored",

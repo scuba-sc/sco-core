@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Offline fleet host catalog/status (#131):** default-off host-source configuration,
+  bounded copied class catalog and Windows game-pack entitlement-list port. Unknown
+  offline/EAC state refuses; no plugin ABI/authority change. Portable fixture only;
+  Windows gameplay not verified.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner

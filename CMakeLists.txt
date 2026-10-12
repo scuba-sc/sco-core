@@ -345,6 +345,24 @@ target_link_libraries(sco-dcb PRIVATE sco_datacore)
 sco_project_target(sco-dcb)
 endif()
 
+# Host-only offline fleet composition: never linked into the neutral kernel.
+if(SCO_GAME_SC)
+  add_library(sco_asop_host STATIC src/game/asop_host/config.cpp)
+  target_link_libraries(sco_asop_host PUBLIC sco_game_sc Threads::Threads)
+  if(WIN32)
+    target_sources(sco_asop_host PRIVATE src/game/asop_host/catalog_win.cpp)
+    target_link_libraries(sco_asop_host PUBLIC sco_game_services sco_hook)
+  endif()
+  sco_project_target(sco_asop_host)
+  if(SCO_BUILD_TESTS)
+    enable_testing()
+    add_executable(test_asop_host src/game/asop_host/test_asop_host.cpp)
+    target_link_libraries(test_asop_host PRIVATE sco_asop_host)
+    sco_project_target(test_asop_host)
+    add_test(NAME asop_host COMMAND test_asop_host)
+  endif()
+endif()
+
 # ---- tests ------------------------------------------------------------------------------------
 
 if(SCO_BUILD_TESTS)
