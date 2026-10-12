@@ -269,7 +269,7 @@ endif()
 # today, published under the owner "game" when the product sets Platform::gameServices. They read
 # game memory under SEH (__try), so Windows only; SCO_GAME_SERVICES tells sco_app they're there.
 if(SCO_GAME_SC AND WIN32)
-  add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp
+  add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp src/game/services/relocation.cpp
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/events.cpp
@@ -661,6 +661,23 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(sco_test_game_spatial PRIVATE sco_engine)
     sco_project_target(sco_test_game_spatial)
     add_test(NAME game_spatial COMMAND sco_test_game_spatial)
+    add_executable(sco_test_relocation tests/test_relocation.cpp tests/abi_relocation.c)
+    target_include_directories(sco_test_relocation PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${SCO_INCLUDE_DIR}")
+    sco_project_target(sco_test_relocation)
+    add_test(NAME relocation COMMAND sco_test_relocation)
+    set(_relocation_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_relocation.cpp")
+    file(CONFIGURE OUTPUT "${_relocation_cxx}" CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_relocation.c\"\n")
+    add_library(sco_abi_relocation_cxx OBJECT "${_relocation_cxx}")
+    target_include_directories(sco_abi_relocation_cxx PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(sco_abi_relocation_cxx)
+    add_dependencies(sco_test_relocation sco_abi_relocation_cxx)
+    if(NOT MSVC)
+      add_library(sco_abi_relocation_short_enums OBJECT tests/abi_relocation.c)
+      target_include_directories(sco_abi_relocation_short_enums PRIVATE "${SCO_INCLUDE_DIR}")
+      target_compile_options(sco_abi_relocation_short_enums PRIVATE -fshort-enums)
+      sco_warnings(sco_abi_relocation_short_enums)
+      add_dependencies(sco_test_relocation sco_abi_relocation_short_enums)
+    endif()
   endif()
 
   # The MIT bridge layouts (tests/abi_titanlink.c, tests/abi_voxel_bridge.c: sc_titanlink.h and

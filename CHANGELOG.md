@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G2 relocation foundation:** size-prefixed `game.relocation` request/cancel/status and tested owner-scoped streaming completion state machinery. Production mutation remains **unavailable** until host safety/session admission, system classification and validated transport are grounded; not Windows/game verified.
+
 - **G3 `game.spatial` 1.0:** new size-prefixed native C/raw C++ full-pose conversion
   plus bounded copied zone records, exact observed-name lookup and epoch-pinned
   pages. At most 256 observed IDs/64 records per page; complete rigid ancestry only,

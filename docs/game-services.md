@@ -6,6 +6,7 @@ The Star Citizen game pack publishes its services under the reserved owner `game
 
 | Service | Version | Header | Since game pack | What |
 |---|---|---|---|---|
+| `game.relocation` | 1.0 | [`sc_relocation.h`](../include/sc_relocation.h) | Unreleased | Owner-scoped request/cancel/status foundation; production mutation unavailable pending safety/session admission, system classifier and transport. Synthetic only. |
 | `teleport.spatial` | 1.0 | [`sc_spatial.h`](../include/sc_spatial.h) | 0.1.0 | Where you are, and positions between the game's zones |
 | `game.spatial` | 1.0 | [`sc_game_spatial.h`](../include/sc_game_spatial.h) | Unreleased | Full-pose conversion and bounded copied observed ancestry/name pages; system identity explicitly unknown. Native C/raw C++ only. Synthetic fixtures; not verified on Windows or in game. [Contract](contracts.md#gamespatial-sc_game_spatial_v1) |
 | `spawn.entities` | 1.2 | [`sc_spawn.h`](../include/sc_spawn.h) | 0.2.0 | Spawn entities near you, your entity and ship ids, and move what you spawned |

@@ -7,6 +7,7 @@
 // every tick; a zone queried that isn't in it yet is read on the spot.
 #include "sco/game/services.h"
 #include "spawn.h"
+#include "relocation.h"
 #include "spatial_model.h"
 #include "actors.h"
 #include "vehicles.h"
@@ -342,6 +343,7 @@ const sc_game_spatial_v1 kGameSpatial = {
 };
 
 void WithdrawSpatial() {
+    StopRelocation();
     host::WithdrawGameService(SC_GAME_SPATIAL_NAME);
     host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
 }
@@ -364,6 +366,8 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    r = StartRelocation();
+    if (r != Result::Ok) { WithdrawSpatial(); return r; }
     r = StartSpawn();
     if (r != Result::Ok) {
         WithdrawSpatial();

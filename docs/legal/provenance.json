@@ -15,6 +15,56 @@
  },
  "entries": [
 {
+ "path": "include/sc_relocation.h",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+},
+{
+ "path": "src/game/services/relocation*",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+},
+{
+ "path": "tests/abi_relocation.c",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+},
+{
+ "path": "tests/test_relocation.cpp",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+},
+{
+ "path": "sdk/contracts/sc_relocation_v1.json",
+ "origin": "project-authored",
+ "license": "GPL-3.0-only",
+ "copyright": "2026 the sco-core contributors",
+ "status": "reviewed",
+ "reviewer": "agent draft; maintainer approval pending",
+ "date": "2026-10-12",
+ "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+},
+{
   "path": "include/sc_game_spatial.h",
   "origin": "project-authored",
   "license": "GPL-3.0-only",
