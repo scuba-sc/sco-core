@@ -109,7 +109,7 @@ class RealManifest(unittest.TestCase):
             self.assertEqual(desc["source_commits"]["core"], subprocess.check_output(
                 ["git", "-C", pkg.ROOT, "rev-parse", "HEAD"], text=True).strip())
             self.assertEqual(desc["game_overlay_version"], pkg.game_pack()[0]
-                             if prof in ("game-sc", "legacy") else None)
+                             if prof in ("game-sc", "legacy", "host-source-sc") else None)
             self.assertEqual(desc["base_core_sha256"], sha(core) if prof == "game-sc" else None)
 
     def test_overlay_rejects_different_core_before_build(self):

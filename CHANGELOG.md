@@ -31,6 +31,30 @@ What each change means for plugin authors and for products built on sco-core (sc
   refused. Public C example, synthetic module/layout tests, catalogue, packaging
   and provenance added. Frozen `sco_api` unchanged; no allowlist expansion.
   Not run in game; C#/Lua and product step-2C migration remain downstream.
+- **Offline host DataCore timing (G1):** initialize/index before early engine
+  loading, bounded CryPak transform, preserve LOADED across app Start and drain
+  producers before teardown. Synthetic early-load/late-refusal fixture passes;
+  Windows transport and legacy builtin migration remain unverified.
+
+- **Offline host quit adapter (G1):** required validated CSystem quit hook by
+  default, synchronous stop before both engine quit paths, original argument
+  passthrough, repeated-stop/task-cancellation fixtures and explicit external
+  quit integration. No product fast-shutdown field reads; actual Windows detour
+  and game shutdown not verified.
+
+- **Offline host tick adapter (G1):** game-thread cadence/wrap handling, first-pass
+  tick, fresh admission checks even on throttled passes, shutdown/cancellation on
+  lost offline evidence, and no feature fallback after a plugin fault. OS message
+  and renderer integration remain in the shell; synthetic fixtures only.
+
+- **Offline host composition, admission/resolve/start (G1):** add game-only
+  `sco_game_host` C++ host-source target. Unknown/online/EAC/unblocked-network/wrong
+  target evidence refuses before any signature resolution or publication; startup
+  revalidates admission, owns row resolution and starts the existing app kit.
+  Synthetic lifecycle/thread fixtures only; no online-to-offline conversion,
+  plugin patch service or frozen ABI change. Legacy offline mutations and product
+  migration remain separate; not run in game.
+- **G16 local Star Citizen host-source kit:** `host-source-sc` packages the neutral kernel plus complete tracked game implementation, DataCore, private headers, vendored dependencies and synthetic test inputs in a standalone source layout. Existing SPDX SBOM, provenance and checksum generation is retained; an extracted-archive regression builds the G1 host adapter targets with `SCO_GAME_SC=ON`, runs five synthetic host fixtures and checks `core-source` game exclusions. All six private adapter files are included. No plugin ABI, CI/release workflow, publication or attestation change; Windows/game validation and human-controlled asset publication remain owed.
 
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,

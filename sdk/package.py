@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Packages the sco SDK. What goes in a zip is decided by sdk/components.json and nothing else.
 
-    sdk/package.py [--profile core|core-source|game-sc|legacy] [--out DIR]   # default: legacy, sdk/out
+    sdk/package.py [--profile core|core-source|host-source-sc|game-sc|legacy] [--out DIR]   # default: legacy, sdk/out
     sdk/package.py --check                                        # validate the manifest only
     sdk/package.py --list-headers core,game-sc                    # public headers of those profiles
 
@@ -13,6 +13,8 @@ Profiles (sdk/components.json "profiles"):
            over the core SDK of the version its VERSIONS.txt names.
   core-source sco-sdk-core-source-<sdk/VERSION>.zip: the kernel source-development kit,
            keeping repository paths, with synthetic tests and no game implementation.
+  host-source-sc sco-sdk-host-source-sc-<sdk/VERSION>.zip: standalone Star Citizen
+           host source with the neutral kernel, game implementation and synthetic tests.
   legacy   sco-sdk-<sdk/VERSION>.zip: core and game-sc in one zip, as sdk-v1.1.0 shipped. Not
            game-neutral; kept until the consumers move to core + game-sc.
 
@@ -443,7 +445,7 @@ def abi_version():
 
 
 def game_pack():
-    """(version, verified build, PE timestamp, how) from include/sc_game_pack.h. game-sc and legacy only."""
+    """(version, verified build, PE timestamp, how) from the shipped game-pack header."""
     pack = read("include/sc_game_pack.h")
     w = "include/sc_game_pack.h"
     return (define(pack, "SCO_GAME_PACK_VERSION", r"[0-9]+\.[0-9]+\.[0-9]+", w),
@@ -464,6 +466,13 @@ def versions_txt(profile, version):
                 f"plugin ABI (sco_api.h): {abi}\n\nThe Star Citizen game services are a separate extension, "
                 f"sco-sdk-game-sc-<version>.zip.\n")
     gp, build, stamp, how = game_pack()
+    if profile == "host-source-sc":
+        return (f"sco SDK Star Citizen host source {version}\n\n"
+                f"kernel (sdk/VERSION): {version}\nplugin ABI (sco_api.h): {abi}\n"
+                f"game pack (SCO_GAME_PACK_VERSION): {gp}\n\n"
+                "Standalone source kit; configure with -DSCO_GAME_SC=ON. Do not overlay plugin SDK zips.\n"
+                "Local synthetic packaging proof only; game runtime and release publication are not verified.\n"
+                f"signature metadata: {build} (PE timestamp {stamp}): {how}\n")
     if profile == "game-sc":
         return (f"sco SDK Star Citizen extension {gp}\n\ngame pack (SCO_GAME_PACK_VERSION, Star Citizen): {gp}\n"
                 f"needs: sco SDK core {sdk_version()} (plugin ABI {abi}); unpack this over it\n\n"
@@ -676,9 +685,9 @@ def archive_entries(m, profile):
     commit = source_commit()
     desc = {"schema_version": 1, "profile": profile, "core_sdk_version": sdk_version(),
             "plugin_abi_version": abi_version(),
-            "game_overlay_version": game_pack()[0] if profile in ("game-sc", "legacy") else None,
+            "game_overlay_version": game_pack()[0] if profile in ("game-sc", "legacy", "host-source-sc") else None,
             "source_commits": {"core": commit}, "base_core_sha256": None}
-    if profile in ("game-sc", "legacy"):
+    if profile in ("game-sc", "legacy", "host-source-sc"):
         desc["source_commits"]["game-sc"] = commit
     if profile == "game-sc":
         core_top, core_entries = archive_entries(m, "core")

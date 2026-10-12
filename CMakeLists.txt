@@ -85,6 +85,7 @@ sco_project_target(sco_core)
 if(SCO_GAME_SC)
   file(GLOB SCO_GAME_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/game/*.cpp")
   list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|diagnostics)\\.cpp$")
+  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|host)\\.cpp$")
   add_library(sco_game_sc STATIC ${SCO_GAME_SOURCES})
   target_link_libraries(sco_game_sc PUBLIC sco_core)
   add_library(sco_game_diagnostics STATIC src/game/diagnostics.cpp)
@@ -301,6 +302,13 @@ if(SCO_GAME_SC AND WIN32)
   target_link_libraries(sco_app PUBLIC sco_game_services)
 endif()
 sco_project_target(sco_app)
+
+# Offline game host composition is a separate host-source target, never a plugin API.
+if(SCO_GAME_SC)
+  add_library(sco_game_host STATIC src/game/host.cpp)
+  target_link_libraries(sco_game_host PUBLIC sco_app sco_game_sc sco_hook sco_pak sco_datacore_service)
+  sco_project_target(sco_game_host)
+endif()
 
 # Vendored Lua 5.4 (plugins/lua/third_party/lua): built as-is, its own warnings off.
 file(GLOB SCO_LUA_VENDOR_SOURCES CONFIGURE_DEPENDS
@@ -938,6 +946,17 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_vfs COMMAND test_vfs)
 
   if(SCO_GAME_SC)
+  add_executable(test_game_host_data tests/game_host_data.cpp)
+  target_link_libraries(test_game_host_data PRIVATE sco_game_host)
+  sco_project_target(test_game_host_data)
+  add_test(NAME game_host_data COMMAND test_game_host_data "${SCO_TEST_OUT}/host-data")
+  add_executable(test_game_host tests/game_host.cpp)
+  target_link_libraries(test_game_host PRIVATE sco_game_host)
+  sco_project_target(test_game_host)
+  add_test(NAME game_host COMMAND test_game_host)
+  add_test(NAME game_host_loss COMMAND test_game_host loss)
+  add_test(NAME game_host_quit COMMAND test_game_host quit)
+  add_test(NAME game_host_quit_missing COMMAND test_game_host missing-quit)
   # The DataCore parser over tests/dcb_builder.h fixtures; it also writes the fixtures dcb_tool
   # runs sco-dcb on.
   add_executable(test_datacore tests/test_datacore.cpp)
