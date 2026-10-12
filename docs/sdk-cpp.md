@@ -120,8 +120,8 @@ if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK) g
 
 - `Query` answers like `query_service` (`SCO_OK`, `SCO_UNAVAILABLE` for another major or an older version, `SCO_NOT_FOUND`) and `SCO_UNAVAILABLE` on a 1.0 host. The ref is empty unless `SCO_OK`; check it (`if (g)`) before `->`.
 - `HasMember(ref, &T::field)` is true when the provider's `size` covers `field`: the check before calling a function a later minor added.
-- `Release(plugin, name)` withdraws one of your services. The host withdraws the rest when you unload.
-- A provider's table goes away when it unloads: query when you need it, and don't keep a `ServiceRef` across ticks.
+- `Release(plugin, name)` stops new lookup of that service; the host withdraws the rest at unload. It does not revoke cached pointers or wait for calls through them.
+- `ServiceRef` is a borrowed pointer holder, not a lease. Keep a provided table and all backing state valid until provider-coordinated quiescence: stop new lookup, prevent consumers from starting more calls, and wait for all in-flight calls and custom workers to finish before destruction. Without that coordination, retain them for the admitted host session. Once a native table has been handed out, administrative unload/reload is refused for that session; retained code/state after a fault is not permission to call it. Do not use peer tables during shutdown or across sessions; stop using cached tables and restart after a native fault. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
 - Entity ids, never pointers: a service that deals with game objects takes and returns entity and zone ids (opaque `uint64_t` values, as the game's are), resolves them on every call on the game thread, and answers `SCO_NOT_FOUND` or `SCO_UNAVAILABLE` once the entity has streamed out. Never return a pointer into the game: objects stream out and a stored pointer dangles. See [the API rule](api-v1.md#services-11).
 - Zone ids (`zone_id`, as in [`teleport.spatial`](api-v1.md#game-pack-services)) are volatile streaming handles: the same place gets another id after it streams out and back in. Anything you persist or send keeps the zone name string plus `double` x, y, z in that zone, never the raw id; resolve the name back to an id when you need it.
 
@@ -237,7 +237,7 @@ The SDK owns every callable you hand it (command and raw handlers, event handler
 | A task (`RunOnGameThread`) | It runs, then it is freed. A task still queued at unload is dropped and never runs: don't rely on one to save state |
 | A `done` callback (`InvokeAsync`) | It runs. A call still queued at unload is dropped and `done` is not called |
 | An event handler | Its `Subscription` is destroyed or `Reset`, or the plugin unloads |
-| A service table | Yours: keep it valid (a `static`) until `Release` or unload |
+| A service table | Yours: keep the table and backing state valid until provider-coordinated quiescence; absent that, retain them for the admitted host session. `Release` only stops new lookup (see [Services](#services)) |
 
 `Subscription` is a move-only handle. The SDK keeps one host subscription per event and multiplexes your handlers over it (the host keys a subscription by plugin, event and function, so it can't hold two for one event). Destroying the handle or calling `Reset()` removes the handler; when the last handler for an event goes, the host subscription goes too.
 

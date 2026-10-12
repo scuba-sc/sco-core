@@ -21,11 +21,11 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 - **A stable ABI:** [`sco_api.h`](include/sco_api.h), version 1.1. Version 1 only grows, so a plugin built today keeps loading in later 1.x hosts.
 - **Host services:** storage (SQLite), UI and hotkeys, typed settings, DataCore patches, local IPC and private-session messages.
 - **Game services** from the Star Citizen game pack: actors, vehicles, world, entities and events. Their signatures resolve on 4.10.196.36804, but none has been run in a game session yet: [status of every game.* table](docs/game/status.md).
-- **Crash containment and hot reload:** a plugin that faults is contained, and plugins reload while the game runs. Exact rules, including when a restart is required: [Plugins](docs/plugins.md).
+- **Native fault handling and hot reload:** guarded host-entered calls on Windows support best-effort fault attribution and withdrawal, not safe recovery. Native plugins are trusted in-process code, not sandboxed; raw service calls and custom workers are not automatically guarded, and corruption can still end the process. Eligible plugins can reload while the game runs; restart after a native fault. [Guard limits and restart rules](docs/plugins.md#crash-containment).
 
 ## Quick start: write a plugin
 
-Download `sco-sdk-<version>.zip` from [releases](https://github.com/scubamount/sco-core/releases) (latest published: `sdk-v1.1.0`), or build it with `python3 sdk/package.py`. Then:
+SDK [2.0.0](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.0.0) is published (plugin ABI 1.1). Download `sco-sdk-<version>.zip` from the [latest published release](https://github.com/scubamount/sco-core/releases/latest), or build it with `python3 sdk/package.py`. Then:
 
 ```sh
 cd sco-sdk-<version>

@@ -1,6 +1,6 @@
-# sco-core SDK 2.0.0 (release notes, draft)
+# sco-core SDK 2.0.0 (release notes)
 
-Tag `sdk-v2.0.0`, zip `sco-sdk-2.0.0.zip`. Prepared on 2026-10-12; **the tag is not pushed and no GitHub release exists yet.** The release workflow publishes the CHANGELOG section `## sdk-v2.0.0` as the release's notes; this page is the longer draft behind it.
+Tag `sdk-v2.0.0`, combined zip `sco-sdk-2.0.0.zip`. **Published on 2026-10-12 at 17:04:57 UTC:** [SDK 2.0.0 release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.0.0). It includes combined, core, core-source and Star Citizen overlay archives, their SBOMs, `SHA256SUMS`, `release.json` and `release.json.sig`. Published assets are immutable approved payloads; a local build with the same version is not proof of byte equality. The release workflow publishes the CHANGELOG section `## sdk-v2.0.0` as the release's notes; this page is the longer reference behind it. For the newest published SDK, use [latest release](https://github.com/scubamount/sco-core/releases/latest).
 
 ## Versions
 
@@ -63,4 +63,4 @@ sha256sum -c SHA256SUMS
 unzip -p sco-sdk-2.0.0.zip sco-sdk-2.0.0/VERSIONS.txt
 ```
 
-Route through the appropriate reviewer before sending.
+Publication followed the [maintainer release procedure](../legal/release-checklist.md#releasing); these notes do not authorize a new release or asset replacement.
