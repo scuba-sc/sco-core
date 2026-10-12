@@ -182,6 +182,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sco_net_v1` | 7 | 64 | 1.0 |
 | `sco_settings_v1` | 5 | 48 | 1.0 |
 | `sco_ui_v1` | 9 | 80 | 1.0 |
+| `sco_widgets_v1` | 2 | 24 | 1.0 |
 | `sc_spatial_v1` | 6 | 56 | 1.0 |
 | `sc_spawn_service_v1` | 7 | 64 | 1.2 |
 | `sc_actors_v1` | 6 | 56 | 1.1 |
@@ -377,6 +378,25 @@ the value, for every plugin's changes. See [settings](api-v1.md#scosettings-10).
 | `sco_settings_v1.get_float` | `size >= 32`; 1.0 | `sco_result (*get_float)(sco_plugin* self, const char* name, double* out);`<br>SCO_BAD_ARG: not a float setting. | Caller outputs; host owns settings; no allocation transfer. String/error copy may allocate internally. | Any thread; memory reads under lock. Recursive reentrancy unspecified. | Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract. | No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 | `sco_settings_v1.get_string` | `size >= 40`; 1.0 | `sco_result (*get_string)(sco_plugin* self, const char* name, char* out, uint32_t* inout_size);`<br>A string setting's text, or an enum setting's choice, with the size handshake. | Caller outputs; host owns settings; no allocation transfer. String/error copy may allocate internally. | Any thread; memory reads under lock. Recursive reentrancy unspecified. | Common settings errors; TOO_MANY reports required NUL-inclusive bytes without writing string; inout_size reset on other failure. Caller text untouched on failure. | No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 | `sco_settings_v1.last_error` | `size >= 48`; 1.0 | `sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The message of this plugin's last failed call ("" if none), NUL-terminated, with the size handshake. | Caller outputs; host owns settings; no allocation transfer. String/error copy may allocate internally. | Any thread; memory reads under lock. Recursive reentrancy unspecified. | BAD_ARG invalid/released self or buffer; UNAVAILABLE stopped; TOO_MANY required bytes or allocation. Empty string if no recorded failure; diagnostic completeness unspecified. | No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
+
+## sco.widgets: `sco_widgets_v1`
+
+Renderer-neutral retained panels, host-owned service 1.0. Source: `include/sco_widgets.h`,
+`src/widgets/widgets.cpp`; design: [widgets](design/widgets.md). This does not change
+the frozen sco_api ABI or the legacy sco.ui draw-context/hotkey route. Limits:
+64 panels, 256 nodes/panel, 4096 live nodes, 256 items/node, 16 table columns.
+Strings are copied UTF-8, plain text; callbacks and context are borrowed. All
+methods/events are game-thread only. Events update retained state then dispatch
+under the owner guard; replacing/removing a panel invalidates pending generations.
+C is direct; C++ has `scosdk/widgets.hpp`. C# is unsupported/deferred in
+[#142](https://github.com/scubamount/sco-core/issues/142), Lua in
+[#143](https://github.com/scubamount/sco-core/issues/143), follow-ups to #139.
+The optional ImGui adapter is host-only; plugins never include it.
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sco_widgets_v1.set_panel` | `size >= 16`; 1.0 | `sco_result (*set_panel)(sco_plugin* self, const char* id, const char* title, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride, sco_widget_event_fn fn, void* ctx);`<br>Atomically adds/replaces an owned complete preorder tree. ID/title <=63 bytes; 1..256 nodes, aligned stride >=80 and node size within stride. Unique nonzero node IDs, parent 0 or preceding active ROW/COLUMN; all subtrees contiguous. Copies valid UTF-8 labels/text/items <=255 bytes; 256 items/node and 16 table columns. Zero unused fields; finite/ranged numeric values and valid selections. Failure preserves old tree/callback. | Host deep-copies tree/strings on success; fn/ctx borrowed until successful replacement/removal or ordinary owner release. No allocation transfer. | Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard. | OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG malformed owner/ID/title/tree/size/stride/data; TOO_MANY limits or allocation failure. Failure atomic. | Successful replacement/removal and ordinary owner release discard stale-generation events and end borrowed callbacks. Fault guard stops delivery; retained-provider faults skip ordinary resource release until restart. No separate cancel token. |
+| `sco_widgets_v1.remove_panel` | `size >= 24`; 1.0 | `sco_result (*remove_panel)(sco_plugin* self, const char* id);`<br>Removes an owned panel. Absent ID returns NOT_FOUND; success ends pending callbacks for that generation and permits immediate ctx destruction, including inside its callback. Failure preserves the panel. | Host releases copied tree and borrowed callback registration, never frees plugin ctx; caller may free ctx after success. | Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard. | OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG invalid/released owner or malformed ID; NOT_FOUND absent owned panel. Failure leaves registration unchanged. | Successful replacement/removal and ordinary owner release discard stale-generation events and end borrowed callbacks. Fault guard stops delivery; retained-provider faults skip ordinary resource release until restart. No separate cancel token. |
 
 ## sco.ui: `sco_ui_v1`
 

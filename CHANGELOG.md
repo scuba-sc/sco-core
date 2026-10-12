@@ -4,6 +4,15 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
+  plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
+  guarded game-thread events, generation-based stale-event rejection and owner
+  release cleanup. Optional host-only ImGui adapter, synthetic headless renderer
+  tests and archive-built `widgets` example/checker; no plugin renderer dependency.
+  Frozen `sco_api` 1.1 and legacy `sco.ui` draw callbacks/hotkeys remain unchanged.
+  C# and Lua routes are explicitly deferred in scubamount/sco-core #142/#143
+  (follow-ups to #139); this does not claim complete language parity or GPU/game validation.
+
 - **First-plugin documentation:** add a published-archive download/checksum/copy/rename/build/check walkthrough, explicit Windows deployment limits and diagnostics; curate the documentation index for six audiences and publish the guide through the existing site allowlist. No behavior or ABI change.
 - **SDK documentation safety:** clarify service-table quiescence, native fault limits, reused Windows IPC mapping access and DataCore output-alias precautions; make the C storage example compile with full callback guards and refresh published SDK 2.0.0 links. No behavior or ABI change.
 - **Runtime MCP design and security policy:** record owner-approved placement A and all eight defaults (2026-10-12) for a default-off, metadata-only runtime tool group inside the existing `sco-core-mcp` server, with exact schemas, authenticated same-PC IPC, protected audit and fixture acceptance requirements. Runtime data comes from both a minimal Star Citizen game-pack snapshot and an optional diagnostics SDK plugin, off by default, read-only, without personal identifiers and only through the host diagnostics endpoint (#141). Runtime tools are not implemented; discovery behavior/dependencies are unchanged. GitHub private vulnerability reporting is enabled; link the private report intake.

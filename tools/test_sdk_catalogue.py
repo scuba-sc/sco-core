@@ -54,9 +54,16 @@ class CatalogueTests(unittest.TestCase):
     def test_baseline_matches_header_count(self):
         records, extracted = catalogue.validate(self.root)
         self.assertEqual(len(records), len(extracted['methods']))
-        self.assertEqual(len(records), 120)
-        self.assertEqual(len(extracted['tables']), 14)
-        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 117)
+        self.assertEqual(len(records), 122)
+        self.assertEqual(len(extracted['tables']), 15)
+        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 119)
+        widgets = [r for r in records if r['table'] == 'sco_widgets_v1']
+        self.assertEqual({r['symbol'] for r in widgets},
+                         {'sco_widgets_v1.set_panel', 'sco_widgets_v1.remove_panel'})
+        for record in widgets:
+            self.assertEqual({lang: route['status'] for lang, route in record['language_mappings'].items()},
+                             {'c': 'direct', 'cpp': 'typed-wrapper',
+                              'csharp': 'unsupported', 'lua': 'unsupported'})
 
     def test_new_undocumented_method(self):
         self.header_change('sco_storage.h', '} sco_storage_v1;',

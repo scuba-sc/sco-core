@@ -40,6 +40,13 @@ echo "abi_storage: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-m
 clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_ui.c"
 clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_ui.c"
 echo "abi_ui: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
+# The renderer-neutral widget table and payloads, all five ABI modes.
+"$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_widgets.c"
+"$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_widgets.c"
+"$CC"  -std=c11   "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_widgets.c"
+clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_widgets.c"
+clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_widgets.c"
+echo "abi_widgets: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 # The sco.settings table (tests/abi_settings.c), the same five ways.
 "$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_settings.c"
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_settings.c"
@@ -392,6 +399,17 @@ UI=("$ROOT/tests/test_ui.cpp" "$ROOT/src/ui/ui.cpp" "${PLUGINS[@]}" "${RUNTIME[@
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "${UI[@]}" -ldl -o "$OUT/test_ui_tsan"
 "$OUT/test_ui_tsan"
 
+# Retained widgets over the neutral real host, and the host-only ImGui API shim.
+WIDGETS=("$ROOT/tests/test_widgets.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}"
+         "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${WIDGETS[@]}" -o "$OUT/test_widgets"
+"$OUT/test_widgets"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "${WIDGETS[@]}" -o "$OUT/test_widgets_tsan"
+"$OUT/test_widgets_tsan"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -DSCO_TEST_IMGUI_ADAPTER \
+  -I "$ROOT/sdk/third_party/imgui" "$ROOT/tests/test_widgets_sdk.cpp" "$ROOT/src/widgets/imgui_adapter.cpp" -o "$OUT/test_widgets_sdk"
+"$OUT/test_widgets_sdk"
+
 # sco.settings (sco/settings.h, sco_settings.h, scosdk/settings.hpp): the declarations' values, the service
 # over the real host table and storage, persistence across a restart, settings.changed; readers on
 # threads beside the game thread's sets, so both sanitizer sets.
@@ -423,7 +441,7 @@ done
 # The host kit (sco/app.h): built-ins, the fake plugins m0 and m11, greeter and travel_pack through
 # sco::app (ASan+UBSan). Then sco-host-sim over the SDK examples, laid out like data/plugins with
 # hello built here as a shared library (CMake: CTest host_sim_examples).
-APP=("$ROOT/src/app/sco_app.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp"
+APP=("$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp"
      "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$SQLITE_ASAN"
      "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${NETSVC_SRC[@]}" "$OUT/sha2_asan.o"
      "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}")
@@ -431,6 +449,8 @@ APP=("$ROOT/src/app/sco_app.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/
   "${LUA_OBJS[@]}" -ldl -o "$OUT/test_app"
 "$OUT/test_app" "$ROOT/sdk" "$OUT"
 "$OUT/test_app" "$ROOT/sdk" "$OUT" shutdown-only
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_widgets_app.cpp" "${APP[@]}" -ldl -o "$OUT/test_widgets_app"
+"$OUT/test_widgets_app"
 SIM=$OUT/sim/plugins
 rm -rf "$OUT/sim"
 mkdir -p "$SIM/hello"

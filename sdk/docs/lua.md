@@ -259,3 +259,13 @@ lua5.4 tools/lua-check.lua examples/greeter --cap teleport --invoke greeter.gree
 ```
 
 `lua-check.lua` runs the script with the sandbox's globals and a stand-in `sco` table that checks the rules above, fires `game.ready`, three ticks and `game.exit`, and runs every command without arguments plus the one named by `--invoke`. It has no instruction budget and no game.
+
+## Renderer-neutral widgets: deferred route
+
+`sco.widgets` 1.0 is not exposed by the Lua sandbox: **unsupported/deferred**.
+The C/C++ native route is documented in [widgets](widgets.md). Legacy Lua hotkey
+bindings are not a widget API, and scripts cannot use renderer contexts or raw
+service-table FFI. [#143](https://github.com/scubamount/sco-core/issues/143), a
+follow-up to [#139](https://github.com/scubamount/sco-core/issues/139), tracks bounded
+tree parsing, callback registry/budget handling and unload/generation tests.
+The C# neutral route is separately deferred in #142.
