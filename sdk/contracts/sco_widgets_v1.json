@@ -81,6 +81,8 @@
         "tests/test_widgets.cpp",
         "tests/test_widgets_sdk.cpp",
         "tests/test_lua.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs",
         "sdk/test-zip.sh"
       ],
       "limitations": [
@@ -169,6 +171,8 @@
         "tests/test_widgets.cpp",
         "tests/test_widgets_sdk.cpp",
         "tests/test_lua.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs",
         "sdk/test-zip.sh"
       ],
       "limitations": [

@@ -1,5 +1,9 @@
 // GPL-3.0-only. Synthetic game-provider fixture; no engine/network access.
 #include "game/services/relocation_model.h"
+// Assertions perform fixture operations and must remain active in Release builds.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstddef>
 #include <cstdio>

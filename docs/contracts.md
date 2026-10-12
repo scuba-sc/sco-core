@@ -208,6 +208,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sco_content_v1` | 2 | 24 | 1.0 |
 | `sco_ui_v1` | 9 | 80 | 1.0 |
 | `sco_widgets_v1` | 2 | 24 | 1.0 |
+| `sco_diagnostics_publisher_v1` | 1 | 16 | 1.0 |
 | `sc_relocation_v1` | 3 | 32 | 1.0 |
 | `sc_spatial_v1` | 6 | 56 | 1.0 |
 | `sc_game_spatial_v1` | 4 | 40 | 1.0 |

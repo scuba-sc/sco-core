@@ -509,6 +509,116 @@
       "note": "Example data pack. Its names, paths and GUIDs are made up to show the format (maintainer decision 2026-10-11, F-08/F-09: replace the game-derived data with synthetic names)."
     },
     {
+      "path": "src/game/host_testing.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Private synthetic host adapter seam, no game data or plugin API."
+    },
+    {
+      "path": "include/sco/game/host.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
+    },
+    {
+      "path": "src/game/host.cpp",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
+    },
+    {
+      "path": "src/game/services/relocation*",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+    },
+    {
+      "path": "src/game/services/spatial_model.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+    },
+    {
+      "path": "src/game/services/cvars.*",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G7 scoped cvar read/reversible-write provider and host-only verified engine seam, with only four exact interoperability names. Synthetic engine fixtures; no game code/data copied, no arbitrary console or USER.cfg mutation, no guessed engine ABI."
+    },
+    {
+      "path": "src/game/services/quantum.*",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Bounded offline quantum contract/control state and synthetic fixtures. No engine implementation, game extracts, licence exception or release authorization."
+    },
+    {
+      "path": "src/game/services/loadout.*",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
+    },
+    {
+      "path": "src/game/asop_host/**",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Host-only offline fleet mechanics ported from sc-offline 1ac5308a65ac0ba7955e4108bd1dc800449cfa69 src/hooks.cpp, src/fleet.cpp and src/services.cpp. New composition and synthetic fixtures project-authored; no game extracts or GUID tables. Private host-source-sc development-kit inputs only; not included in plugin SDK profiles."
+    },
+    {
+      "path": "include/sco/game/asop_host.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Host-source-only game configuration; not plugin authority or public_header. Private host-source-sc development-kit input only; not included in plugin SDK profiles."
+    },
+    {
+      "path": "src/game/services/offline_missions.*",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-12",
+      "note": "Guarded offline mission/economy boundary and wholly synthetic fixtures. No proprietary scripts/data or activated engine adapter."
+    },
+    {
       "path": "src/game/**",
       "origin": "interoperability-derived",
       "license": "GPL-3.0-only",
@@ -662,36 +772,6 @@
       "date": "2026-10-11"
     },
     {
-      "path": "src/game/host_testing.h",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "Private synthetic host adapter seam, no game data or plugin API."
-    },
-    {
-      "path": "include/sco/game/host.h",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
-    },
-    {
-      "path": "src/game/host.cpp",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "Offline host-source composition and synthetic fixtures. No game extracts, plugin patch authority, MIT grant or release approval."
-    },
-    {
       "path": "tests/game_host.cpp",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -713,16 +793,6 @@
     },
     {
       "path": "include/sc_relocation.h",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
-    },
-    {
-      "path": "src/game/services/relocation*",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
       "copyright": "2026 the sco-core contributors",
@@ -772,16 +842,6 @@
       "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
     },
     {
-      "path": "src/game/services/spatial_model.h",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
-    },
-    {
       "path": "tests/abi_game_spatial.c",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -822,27 +882,7 @@
       "note": "G7 independently size-prefixed scoped bool read/write contracts. Four reference names only; no copied engine implementation or new MIT grant. Reversible owner restoration and production fail-closed verified adapter seam."
     },
     {
-      "path": "src/game/services/cvars.*",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "G7 scoped cvar read/reversible-write provider and host-only verified engine seam, with only four exact interoperability names. Synthetic engine fixtures; no game code/data copied, no arbitrary console or USER.cfg mutation, no guessed engine ABI."
-    },
-    {
       "path": "include/sc_quantum.h",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "Bounded offline quantum contract/control state and synthetic fixtures. No engine implementation, game extracts, licence exception or release authorization."
-    },
-    {
-      "path": "src/game/services/quantum.*",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
       "copyright": "2026 the sco-core contributors",
@@ -912,16 +952,6 @@
       "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
     },
     {
-      "path": "src/game/services/loadout.*",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-    },
-    {
       "path": "sdk/contracts/sc_loadout_v1.json",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -960,26 +990,6 @@
       "reviewer": "agent draft; maintainer approval pending",
       "date": "2026-10-12",
       "note": "G6 typed local-player offline equip contract/provider and synthetic-only tests. No game extracts, XML loader, account inventory, verified engine acceptance or new MIT grant."
-    },
-    {
-      "path": "src/game/asop_host/**",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "Host-only offline fleet mechanics ported from sc-offline 1ac5308a65ac0ba7955e4108bd1dc800449cfa69 src/hooks.cpp, src/fleet.cpp and src/services.cpp. New composition and synthetic fixtures project-authored; no game extracts or GUID tables. All files excluded from SDK archives by src/game/ exclusion."
-    },
-    {
-      "path": "include/sco/game/asop_host.h",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "Host-source-only game configuration; not plugin authority or public_header. Excluded from SDK archives by include/sco/game/ exclusion."
     },
     {
       "path": "docs/game/asop-host.md",
@@ -1043,16 +1053,6 @@
     },
     {
       "path": "tests/test_offline_missions.cpp",
-      "origin": "project-authored",
-      "license": "GPL-3.0-only",
-      "copyright": "2026 the sco-core contributors",
-      "status": "reviewed",
-      "reviewer": "agent draft; maintainer approval pending",
-      "date": "2026-10-12",
-      "note": "Guarded offline mission/economy boundary and wholly synthetic fixtures. No proprietary scripts/data or activated engine adapter."
-    },
-    {
-      "path": "src/game/services/offline_missions.*",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
       "copyright": "2026 the sco-core contributors",

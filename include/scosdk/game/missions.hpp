@@ -2,6 +2,7 @@
 #ifndef SCOSDK_GAME_MISSIONS_HPP
 #define SCOSDK_GAME_MISSIONS_HPP
 #include "sc_missions.h"
+#include <cstddef>
 namespace sco::sdk::game {
 class Missions {
     const sc_missions_v1* table_ = nullptr;

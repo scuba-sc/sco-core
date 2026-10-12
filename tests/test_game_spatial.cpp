@@ -1,5 +1,9 @@
 // Synthetic game-pack spatial fixtures; no game memory or engine execution.
 #include "../src/game/services/spatial_model.h"
+// Assertions perform fixture operations and must remain active in Release builds.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cmath>
 #include <cstdlib>

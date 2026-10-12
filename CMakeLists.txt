@@ -62,6 +62,15 @@ function(sco_project_target target)
   if(SCO_SANITIZE AND NOT MSVC)
     target_compile_options(${target} PRIVATE -fsanitize=${SCO_SANITIZE} -fno-omit-frame-pointer)
     target_link_options(${target} PUBLIC -fsanitize=${SCO_SANITIZE})
+    if(UNIX AND NOT APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+      # DSOs with --no-undefined need the shared sanitizer runtime. Use the same
+      # runtime in their host executables; mixing static and shared ASan fails.
+      target_link_options(${target} PUBLIC -shared-libsan)
+      execute_process(COMMAND "${CMAKE_C_COMPILER}" -print-runtime-dir
+        OUTPUT_VARIABLE _sco_sanitizer_dir OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY)
+      set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "${_sco_sanitizer_dir}")
+    endif()
   endif()
 endfunction()
 

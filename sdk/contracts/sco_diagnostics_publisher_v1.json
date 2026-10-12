@@ -13,7 +13,7 @@
       "member_extent": 16,
       "table_size": 16,
       "since": "`size >= 16`; 1.0",
-      "purpose": "Push one fixed advisory health enum from the host-selected live plugin. Host timestamps; one accepted record/second; no callback or gameplay effect.",
+      "purpose": "Copies a size-prefixed 8-byte observation; no pointers retained, output, text, identifiers or arbitrary fields.",
       "buffer_contract": "`sco_result (*submit)(sco_plugin* self, const sco_diagnostics_observation_v1* observation);`<br>Copies a size-prefixed 8-byte observation; no pointers retained, output, text, identifiers or arbitrary fields.",
       "ownership": "Host-owned source buffer; selected live plugin only. Advisory health never establishes host/game readiness or faults.",
       "thread_affinity": "Game thread only; synchronous memory copy, no callbacks or transport.",

@@ -9,12 +9,6 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
-path = "src/game/services/offline_missions.*"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
 path = "tests/test_offline_missions.cpp"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
@@ -57,18 +51,6 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
-path = "include/sco/game/asop_host.h"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "src/game/asop_host/**"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
 path = "docs/game/loadout.md"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
@@ -88,12 +70,6 @@ SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
 path = "sdk/contracts/sc_loadout_v1.json"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "src/game/services/loadout.*"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
@@ -135,19 +111,7 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
-path = "src/game/services/quantum.*"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
 path = "include/sc_quantum.h"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "src/game/services/cvars.*"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
@@ -177,12 +141,6 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
-path = "src/game/services/spatial_model.h"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
 path = "include/sc_game_spatial.h"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
@@ -207,12 +165,6 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
-path = "src/game/services/relocation*"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
 path = "include/sc_relocation.h"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
@@ -226,24 +178,6 @@ SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
 path = "tests/game_host.cpp"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "src/game/host.cpp"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "include/sco/game/host.h"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "src/game/host_testing.h"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
@@ -340,6 +274,72 @@ SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
 path = "src/game/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/services/offline_missions.*"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/sco/game/asop_host.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/asop_host/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/services/loadout.*"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/services/quantum.*"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/services/cvars.*"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/services/spatial_model.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/services/relocation*"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/host.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/sco/game/host.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/host_testing.h"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"

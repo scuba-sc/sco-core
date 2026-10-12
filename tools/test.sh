@@ -165,8 +165,10 @@ for f in "$ROOT/sdk/template/plugin.c" "$ROOT/sdk/examples/hello/hello.c"; do
 done
 "$CC" -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -I "$ROOT/include" -fsyntax-only "$ROOT/sdk/tools/sco-plugin-check.c"
 # The C++20 layer (include/scosdk/): the cpp_hello example and each header on its own.
-for f in "$ROOT/sdk/examples/cpp_hello/cpp_hello.cpp" "$ROOT"/include/scosdk/*.hpp "$ROOT"/include/scosdk/game/*.hpp; do
-  "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$f"
+"$CXX" -std=c++20 "${ABI[@]}" "$ROOT/sdk/examples/cpp_hello/cpp_hello.cpp"
+for f in "$ROOT"/include/scosdk/*.hpp "$ROOT"/include/scosdk/game/*.hpp; do
+  # A header's self-containment is checked as an include, not as the main source.
+  printf '#include "%s"\n' "${f#"$ROOT/include/"}" | "$CXX" -std=c++20 "${ABI[@]}" -x c++ -
 done
 echo "sdk: template, hello, cpp_hello, include/scosdk and sco-plugin-check compile against sco_api.h"
 

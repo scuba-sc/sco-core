@@ -2,6 +2,7 @@
 #ifndef SCOSDK_GAME_ECONOMY_HPP
 #define SCOSDK_GAME_ECONOMY_HPP
 #include "sc_economy.h"
+#include <cstddef>
 namespace sco::sdk::game {
 class Economy {
     const sc_economy_v1* table_ = nullptr;
