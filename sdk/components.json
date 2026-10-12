@@ -42,6 +42,10 @@
   "site"
  ],
  "excluded": [
+   {
+    "path": "tests/test_game_spatial.cpp",
+    "why": "Repository-only G3 game-provider shared-logic fixture; excluded from the neutral source kit."
+   },
   {
    "path": "tests/game_contracts/conformance/",
    "why": "Repository-only SDK conformance against synthetic game response tables; not shipped in any SDK profile."
@@ -743,6 +747,24 @@
    "origin": "project-authored",
    "license": "MIT",
    "public_header": true
+  },
+  {
+   "id": "include.sc_game_spatial.h",
+   "source": "include/sc_game_spatial.h",
+   "destination": "include/sc_game_spatial.h",
+   "profiles": ["game-sc"],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "public_header": true
+  },
+  {
+   "id": "source.tests.abi_game_spatial.c",
+   "source": "tests/abi_game_spatial.c",
+   "destination": "tests/abi_game_spatial.c",
+   "profiles": ["game-sc"],
+   "origin": "project-authored",
+   "license": "GPL-3.0-only",
+   "group": "game-contract"
   },
   {
    "id": "include.sc_spatial.h",

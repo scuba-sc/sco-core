@@ -4,6 +4,14 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G3 `game.spatial` 1.0:** new size-prefixed native C/raw C++ full-pose conversion
+  plus bounded copied zone records, exact observed-name lookup and epoch-pinned
+  pages. At most 256 observed IDs/64 records per page; complete rigid ancestry only,
+  no global scanner or raw pointers. `teleport.spatial` 1.0 and `sco_api` 1.1 stay
+  unchanged. Root ancestry is exposed, but system classification remains explicitly
+  unknown rather than guessed. C#/Lua unsupported; portable synthetic/ABI fixtures,
+  **not verified on Windows or in game**.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner

@@ -655,12 +655,20 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_net
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_net_targets})
+  if(SCO_GAME_SC)
+    # One portable G3 fixture; it links real shared model code, not engine reads.
+    add_executable(sco_test_game_spatial tests/test_game_spatial.cpp tests/abi_game_spatial.c)
+    target_link_libraries(sco_test_game_spatial PRIVATE sco_engine)
+    sco_project_target(sco_test_game_spatial)
+    add_test(NAME game_spatial COMMAND sco_test_game_spatial)
+  endif()
+
   # The MIT bridge layouts (tests/abi_titanlink.c, tests/abi_voxel_bridge.c: sc_titanlink.h and
   # sc_voxel_bridge.h, every size, offset and constant), and the game pack's game.world table and
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events)
+    list(APPEND _abi_bridge_pins game_world game_events game_spatial)
   endif()
   foreach(_b IN LISTS _abi_bridge_pins)
     set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")
@@ -685,6 +693,10 @@ if(SCO_BUILD_TESTS)
              COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_b_targets})
   endforeach()
   if(SCO_GAME_SC)
+    add_dependencies(sco_test_game_spatial sco_abi_game_spatial_cxx)
+    if(NOT MSVC)
+      add_dependencies(sco_test_game_spatial sco_abi_game_spatial_short_enums)
+    endif()
   # The game.actors table pin (tests/abi_game_actors.c, sc_actors.h), the same three ways.
   set(_abi_ga_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actors.cpp")
   file(CONFIGURE OUTPUT "${_abi_ga_cxx}"

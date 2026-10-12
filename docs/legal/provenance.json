@@ -15,6 +15,56 @@
  },
  "entries": [
 {
+  "path": "include/sc_game_spatial.h",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+},
+{
+  "path": "src/game/services/spatial_model.h",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+},
+{
+  "path": "tests/abi_game_spatial.c",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+},
+{
+  "path": "tests/test_game_spatial.cpp",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+},
+{
+  "path": "sdk/contracts/sc_game_spatial_v1.json",
+  "origin": "project-authored",
+  "license": "GPL-3.0-only",
+  "copyright": "2026 the sco-core contributors",
+  "status": "reviewed",
+  "reviewer": "agent draft; maintainer approval pending",
+  "date": "2026-10-12",
+  "note": "G3 bounded copied spatial observations/full-pose contract and synthetic fixtures. No game dumps, pointer export, system-classification guess, MIT grant or release authorization."
+},
+{
   "path": "include/sco/diagnostics*.h",
   "origin": "project-authored",
   "license": "GPL-3.0-only",
