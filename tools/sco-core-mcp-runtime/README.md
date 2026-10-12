@@ -107,3 +107,5 @@ Implementation/configuration/compile only in this wave: new stdio tests are
 **NOT RUN** by owner speed order. Windows effective-identity mapping/token/collector
 proof and manual offline/game acceptance are **NOT VERIFIED; not run in game**.
 Portable fake collectors and schema vectors never stand in for those checks.
+The [acceptance ledger](../../docs/runtime-acceptance.md) records the no-game
+fixture target, owed Windows identity checks and human offline checklist separately.

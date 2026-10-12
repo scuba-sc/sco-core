@@ -866,6 +866,20 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_core COMMAND test_core)
 
   add_executable(test_runtime_diagnostics_policy tests/test_runtime_diagnostics_policy.cpp)
+  if(SCO_BUILD_RUNTIME_MCP)
+    add_executable(test_runtime_diagnostics_integration tests/test_runtime_diagnostics_integration.cpp)
+    target_include_directories(test_runtime_diagnostics_integration PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(test_runtime_diagnostics_integration PRIVATE sco_diagnostics_ipc sco_plugins)
+    add_dependencies(test_runtime_diagnostics_integration sco_core_mcp_runtime_peer)
+    sco_project_target(test_runtime_diagnostics_integration)
+    add_test(NAME test_runtime_diagnostics_integration
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/sco-core-mcp-runtime/test_integration.py"
+        --host "$<TARGET_FILE:test_runtime_diagnostics_integration>"
+        --adapter "$<TARGET_FILE:sco_core_mcp_runtime_peer>" --root "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(test_runtime_diagnostics_integration PROPERTIES TIMEOUT 45 RUN_SERIAL TRUE)
+    add_test(NAME test_runtime_server
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/sco-core-mcp-runtime/test_server.py")
+  endif()
   target_include_directories(test_runtime_diagnostics_policy PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(test_runtime_diagnostics_policy PRIVATE sco_app sco_diagnostics_ipc)
   sco_project_target(test_runtime_diagnostics_policy)

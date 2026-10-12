@@ -51,6 +51,7 @@
     "site"
   ],
   "excluded": [
+    {"path": "tests/test_runtime_diagnostics_integration.cpp", "why": "Repository-only no-game acceptance host for separately packaged runtime launcher, default build option off."},
     {"path": "tools/sco-core-mcp-runtime/", "why": "Separately built default-off local runtime development package; not a plugin SDK component."},
     {
       "path": "tools/test_content_gate.py",
