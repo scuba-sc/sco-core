@@ -12,6 +12,13 @@ The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes
 that evidence; it does not replace the contract's reading rules or remaining gaps.
 
+## Copyable SDK consumer tutorial
+
+[SDK → MCP → tutorial-owned plugin](../../docs/sdk-mcp-tutorial.md) uses this
+static six-tool launcher, owned NPC/inspector copies, an isolated archive build,
+the checker and a named dynamic fixture. Runtime observations remain optional
+and default-off; static discovery never certifies gameplay or performs reload.
+
 ## Build the catalogue and run
 
 1. Use a trusted checkout with Python 3, Clang, and an **x64 C11 compiler
