@@ -68,7 +68,7 @@ namespace Sco.Sdk
 
         public ScoResult Put(string key, ReadOnlySpan<byte> value)
         {
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->put - (byte*)_t + sizeof(nint)) || _t->put == null) return ScoResult.Unavailable;
             fixed (byte* k = Utf8.Z(key))
             fixed (byte* v = value)
                 return _t->put(Self, k, v, (uint)value.Length);
@@ -88,7 +88,7 @@ namespace Sco.Sdk
         public ScoResult Get(string key, out byte[] value)
         {
             value = Array.Empty<byte>();
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->get - (byte*)_t + sizeof(nint)) || _t->get == null) return ScoResult.Unavailable;
             byte[] k = Utf8.Z(key)!;
             return Sized((buf, size) => { fixed (byte* kp = k) return _t->get(Self, kp, buf, size); }, out value);
         }
@@ -114,7 +114,7 @@ namespace Sco.Sdk
         /// <summary>NotFound: there was no such key.</summary>
         public ScoResult Delete(string key)
         {
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->del - (byte*)_t + sizeof(nint)) || _t->del == null) return ScoResult.Unavailable;
             fixed (byte* k = Utf8.Z(key)) return _t->del(Self, k);
         }
 
@@ -122,7 +122,7 @@ namespace Sco.Sdk
         public ScoResult Keys(string? prefix, List<string> keys)
         {
             ArgumentNullException.ThrowIfNull(keys);
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->next_key - (byte*)_t + sizeof(nint)) || _t->next_key == null) return ScoResult.Unavailable;
             byte[]? p = Utf8.Z(prefix);
             byte[]? after = null;
             for (;;)
@@ -143,9 +143,9 @@ namespace Sco.Sdk
 
         // ---- transactions ------------------------------------------------------------------
 
-        public ScoResult Begin() => _t == null ? ScoResult.Unavailable : _t->begin(Self);
-        public ScoResult Commit() => _t == null ? ScoResult.Unavailable : _t->commit(Self);
-        public ScoResult Rollback() => _t == null ? ScoResult.Unavailable : _t->rollback(Self);
+        public ScoResult Begin() => _t == null || _t->size < (uint)((byte*)&_t->rollback - (byte*)_t + sizeof(nint)) || _t->begin == null || _t->rollback == null ? ScoResult.Unavailable : _t->begin(Self);
+        public ScoResult Commit() => _t == null || _t->size < (uint)((byte*)&_t->commit - (byte*)_t + sizeof(nint)) || _t->commit == null ? ScoResult.Unavailable : _t->commit(Self);
+        public ScoResult Rollback() => _t == null || _t->size < (uint)((byte*)&_t->rollback - (byte*)_t + sizeof(nint)) || _t->rollback == null ? ScoResult.Unavailable : _t->rollback(Self);
 
         // ---- SQL ---------------------------------------------------------------------------
 
@@ -153,7 +153,7 @@ namespace Sco.Sdk
         public ScoResult Exec(string sql, out long changes, params SqlParam[] args)
         {
             changes = 0;
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->exec - (byte*)_t + sizeof(nint)) || _t->exec == null) return ScoResult.Unavailable;
             long c = 0;
             ScoResult r;
             using (var block = new SqlBlock(args ?? Array.Empty<SqlParam>()))
@@ -169,7 +169,7 @@ namespace Sco.Sdk
         public ScoResult Query(string sql, out StorageCursor cursor, params SqlParam[] args)
         {
             cursor = new StorageCursor(this, 0);
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->query - (byte*)_t + sizeof(nint)) || _t->query == null || _t->size < (uint)((byte*)&_t->close - (byte*)_t + sizeof(nint)) || _t->close == null) return ScoResult.Unavailable;
             ulong id = 0;
             ScoResult r;
             using (var block = new SqlBlock(args ?? Array.Empty<SqlParam>()))
@@ -182,7 +182,7 @@ namespace Sco.Sdk
         /// <summary>The message of this plugin's last failed call ("" if none).</summary>
         public string LastError()
         {
-            if (_t == null) return "";
+            if (_t == null || _t->size < (uint)((byte*)&_t->last_error - (byte*)_t + sizeof(nint)) || _t->last_error == null) return "";
             return Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : "";
         }
 
@@ -263,21 +263,21 @@ namespace Sco.Sdk
         public bool IsOpen => _id != 0;
 
         /// <summary>Ok: a row is ready. NotFound: no more rows.</summary>
-        public ScoResult Next() => _id == 0 ? ScoResult.NotFound : _s.Table->step(_s.SelfFor, _id);
+        public ScoResult Next() => _id == 0 ? ScoResult.NotFound : !(_s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->step - (byte*)_s.Table + sizeof(nint)) && _s.Table->step != null) ? ScoResult.Unavailable : _s.Table->step(_s.SelfFor, _id);
 
         public int ColumnCount
         {
             get
             {
                 uint n = 0;
-                return _id != 0 && _s.Table->column_count(_s.SelfFor, _id, &n) == ScoResult.Ok ? (int)n : 0;
+                return _id != 0 && _s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->column_count - (byte*)_s.Table + sizeof(nint)) && _s.Table->column_count != null && _s.Table->column_count(_s.SelfFor, _id, &n) == ScoResult.Ok ? (int)n : 0;
             }
         }
 
         private ScoResult Column(int i, out ScoSqlValue v)
         {
             ScoSqlValue value = default;
-            ScoResult r = _id == 0 ? ScoResult.NotFound : _s.Table->column(_s.SelfFor, _id, (uint)i, &value, null, null);
+            ScoResult r = _id == 0 ? ScoResult.NotFound : !(_s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->column - (byte*)_s.Table + sizeof(nint)) && _s.Table->column != null) ? ScoResult.Unavailable : _s.Table->column(_s.SelfFor, _id, (uint)i, &value, null, null);
             v = value;
             return r;
         }
@@ -289,7 +289,7 @@ namespace Sco.Sdk
         /// <summary>A BLOB column's bytes (TEXT: its UTF-8 with the NUL; empty for other types).</summary>
         public byte[] Blob(int i)
         {
-            if (_id == 0) return Array.Empty<byte>();
+            if (_id == 0 || !(_s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->column - (byte*)_s.Table + sizeof(nint)) && _s.Table->column != null)) return Array.Empty<byte>();
             return Storage.Sized((buf, size) => { ScoSqlValue v; return _s.Table->column(_s.SelfFor, _id, (uint)i, &v, buf, size); }, out byte[] b) == ScoResult.Ok
                 ? b : Array.Empty<byte>();
         }
@@ -298,14 +298,14 @@ namespace Sco.Sdk
 
         public string ColumnName(int i)
         {
-            if (_id == 0) return "";
+            if (_id == 0 || !(_s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->column_name - (byte*)_s.Table + sizeof(nint)) && _s.Table->column_name != null)) return "";
             return Storage.Sized((buf, size) => _s.Table->column_name(_s.SelfFor, _id, (uint)i, buf, size), out byte[] b) == ScoResult.Ok
                 ? Utf8.FromBytes(b) : "";
         }
 
         public void Dispose()
         {
-            if (_id != 0 && _s.Table != null) _s.Table->close(_s.SelfFor, _id);
+            if (_id != 0 && _s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->close - (byte*)_s.Table + sizeof(nint)) && _s.Table->close != null) _s.Table->close(_s.SelfFor, _id);
             _id = 0;
         }
     }

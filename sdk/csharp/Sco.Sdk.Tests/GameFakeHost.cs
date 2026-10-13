@@ -506,6 +506,25 @@ namespace Sco.Sdk.Tests
             Expect(ent.LastError() == "ent-own" && ent.LastReadError() == "ent-read", "Entities.LastError, LastReadError");
             Expect(ent.Watch(GameAbi.EntityStreamedIn, "AEGS_*", null, _self, out badWatch) == ScoResult.BadArg && badWatch == 0,
                 "Watch rejects a null consumer callback");
+            CheckGameFields(_world, new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
+            {
+                (nameof(ScWorldV1.raycast),
+                    () => world.Raycast(9, new double[] { 0, 0, 1 }, new double[] { 0, 0, -1 }, 10, out WorldHit h) == ScoResult.Unavailable && h == default,
+                    () => world.Raycast(9, new double[] { 0, 0, 1 }, new double[] { 0, 0, -1 }, 10, out _) == ScoResult.Ok),
+                (nameof(ScWorldV1.camera), () => world.Camera(out WorldCamera cam) == ScoResult.Unavailable && cam == default,
+                    () => world.Camera(out _) == ScoResult.Ok),
+                (nameof(ScWorldV1.last_error), () => world.LastError() == "", () => world.LastError() == "no hit"),
+            });
+            CheckGameFields(_creative, new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
+            {
+                (nameof(ScCreativeV1.set_god_mode), () => creative.SetGodMode(true) == ScoResult.Unavailable, () => creative.SetGodMode(true) == ScoResult.Ok),
+                (nameof(ScCreativeV1.set_fly_mode), () => creative.SetFlyMode(true) == ScoResult.Unavailable, () => creative.SetFlyMode(true) == ScoResult.Ok),
+                (nameof(ScCreativeV1.set_fly_speed), () => creative.SetFlySpeed(250) == ScoResult.Unavailable, () => creative.SetFlySpeed(250) == ScoResult.Ok),
+                (nameof(ScCreativeV1.set_infinite_ammo), () => creative.SetInfiniteAmmo(true) == ScoResult.Unavailable, () => creative.SetInfiniteAmmo(true) == ScoResult.Ok),
+                (nameof(ScCreativeV1.set_infinite_ship_ammo), () => creative.SetInfiniteShipAmmo(true) == ScoResult.Unavailable, () => creative.SetInfiniteShipAmmo(true) == ScoResult.Ok),
+                (nameof(ScCreativeV1.state), () => creative.State(out ScCreativeFlag f) == ScoResult.Unavailable && f == 0, () => creative.State(out _) == ScoResult.Ok),
+                (nameof(ScCreativeV1.last_error), () => creative.LastError() == "", () => creative.LastError() == "speed must be above 0"),
+            });
             MalformedActorEntityTests(p);
         }
     }

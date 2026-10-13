@@ -20,6 +20,7 @@
 #define SCOSDK_NET_HPP
 
 #include "plugin.hpp"
+#include "service.hpp"
 #include "sco_net.h"
 
 #include <cstddef>
@@ -59,7 +60,7 @@ public:
     const std::string& Name() const noexcept { return name_; }
 
     sco_result Send(std::span<const std::byte> data) const noexcept {
-        if (!t_) return r_;
+        if (!detail::CanCall(t_, &sco_net_v1::send_channel)) return t_ ? SCO_UNAVAILABLE : r_;
         if (data.size() > SCO_NET_MAX_RELIABLE) return SCO_BAD_ARG;
         return t_->send_channel(self_, name_.c_str(), data.data(), static_cast<uint32_t>(data.size()));
     }
@@ -71,7 +72,7 @@ public:
 
     // Unregisters (on the game thread, no callback runs after this returns).
     void Close() noexcept {
-        if (t_) t_->unregister_channel(self_, name_.c_str());
+        if (detail::CanCall(t_, &sco_net_v1::unregister_channel)) t_->unregister_channel(self_, name_.c_str());
         t_ = nullptr;
         fn_.reset();
     }
@@ -96,7 +97,7 @@ public:
         t_ = nullptr;
         self_ = self;
         if (!api || !self_) return SCO_BAD_ARG;
-        if (!Covers(api->size, offsetof(sco_api, query_service))) return SCO_UNAVAILABLE;
+        if (!Covers(api->size, offsetof(sco_api, query_service)) || !api->query_service) return SCO_UNAVAILABLE;
         const void* table = nullptr;
         const sco_result r = api->query_service(SCO_NET_NAME, SCO_NET_VERSION_1_0, &table);
         if (r != SCO_OK) return r;
@@ -106,13 +107,13 @@ public:
     explicit operator bool() const noexcept { return t_ != nullptr; }
     const sco_net_v1* Table() const noexcept { return t_; }
 
-    bool Active() const noexcept { return t_ && t_->is_active(); }
-    uint64_t SelfPeer() const noexcept { return t_ ? t_->self_peer() : 0; }
+    bool Active() const noexcept { return detail::CanCall(t_, &sco_net_v1::is_active) && t_->is_active(); }
+    uint64_t SelfPeer() const noexcept { return detail::CanCall(t_, &sco_net_v1::self_peer) ? t_->self_peer() : 0; }
 
     // Self first; empty with no session.
     std::vector<sco_net_peer> Peers() const noexcept {
         std::vector<sco_net_peer> out;
-        if (!t_) return out;
+        if (!detail::CanCall(t_, &sco_net_v1::get_peers)) return out;
         try {
             for (int attempt = 0; attempt < 4; ++attempt) {
                 uint32_t n = static_cast<uint32_t>(out.size());
@@ -129,7 +130,7 @@ public:
     // The peer's chosen name; empty for an unknown peer.
     std::string PeerName(uint64_t peer) const noexcept {
         char buf[SCO_NET_MAX_NAME + 1];
-        if (!t_ || t_->get_peer_name(peer, buf, sizeof buf) != SCO_OK) return {};
+        if (!detail::CanCall(t_, &sco_net_v1::get_peer_name) || t_->get_peer_name(peer, buf, sizeof buf) != SCO_OK) return {};
         try {
             return buf;
         } catch (...) {
@@ -142,7 +143,7 @@ public:
     NetChannel Channel(const char* name, uint32_t flags, uint32_t maxLen, NetChannel::Fn fn) const noexcept {
         NetChannel c;
         c.self_ = self_;
-        if (!t_) return c;
+        if (!detail::CanCall(t_, &sco_net_v1::register_channel) || !detail::CanCall(t_, &sco_net_v1::unregister_channel)) return c;
         if (!name || !fn) { c.r_ = SCO_BAD_ARG; return c; }
         try {
             c.name_ = name;
@@ -159,7 +160,7 @@ public:
 
     // Sends on one of this plugin's channels by name.
     sco_result Send(const char* name, std::span<const std::byte> data) const noexcept {
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(t_, &sco_net_v1::send_channel)) return SCO_UNAVAILABLE;
         if (data.size() > SCO_NET_MAX_RELIABLE) return SCO_BAD_ARG;
         return t_->send_channel(self_, name, data.data(), static_cast<uint32_t>(data.size()));
     }

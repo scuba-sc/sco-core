@@ -40,18 +40,18 @@ public:
     explicit operator bool() const noexcept { return static_cast<bool>(ref_); }
     const sc_creative_v1* Table() const noexcept { return ref_.Get(); }
 
-    sco_result SetGodMode(bool on) const noexcept { return ref_ ? ref_->set_god_mode(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }
-    sco_result SetFlyMode(bool on) const noexcept { return ref_ ? ref_->set_fly_mode(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }
+    sco_result SetGodMode(bool on) const noexcept { return detail::CanCall(ref_.Get(), &sc_creative_v1::set_god_mode) ? ref_->set_god_mode(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }
+    sco_result SetFlyMode(bool on) const noexcept { return detail::CanCall(ref_.Get(), &sc_creative_v1::set_fly_mode) ? ref_->set_fly_mode(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }
     // Metres per second, above 0 and at most SC_CREATIVE_FLY_SPEED_MAX.
-    sco_result SetFlySpeed(float mps) const noexcept { return ref_ ? ref_->set_fly_speed(self_, mps) : SCO_UNAVAILABLE; }
-    sco_result SetInfiniteAmmo(bool on) const noexcept { return ref_ ? ref_->set_infinite_ammo(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }
+    sco_result SetFlySpeed(float mps) const noexcept { return detail::CanCall(ref_.Get(), &sc_creative_v1::set_fly_speed) ? ref_->set_fly_speed(self_, mps) : SCO_UNAVAILABLE; }
+    sco_result SetInfiniteAmmo(bool on) const noexcept { return detail::CanCall(ref_.Get(), &sc_creative_v1::set_infinite_ammo) ? ref_->set_infinite_ammo(self_, on ? 1 : 0) : SCO_UNAVAILABLE; }
     sco_result SetInfiniteShipAmmo(bool on) const noexcept {
-        return ref_ ? ref_->set_infinite_ship_ammo(self_, on ? 1 : 0) : SCO_UNAVAILABLE;
+        return detail::CanCall(ref_.Get(), &sc_creative_v1::set_infinite_ship_ammo) ? ref_->set_infinite_ship_ammo(self_, on ? 1 : 0) : SCO_UNAVAILABLE;
     }
     // The sc_creative_flag bits that are on, whoever switched them on.
     sco_result State(uint32_t& flags) const noexcept {
         flags = 0;
-        return ref_ ? ref_->state(self_, &flags) : SCO_UNAVAILABLE;
+        return detail::CanCall(ref_.Get(), &sc_creative_v1::state) ? ref_->state(self_, &flags) : SCO_UNAVAILABLE;
     }
 
     // The reason for your last failed call into out, NUL-terminated ("" when none). SCO_TOO_MANY:
@@ -59,7 +59,7 @@ public:
     sco_result LastError(std::span<char> out) const noexcept {
         if (out.empty()) return SCO_BAD_ARG;
         out[0] = '\0';
-        if (!ref_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(ref_.Get(), &sc_creative_v1::last_error)) return SCO_UNAVAILABLE;
         uint32_t size = static_cast<uint32_t>(out.size());
         return ref_->last_error(self_, out.data(), &size);
     }

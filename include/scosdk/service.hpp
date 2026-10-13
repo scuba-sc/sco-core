@@ -28,6 +28,16 @@ constexpr void CheckServiceTable() noexcept {
     static_assert(offsetof(T, size) == 0, "a service table starts with uint32_t size");
 }
 
+template <class T, class M>
+bool CanCall(const T* t, M T::*field) noexcept {
+    CheckServiceTable<T>();
+    if (!t) return false;
+    const uintptr_t base = reinterpret_cast<uintptr_t>(t);
+    const uintptr_t at = reinterpret_cast<uintptr_t>(std::addressof(t->*field));
+    return static_cast<uint64_t>(t->size) >= static_cast<uint64_t>(at - base) + sizeof(M)
+        && t->*field != nullptr;
+}
+
 }  // namespace detail
 
 // Publishes table under name ("<plugin id>" or "<plugin id>.<name>") with version
@@ -62,7 +72,7 @@ public:
     sco_result Query(const sco_api* api, const char* name, uint32_t minVersion) noexcept {
         table_ = nullptr;
         if (!api) return SCO_BAD_ARG;
-        if (!Covers(api->size, offsetof(sco_api, query_service))) return SCO_UNAVAILABLE;
+        if (!Covers(api->size, offsetof(sco_api, query_service)) || !api->query_service) return SCO_UNAVAILABLE;
         const void* out = nullptr;
         const sco_result r = api->query_service(name, minVersion, &out);
         if (r == SCO_OK) table_ = static_cast<const T*>(out);

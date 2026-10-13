@@ -91,7 +91,7 @@ namespace Sco.Sdk.Game
         {
             hit = default;
             if (from.Length != 3 || dir.Length != 3) return ScoResult.BadArg;
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->raycast - (byte*)_t + sizeof(nint)) || _t->raycast == null) return ScoResult.Unavailable;
             ScWorldHit h = default;
             h.size = (uint)sizeof(ScWorldHit);
             ScoResult r;
@@ -108,7 +108,7 @@ namespace Sco.Sdk.Game
         public ScoResult Camera(out WorldCamera camera)
         {
             camera = default;
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->camera - (byte*)_t + sizeof(nint)) || _t->camera == null) return ScoResult.Unavailable;
             double* pos = stackalloc double[3];
             double* rot = stackalloc double[4];
             ulong zone = 0;
@@ -120,7 +120,7 @@ namespace Sco.Sdk.Game
         /// <summary>The reason for the last failed call of any plugin ("" if none).</summary>
         public string LastError()
         {
-            if (_t == null) return "";
+            if (_t == null || _t->size < (uint)((byte*)&_t->last_error - (byte*)_t + sizeof(nint)) || _t->last_error == null) return "";
             nint t = (nint)_t;
             nint self = (nint)(_plugin == null ? null : _plugin.SelfPtr);
             return Storage.Sized((buf, size) => ((ScWorldV1*)t)->last_error((void*)self, buf, size), out byte[] b) == ScoResult.Ok

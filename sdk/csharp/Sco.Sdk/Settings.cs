@@ -42,7 +42,7 @@ namespace Sco.Sdk
         public ScoResult GetBool(string name, out bool value)
         {
             value = false;
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->get_bool - (byte*)_t + sizeof(nint)) || _t->get_bool == null) return ScoResult.Unavailable;
             int v = 0;
             ScoResult r;
             fixed (byte* n = Utf8.Z(name)) r = _t->get_bool(Self, n, &v);
@@ -53,7 +53,7 @@ namespace Sco.Sdk
         public ScoResult GetInt(string name, out long value)
         {
             value = 0;
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->get_int - (byte*)_t + sizeof(nint)) || _t->get_int == null) return ScoResult.Unavailable;
             long v = 0;
             ScoResult r;
             fixed (byte* n = Utf8.Z(name)) r = _t->get_int(Self, n, &v);
@@ -64,7 +64,7 @@ namespace Sco.Sdk
         public ScoResult GetFloat(string name, out double value)
         {
             value = 0;
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->get_float - (byte*)_t + sizeof(nint)) || _t->get_float == null) return ScoResult.Unavailable;
             double v = 0;
             ScoResult r;
             fixed (byte* n = Utf8.Z(name)) r = _t->get_float(Self, n, &v);
@@ -76,7 +76,7 @@ namespace Sco.Sdk
         public ScoResult GetString(string name, out string value)
         {
             value = "";
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->get_string - (byte*)_t + sizeof(nint)) || _t->get_string == null) return ScoResult.Unavailable;
             byte[] n = Utf8.Z(name) ?? Array.Empty<byte>();
             ScoResult r = Storage.Sized((buf, size) => { fixed (byte* np = n) return _t->get_string(Self, np, buf, size); }, out byte[] b);
             if (r == ScoResult.Ok) value = Utf8.FromBytes(b);
@@ -92,7 +92,7 @@ namespace Sco.Sdk
         /// <summary>The message of this plugin's last failed call ("" if none).</summary>
         public string LastError()
         {
-            if (_t == null) return "";
+            if (_t == null || _t->size < (uint)((byte*)&_t->last_error - (byte*)_t + sizeof(nint)) || _t->last_error == null) return "";
             return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : "";
         }
 

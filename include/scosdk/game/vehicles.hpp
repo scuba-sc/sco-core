@@ -42,13 +42,13 @@ public:
 
     sco_result PlayerShip(uint64_t& ship) const noexcept {
         ship = 0;
-        return ref_ ? ref_->player_ship(&ship) : SCO_UNAVAILABLE;
+        return detail::CanCall(ref_.Get(), &sc_vehicles_v1::player_ship) ? ref_->player_ship(&ship) : SCO_UNAVAILABLE;
     }
     // Fills out with the ship's seats; count = how many were written, more = the ship has more.
     sco_result Seats(uint64_t ship, std::span<sc_vehicle_seat> out, uint32_t& count, bool& more) const noexcept {
         count = 0;
         more = false;
-        if (!ref_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(ref_.Get(), &sc_vehicles_v1::seats)) return SCO_UNAVAILABLE;
         uint32_t m = 0;
         const sco_result r = ref_->seats(ship, out.data(), static_cast<uint32_t>(out.size()), &count, &m);
         more = m != 0;
@@ -56,20 +56,20 @@ public:
     }
     sco_result SeatOccupant(uint64_t ship, uint32_t seatIndex, uint64_t& actor) const noexcept {
         actor = 0;
-        return ref_ ? ref_->seat_occupant(ship, seatIndex, &actor) : SCO_UNAVAILABLE;
+        return detail::CanCall(ref_.Get(), &sc_vehicles_v1::seat_occupant) ? ref_->seat_occupant(ship, seatIndex, &actor) : SCO_UNAVAILABLE;
     }
     sco_result Seat(uint64_t actor, uint64_t ship, uint32_t seatIndex) const noexcept {
-        return ref_ ? ref_->seat(self_, actor, ship, seatIndex) : SCO_UNAVAILABLE;
+        return detail::CanCall(ref_.Get(), &sc_vehicles_v1::seat) ? ref_->seat(self_, actor, ship, seatIndex) : SCO_UNAVAILABLE;
     }
-    sco_result Eject(uint64_t actor) const noexcept { return ref_ ? ref_->eject(self_, actor) : SCO_UNAVAILABLE; }
-    sco_result PowerOn(uint64_t ship) const noexcept { return ref_ ? ref_->power_on(self_, ship) : SCO_UNAVAILABLE; }
+    sco_result Eject(uint64_t actor) const noexcept { return detail::CanCall(ref_.Get(), &sc_vehicles_v1::eject) ? ref_->eject(self_, actor) : SCO_UNAVAILABLE; }
+    sco_result PowerOn(uint64_t ship) const noexcept { return detail::CanCall(ref_.Get(), &sc_vehicles_v1::power_on) ? ref_->power_on(self_, ship) : SCO_UNAVAILABLE; }
 
     // The reason for the last failed call into out, NUL-terminated ("" when none). SCO_TOO_MANY:
     // out is too small and stays ""; 256 bytes always fit the game pack's reasons.
     sco_result LastError(std::span<char> out) const noexcept {
         if (out.empty()) return SCO_BAD_ARG;
         out[0] = '\0';
-        if (!ref_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(ref_.Get(), &sc_vehicles_v1::last_error)) return SCO_UNAVAILABLE;
         uint32_t size = static_cast<uint32_t>(out.size());
         return ref_->last_error(self_, out.data(), &size);
     }

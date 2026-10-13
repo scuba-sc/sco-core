@@ -96,7 +96,7 @@ namespace Sco.Sdk.Game
         public ScoResult PlayerShip(out ulong ship)
         {
             ulong id = 0;
-            ScoResult r = _t == null ? ScoResult.Unavailable : _t->player_ship(&id);
+            ScoResult r = _t == null || _t->size < (uint)((byte*)&_t->player_ship - (byte*)_t + sizeof(nint)) || _t->player_ship == null ? ScoResult.Unavailable : _t->player_ship(&id);
             ship = id;
             return r;
         }
@@ -106,7 +106,7 @@ namespace Sco.Sdk.Game
         {
             count = 0;
             more = false;
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->seats - (byte*)_t + sizeof(nint)) || _t->seats == null) return ScoResult.Unavailable;
             uint n = 0, m = 0;
             ScoResult r;
             fixed (ScVehicleSeat* p = seats) r = _t->seats(ship, p, (uint)seats.Length, &n, &m);
@@ -118,19 +118,19 @@ namespace Sco.Sdk.Game
         public ScoResult SeatOccupant(ulong ship, uint seatIndex, out ulong actor)
         {
             ulong id = 0;
-            ScoResult r = _t == null ? ScoResult.Unavailable : _t->seat_occupant(ship, seatIndex, &id);
+            ScoResult r = _t == null || _t->size < (uint)((byte*)&_t->seat_occupant - (byte*)_t + sizeof(nint)) || _t->seat_occupant == null ? ScoResult.Unavailable : _t->seat_occupant(ship, seatIndex, &id);
             actor = id;
             return r;
         }
 
-        public ScoResult Seat(ulong actor, ulong ship, uint seatIndex) => _t == null ? ScoResult.Unavailable : _t->seat(Self, actor, ship, seatIndex);
-        public ScoResult Eject(ulong actor) => _t == null ? ScoResult.Unavailable : _t->eject(Self, actor);
-        public ScoResult PowerOn(ulong ship) => _t == null ? ScoResult.Unavailable : _t->power_on(Self, ship);
+        public ScoResult Seat(ulong actor, ulong ship, uint seatIndex) => _t == null || _t->size < (uint)((byte*)&_t->seat - (byte*)_t + sizeof(nint)) || _t->seat == null ? ScoResult.Unavailable : _t->seat(Self, actor, ship, seatIndex);
+        public ScoResult Eject(ulong actor) => _t == null || _t->size < (uint)((byte*)&_t->eject - (byte*)_t + sizeof(nint)) || _t->eject == null ? ScoResult.Unavailable : _t->eject(Self, actor);
+        public ScoResult PowerOn(ulong ship) => _t == null || _t->size < (uint)((byte*)&_t->power_on - (byte*)_t + sizeof(nint)) || _t->power_on == null ? ScoResult.Unavailable : _t->power_on(Self, ship);
 
         /// <summary>The reason for the last failed call ("" if none).</summary>
         public string LastError()
         {
-            if (_t == null) return "";
+            if (_t == null || _t->size < (uint)((byte*)&_t->last_error - (byte*)_t + sizeof(nint)) || _t->last_error == null) return "";
             return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : "";
         }
     }

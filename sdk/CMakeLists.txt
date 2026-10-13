@@ -25,6 +25,13 @@ else()
 endif()
 install(TARGETS sco-plugin-check RUNTIME DESTINATION bin)
 
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/tests/test_language_routes.cpp")
+  add_executable(sdk-language-routes tests/test_language_routes.cpp)
+  target_include_directories(sdk-language-routes PRIVATE "${SCO_SDK_INCLUDE_DIR}")
+  target_compile_features(sdk-language-routes PRIVATE cxx_std_20)
+  install(TARGETS sdk-language-routes RUNTIME DESTINATION bin)
+endif()
+
 sco_add_plugin(hello SOURCES examples/hello/hello.c INI examples/hello/plugin.ini)
 sco_add_plugin(cpp_hello SOURCES examples/cpp_hello/cpp_hello.cpp INI examples/cpp_hello/plugin.ini)
 sco_add_plugin(widgets SOURCES examples/widgets/widgets.c INI examples/widgets/plugin.ini)

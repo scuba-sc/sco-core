@@ -22,6 +22,7 @@
 #define SCOSDK_SETTINGS_HPP
 
 #include "plugin.hpp"
+#include "service.hpp"
 #include "sco_settings.h"
 
 #include <string>
@@ -45,7 +46,7 @@ public:
         t_ = nullptr;
         self_ = self;
         if (!api || !self_) return SCO_BAD_ARG;
-        if (!Covers(api->size, offsetof(sco_api, query_service))) return SCO_UNAVAILABLE;
+        if (!Covers(api->size, offsetof(sco_api, query_service)) || !api->query_service) return SCO_UNAVAILABLE;
         const void* table = nullptr;
         const sco_result r = api->query_service(SCO_SETTINGS_NAME, SCO_SETTINGS_VERSION_1_0, &table);
         if (r != SCO_OK) return r;
@@ -58,21 +59,21 @@ public:
     // ---- reads: SCO_NOT_FOUND (not declared), SCO_BAD_ARG (another type); out is untouched on failure ----
 
     sco_result GetBool(const char* name, bool& out) const noexcept {
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(t_, &sco_settings_v1::get_bool)) return SCO_UNAVAILABLE;
         int32_t v = 0;
         const sco_result r = t_->get_bool(self_, name, &v);
         if (r == SCO_OK) out = v != 0;
         return r;
     }
     sco_result GetInt(const char* name, int64_t& out) const noexcept {
-        return t_ ? t_->get_int(self_, name, &out) : SCO_UNAVAILABLE;
+        return detail::CanCall(t_, &sco_settings_v1::get_int) ? t_->get_int(self_, name, &out) : SCO_UNAVAILABLE;
     }
     sco_result GetFloat(const char* name, double& out) const noexcept {
-        return t_ ? t_->get_float(self_, name, &out) : SCO_UNAVAILABLE;
+        return detail::CanCall(t_, &sco_settings_v1::get_float) ? t_->get_float(self_, name, &out) : SCO_UNAVAILABLE;
     }
     // A string setting's text or an enum setting's choice.
     sco_result GetString(const char* name, std::string& out) const noexcept {
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(t_, &sco_settings_v1::get_string)) return SCO_UNAVAILABLE;
         try {
             std::string s(SCO_SETTINGS_MAX_STRING + 1, '\0');
             uint32_t size = static_cast<uint32_t>(s.size());
@@ -110,7 +111,7 @@ public:
 
     // The message of the plugin's last failed call ("not a bool").
     std::string LastError() const noexcept {
-        if (!t_) return {};
+        if (!detail::CanCall(t_, &sco_settings_v1::last_error)) return {};
         try {
             std::string s(256, '\0');
             uint32_t size = static_cast<uint32_t>(s.size());
