@@ -42,8 +42,15 @@ int main(int argc,char** argv){
     // not the credential filename: transport symlink refusal stays intact.
     o.credentialPath=(std::filesystem::canonical(dir)/"session.json").string();o.excludedRoots={excludedRoot.string()};o.hostBuild="fixture-host-1";
     o.policy.admission->store(OfflineAdmission::Authorized);
+    {platform::Mapping probeMapping;const bool probeCreate=platform::Create(probeMapping);
+     std::cerr<<"WINTEST-PROBE policy Create="<<probeCreate<<"\n";if(probeCreate)platform::Close(probeMapping);
+     const bool probeWrite=platform::WriteCredential(o.credentialPath,"{}");
+     std::cerr<<"WINTEST-PROBE policy WriteCredential="<<probeWrite<<"\n";
+     platform::RemoveCredential(o.credentialPath);}
     for(auto status:{audit::Status::Unavailable,audit::Status::Full,audit::Status::Deadline}){
-        collector->status=status;CHECK(host.Start(o,di::ClockNow())==di::Result::Audit);CHECK(!host.Started());
+        collector->status=status;const auto probeResult=host.Start(o,di::ClockNow());
+        if(probeResult!=di::Result::Audit)std::cerr<<"WINTEST-PROBE policy Start="<<static_cast<int>(probeResult)<<" expected=Audit(9)\n";
+        CHECK(probeResult==di::Result::Audit);CHECK(!host.Started());
     }
     collector->status=audit::Status::Accepted;CHECK(host.Start(o,di::ClockNow())==di::Result::Ok);
     di::Peer peer;CHECK(peer.Begin(o.credentialPath,di::ClockNow())==di::Result::Ok);

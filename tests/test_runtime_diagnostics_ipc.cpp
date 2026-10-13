@@ -49,7 +49,14 @@ struct Fixture {
         plugins[0].manifest.kind=sco::plugins::Kind::Native;plugins[0].state=sco::plugins::State::Loaded;
         CHECK(snapshots.Begin(plugins,metadata,lifecycle,1000));size_t steps=0;while(!snapshots.Advance(1000))CHECK(++steps<2048);
         CHECK(capture.Start(1000));CHECK(capture.AssignKey(this,"fixture_ipc"));capture.RecordHost(this,HostEvent::Loaded,1000);
-        CHECK(host.Start(options,&sink,1000)==di::Result::Ok);
+        {os::Mapping probeMapping;const bool probeCreate=os::Create(probeMapping);
+         std::cerr<<"WINTEST-PROBE ipc Create="<<probeCreate<<"\n";if(probeCreate)os::Close(probeMapping);
+         const bool probeWrite=os::WriteCredential(options.credentialPath,"{}");
+         std::cerr<<"WINTEST-PROBE ipc WriteCredential="<<probeWrite<<"\n";
+         os::RemoveCredential(options.credentialPath);}
+        const auto probeResult=host.Start(options,&sink,1000);
+        if(probeResult!=di::Result::Ok)std::cerr<<"WINTEST-PROBE ipc Start="<<static_cast<int>(probeResult)<<" expected=Ok(0)\n";
+        CHECK(probeResult==di::Result::Ok);
     }
     ~Fixture(){host.Stop();}
 };
