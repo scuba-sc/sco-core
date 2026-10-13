@@ -28,11 +28,19 @@ int main(int argc,char** argv){
     for(auto posture:{OfflineAdmission::Unknown,OfflineAdmission::Online,OfflineAdmission::Denied}){
         o.policy.admission->store(posture);CHECK(host.Start(o,di::ClockNow())==di::Result::Disabled);CHECK(!host.Started());
     }
-    const auto dir=std::filesystem::path(argv[1])/"runtime-policy";
-    std::filesystem::create_directories(dir);std::filesystem::permissions(dir,std::filesystem::perms::owner_all);
+    const auto excludedRoot=std::filesystem::canonical(argv[2]);
+    auto credentialRoot=std::filesystem::canonical(argv[1]);
+    const auto relative=credentialRoot.lexically_relative(excludedRoot);
+    // An in-tree CMake build is inside the excluded plugin/source root. Keep
+    // credentials outside it rather than relaxing the host's exclusion policy.
+    if(relative.empty()||*relative.begin()!="..")
+        credentialRoot=std::filesystem::canonical(std::filesystem::temp_directory_path());
+    di::Id nonce{};CHECK(platform::Random(nonce.data(),nonce.size()));
+    const auto dir=credentialRoot/("runtime-policy-"+di::Hex(nonce.data(),nonce.size()));
+    CHECK(std::filesystem::create_directory(dir));std::filesystem::permissions(dir,std::filesystem::perms::owner_all);
     // Resolve only the trusted fixture directory (e.g. macOS /tmp alias),
     // not the credential filename: transport symlink refusal stays intact.
-    o.credentialPath=(std::filesystem::canonical(dir)/"session.json").string();o.excludedRoots={argv[2]};o.hostBuild="fixture-host-1";
+    o.credentialPath=(std::filesystem::canonical(dir)/"session.json").string();o.excludedRoots={excludedRoot.string()};o.hostBuild="fixture-host-1";
     o.policy.admission->store(OfflineAdmission::Authorized);
     for(auto status:{audit::Status::Unavailable,audit::Status::Full,audit::Status::Deadline}){
         collector->status=status;CHECK(host.Start(o,di::ClockNow())==di::Result::Audit);CHECK(!host.Started());

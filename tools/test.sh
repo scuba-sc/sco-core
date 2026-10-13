@@ -181,9 +181,10 @@ echo "toml++: 3.4.0, sha256 of toml.hpp and LICENSE match third_party/tomlpluspl
 
 FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -I "$ROOT/include" -isystem "$ROOT/third_party/sqlite"
        -isystem "$ROOT/third_party/tomlplusplus")
-# The game signature tables; the CryPak hooks (pak_hooks.cpp) are built only into test_pak.
-GAME=()
-for f in "$ROOT"/src/game/*.cpp; do [ "$(basename "$f")" = pak_hooks.cpp ] || GAME+=("$f"); done
+# Signature registration and tables only (the same closure as CMake's sco_game_sc).
+# The CryPak adapter, game-host composition and game diagnostics have separate dependencies;
+# do not pull them into scanner/signature tests merely because they live in src/game/.
+GAME=("$ROOT/src/game/signatures.cpp" "$ROOT"/src/game/*_sigs.cpp)
 RUNTIME=("$ROOT/src/api/sco_tasks.cpp" "$ROOT/src/api/sco_events.cpp" "$ROOT/src/api/sco_commands.cpp"
          "$ROOT/src/api/sco_services.cpp" "$ROOT/src/api/sco_raw.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined \
@@ -196,7 +197,9 @@ RUNTIME=("$ROOT/src/api/sco_tasks.cpp" "$ROOT/src/api/sco_events.cpp" "$ROOT/src
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_runtime.cpp" "${RUNTIME[@]}" -o "$OUT/test_runtime_tsan"
 "$OUT/test_runtime_tsan"
 # Capabilities and the host's sco_api table, over the same runtime, under both sanitizer sets.
-HOST=("$ROOT/tests/test_host.cpp" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp" "${RUNTIME[@]}"
+HOST_IMPL=("$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp"
+           "$ROOT/src/host/sco_diagnostics.cpp" "$ROOT/src/host/sco_diagnostics_publisher.cpp")
+HOST=("$ROOT/tests/test_host.cpp" "${HOST_IMPL[@]}" "${RUNTIME[@]}"
       "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${HOST[@]}" -o "$OUT/test_host"
 "$OUT/test_host"
@@ -311,7 +314,7 @@ DATACORE=("$ROOT/src/datacore/datacore.cpp" "$ROOT/src/datacore/patch.cpp" "$ROO
 # The sco.datacore service over the real host table: a simulated launch sequence (load, a commit after
 # it saved to data/datacore/pending/, the next launch applying it), release, atomicity, reports,
 # datacore.applied and scosdk/datacore.hpp (ASan+UBSan).
-SERVICE=("$ROOT/src/datacore/service.cpp" "${DATACORE[@]}" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp" "${RUNTIME[@]}"
+SERVICE=("$ROOT/src/datacore/service.cpp" "${DATACORE[@]}" "${HOST_IMPL[@]}" "${RUNTIME[@]}"
          "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"
          "$ROOT/src/plugins/manifest.cpp" "$ROOT/src/plugins/settings_ini.cpp" "$ROOT/src/plugins/discover.cpp" "$ROOT/src/plugins/loader.cpp" "$ROOT/src/plugins/content.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_datacore_service.cpp" "${SERVICE[@]}" -ldl -o "$OUT/test_datacore_service"
@@ -394,8 +397,8 @@ done
 
 # sco.ui (sco/ui.h, sco_ui.h, scosdk/ui.hpp): built-in plugins under the loader's crash guard (a
 # signal-based stand-in here), registration from threads beside a frame, so both sanitizer sets.
-UI=("$ROOT/tests/test_ui.cpp" "$ROOT/src/ui/ui.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/sco_caps.cpp"
-    "$ROOT/src/host/sco_host.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
+UI=("$ROOT/tests/test_ui.cpp" "$ROOT/src/ui/ui.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
+    "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${UI[@]}" -ldl -o "$OUT/test_ui"
 "$OUT/test_ui"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "${UI[@]}" -ldl -o "$OUT/test_ui_tsan"
@@ -403,7 +406,7 @@ UI=("$ROOT/tests/test_ui.cpp" "$ROOT/src/ui/ui.cpp" "${PLUGINS[@]}" "${RUNTIME[@
 
 # Retained widgets over the neutral real host, and the host-only ImGui API shim.
 WIDGETS=("$ROOT/tests/test_widgets.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}"
-         "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
+         "${HOST_IMPL[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${WIDGETS[@]}" -o "$OUT/test_widgets"
 "$OUT/test_widgets"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "${WIDGETS[@]}" -o "$OUT/test_widgets_tsan"
@@ -416,7 +419,7 @@ WIDGETS=("$ROOT/tests/test_widgets.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/s
 # over the real host table and storage, persistence across a restart, settings.changed; readers on
 # threads beside the game thread's sets, so both sanitizer sets.
 SETTINGS=("$ROOT/tests/test_settings.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/storage/storage.cpp"
-          "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp"
+          "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
           "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${SETTINGS[@]}" "$SQLITE_ASAN" -ldl -lm -o "$OUT/test_settings"
 "$OUT/test_settings" "$OUT"
@@ -435,7 +438,7 @@ for f in "$LUA_SRC"/*.c "$ROOT/plugins/lua/sco_lua.c" "$ROOT/plugins/lua/sco_lua
   LUA_OBJS+=("$o")
 done
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -isystem "$LUA_SRC" "$ROOT/tests/test_lua.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" \
-  "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" \
+  "${HOST_IMPL[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" \
   "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}" "$ROOT/src/storage/storage.cpp" "$SQLITE_ASAN" \
   "$ROOT/src/widgets/widgets.cpp" "${LUA_OBJS[@]}" -ldl -lm -o "$OUT/test_lua"
 "$OUT/test_lua" "$ROOT/sdk" "$OUT"
@@ -444,9 +447,13 @@ done
 # The host kit (sco/app.h): built-ins, the fake plugins m0 and m11, greeter and travel_pack through
 # sco::app (ASan+UBSan). Then sco-host-sim over the SDK examples, laid out like data/plugins with
 # hello built here as a shared library (CMake: CTest host_sim_examples).
-APP=("$ROOT/src/content/content.cpp" "$ROOT/src/host/sco_diagnostics.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp"
-     "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$SQLITE_ASAN"
-     "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${NETSVC_SRC[@]}" "$OUT/sha2_asan.o"
+# The app owns diagnostic transport and advisory sources, unlike the signature-only tests.
+DIAGNOSTICS_IPC=("$ROOT/src/ipc/diagnostics_ipc.cpp" "$ROOT/src/ipc/diagnostics_json.cpp"
+                 "$ROOT/src/ipc/diagnostics_audit.cpp" "$ROOT/src/ipc/diagnostics_platform_posix.cpp")
+APP=("$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
+     "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/game/diagnostics.cpp"
+     "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$SQLITE_ASAN"
+     "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${DIAGNOSTICS_IPC[@]}" "${NETSVC_SRC[@]}" "$OUT/sha2_asan.o"
      "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}")
 # Step-1 copied diagnostics: host/runtime only, synthetic app boundaries and no endpoint.
 "$CXX" "${FLAGS[@]}" -DSCO_RUNTIME_DIAGNOSTICS_FIXTURE=1 -fsanitize=address,undefined \

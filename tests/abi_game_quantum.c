@@ -1,6 +1,10 @@
 /* Independently compiled C11/C++20 quantum layout and tail refusal fixture. */
 #include <sc_quantum.h>
 #include <stddef.h>
+/* Keep tail-refusal calls active in optimized/Release fixture builds. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>

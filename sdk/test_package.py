@@ -384,7 +384,7 @@ class RealManifest(unittest.TestCase):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
                 root = self.installed_fixture(profile, tmp)
                 proof = pkg.check_installed_example_headers(self.m, profile, root, Path(tmp, "proof"))
-                self.assertEqual(proof["translation_units"], 4)  # template, hello, cpp_hello, widgets
+                self.assertEqual(proof["translation_units"], 6)  # template, hello, cpp_hello, widgets, diagnostics C/C++
                 self.assertEqual(set(proof["languages"]), {"C", "CXX"})
                 self.assertIn("include/sco_api.h", proof["public_headers"])
                 self.assertIn("include/scosdk/scosdk.hpp", proof["public_headers"])
@@ -418,7 +418,7 @@ class RealManifest(unittest.TestCase):
                                      "--profile", "core", "--check-installed-headers", str(root)],
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn("4 external C/C++ examples compiled", result.stdout)
+            self.assertIn("6 external C/C++ examples compiled", result.stdout)
             self.assertIn("exact installed public header dependencies approved", result.stdout)
 
     def test_msvc_system_headers_use_evaluated_include_path(self):

@@ -345,7 +345,8 @@ std::string Game(const Snapshot& s, uint64_t now) {
     Writer items; items.Add("["); bool first = true;
     for (const auto& c : g.capabilities) {
         Require(Id(c.id, 128, true));
-        if (!first) items.Add(","); first = false;
+        if (!first) items.Add(",");
+        first = false;
         Fields item(items); item.Add("id", Quoted(c.id)); item.Add("enabled", OptionalBool(c.enabled));
         item.Add("reason", Text(c.reason, 512)); item.End();
     }
@@ -359,7 +360,8 @@ std::string Inventory(uint16_t opcode, const Page& page) {
     const auto& s = *page.snapshot;
     Writer items; items.Add("["); bool first = true;
     for (const size_t index : page.indices) {
-        if (!first) items.Add(","); first = false;
+        if (!first) items.Add(",");
+        first = false;
         if (opcode == 0x101) { Require(index < s.plugins.size()); items.Add(Plugin(s.plugins[index])); }
         else if (opcode == 0x103) { Require(index < s.services.size()); items.Add(Service(s.services[index])); }
         else { Require(index < s.resolutions.size()); items.Add(Resolution(s.resolutions[index])); }
@@ -376,7 +378,8 @@ std::string Logs(const LogTail& tail, uint64_t now) {
         Require(e.sequence && e.monotonicMs <= now && Id(e.pluginId, 31) &&
             OneOf(e.level, {"info", "warning", "error"}) && OneOf(e.origin, {"host", "plugin"}) &&
             !e.message.empty() && e.message.size() <= 512 && Utf8(e.message) && e.untrustedContent);
-        if (!first) items.Add(","); first = false;
+        if (!first) items.Add(",");
+        first = false;
         Fields f(items); f.Add("sequence", Quoted(std::to_string(e.sequence)));
         f.Add("monotonic_ms", Number(e.monotonicMs)); f.Add("plugin_id", Quoted(e.pluginId));
         f.Add("level", Quoted(e.level)); f.Add("origin", Quoted(e.origin)); f.Add("message", Quoted(e.message));

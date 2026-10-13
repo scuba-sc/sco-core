@@ -186,8 +186,15 @@ void ReadsAndNoSideEffects() {
 }
 int main(int argc,char** argv) {
     CHECK(argc==3);sco::SetGameThread();root=std::filesystem::canonical(argv[2]).string();
-    const auto dir=std::filesystem::path(argv[1])/"runtime-diagnostics-ipc";
-    std::filesystem::create_directories(dir);std::filesystem::permissions(dir,std::filesystem::perms::owner_all);
+    auto credentialRoot=std::filesystem::canonical(argv[1]);
+    const auto relative=credentialRoot.lexically_relative(std::filesystem::path(root));
+    // In-tree CMake output is excluded by the host credential policy. Use an
+    // independent private fixture directory; do not weaken that policy.
+    if(relative.empty()||*relative.begin()!="..")
+        credentialRoot=std::filesystem::canonical(std::filesystem::temp_directory_path());
+    di::Id nonce{};CHECK(os::Random(nonce.data(),nonce.size()));
+    const auto dir=credentialRoot/("runtime-diagnostics-ipc-"+di::Hex(nonce.data(),nonce.size()));
+    CHECK(std::filesystem::create_directory(dir));std::filesystem::permissions(dir,std::filesystem::perms::owner_all);
     // The build output is a trusted fixture location, but may be spelled through
     // an alias (notably /tmp on macOS). Resolve only that directory: the transport
     // must continue refusing symlink components and credential-file aliases.

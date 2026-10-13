@@ -126,7 +126,8 @@ bool ParseCredential(std::string_view text,Credentials& c) {
     for(char a:e){if(a<'0'||a>'9'||c.epoch>(UINT64_MAX-uint64_t(a-'0'))/10)return false;c.epoch=c.epoch*10+uint64_t(a-'0');}
     if(!c.epoch)return false;
     if(o.strings.count("host_build"))c.build=o.strings.at("host_build");
-    if(!Label(c.build))return false;return true;
+    if(!Label(c.build))return false;
+    return true;
 }
 Result Geometry(platform::Mapping& m,const Credentials& c,sc_ipc_chan& chan,sc_ipc_ring_view& request,sc_ipc_ring_view& response,uint64_t now) {
     if(!m.base||m.bytes!=kBytes)return Result::Corrupt;
@@ -226,7 +227,8 @@ Result Host::Poll(uint64_t now) {
     auto& s=*state_;if(!s.map.base)return Result::Disabled;
     if(!s.Admitted()){Stop();s.capture.Stop();return Result::Disabled;}
     auto fail=[&](Result r){s.Ack(0,{},now,"refused");Stop();return r;};
-    if(now<s.lastNow||now>kMaxMonotonicMs)return fail(Result::Corrupt);s.lastNow=now;
+    if(now<s.lastNow||now>kMaxMonotonicMs)return fail(Result::Corrupt);
+    s.lastNow=now;
     auto geometry=Rings(s.map,s.credentials,s.channel,s.request,s.response,now);if(geometry!=Result::Ok)return fail(geometry);
     sc_ipc_owner_beat(&s.channel,now);
     if(s.phase==1&&now>s.handshakeDeadline)return fail(Result::Deadline);
@@ -271,7 +273,8 @@ Result Host::Poll(uint64_t now) {
     if(!json::Read(f.opcode,input)){reply.payload=json::Error("invalid_request");outcome="invalid_request";}
     else {
         if(now-s.readStart>=60000){s.readStart=now;s.readCount=0;}
-        if(!s.lastRead||now-s.lastRead>=1000)s.burst=0;s.lastRead=now;
+        if(!s.lastRead||now-s.lastRead>=1000)s.burst=0;
+        s.lastRead=now;
         if(++s.readCount>60||++s.burst>5){reply.payload=json::Error("rate_limited");outcome="rate_limited";}
         else reply.payload=json::Serialize(f.opcode,input,s.snapshots,s.capture,Hex(s.credentials.session.data(),16),s.credentials.epoch,now);
     }
@@ -285,7 +288,8 @@ Result Host::Poll(uint64_t now) {
     const auto completed=s.production?ClockNow():now;
     if(completed>=f.deadline)return fail(Result::Deadline);
     if(Rings(s.map,s.credentials,s.channel,s.request,s.response,completed)!=Result::Ok)return fail(Result::Corrupt);
-    if(!Push(s.response,reply,s.hostKey))return fail(Result::Corrupt);return Result::Ok;
+    if(!Push(s.response,reply,s.hostKey))return fail(Result::Corrupt);
+    return Result::Ok;
 }
 struct Peer::State {
     platform::Mapping map;platform::Lease lease;Credentials credentials;sc_ipc_chan channel{};sc_ipc_ring_view request{},response{};
