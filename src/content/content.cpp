@@ -80,7 +80,8 @@ bool ReadFile(const plugins::Plugin& pack, const plugins::ContentItem& item,
         const auto& part = parts[i];
         // Win32 normalizes trailing periods/spaces; refuse rather than alias.
         if (part.back() == '.' || part.back() == ' ') return false;
-        path /= std::filesystem::u8path(part);
+        // char8_t selects the UTF-8 path constructor (unlike a native char path).
+        path /= std::filesystem::path(std::u8string(part.begin(), part.end()));
         if (!handles.Add(path, i + 1 < parts.size())) return false;
     }
     const HANDLE file = handles.all.back();

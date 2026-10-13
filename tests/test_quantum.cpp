@@ -5,6 +5,10 @@
 #include <thread>
 #include <cstdlib>
 #include "../src/api/internal.h"
+// Fixture operations and checks must remain active in Release builds.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstdio>
 using namespace sco::game::services;

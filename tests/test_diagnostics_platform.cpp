@@ -2,6 +2,10 @@
 // Standalone no-game fixture; compile with the matching diagnostics_platform TU.
 #include "../src/ipc/diagnostics_platform.h"
 #include <array>
+// Fixture operations and checks must remain active in Release builds.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstring>
 #include <iostream>

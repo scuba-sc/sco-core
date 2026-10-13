@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
         CHECK(sco::game::services::StartLoadout() == sco::Result::WrongThread);
     }); worker.join();
     CHECK(calls == before);
-    backend.equip = [](uint32_t, const char*) { ++calls; throw 1; return SC_LOADOUT_APPLIED; };
+    backend.equip = [](uint32_t, const char*) -> sc_loadout_status { ++calls; throw 1; };
     sco::game::services::StopLoadout();
     CHECK(sco::game::services::StartLoadout(&backend) == sco::Result::Ok);
     offline = false;

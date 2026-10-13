@@ -93,7 +93,8 @@ void DisabledAndCredential() {
     }
 }
 void GeometryAttacks() {
-    const std::vector<std::pair<size_t,uint8_t>> attacks{{4,2},{32,1},{48,0},{52,2},{60,1},{64,0},{68,2},{70,0},{88,0xff},{96,0xff},{104,1},{112,1},
+    struct Attack { size_t offset; uint8_t value; };
+    const std::vector<Attack> attacks{{4,2},{32,1},{48,0},{52,2},{60,1},{64,0},{68,2},{70,0},{88,0xff},{96,0xff},{104,1},{112,1},
         {132,1},{136,0xff},{152,1},{33092,2},{33104,1},{33112,1},{164352,1}};
     for(auto [offset,value]:attacks){Fixture f;os::Mapping m;CHECK(os::Open(m));sc_ipc_i_st8r(static_cast<uint8_t*>(m.base)+offset,value);
         di::Peer p;CHECK(p.Begin(path,1000)!=di::Result::Ok);CHECK(f.host.Poll(1000)!=di::Result::Ok);os::Close(m);}
@@ -114,13 +115,25 @@ void GeometryAttacks() {
 }
 void HostileFrames() {
     for(unsigned kind=0;kind<12;++kind){Fixture f;Raw r;auto hello=r.Hello();auto key=r.c.secret;
-        if(kind==0)key[0]^=1; if(kind==1)hello.sequence=1;if(kind==2)hello.epoch++;if(kind==3)hello.session[0]^=1;
-        if(kind==4)hello.deadline=999;if(kind==5)hello.deadline=3001;if(kind==6)hello.direction=2;if(kind==7)hello.request.fill(0);
+        if(kind==0)key[0]^=1;
+        if(kind==1)hello.sequence=1;
+        if(kind==2)hello.epoch++;
+        if(kind==3)hello.session[0]^=1;
+        if(kind==4)hello.deadline=999;
+        if(kind==5)hello.deadline=3001;
+        if(kind==6)hello.direction=2;
+        if(kind==7)hello.request.fill(0);
         if(kind==8)hello.payload="{\"client_nonce\":\""+std::string(64,'0')+"\",\"expected_host_build\":\"fixture-host-1\"}";
-        if(kind==9)hello.payload="{}";if(kind==10)hello.opcode=0x100;if(kind==11)hello.payload="{\"client_nonce\":\""+std::string(64,'1')+"\",\"expected_host_build\":\"wrong-host\"}";
+        if(kind==9)hello.payload="{}";
+        if(kind==10)hello.opcode=0x100;
+        if(kind==11)hello.payload="{\"client_nonce\":\""+std::string(64,'1')+"\",\"expected_host_build\":\"wrong-host\"}";
         r.Push(hello,key);CHECK(f.host.Poll(1000)!=di::Result::Ok);CHECK(!f.host.Started());}
     for(unsigned kind=0;kind<5;++kind){Fixture f;Raw r;auto b=di::Encode(r.Hello(),r.c.secret);
-        if(kind==0)b[56]++;if(kind==1)b[61]=1;if(kind==2)b.resize(103);if(kind==3)b.push_back(0);if(kind==4)b.resize(4097);
+        if(kind==0)b[56]++;
+        if(kind==1)b[61]=1;
+        if(kind==2)b.resize(103);
+        if(kind==3)b.push_back(0);
+        if(kind==4)b.resize(4097);
         CHECK(sc_ipc_ring_push(&r.request,1,b.data(),uint32_t(b.size()))==SC_IPC_OK);CHECK(f.host.Poll(1000)!=di::Result::Ok);}
     {Fixture f;Raw r;r.Push(r.Hello(),r.c.secret,2);CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
     {Fixture f;Raw r;r.Push(r.Hello(),r.c.secret);CHECK(f.host.Poll(1000)==di::Result::Ok);r.Pop(r.c.secret);CHECK(f.host.Poll(3001)==di::Result::Deadline);}
@@ -182,7 +195,8 @@ void ReadsAndNoSideEffects() {
         f.sink.accept=false;r.Push(r.Make(0x100,"{}",4000),r.peerKey);sc_ipc_peer_beat(&r.channel,0,4000);CHECK(f.host.Poll(4000)==di::Result::Audit);
         auto refusal=r.Pop(r.hostKey);CHECK(refusal.payload.find("audit_unavailable")!=std::string::npos&&refusal.payload.find("\"data\":null")!=std::string::npos);
     }
-    for(auto count:calls)CHECK(count==0);CHECK(!sco::ServiceTableHandedOut(&owner));sco::Release(&owner);
+    for(auto count:calls)CHECK(count==0);
+    CHECK(!sco::ServiceTableHandedOut(&owner));sco::Release(&owner);
 }
 int main(int argc,char** argv) {
     CHECK(argc==3);sco::SetGameThread();root=std::filesystem::canonical(argv[2]).string();
