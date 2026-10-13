@@ -7,7 +7,7 @@
 #ifndef SC_GAME_PACK_H
 #define SC_GAME_PACK_H
 
-#define SCO_GAME_PACK_VERSION "0.3.0"
+#define SCO_GAME_PACK_VERSION "0.4.0"
 
 /* The newest game build every row was checked on with sco-sigcheck (all rows OK). */
 #define SCO_GAME_PACK_VERIFIED_BUILD "4.10.196.36804"

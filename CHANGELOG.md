@@ -4,6 +4,21 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+## sdk-v2.1.0 (2026-10-12)
+
+SDK 2.1.0 packages the engineering entries below without changing frozen plugin ABI 1.1.
+The additive game contracts raise the separate game-sc package coordinate from 0.3.0 to
+0.4.0; core, legacy and core-source use 2.1.0. The optional game-sc overlay binds the exact
+core archive digest. Only these four profiles are selected for the signed candidate;
+host-source-sc publication and game implementation/product export remain excluded.
+The [SDK2.1 scope decision](docs/legal/release-decisions/2026-10-12-sdk-v2.1.0-scope.md)
+records maintainer scope review, not final signed-byte publication approval.
+
+Native Windows CI fixtures are no-game engineering evidence, not engine or gameplay
+acceptance. Preserve each entry's historical verification limits: real-game, anti-cheat,
+official-network, private-LAN/firewall and renderer acceptance are not established by this
+release preparation. Default-off and fail-closed capability controls remain unchanged.
+
 - Renderer-neutral text inputs gain `SCO_WIDGET_PASSWORD` display masking for explicit G13 credentials; only text inputs accept the flag. This is not encrypted storage or a guarantee against host-memory disclosure.
 
 - **G13 private-session broker (R1):** owner-approved default-on `SessionControlV1`
