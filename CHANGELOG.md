@@ -4,6 +4,17 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **G13 private-session broker (R1):** owner-approved default-on `SessionControlV1`
+  with strict loopback/no-startup-socket defaults, explicit numeric private bind
+  and exact peer allowlist, 12-byte minimum passphrase, bounded ingress/requests,
+  fail-closed offline/EAC admission and credential-free lifecycle audit. Add
+  public `game.private_session` 1.0 Host/Join/Leave/state requests for the external
+  multiplayer plugin; sockets and policy remain host-only. Host kit publishes
+  before plugin load, checks admission before queued work, and stops on admission
+  loss/unload/quit using the existing net release dispatcher. Synthetic backend
+  and C layout proof only; Windows/MSVC/private-LAN/game NOT VERIFIED. G2 unchanged.
+
+
 - **Runtime MCP step 2 — host IPC/auth gate (local fixture):** default-off host-private mapping, secure per-session credentials/peer lease, mutual directional HMAC and six copied-metadata reads; hostile real-transport and literal-vector fixtures. No sockets, network-key reuse, public ABI change or product/MCP enablement. Protected OS audit/product policy remains step 3; **not run in game**.
 - **C# `sco.widgets` 1.0 (#142):** pinned interop, bounded copied trees, typed rooted callbacks, atomic failures/reentrant updates and archive example/tests; frozen ABI unchanged. Windows NativeAOT/GPU/game not verified locally.
 

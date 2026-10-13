@@ -84,7 +84,7 @@ sco_project_target(sco_core)
 # sco-sigcheck don't need hooks.
 if(SCO_GAME_SC)
   file(GLOB SCO_GAME_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/game/*.cpp")
-  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|diagnostics|host)\\.cpp$")
+  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|diagnostics|host|private_session)\\.cpp$")
   add_library(sco_game_sc STATIC ${SCO_GAME_SOURCES})
   target_link_libraries(sco_game_sc PUBLIC sco_core)
   add_library(sco_game_diagnostics STATIC src/game/diagnostics.cpp)
@@ -314,7 +314,10 @@ target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage s
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
   # Platform::registerSignatures (sco::game::RegisterGameSignatures).
-  target_link_libraries(sco_app PUBLIC sco_datacore_service sco_game_sc sco_game_diagnostics)
+  add_library(sco_private_session STATIC src/game/private_session.cpp)
+  target_link_libraries(sco_private_session PUBLIC sco_net_service)
+  sco_project_target(sco_private_session)
+  target_link_libraries(sco_app PUBLIC sco_datacore_service sco_game_sc sco_game_diagnostics sco_private_session)
 endif()
 # The game pack's services (sco/game/services.h, docs/design/game-services.md): teleport.spatial
 # today, published under the owner "game" when the product sets Platform::gameServices. They read
@@ -1083,6 +1086,10 @@ if(SCO_BUILD_TESTS)
     src/net/service.cpp src/net/scope.cpp src/net/control.cpp)
   # Same production backend, but UDP is replaced by failing socket traps in the fixture.
   target_link_libraries(test_net_control PRIVATE sco_net sco_host Threads::Threads)
+  if(SCO_GAME_SC)
+    target_sources(test_net_control PRIVATE src/game/private_session.cpp tests/abi_private_session.c)
+    target_compile_definitions(test_net_control PRIVATE SCO_TEST_PRIVATE_SESSION=1)
+  endif()
   sco_project_target(test_net_control)
   add_test(NAME test_net_control COMMAND test_net_control)
 

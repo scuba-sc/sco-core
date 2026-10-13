@@ -1,6 +1,7 @@
 // sco::net UDP over Winsock (sco/net/udp.h): the real target. One of the files CONTRIBUTING lets
 // include Windows headers.
 #include "sco/net/udp.h"
+#include "sco/net/scope.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
@@ -29,6 +30,26 @@ void ToEndpoint(const sockaddr_in& sa, Endpoint* out) {
 }  // namespace
 
 std::unique_ptr<Socket> Socket::Open(uint16_t port, bool loopbackOnly, std::string* why) {
+    Endpoint ep;
+    ep.family = Endpoint::kIpv4;
+    if (loopbackOnly) {
+        ep.addr[0] = 127;
+        ep.addr[3] = 1;
+    }
+    return OpenBound(port, ep, why);
+}
+
+std::unique_ptr<Socket> Socket::Open(uint16_t port, const std::string& bindAddress, std::string* why) {
+    Endpoint ep;
+    if (!ParseAddress(bindAddress, port, &ep) ||
+        (!IsLan(ep) && !(ep.addr[0] == 100 && ep.addr[1] >= 64 && ep.addr[1] <= 127))) {
+        if (why) *why = "bind: expected a numeric private, loopback, link-local or CGNAT IPv4 address";
+        return nullptr;
+    }
+    return OpenBound(port, ep, why);
+}
+
+std::unique_ptr<Socket> Socket::OpenBound(uint16_t port, const Endpoint& bindEndpoint, std::string* why) {
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         if (why) *why = "WSAStartup failed";
@@ -46,7 +67,7 @@ std::unique_ptr<Socket> Socket::Open(uint16_t port, bool loopbackOnly, std::stri
     sockaddr_in sa{};
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
-    sa.sin_addr.s_addr = htonl(loopbackOnly ? INADDR_LOOPBACK : INADDR_ANY);
+    std::memcpy(&sa.sin_addr.s_addr, bindEndpoint.addr, 4);
     int n = static_cast<int>(sizeof sa);
     // SO_EXCLUSIVEADDRUSE: no other socket can bind the same port and read the session's traffic.
     BOOL exclusive = TRUE;

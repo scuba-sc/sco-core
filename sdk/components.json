@@ -203,6 +203,11 @@
     }
   ],
   "components": [
+    {"id": "g13.include.sc_private_session.h", "source": "include/sc_private_session.h", "destination": "include/sc_private_session.h", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": true},
+    {"id": "g13.include.sco.game.private_session.h", "source": "include/sco/game/private_session.h", "destination": "include/sco/game/private_session.h", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
+    {"id": "g13.src.game.private_session.cpp", "source": "src/game/private_session.cpp", "destination": "src/game/private_session.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "g13.tests.abi_private_session.c", "source": "tests/abi_private_session.c", "destination": "tests/abi_private_session.c", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "g13.docs.game.private-session.md", "source": "docs/game/private-session.md", "destination": "docs/game/private-session.md", "profiles": ["game-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.include.sco.diagnostics_policy.h", "source": "include/sco/diagnostics_policy.h", "destination": "include/sco/diagnostics_policy.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.src.ipc.diagnostics_audit.h", "source": "src/ipc/diagnostics_audit.h", "destination": "src/ipc/diagnostics_audit.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.src.ipc.diagnostics_audit.cpp", "source": "src/ipc/diagnostics_audit.cpp", "destination": "src/ipc/diagnostics_audit.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},

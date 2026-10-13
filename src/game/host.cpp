@@ -122,6 +122,7 @@ Result Start() {
     try {
         auto platform = options.platform;
         platform.dataCore = false; // service already OPEN/LOADED; NEVER reset an early load
+        platform.privateSessionAdmitted = Admitted; // exact same fail-closed admission
         if (!app::Start(platform)) { StopData(); phase = Phase::Failed; return Result::Failed; }
         if (dataActive) {
             auto inputs = std::make_shared<DataInputs>();

@@ -1,5 +1,6 @@
 #pragma once
 // Host-source contract v1; NOT a plugin service or a wire ABI. See docs/net.md.
+// The separate game.private_session C table can request operations through it.
 // Use one broker on one host control thread; do not mix direct Host/Join/Leave
 // calls with it. Destroy/Stop it before stopping sco.net or its injected transport.
 #include "sco/net/session.h"
@@ -9,10 +10,13 @@
 namespace sco::net {
 
 struct ControlPolicyV1 {
-    bool enabled = false;
+    bool enabled = true;
+    // Host-owned exact numeric bind: never wildcard. LAN needs explicit bind
+    // and exact peer allowlist; default permits only 127.0.0.1.
+    std::string bindAddress = "127.0.0.1";
     // 1..16 exact numeric IPv4 addresses, private/loopback/link-local or CGNAT VPN.
     // No DNS, CIDRs, public addresses, automatic LAN expansion or wildcard mode.
-    std::vector<std::string> allowedAddresses;
+    std::vector<std::string> allowedAddresses = { "127.0.0.1" };
 };
 struct ControlHostRequestV1 {
     bool consent = false; // fresh explicit local confirmation, never peer-supplied
@@ -47,6 +51,7 @@ public:
 private:
     Transport* transport_;
     Scope scope_;
+    std::string bindAddress_ = "127.0.0.1";
     bool enabled_ = false, ownsSession_ = false, stopped_ = false;
 };
 
