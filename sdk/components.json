@@ -52,6 +52,10 @@
   ],
   "excluded": [
     {
+      "path": "tests/abi_catalogue_mining.c",
+      "why": "Repository-only SDK catalogue layout evidence for the game-pack mining contract; not a neutral source-kit fixture."
+    },
+    {
       "path": "tests/test_runtime_diagnostics_integration.cpp",
       "why": "Repository-only no-game acceptance host for separately packaged runtime launcher, default build option off."
     },
