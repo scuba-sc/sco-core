@@ -8,7 +8,7 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | `data` | Files only: missions, rules, scripts, lists and game-data overrides (`datacore\*.toml`). Runs no code | [`examples/travel_pack`](examples/travel_pack), [`examples/quantum_pack`](examples/quantum_pack) |
 | `lua` | A Lua 5.4 script, run in a sandbox by sc-offline's bundled Lua runtime | [`examples/greeter`](examples/greeter), [`examples/notebook`](examples/notebook) (storage) |
 
-> **SDK 2.0.0** (tag `sdk-v2.0.0`; the plugin ABI is **1.1**, unchanged since `sdk-v1.1.0`; Star Citizen game pack 0.3.0; `VERSIONS.txt` in the zip says so, with the verified game build). The API is stable: version 1 only grows, so a plugin built with this SDK keeps loading in later 1.x hosts. In sc-offline, plugin loading is switched off by default; `plugins = on` in `sc-offline.ini` turns it on.
+> **SDK 2.0.0** (tag `sdk-v2.0.0`; the plugin ABI is **1.1**, unchanged since `sdk-v1.1.0`; Star Citizen game pack 0.3.0; `VERSIONS.txt` in the zip says so, with the verified game build). The API is stable: version 1 only grows, so a plugin built with this SDK keeps loading in later 1.x hosts. In sc-offline, plugin loading is on by default (`plugins = on` in `sc-offline.ini`); optional folders can still ship disabled. This product default is not a kernel policy. See the [SDK/MCP tutorial](../docs/sdk-mcp-tutorial.md) for isolated owned examples and lifecycle limits.
 
 **Native plugins run with the game's full rights.** Only install plugins you trust; sc-offline doesn't review them. Plugins never connect to Cloud Imperium Games' servers; the only connections allowed are local IPC (`sco.ipc`) and private LAN/VPN co-presence through `sco.net`, both host services: see [Plugin rules](docs/plugin-rules.md).
 
@@ -42,6 +42,7 @@ public headers of a profile).
 | Zip | Holds |
 |---|---|
 | `sco-sdk-core-source-<version>.zip` | Kernel source-development kit in repository layout: host/runtime, loaders, required vendored Lua/SQLite, CMake build, tools and synthetic tests. Build with `-DSCO_GAME_SC=OFF`; no game implementation, game ABI headers, game layout pins or game-contract fixtures |
+| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Local packaging only; release publication/attestation remains owed |
 | `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Its version is `sdk/VERSION` alone |
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
@@ -66,6 +67,14 @@ under different `TZ`, `LC_ALL`, Python hash seeds and umasks, then compares SHA-
 checks fixed ZIP timestamps/modes and absence of checkout/output paths. This proves byte identity
 within one Python/zlib environment, not across compression-library versions. Packaged repository
 document links are pinned to the source commit rather than a moving branch.
+
+## Read-only pack content
+
+New hosts expose `sco.content` 1.0 (`sco_content.h`, `scosdk/content.hpp`) for
+bounded copied startup lists and XML scripts. See [data packs](docs/data-packs.md)
+and `examples/content_reader`. Native C/C++ only; no file paths, execution rights,
+C#/Lua route or implicit product base-list import. SDK 2.0.0's existing release
+predates the service. Frozen plugin ABI 1.1 is unchanged.
 
 ## Renderer-neutral widget UI
 

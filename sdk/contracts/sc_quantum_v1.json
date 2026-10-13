@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_quantum_v1.enable",
+      "table": "sc_quantum_v1",
+      "source_header": "include/sc_quantum.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t)",
+      "version_macro": "SC_QUANTUM_SERVICE_VERSION",
+      "member_extent": 16,
+      "table_size": 40,
+      "service": "game.quantum",
+      "id": "sc-quantum-v1-enable",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "on is 0 or 1. Claim the single controller after offline/drive admission; repeat enable by that owner is idempotent. Disable clears holding and ownership. Competing owner is refused.",
+      "buffer_contract": "`sco_result (*enable)(sco_plugin* self, uint32_t on);`<br>on is 0 or 1. Claim the single controller after offline/drive admission; repeat enable by that owner is idempotent. Disable clears holding and ownership. Competing owner is refused.",
+      "ownership": "Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations.",
+      "callback_context": "No plugin callback.",
+      "reentrancy": "Recursive bridge calls refused with FAILED.",
+      "results": "OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault.",
+      "absent_capability": "Default game.quantum.control is false; mutation unavailable until a verified engine bridge exists.",
+      "cleanup": "Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart.",
+      "examples": [],
+      "tests": [
+        "tests/abi_game_quantum.c",
+        "tests/test_quantum.cpp"
+      ],
+      "limitations": [
+        "Engine bridge unavailable; not run in game.",
+        "Lease expiry requires a game tick.",
+        "Windows/MSVC and native detour forwarding not verified.",
+        "No C# or Lua route."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_quantum.h",
+              "token": "(*enable)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_quantum.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_quantum.h",
+              "token": "(*enable)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_quantum.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/quantum.md",
+              "token": "C# and Lua quantum routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/quantum.md",
+              "token": "C# and Lua quantum routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_quantum_v1.hold",
+      "table": "sc_quantum_v1",
+      "source_header": "include/sc_quantum.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t)",
+      "version_macro": "SC_QUANTUM_SERVICE_VERSION",
+      "member_extent": 24,
+      "table_size": 40,
+      "service": "game.quantum",
+      "id": "sc-quantum-v1-hold",
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Refresh the owned hold lease for 1..1000 milliseconds from the latest game tick. No drive or any block refuses holding. Expiry is serviced by the next game tick.",
+      "buffer_contract": "`sco_result (*hold)(sco_plugin* self, uint32_t milliseconds);`<br>Refresh the owned hold lease for 1..1000 milliseconds from the latest game tick. No drive or any block refuses holding. Expiry is serviced by the next game tick.",
+      "ownership": "Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations.",
+      "callback_context": "No plugin callback.",
+      "reentrancy": "Recursive bridge calls refused with FAILED.",
+      "results": "OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault.",
+      "absent_capability": "Default game.quantum.control is false; mutation unavailable until a verified engine bridge exists.",
+      "cleanup": "Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart.",
+      "examples": [],
+      "tests": [
+        "tests/abi_game_quantum.c",
+        "tests/test_quantum.cpp"
+      ],
+      "limitations": [
+        "Engine bridge unavailable; not run in game.",
+        "Lease expiry requires a game tick.",
+        "Windows/MSVC and native detour forwarding not verified.",
+        "No C# or Lua route."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_quantum.h",
+              "token": "(*hold)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_quantum.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_quantum.h",
+              "token": "(*hold)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_quantum.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/quantum.md",
+              "token": "C# and Lua quantum routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/quantum.md",
+              "token": "C# and Lua quantum routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_quantum_v1.release",
+      "table": "sc_quantum_v1",
+      "source_header": "include/sc_quantum.h",
+      "signature": "sco_result (*)(sco_plugin *)",
+      "version_macro": "SC_QUANTUM_SERVICE_VERSION",
+      "member_extent": 32,
+      "table_size": 40,
+      "service": "game.quantum",
+      "id": "sc-quantum-v1-release",
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Cancel holding while retaining enable and ownership. Repeated own release is idempotent. Unclaimed or foreign release is NOT_FOUND.",
+      "buffer_contract": "`sco_result (*release)(sco_plugin* self);`<br>Cancel holding while retaining enable and ownership. Repeated own release is idempotent. Unclaimed or foreign release is NOT_FOUND.",
+      "ownership": "Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations.",
+      "callback_context": "No plugin callback.",
+      "reentrancy": "Recursive bridge calls refused with FAILED.",
+      "results": "OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault.",
+      "absent_capability": "Default game.quantum.control is false; mutation unavailable until a verified engine bridge exists.",
+      "cleanup": "Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart.",
+      "examples": [],
+      "tests": [
+        "tests/abi_game_quantum.c",
+        "tests/test_quantum.cpp"
+      ],
+      "limitations": [
+        "Engine bridge unavailable; not run in game.",
+        "Lease expiry requires a game tick.",
+        "Windows/MSVC and native detour forwarding not verified.",
+        "No C# or Lua route."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_quantum.h",
+              "token": "(*release)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_quantum.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_quantum.h",
+              "token": "(*release)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_quantum.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/quantum.md",
+              "token": "C# and Lua quantum routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/quantum.md",
+              "token": "C# and Lua quantum routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_quantum_v1.state",
+      "table": "sc_quantum_v1",
+      "source_header": "include/sc_quantum.h",
+      "signature": "sco_result (*)(sco_plugin *, sc_quantum_state *)",
+      "version_macro": "SC_QUANTUM_SERVICE_VERSION",
+      "member_extent": 40,
+      "table_size": 40,
+      "service": "game.quantum",
+      "id": "sc-quantum-v1-state",
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Caller sets out->size to at least 32. Copy only the known prefix: enabled/held, phase, block, integer-millionth progress and opaque session generation. Unavailable observations return idle/zero and a block; early refusals leave output unchanged.",
+      "buffer_contract": "`sco_result (*state)(sco_plugin* self, sc_quantum_state* out);`<br>Caller sets out->size to at least 32. Copy only the known prefix: enabled/held, phase, block, integer-millionth progress and opaque session generation. Unavailable observations return idle/zero and a block; early refusals leave output unchanged.",
+      "ownership": "Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations.",
+      "callback_context": "No plugin callback.",
+      "reentrancy": "Recursive bridge calls refused with FAILED.",
+      "results": "OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault.",
+      "absent_capability": "Default game.quantum.control is false; mutation unavailable until a verified engine bridge exists.",
+      "cleanup": "Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart.",
+      "examples": [],
+      "tests": [
+        "tests/abi_game_quantum.c",
+        "tests/test_quantum.cpp"
+      ],
+      "limitations": [
+        "Engine bridge unavailable; not run in game.",
+        "Lease expiry requires a game tick.",
+        "Windows/MSVC and native detour forwarding not verified.",
+        "No C# or Lua route."
+      ],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_quantum.h",
+              "token": "(*state)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_quantum.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_quantum.h",
+              "token": "(*state)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_quantum.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/quantum.md",
+              "token": "C# and Lua quantum routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/quantum.md",
+              "token": "C# and Lua quantum routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      }
+    }
+  ]
+}

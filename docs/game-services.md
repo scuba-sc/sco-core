@@ -6,7 +6,9 @@ The Star Citizen game pack publishes its services under the reserved owner `game
 
 | Service | Version | Header | Since game pack | What |
 |---|---|---|---|---|
+| `game.relocation` | 1.0 | [`sc_relocation.h`](../include/sc_relocation.h) | Unreleased | Owner-scoped request/cancel/status foundation; production mutation unavailable pending safety/session admission, system classifier and transport. Synthetic only. |
 | `teleport.spatial` | 1.0 | [`sc_spatial.h`](../include/sc_spatial.h) | 0.1.0 | Where you are, and positions between the game's zones |
+| `game.spatial` | 1.0 | [`sc_game_spatial.h`](../include/sc_game_spatial.h) | Unreleased | Full-pose conversion and bounded copied observed ancestry/name pages; system identity explicitly unknown. Native C/raw C++ only. Synthetic fixtures; not verified on Windows or in game. [Contract](contracts.md#gamespatial-sc_game_spatial_v1) |
 | `spawn.entities` | 1.2 | [`sc_spawn.h`](../include/sc_spawn.h) | 0.2.0 | Spawn entities near you, your entity and ship ids, and move what you spawned |
 | `game.actors` | 1.1 | [`sc_actors.h`](../include/sc_actors.h) | 0.2.0 | Your player (`local_player`), NPCs you spawn (`spawn_npc(self, ...)`) and despawn (`despawn(self, id)`); the host removes a plugin's NPCs on ordinary owner release (including unload or non-retained `crashed` cleanup), not on a restart-required retained-provider fault. Capabilities `game.actors.local_player`, `.spawn_npc`, `.despawn`. 1.1 appends `health(id, &cur, &max)` (the HealthPool stat; `max` is 0, not read yet; capability `game.actors.health`) and `state(id, &state)` (never ready yet: `SCO_UNAVAILABLE`, capability `game.actors.state` stays off until an in-game run says which of the game's two "not fully alive" checks is dead and which incapacitated). Wrappers: `scosdk/game/actors.hpp`, C# `Sco.Sdk.Game.Actors`, Lua `sco.game.actors.local_player` and `.health` (read-only) |
 | `game.vehicles` | 1.0 | [`sc_vehicles.h`](../include/sc_vehicles.h) | 0.2.0 | The ship you're aboard, its seats and occupants, seating and unseating your own actors, Flight Ready. Capabilities `game.vehicles.seats`, `.seat`, `.flight_ready` ([API](api-v1.md#gamevehicles-10-game-pack)) |
@@ -19,7 +21,32 @@ Not a table: the capability `game.mining` (the row `mining.cell`, [mining](game/
 
 `teleport.spatial` and `spawn.entities` keep their names and tables for all of 1.x: sc-offline's `teleport` and `spawn` built-ins published them before the game pack did, and a plugin can't tell the difference. New game services are named `game.<name>`.
 
+## Owned prefab extension (G4)
+
+`game.prefabs` 1.0 (`sc_prefabs.h`), native C/C++ only. The game pack publishes
+it alongside entities; query success is not capability. `game.entities.prefabs`
+is enabled by default for R1 by owner approval, retaining readiness/fault refusal.
+Windows/SEH and streamed spawn/unload cleanup remain **NOT VERIFIED**.
+It uses existing entities ownership, mover and despawn, not arbitrary delete.
+Canonical content-relative paths, shared/per-owner quotas and finite poses are
+checked before engine calls. Pending ownership never expires via alive=0.
+Use game.owned retained-build policy for undo while loaded; keep gives up rights.
+See [design and Windows acceptance](design/prefabs.md). C#/Lua unsupported.
+
 ## For products
+
+### Retained build and owned-seat removal (G9, unreleased)
+
+`game.owned` 1.0 ([`sc_owned.h`](../include/sc_owned.h)) composes existing
+entities/actors despawn and vehicle seat reads. Build placements opt into
+`retain_build`, remain owned/movable for undo/clear while loaded, and are removed
+on ordinary unload. Legacy `keep` refuses retained placements and grants no SDK
+removal rights for unretained ones. `remove_npc` and `remove_seat_npc` require
+actors-owned NPCs; a fresh expected seat occupant never grants foreign/player
+deletion rights. Bounded receipts report initiation only, not disappearance.
+C/C++ direct route; C#/Lua unsupported. No across-reload persistence, arbitrary
+delete or new player-vehicle registration. [Policy and owed acceptance](design/owned-removal.md).
+Synthetic evidence only; **not run in game**.
 
 - `sco::host::ProvideGameService(name, version, table)` publishes under the owner `game` (`sco/host.h`): `game.<name>`, or one of the product names a game pack took over (`kGameCompatNames`). The owner is never released; `sco::app::Stop` withdraws game services after every plugin has unloaded.
 - `sco::app::Platform::gameServices = true` starts them before any plugin loads. They read the game through the `teleport.*` and `spawn.*` rows, so resolve the rows first. A product that still publishes `teleport.spatial` or `spawn.entities` itself must leave it off, or drop its own provider: the second provider of a name is refused.
@@ -27,10 +54,19 @@ Not a table: the capability `game.mining` (the row `mining.cell`, [mining](game/
 - `game.actors` reads your player through the `teleport.*` rows and `spawn.handle_to_id`, spawns through `spawn.entities`' spawner (`spawn.helpers` rows), and removes NPCs as sc-offline's Clear NPCs did (`npc.clear` rows: RemoveEntity, checked 1.5 s later, then the `npc.direct_remove` fallback, then a move far out of range). It logs `[game] game.actors: <plugin> spawned <class> as NPC <id>` and `[game] game.actors: <plugin> unloaded: removing the <n> NPCs it spawned`. `spawn_npc` refuses when it couldn't remove the NPC again (no `npc.clear` rows, or no release hook).
 - `game.world` casts through the physics world the `build.*` rows find (`build.ground_ray` capability rows; the ray block, slot `0x1C0` and grid release are sc-offline's build mode moved over) and reads the camera at the offsets `build.camera_fields` pins. The cast tries the zone you pass and up to two of its parents, never the world's root zone. It logs nothing on success. The first cast checks a live entity's vtable slots against the rows and answers `SCO_UNAVAILABLE` if the game changed them.
 - `game.actors` 1.1's `health` finds an entity id's actor (yours, or through its `ISCItemUser` component as `game.vehicles` does) and reads the HealthPool stat through the `actor.*` rows. `state` stays off. To decide the dead/incapacitated mapping the game pack logs, with the `actor.state_*` rows OK, `[game] game.actors state probe (your player): P1 (status vtable slot 0x60) = <0|1>, P2 (CSCActorStatus::IsDeadConfirmed) = <0|1>, HealthPool = <n>` whenever either answer changes (at most every 250 ms), and `... state probe (died): ...` from the death hook. Get downed (incapacitated), then die: which of P1 and P2 is 1 in each state decides the mapping. The probe goes away when `state` ships.
-- `game.entities` spawns through the same spawner (`spawn.helpers` rows) and removes with game.actors' removal (`npc.clear` rows), so `spawn` refuses (`SCO_UNAVAILABLE`) when it couldn't remove the entity again. `set_transform` moves what the plugin spawned (through `game.entities`, `spawn_as` or `game.actors`) and the player's own vehicles (`RegisterPlayerVehicle`); nothing else. `keep` (1.1) removes an entity from the plugin's ownership list without removing it from the world: the release hook and the stop sweep never see it, and `set_transform` and `despawn` by that plugin refuse it afterwards (the product removes it by its own means, for example sc-offline's build mode with its entity removal). It logs `[game] game.entities: <plugin> kept <id>: it stays when the plugin unloads`, `[game] game.entities: <plugin> spawned <class> as <id>` and `[game] game.entities: <plugin> unloaded: removing the <n> entities it spawned`. `class_of` reads the entity's class name the way the game's own entity dump does (entity slot `0x20`, then that class's slot `0x18`, both pinned by the `entities.class_site` row) and answers `SCO_FAILED` rather than text that isn't a plausible class name.
+- `game.entities` spawns through the same spawner (`spawn.helpers` rows) and removes with game.actors' removal (`npc.clear` rows), so `spawn` refuses (`SCO_UNAVAILABLE`) when it couldn't remove the entity again. `set_transform` moves what the plugin spawned (through `game.entities`, `spawn_as` or `game.actors`) and the player's own vehicles (`RegisterPlayerVehicle`); nothing else. `keep` (1.1) removes an entity from the plugin's ownership list without removing it from the world: the release hook and the stop sweep never see it, and `set_transform` and `despawn` by that plugin refuse it afterwards (no SDK removal authority survives; retained build undo instead uses game.owned). It logs `[game] game.entities: <plugin> kept <id>: it stays when the plugin unloads`, `[game] game.entities: <plugin> spawned <class> as <id>` and `[game] game.entities: <plugin> unloaded: removing the <n> entities it spawned`. `class_of` reads the entity's class name the way the game's own entity dump does (entity slot `0x20`, then that class's slot `0x18`, both pinned by the `entities.class_site` row) and answers `SCO_FAILED` rather than text that isn't a plausible class name.
 - **`game.entities` watch and query_radius are off.** [Appendix B](design/game-world-spikes.md) found where the game does these things (B3: the entity walk; B9: `CEntitySystem::CallOnSpawnSinks` and `DeleteEntity`) but left what only a run can show: the thread the callbacks run on, the spawn batch's vector layout and the walk's flag byte. Until the maintainer's run confirms them, `game.entities.watch` and `game.entities.query_radius` are not ready and `watch` / `query_radius` answer `SCO_UNAVAILABLE` with a reason in `last_error`. To get that run's evidence, start the game once with the environment variable `SCO_ENTITIES_DIAG=1`: the game pack installs the two streaming hooks log-only and, 20 s after you've spawned, logs your own entity's class and runs the walk with each flag value. Read the `[game] game.entities diag:` lines in `mod.log` (callbacks per hook, the thread each ran on against the game thread, the vector's raw words and element count, the class and id of the first entities, and the walk's callback count right away, 1 s and 3 s later). Then set `kWatchConfirmed` / `kQueryRadiusConfirmed` in `sco/game/entities.h`. Diagnostics change nothing else, and nothing runs without the variable.
 - The `watch` type is a class name (exact, case-sensitive) or `PREFIX*`. Refused with `SCO_BAD_ARG` and a reason: `NULL`, empty, a lone `*`, a `*` that isn't the last character (`A*B`, `**`, `*A`), more than 63 characters, and any byte that isn't printable ASCII (0x21 to 0x7E) or is `?`. The host matches before calling the plugin; events reach it a tick later, in order, up to 256 held per watch (the oldest are dropped and logged).
 - The implementations are in `src/game/services/` (library `sco_game_services`, Windows only: game reads run under SEH). Builds without them log `[app] game services not built` and go on.
+
+## Optional G5 world control (disabled)
+
+`game.world.control` 1.0 ([header](../include/sc_world_control.h),
+[contract](design/world-control.md)) supplies filtered aim rays and bounded,
+owner-exclusive reversible camera leases via a separate table. Native C/C++
+only; C#/Lua unsupported. Both `game.world.raycast_filtered` and
+`game.world.free_camera` are OFF pending a verified offline engine adapter;
+synthetic policy tests do not certify gameplay. Existing world reads unchanged.
 
 ## Events
 

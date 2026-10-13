@@ -39,6 +39,8 @@
 extern "C" {
 #endif
 
+/* Optional owner-scoped filtered ray/camera control: sc_world_control.h.
+ * Separate service; no change to this read-only 1.0 table. */
 #define SC_WORLD_NAME        "game.world"
 #define SC_WORLD_VERSION_1_0 0x00010000u
 

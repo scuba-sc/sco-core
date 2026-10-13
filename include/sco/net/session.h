@@ -1,8 +1,10 @@
 #pragma once
 // sco::net service and session control: the host side of "sco.net" (include/sco_net.h). C++ and
-// internal: the host kit starts the service; the product (sc-offline's launcher and menu, through
-// its multiplayer built-in) opens and closes sessions. Plugins only see the C table, which has no
-// session control: a plugin can never make a player's PC listen or connect.
+// backend: new hosts use the consent broker in sco/net/control.h; the host kit starts the service.
+// Legacy products (sc-offline's launcher and menu, through
+// their multiplayer built-in) open and close sessions. The neutral C data table has no
+// session control. The separate game.private_session request table routes fresh
+// explicit UI consent through the host broker; plugins never own sockets/policy.
 //
 //   sco::net::Start();                       // publishes sco.net 1.0 and the capability "sco.net"
 //   ... plugins query_service("sco.net", 0x00010000, ...) and register channels ...
@@ -65,6 +67,9 @@ struct ServiceOptions {
     std::function<uint64_t()> clock;
     // PBKDF2 iterations; both peers must agree (a protocol constant). Tests lower it.
     uint32_t pbkdf2Iters = kPbkdf2Iters;
+    // Host-owned lifecycle dispatcher; invoked on game-thread owner release,
+    // outside the network lock. Does not consume another runtime hook slot.
+    void (*ownerReleased)(const void*) = nullptr;
 };
 
 // Publishes "sco.net" 1.0 under the host's id, sets the capability "sco.net" and installs the
@@ -78,6 +83,8 @@ Result Start(const ServiceOptions& opts = ServiceOptions());
 void Stop();
 
 bool Started();
+// Host-only lifecycle wiring check; no plugin entry point.
+bool HasOwnerReleaseDispatcher(void (*callback)(const void*));
 
 // Game thread, not inside a callout (the host kit calls it from Tick): delivers everything the
 // network thread queued, in order. No-op elsewhere.
@@ -95,7 +102,7 @@ void PumpNetwork();
 
 struct HostOptions {
     uint16_t    port = kDefaultPort;   // 0: the OS picks one (BoundPort tells)
-    bool        loopbackOnly = false;  // bind 127.0.0.1 only (local testing)
+    bool        loopbackOnly = true;   // safe default when bindAddress is empty
     std::string passphrase;            // never sent or logged; stretched with PBKDF2
     std::string playerName;            // shown to the other players; 1-64 bytes, no control chars
     uint32_t    maxPeers = 8;          // the session's size, self included: 2..SCO_NET_MAX_PEERS
@@ -105,17 +112,22 @@ struct HostOptions {
     // Host only: the product's admission decision after the passphrase checked out. Runs on the
     // network thread; must not block. Unset admits everyone up to maxPeers.
     std::function<bool(std::string_view name, const Endpoint& from)> admit;
+    // Optional numeric private/loopback/link-local/CGNAT IPv4 interface; overrides loopbackOnly.
+    // Public addresses and wildcard binds are refused. Empty retains the legacy bool selection.
+    std::string bindAddress;
 };
 
 struct JoinOptions {
     std::string address;               // numeric IPv4 ("192.168.1.20"); must be in scope
     uint16_t    port = kDefaultPort;   // the host's port
-    bool        loopbackOnly = false;  // bind this side on 127.0.0.1 only
+    bool        loopbackOnly = true;   // safe default when bindAddress is empty
     std::string passphrase;
     std::string playerName;
     Scope       scope;
     Transport*  transport = nullptr;   // tests; then endpoint is the host and address is unused
     Endpoint    endpoint;
+    // Same local interface selection as HostOptions; not the remote host's address.
+    std::string bindAddress;
 };
 
 // Starts hosting: binds the port and starts the network thread, which derives the session key

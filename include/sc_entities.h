@@ -31,8 +31,9 @@
  *    in the world when your plugin unloads or crashes (a build mode's props must outlive a
  *    reload of the build plugin). A kept entity is nobody's: the host never despawns it, and
  *    despawn and set_transform by anyone are refused like any entity the caller doesn't own.
- *    Removing it is then the product's business (a plugin may still remove it by other means,
- *    for example sc-offline's own entity removal). It stops counting against
+ *    No SDK removal authority survives keep. Build undo/clear must instead opt into
+ *    game.owned retain_build (sc_owned.h): ownership stays until unload, not across reload.
+ *    keep is refused for those retained placements. A legacy kept entity stops counting against
  *    SC_ENTITIES_MAX_OWNED.
  *  - Ids are the game's 64-bit entity ids: session handles that name something only while it is
  *    streamed in, never keys to store. Store the class name instead.
@@ -157,7 +158,8 @@ typedef struct sc_entities_v1 {
      * you are refused from now on, as for any entity you don't own. The entity itself is
      * untouched. SCO_OK, once. SCO_BAD_ARG: a null or released self, id 0. SCO_NOT_FOUND: not an
      * entity you spawned here and still own (kept or despawned already, or spawned another way),
-     * with a reason for last_error. SCO_UNAVAILABLE: no "game.entities.spawn". Call it right
+     * with a reason for last_error. SCO_FAILED: game.owned retained placement (use remove_build
+     * instead). SCO_UNAVAILABLE: no "game.entities.spawn". Call it right
      * after spawn succeeds: the id is final at once, the entity needn't have streamed in. */
     sco_result (*keep)(sco_plugin* self, uint64_t entity_id);
 } sc_entities_v1;

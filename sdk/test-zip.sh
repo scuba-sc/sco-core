@@ -273,8 +273,8 @@ if [ "${SCO_SDK_CSHARP:-0}" = 1 ]; then
   dotnet run -c Release --project "$ROOT/csharp/Sco.Sdk.Tests" | tee "$WORK/cs_tests.txt"
   grep -q '^Sco.Sdk.Tests: OK' "$WORK/cs_tests.txt"
   # The game half (GamePins.cs, GameFakeHost.cs) runs exactly when the extension is unpacked.
-  if [ $GAME = 1 ]; then grep -qE '^layout: 3[0-9]{2} pins' "$WORK/cs_tests.txt"
-  else grep -qE '^layout: 1[0-9]{2} pins' "$WORK/cs_tests.txt"; fi || { echo "C#: the pin count doesn't match the profile"; exit 1; }
+  if [ $GAME = 1 ]; then grep -q '^layout: 405 pins checked, 0 failed$' "$WORK/cs_tests.txt"
+  else grep -q '^layout: 206 pins checked, 0 failed$' "$WORK/cs_tests.txt"; fi || { echo "C#: the pin count doesn't match the profile"; exit 1; }
   dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" -o "$WORK/cs_publish"
   mkdir -p "$WORK/cs/cs_hello"
   cp "$WORK/cs_publish/$LIB" "$WORK/cs/cs_hello/cs_hello.dll"

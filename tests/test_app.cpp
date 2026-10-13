@@ -1044,10 +1044,27 @@ static void TestReloadNonCodeDependents(const fs::path& out) {
     pf.pluginsEnabled = true;
     pf.moduleOps = P::ModuleOps{ RlOpen, RlSymbol, RlClose };
     CHECK(sco::app::Start(pf));
-    const sco_plugin* before = Find("m0")->self;
-    CHECK(StateOf("pack") == State::Loaded);
+    // G14 snapshots packs before any code loads: a code dependency refuses the
+    // pack at startup, and that refused pack must not block its provider's reload.
+    CHECK(StateOf("pack") == State::Refused &&
+          Find("pack")->reason == "startup data pack requires code provider: m0");
     g_log.clear();
     std::string why;
+    CHECK(sco::app::Reload("m0", &why) == sco::Result::Ok && why.empty());
+    CHECK(Unloaded() == std::vector<std::string>{ "m0" } &&
+          StateOf("m0") == State::Loaded && StateOf("pack") == State::Refused);
+    sco::app::Stop();
+
+    // A host-supplied resolved edge on an already loaded pack still cannot join
+    // a code reload cascade. Exercise the guard without violating startup policy.
+    WriteText(root / "pack" / "plugin.ini",
+              "id = pack\nname = Pack\nversion = 1.0.0\napi = 1.0\nkind = data\n");
+    CHECK(sco::app::Start(pf));
+    auto* pack = const_cast<P::Plugin*>(Find("pack"));
+    CHECK(pack->state == State::Loaded);
+    pack->after.push_back("m0");
+    const sco_plugin* before = Find("m0")->self;
+    g_log.clear();
     CHECK(sco::app::Reload("m0", &why) == sco::Result::Failed && why == "pack cannot join a reload cascade");
     CHECK(Unloaded().empty() && Find("m0")->self == before && ReloadFiles(root / "m0") == 0);
     sco::app::Stop();

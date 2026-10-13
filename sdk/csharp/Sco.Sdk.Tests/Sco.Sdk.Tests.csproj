@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Sco.Sdk/Sco.Sdk.csproj" />
+    <Compile Include="../../examples/cs_widgets/WidgetsExample.cs" Link="WidgetsExample.cs" />
   </ItemGroup>
 
 </Project>

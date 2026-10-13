@@ -1,6 +1,6 @@
 # Renderer-neutral retained widgets
 
-Status: native C/C++ implementation; C# and Lua routes deferred. Follow-up to
+Status: C/C++ and Lua implementation; C# route deferred. Follow-up to
 [SDK gap #139](https://github.com/scubamount/sco-core/issues/139). This is a new
 host-owned `sco.widgets` **1.0** service, not a change to frozen `sco_api` 1.1.
 Plugins include `sco_widgets.h` or `scosdk/widgets.hpp`; neither includes renderer
@@ -135,10 +135,12 @@ migrate. Actual window placement, styling and GPU/game validation are product wo
 - C: direct `sco_widgets_v1.set_panel` / `.remove_panel`.
 - C++20: `sco::sdk::Widgets`, including a borrowed object `OnEvent` thunk that
   catches C++ exceptions before they cross C ABI.
-- C#: **unsupported/deferred**, [#142](https://github.com/scubamount/sco-core/issues/142):
-  pinned layouts, UTF-8 marshalling and rooted callback lifetime need their own tests.
-- Lua: **unsupported/deferred**, [#143](https://github.com/scubamount/sco-core/issues/143):
-  bounded tree parsing, registry callbacks, sandbox budgets and unload cleanup.
+- C#: `Sco.Sdk.Widgets` with pinned layouts, bounded copied UTF-8 trees, typed
+  events and rooted callbacks; `Sco.Sdk.Tests --widgets` covers the adapter.
+  Windows NativeAOT loading remains separate from managed synthetic-host evidence.
+- Lua: `sco.widgets.set_panel` / `.remove_panel`, bounded raw declarative tables,
+  registry-rooted callbacks, shared sandbox budgets and ordinary unload cleanup.
+  `test_lua_widgets` exercises the real neutral host plus explicit partial/null fixtures.
 
 `sdk/contracts/sco_widgets_v1.json` registers both methods and each language
 route with source tokens/tests. `sdk/examples/widgets` uses every widget kind,

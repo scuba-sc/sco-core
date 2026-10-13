@@ -175,6 +175,7 @@ namespace Sco.Sdk.Tests
         private static (string File, string Line)[] Build()
         {
             var lines = new List<(string File, string Line)>(Core);
+            lines.AddRange(WidgetsPins.Lines);
             AddGame(lines);
             return lines.ToArray();
         }

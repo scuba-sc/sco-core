@@ -1,11 +1,20 @@
 # Design: opt-in local runtime MCP inspection
 
-Status: **step 0, design only; runtime tools are not implemented**. The owner
+Status: **steps 3–5 host policy/collector, separate launcher and no-game fixture implemented locally;
+touched targets configure/compile, tests NOT RUN by owner speed order**.
+See the [acceptance ledger](../runtime-acceptance.md) for separate portable/Windows/manual evidence.
+Current task explicitly selects separate `tools/sco-core-mcp-runtime` (placement B),
+superseding the historical placement A sections below. Discovery stays unchanged.
+Windows effective-identity ACL proof and manual offline acceptance are **NOT VERIFIED**.
+Step 3 adds default-off `Platform::runtimeInspection`, atomic product offline
+admission/revocation and a bounded protected OS collector; see [runtime-audit.md](../runtime-audit.md).
+
+Historical step-0 decisions (placement A is superseded): The owner
 approved placement **A**, an opt-in runtime tool group inside the existing
 `tools/sco-core-mcp` stdio server and all eight defaults on **2026-10-12**;
 the runtime data-source decision is recorded below and tracked in
-[#141](https://github.com/scubamount/sco-core/issues/141). No host endpoint, startup option, adapter, credential,
-collector or runtime registration is added by this PR. **Not run in game.**
+[#141](https://github.com/scubamount/sco-core/issues/141). The host IPC/auth endpoint has fixture-only admission;
+product startup policy, protected OS audit, adapter packaging and runtime MCP registration remain follow-ups. **Not run in game.**
 
 ## Problem and scope
 
@@ -53,7 +62,7 @@ this diagnostics contract does not (`sdk/docs/plugin-rules.md:5-27`).
 
 | Decision | Status | Approved decision / remaining implementation detail |
 |---|---|---|
-| Placement | **Approved: A** | Same existing server; runtime group absent unless explicitly enabled at process startup; no separate server. |
+| Placement | **Current task: B (supersedes A)** | Separate default-off `tools/sco-core-mcp-runtime`; original six-tool discovery executable unchanged. |
 | v1 observation scope | **Decided 2026-10-12 (owner)** | Host/plugin/service/signature/lifecycle metadata only; no gameplay snapshots. |
 | Product ownership and offline admission | **Decided 2026-10-12 (owner)** | Trusted product supplies a default-off developer setting and positive offline verdict; unknown means no channel. Owner must name product, revocation fact and downstream PR owner. |
 | IPC/credential identity | **Decided 2026-10-12 (owner)** | Host-owned `sco.diagnostics`, one host and one peer per user/session, versioned layout, per-session secret outside checkout/plugin roots, packaged native peer adapter. Multi-host support requires a separate unique-name decision; no auto-discovery. |
@@ -62,7 +71,7 @@ this diagnostics contract does not (`sdk/docs/plugin-rules.md:5-27`).
 | Limits and retention | **Decided 2026-10-12 (owner)** | Limits below and seven-day administrator-controlled audit rotation; fixture measurements gate rollout. |
 | License/package boundary | **Decided 2026-10-12 (owner)** | New diagnostics wire and adapter GPL-3.0-only unless owner grants a reviewed per-file exception. New implementation packaging membership remains to be chosen. This PR's design/test fixtures are repository-only under existing exclusions, not a fifth MIT header. |
 | Acceptance ownership | **Decided 2026-10-12 (owner)** | Owner names Windows security-fixture provisioner and manual offline tester; record build/session-scoped fixture, OS-security and manual evidence separately. Until manual acceptance: **not run in game**. |
-| Runtime data sources | **Decided 2026-10-12 (owner)** | Both a minimal snapshot published by the Star Citizen game pack and an optional diagnostics SDK plugin for plugin-authored fields. Both off by default, read-only, without personal identifiers, and exposed only through the host diagnostics endpoint; no side channel. Implementation tracked in [#141](https://github.com/scubamount/sco-core/issues/141). |
+| Runtime data sources | **Decided 2026-10-12 (owner)** | Both a minimal snapshot published by the Star Citizen game pack and an optional diagnostics SDK plugin for plugin-authored fields. Both off by default, read-only, without personal identifiers, and exposed only through the host diagnostics endpoint; no side channel. Source implementation documented in [diagnostics-publishers.md](diagnostics-publishers.md) ([#141](https://github.com/scubamount/sco-core/issues/141)); source opt-in grants no endpoint admission. |
 
 The eight defaults are approved as written; naming/provisioning, reviewed grants
 and package membership explicitly left in their content remain implementation
@@ -72,7 +81,7 @@ plugin-authored fields require a separately reviewed versioned contract.
 Protocol numbers and schema v1 below remain design contracts, not new exports
 or runtime acceptance evidence.
 
-## Placement A: preserve the discovery boundary
+## Historical placement A (superseded by current separate-launcher task)
 
 One client registration allows contract/runtime comparison without embedding MCP
 parsing in the game. This convenience must not silently expand the current
@@ -530,10 +539,10 @@ needs, starts or injects a game or reads proprietary files.
 |---|---|---|
 | **0 (this PR)** | Placement A and eight defaults approved by the owner on 2026-10-12; runtime data-source decision tracked in #141. No runtime implementation. | Synthetic schema/golden vectors using existing stdlib schema validator (`tools/ip_audit.py:658-728`); refuse unknown fields/opcode/version and oversized bounds. Add SECURITY/design links/changelog/provenance; current discovery tests unchanged. No live peer, crypto, ACL or audit proof claimed. |
 | **1: copied host snapshots** | **Implemented by this PR (`runtime/snapshots`).** Game-thread immutable plugin/lifecycle/signature copies, metadata registry copy and bounded keyed capture; no external channel. | `test_runtime_diagnostics_snapshot` fixture: all states, invalid manifests, withdrawal/exposure/restart/log gaps, redaction, generation pages, physically short trusted tables. Zero QueryService/new hand-outs, plugin callbacks, SDK/game methods and unchanged plugin/capability state. Update architecture/plugins/log privacy docs; frozen ABI untouched. |
-| **2: host IPC/auth gate** | Host-only channel path, versioned geometry/frames, secrets, singleton lease, mutual MAC and strict read dispatcher; default off. Fixture audit interface only. | `test_runtime_diagnostics_ipc` real transport + hostile peer: malformed geometry/counters/lengths/UTF-8, forged responses, credentials/replay/epoch/deadline, second peer, authenticated raw/mutation/reload/network opcodes and zero side-effect counters. Independent literal frame/layout/ABI pins; update IPC and explicit no-net/key-reuse docs; record wire licence/package ownership. |
+| **2: host IPC/auth gate** | **Implemented locally (`r1/rt-ipc`), fixture-only admission.** Host-only channel path, versioned geometry/frames, secrets, singleton lease, mutual MAC and strict read dispatcher; default off. Fixture audit interface only. | `test_runtime_diagnostics_ipc` real transport + hostile peer: malformed geometry/counters/lengths/UTF-8, forged responses, credentials/replay/epoch/deadline, second peer, authenticated raw/mutation/reload/network opcodes and zero side-effect counters. Independent literal frame/layout/ABI pins; update IPC and explicit no-net/key-reuse docs; record wire licence/package ownership. |
 | **3: audit and product policy** | Collector acknowledgement/ACL adapter, default-off host integration, positive offline admission, revocation ordering. Downstream consumer PR is separately authorized. | `test_runtime_diagnostics_policy`: off/unknown/online, pending-read revocation, audit full/timeout/unavailable, rate aggregation, timing/caps, stop-before-teardown. Dedicated Windows no-game process checks token/mapping/collector permissions as intended identities. Update SECURITY, plugin rules, install/disable/retention docs; human provisions collector. |
-| **4: opt-in group in existing server** | Conditional runtime module import/registration, pinned adapter packaging and exactly six runtime schemas added only when explicitly enabled. No separate runtime server. | `test_runtime_server` actual existing stdio launcher + fake authenticated IPC peer: initialize/list/all tools, errors, caps/cursors, adversarial text/forged bytes. The mandatory disabled-mode regression above proves original six behavior/dependencies unchanged. No socket/subprocess/game or arbitrary file API. Rewrite README/agent integration to distinguish discovery-only hosted use from opt-in local runtime; update provenance/packaging. |
-| **5: fixture then human acceptance** | Actual host dispatcher/mapping/adapter/server connected in Windows no-game fixture; separate owner-run offline game acceptance before any live-support claim. | `test_runtime_diagnostics_integration`: twelve tool registrations enabled vs six disabled; six runtime reads, source/session/freshness, loaded/refused/faulted plugins, stop/restart/second-peer/replay/mutation, protected audit denial and measured memory/tick work. Owner records manual loaded+refused plugin/log/disconnect/restart/session checks on same authorized offline Windows PC. Separate acceptance ledger; do not change game evidence ledger unless specific behavior was observed. |
+| **4: separate runtime launcher** | Implemented locally: pinned native open-only peer, exactly six closed schemas, explicit six-name startup allowlist and disclosure consent. Discovery executable unchanged. | New `tools/sco-core-mcp-runtime/test_server.py`; syntax compiled, tests NOT RUN. Runtime process advertises zero tools off and six on; discovery remains six. No socket/subprocess/game operation in production launcher. |
+| **5: fixture then human acceptance** | Implemented no-game fixture target/harness connecting real dispatcher/mapping/native peer/actual stdio launcher. Defaults remain off. | `test_runtime_diagnostics_integration` compiled, NOT RUN. Synthetic audit is not OS privilege proof. Windows effective-identity collector/mapping proof and manual offline/game acceptance remain NOT VERIFIED. See separate acceptance ledger; game evidence ledger unchanged. |
 
 Current useful precedents are the synthetic discovery stdio tests and no-game IPC
 fixture (`tools/sco-core-mcp/test_server.py:1-7`; `tests/test_ipc.cpp:1-5`), not

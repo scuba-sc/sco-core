@@ -1,0 +1,163 @@
+{
+  "records": [
+    {
+      "absent_capability": "game.mining remains false by default. Accepted request intent does not imply an available or active engine adapter.",
+      "buffer_contract": "`sco_result (*request)(sco_plugin* self, uint32_t enabled);`<br>enabled is exactly 0 or 1. Accept or remove owner-scoped intent; repeated requests are idempotent. OK accepts intent even when engine/admission/hook is unavailable; read state to distinguish active. Disable also removes intent after a fault latch.",
+      "callback_context": "No plugin callback; worker invokes host-owned process-retained backend only.",
+      "cleanup": "Disable/unload removes only that owner intent. Stop clears all intent and withdraws the service; detour, trampoline and callbacks remain process-retained in pass-through mode. Fault latch requires restart.",
+      "examples": [],
+      "id": "sc-mining-v1-request",
+      "kind": "table-method",
+      "language_mappings": {
+        "c": {
+          "evidence": [
+            {
+              "path": "include/sc_mining.h",
+              "token": "(*request)"
+            }
+          ],
+          "status": "direct",
+          "tests": [
+            "tests/abi_catalogue_mining.c"
+          ]
+        },
+        "cpp": {
+          "evidence": [
+            {
+              "path": "include/sc_mining.h",
+              "token": "(*request)"
+            }
+          ],
+          "status": "direct",
+          "tests": [
+            "tests/test_mining.cpp"
+          ]
+        },
+        "csharp": {
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua game.mining routes are unsupported."
+            }
+          ],
+          "status": "unsupported",
+          "tests": []
+        },
+        "lua": {
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua game.mining routes are unsupported."
+            }
+          ],
+          "status": "unsupported",
+          "tests": []
+        }
+      },
+      "limitations": [
+        "Production native adapter unavailable; not run in game.",
+        "Portable provider/release fixture is synthetic, not Windows SEH or native detour execution.",
+        "Process counters are independent atomic observations, not a transactional snapshot.",
+        "No C# or Lua route."
+      ],
+      "member_extent": 16,
+      "ownership": "Up to 64 live owners retain independent intent; worker sees only aggregate count. Caller owns copied output; no native pointer or allocation transfer.",
+      "purpose": "enabled is exactly 0 or 1. Accept or remove owner-scoped intent; repeated requests are idempotent. OK accepts intent even when engine/admission/hook is unavailable; read state to distinguish active. Disable also removes intent after a fault latch.",
+      "reentrancy": "Public calls during backend admission/install are refused with UNAVAILABLE.",
+      "results": "OK accepted intent, not engine acceptance; BAD_ARG invalid/released self or enabled; WRONG_THREAD; UNAVAILABLE stopped/runtime-stopping or reentrant call; FAILED full 64-owner registry.",
+      "service": "game.mining",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t)",
+      "since": "`size >= 16`; 1.0",
+      "source_header": "include/sc_mining.h",
+      "symbol": "sc_mining_v1.request",
+      "table": "sc_mining_v1",
+      "table_size": 24,
+      "tests": [
+        "tests/abi_catalogue_mining.c",
+        "tests/test_mining.cpp"
+      ],
+      "thread_affinity": "Game thread only; WRONG_THREAD before owner/state access. Worker promotion never calls plugins.",
+      "version_macro": "SC_MINING_SERVICE_VERSION"
+    },
+    {
+      "absent_capability": "game.mining remains false by default. Accepted request intent does not imply an available or active engine adapter.",
+      "buffer_contract": "`sco_result (*state)(sco_plugin* self, sc_mining_state* out);`<br>out.size must cover 40 bytes. Copy owner requested/active, refusal block and process cells/promoted/faults; successful observation can report refusal. Output size becomes 40; unknown tail untouched. OFF=0 is disabled or active without block; promoted counts forwarded bits, not spawned/harvested entities.",
+      "callback_context": "No plugin callback; worker invokes host-owned process-retained backend only.",
+      "cleanup": "Disable/unload removes only that owner intent. Stop clears all intent and withdraws the service; detour, trampoline and callbacks remain process-retained in pass-through mode. Fault latch requires restart.",
+      "examples": [],
+      "id": "sc-mining-v1-state",
+      "kind": "table-method",
+      "language_mappings": {
+        "c": {
+          "evidence": [
+            {
+              "path": "include/sc_mining.h",
+              "token": "(*state)"
+            }
+          ],
+          "status": "direct",
+          "tests": [
+            "tests/abi_catalogue_mining.c"
+          ]
+        },
+        "cpp": {
+          "evidence": [
+            {
+              "path": "include/sc_mining.h",
+              "token": "(*state)"
+            }
+          ],
+          "status": "direct",
+          "tests": [
+            "tests/test_mining.cpp"
+          ]
+        },
+        "csharp": {
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua game.mining routes are unsupported."
+            }
+          ],
+          "status": "unsupported",
+          "tests": []
+        },
+        "lua": {
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua game.mining routes are unsupported."
+            }
+          ],
+          "status": "unsupported",
+          "tests": []
+        }
+      },
+      "limitations": [
+        "Production native adapter unavailable; not run in game.",
+        "Portable provider/release fixture is synthetic, not Windows SEH or native detour execution.",
+        "Process counters are independent atomic observations, not a transactional snapshot.",
+        "No C# or Lua route."
+      ],
+      "member_extent": 24,
+      "ownership": "Up to 64 live owners retain independent intent; worker sees only aggregate count. Caller owns copied output; no native pointer or allocation transfer.",
+      "purpose": "out.size must cover 40 bytes. Copy owner requested/active, refusal block and process cells/promoted/faults; successful observation can report refusal. Output size becomes 40; unknown tail untouched. OFF=0 is disabled or active without block; promoted counts forwarded bits, not spawned/harvested entities.",
+      "reentrancy": "Public calls during backend admission/install are refused with UNAVAILABLE.",
+      "results": "OK copied observation; BAD_ARG invalid/released self or null/short output; WRONG_THREAD; UNAVAILABLE stopped/runtime-stopping or reentrant call.",
+      "service": "game.mining",
+      "signature": "sco_result (*)(sco_plugin *, sc_mining_state *)",
+      "since": "`size >= 24`; 1.0",
+      "source_header": "include/sc_mining.h",
+      "symbol": "sc_mining_v1.state",
+      "table": "sc_mining_v1",
+      "table_size": 24,
+      "tests": [
+        "tests/abi_catalogue_mining.c",
+        "tests/test_mining.cpp"
+      ],
+      "thread_affinity": "Game thread only; WRONG_THREAD before owner/state access. Worker promotion never calls plugins.",
+      "version_macro": "SC_MINING_SERVICE_VERSION"
+    }
+  ],
+  "schema_version": 1
+}

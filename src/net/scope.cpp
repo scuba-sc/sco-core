@@ -1,6 +1,7 @@
 // sco::net scope: the LAN rule and the allow-list (sco/net/scope.h).
 #include "sco/net/scope.h"
 #include <cstring>
+#include <chrono>
 
 namespace sco::net {
 
@@ -147,6 +148,11 @@ bool InCidr(const Cidr& c, const Endpoint& e) {
 }
 
 bool InScope(const Scope& s, const Endpoint& e) {
+    if (s.allowOnly) {
+        for (const Cidr& c : s.allow)
+            if (InCidr(c, e)) return true;
+        return false;
+    }
     if (e.family == Endpoint::kMemory) return true;
     if (e.family != Endpoint::kIpv4 && e.family != Endpoint::kIpv6) return false;
     if (s.any || IsLan(e)) return true;
@@ -164,11 +170,20 @@ bool ScopedTransport::Send(const Endpoint& to, const uint8_t* data, size_t len) 
 }
 
 bool ScopedTransport::Receive(Endpoint* from, uint8_t* buf, size_t cap, size_t* len) {
-    for (;;) {
+    // Bound a rejection-only flood too: never spin forever inside one receive.
+    for (uint32_t i = 0; i < 64; ++i) {
+        if (scope_.maxDatagramsPerSecond) {
+            const auto now = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
+            if (now - rateWindow_ >= 1000) { rateWindow_ = now; received_ = 0; }
+            if (received_ >= scope_.maxDatagramsPerSecond) return false;
+        }
         if (!inner_.Receive(from, buf, cap, len)) return false;
+        ++received_;
         if (InScope(scope_, *from)) return true;
         ++dropped_;
     }
+    return false;
 }
 
 }  // namespace sco::net

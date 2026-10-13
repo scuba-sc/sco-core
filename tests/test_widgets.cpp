@@ -66,6 +66,10 @@ static void TestValidation() {
     auto bad = good; bad.flags = 2;
     CHECK(Set(bad) == SCO_BAD_ARG);
     CHECK(W::Panels()[0].nodes[0].flags == 0); // failed replacement is atomic
+    auto password = Node(SCO_WIDGET_TEXT_INPUT); password.flags = SCO_WIDGET_PASSWORD; password.text = "synthetic secret";
+    CHECK(Set(password) == SCO_OK);
+    CHECK(W::Panels()[0].nodes[0].flags == SCO_WIDGET_PASSWORD);
+    password.flags |= 4; CHECK(Set(password) == SCO_BAD_ARG);
     CHECK(table->remove_panel(alpha, "alpha.main") == SCO_OK);
 }
 static void TestKindsAndBadData() {

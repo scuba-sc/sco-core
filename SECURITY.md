@@ -51,11 +51,15 @@ Lua's sandbox and no-code data packs have different contracts; do not infer thei
 restrictions apply to native plugins. An SDK service name, read-only MCP
 annotation or retained DLL is not proof of safe execution or recovery.
 
-The [runtime MCP design](docs/design/runtime-mcp.md) has owner-approved placement/defaults and data sources (2026-10-12), but is **not implemented**.
-The existing MCP server remains catalogue-only. Future runtime admission requires
+The [runtime MCP design](docs/design/runtime-mcp.md) has default-off host policy and
+a protected Windows collector adapter. The existing discovery server remains catalogue-only.
+Runtime admission requires
 explicit host/client opt-in, positive offline policy, authenticated same-PC IPC,
 metadata minimization and a verified protected audit boundary. No guarantee against
 an administrator/elevated agent or compromised native host is claimed.
+Collector provisioning and effective-identity tests are human-controlled;
+see [audit installation](docs/runtime-audit.md). Windows permissions and manual
+offline acceptance are **NOT VERIFIED** locally. No same-user file fallback exists.
 
 ## Out of scope
 

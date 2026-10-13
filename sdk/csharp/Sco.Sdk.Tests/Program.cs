@@ -18,6 +18,7 @@ namespace Sco.Sdk.Tests
     {
         private static int Main(string[] args)
         {
+            if (args.Length == 1 && args[0] == "--widgets") return WidgetsTests.Run() == 0 ? 0 : 1;
             int failures = 0;
             foreach ((string file, string line) in Pins.Lines)
             {
@@ -52,6 +53,7 @@ namespace Sco.Sdk.Tests
             }
 
             failures += FakeHost.Run();
+            failures += WidgetsTests.Run();
             Console.WriteLine(failures == 0 ? "Sco.Sdk.Tests: OK" : $"Sco.Sdk.Tests: FAILED ({failures})");
             return failures == 0 ? 0 : 1;
         }

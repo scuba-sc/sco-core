@@ -1,5 +1,6 @@
 // sco::net UDP over BSD sockets (sco/net/udp.h): Linux and macOS, for the tests.
 #include "sco/net/udp.h"
+#include "sco/net/scope.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -27,6 +28,26 @@ void ToEndpoint(const sockaddr_in& sa, Endpoint* out) {
 }  // namespace
 
 std::unique_ptr<Socket> Socket::Open(uint16_t port, bool loopbackOnly, std::string* why) {
+    Endpoint ep;
+    ep.family = Endpoint::kIpv4;
+    if (loopbackOnly) {
+        ep.addr[0] = 127;
+        ep.addr[3] = 1;
+    }
+    return OpenBound(port, ep, why);
+}
+
+std::unique_ptr<Socket> Socket::Open(uint16_t port, const std::string& bindAddress, std::string* why) {
+    Endpoint ep;
+    if (!ParseAddress(bindAddress, port, &ep) ||
+        (!IsLan(ep) && !(ep.addr[0] == 100 && ep.addr[1] >= 64 && ep.addr[1] <= 127))) {
+        if (why) *why = "bind: expected a numeric private, loopback, link-local or CGNAT IPv4 address";
+        return nullptr;
+    }
+    return OpenBound(port, ep, why);
+}
+
+std::unique_ptr<Socket> Socket::OpenBound(uint16_t port, const Endpoint& bindEndpoint, std::string* why) {
     const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         if (why) *why = std::string("socket: ") + std::strerror(errno);
@@ -36,7 +57,7 @@ std::unique_ptr<Socket> Socket::Open(uint16_t port, bool loopbackOnly, std::stri
     sockaddr_in sa{};
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
-    sa.sin_addr.s_addr = htonl(loopbackOnly ? INADDR_LOOPBACK : INADDR_ANY);
+    std::memcpy(&sa.sin_addr.s_addr, bindEndpoint.addr, 4);
     socklen_t n = sizeof sa;
     if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0 ||
         ::bind(fd, reinterpret_cast<const sockaddr*>(&sa), sizeof sa) < 0 ||

@@ -62,6 +62,15 @@ function(sco_project_target target)
   if(SCO_SANITIZE AND NOT MSVC)
     target_compile_options(${target} PRIVATE -fsanitize=${SCO_SANITIZE} -fno-omit-frame-pointer)
     target_link_options(${target} PUBLIC -fsanitize=${SCO_SANITIZE})
+    if(UNIX AND NOT APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+      # DSOs with --no-undefined need the shared sanitizer runtime. Use the same
+      # runtime in their host executables; mixing static and shared ASan fails.
+      target_link_options(${target} PUBLIC -shared-libsan)
+      execute_process(COMMAND "${CMAKE_C_COMPILER}" -print-runtime-dir
+        OUTPUT_VARIABLE _sco_sanitizer_dir OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY)
+      set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "${_sco_sanitizer_dir}")
+    endif()
   endif()
 endfunction()
 
@@ -84,10 +93,31 @@ sco_project_target(sco_core)
 # sco-sigcheck don't need hooks.
 if(SCO_GAME_SC)
   file(GLOB SCO_GAME_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/game/*.cpp")
-  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/pak_hooks\\.cpp$")
+  list(FILTER SCO_GAME_SOURCES EXCLUDE REGEX "/(pak_hooks|diagnostics|host|private_session|admission)\\.cpp$")
   add_library(sco_game_sc STATIC ${SCO_GAME_SOURCES})
   target_link_libraries(sco_game_sc PUBLIC sco_core)
+  add_library(sco_game_diagnostics STATIC src/game/diagnostics.cpp)
+  target_link_libraries(sco_game_diagnostics PUBLIC sco_host)
+  sco_project_target(sco_game_diagnostics)
   sco_project_target(sco_game_sc)
+endif()
+
+# Portable guarded game-pack boundary; no engine adapter enabled by default.
+if(SCO_GAME_SC)
+  add_library(sco_offline_missions STATIC src/game/services/offline_missions.cpp)
+  target_include_directories(sco_offline_missions PUBLIC "${SCO_INCLUDE_DIR}")
+  target_link_libraries(sco_offline_missions PUBLIC sco_host)
+  sco_project_target(sco_offline_missions)
+  if(SCO_BUILD_TESTS)
+    add_executable(test_offline_missions tests/test_offline_missions.cpp)
+    target_link_libraries(test_offline_missions PRIVATE sco_offline_missions)
+    sco_project_target(test_offline_missions)
+    add_test(NAME offline_missions COMMAND test_offline_missions)
+    add_library(sco_abi_offline_missions OBJECT tests/abi_offline_missions.c)
+    target_include_directories(sco_abi_offline_missions PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(sco_abi_offline_missions)
+    add_dependencies(test_offline_missions sco_abi_offline_missions)
+  endif()
 endif()
 
 # Tasks, events and commands: the cross-thread runtime under the plugin ABI.
@@ -98,7 +128,8 @@ target_link_libraries(sco_runtime PUBLIC Threads::Threads)
 sco_project_target(sco_runtime)
 
 # Capability registry and the host's sco_api table.
-add_library(sco_host STATIC src/api/sco_caps.cpp src/host/sco_host.cpp src/host/sco_diagnostics.cpp)
+add_library(sco_host STATIC src/api/sco_caps.cpp src/host/sco_host.cpp src/host/sco_diagnostics.cpp
+  src/host/sco_diagnostics_publisher.cpp)
 target_link_libraries(sco_host PUBLIC sco_runtime sco_core)
 sco_project_target(sco_host)
 
@@ -214,6 +245,11 @@ add_library(sco_settings STATIC src/settings/settings.cpp)
 target_link_libraries(sco_settings PUBLIC sco_host sco_plugins sco_storage sco_ui)
 sco_project_target(sco_settings)
 
+# Read-only startup list/script snapshots; kernel-neutral public sco.content.
+add_library(sco_content STATIC src/content/content.cpp)
+target_link_libraries(sco_content PUBLIC sco_host sco_plugins)
+sco_project_target(sco_content)
+
 # sco.ipc (sco/ipc.h, include/sco_ipc.h over the MIT wire include/sc_ipc.h): named shared-memory
 # channels to another program on the same PC, a host-owned service. The platform half is
 # shm_win.cpp (the real target) or shm_posix.cpp (the host tests); the ring logic is platform-free.
@@ -230,6 +266,30 @@ endif()
 target_link_libraries(sco_ipc PUBLIC sco_host)
 sco_project_target(sco_ipc)
 
+# Default-off host-private diagnostics; deliberately does not link sco.net or sockets.
+# Reuse project-authored SHA/HMAC primitives only, with independent session keys.
+add_library(sco_diagnostics_ipc STATIC src/ipc/diagnostics_ipc.cpp src/ipc/diagnostics_json.cpp src/ipc/diagnostics_audit.cpp src/net/sha2.c)
+if(WIN32)
+  target_sources(sco_diagnostics_ipc PRIVATE src/ipc/diagnostics_platform_win.cpp)
+  target_link_libraries(sco_diagnostics_ipc PRIVATE advapi32 bcrypt wevtapi)
+else()
+  target_sources(sco_diagnostics_ipc PRIVATE src/ipc/diagnostics_platform_posix.cpp)
+endif()
+target_link_libraries(sco_diagnostics_ipc PUBLIC sco_ipc Threads::Threads)
+sco_project_target(sco_diagnostics_ipc)
+option(SCO_BUILD_RUNTIME_MCP "Build separately packaged native runtime MCP peer" OFF)
+if(SCO_BUILD_RUNTIME_MCP)
+  # All dependencies are local project sources/system APIs; no compilation at launcher runtime.
+  add_library(sco_core_mcp_runtime_peer SHARED tools/sco-core-mcp-runtime/native_adapter.cpp)
+  target_include_directories(sco_core_mcp_runtime_peer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(sco_core_mcp_runtime_peer PRIVATE sco_diagnostics_ipc sco_plugins)
+  set_target_properties(sco_core_mcp_runtime_peer PROPERTIES PREFIX "" CXX_VISIBILITY_PRESET hidden)
+  foreach(_rt_pic sco_diagnostics_ipc sco_ipc sco_host sco_runtime sco_core sco_plugins)
+    set_target_properties(${_rt_pic} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  endforeach()
+  sco_project_target(sco_core_mcp_runtime_peer)
+endif()
+
 # sco.net core (sco/net/*.h): SHA-256/HMAC/PBKDF2 (sha2.c, plain C), the wire framing, reliable
 # streams and the session over an abstract datagram transport. Platform-free (docs/net-wire.md).
 add_library(sco_net STATIC src/net/sha2.c src/net/wire.cpp src/net/reliable.cpp src/net/core.cpp)
@@ -239,7 +299,7 @@ sco_project_target(sco_net)
 # sco.net service (sco/net/session.h, include/sco_net.h): the network thread, channel ownership,
 # quotas, the LAN rule (scope.cpp) and UDP, a host-owned service. The platform half is udp_win.cpp
 # (Winsock, the real target) or udp_posix.cpp (the host tests).
-add_library(sco_net_service STATIC src/net/service.cpp src/net/scope.cpp)
+add_library(sco_net_service STATIC src/net/service.cpp src/net/scope.cpp src/net/control.cpp)
 if(WIN32)
   target_sources(sco_net_service PRIVATE src/net/udp_win.cpp)
   target_link_libraries(sco_net_service PRIVATE ws2_32)
@@ -259,27 +319,39 @@ endif()
 
 # The host kit (sco/app.h): Start / Tick / Stop over the host table, caps, signatures and loader.
 add_library(sco_app STATIC src/app/sco_app.cpp)
-target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_ipc sco_net_service)
+target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service sco_diagnostics_ipc)
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
   # Platform::registerSignatures (sco::game::RegisterGameSignatures).
-  target_link_libraries(sco_app PUBLIC sco_datacore_service sco_game_sc)
+  add_library(sco_private_session STATIC src/game/private_session.cpp)
+  target_link_libraries(sco_private_session PUBLIC sco_net_service)
+  sco_project_target(sco_private_session)
+  target_link_libraries(sco_app PUBLIC sco_datacore_service sco_game_sc sco_game_diagnostics sco_private_session)
 endif()
 # The game pack's services (sco/game/services.h, docs/design/game-services.md): teleport.spatial
 # today, published under the owner "game" when the product sets Platform::gameServices. They read
 # game memory under SEH (__try), so Windows only; SCO_GAME_SERVICES tells sco_app they're there.
 if(SCO_GAME_SC AND WIN32)
-  add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp
+  add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp src/game/services/relocation.cpp
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
-                                       src/game/services/world.cpp src/game/services/events.cpp
-                                       src/game/services/entities.cpp src/game/services/creative.cpp)
-  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook)
+                                       src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/events.cpp
+                                       src/game/services/entities.cpp src/game/services/creative.cpp
+                                       src/game/services/owned.cpp src/game/services/prefabs.cpp
+                                       src/game/services/loadout.cpp src/game/services/cvars.cpp)
+  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_quantum sco_offline_missions sco_mining)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
   target_link_libraries(sco_app PUBLIC sco_game_services)
 endif()
 sco_project_target(sco_app)
+
+# Offline game host composition is a separate host-source target, never a plugin API.
+if(SCO_GAME_SC)
+  add_library(sco_game_host STATIC src/game/host.cpp)
+  target_link_libraries(sco_game_host PUBLIC sco_app sco_game_sc sco_hook sco_pak sco_datacore_service sco_game_admission)
+  sco_project_target(sco_game_host)
+endif()
 
 # Vendored Lua 5.4 (plugins/lua/third_party/lua): built as-is, its own warnings off.
 file(GLOB SCO_LUA_VENDOR_SOURCES CONFIGURE_DEPENDS
@@ -343,6 +415,65 @@ if(SCO_GAME_SC)
 add_executable(sco-dcb tools/sco-dcb.cpp)
 target_link_libraries(sco-dcb PRIVATE sco_datacore)
 sco_project_target(sco-dcb)
+endif()
+
+if(SCO_GAME_SC)
+  add_library(sco_game_admission STATIC src/game/admission.cpp)
+  target_include_directories(sco_game_admission PUBLIC "${SCO_INCLUDE_DIR}")
+  sco_project_target(sco_game_admission)
+  add_library(sco_mining STATIC src/game/services/mining.cpp)
+  target_link_libraries(sco_mining PUBLIC sco_host sco_game_admission)
+  if(WIN32)
+    target_sources(sco_mining PRIVATE src/game/services/mining_native.cpp)
+    target_link_libraries(sco_mining PUBLIC sco_game_sc sco_hook)
+  endif()
+  sco_project_target(sco_mining)
+  if(SCO_BUILD_TESTS)
+    add_executable(test_mining tests/test_mining.cpp)
+    target_link_libraries(test_mining PRIVATE sco_mining)
+    sco_project_target(test_mining)
+    enable_testing()
+    add_test(NAME mining COMMAND test_mining)
+  endif()
+  add_library(sco_quantum STATIC src/game/services/quantum.cpp)
+  target_link_libraries(sco_quantum PUBLIC sco_host sco_hook)
+  sco_project_target(sco_quantum)
+endif()
+if(SCO_GAME_SC AND SCO_BUILD_TESTS)
+  add_executable(test_quantum tests/test_quantum.cpp)
+  target_link_libraries(test_quantum PRIVATE sco_quantum)
+  sco_project_target(test_quantum)
+  enable_testing()
+  add_test(NAME quantum COMMAND test_quantum)
+  add_test(NAME quantum_cleanup_fault COMMAND test_quantum --cleanup-fault)
+  file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/abi_game_quantum.cpp"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_quantum.c\"\n")
+  add_executable(abi_quantum_c tests/abi_game_quantum.c)
+  add_executable(abi_quantum_cpp "${CMAKE_CURRENT_BINARY_DIR}/abi_game_quantum.cpp")
+  foreach(t abi_quantum_c abi_quantum_cpp)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(${t})
+    add_test(NAME ${t} COMMAND ${t})
+  endforeach()
+endif()
+
+# Host-only offline fleet composition: never linked into the neutral kernel.
+if(SCO_GAME_SC)
+  add_library(sco_asop_host STATIC src/game/asop_host/config.cpp src/game/asop_host/handoff.cpp)
+  target_link_libraries(sco_asop_host PUBLIC sco_game_sc Threads::Threads)
+  if(WIN32)
+    target_sources(sco_asop_host PRIVATE src/game/asop_host/catalog_win.cpp
+      src/game/asop_host/support_win.cpp src/game/asop_host/fleet_win.cpp src/game/asop_host/hangar_win.cpp)
+    target_link_libraries(sco_asop_host PUBLIC sco_game_services sco_hook)
+  endif()
+  sco_project_target(sco_asop_host)
+  if(SCO_BUILD_TESTS)
+    enable_testing()
+    add_executable(test_asop_host src/game/asop_host/test_asop_host.cpp)
+    target_link_libraries(test_asop_host PRIVATE sco_asop_host)
+    sco_project_target(test_asop_host)
+    add_test(NAME asop_host COMMAND test_asop_host)
+  endif()
 endif()
 
 # ---- tests ------------------------------------------------------------------------------------
@@ -655,12 +786,46 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_net
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_net_targets})
+  if(SCO_GAME_SC)
+    # One portable G3 fixture; it links real shared model code, not engine reads.
+    add_executable(sco_test_game_spatial tests/test_game_spatial.cpp tests/abi_game_spatial.c)
+    target_link_libraries(sco_test_game_spatial PRIVATE sco_engine)
+    sco_project_target(sco_test_game_spatial)
+    add_test(NAME game_spatial COMMAND sco_test_game_spatial)
+    add_executable(sco_test_relocation tests/test_relocation.cpp tests/abi_relocation.c)
+    target_include_directories(sco_test_relocation PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${SCO_INCLUDE_DIR}")
+    sco_project_target(sco_test_relocation)
+    add_test(NAME relocation COMMAND sco_test_relocation)
+    set(_relocation_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_relocation.cpp")
+    file(CONFIGURE OUTPUT "${_relocation_cxx}" CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_relocation.c\"\n")
+    add_library(sco_abi_relocation_cxx OBJECT "${_relocation_cxx}")
+    target_include_directories(sco_abi_relocation_cxx PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(sco_abi_relocation_cxx)
+    add_dependencies(sco_test_relocation sco_abi_relocation_cxx)
+    if(NOT MSVC)
+      add_library(sco_abi_relocation_short_enums OBJECT tests/abi_relocation.c)
+      target_include_directories(sco_abi_relocation_short_enums PRIVATE "${SCO_INCLUDE_DIR}")
+      target_compile_options(sco_abi_relocation_short_enums PRIVATE -fshort-enums)
+      sco_warnings(sco_abi_relocation_short_enums)
+      add_dependencies(sco_test_relocation sco_abi_relocation_short_enums)
+    endif()
+  endif()
+
   # The MIT bridge layouts (tests/abi_titanlink.c, tests/abi_voxel_bridge.c: sc_titanlink.h and
   # sc_voxel_bridge.h, every size, offset and constant), and the game pack's game.world table and
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events)
+    list(APPEND _abi_bridge_pins game_world game_events game_spatial world_control prefabs game_loadout)
+    add_executable(test_prefabs tests/test_prefabs.cpp src/game/services/prefabs.cpp)
+    target_include_directories(test_prefabs PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_prefabs)
+    add_test(NAME prefabs COMMAND test_prefabs)
+    add_executable(test_world_control tests/test_world_control.cpp src/game/services/world_control.cpp)
+    target_include_directories(test_world_control PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_world_control PRIVATE sco_runtime)
+    sco_project_target(test_world_control)
+    add_test(NAME world_control COMMAND test_world_control)
   endif()
   foreach(_b IN LISTS _abi_bridge_pins)
     set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")
@@ -685,6 +850,10 @@ if(SCO_BUILD_TESTS)
              COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_b_targets})
   endforeach()
   if(SCO_GAME_SC)
+    add_dependencies(sco_test_game_spatial sco_abi_game_spatial_cxx)
+    if(NOT MSVC)
+      add_dependencies(sco_test_game_spatial sco_abi_game_spatial_short_enums)
+    endif()
   # The game.actors table pin (tests/abi_game_actors.c, sc_actors.h), the same three ways.
   set(_abi_ga_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actors.cpp")
   file(CONFIGURE OUTPUT "${_abi_ga_cxx}"
@@ -709,6 +878,14 @@ if(SCO_BUILD_TESTS)
 
   endif()
 
+  if(SCO_GAME_SC)
+    add_executable(test_owned_removal tests/test_owned_removal.cpp tests/abi_game_owned.c
+                   src/game/services/owned.cpp)
+    target_link_libraries(test_owned_removal PRIVATE sco_host)
+    sco_project_target(test_owned_removal)
+    add_test(NAME test_owned_removal COMMAND test_owned_removal)
+  endif()
+
   add_executable(test_core tests/test_core.cpp)
   target_link_libraries(test_core PRIVATE sco_core)
   if(SCO_GAME_SC)
@@ -717,6 +894,30 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_core)
   add_test(NAME test_core COMMAND test_core)
 
+  add_executable(test_runtime_diagnostics_policy tests/test_runtime_diagnostics_policy.cpp)
+  if(SCO_BUILD_RUNTIME_MCP)
+    add_executable(test_runtime_diagnostics_integration tests/test_runtime_diagnostics_integration.cpp)
+    target_include_directories(test_runtime_diagnostics_integration PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(test_runtime_diagnostics_integration PRIVATE sco_diagnostics_ipc sco_plugins)
+    add_dependencies(test_runtime_diagnostics_integration sco_core_mcp_runtime_peer)
+    sco_project_target(test_runtime_diagnostics_integration)
+    add_test(NAME test_runtime_diagnostics_integration
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/sco-core-mcp-runtime/test_integration.py"
+        --host "$<TARGET_FILE:test_runtime_diagnostics_integration>"
+        --adapter "$<TARGET_FILE:sco_core_mcp_runtime_peer>" --root "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(test_runtime_diagnostics_integration PROPERTIES TIMEOUT 45 RUN_SERIAL TRUE)
+    add_test(NAME test_runtime_server
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/sco-core-mcp-runtime/test_server.py")
+  endif()
+  target_include_directories(test_runtime_diagnostics_policy PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(test_runtime_diagnostics_policy PRIVATE sco_app sco_diagnostics_ipc)
+  sco_project_target(test_runtime_diagnostics_policy)
+  add_test(NAME test_runtime_diagnostics_policy COMMAND test_runtime_diagnostics_policy
+    "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
+  add_executable(test_runtime_diagnostics_audit_win tests/test_runtime_diagnostics_audit_win.cpp)
+  target_include_directories(test_runtime_diagnostics_audit_win PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(test_runtime_diagnostics_audit_win PRIVATE sco_diagnostics_ipc)
+  sco_project_target(test_runtime_diagnostics_audit_win)
   add_executable(test_runtime tests/test_runtime.cpp)
   target_link_libraries(test_runtime PRIVATE sco_runtime)
   sco_project_target(test_runtime)
@@ -728,6 +929,56 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_host COMMAND test_host)
 
   target_compile_definitions(sco_runtime PRIVATE SCO_RUNTIME_DIAGNOSTICS_FIXTURE=1)
+  target_compile_definitions(sco_diagnostics_ipc PRIVATE SCO_RUNTIME_DIAGNOSTICS_FIXTURE=1)
+  add_executable(test_runtime_diagnostics_ipc tests/test_runtime_diagnostics_ipc.cpp tests/test_diagnostics_json.cpp)
+  target_include_directories(test_runtime_diagnostics_ipc PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(test_runtime_diagnostics_ipc PRIVATE sco_diagnostics_ipc)
+  sco_project_target(test_runtime_diagnostics_ipc)
+  add_test(NAME test_runtime_diagnostics_ipc COMMAND test_runtime_diagnostics_ipc "${SCO_TEST_OUT}" "${CMAKE_CURRENT_SOURCE_DIR}")
+  add_executable(test_diagnostics_platform tests/test_diagnostics_platform.cpp)
+  target_link_libraries(test_diagnostics_platform PRIVATE sco_diagnostics_ipc)
+  sco_project_target(test_diagnostics_platform)
+  add_test(NAME test_diagnostics_platform COMMAND test_diagnostics_platform)
+  set_tests_properties(test_diagnostics_platform PROPERTIES ENVIRONMENT "SCO_DIAGNOSTICS_TEST_TMPDIR=${SCO_TEST_OUT}")
+  # These fixtures use the same per-user/session diagnostics mapping and peer lease.
+  # Keep that resource exclusive without serializing unrelated tests.
+  set_tests_properties(test_runtime_diagnostics_policy test_runtime_diagnostics_ipc
+    test_diagnostics_platform PROPERTIES RESOURCE_LOCK sco_diagnostics_transport)
+  # Independently compiled source publisher: only copied public SDK declarations.
+  set(_diagnostic_sdk "${CMAKE_CURRENT_BINARY_DIR}/diagnostics-sdk/include")
+  file(MAKE_DIRECTORY "${_diagnostic_sdk}")
+  foreach(_h sco_api.h sco_diagnostics_publisher.h)
+    configure_file("${SCO_INCLUDE_DIR}/${_h}" "${_diagnostic_sdk}/${_h}" COPYONLY)
+  endforeach()
+  add_library(diagnostics_publisher_fixture MODULE sdk/examples/diagnostics_publisher/diagnostics_publisher.c)
+  target_include_directories(diagnostics_publisher_fixture PRIVATE "${_diagnostic_sdk}")
+  sco_project_target(diagnostics_publisher_fixture)
+  if(APPLE)
+    target_link_options(diagnostics_publisher_fixture PRIVATE "-Wl,-undefined,error")
+  elseif(UNIX)
+    target_link_options(diagnostics_publisher_fixture PRIVATE "-Wl,--no-undefined")
+  endif()
+  file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/abi_diagnostics_publisher.cpp"
+    CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_diagnostics_publisher.c\"\n")
+  add_library(sco_abi_diagnostics_publisher_c OBJECT tests/abi_diagnostics_publisher.c)
+  add_library(sco_abi_diagnostics_publisher_cxx OBJECT "${CMAKE_CURRENT_BINARY_DIR}/abi_diagnostics_publisher.cpp")
+  set(_diagnostic_pins sco_abi_diagnostics_publisher_c sco_abi_diagnostics_publisher_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_diagnostics_publisher_short OBJECT tests/abi_diagnostics_publisher.c)
+    target_compile_options(sco_abi_diagnostics_publisher_short PRIVATE -fshort-enums -Wpedantic)
+    list(APPEND _diagnostic_pins sco_abi_diagnostics_publisher_short)
+  endif()
+  foreach(_t IN LISTS _diagnostic_pins)
+    target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${_t})
+  endforeach()
+  add_executable(test_diagnostics_publishers tests/test_diagnostics_publishers.cpp)
+  target_link_libraries(test_diagnostics_publishers PRIVATE sco_app)
+  add_dependencies(test_diagnostics_publishers diagnostics_publisher_fixture ${_diagnostic_pins})
+  sco_project_target(test_diagnostics_publishers)
+  add_test(NAME test_diagnostics_publishers COMMAND test_diagnostics_publishers
+    "$<TARGET_FILE:diagnostics_publisher_fixture>" "${CMAKE_CURRENT_BINARY_DIR}/tests/out")
+
   add_executable(test_runtime_diagnostics_snapshot
     tests/test_runtime_diagnostics_snapshot.cpp tests/test_runtime_diagnostics_services.cpp)
   target_link_libraries(test_runtime_diagnostics_snapshot PRIVATE sco_app)
@@ -745,6 +996,40 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_death_events PRIVATE sco_host)
     sco_project_target(test_death_events)
     add_test(NAME test_death_events COMMAND test_death_events)
+  endif()
+
+  if(SCO_GAME_SC)
+    add_library(sco_loadout STATIC src/game/services/loadout.cpp)
+    target_link_libraries(sco_loadout PUBLIC sco_host)
+    sco_project_target(sco_loadout)
+    set(_loadout_inc "${SCO_TEST_OUT}/loadout/include")
+    file(MAKE_DIRECTORY "${_loadout_inc}")
+    configure_file(include/sco_api.h "${_loadout_inc}/sco_api.h" COPYONLY)
+    configure_file(include/sc_loadout.h "${_loadout_inc}/sc_loadout.h" COPYONLY)
+    set(_loadout_root "${SCO_TEST_OUT}/loadout/plugins")
+    if(WIN32)
+      set(_loadout_ext dll)
+    else()
+      set(_loadout_ext so)
+    endif()
+    file(WRITE "${_loadout_root}/loadout_native/plugin.ini"
+         "id = loadout_native\nname = Synthetic loadout\nversion = 1.0.0\napi = 1.1\nkind = native\nentry = loadout_native.${_loadout_ext}\n")
+    add_library(sco_loadout_native SHARED tests/game_contracts/loadout/consumer.c)
+    target_include_directories(sco_loadout_native PRIVATE "${_loadout_inc}")
+    set_target_properties(sco_loadout_native PROPERTIES PREFIX "" OUTPUT_NAME loadout_native SUFFIX ".${_loadout_ext}"
+      LIBRARY_OUTPUT_DIRECTORY "$<1:${_loadout_root}/loadout_native>"
+      RUNTIME_OUTPUT_DIRECTORY "$<1:${_loadout_root}/loadout_native>")
+    if(UNIX AND NOT APPLE)
+      target_link_options(sco_loadout_native PRIVATE "-Wl,--no-undefined")
+    endif()
+    sco_warnings(sco_loadout_native)
+    add_executable(test_loadout tests/game_contracts/loadout/test_loadout.cpp tests/game_contracts/loadout/routes.cpp
+      tests/game_contracts/loadout/native.cpp)
+    add_dependencies(test_loadout sco_loadout_native)
+    target_include_directories(test_loadout PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(test_loadout PRIVATE sco_loadout sco_plugins)
+    sco_project_target(test_loadout)
+    add_test(NAME test_loadout COMMAND test_loadout "${_loadout_root}")
   endif()
 
   # The C++20 SDK layer (include/scosdk/): two SDK plugins over the real host table.
@@ -775,6 +1060,29 @@ if(SCO_BUILD_TESTS)
   # sco.settings: the declarations' values, the service over the real host table and storage,
   # persistence across a restart, settings.changed. Host build, no game.
   add_executable(test_settings tests/test_settings.cpp)
+  add_executable(test_content tests/test_content.cpp tests/abi_content.c)
+  set(_content_inc "${CMAKE_CURRENT_BINARY_DIR}/content_public_include")
+  file(MAKE_DIRECTORY "${_content_inc}")
+  foreach(h sco_api.h sco_content.h)
+    configure_file("${SCO_INCLUDE_DIR}/${h}" "${_content_inc}/${h}" COPYONLY)
+  endforeach()
+  add_library(content_reader_fixture MODULE sdk/examples/content_reader/content_reader.c)
+  target_include_directories(content_reader_fixture PRIVATE "${_content_inc}")
+  sco_warnings(content_reader_fixture)
+  if(UNIX AND NOT APPLE)
+    target_link_options(content_reader_fixture PRIVATE -Wl,--no-undefined)
+  endif()
+  add_dependencies(test_content content_reader_fixture)
+  if(NOT MSVC)
+    add_library(sco_abi_content_short_enums OBJECT tests/abi_content.c)
+    target_include_directories(sco_abi_content_short_enums PRIVATE "${SCO_INCLUDE_DIR}")
+    target_compile_options(sco_abi_content_short_enums PRIVATE -fshort-enums -Wpedantic)
+    sco_warnings(sco_abi_content_short_enums)
+    add_dependencies(test_content sco_abi_content_short_enums)
+  endif()
+  target_link_libraries(test_content PRIVATE sco_app)
+  sco_project_target(test_content)
+  add_test(NAME test_content COMMAND test_content "${SCO_TEST_OUT}" "$<TARGET_FILE:content_reader_fixture>")
   target_link_libraries(test_settings PRIVATE sco_settings)
   sco_project_target(test_settings)
   add_test(NAME test_settings COMMAND test_settings "${SCO_TEST_OUT}")
@@ -799,12 +1107,74 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_net_service PRIVATE sco_net_service)
   sco_project_target(test_net_service)
   add_test(NAME test_net_service COMMAND test_net_service)
+  # Host control uses only an injected synthetic IPv4 transport: no live sockets.
+  add_executable(test_net_control tests/test_net_control.cpp
+    src/net/service.cpp src/net/scope.cpp src/net/control.cpp)
+  # Same production backend, but UDP is replaced by failing socket traps in the fixture.
+  target_link_libraries(test_net_control PRIVATE sco_net sco_host Threads::Threads)
+  if(SCO_GAME_SC)
+    target_sources(test_net_control PRIVATE src/game/private_session.cpp tests/abi_private_session.c)
+    target_compile_definitions(test_net_control PRIVATE SCO_TEST_PRIVATE_SESSION=1)
+  endif()
+  sco_project_target(test_net_control)
+  add_test(NAME test_net_control COMMAND test_net_control)
 
   # sco.ui over the real host table, with built-in plugins under the loader's crash guard.
   add_executable(test_ui tests/test_ui.cpp)
   target_link_libraries(test_ui PRIVATE sco_ui sco_plugins)
   sco_project_target(test_ui)
   add_test(NAME test_ui COMMAND test_ui)
+
+  if(SCO_GAME_SC)
+    add_executable(test_cvars tests/test_cvars.cpp src/game/services/cvars.cpp)
+    target_link_libraries(test_cvars PRIVATE sco_host sco_plugins)
+    add_library(cvars_probe MODULE tests/fixtures/cvars_probe.c)
+    target_include_directories(cvars_probe PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(cvars_probe)
+    # Explicit config placement prevents multi-config generators from putting the
+    # module below an implicit Release/Debug directory beside a stale manifest.
+    set(_cvars_plugin_root "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/$<CONFIG>")
+    set_target_properties(cvars_probe PROPERTIES PREFIX "" SUFFIX ".so"
+      # Import libraries/exports also share OUTPUT_NAME on MSVC. Isolate all
+      # artifacts so parallel read/write probe links cannot race on one .exp.
+      ARCHIVE_OUTPUT_DIRECTORY "${_cvars_plugin_root}/cvars_probe"
+      LIBRARY_OUTPUT_DIRECTORY "${_cvars_plugin_root}/cvars_probe"
+      RUNTIME_OUTPUT_DIRECTORY "${_cvars_plugin_root}/cvars_probe")
+    file(GENERATE OUTPUT "${_cvars_plugin_root}/cvars_probe/plugin.ini"
+      CONTENT "id=cvars_probe\nname=Cvars probe\nversion=1.0.0\napi=1.1\nkind=native\nentry=$<TARGET_FILE_NAME:cvars_probe>\n")
+    add_dependencies(test_cvars cvars_probe)
+    target_compile_definitions(test_cvars PRIVATE CVARS_PLUGIN_ROOT="${_cvars_plugin_root}")
+    add_executable(test_cvars_write tests/test_cvars_write.cpp src/game/services/cvars.cpp)
+    target_link_libraries(test_cvars_write PRIVATE sco_host sco_plugins)
+    add_library(cvars_write_probe MODULE tests/fixtures/cvars_probe.c)
+    target_include_directories(cvars_write_probe PRIVATE "${SCO_INCLUDE_DIR}")
+    target_compile_definitions(cvars_write_probe PRIVATE CVARS_PROBE_WRITE)
+    sco_project_target(cvars_write_probe)
+    set(_cvars_write_plugin_root "${CMAKE_CURRENT_BINARY_DIR}/cvars_write_plugins/$<CONFIG>")
+    set_target_properties(cvars_write_probe PROPERTIES PREFIX "" OUTPUT_NAME "cvars_probe" SUFFIX ".so"
+      ARCHIVE_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe"
+      LIBRARY_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe"
+      RUNTIME_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe")
+    file(GENERATE OUTPUT "${_cvars_write_plugin_root}/cvars_probe/plugin.ini"
+      CONTENT "id=cvars_probe\nname=Cvars probe\nversion=1.0.0\napi=1.1\nkind=native\nentry=$<TARGET_FILE_NAME:cvars_write_probe>\n")
+    target_compile_definitions(test_cvars_write PRIVATE CVARS_PLUGIN_ROOT="${_cvars_write_plugin_root}")
+    add_dependencies(test_cvars_write cvars_write_probe)
+    sco_project_target(test_cvars_write)
+    add_test(NAME test_cvars_write COMMAND test_cvars_write)
+    add_test(NAME test_cvars_write_reentry COMMAND test_cvars_write cleanup-reentry)
+    add_test(NAME test_cvars_write_fault COMMAND test_cvars_write write-fault)
+    add_test(NAME test_cvars_write_mismatch COMMAND test_cvars_write write-mismatch)
+    add_executable(test_cvars_extent tests/test_cvars_extent.cpp)
+    target_include_directories(test_cvars_extent PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_cvars_extent)
+    add_test(NAME test_cvars_extent COMMAND test_cvars_extent)
+    add_library(abi_game_cvars_write OBJECT tests/abi_game_cvars_write.c)
+    target_include_directories(abi_game_cvars_write PRIVATE "${SCO_INCLUDE_DIR}")
+    add_library(abi_game_cvars OBJECT tests/abi_game_cvars.c)
+    target_include_directories(abi_game_cvars PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_cvars)
+    add_test(NAME test_cvars COMMAND test_cvars)
+  endif()
 
   add_executable(test_widgets tests/test_widgets.cpp)
   target_link_libraries(test_widgets PRIVATE sco_widgets)
@@ -848,6 +1218,17 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_vfs COMMAND test_vfs)
 
   if(SCO_GAME_SC)
+  add_executable(test_game_host_data tests/game_host_data.cpp)
+  target_link_libraries(test_game_host_data PRIVATE sco_game_host)
+  sco_project_target(test_game_host_data)
+  add_test(NAME game_host_data COMMAND test_game_host_data "${SCO_TEST_OUT}/host-data")
+  add_executable(test_game_host tests/game_host.cpp)
+  target_link_libraries(test_game_host PRIVATE sco_game_host)
+  sco_project_target(test_game_host)
+  add_test(NAME game_host COMMAND test_game_host)
+  add_test(NAME game_host_loss COMMAND test_game_host loss)
+  add_test(NAME game_host_quit COMMAND test_game_host quit)
+  add_test(NAME game_host_quit_missing COMMAND test_game_host missing-quit)
   # The DataCore parser over tests/dcb_builder.h fixtures; it also writes the fixtures dcb_tool
   # runs sco-dcb on.
   add_executable(test_datacore tests/test_datacore.cpp)
@@ -1003,12 +1384,13 @@ if(SCO_BUILD_TESTS)
   endif()
 
   add_executable(test_lua tests/test_lua.cpp)
-  target_link_libraries(test_lua PRIVATE sco_plugins sco_host sco_lua sco_ui sco_storage sco_settings)
+  target_link_libraries(test_lua PRIVATE sco_plugins sco_host sco_lua sco_ui sco_storage sco_settings sco_widgets)
   if(SCO_GAME_SC)
     target_link_libraries(test_lua PRIVATE sco_datacore_service sco_lua_game)   # TestDataCore, the sco.game tests
   endif()
   sco_project_target(test_lua)
   add_test(NAME test_lua COMMAND test_lua "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}")
+  add_test(NAME test_lua_widgets COMMAND test_lua "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}/widgets" widgets)
 
   # The host kit with built-ins, two fake plugins, greeter and travel_pack.
   add_executable(test_app tests/test_app.cpp)

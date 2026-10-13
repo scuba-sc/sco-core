@@ -1,9 +1,13 @@
 // The host kit: Start / Tick / Stop over the game core, caps, the host table and the loader.
 // Everything runs on the game thread; the state below is touched by nothing else.
 #include "sco/app.h"
+#include "../ipc/diagnostics_worker.h"
 #include "../api/internal.h"
 #include "sco/caps.h"
+#include "sco/content.h"
 #ifndef SCO_KERNEL_ONLY
+#include "sco/game/diagnostics.h"
+#include "sco/game/private_session.h"
 #include "sco/datacore_service.h"   // sco.datacore: the Star Citizen game pack (SCO_GAME_SC)
 #endif
 #ifdef SCO_GAME_SERVICES
@@ -39,22 +43,27 @@ plugins::ContentIndex        g_index;
 const sco_api*               g_api = nullptr;   // what Reload loads with
 plugins::Options             g_opts;
 diagnostics::SnapshotStore   g_diagnostics;
+diagnostics::Capture         g_diagnosticCapture;
+diagnostics::ipc::Worker     g_diagnosticWorker(g_diagnostics,g_diagnosticCapture);
+std::vector<plugins::State>  g_diagnosticStates;
 std::optional<uint64_t>       g_lastDiagnosticTick;
 bool                         g_gameServicesPublished = false;
 bool                         g_reloading = false;
 bool                         g_reloadCommand = false;   // sco.reload is registered (once per process)
 
 uint64_t DiagnosticNow() {
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count());
+    return diagnostics::ipc::ClockNow();
 }
 void CopyDiagnostics(uint64_t now) noexcept {
     try {
         diagnostics::HostMetadata host;
         if (g_platform.hostVersion) host.hostVersion = g_platform.hostVersion;
+        host.hostBuild = g_platform.runtimeInspection.hostBuild;
+        host.sourceSha = g_platform.runtimeInspection.sourceSha;
         host.readiness = "ready";
         diagnostics::LifecycleMetadata game;
         game.lifecycle = "ready"; game.lastTickMs = g_lastDiagnosticTick;
+        game.offlineAdmission = diagnostics::Authorized(g_platform.runtimeInspection) ? "authorized" : "unknown";
         game.gameServicesRequested = g_platform.gameServices;
 #ifdef SCO_GAME_SERVICES
         game.gameServicesBuilt = true;
@@ -62,10 +71,27 @@ void CopyDiagnostics(uint64_t now) noexcept {
         game.gameServicesBuilt = false;
 #endif
         game.gameServicesPublished = g_gameServicesPublished;
-        // No authorization inferred, publisher callbacks or optional game types. #141 sources
-        // remain absent. The endpoint/policy work will decide when anything leaves the host.
-        g_diagnostics.Begin(g_list, std::move(host), std::move(game), now);
+        diagnostics::OptionalSources sources;
+        sources.diagnosticsPlugin = diagnostics::CopyPublisherMetadata(now);
+#ifndef SCO_KERNEL_ONLY
+        sources.gamePack = game::diagnostics::CopyMinimal(g_platform.diagnosticSources, now);
+#endif
+        // Copies only: no plugin callbacks, service queries or provider execution.
+        g_diagnostics.Begin(g_list, std::move(host), std::move(game), now, std::move(sources));
         g_diagnostics.Advance(now);
+        if(diagnostics::Authorized(g_platform.runtimeInspection)){
+            if(g_diagnosticStates.size()!=g_list.size())g_diagnosticStates.assign(g_list.size(),plugins::State::Off);
+            for(size_t i=0;i<g_list.size();++i){const auto& p=g_list[i];
+                const void* key=p.self?static_cast<const void*>(p.self):static_cast<const void*>(&p);
+                if(g_diagnosticCapture.AssignKey(key,p.manifest.id)&&g_diagnosticStates[i]!=p.state){
+                    diagnostics::HostEvent event=diagnostics::HostEvent::Ready;
+                    if(p.state==plugins::State::Loaded)event=diagnostics::HostEvent::Loaded;
+                    else if(p.state==plugins::State::Refused)event=diagnostics::HostEvent::Refused;
+                    else if(p.state==plugins::State::Faulted)event=diagnostics::HostEvent::Faulted;
+                    g_diagnosticCapture.RecordHost(key,event,now);g_diagnosticStates[i]=p.state;
+                }
+            }
+        }else g_diagnosticCapture.Stop();
     } catch (...) {
         g_diagnostics.Reset(); // observation failure must not fail a game/plugin operation
     }
@@ -145,15 +171,30 @@ bool Start(const Platform& platform) {
 #endif
         }
     }
+    // Before consumers load; explicit default-off source config cannot enable IPC.
+    if (pf.diagnosticSources.diagnosticsPlugin) {
+        const Result dr = diagnostics::StartPublisher(pf.diagnosticSources);
+        if (dr != Result::Ok) Log("[app] diagnostics publisher not started: %s", ResultName(dr));
+    }
     const Result ur = ui::Start();
     if (ur != Result::Ok) Log("[app] ui not started: %s", ResultName(ur));
     const Result wr = widgets::Start();
     if (wr != Result::Ok) Log("[app] widgets not started: %s", ResultName(wr));
     const Result str = settings::Start();   // after storage: kept values are read from it
     if (str != Result::Ok) Log("[app] settings not started: %s", ResultName(str));
+    const Result cr = content::Start(); // before discovery: requires=sco.content is public
+    if (cr != Result::Ok) Log("[app] content not started: %s", ResultName(cr));
     const Result ir = ipc::Start();
     if (ir != Result::Ok) Log("[app] sco.ipc not started: %s", ResultName(ir));
-    const Result nr = net::Start();   // inert until the product calls net::Host or net::Join
+    net::ServiceOptions networkOptions;
+#ifndef SCO_KERNEL_ONLY
+    networkOptions.ownerReleased = game::private_session::ReleaseOwner;
+#endif
+    const Result nr = net::Start(networkOptions); // inert until explicit Host/Join
+#ifndef SCO_KERNEL_ONLY
+    const Result pr = game::private_session::Start({pf.privateSession, pf.privateSessionAdmitted});
+    if (pr != Result::Ok) Log("[app] private-session broker not started: %s", ResultName(pr));
+#endif
     if (nr != Result::Ok) Log("[app] sco.net not started: %s", ResultName(nr));
     if (pf.gameServices) {
 #ifdef SCO_GAME_SERVICES
@@ -197,6 +238,35 @@ bool Start(const Platform& platform) {
     plugins::ContainCallouts(&g_list);
     g_started = true;
 
+    // Packs are indexed and snapshotted before ANY consumer load callback.
+    // A startup pack cannot depend on code that has not run. Refuse that
+    // dependency explicitly instead of exposing content from a failed provider.
+    for (auto& p : g_list) {
+        if (p.state != plugins::State::Ready || p.manifest.kind != plugins::Kind::Data) continue;
+        for (const auto& dependency : p.manifest.requires_)
+            for (const auto& provider : g_list)
+                if (!HasCap(dependency.c_str()) && provider.manifest.kind != plugins::Kind::Data &&
+                    (dependency == provider.manifest.id || dependency.starts_with(provider.manifest.id + "."))) {
+                    p.state = plugins::State::Refused;
+                    p.reason = "startup data pack requires code provider: " + dependency;
+                }
+    }
+    for (const size_t i : plugins::LoadOrder(g_list)) {
+        auto& p = g_list[i];
+        if (p.state != plugins::State::Ready || p.manifest.kind != plugins::Kind::Data) continue;
+        if (const auto why = plugins::UnmetRequires(p, g_list); !why.empty()) {
+            p.state = plugins::State::Refused;
+            p.reason = why;
+        }
+    }
+    g_index.Build(g_list);
+    const Result csr = cr == Result::Ok ? content::Snapshot(g_list, g_index) : cr;
+    if (csr != Result::Ok) {
+        Log("[app] content snapshot failed: %s; consumers not loaded", ResultName(csr));
+        Stop();
+        return false;
+    }
+
     // Built-ins first: they are the product's features, and register before any plugin can.
     for (auto& p : g_list)
         if (p.state == plugins::State::Ready && p.manifest.kind == plugins::Kind::Builtin)
@@ -226,7 +296,6 @@ bool Start(const Platform& platform) {
             }
         }
     }
-    g_index.Build(g_list);
     RegisterReloadCommand();
 
     if (pf.image) LogSignatureReport(false);
@@ -234,12 +303,22 @@ bool Start(const Platform& platform) {
 
     const Result r = Dispatch("game.ready", nullptr);
     if (r != Result::Ok) Log("[app] game.ready: %s", ResultName(r));
-    CopyDiagnostics(DiagnosticNow());
+    const auto diagnosticNow=DiagnosticNow();
+    if(diagnostics::Authorized(pf.runtimeInspection))
+        g_diagnosticCapture.Start(diagnosticNow,pf.runtimeInspection.freeFormConsent);
+    diagnostics::SetLogCapture(&g_diagnosticCapture);
+    g_diagnosticStates.clear();
+    CopyDiagnostics(diagnosticNow);
+    g_diagnosticWorker.Start(pf.runtimeInspection);
     return true;
 }
 
 void Tick(uint32_t nowMs) {
     if (!g_started || g_stopping) return;
+    if (!OnGameThread()) return;
+#ifndef SCO_KERNEL_ONLY
+    game::private_session::Tick(); // revoke BEFORE queued consumer work
+#endif
     const Result r = GameThreadTick(nowMs);
     if (r != Result::Ok) Log("[app] tick: %s", ResultName(r));
     ipc::Tick();   // the owner heartbeat of every sco.ipc channel
@@ -253,7 +332,13 @@ void Stop() {
     if (!g_started || g_stopping) return;
     if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return; }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
+    g_diagnosticWorker.Stop(); // revoke and close BEFORE any exit/unload callout
+    diagnostics::SetLogCapture(nullptr);
     g_diagnostics.Reset(); // invalidate observations BEFORE game.exit and plugin teardown
+    diagnostics::StopPublisher(); // cached publisher calls refuse before any unload export
+#ifndef SCO_KERNEL_ONLY
+    game::private_session::Stop(); // close sockets/admission before exit/unload callbacks
+#endif
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
@@ -261,6 +346,7 @@ void Stop() {
     for (auto& p : g_list)
         if (p.manifest.kind == plugins::Kind::Native) { plugins::RemoveReloadCopies(p); p.reloadCopy.clear(); }
     settings::Stop();   // before storage: it reads and writes through it
+    content::Stop();
     storage::Stop();
     net::Stop();   // leaves any session
     ipc::Stop();

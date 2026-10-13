@@ -5,8 +5,27 @@
 #include <algorithm>
 #include <chrono>
 #include <limits>
+#include <atomic>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace sco::diagnostics {
+namespace { std::atomic<Capture*> logCapture{nullptr}; }
+void SetLogCapture(Capture* capture){logCapture.store(capture,std::memory_order_release);}
+void CapturePluginLog(const void* key,LogLevel level,std::string_view text){
+    auto* capture=logCapture.load(std::memory_order_acquire);if(!capture)return;
+#ifdef _WIN32
+    const uint64_t now=GetTickCount64();
+#else
+    const auto now=uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
+    capture->RecordPlugin(key,level,text,now);
+}
 namespace {
 bool Id(std::string_view s, size_t max, bool dotted = false) {
     if (s.empty() || s.size() > max) return false;
@@ -78,7 +97,7 @@ bool SnapshotStore::Begin(const std::vector<plugins::Plugin>& list, HostMetadata
                           LifecycleMetadata game, uint64_t now, OptionalSources sources) {
     if (!OnGameThread() || pending_ || exhausted_ || now > kMaxMonotonicMs ||
         (haveBegin_ && (now < lastBegin_ || now - lastBegin_ < 1000))) return false;
-    if (generation_ == std::numeric_limits<uint64_t>::max()) { exhausted_ = true; return false; }
+    if (generation_ == (std::numeric_limits<uint64_t>::max)()) { exhausted_ = true; return false; }
     auto next = std::make_shared<Snapshot>();
     host.hostVersion = Label(host.hostVersion, 128);
     host.sdkVersion = Label(host.sdkVersion, 128);
@@ -95,7 +114,14 @@ bool SnapshotStore::Begin(const std::vector<plugins::Plugin>& list, HostMetadata
     if (sources.gamePack) {
         sources.gamePack->version = Label(sources.gamePack->version, 128);
         sources.gamePack->gameBuild = Label(sources.gamePack->gameBuild, 128);
-        host.gamePackVersion = sources.gamePack->version;
+        if (sources.gamePack->observedMs && *sources.gamePack->observedMs > now) sources.gamePack.reset();
+        else host.gamePackVersion = sources.gamePack->version;
+    }
+    if (sources.diagnosticsPlugin) {
+        const auto& source = *sources.diagnosticsPlugin;
+        if (!source.available || (source.observedMs && *source.observedMs > now) ||
+            (source.health != SCO_DIAGNOSTICS_HEALTH_UNKNOWN && source.health != SCO_DIAGNOSTICS_HEALTH_READY &&
+             source.health != SCO_DIAGNOSTICS_HEALTH_DEGRADED)) sources.diagnosticsPlugin.reset();
     }
     next->host = std::move(host); next->game = std::move(game); next->sources = std::move(sources);
     next->generation = generation_ + 1;
@@ -245,7 +271,7 @@ Page SnapshotStore::ReadPage(ListKind tool, std::string_view filter, std::string
     page.indices.assign(matches.begin() + static_cast<std::ptrdiff_t>(next), matches.begin() + static_cast<std::ptrdiff_t>(end));
     if (end < matches.size()) {
         tokens_.erase(std::remove_if(tokens_.begin(), tokens_.end(), [&](const Token& t) { return now >= t.expires; }), tokens_.end());
-        if (tokens_.size() == 64 || token_ == std::numeric_limits<uint64_t>::max()) { page.indices.clear(); page.error = "snapshot_busy"; return page; }
+        if (tokens_.size() == 64 || token_ == (std::numeric_limits<uint64_t>::max)()) { page.indices.clear(); page.error = "snapshot_busy"; return page; }
         std::string value = "c_" + std::to_string(++token_);
         tokens_.push_back({value, std::string(filter), tool, snapshot->generation, now + 60000, end});
         page.nextCursor = std::move(value);
@@ -282,7 +308,7 @@ void Capture::Append(const void* key, LogLevel level, const char* origin,
     if (!active_ || now < started_ || now > kMaxMonotonicMs) return;
     const auto known = std::find_if(keys_.begin(), keys_.end(), [&](const auto& k) { return k.key == key; });
     if (known == keys_.end()) return;
-    if (sequence_ == std::numeric_limits<uint64_t>::max()) { active_ = false; exhausted_ = true; records_.clear(); return; }
+    if (sequence_ == (std::numeric_limits<uint64_t>::max)()) { active_ = false; exhausted_ = true; records_.clear(); return; }
     const char* name = level == LogLevel::Warning ? "warning" : level == LogLevel::Error ? "error" : "info";
     records_.push_back({ ++sequence_, now, known->id, name, origin, std::move(text) });
     bytes_ += sizeof(Record) + 64 + records_.back().id.size() + (records_.back().text ? records_.back().text->size() : 0);

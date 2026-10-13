@@ -25,6 +25,9 @@ public:
     // on 127.0.0.1 only with loopbackOnly. nullptr with *why set when the OS refuses (port in
     // use, no network stack).
     static std::unique_ptr<Socket> Open(uint16_t port, bool loopbackOnly, std::string* why);
+    // Binds exactly this numeric IPv4 interface. Only private, loopback, link-local and
+    // CGNAT addresses are accepted; no wildcard, public address or name resolution.
+    static std::unique_ptr<Socket> Open(uint16_t port, const std::string& bindAddress, std::string* why);
     ~Socket() override;
     Socket(const Socket&) = delete;
     Socket& operator=(const Socket&) = delete;
@@ -37,6 +40,7 @@ public:
     uint16_t Port() const { return port_; }
 
 private:
+    static std::unique_ptr<Socket> OpenBound(uint16_t port, const Endpoint& bindEndpoint, std::string* why);
     Socket() = default;
     uintptr_t fd_ = 0;
     uint16_t  port_ = 0;

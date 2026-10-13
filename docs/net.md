@@ -7,11 +7,12 @@
 | [`include/sco_net.h`](../include/sco_net.h) | The service table `sco_net_v1`, plain C, pinned by `tests/abi_net.c` |
 | [`include/scosdk/net.hpp`](../include/scosdk/net.hpp) | The C++20 wrapper: `Net`, `NetChannel` |
 | `include/sco/net/session.h` | The **product's** side (host, join, leave). Not for plugins |
+| `include/sco/net/control.h` | Supported **host-source** control v1: configuration/consent broker. Core-source kit only, not a plugin contract |
 
 ## What a plugin can and can't do
 
 - It **can** see whether a session is up (`is_active`), who is in it (`get_peers`, `get_peer_name`, `self_peer`), register channels under its own id, send on them, and get the other players' messages.
-- It **can't** host, join or leave a session, pick a port or an address, or see one. Those are the product's decisions (sc-offline's launcher and menu). A plugin can never make a player's PC listen.
+- The neutral `sco.net` data table has no Host/Join/Leave or socket authority. The game-pack `game.private_session` table can request those operations after explicit local UI consent; bind/allowlist and offline admission remain host-only.
 - With no session, `is_active()` is 0, `send_channel` answers `SCO_UNAVAILABLE`, and no callback runs. A plugin must work exactly as before offline: send only "in addition" (see the design's [announce, don't centralize](design/multiplayer.md#42-domain-features-announce-dont-centralize)).
 
 Declare the dependency so a host without the service refuses your plugin with a clear reason instead of loading it to find a NULL table:
@@ -92,6 +93,40 @@ Two events on the bus, on the game thread, each starting with its size:
 On ordinary owner release (including unload or non-retained `crashed` cleanup), the network release hook removes the plugin's channels and messages still queued for it or by it. Restart-required retained-provider faults skip this resource hook: host callbacks are suppressed, but channels and queued network state are not removed by quarantine alone. Terminal network shutdown clears remaining state.
 
 ## Who can connect (the product's side)
+
+### Default-on private-session broker (G13)
+
+New host integrations use `sco::net::SessionControlV1` from
+`include/sco/net/control.h` (`core-source`). The broker defaults ON with exact
+`127.0.0.1` bind and peer allowlist; construction/configuration starts no socket.
+LAN requires explicit host-owned numeric private bind and 1–16 exact private
+peer addresses. No wildcard, public IP, DNS, CIDR or implicit LAN expansion.
+Each Host/Join requires fresh local UI consent and a 12–256-byte passphrase.
+Send/receive enforce strict allow-only scope. Raw ingress is capped at 4,096
+packets/second; each receive examines at most 64 packets, including rejected ones.
+The existing authenticated backend and plugin message/queue quotas remain in force.
+
+The game pack adds public `game.private_session` 1.0 request control via
+[`sc_private_session.h`](../include/sc_private_session.h), without changing
+`sco_api` or the data-only `sco_net_v1`. Plugins can request Host/Join/Leave from
+explicit UI, but cannot own sockets, choose bind/allowlist or bypass admission.
+The app host kit publishes before plugin load, checks positive offline/EAC/
+official-network/target admission before requests and queued work, and closes on
+admission loss, ordinary requesting-owner release or host stop. The game host
+wires its existing admission inspector; a bare app host must supply equivalent
+evidence. Requests are globally bounded at four/second. Lifecycle logs do not
+contain credentials, names or endpoints. Full contract, results, host wiring,
+packaging and limitations: [private-session broker](game/private-session.md).
+
+`test_net_control` exercises the actual authenticated backend over synthetic
+numeric IPv4 datagrams and traps all socket calls. With `SCO_GAME_SC=ON`, the
+same named fixture exercises public C publication/requests, owner release,
+admission/rate/bounds refusal and C layout pins. This is synthetic proof only:
+**Windows/MSVC, private LAN, EAC/OS admission, firewall policy and game execution
+are NOT VERIFIED**. G2 remains disabled; broader/public address policy and
+persisted credentials/consent are not approved.
+
+### Legacy backend policy (not the broker defaults)
 
 For product authors (sc-offline); plugins never see this. `sco::net::Host(HostOptions)` binds UDP 64091 (by default) and accepts players who know the passphrase; `sco::net::Join(JoinOptions)` joins one by numeric IPv4 address; `sco::net::Leave(reason)` ends it. Nothing listens or connects until one of them is called.
 

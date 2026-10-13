@@ -155,7 +155,7 @@ int ReadZoneChain(uintptr_t zone, ZoneFrame* out, int max) {
         if (!ZoneAxes(z, f.origin, f.axis)) continue;
         f.id = id;
         const char* name = ZoneName(z);
-        snprintf(f.name, sizeof(f.name), "%s", name ? name : "");
+        snprintf(f.name, sizeof(f.name), "%.*s", static_cast<int>(sizeof(f.name) - 1), name ? name : "");
         ++n;
     }
     return n;

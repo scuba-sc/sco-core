@@ -17,7 +17,65 @@ As of sco-core `main` at `2197dfb` (2026-10-11, with `game.actors.died`), game p
 | `OFF pending in-game confirmation` | The rows resolve, but something only a run can show is open (the thread a callback runs on, a vector layout, which of two checks means dead). The capability stays off until that run |
 | `BLOCKED` | No locator we can trust, so nothing is published |
 
+## Typed loadout extension (G6)
+
+`game.loadout` 1.0 / `game.loadout.apply`: table published by Windows game-services
+composition, capability **OFF — typed engine methods unverified**. Synthetic real
+host/provider/native-module checks only; no trusted per-slot equip mapping and no
+offline admission adapter installed. See [loadout](loadout.md). Not run in game.
+
+## Quantum control activation (G8, unreleased R1)
+
+`game.quantum` 1.0 / `game.quantum.control` is **owner-approved and conditionally
+ON** after successful registration of a complete private host backend with the
+shared owner-release dispatcher installed. All enable/hold calls still require
+fresh positive offline/EAC-absent admission, owned drive, game thread and bounded
+values. No additional public table/header or kernel mutation route is added.
+
+**Default production adapter absent — capability OFF.** Retained product layouts
+lack a safe owned-drive association and complete first-prior/input/charge/audio/
+effect restoration contract. Approval does not establish those facts. Private
+host-source configuration/start is explicit, with no signature-only fallback;
+see [quantum integration contract](../quantum.md). The portable configured
+provider/real host test is synthetic; **Windows/MSVC, actual drive input/charge/
+effects and gameplay are NOT VERIFIED; not run in game**.
+
+## Private-session broker (G13, unreleased)
+
+`game.private_session` 1.0 ([public C header](../../include/sc_private_session.h),
+[host policy](private-session.md)) is **ON by default for R1 by owner approval**.
+Default bind and exact peer allowlist are `127.0.0.1`; startup publishes the
+broker without sockets. Host/Join needs fresh explicit UI consent, a 12–256-byte
+passphrase, and positive offline/EAC/official-network/target admission. The host,
+not plugins, controls explicit private LAN bind and 1–16 exact peer addresses.
+Authenticated backend messages keep existing size/send/inbox quotas; global
+broker requests are bounded at four/second and raw ingress at 4,096/second.
+Admission loss, owner unload and host stop close the session; lifecycle records
+contain no passphrase, player name or endpoint. Portable real-backend/native-C
+service and ABI checks are synthetic. **Windows/MSVC, private LAN, EAC inspection,
+firewall policy and gameplay are NOT VERIFIED.** G2 relocation stays disabled.
+
 ## Service tables and capabilities
+
+**Unreleased G4 addition:** `game.prefabs` 1.0 uses the existing object-container
+spawner/attribute writer and entities ownership. Capability `game.entities.prefabs`
+is **ON by default for R1 by owner approval**, with the hard-disable removed.
+Existing startup/cleanup readiness, provider-fault refusal, canonical 511-byte
+content paths, finite normalized poses and shared 1,024/per-owner 128 entity
+quotas remain enforced. This approval is not runtime acceptance: **Windows/MSVC,
+native SEH behavior and gameplay are NOT VERIFIED**. Streamed materialization,
+cancellation before first stream, preview/unload cleanup and native attribute/
+spawn/batch-release fault handling still need owner-run evidence. Portable
+admission/ABI fixtures are synthetic. G5 and G9 behavior is unchanged.
+
+
+**Unreleased G9 addition:** `game.owned` 1.0 ([header](../../include/sc_owned.h),
+[policy](../design/owned-removal.md)) is a game-pack composition over the existing
+entities/actors removal and seat-read capabilities below, not a new engine binding.
+Only synthetic provider/ownership fixtures and header layout checks are supplied;
+**not run in game or on Windows/MSVC runtime**. Its receipts record initiation,
+not disappearance. Retained build ownership lasts only while loaded and ordinary
+unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
@@ -31,6 +89,7 @@ As of sco-core `main` at `2197dfb` (2026-10-11, with `game.actors.died`), game p
 | `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.0 | `game.world.raycast_filtered`, `game.world.free_camera` | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.0 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | camera field of view | none | BLOCKED |

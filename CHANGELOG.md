@@ -4,14 +4,200 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Renderer-neutral text inputs gain `SCO_WIDGET_PASSWORD` display masking for explicit G13 credentials; only text inputs accept the flag. This is not encrypted storage or a guarantee against host-memory disclosure.
+
+- **G13 private-session broker (R1):** owner-approved default-on `SessionControlV1`
+  with strict loopback/no-startup-socket defaults, explicit numeric private bind
+  and exact peer allowlist, 12-byte minimum passphrase, bounded ingress/requests,
+  fail-closed offline/EAC admission and credential-free lifecycle audit. Add
+  public `game.private_session` 1.0 Host/Join/Leave/state requests for the external
+  multiplayer plugin; sockets and policy remain host-only. Host kit publishes
+  before plugin load, checks admission before queued work, and stops on admission
+  loss/unload/quit using the existing net release dispatcher. Synthetic backend
+  and C layout proof only; Windows/MSVC/private-LAN/game NOT VERIFIED. G2 unchanged.
+
+
+- **Runtime MCP step 2 — host IPC/auth gate (local fixture):** default-off host-private mapping, secure per-session credentials/peer lease, mutual directional HMAC and six copied-metadata reads; hostile real-transport and literal-vector fixtures. No sockets, network-key reuse, public ABI change or product/MCP enablement. Protected OS audit/product policy remains step 3; **not run in game**.
+- **C# `sco.widgets` 1.0 (#142):** pinned interop, bounded copied trees, typed rooted callbacks, atomic failures/reentrant updates and archive example/tests; frozen ABI unchanged. Windows NativeAOT/GPU/game not verified locally.
+
+- **Lua `sco.widgets` 1.0 (#143):** sandboxed bounded declarative panels for all eight
+  widget kinds and ROW/COLUMN, typed copied events, registry-rooted callbacks until
+  successful replacement/removal or unload, atomic failures and reentrant updates.
+  Complete member-extent/null guards, shared instruction/memory budgets and real
+  neutral-host lifecycle fixtures; archive-contained `widgets_lua` example.
+  Frozen ABI unchanged; GPU rendering/gameplay not verified.
+- **G17 diagnostics publishers (#141):** add default-off Star Citizen minimal
+  metadata snapshots and a host-owned, selected-owner `sco.diagnostics.publisher`
+  1.0 ingress for fixed advisory plugin health. Sources require explicit opt-in
+  and positive host offline admission; copy into the existing immutable host
+  diagnostics path without plugin callbacks, scanner execution or side channels.
+  Extra source fields stay internal: runtime JSON v1 is unchanged and arbitrary
+  plugin fields/gameplay data are not accepted. Optional SDK example ships
+  disabled; synthetic module, ABI and truncated-tail fixtures added. Frozen
+  `sco_api` unchanged. Windows/MSVC, endpoint security and gameplay not verified.
+
+- **G14 content access (#135):** audit confirms the private content index and
+  command registry lacked a public list/script read route. Add kernel-neutral
+  `sco.content` 1.0 with bounded copied startup records/bytes, link-safe reads,
+  whole-pack refusal, dependency propagation, and guarded C++ access. Packs are
+  prepared before consumer code loads; code-provider dependencies are explicitly
+  refused. Public C example, synthetic module/layout tests, catalogue, packaging
+  and provenance added. Frozen `sco_api` unchanged; no allowlist expansion.
+  Not run in game; C#/Lua and product step-2C migration remain downstream.
+- **Offline host DataCore timing (G1):** initialize/index before early engine
+  loading, bounded CryPak transform, preserve LOADED across app Start and drain
+  producers before teardown. Synthetic early-load/late-refusal fixture passes;
+  Windows transport and legacy builtin migration remain unverified.
+
+- **Offline host quit adapter (G1):** required validated CSystem quit hook by
+  default, synchronous stop before both engine quit paths, original argument
+  passthrough, repeated-stop/task-cancellation fixtures and explicit external
+  quit integration. No product fast-shutdown field reads; actual Windows detour
+  and game shutdown not verified.
+
+- **Offline host tick adapter (G1):** game-thread cadence/wrap handling, first-pass
+  tick, fresh admission checks even on throttled passes, shutdown/cancellation on
+  lost offline evidence, and no feature fallback after a plugin fault. OS message
+  and renderer integration remain in the shell; synthetic fixtures only.
+
+- **Offline host composition, admission/resolve/start (G1):** add game-only
+  `sco_game_host` C++ host-source target. Unknown/online/EAC/unblocked-network/wrong
+  target evidence refuses before any signature resolution or publication; startup
+  revalidates admission, owns row resolution and starts the existing app kit.
+  Synthetic lifecycle/thread fixtures only; no online-to-offline conversion,
+  plugin patch service or frozen ABI change. Legacy offline mutations and product
+  migration remain separate; not run in game.
+- **G16 local Star Citizen host-source kit:** `host-source-sc` packages the neutral kernel plus complete tracked game implementation, DataCore, private headers, vendored dependencies and synthetic test inputs in a standalone source layout. Existing SPDX SBOM, provenance and checksum generation is retained; an extracted-archive regression builds the G1 host adapter targets with `SCO_GAME_SC=ON`, runs five synthetic host fixtures and checks `core-source` game exclusions. All six private adapter files are included. No plugin ABI, CI/release workflow, publication or attestation change; Windows/game validation and human-controlled asset publication remain owed.
+- **G2 relocation foundation:** size-prefixed `game.relocation` request/cancel/status and tested owner-scoped streaming completion state machinery. Production mutation remains **unavailable** until host safety/session admission, system classification and validated transport are grounded; not Windows/game verified.
+
+- **G3 `game.spatial` 1.0:** new size-prefixed native C/raw C++ full-pose conversion
+  plus bounded copied zone records, exact observed-name lookup and epoch-pinned
+  pages. At most 256 observed IDs/64 records per page; complete rigid ancestry only,
+  no global scanner or raw pointers. `teleport.spatial` 1.0 and `sco_api` 1.1 stay
+  unchanged. Root ancestry is exposed, but system classification remains explicitly
+  unknown rather than guessed. C#/Lua unsupported; portable synthetic/ABI fixtures,
+  **not verified on Windows or in game**.
+- **G4 (#125) owned prefab spawning:** independent `game.prefabs` 1.0 validates
+  canonical content-relative paths and bounded owned quotas, ports the existing
+  object-container attribute writer, and records pending prefab ownership in the
+  existing entities ledger for move/despawn/retained undo and ordinary unload.
+  Owner-approved R1 default removes the hard-disable for `game.entities.prefabs`;
+  canonical 511-byte paths, finite normalized poses, shared 1,024/per-owner 128
+  quotas and existing readiness/cleanup/fault refusals are unchanged. C/C++
+  routes and synthetic/ABI/catalogue/package evidence only: Windows/MSVC,
+  native SEH and streamed spawn/removal behavior are **NOT VERIFIED**; not run
+  in game. Frozen ABI unchanged; no arbitrary delete, content exports or private
+  product fallback. G5/G9 behavior is unchanged.
+
+- **G5 (#126): `game.world.control` 1.0** adds owner-validated bounded filtered
+  rays and exclusive reversible free-camera leases, with native C/C++ routes,
+  synthetic restoration/ownership/fault fixtures and ABI/catalogue/package pins.
+  `game.world` 1.0 and frozen `sco_api` remain unchanged. New production
+  capabilities are OFF: no verified offline engine adapter, no guessed offsets.
+  Ordinary unload/stop restoration is policy-tested; Windows/game not verified.
+- **G9 retained-build and owned-seat removal**: new game-only `game.owned` 1.0
+  table keeps explicitly retained `game.entities` placements owned for undo/clear
+  while loaded and removes them on ordinary unload; no across-reload persistence.
+  Actors-owned NPC and expected-seat-occupant removal are separate authorities;
+  foreign/player occupants and arbitrary deletion remain forbidden. Bounded
+  owner-scoped receipts report removal initiation only, never `alive=0` completion.
+  C/C++ direct route, C#/Lua explicitly unsupported; synthetic fixtures only,
+  **not run in game**. Frozen base and existing service layouts remain unchanged.
+- **G6 typed offline player loadout (`game.loadout` 1.0):** bounded 16-slot C/C++
+  synchronous apply, copied input validation and explicit partial/unsupported/missing
+  slot reports; native module/real host-provider fixtures, ABI/package/catalogue
+  evidence. No raw XML or account inventory. Production engine equip remains
+  fail-closed/unavailable pending verified methods and owner-run Windows/game checks.
+  Frozen `sco_api` 1.1 unchanged; C#/Lua routes unsupported. **Not run in game.**
+- **G8 R1 quantum activation (`game.quantum` 1.0):** owner approval removes the
+  unconditional control-capability OFF for a complete host backend with installed
+  shared owner cleanup, only after service registration succeeds. Add explicit
+  private production configuration/start routing; preserve game-thread, fresh
+  offline/EAC-absent, owned-controller and per-value/lease bounds. First-tick lease
+  anchoring and fault-latch suppression prevent premature expiry and post-fault
+  cleanup callbacks; record ownership before potentially partial mutation.
+  **Default production adapter still absent:** legacy layouts do not ground local
+  drive ownership or first-prior/input/charge/audio/effect restoration. No guessed
+  offsets, unsafe shared-parameter writes or signature-only readiness. Existing
+  public `sc_quantum_v1` and frozen `sco_api` are unchanged; C#/Lua unsupported.
+  Targeted configured-provider/real-host fixtures are synthetic; Windows/MSVC,
+  native engine forwarding, sound/effects and gameplay **NOT VERIFIED; not run
+  in game**.
+- **G7 / #128 reversible scoped cvar writes:** separate `game.cvars_write` 1.0,
+  exact bool allowlist, first-prior leases and per-name concurrent-owner refusal;
+  verified readback, explicit restore, existing spawn owner dispatcher and
+  session/stop restoration. Failed mutation/restoration retains context/leases and
+  requires restart. C/C++ extent/null/ABI and native-loader synthetic lifecycle
+  fixtures; production capabilities remain OFF pending verified engine adapter.
+  No extra kernel release hook, arbitrary console, bridge allowlist or USER.cfg edit.
+
+- **G7 / #128 read-only scoped cvars:** independent size-prefixed `game.cvars`
+  1.0 with an exact four-name SQ42 bool allowlist, live-owner/game-thread and
+  offline/capability admission, copied outputs and restart-required fault latch.
+  C/C++ routes, ABI/extent/null fixtures and a real native-loader synthetic probe;
+  production remains unavailable until the engine adapter is verified. No console
+  execution or persistent config edits; frozen `sco_api` is unchanged.
+- **Offline hangar/ATC continuation port (#131):** preserve scoped offline hub,
+  hangar/bubble/gateway/retention and pad-token mechanics in the game pack.
+  Synchronous bounded handoff keeps caller frames alive after take, falls back on
+  untaken timeout and closes admission safely on shutdown. Focused portable lifetime,
+  reentrancy, timeout, overflow and shutdown fixtures; Windows gameplay not verified.
+
+- **Offline hangar lift composition (#131):** enable the row-validated sole lift
+  hook owner and preserve lower/spawn/raise plus store-down/store/raise mechanics.
+  Shared lift-watch fixture checks exact timeout, unknown state and one-shot fallback;
+  Windows lift gameplay not verified.
+
+- **Offline fleet operations (#131):** port existing ASOP delivery/store/retrieve,
+  list refresh/claim timeout and ATC request mechanics to the host-only game pack,
+  using guarded core reads/spawn helpers rather than product symbols. Shared original
+  delivery-loop fixture covers refusal/timing/timeout. Windows gameplay not verified.
+
+- **Offline fleet host catalog/status (#131):** default-off host-source configuration,
+  bounded copied class catalog and Windows game-pack entitlement-list port. Unknown
+  offline/EAC state refuses; no plugin ABI/authority change. Portable fixture only;
+  Windows gameplay not verified.
+
+- **Host-only private-session control v1 (G13):** default-off `SessionControlV1`
+  wraps the existing `sco.net` host/join/leave backend with per-request local
+  consent and up to 16 exact private LAN/CGNAT VPN IPv4 addresses. No implicit
+  LAN expansion, public destinations, remembered secrets, plugin service or
+  remote commands; reconfiguration and terminal teardown close owned sessions.
+  Kernel-only ASan/UBSan synthetic transport test covers authentication refusal,
+  malformed/out-of-scope datagrams, quotas, stale peers and teardown with UDP
+  replaced by failing socket traps. Frozen `sco_api` 1.1 is untouched.
+  Product UI/firewall integration and Windows/private-LAN/game checks remain pending.
+- **G12 local-economy/payment boundary (#133):** copied local wallet reads, bounded
+  atomic expected-balance delta requests, owner/session once-only receipts, refused
+  uncertain retries and successful transaction signals. Storage/import/save/payout
+  policy stays consumer-side. Synthetic tests only; Windows wallet/shop adapter and
+  persistence across reload/restart remain unimplemented/unverified.
+
+- **G11 abandon/script boundary (#132):** once-only owned abandonment/release cleanup
+  and bounded declarative user content with strict path/grammar validation, immutable
+  session registration and no filesystem/network/script-execution access. Existing
+  engine XML scripts remain unsupported; no proprietary content or adapter enabled.
+
+- **G11 objective/phase progression (#132):** owner-scoped ordered steps, fresh status
+  comparison, no-op duplicate completion and refused skips/uncertain retries. Final
+  phase completion never pays automatically. Synthetic two-phase acceptance only.
+
+- **G11 broker acceptance (#132):** exact broker/offer/generation validation,
+  owner/session-scoped idempotency and bounded non-evicting acceptance receipts.
+  Uncertain failures are not retried automatically; no engine adapter enabled.
+
+- **G11 read/status boundary (#132):** add game-pack `game.missions` 1.0 copied,
+  bounded offers/status, current offline/EAC/session admission, release/thread guards,
+  native-fault restart latch and C++ full-extent/null/reopen checks. Synthetic provider
+  and ABI tests; no validated engine adapter or in-game capability enabled.
+
 - **Renderer-neutral `sco.widgets` 1.0**: native C/C++ retained panels, eight widgets
   plus ROW/COLUMN layout, copied bounded preorder trees, atomic replacement,
   guarded game-thread events, generation-based stale-event rejection and owner
   release cleanup. Optional host-only ImGui adapter, synthetic headless renderer
   tests and archive-built `widgets` example/checker; no plugin renderer dependency.
   Frozen `sco_api` 1.1 and legacy `sco.ui` draw callbacks/hotkeys remain unchanged.
-  C# and Lua routes are explicitly deferred in scubamount/sco-core #142/#143
-  (follow-ups to #139); this does not claim complete language parity or GPU/game validation.
+  C# and Lua adapters are listed above. This does not claim GPU/game validation.
 - **Runtime MCP step 1 — copied host snapshots:** game-thread chunked immutable plugin/lifecycle/signature/capability copies, locked service metadata with bounded withdrawal history, generation-bound pages and a default-inactive keyed structured capture buffer. No QueryService/table probes, plugin callbacks or SDK/game method calls during capture; no diagnostics channel or MCP-server change. Reserve absent host metadata slots for the game-pack and optional diagnostics-plugin publishers in #141; publishers and policy are not implemented. The frozen ABI is unchanged. Synthetic `test_runtime_diagnostics_snapshot` runs in CTest and the shell build, including `SCO_GAME_SC=OFF`. **Not run in game.**
 
 - **First-plugin documentation:** add a published-archive download/checksum/copy/rename/build/check walkthrough, explicit Windows deployment limits and diagnostics; curate the documentation index for six audiences and publish the guide through the existing site allowlist. No behavior or ABI change.

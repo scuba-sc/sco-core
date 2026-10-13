@@ -54,16 +54,34 @@ class CatalogueTests(unittest.TestCase):
     def test_baseline_matches_header_count(self):
         records, extracted = catalogue.validate(self.root)
         self.assertEqual(len(records), len(extracted['methods']))
-        self.assertEqual(len(records), 122)
-        self.assertEqual(len(extracted['tables']), 15)
-        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 119)
+        self.assertEqual(len(records), 167)
+        self.assertEqual(len(extracted['tables']), 30)
+        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 164)
+        wave3 = {
+            'sc_mining_v1': (['request', 'state'], 'tests/abi_catalogue_mining.c', 'tests/test_mining.cpp'),
+            'sc_private_session_v1': (['request_host', 'request_join', 'leave', 'get_state'],
+                                      'tests/abi_private_session.c', 'tests/test_net_control.cpp'),
+        }
+        clang = shutil.which('clang')
+        assert clang is not None, 'Clang is required for catalogue C layout evidence'
+        for table, (members, c_test, cpp_test) in wave3.items():
+            self.assertEqual(extracted['tables'][table]['members'], members)
+            for record in (r for r in records if r['table'] == table):
+                self.assertEqual({lang: route['status'] for lang, route in record['language_mappings'].items()},
+                                 {'c': 'direct', 'cpp': 'direct', 'csharp': 'unsupported', 'lua': 'unsupported'})
+                self.assertIn(c_test, record['language_mappings']['c']['tests'])
+                self.assertIn(cpp_test, record['language_mappings']['cpp']['tests'])
+            # Compile the linked C layout pins as catalogue evidence, not runtime proof.
+            result = subprocess.run([clang, '-std=c11', '-I', str(self.root / 'include'),
+                                     '-fsyntax-only', str(self.root / c_test)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
         widgets = [r for r in records if r['table'] == 'sco_widgets_v1']
         self.assertEqual({r['symbol'] for r in widgets},
                          {'sco_widgets_v1.set_panel', 'sco_widgets_v1.remove_panel'})
         for record in widgets:
             self.assertEqual({lang: route['status'] for lang, route in record['language_mappings'].items()},
                              {'c': 'direct', 'cpp': 'typed-wrapper',
-                              'csharp': 'unsupported', 'lua': 'unsupported'})
+                              'csharp': 'typed-wrapper', 'lua': 'typed-wrapper'})
 
     def test_new_undocumented_method(self):
         self.header_change('sco_storage.h', '} sco_storage_v1;',

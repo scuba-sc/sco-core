@@ -2,6 +2,7 @@
 // Plugin code is only ever reached through host trampolines, so no call goes through a function
 // pointer of the wrong type (sco_command_fn vs CommandFn, sco_invoke_done vs InvokeDone).
 #include "sco/host.h"
+#include "sco/diagnostics.h"
 #include "sco/caps.h"
 #include "sco/log.h"
 #include "sco/runtime.h"
@@ -160,6 +161,8 @@ void LogC(sco_plugin* self, sco_log_level level, const char* message) {
     const char* tag = level == SCO_LOG_WARN ? "warning: " : level == SCO_LOG_ERROR ? "error: " : "";
     char line[512];
     OneLine(message, line, sizeof(line));
+    sco::diagnostics::CapturePluginLog(self,level==SCO_LOG_ERROR?sco::diagnostics::LogLevel::Error:
+        level==SCO_LOG_WARN?sco::diagnostics::LogLevel::Warning:sco::diagnostics::LogLevel::Info,line);
     Log("[%s] %s%s", self->id, tag, line);
 }
 

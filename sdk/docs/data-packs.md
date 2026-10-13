@@ -22,7 +22,44 @@ Extensions match in any case. Everything else in the folder is ignored. Links (s
 
 ## How features use it
 
-At startup sc-offline builds a content index: one entry per file, with its kind, the pack's id and the path relative to the pack (`lists/locations.txt`). Features ask the index for their kind and read the files themselves. Several packs may ship a file with the same name; features get them in plugin order (folder name order).
+The host privately indexes enabled packs. New hosts expose **`sco.content` 1.0**
+(`sco_content.h`; C++ `scosdk/content.hpp`) for public **list/script** enumeration
+and reads; SDK 2.0.0's existing release predates this addition. Discover it using
+`sco_api` 1.1 `query_service`, guarding the complete pointer extent and a non-null
+callback. `requires = sco.content` makes absence an explicit discovery refusal.
+The private `ContentIndex` and `app::Content()` are host-source APIs, not plugin
+SDK headers. Existing DataCore methods are not replaced by this service.
+
+`item(self, kind, ordinal, &record)` uses zero-based ordinals within
+`SCO_CONTENT_LIST` or `SCO_CONTENT_SCRIPT`. Set `record.size = sizeof(record)`.
+It copies pack ID, pack-relative name and an opaque item ID. `SCO_NOT_FOUND`
+ends enumeration. Order is plugin discovery order, then relative filename byte
+order. Duplicate names remain distinct items; the feature chooses its merge or
+conflict policy rather than assuming one winner.
+
+`read(self, record.id, bytes, &size)` copies exact snapshot bytes: capacity in,
+bytes written on success, bytes needed with `SCO_TOO_MANY`. A NULL output with
+zero capacity asks the size; empty files return OK/0. **No NUL is appended**;
+embedded NULs are allowed. No callback opens a file or accepts a path. Strings
+in records are copied UTF-8/NUL-terminated, never absolute host paths.
+
+The snapshot is prepared before **any** plugin load callback. All methods require
+the game thread and a live plugin handle; wrong thread returns `SCO_WRONG_THREAD`.
+Stopped/terminal-shutdown calls return `SCO_UNAVAILABLE`. Host restart invalidates
+old IDs. Packs and DataCore changes require restart, not `sco.reload`; install or
+update packs while the host is stopped. Bounds are 4096 snapshot items, 1 MiB per
+file, 16 MiB total bytes and 1023 relative-name bytes. Unsafe/unreadable supported
+files or a quota refuse the entire pack, and data dependents are also refused.
+Startup packs may depend on host capabilities/services or other data packs, but
+not code providers that have not loaded yet. Files are opened without following
+link/reparse-point components beneath the host-configured pack root; ancestors
+of that root remain trusted host installation policy. Concurrent writes are not
+an atomic filesystem transaction.
+
+The [native C content reader](../examples/content_reader/README.md) and
+[G14 audit/design](../../docs/design/content-access.md) explain the boundary.
+Script data is not permission to execute scripts. C#/Lua bindings, mission/rules
+exposure and automatic import of legacy product base lists are not provided.
 
 Each feature decides which files it reads and in what format. A list file uses the format of the sc-offline file it extends: [`examples/travel_pack/lists/locations.txt`](../examples/travel_pack/lists/locations.txt) uses the `system | name | entity | radius` lines of sc-offline's `data\locations.txt`. Which features read pack content, and from which names, is listed in sc-offline's docs as each feature gains support.
 

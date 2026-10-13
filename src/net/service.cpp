@@ -173,7 +173,7 @@ void PushState(bool active, std::string_view reason) {
     it.state.size = sizeof(sco_net_state_event);
     it.state.active = active ? 1 : 0;
     const size_t n = std::min(reason.size(), sizeof(it.state.reason) - 1);
-    std::memcpy(it.state.reason, reason.data(), n);
+    if (n != 0) std::memcpy(it.state.reason, reason.data(), n);
     Push(std::move(it));
 }
 
@@ -612,6 +612,7 @@ const sco_net_v1 kTable = {
 // queued sends and the messages waiting for it go.
 void OnRelease(const void* owner) {
     if (!owner) return;
+    if (g_opts.ownerReleased) g_opts.ownerReleased(owner);
     std::lock_guard<std::mutex> hold(g_lock);
     for (size_t i = 0; i < g_channels.size();) {
         if (g_channels[i].owner == owner) {
@@ -705,6 +706,11 @@ void Stop() {
     RemoveReleaseHook(OnRelease);
 }
 
+bool HasOwnerReleaseDispatcher(void (*callback)(const void*)) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    return g_started && callback && g_opts.ownerReleased == callback;
+}
+
 bool Started() {
     std::lock_guard<std::mutex> hold(g_lock);
     return g_started;
@@ -777,13 +783,15 @@ Result Host(const HostOptions& o) {
         s->raw = o.transport;
     } else {
         std::string why;
-        s->socket = udp::Socket::Open(o.port, o.loopbackOnly, &why);
+        s->socket = o.bindAddress.empty() ? udp::Socket::Open(o.port, o.loopbackOnly, &why)
+                                          : udp::Socket::Open(o.port, o.bindAddress, &why);
         if (!s->socket) {
             Log("[net] cannot host on UDP port %u: %s", static_cast<unsigned>(o.port), why.c_str());
             return Result::Failed;
         }
         s->raw = s->socket.get();
         Log("[net] hosting on UDP port %u (%s)", static_cast<unsigned>(s->socket->Port()),
+            o.scope.allowOnly ? "explicit address allow-list only" :
             o.scope.any ? "any address" : o.scope.allow.empty() ? "LAN only" : "LAN and the allow-list");
     }
     s->scoped = std::make_unique<ScopedTransport>(*s->raw, o.scope);
@@ -813,7 +821,8 @@ Result Join(const JoinOptions& o) {
         s->raw = o.transport;
     } else {
         std::string why;
-        s->socket = udp::Socket::Open(0, o.loopbackOnly, &why);
+        s->socket = o.bindAddress.empty() ? udp::Socket::Open(0, o.loopbackOnly, &why)
+                                          : udp::Socket::Open(0, o.bindAddress, &why);
         if (!s->socket) {
             Log("[net] cannot open a UDP socket: %s", why.c_str());
             return Result::Failed;
