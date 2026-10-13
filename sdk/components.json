@@ -203,6 +203,15 @@
     }
   ],
   "components": [
+    {"id": "mining.include.sc_mining.h", "source": "include/sc_mining.h", "destination": "include/sc_mining.h", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": true},
+    {"id": "mining.src.game.admission.h", "source": "src/game/admission.h", "destination": "src/game/admission.h", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "mining.src.game.admission.cpp", "source": "src/game/admission.cpp", "destination": "src/game/admission.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "mining.src.game.services.mining.h", "source": "src/game/services/mining.h", "destination": "src/game/services/mining.h", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "mining.src.game.services.mining.cpp", "source": "src/game/services/mining.cpp", "destination": "src/game/services/mining.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "mining.src.game.services.mining_native.cpp", "source": "src/game/services/mining_native.cpp", "destination": "src/game/services/mining_native.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "mining.tests.test_mining.cpp", "source": "tests/test_mining.cpp", "destination": "tests/test_mining.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "mining.docs.game.mining-service.md", "source": "docs/game/mining-service.md", "destination": "docs/game/mining-service.md", "profiles": ["game-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+
     {"id": "source.include.sco.diagnostics_policy.h", "source": "include/sco/diagnostics_policy.h", "destination": "include/sco/diagnostics_policy.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.src.ipc.diagnostics_audit.h", "source": "src/ipc/diagnostics_audit.h", "destination": "src/ipc/diagnostics_audit.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.src.ipc.diagnostics_audit.cpp", "source": "src/ipc/diagnostics_audit.cpp", "destination": "src/ipc/diagnostics_audit.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},

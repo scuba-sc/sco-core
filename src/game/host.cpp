@@ -9,6 +9,7 @@
 #include "sco/caps.h"
 #include "sco/datacore_service.h"
 #include "host_testing.h"
+#include "admission.h"
 #include <atomic>
 #include <mutex>
 #include <limits>
@@ -111,6 +112,7 @@ Result Prepare(const Options& o) {
         }
         const Result d = PrepareData();
         if (d != Result::Ok) { phase = Phase::Failed; return d; }
+        detail::SetFreshInspector(options.inspect);
         phase = Phase::Prepared;
         return Result::Ok;
     } catch (...) { StopData(); phase = Phase::Failed; return Result::Failed; }
@@ -119,10 +121,11 @@ Result Start() {
     if (phase.load() != Phase::Prepared) return Result::BadArg;
     phase = Phase::Starting;
     if (!Admitted()) { phase = Phase::Prepared; return Result::Unavailable; }
+    detail::SetFreshAdmissionEnabled(true);
     try {
         auto platform = options.platform;
         platform.dataCore = false; // service already OPEN/LOADED; NEVER reset an early load
-        if (!app::Start(platform)) { StopData(); phase = Phase::Failed; return Result::Failed; }
+        if (!app::Start(platform)) { detail::SetFreshAdmissionEnabled(false); StopData(); phase = Phase::Failed; return Result::Failed; }
         if (dataActive) {
             auto inputs = std::make_shared<DataInputs>();
             inputs->list = app::Plugins(); inputs->index = app::Content();
@@ -131,7 +134,7 @@ Result Start() {
         }
         phase = Phase::Running;
         return Result::Ok;
-    } catch (...) { StopData(); phase = Phase::Failed; return Result::Failed; }
+    } catch (...) { detail::SetFreshAdmissionEnabled(false); StopData(); phase = Phase::Failed; return Result::Failed; }
 }
 Result Tick(uint32_t nowMs) {
     if (phase.load() != Phase::Running) return Result::Unavailable;
@@ -151,6 +154,7 @@ Result Stop() {
     if (p == Phase::Stopping) return Result::Ok;
     if (p != Phase::Running) return Result::Unavailable;
     if (sco::detail::InCallout()) return Result::Unavailable;
+    detail::SetFreshAdmissionEnabled(false); // retained workers must pass through before teardown
     phase = Phase::Stopping;
     // Stop transport/producer access first, but keep DataCore tables available for unload.
     if (pakOwned) { pak::Disable(); pakOwned = false; }

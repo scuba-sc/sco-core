@@ -57,4 +57,8 @@ Result Stop();
 Result BeforeQuit();
 // Immutable scalar observation; no provider/table callbacks. May read on any thread.
 Snapshot Status();
+// Host-only worker-safe fresh predicate, NOT exposed through plugin discovery.
+// True only during Start/Running and fresh inspect() positively clears every G1
+// condition. Inspector/backing state must remain process-retained; no plugin code.
+bool FreshAdmissionAllowed() noexcept;
 } // namespace sco::game::host

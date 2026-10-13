@@ -13,6 +13,7 @@
 #include "creative.h"
 #include "relocation.h"
 #include "quantum.h"
+#include "mining.h"
 #include "cvars.h"
 #include "offline_missions.h"
 #include "sco/game/actors.h"
@@ -301,6 +302,7 @@ void OnRelease(const void* owner) {
     ReleaseCreativeOwner(owner);
     ReleaseRelocationOwner(owner);
     ReleaseQuantumOwner(owner);
+    ReleaseMiningOwner(owner);
     ReleaseCvarsOwner(owner);
 }
 
@@ -396,11 +398,14 @@ Result StartSpawn() {
     g_releaseHook = AddReleaseHook(OnRelease) == Result::Ok;
     if (!g_releaseHook) Log("[game] warning: no release hook left: set_entity_transform moves no spawn_as entity");
     g_started = true;
+    const Result mining = StartMining(g_releaseHook); // publishes unavailable state even when native bridge is unverified
+    if (mining != Result::Ok) { StopSpawn(); return mining; }
     return Result::Ok;
 }
 
 void StopSpawn() {
     if (!g_started) return;
+    StopMining(); // disable workers BEFORE release dispatcher is removed
     if (g_releaseHook) RemoveReleaseHook(OnRelease);
     g_releaseHook = false;
     host::WithdrawGameService(SC_SPAWN_SERVICE_NAME);
