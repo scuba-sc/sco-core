@@ -1,0 +1,91 @@
+{
+  "schema_version": 2,
+  "tag": "sdk-v2.1.0",
+  "source": {
+    "repo": "scubamount/sco-core",
+    "sha": "82462b053b222e9e93f552b98b695ee1e7066047",
+    "dependencies": []
+  },
+  "components_manifest_sha256": "0d16b91439259e9fa6d06913f6f2144c0dc642e57ee800dbf21b042322d909e0",
+  "builder": {
+    "workflow_path": ".github/workflows/release-candidate.yml",
+    "workflow_sha": "82462b053b222e9e93f552b98b695ee1e7066047",
+    "run_id": 38349453896,
+    "run_attempt": 1
+  },
+  "artifacts": [
+    {
+      "name": "SHA256SUMS",
+      "role": "checksums",
+      "size": 746,
+      "sha256": "5c30bec771f94e9ca1a601650e23fbda91312048771c25d427a95523de4f9068",
+      "artifact_id": 11790057098
+    },
+    {
+      "name": "sco-sdk-2.1.0.spdx.json",
+      "role": "sbom",
+      "size": 165651,
+      "sha256": "85139d7dae51554c2b6a4d525ed891a1c2b0cbc84ec4cb5cb89c0b4f881f4852",
+      "artifact_id": 11790057098
+    },
+    {
+      "name": "sco-sdk-2.1.0.zip",
+      "role": "zip",
+      "size": 675936,
+      "sha256": "21f59da336f6e0086bfb4459c9f18fa59c8d3f47a3a39ae6a2307b13bb3f3f2b",
+      "artifact_id": 11790057098
+    },
+    {
+      "name": "sco-sdk-core-2.1.0.spdx.json",
+      "role": "sbom",
+      "size": 90557,
+      "sha256": "46d39d1465b670bc1c298afd074d8cd25862262e121d7ed67f007afba52dc33c",
+      "artifact_id": 11790057098
+    },
+    {
+      "name": "sco-sdk-core-2.1.0.zip",
+      "role": "zip",
+      "size": 488101,
+      "sha256": "d8f8de8ded6e00cc162854e73fc81c09b568431b41c7dd2b317995cb883957e6",
+      "artifact_id": 11790057098
+    },
+    {
+      "name": "sco-sdk-core-source-2.1.0.spdx.json",
+      "role": "sbom",
+      "size": 266816,
+      "sha256": "fd225d420e5e6dc1cdfb4d6539a3dd17ad54cf7637ccb58b6c5f605a612b6be8",
+      "artifact_id": 11790057098
+    },
+    {
+      "name": "sco-sdk-core-source-2.1.0.zip",
+      "role": "source",
+      "size": 3891995,
+      "sha256": "3b3bfbf0072ced32ce057c51ceb956bf3de7c5a567e81db6459eb71f5bc9b7a4",
+      "artifact_id": 11790057098
+    },
+    {
+      "name": "sco-sdk-game-sc-0.4.0.spdx.json",
+      "role": "sbom",
+      "size": 82408,
+      "sha256": "27728d1e5227298b9744da2aa126d1508f7e7f4ff9f27e0cdfa8f86ba3b4d839",
+      "artifact_id": 11790057098
+    },
+    {
+      "name": "sco-sdk-game-sc-0.4.0.zip",
+      "role": "zip",
+      "size": 206189,
+      "sha256": "2958b8d2ea68ffeecdd720cb1e37b29a2fb3d9e40944d07850f4d1cd517ccf24",
+      "artifact_id": 11790057098
+    }
+  ],
+  "profiles": [
+    "core",
+    "game-sc",
+    "legacy"
+  ],
+  "distribution": {
+    "status": "approved-for-publication"
+  },
+  "approved_by": "scubamount",
+  "approved_at": "2026-10-13T05:07:19Z"
+}
