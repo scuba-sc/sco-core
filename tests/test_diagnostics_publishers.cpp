@@ -16,6 +16,9 @@
 #include <fstream>
 #include <array>
 #include <cstddef>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #x); std::abort(); } } while (0)
 using namespace sco::diagnostics;
 namespace sco::diagnostics { uint64_t FixtureQueryServiceCalls(); }
@@ -67,10 +70,21 @@ int main(int argc, char** argv) {
     sco::sdk::DiagnosticsPublisher publisher;
     CHECK(publisher.Open(api, self) == SCO_OK);
     sco_diagnostics_observation_v1 observation{sizeof(observation), SCO_DIAGNOSTICS_HEALTH_READY};
+#ifdef _WIN32
+    const auto beforeSubmit = GetTickCount64();
+#endif
     CHECK(publisher.Submit(observation) == SCO_OK);
+#ifdef _WIN32
+    const auto afterSubmit = GetTickCount64();
+#endif
     auto first = CopyPublisherMetadata(kMaxMonotonicMs); CHECK(first && first->available);
     CHECK(first->health == SCO_DIAGNOSTICS_HEALTH_READY && first->observedMs);
     const auto observed = *first->observedMs;
+#ifdef _WIN32
+    // Publisher timestamps must share the app snapshot/IPC GetTickCount64 epoch.
+    // QPC-based steady_clock can otherwise be refused as a future observation.
+    CHECK(observed >= beforeSubmit && observed <= afterSubmit);
+#endif
     CHECK(!CopyPublisherMetadata(observed - 1)); // future source refused
     CHECK(PublisherTable()->submit(foreign, &observation) == SCO_BAD_ARG);
     CHECK(PublisherTable()->submit(reinterpret_cast<sco_plugin*>(1), &observation) == SCO_BAD_ARG);

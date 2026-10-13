@@ -3,6 +3,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <winternl.h>
 #include <aclapi.h>
 #include <bcrypt.h>
 #include "diagnostics_platform.h"
@@ -173,7 +174,7 @@ bool DiskInfo(HANDLE h, BY_HANDLE_FILE_INFORMATION& info, bool directory) {
            (directory || info.nNumberOfLinks == 1);
 }
 struct Path {
-    std::wstring full, parent;
+    std::wstring full, parent, leaf;
     std::vector<Handle> ancestors;
     Security security;
     bool init(const std::string& input) {
@@ -223,10 +224,43 @@ struct Path {
             if (i == parts.size() - 1 && !Private(dir.value, SE_FILE_OBJECT, security.sid.data())) return false;
             ancestors.push_back(std::move(dir));
         }
-        full = parent + L"\\" + parts.back();
+        leaf = parts.back();
+        full = parent + L"\\" + leaf;
         return true;
     }
 };
+
+bool RenameInPlace(HANDLE h, const std::wstring& leaf) {
+    // An absolute Win32 rename makes IopOpenLinkOrRenameTarget reopen the
+    // pinned parent with FILE_WRITE_DATA, conflicting with FILE_SHARE_READ.
+    // Native FileRenameInformation accepts a simple leaf with no root handle:
+    // rename within the source file's directory without reopening that directory.
+    // Keep every ancestor's no-write/no-delete sharing restriction intact.
+    struct RenameInformation {
+        BOOLEAN replace;
+        HANDLE root;
+        ULONG nameBytes;
+        WCHAR name[1];
+    };
+    using Rename = LONG (NTAPI*)(HANDLE, IO_STATUS_BLOCK*, void*, ULONG, ULONG);
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    FARPROC address = ntdll ? GetProcAddress(ntdll, "NtSetInformationFile") : nullptr;
+    Rename rename = nullptr;
+    static_assert(sizeof(rename) == sizeof(address), "Windows function pointer size");
+    std::memcpy(&rename, &address, sizeof(rename));
+    if (!rename || !Component(leaf)) return false;
+    const size_t nameBytes = leaf.size() * sizeof(wchar_t);
+    std::vector<BYTE> storage(sizeof(RenameInformation) + nameBytes, 0);
+    auto* info = reinterpret_cast<RenameInformation*>(storage.data());
+    info->replace = FALSE; // Never replace an existing credential or link.
+    info->root = nullptr;
+    info->nameBytes = static_cast<ULONG>(nameBytes);
+    std::memcpy(info->name, leaf.data(), nameBytes);
+    IO_STATUS_BLOCK status{};
+    // CreateFileW opened h synchronously (no FILE_FLAG_OVERLAPPED).
+    return rename(h, &status, info, static_cast<ULONG>(storage.size()),
+                  10 /* FileRenameInformation */) == 0;
+}
 
 bool SafeFile(HANDLE h, Path& path) {
     BY_HANDLE_FILE_INFORMATION info{};
@@ -332,16 +366,8 @@ bool WriteCredential(const std::string& input, const std::string& json) {
     bool ok = WriteFile(file.value, json.data(), static_cast<DWORD>(json.size()), &written, nullptr) &&
               written == json.size() && FlushFileBuffers(file.value);
     if (ok) {
-        const size_t bytes = offsetof(FILE_RENAME_INFO, FileName) + path.full.size() * sizeof(wchar_t);
-        std::vector<BYTE> storage(bytes, 0);
-        auto* rename = reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
-        rename->ReplaceIfExists = FALSE;
-        rename->RootDirectory = nullptr;
-        rename->FileNameLength = static_cast<DWORD>(path.full.size() * sizeof(wchar_t));
-        std::memcpy(rename->FileName, path.full.data(), rename->FileNameLength);
         // Rename the verified, still-open file atomically; never replace a target.
-        ok = SafeFile(file.value, path) &&
-             SetFileInformationByHandle(file.value, FileRenameInfo, rename, static_cast<DWORD>(bytes));
+        ok = SafeFile(file.value, path) && RenameInPlace(file.value, path.leaf);
     }
     if (!ok && SafeFile(file.value, path)) DeleteHandle(file.value);
     return ok;

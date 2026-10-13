@@ -3,8 +3,16 @@
     // gameServices: the game pack publishes teleport.spatial, spawn.entities, game.vehicles, game.actors and game.world under "game" before
     // plugins load and withdraws them after. With no game image the teleport.* and spawn.* rows
     // aren't OK, so teleport.spatial answers 0 and spawn.entities says the spawner isn't available.
+    CHECK(!pf.dataRoot.empty()); // storage and game services must coexist
     pf.gameServices = true;
+    g_log.clear();
     CHECK(sco::app::Start(pf));
+    CHECK(api->query_service("sco.storage", 0x00010000, &table) == SCO_OK && table);
+    CHECK(!Logged("[app] game services not started:"));
+    if (Logged("[app] game services not started:"))
+        for (const auto& line : g_log)
+            if (line.rfind("[app] game services not started:", 0) == 0)
+                std::printf("  %s\n", line.c_str());
     CHECK(StateOf("needsgame") == State::Loaded);   // requires game.vehicles, which the game pack published
     CHECK(api->query_service("teleport.spatial", 0x00010000, &table) == SCO_OK && table);
     if (table) {

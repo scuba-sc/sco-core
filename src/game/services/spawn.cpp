@@ -64,7 +64,7 @@ struct Spawner {
 
 Spawner g_sp;
 bool    g_started = false;
-bool    g_releaseHook = false;   // OnRelease is added (sco::AddReleaseHook)
+bool    g_releaseHook = false;   // OnRelease joined the game-pack dispatcher
 
 template <typename T> T Rd(uintptr_t p) { return *reinterpret_cast<const T*>(p); }
 
@@ -292,7 +292,7 @@ bool MayMove(const void* owner, uint64_t id) {
 // plugin given the same handle can't move them. The NPCs it spawned through game.actors leave
 // the world (decision 6), and so do the entities it spawned through game.entities, whose
 // watches end; and the game.creative toggles it switched on go off (god mode, fly, fly speed,
-// ammo): one hook for all four services.
+// ammo). This callback and the world/owned callbacks share one neutral hook.
 void OnRelease(const void* owner) {
     offline::ReleaseOwner(owner);
     ForgetOwner(owner);
@@ -393,7 +393,7 @@ Result StartSpawn() {
     }
     // Without the hook a reloaded plugin could inherit an unloaded one's spawns, so the mover
     // refuses everything spawned through spawn_as then (spawn_as still spawns).
-    g_releaseHook = AddReleaseHook(OnRelease) == Result::Ok;
+    g_releaseHook = AddGameReleaseHook(OnRelease) == Result::Ok;
     if (!g_releaseHook) Log("[game] warning: no release hook left: set_entity_transform moves no spawn_as entity");
     g_started = true;
     return Result::Ok;
@@ -401,7 +401,7 @@ Result StartSpawn() {
 
 void StopSpawn() {
     if (!g_started) return;
-    if (g_releaseHook) RemoveReleaseHook(OnRelease);
+    if (g_releaseHook) RemoveGameReleaseHook(OnRelease);
     g_releaseHook = false;
     host::WithdrawGameService(SC_SPAWN_SERVICE_NAME);
     g_owned.clear();

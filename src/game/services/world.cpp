@@ -11,6 +11,7 @@
 // zone, at most three zones.
 #include "world.h"
 #include "world_control.h"
+#include "spawn.h"
 #include "../../api/internal.h"   // detail::Released
 #include "sco/caps.h"
 #include "sco/game/reads.h"
@@ -379,11 +380,11 @@ Result StartWorld() {
         g_canRay = g_canCamera = false;
         return r;
     }
-    g_controlReleaseHook = AddReleaseHook(ControlOwnerReleased) == Result::Ok;
+    g_controlReleaseHook = AddGameReleaseHook(ControlOwnerReleased) == Result::Ok;
     (void)g_control.Start(g_controlReleaseHook);
     const Result controlResult = host::ProvideGameService(SC_WORLD_CONTROL_NAME, SC_WORLD_CONTROL_VERSION_1_0, &kControl);
     if (controlResult != Result::Ok) {
-        if (g_controlReleaseHook) RemoveReleaseHook(ControlOwnerReleased);
+        if (g_controlReleaseHook) RemoveGameReleaseHook(ControlOwnerReleased);
         g_controlReleaseHook = false;
         (void)g_control.Stop();
         host::WithdrawGameService(SC_WORLD_NAME);
@@ -403,7 +404,7 @@ void StopWorld() {
     if (!g_started) return;
     // Restore while provider backing state and its release hook are still alive.
     if (g_control.Stop() != SCO_OK) Log("[game] camera restore failed on stop; restart required");
-    if (g_controlReleaseHook) RemoveReleaseHook(ControlOwnerReleased);
+    if (g_controlReleaseHook) RemoveGameReleaseHook(ControlOwnerReleased);
     g_controlReleaseHook = false;
     host::WithdrawGameService(SC_WORLD_CONTROL_NAME);
     host::WithdrawGameService(SC_WORLD_NAME);

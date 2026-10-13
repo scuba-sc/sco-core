@@ -211,8 +211,21 @@ int main(int argc, char** argv) {
     const std::string path = utf8(widePath), payload = "{\"credential_version\":1,\"synthetic\":true}";
     std::string read = "poison";
     assert(!p::ReadCredential(path, read) && read.empty());
+    // Publishing must succeed while a real data-access directory handle denies
+    // both write and delete sharing; do not fix rename by loosening the pin.
+    HANDLE pinnedDir = CreateFileW(dir.c_str(), FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | READ_CONTROL,
+                                   FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                   FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    assert(pinnedDir != INVALID_HANDLE_VALUE);
+    for (DWORD access : {DWORD(FILE_ADD_FILE), DWORD(DELETE)}) {
+        HANDLE mutation = CreateFileW(dir.c_str(), access,
+                                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                                      OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+        assert(mutation == INVALID_HANDLE_VALUE && GetLastError() == ERROR_SHARING_VIOLATION);
+    }
     assert(p::WriteCredential(path, payload)); assert(p::ReadCredential(path, read) && read == payload);
     assert(!p::WriteCredential(path, "different")); assert(p::ReadCredential(path, read) && read == payload);
+    assert(CloseHandle(pinnedDir));
     assert(!p::WriteCredential("relative\\session.json", payload));
     assert(!p::WriteCredential(utf8(dir) + "\\..\\session.json", payload));
     assert(!p::WriteCredential(path + ":stream", payload));

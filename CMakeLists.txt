@@ -1107,25 +1107,29 @@ if(SCO_BUILD_TESTS)
     add_library(cvars_probe MODULE tests/fixtures/cvars_probe.c)
     target_include_directories(cvars_probe PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(cvars_probe)
+    # Explicit config placement prevents multi-config generators from putting the
+    # module below an implicit Release/Debug directory beside a stale manifest.
+    set(_cvars_plugin_root "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/$<CONFIG>")
     set_target_properties(cvars_probe PROPERTIES PREFIX "" SUFFIX ".so"
-      LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/cvars_probe"
-      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/cvars_probe")
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/cvars_probe/plugin.ini"
-      "id=cvars_probe\nname=Cvars probe\nversion=1.0.0\napi=1.1\nkind=native\nentry=cvars_probe.so\n")
+      LIBRARY_OUTPUT_DIRECTORY "${_cvars_plugin_root}/cvars_probe"
+      RUNTIME_OUTPUT_DIRECTORY "${_cvars_plugin_root}/cvars_probe")
+    file(GENERATE OUTPUT "${_cvars_plugin_root}/cvars_probe/plugin.ini"
+      CONTENT "id=cvars_probe\nname=Cvars probe\nversion=1.0.0\napi=1.1\nkind=native\nentry=$<TARGET_FILE_NAME:cvars_probe>\n")
     add_dependencies(test_cvars cvars_probe)
-    target_compile_definitions(test_cvars PRIVATE CVARS_PLUGIN_ROOT="${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins")
+    target_compile_definitions(test_cvars PRIVATE CVARS_PLUGIN_ROOT="${_cvars_plugin_root}")
     add_executable(test_cvars_write tests/test_cvars_write.cpp src/game/services/cvars.cpp)
     target_link_libraries(test_cvars_write PRIVATE sco_host sco_plugins)
     add_library(cvars_write_probe MODULE tests/fixtures/cvars_probe.c)
     target_include_directories(cvars_write_probe PRIVATE "${SCO_INCLUDE_DIR}")
     target_compile_definitions(cvars_write_probe PRIVATE CVARS_PROBE_WRITE)
     sco_project_target(cvars_write_probe)
+    set(_cvars_write_plugin_root "${CMAKE_CURRENT_BINARY_DIR}/cvars_write_plugins/$<CONFIG>")
     set_target_properties(cvars_write_probe PROPERTIES PREFIX "" OUTPUT_NAME "cvars_probe" SUFFIX ".so"
-      LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cvars_write_plugins/cvars_probe"
-      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cvars_write_plugins/cvars_probe")
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cvars_write_plugins/cvars_probe/plugin.ini"
-      "id=cvars_probe\nname=Cvars probe\nversion=1.0.0\napi=1.1\nkind=native\nentry=cvars_probe.so\n")
-    target_compile_definitions(test_cvars_write PRIVATE CVARS_PLUGIN_ROOT="${CMAKE_CURRENT_BINARY_DIR}/cvars_write_plugins")
+      LIBRARY_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe"
+      RUNTIME_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe")
+    file(GENERATE OUTPUT "${_cvars_write_plugin_root}/cvars_probe/plugin.ini"
+      CONTENT "id=cvars_probe\nname=Cvars probe\nversion=1.0.0\napi=1.1\nkind=native\nentry=$<TARGET_FILE_NAME:cvars_write_probe>\n")
+    target_compile_definitions(test_cvars_write PRIVATE CVARS_PLUGIN_ROOT="${_cvars_write_plugin_root}")
     add_dependencies(test_cvars_write cvars_write_probe)
     sco_project_target(test_cvars_write)
     add_test(NAME test_cvars_write COMMAND test_cvars_write)

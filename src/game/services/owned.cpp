@@ -1,5 +1,6 @@
 // Only game-pack composition, with real registry/lifecycle and existing despawn primitives.
 #include "owned.h"
+#include "spawn.h"
 #include "actors.h"
 #include "../../api/internal.h"
 #include "sco/host.h"
@@ -33,7 +34,7 @@ Placement* Find(const void* owner, uint64_t id) {
     return nullptr;
 }
 void ReleaseOwner(const void* owner) {
-    // Existing entity/actor release hooks remove spawns. This hook only drops bookkeeping.
+    // Existing entity/actor cleanup removes spawns. This participant drops bookkeeping.
     for (auto& p : placements) if (p.owner == owner) p = {};
     for (auto& r : receipts) if (r.owner == owner) r = {};
 }
@@ -118,17 +119,17 @@ bool BuildRetainedBy(const void* owner, uint64_t id) { return Find(owner, id) !=
 void DropBuildRetention(const void* owner, uint64_t id) { if (auto* p = Find(owner, id)) *p = {}; }
 Result StartOwned() {
     if (started) return Result::Ok;
-    auto r = AddReleaseHook(ReleaseOwner);
+    auto r = AddGameReleaseHook(ReleaseOwner);
     if (r != Result::Ok) return r;
     r = host::ProvideGameService(SC_OWNED_NAME, SC_OWNED_VERSION_1_0, &service);
-    if (r != Result::Ok) { RemoveReleaseHook(ReleaseOwner); return r; }
+    if (r != Result::Ok) { RemoveGameReleaseHook(ReleaseOwner); return r; }
     started = true;
     return Result::Ok;
 }
 void StopOwned() {
     if (!started) return;
     host::WithdrawGameService(SC_OWNED_NAME);
-    RemoveReleaseHook(ReleaseOwner);
+    RemoveGameReleaseHook(ReleaseOwner);
     for (auto& p : placements) p = {};
     for (auto& r : receipts) r = {};
     started = false;

@@ -3,6 +3,9 @@
 #include "sco/host.h"
 #include "../api/internal.h"
 #include <chrono>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 namespace sco::diagnostics {
 namespace {
 bool active = false;
@@ -10,8 +13,14 @@ std::string selected;
 sco_plugin* owner = nullptr;
 std::optional<DiagnosticsPluginMetadata> latest;
 uint64_t Now() {
+#ifdef _WIN32
+    // App snapshots and IPC use this machine clock. MSVC steady_clock uses a
+    // different QPC epoch and can make a just-submitted observation look future.
+    return GetTickCount64();
+#else
     return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
 }
 bool ValidId(const std::string& id) {
     if (id.empty() || id.size() > 31 || id == "sco" || id == "host" || id == "menu" || id == "game") return false;
