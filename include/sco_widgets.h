@@ -34,6 +34,9 @@ extern "C" {
 #define SCO_WIDGET_ROW 9u
 #define SCO_WIDGET_COLUMN 10u
 #define SCO_WIDGET_DISABLED 1u
+/* TEXT_INPUT only: mask characters in the host renderer. Host still copies
+ * plaintext; this is display protection, not a secret-storage guarantee. */
+#define SCO_WIDGET_PASSWORD 2u
 /* Preorder tree: id nonzero and unique within panel; parent 0 = root, otherwise
  * a preceding ROW/COLUMN node. Each subtree must be contiguous. Labels are
  * plain UTF-8 text, never renderer markup/format strings; interactive labels

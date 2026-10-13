@@ -71,7 +71,8 @@ bool OwnId(const std::string& id, const char* owner) {
     return true;
 }
 Result CopyNode(const sco_widget_node& n, Node& out) {
-    if (n.kind < SCO_WIDGET_LABEL || n.kind > SCO_WIDGET_COLUMN || !n.id || (n.flags & ~SCO_WIDGET_DISABLED)) return Result::BadArg;
+    if (n.kind < SCO_WIDGET_LABEL || n.kind > SCO_WIDGET_COLUMN || !n.id || (n.flags & ~(SCO_WIDGET_DISABLED | SCO_WIDGET_PASSWORD)) ||
+        ((n.flags & SCO_WIDGET_PASSWORD) && n.kind != SCO_WIDGET_TEXT_INPUT)) return Result::BadArg;
     if (!std::isfinite(n.value) || !std::isfinite(n.minimum) || !std::isfinite(n.maximum)) return Result::BadArg;
     const bool numeric = n.kind == SCO_WIDGET_TOGGLE || n.kind == SCO_WIDGET_SLIDER;
     const bool selection = n.kind == SCO_WIDGET_COMBO || n.kind == SCO_WIDGET_LIST;

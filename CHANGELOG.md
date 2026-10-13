@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Renderer-neutral text inputs gain `SCO_WIDGET_PASSWORD` display masking for explicit G13 credentials; only text inputs accept the flag. This is not encrypted storage or a guarantee against host-memory disclosure.
+
 - **G13 private-session broker (R1):** owner-approved default-on `SessionControlV1`
   with strict loopback/no-startup-socket defaults, explicit numeric private bind
   and exact peer allowlist, 12-byte minimum passphrase, bounded ingress/requests,
