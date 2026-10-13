@@ -1135,6 +1135,9 @@ if(SCO_BUILD_TESTS)
     # module below an implicit Release/Debug directory beside a stale manifest.
     set(_cvars_plugin_root "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/$<CONFIG>")
     set_target_properties(cvars_probe PROPERTIES PREFIX "" SUFFIX ".so"
+      # Import libraries/exports also share OUTPUT_NAME on MSVC. Isolate all
+      # artifacts so parallel read/write probe links cannot race on one .exp.
+      ARCHIVE_OUTPUT_DIRECTORY "${_cvars_plugin_root}/cvars_probe"
       LIBRARY_OUTPUT_DIRECTORY "${_cvars_plugin_root}/cvars_probe"
       RUNTIME_OUTPUT_DIRECTORY "${_cvars_plugin_root}/cvars_probe")
     file(GENERATE OUTPUT "${_cvars_plugin_root}/cvars_probe/plugin.ini"
@@ -1149,6 +1152,7 @@ if(SCO_BUILD_TESTS)
     sco_project_target(cvars_write_probe)
     set(_cvars_write_plugin_root "${CMAKE_CURRENT_BINARY_DIR}/cvars_write_plugins/$<CONFIG>")
     set_target_properties(cvars_write_probe PROPERTIES PREFIX "" OUTPUT_NAME "cvars_probe" SUFFIX ".so"
+      ARCHIVE_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe"
       LIBRARY_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe"
       RUNTIME_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe")
     file(GENERATE OUTPUT "${_cvars_write_plugin_root}/cvars_probe/plugin.ini"
