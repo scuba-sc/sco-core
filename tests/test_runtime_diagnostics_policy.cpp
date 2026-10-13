@@ -19,6 +19,14 @@ namespace di=sco::diagnostics::ipc;
 // Test setup, not a relaxation of the production credential policy. Windows
 // filesystem::permissions only changes readonly attributes, not the directory
 // DACL. Match the current-token protected directory used by the platform test.
+// MSVC's std::filesystem::canonical() yields an extended-length path ("\\?\C:\...").
+// The credential transport accepts plain DOS drive paths by contract and generates
+// that prefix itself, so hand it the plain spelling it documents; every check stays.
+static std::string PlainFixturePath(const std::filesystem::path& p) {
+    std::string s = p.string();
+    if (s.rfind("\\\\?\\", 0) == 0) s.erase(0, 4);
+    return s;
+}
 static void CreatePrivateFixtureDirectory(const std::filesystem::path& dir) {
 #ifdef _WIN32
     HANDLE token = nullptr;
@@ -89,7 +97,7 @@ int main(int argc,char** argv){
     CreatePrivateFixtureDirectory(dir);
     // Resolve only the trusted fixture directory (e.g. macOS /tmp alias),
     // not the credential filename: transport symlink refusal stays intact.
-    o.credentialPath=(std::filesystem::canonical(dir)/"session.json").string();o.excludedRoots={excludedRoot.string()};o.hostBuild="fixture-host-1";
+    o.credentialPath=PlainFixturePath(std::filesystem::canonical(dir)/"session.json");o.excludedRoots={PlainFixturePath(excludedRoot)};o.hostBuild="fixture-host-1";
     o.policy.admission->store(OfflineAdmission::Authorized);
     for(auto status:{audit::Status::Unavailable,audit::Status::Full,audit::Status::Deadline}){
         collector->status=status;CHECK_RESULT(host.Start(o,di::ClockNow()),di::Result::Audit);CHECK(!host.Started());

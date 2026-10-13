@@ -24,6 +24,14 @@ void RunDiagnosticsJsonTests();
 // Test setup, not a relaxation of the production credential policy. Windows
 // filesystem::permissions only changes readonly attributes, not the directory
 // DACL. Match the current-token protected directory used by the platform test.
+// MSVC's std::filesystem::canonical() yields an extended-length path ("\\?\C:\...").
+// The credential transport accepts plain DOS drive paths by contract and generates
+// that prefix itself, so hand it the plain spelling it documents; every check stays.
+static std::string PlainFixturePath(const std::filesystem::path& p) {
+    std::string s = p.string();
+    if (s.rfind("\\\\?\\", 0) == 0) s.erase(0, 4);
+    return s;
+}
 static void CreatePrivateFixtureDirectory(const std::filesystem::path& dir) {
 #ifdef _WIN32
     HANDLE token = nullptr;
@@ -244,7 +252,7 @@ void ReadsAndNoSideEffects() {
     CHECK(!sco::ServiceTableHandedOut(&owner));sco::Release(&owner);
 }
 int main(int argc,char** argv) {
-    CHECK(argc==3);sco::SetGameThread();root=std::filesystem::canonical(argv[2]).string();
+    CHECK(argc==3);sco::SetGameThread();root=PlainFixturePath(std::filesystem::canonical(argv[2]));
     auto credentialRoot=std::filesystem::canonical(argv[1]);
     const auto relative=credentialRoot.lexically_relative(std::filesystem::path(root));
     // In-tree CMake output is excluded by the host credential policy. Use an
@@ -260,7 +268,7 @@ int main(int argc,char** argv) {
     // The build output is a trusted fixture location, but may be spelled through
     // an alias (notably /tmp on macOS). Resolve only that directory: the transport
     // must continue refusing symlink components and credential-file aliases.
-    path=(std::filesystem::canonical(dir)/"session.json").string();
+    path=PlainFixturePath(std::filesystem::canonical(dir)/"session.json");
     Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
     CHECK(!std::filesystem::exists(path));std::filesystem::remove(dir);std::cout<<"runtime diagnostics IPC: literals, real transport, mutual auth, hostile peers and zero side effects passed\n";
 }
