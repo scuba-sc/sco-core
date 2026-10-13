@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // SPDX-FileCopyrightText: 2026 the sco-core contributors
 // Synthetic game-pack provider + real runtime release. NOT native/Windows proof.
+// Fixture calls must execute in Release/RelWithDebInfo too; assertions carry
+// both the tested mutations and the cleanup checks.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include "../src/game/services/mining.h"
 #include "../src/game/admission.h"
 #include "sco/host.h"
