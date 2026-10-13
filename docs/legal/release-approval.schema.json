@@ -422,16 +422,17 @@
         },
         "profiles": {
           "type": "array",
-          "const": [
-            "core",
-            "game-sc",
-            "legacy"
+          "enum": [
+            ["core", "game-sc", "legacy"],
+            ["core", "game-sc", "legacy", "core-source", "host-source-sc"]
           ],
           "items": {
             "enum": [
               "core",
               "game-sc",
-              "legacy"
+              "legacy",
+              "core-source",
+              "host-source-sc"
             ]
           }
         },

@@ -27,6 +27,18 @@ ADAPTER_FILES = {"include/sco/game/host.h", "src/game/host.cpp",
 
 
 class HostSourceArchive(unittest.TestCase):
+    def test_supplied_archive_requires_host_inventory(self):
+        m = pkg.load_manifest()
+        with tempfile.TemporaryDirectory(prefix="host-source-wrong-profile-") as tmp:
+            archive = pkg.build(m, "core-source", str(Path(tmp, "dist")))
+            env = os.environ.copy()
+            env["SCO_HOST_SOURCE_ARCHIVE"] = archive
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve()),
+                 "HostSourceArchive.test_standalone_game_source_archive"],
+                env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_adapter_manifest_requires_all_real_sources(self):
         script = HERE / "add_host_adapter_components.py"
         self.assertTrue(script.is_file(), "G1 manifest integration script is missing")
@@ -69,7 +81,9 @@ class HostSourceArchive(unittest.TestCase):
                     "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "CMAKE_PREFIX_PATH"):
             env.pop(key, None)
         with tempfile.TemporaryDirectory(prefix="host-source-sc-") as tmp:
-            archive = pkg.build(m, "host-source-sc", str(Path(tmp, "dist")))
+            archive = os.environ.get("SCO_HOST_SOURCE_ARCHIVE")
+            if archive is None:
+                archive = pkg.build(m, "host-source-sc", str(Path(tmp, "dist")))
             with zipfile.ZipFile(archive) as z:
                 files = {n.split("/", 1)[1]: z.read(n) for n in z.namelist()}
                 self.assertEqual(set(files), sources | set(pkg.metadata_names(m, "host-source-sc")))
@@ -92,9 +106,9 @@ class HostSourceArchive(unittest.TestCase):
                 self.assertIsNone(compatibility["base_core_sha256"])
                 self.assertIn(b"-DSCO_GAME_SC=ON", files["VERSIONS.txt"])
                 z.extractall(Path(tmp, "empty"))
-                root = Path(tmp, "empty", z.namelist()[0].split("/", 1)[0])
+                root = Path(tmp, "empty", z.namelist()[0].split("/", 1)[0]).resolve()
             self.assertFalse((root / ".git").exists())
-            build = Path(tmp, "build")
+            build = Path(tmp, "build").resolve()
             commands = [["cmake", "-S", str(root), "-B", str(build), "-DSCO_GAME_SC=ON",
                          "-DSCO_BUILD_TESTS=ON", "-DCMAKE_BUILD_TYPE=Debug",
                          "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],

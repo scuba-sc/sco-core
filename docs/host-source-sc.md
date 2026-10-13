@@ -35,8 +35,12 @@ only, with `public_header: false`. `sdk/add_host_adapter_components.py` validate
 real files/provenance before adding their exact membership; it is idempotent and
 refuses any conflicting plugin profile membership. No placeholder files are used.
 
-This is a **local kit**, not a published release asset. Human approval, release
-asset inventory, checksum/SBOM sidecars, signing/attestation and Windows/MSVC
-extracted-host proof remain owed. CI/release workflows are unchanged. No game,
+The kit is included in the [SDK 2.1.0 candidate scope](legal/release-decisions/2026-10-13-sdk-v2.1.0-host-source.md),
+not yet a published release asset. The SDK workflow exercises the extracted
+archive on Linux and Windows/MSVC; the candidate workflow includes its zip and
+SBOM sidecar and exercises the exact candidate zip. To test an existing archive,
+set `SCO_HOST_SOURCE_ARCHIVE` when invoking the standalone archive test above.
+Successful CI, exact-byte verification, and a fresh signed approval are still
+required before publication. No game,
 CIG server, anti-cheat interaction, network runtime or GPU/renderer was exercised.
 Products may retain their tagged submodule until an authorized asset is published.

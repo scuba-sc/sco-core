@@ -35,7 +35,7 @@
       "includes": [
         "core-source"
       ],
-      "about": "Standalone Star Citizen host source kit in repository layout: neutral kernel plus complete game implementation, DataCore, vendored build dependencies, headers and synthetic tests. Local packaging only; no release publication or attestation."
+      "about": "Standalone Star Citizen host source kit in repository layout: neutral kernel plus complete game implementation, DataCore, vendored build dependencies, headers and synthetic tests. Included in SDK 2.1.0 candidate scope; publication requires separate signed-byte approval."
     }
   },
   "covers": [
@@ -51,14 +51,6 @@
     "site"
   ],
   "excluded": [
-    {
-      "path": "tests/abi_catalogue_mining.c",
-      "why": "Repository-only SDK catalogue layout evidence for the game-pack mining contract; not a neutral source-kit fixture."
-    },
-    {
-      "path": "tests/test_runtime_diagnostics_integration.cpp",
-      "why": "Repository-only no-game acceptance host for separately packaged runtime launcher, default build option off."
-    },
     {
       "path": "tools/sco-core-mcp-runtime/",
       "why": "Separately built default-off local runtime development package; not a plugin SDK component."
@@ -152,64 +144,8 @@
       "why": "Repository-only host-source packaging verification/integration tool; not shipped in SDK profiles."
     },
     {
-      "path": "tests/test_relocation.cpp",
-      "why": "Repository-only G2 game-provider fixture; excluded from neutral source kit."
-    },
-    {
-      "path": "tests/test_game_spatial.cpp",
-      "why": "Repository-only G3 game-provider shared-logic fixture; excluded from the neutral source kit."
-    },
-    {
-      "path": "tests/test_prefabs.cpp",
-      "why": "Repository-only synthetic game-pack owned prefab policy fixture; no kernel source-kit membership."
-    },
-    {
-      "path": "tests/test_world_control.cpp",
-      "why": "Game-pack synthetic owner/filter/camera policy fixture; repository only, not in neutral source kit."
-    },
-    {
-      "path": "tests/test_owned_removal.cpp",
-      "why": "Repository-only synthetic G9 game ownership/removal provider fixture."
-    },
-    {
       "path": "tools/test_g9_owned_contract.py",
       "why": "Repository-only targeted G9 contract, layout, catalogue and package gate."
-    },
-    {
-      "path": "tests/abi_game_cvars_write.c",
-      "why": "G7 game-only reversible-write synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
-    },
-    {
-      "path": "tests/test_cvars_write.cpp",
-      "why": "G7 game-only reversible-write synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
-    },
-    {
-      "path": "tests/abi_game_cvars.c",
-      "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
-    },
-    {
-      "path": "tests/fixtures/cvars_probe.c",
-      "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
-    },
-    {
-      "path": "tests/test_cvars.cpp",
-      "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
-    },
-    {
-      "path": "tests/test_cvars_extent.cpp",
-      "why": "G7 game-only synthetic fixture; repository-only, excluded from neutral source kit and plugin SDK profiles."
-    },
-    {
-      "path": "tests/test_quantum.cpp",
-      "why": "Repository-only synthetic quantum bridge fixture; game implementation excluded from kernel source kit."
-    },
-    {
-      "path": "tests/game_contracts/loadout/",
-      "why": "Repository-only G6 typed loadout provider/native-boundary and catalogue fixtures; game-specific, never neutral core-source."
-    },
-    {
-      "path": "tests/test_offline_missions.cpp",
-      "why": "Game-pack-only synthetic mission boundary fixture, not neutral kernel source."
     }
   ],
   "components": [
@@ -803,7 +739,8 @@
       "source": "docs/game/private-session.md",
       "destination": "docs/game/private-session.md",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
@@ -885,7 +822,8 @@
       "source": "docs/game/mining-service.md",
       "destination": "docs/game/mining-service.md",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
@@ -6631,7 +6569,8 @@
       "source": "include/sc_relocation.h",
       "destination": "include/sc_relocation.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6642,7 +6581,8 @@
       "source": "tests/abi_relocation.c",
       "destination": "tests/abi_relocation.c",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
@@ -6652,7 +6592,8 @@
       "source": "include/sc_game_spatial.h",
       "destination": "include/sc_game_spatial.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6663,7 +6604,8 @@
       "source": "tests/abi_game_spatial.c",
       "destination": "tests/abi_game_spatial.c",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6674,7 +6616,8 @@
       "source": "include/sc_prefabs.h",
       "destination": "include/sc_prefabs.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6685,7 +6628,8 @@
       "source": "include/scosdk/game/prefabs.hpp",
       "destination": "include/scosdk/game/prefabs.hpp",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6696,7 +6640,8 @@
       "source": "tests/abi_prefabs.c",
       "destination": "tests/abi_prefabs.c",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6707,7 +6652,8 @@
       "source": "include/sc_world_control.h",
       "destination": "include/sc_world_control.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6718,7 +6664,8 @@
       "source": "include/scosdk/game/world_control.hpp",
       "destination": "include/scosdk/game/world_control.hpp",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6729,7 +6676,8 @@
       "source": "tests/abi_world_control.c",
       "destination": "tests/abi_world_control.c",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6740,7 +6688,8 @@
       "source": "include/sc_owned.h",
       "destination": "include/sc_owned.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6751,7 +6700,8 @@
       "source": "tests/abi_game_owned.c",
       "destination": "tests/abi_game_owned.c",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6762,7 +6712,8 @@
       "source": "include/sc_cvars_write.h",
       "destination": "include/sc_cvars_write.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6773,7 +6724,8 @@
       "source": "include/scosdk/game/cvars_write.hpp",
       "destination": "include/scosdk/game/cvars_write.hpp",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6794,7 +6746,8 @@
       "source": "include/sc_cvars.h",
       "destination": "include/sc_cvars.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6805,7 +6758,8 @@
       "source": "include/scosdk/game/cvars.hpp",
       "destination": "include/scosdk/game/cvars.hpp",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6826,7 +6780,8 @@
       "source": "docs/game/cvars.md",
       "destination": "docs/game/cvars.md",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
@@ -6836,7 +6791,8 @@
       "source": "include/sc_quantum.h",
       "destination": "include/sc_quantum.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6847,7 +6803,8 @@
       "source": "tests/abi_game_quantum.c",
       "destination": "tests/abi_game_quantum.c",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6868,7 +6825,8 @@
       "source": "include/sc_loadout.h",
       "destination": "include/sc_loadout.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6879,7 +6837,8 @@
       "source": "include/scosdk/game/loadout.hpp",
       "destination": "include/scosdk/game/loadout.hpp",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6890,7 +6849,8 @@
       "source": "docs/game/loadout.md",
       "destination": "docs/game/loadout.md",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
@@ -6900,7 +6860,8 @@
       "source": "tests/abi_game_loadout.c",
       "destination": "tests/abi_game_loadout.c",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6941,7 +6902,8 @@
       "source": "include/scosdk/game/economy.hpp",
       "destination": "include/scosdk/game/economy.hpp",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6952,7 +6914,8 @@
       "source": "include/sc_economy.h",
       "destination": "include/sc_economy.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6963,7 +6926,8 @@
       "source": "include/sc_missions.h",
       "destination": "include/sc_missions.h",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6974,7 +6938,8 @@
       "source": "include/scosdk/game/missions.hpp",
       "destination": "include/scosdk/game/missions.hpp",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
@@ -6985,10 +6950,263 @@
       "source": "tests/abi_offline_missions.c",
       "destination": "tests/abi_offline_missions.c",
       "profiles": [
-        "game-sc"
+        "game-sc",
+        "host-source-sc"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
+    },
+    {
+      "id": "host-source-sc-docs-game-asop-host.md",
+      "source": "docs/game/asop-host.md",
+      "destination": "docs/game/asop-host.md",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-abi_catalogue_mining.c",
+      "source": "tests/abi_catalogue_mining.c",
+      "destination": "tests/abi_catalogue_mining.c",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-abi_game_cvars.c",
+      "source": "tests/abi_game_cvars.c",
+      "destination": "tests/abi_game_cvars.c",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-abi_game_cvars_write.c",
+      "source": "tests/abi_game_cvars_write.c",
+      "destination": "tests/abi_game_cvars_write.c",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-fixtures-cvars_probe.c",
+      "source": "tests/fixtures/cvars_probe.c",
+      "destination": "tests/fixtures/cvars_probe.c",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-game_contracts-loadout-consumer.c",
+      "source": "tests/game_contracts/loadout/consumer.c",
+      "destination": "tests/game_contracts/loadout/consumer.c",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-game_contracts-loadout-native.cpp",
+      "source": "tests/game_contracts/loadout/native.cpp",
+      "destination": "tests/game_contracts/loadout/native.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-game_contracts-loadout-routes.cpp",
+      "source": "tests/game_contracts/loadout/routes.cpp",
+      "destination": "tests/game_contracts/loadout/routes.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-game_contracts-loadout-test_loadout.cpp",
+      "source": "tests/game_contracts/loadout/test_loadout.cpp",
+      "destination": "tests/game_contracts/loadout/test_loadout.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-game_contracts-loadout-test_metadata.py",
+      "source": "tests/game_contracts/loadout/test_metadata.py",
+      "destination": "tests/game_contracts/loadout/test_metadata.py",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_cvars.cpp",
+      "source": "tests/test_cvars.cpp",
+      "destination": "tests/test_cvars.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_cvars_extent.cpp",
+      "source": "tests/test_cvars_extent.cpp",
+      "destination": "tests/test_cvars_extent.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_cvars_write.cpp",
+      "source": "tests/test_cvars_write.cpp",
+      "destination": "tests/test_cvars_write.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_game_spatial.cpp",
+      "source": "tests/test_game_spatial.cpp",
+      "destination": "tests/test_game_spatial.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_offline_missions.cpp",
+      "source": "tests/test_offline_missions.cpp",
+      "destination": "tests/test_offline_missions.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_owned_removal.cpp",
+      "source": "tests/test_owned_removal.cpp",
+      "destination": "tests/test_owned_removal.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_prefabs.cpp",
+      "source": "tests/test_prefabs.cpp",
+      "destination": "tests/test_prefabs.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_quantum.cpp",
+      "source": "tests/test_quantum.cpp",
+      "destination": "tests/test_quantum.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_relocation.cpp",
+      "source": "tests/test_relocation.cpp",
+      "destination": "tests/test_relocation.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_runtime_diagnostics_integration.cpp",
+      "source": "tests/test_runtime_diagnostics_integration.cpp",
+      "destination": "tests/test_runtime_diagnostics_integration.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_world_control.cpp",
+      "source": "tests/test_world_control.cpp",
+      "destination": "tests/test_world_control.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
     }
   ]
 }
