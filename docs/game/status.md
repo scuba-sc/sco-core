@@ -24,6 +24,22 @@ composition, capability **OFF — typed engine methods unverified**. Synthetic r
 host/provider/native-module checks only; no trusted per-slot equip mapping and no
 offline admission adapter installed. See [loadout](loadout.md). Not run in game.
 
+## Quantum control activation (G8, unreleased R1)
+
+`game.quantum` 1.0 / `game.quantum.control` is **owner-approved and conditionally
+ON** after successful registration of a complete private host backend with the
+shared owner-release dispatcher installed. All enable/hold calls still require
+fresh positive offline/EAC-absent admission, owned drive, game thread and bounded
+values. No additional public table/header or kernel mutation route is added.
+
+**Default production adapter absent — capability OFF.** Retained product layouts
+lack a safe owned-drive association and complete first-prior/input/charge/audio/
+effect restoration contract. Approval does not establish those facts. Private
+host-source configuration/start is explicit, with no signature-only fallback;
+see [quantum integration contract](../quantum.md). The portable configured
+provider/real host test is synthetic; **Windows/MSVC, actual drive input/charge/
+effects and gameplay are NOT VERIFIED; not run in game**.
+
 ## Service tables and capabilities
 
 **Unreleased G4 addition:** `game.prefabs` 1.0 uses the existing object-container

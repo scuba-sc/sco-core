@@ -96,7 +96,20 @@ What each change means for plugin authors and for products built on sco-core (sc
   evidence. No raw XML or account inventory. Production engine equip remains
   fail-closed/unavailable pending verified methods and owner-run Windows/game checks.
   Frozen `sco_api` 1.1 unchanged; C#/Lua routes unsupported. **Not run in game.**
-- **Offline quantum bounded control/state (`game.quantum` 1.0, #129):** game-pack-owned enable/hold/release, copied progress/block/session status, lease expiry and controller cleanup; single-owner hook transaction with alias refusal. C/C++ full-extent/null adapters and synthetic runtime/provider fixtures, catalogue/package/provenance metadata. Frozen `sco_api` 1.1 unchanged. **Production engine bridge stays unavailable:** drive layout, NAV/input/charge/audio/effect forwarding and teardown need reviewed Windows/exact-game evidence; consumer extraction remains blocked. C# and Lua routes unsupported; not run in game.
+- **G8 R1 quantum activation (`game.quantum` 1.0):** owner approval removes the
+  unconditional control-capability OFF for a complete host backend with installed
+  shared owner cleanup, only after service registration succeeds. Add explicit
+  private production configuration/start routing; preserve game-thread, fresh
+  offline/EAC-absent, owned-controller and per-value/lease bounds. First-tick lease
+  anchoring and fault-latch suppression prevent premature expiry and post-fault
+  cleanup callbacks; record ownership before potentially partial mutation.
+  **Default production adapter still absent:** legacy layouts do not ground local
+  drive ownership or first-prior/input/charge/audio/effect restoration. No guessed
+  offsets, unsafe shared-parameter writes or signature-only readiness. Existing
+  public `sc_quantum_v1` and frozen `sco_api` are unchanged; C#/Lua unsupported.
+  Targeted configured-provider/real-host fixtures are synthetic; Windows/MSVC,
+  native engine forwarding, sound/effects and gameplay **NOT VERIFIED; not run
+  in game**.
 - **G7 / #128 reversible scoped cvar writes:** separate `game.cvars_write` 1.0,
   exact bool allowlist, first-prior leases and per-name concurrent-owner refusal;
   verified readback, explicit restore, existing spawn owner dispatcher and
