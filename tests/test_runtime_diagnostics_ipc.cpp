@@ -9,11 +9,56 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <sddl.h>
+#endif
 using namespace sco::diagnostics;
 namespace di=sco::diagnostics::ipc;
 namespace os=sco::diagnostics::platform;
 void RunDiagnosticsJsonTests();
 #define CHECK(x) do {if(!(x)){std::cerr<<__LINE__<<": "<<#x<<"\n";std::abort();}}while(0)
+// Test setup, not a relaxation of the production credential policy. Windows
+// filesystem::permissions only changes readonly attributes, not the directory
+// DACL. Match the current-token protected directory used by the platform test.
+static void CreatePrivateFixtureDirectory(const std::filesystem::path& dir) {
+#ifdef _WIN32
+    HANDLE token = nullptr;
+    CHECK(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token));
+    DWORD bytes = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &bytes);
+    CHECK(bytes > 0);
+    std::vector<unsigned char> tokenInfo(bytes);
+    CHECK(GetTokenInformation(token, TokenUser, tokenInfo.data(), bytes, &bytes));
+    CHECK(CloseHandle(token));
+    LPWSTR sid = nullptr;
+    CHECK(ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(tokenInfo.data())->User.Sid, &sid));
+    const std::wstring ownSid(sid);
+    LocalFree(sid);
+    const std::wstring sddl = L"O:" + ownSid + L"D:P(A;;FA;;;" + ownSid + L")";
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    CHECK(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &descriptor, nullptr));
+    SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), descriptor, FALSE};
+    const BOOL created = CreateDirectoryW(dir.c_str(), &attributes);
+    const DWORD error = created ? ERROR_SUCCESS : GetLastError();
+    LocalFree(descriptor);
+    if (!created) std::cerr << "private fixture directory failed: " << error << '\n';
+    CHECK(created);
+#else
+    CHECK(std::filesystem::create_directory(dir));
+    std::filesystem::permissions(dir, std::filesystem::perms::owner_all);
+#endif
+}
+#define CHECK_RESULT(expression, expected) do { \
+    const auto actualResult = (expression); \
+    if (actualResult != (expected)) std::cerr << "Start result=" << static_cast<int>(actualResult) \
+        << ", expected=" << static_cast<int>(expected) << '\n'; \
+    CHECK(actualResult == (expected)); \
+} while (0)
+
 struct Sink final : di::FixtureAudit {
     unsigned events=0; bool accept=true;
     bool Acknowledge(const di::AuditEvent&) override {++events;return accept;}
@@ -49,7 +94,7 @@ struct Fixture {
         plugins[0].manifest.kind=sco::plugins::Kind::Native;plugins[0].state=sco::plugins::State::Loaded;
         CHECK(snapshots.Begin(plugins,metadata,lifecycle,1000));size_t steps=0;while(!snapshots.Advance(1000))CHECK(++steps<2048);
         CHECK(capture.Start(1000));CHECK(capture.AssignKey(this,"fixture_ipc"));capture.RecordHost(this,HostEvent::Loaded,1000);
-        CHECK(host.Start(options,&sink,1000)==di::Result::Ok);
+        CHECK_RESULT(host.Start(options,&sink,1000),di::Result::Ok);
     }
     ~Fixture(){host.Stop();}
 };
@@ -205,10 +250,13 @@ int main(int argc,char** argv) {
     // In-tree CMake output is excluded by the host credential policy. Use an
     // independent private fixture directory; do not weaken that policy.
     if(relative.empty()||*relative.begin()!="..")
-        credentialRoot=std::filesystem::canonical(std::filesystem::temp_directory_path());
+        credentialRoot=std::filesystem::path(root).parent_path();
+    // Sibling fallback stays outside the excluded source root on the same volume.
+    const auto outside=credentialRoot.lexically_relative(std::filesystem::path(root));
+    CHECK(!outside.empty() && *outside.begin()=="..");
     di::Id nonce{};CHECK(os::Random(nonce.data(),nonce.size()));
     const auto dir=credentialRoot/("runtime-diagnostics-ipc-"+di::Hex(nonce.data(),nonce.size()));
-    CHECK(std::filesystem::create_directory(dir));std::filesystem::permissions(dir,std::filesystem::perms::owner_all);
+    CreatePrivateFixtureDirectory(dir);
     // The build output is a trusted fixture location, but may be spelled through
     // an alias (notably /tmp on macOS). Resolve only that directory: the transport
     // must continue refusing symlink components and credential-file aliases.
