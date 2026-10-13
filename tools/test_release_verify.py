@@ -94,6 +94,26 @@ class ReleaseVerifyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, "")
 
+    def test_valid_five_profile_release(self):
+        self.record["profiles"] = ["core", "game-sc", "legacy", "core-source", "host-source-sc"]
+        self.write_record()
+        self.sign()
+        result = self.verify()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+
+    def test_five_profile_release_still_requires_signature(self):
+        self.record["profiles"] = ["core", "game-sc", "legacy", "core-source", "host-source-sc"]
+        self.write_record()
+        self.assert_refused(self.verify(), "signature")
+
+    def test_incomplete_source_profile_sets_are_refused(self):
+        for profiles in (["core", "game-sc", "legacy", "host-source-sc"],
+                         ["core", "game-sc", "legacy", "core-source"],
+                         ["core", "game-sc", "legacy", "host-source-sc", "core-source"]):
+            with self.subTest(profiles=profiles):
+                self.refused_record(lambda r: r.update(profiles=profiles), "$.profiles")
+
     def approval_commit(self, *extra_paths):
         self.write_record()
         self.sign()

@@ -527,7 +527,7 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         third = [d for d, c in expected.items() if c["origin"] == "third-party" and c["source"] != "LICENSE"]
         for d in third:
             folder = os.path.dirname(d)
-            if profile == "core-source":
+            if profile in ("core-source", "host-source-sc"):
                 parents = [folder]
                 while "/" in parents[-1]:
                     parents.append(os.path.dirname(parents[-1]))

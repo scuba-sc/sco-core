@@ -56,6 +56,16 @@ jobs:
           python3 tools/ip_audit.py zip dist-source/sco-sdk-core-source-*.zip --profile core-source
           sdk/test-zip.sh dist-source/sco-sdk-core-source-*.zip
 
+      - name: Build the Star Citizen host-source SDK from an empty directory
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          python3 sdk/package.py --profile host-source-sc --out dist-host
+          python3 tools/ip_audit.py zip dist-host/sco-sdk-host-source-sc-*.zip --profile host-source-sc
+          SCO_HOST_SOURCE_ARCHIVE="$(find dist-host -name '*.zip')" \
+            python3 sdk/test_host_source.py HostSourceArchive.test_standalone_game_source_archive -v
+
       - name: Build and check the examples from the zip
         env:
           SCO_SDK_CSHARP: "1"            # cs_hello: NativeAOT linux-x64, checked like the C examples
@@ -108,6 +118,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sco-sdk-host-source-sc
+          path: dist-host/sco-sdk-host-source-sc-*.zip
+          if-no-files-found: error
+          retention-days: 30
+
   windows:
     needs: package
     runs-on: windows-2025
@@ -128,6 +145,19 @@ jobs:
         with:
           name: sco-sdk-profiles
           path: dist-profiles
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sco-sdk-host-source-sc
+          path: dist-host
+
+      - name: Build the extracted Star Citizen host-source SDK (MSVC x64)
+        shell: bash
+        env:
+          CMAKE_GENERATOR_PLATFORM: x64
+        run: |
+          SCO_HOST_SOURCE_ARCHIVE="$(find dist-host -name '*.zip')" \
+            python sdk/test_host_source.py HostSourceArchive.test_standalone_game_source_archive -v
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:

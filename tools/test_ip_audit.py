@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for tools/ip_audit.py. Run: python3 tools/test_ip_audit.py (CI's ip-compliance job does).
 
-1. The real repository and the three real SDK zips pass, and the SBOM binds the commit and zip hash.
+1. The real repository and all five SDK profiles pass, and the SBOM binds the commit and zip hash.
 2. Gate 7: each synthetic defect, in a scratch copy of the repository or a rebuilt zip, must make the
    audit exit non-zero with a message naming the problem. Nothing here touches the real tree.
 """
@@ -108,7 +108,8 @@ class Real(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.out = tempfile.mkdtemp(prefix="ipaudit-real-")
-        cls.zips = {p: package(ROOT, p, os.path.join(cls.out, p)) for p in ("core", "game-sc", "legacy")}
+        cls.zips = {p: package(ROOT, p, os.path.join(cls.out, p))
+                    for p in ("core", "game-sc", "legacy", "core-source", "host-source-sc")}
 
     @classmethod
     def tearDownClass(cls):
@@ -141,6 +142,35 @@ class Real(unittest.TestCase):
         code, out = run("zip", self.zips["core"], "--profile", "game-sc")
         self.assertEqual(code, 1, out)
         self.assertIn("not selected by", out)
+
+    def test_source_kits_refuse_missing_dependency_licences(self):
+        for profile in ("core-source", "host-source-sc"):
+            for removed in (("LICENSES/MIT.txt", "plugins/lua/third_party/lua/LICENSE"),
+                            ("LICENSES/blessing.txt",)):
+                with self.subTest(profile=profile, removed=removed):
+                    bad = os.path.join(self.out, "missing-licence.zip")
+                    def change(entries):
+                        top = next(iter(entries)).split("/", 1)[0]
+                        for rel in removed:
+                            del entries[f"{top}/{rel}"]
+                        resum(entries)
+                    rezip(self.zips[profile], bad, change)
+                    report = audit.audit_zip(bad, profile)
+                    check, = [c for c in report.checks if c["check"] == "licences and notices (Gate C/D)"]
+                    self.assertGreater(check["failed"], 0)
+
+    def test_source_kits_refuse_missing_notices(self):
+        for profile in ("core-source", "host-source-sc"):
+            with self.subTest(profile=profile):
+                bad = os.path.join(self.out, "missing-notices.zip")
+                def change(entries):
+                    top = next(iter(entries)).split("/", 1)[0]
+                    del entries[f"{top}/THIRD_PARTY_NOTICES.md"]
+                    resum(entries)
+                rezip(self.zips[profile], bad, change)
+                report = audit.audit_zip(bad, profile)
+                check, = [c for c in report.checks if c["check"] == "licences and notices (Gate C/D)"]
+                self.assertGreater(check["failed"], 0)
 
 
 class Negative(unittest.TestCase):

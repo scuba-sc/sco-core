@@ -36,5 +36,6 @@ Two kinds of file live here:
 | [Game implementation](2026-10-12-game-implementation.md) (P05-07) | 2026-10-12 | Option A: export on hold, in no SDK profile |
 | [Distribution scope for sdk-v2.0.0](2026-10-12-distribution-scope.md) (P05-10) | 2026-10-12 | Approved; signed manifest still required |
 | [SDK2.1 distribution and public-overlay scope](2026-10-12-sdk-v2.1.0-scope.md) | 2026-10-12 | Four profiles approved; implementation export held, host-source-sc publication excluded; signed bytes required |
+| [SDK2.1 host-source candidate scope](2026-10-13-sdk-v2.1.0-host-source.md) | 2026-10-13 | Five-profile candidate selected; supersedes the SDK2.1 host-source exclusion only; fresh signed bytes required |
 
 No release is published from these records alone: `sdk-v2.0.0` also needs its signed `sdk-v2.0.0.json` approval.

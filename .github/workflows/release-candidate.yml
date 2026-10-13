@@ -2,7 +2,7 @@ name: release-candidate
 
 # Build once on the selected main commit, after every mandatory check succeeds on that SHA.
 # Dispatch with the prospective sdk-v<version> tag (no tag is created here). The single immutable
-# release-candidate artifact contains all four SDK archives, their SBOMs and SHA256SUMS.
+# release-candidate artifact contains all five SDK archives, their SBOMs and SHA256SUMS.
 # Copy its run ID, artifact ID, file sizes and hashes from the summary into release.json, review,
 # sign and commit the approval, then tag. release.yml promotes those exact bytes without rebuilding.
 # Repository access is read-only; only candidate can mint provenance attestations, not releases.
@@ -99,6 +99,8 @@ jobs:
           sdk/test-zip.sh "dist/sco-sdk-core-$v.zip" "dist/sco-sdk-game-sc-$gp.zip"
           sdk/test-zip.sh "dist/sco-sdk-$v.zip"
           sdk/test-zip.sh "dist/sco-sdk-core-source-$v.zip"
+          SCO_HOST_SOURCE_ARCHIVE="dist/sco-sdk-host-source-sc-$v.zip" \
+            python3 sdk/test_host_source.py HostSourceArchive.test_standalone_game_source_archive -v
 
       - name: Inventory the complete release payload
         run: python3 tools/release_verify.py inventory --payload-dir dist --out dist/SHA256SUMS
