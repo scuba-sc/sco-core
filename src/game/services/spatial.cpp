@@ -435,7 +435,7 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
-    r = StartQuantum(); // default bridge remains unavailable until engine acceptance
+    r = StartProductionQuantum(SpawnReleaseHooked()); // approved G8; absent adapter still fails closed
     if (r != Result::Ok) {
         StopLoadout(); StopCreative(); StopEntities(); StopEvents(); StopWorld();
         StopVehicles(); StopActors(); StopSpawn();
