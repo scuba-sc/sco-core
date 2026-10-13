@@ -46,7 +46,18 @@ int main(int argc,char** argv){
      std::cerr<<"WINTEST-PROBE policy Create="<<probeCreate<<"\n";if(probeCreate)platform::Close(probeMapping);
      const bool probeWrite=platform::WriteCredential(o.credentialPath,"{}");
      std::cerr<<"WINTEST-PROBE policy WriteCredential="<<probeWrite<<"\n";
-     platform::RemoveCredential(o.credentialPath);}
+     platform::RemoveCredential(o.credentialPath);
+     std::cerr<<"WINTEST-PROBE policy pathform="<<o.credentialPath<<"\n";
+     {std::string stripped=o.credentialPath;
+      if(stripped.rfind("\\\\?\\",0)==0)stripped=stripped.substr(4);
+      std::cerr<<"WINTEST-PROBE policy stripped="<<platform::WriteCredential(stripped,"{}")<<"\n";
+      platform::RemoveCredential(stripped);}
+     {auto root2=std::filesystem::temp_directory_path();
+      auto d2=root2/("runtime-policy-plain-"+di::Hex(nonce.data(),nonce.size()));
+      std::filesystem::create_directory(d2);
+      std::string p2=(d2/"session.json").string();
+      std::cerr<<"WINTEST-PROBE policy plain="<<platform::WriteCredential(p2,"{}")<<" path="<<p2<<"\n";
+      platform::RemoveCredential(p2);std::filesystem::remove(d2);}}
     for(auto status:{audit::Status::Unavailable,audit::Status::Full,audit::Status::Deadline}){
         collector->status=status;const auto probeResult=host.Start(o,di::ClockNow());
         if(probeResult!=di::Result::Audit)std::cerr<<"WINTEST-PROBE policy Start="<<static_cast<int>(probeResult)<<" expected=Audit(9)\n";
