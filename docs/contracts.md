@@ -75,16 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **122 table methods across 17 tables,
-plus 3 plugin entrypoints: 125 method rows**. The inventory below is the checklist;
-The mechanically enumerated inventory is **126 table methods across 17 tables,
-plus 3 plugin entrypoints: 129 method rows**. The inventory below is the checklist;
-The mechanically enumerated inventory is **130 table methods across 18 tables,
-plus 3 plugin entrypoints: 133 method rows**. The inventory below is the checklist;
-The mechanically enumerated inventory is **123 table methods across 16 tables,
-plus 3 plugin entrypoints: 126 method rows**. The inventory below is the checklist;
-The mechanically enumerated inventory is **129 table methods across 17 tables,
-plus 3 plugin entrypoints: 132 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **164 table methods across 30 tables,
+plus 3 plugin entrypoints: 167 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -218,6 +210,8 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_creative_v1` | 7 | 64 | 1.0 |
 | `sc_loadout_v1` | 1 | 16 | 1.0 |
 | `sc_quantum_v1` | 4 | 40 | 1.0 |
+| `sc_mining_v1` | 2 | 24 | 1.0 |
+| `sc_private_session_v1` | 4 | 40 | 1.0 |
 | `sc_cvars_v1` | 1 | 16 | 1.0 |
 | `sc_cvars_write_v1` | 2 | 24 | 1.0 |
 | `sc_world_v1` | 3 | 32 | 1.0 |
@@ -791,6 +785,47 @@ C/C++ direct table route; C# and Lua unsupported.
 | `sc_economy_v1.apply` | `size >= 24`; 1.0 | `sco_result (*apply)(sco_plugin* self, const sc_economy_request* request, sc_economy_receipt* out);`<br>Apply one bounded signed local-wallet delta with expected-balance compare and nonzero owner/session idempotency key. Identical replay returns the first receipt; changed replay is BAD_ARG. No receipt eviction or automatic save/payout. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
 | `sc_economy_v1.balance` | `size >= 16`; 1.0 | `sco_result (*balance)(sco_plugin* self, sc_economy_balance* out);`<br>Read the admitted offline local wallet as an integer in [0,1000000000000). No accounts or online balances; caller-sized output record is preserved. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
 | `sc_economy_v1.receipt` | `size >= 32`; 1.0 | `sco_result (*receipt)(sco_plugin* self, uint64_t key, sc_economy_receipt* out);`<br>Read an owned session-local payment receipt by key. NOT_FOUND when absent, stale session or another owner. No persistent once-only guarantee across session restart. | Caller-owned copied buffers; no allocation transfer. Mutations scoped to live plugin and current offline session. | Game thread only; WRONG_THREAD before backend access. | OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure. | Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart. |
+## game.mining 1.0 (`sc_mining_v1`)
+
+Source: [`sc_mining.h`](../include/sc_mining.h), [provider](../src/game/services/mining.cpp),
+[mining contract](game/mining-service.md), [C11 layout fixture](../tests/abi_catalogue_mining.c)
+and [synthetic provider/release fixture](../tests/test_mining.cpp).
+Off by default; production adapter unavailable. Accepted intent is not engine acceptance.
+C and raw C++ use the public table; C inline helpers guard complete callback extents.
+C# and Lua game.mining routes are unsupported.
+The fixture uses synthetic engine/admission callbacks and a release-dispatcher stand-in;
+no Windows SEH, native detour or gameplay execution is established. Process counters
+are observations, not a transactional snapshot; no game pointers cross the table.
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_mining_v1.request` | `size >= 16`; 1.0 | `sco_result (*request)(sco_plugin* self, uint32_t enabled);`<br>enabled is exactly 0 or 1. Accept or remove owner-scoped intent; repeated requests are idempotent. OK accepts intent even when engine/admission/hook is unavailable; read state to distinguish active. Disable also removes intent after a fault latch. | Up to 64 live owners retain independent intent; worker sees only aggregate count. Caller owns copied output; no native pointer or allocation transfer. | Game thread only; WRONG_THREAD before owner/state access. Worker promotion never calls plugins. | OK accepted intent, not engine acceptance; BAD_ARG invalid/released self or enabled; WRONG_THREAD; UNAVAILABLE stopped/runtime-stopping or reentrant call; FAILED full 64-owner registry. | Disable/unload removes only that owner intent. Stop clears all intent and withdraws the service; detour, trampoline and callbacks remain process-retained in pass-through mode. Fault latch requires restart. |
+| `sc_mining_v1.state` | `size >= 24`; 1.0 | `sco_result (*state)(sco_plugin* self, sc_mining_state* out);`<br>out.size must cover 40 bytes. Copy owner requested/active, refusal block and process cells/promoted/faults; successful observation can report refusal. Output size becomes 40; unknown tail untouched. OFF=0 is disabled or active without block; promoted counts forwarded bits, not spawned/harvested entities. | Up to 64 live owners retain independent intent; worker sees only aggregate count. Caller owns copied output; no native pointer or allocation transfer. | Game thread only; WRONG_THREAD before owner/state access. Worker promotion never calls plugins. | OK copied observation; BAD_ARG invalid/released self or null/short output; WRONG_THREAD; UNAVAILABLE stopped/runtime-stopping or reentrant call. | Disable/unload removes only that owner intent. Stop clears all intent and withdraws the service; detour, trampoline and callbacks remain process-retained in pass-through mode. Fault latch requires restart. |
+
+
+## game.private_session 1.0 (`sc_private_session_v1`)
+
+Source: [`sc_private_session.h`](../include/sc_private_session.h),
+[provider](../src/game/private_session.cpp), [C11 layout pin](../tests/abi_private_session.c)
+and [synthetic broker/provider fixture](../tests/test_net_control.cpp).
+C and raw C++ use the public table; no typed native wrapper is claimed.
+C# and Lua game.private_session routes are unsupported.
+Broker enablement is not socket/session enablement: fresh local UI Host/Join consent
+is mandatory; never synthesize consent from startup, settings, peer replay or retry.
+Numeric bind, exact private-address allowlist, admission and transport remain host-owned.
+Default enabled broker is loopback-only and opens no socket until Host/Join.
+The source-linked fixture uses synthetic transport with socket traps; it does not
+prove native UDP, real peer authentication or gameplay. ABI pins prove layout only.
+Request strings are declared UTF-8; byte bounds/NUL checks do not certify Unicode validation.
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_private_session_v1.request_host` | `size >= 16`; 1.0 | `sco_result (*request_host)(sco_plugin* self, const sc_private_session_host_request_v1* request);`<br>Complete 40-byte request; consent=1 only after fresh explicit local UI Host, reserved pad zero. Passphrase 12..256 bytes, player name 1..64 bytes, no embedded NUL; nonzero port and max_peers 2..16. Strings declared UTF-8. Unknown request tail ignored. Host rechecks admission and owns numeric bind/exact peer scope. | Host owns one session and its requesting owner; request strings are borrowed for the call and copied into host storage. Plugins receive no socket/bind/allowlist authority. Caller owns copied state. | Game thread only; WRONG_THREAD before state access. | OK host operation accepted, not authenticated connection; BAD_ARG malformed/bounds/released self; FAILED absent consent or broker failure; WRONG_THREAD; UNAVAILABLE disabled/stopping/reentrant, failed admission or occupied session; TOO_MANY four-attempts-per-second host-wide limit. | Requesting-owner unload, explicit leave, admission loss or host stop leaves session. Stop withdraws service. Credentials are volatile backend state, not plugin-controlled persistent storage. |
+| `sc_private_session_v1.request_join` | `size >= 24`; 1.0 | `sco_result (*request_join)(sco_plugin* self, const sc_private_session_join_request_v1* request);`<br>Complete 48-byte request; consent=1 only after fresh explicit local UI Join, reserved pad zero. Numeric IPv4 address 1..15 bytes, passphrase 12..256 bytes, player name 1..64 bytes and nonzero port; no embedded NUL. Strings declared UTF-8. Unknown request tail ignored. Host enforces private-address allowlist and admission. | Host owns one session and its requesting owner; request strings are borrowed for the call and copied into host storage. Plugins receive no socket/bind/allowlist authority. Caller owns copied state. | Game thread only; WRONG_THREAD before state access. | OK host operation accepted, not authenticated connection; BAD_ARG malformed/bounds/released self; FAILED absent consent or broker failure; WRONG_THREAD; UNAVAILABLE disabled/stopping/reentrant, failed admission or occupied session; TOO_MANY four-attempts-per-second host-wide limit. | Requesting-owner unload, explicit leave, admission loss or host stop leaves session. Stop withdraws service. Credentials are volatile backend state, not plugin-controlled persistent storage. |
+| `sc_private_session_v1.leave` | `size >= 32`; 1.0 | `sco_result (*leave)(sco_plugin* self);`<br>Leave only the requesting owner session; no owner is an idempotent OK. Another owner cannot leave it. No output buffer. | Host owns one session and its requesting owner; request strings are borrowed for the call and copied into host storage. Plugins receive no socket/bind/allowlist authority. Caller owns copied state. | Game thread only; WRONG_THREAD before state access. | OK left/already idle; BAD_ARG invalid/released self; WRONG_THREAD; UNAVAILABLE foreign owner, absent broker, runtime stopping or reentrant call. | Requesting-owner unload, explicit leave, admission loss or host stop leaves session. Stop withdraws service. Credentials are volatile backend state, not plugin-controlled persistent storage. |
+| `sc_private_session_v1.get_state` | `size >= 40`; 1.0 | `sco_result (*get_state)(sc_private_session_state_v1* out);`<br>out.size must cover 16 bytes; copy session state, peer count and configured host max_peers (0 for joiner/idle unknown). No owner handle is required. Output size becomes 16; unknown tail untouched. Admission loss leaves the session and returns UNAVAILABLE without copying output. | Host owns one session and its requesting owner; request strings are borrowed for the call and copied into host storage. Plugins receive no socket/bind/allowlist authority. Caller owns copied state. | Game thread only; WRONG_THREAD before state access. | OK copied state; BAD_ARG null/short output; WRONG_THREAD; UNAVAILABLE absent broker, runtime stopping, reentrant call or admission loss. | Requesting-owner unload, explicit leave, admission loss or host stop leaves session. Stop withdraws service. Credentials are volatile backend state, not plugin-controlled persistent storage. |
+
+
 ## Explicit remaining gaps
 
 This is an inventory-complete catalogue, not a claim that the API has a complete
