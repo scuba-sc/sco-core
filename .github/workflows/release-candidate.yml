@@ -74,7 +74,7 @@ jobs:
           v=$(tr -d '\r\n' < sdk/VERSION)
           gp=$(sed -n 's/^#define SCO_GAME_PACK_VERSION "\([0-9.]*\)"$/\1/p' include/sc_game_pack.h)
           test -n "$gp" || { echo 'SCO_GAME_PACK_VERSION not found in include/sc_game_pack.h'; exit 1; }
-          for profile in core game-sc legacy core-source; do
+          for profile in core game-sc legacy core-source host-source-sc; do
             python3 sdk/package.py --profile "$profile" --out dist
             if [ "$profile" = legacy ]; then
               archive="dist/sco-sdk-$v.zip"

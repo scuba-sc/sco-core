@@ -408,7 +408,7 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         top = sorted(tops)[0] if tops else ""
         # The source kit ships the 9+ MiB SQLite amalgamation. Keep existing plugin
         # profile limits unchanged; source-only bounds remain finite and checked.
-        limits = (1024, 16 * 1024 * 1024, 64 * 1024 * 1024, 64) if profile == "core-source" else None
+        limits = (1024, 16 * 1024 * 1024, 64 * 1024 * 1024, 64) if profile in ("core-source", "host-source-sc") else None
         entry_limit = limits[1] if limits else MAX_ENTRY_BYTES
         problems, readable = structure_problems(infos, top, pkg.safe_rel, limits)
         fails += problems
@@ -848,7 +848,7 @@ def main(argv=None):
     a.add_argument("--root", default=ROOT)
     b = sub.add_parser("zip")
     b.add_argument("archive")
-    b.add_argument("--profile", required=True, choices=["core", "core-source", "game-sc", "legacy"])
+    b.add_argument("--profile", required=True, choices=["core", "core-source", "game-sc", "host-source-sc", "legacy"])
     b.add_argument("--sbom")
     b.add_argument("--report")
     b.add_argument("--root", default=ROOT)
