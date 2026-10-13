@@ -40,7 +40,7 @@
           "evidence": [
             {
               "path": "include/scosdk/net.hpp",
-              "token": "bool Active() const noexcept { return t_ && t_->is_active(); }"
+              "token": "bool Active() const noexcept { return detail::CanCall(t_, &sco_net_v1::is_active) && t_->is_active(); }"
             }
           ],
           "tests": [
@@ -198,7 +198,7 @@
           "evidence": [
             {
               "path": "include/scosdk/net.hpp",
-              "token": "if (!t_ || t_->get_peer_name(peer, buf, sizeof buf) != SCO_OK) return {};"
+              "token": "if (!detail::CanCall(t_, &sco_net_v1::get_peer_name) || t_->get_peer_name(peer, buf, sizeof buf) != SCO_OK) return {};"
             }
           ],
           "tests": [
@@ -435,7 +435,7 @@
           "evidence": [
             {
               "path": "include/scosdk/net.hpp",
-              "token": "if (t_) t_->unregister_channel(self_, name_.c_str());"
+              "token": "if (detail::CanCall(t_, &sco_net_v1::unregister_channel)) t_->unregister_channel(self_, name_.c_str());"
             }
           ],
           "tests": [
@@ -515,7 +515,7 @@
           "evidence": [
             {
               "path": "include/scosdk/net.hpp",
-              "token": "uint64_t SelfPeer() const noexcept { return t_ ? t_->self_peer() : 0; }"
+              "token": "uint64_t SelfPeer() const noexcept { return detail::CanCall(t_, &sco_net_v1::self_peer) ? t_->self_peer() : 0; }"
             }
           ],
           "tests": [

@@ -120,7 +120,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ipc.hpp",
-              "token": "sco_result PeerAgeMs(uint32_t& ms) const noexcept { return t_ ? t_->peer_age_ms(self_, id_, &ms) : r_; }"
+              "token": "sco_result PeerAgeMs(uint32_t& ms) const noexcept { return detail::CanCall(t_, &sco_ipc_v1::peer_age_ms) ? t_->peer_age_ms(self_, id_, &ms) : (t_ ? SCO_UNAVAILABLE : r_); }"
             }
           ],
           "tests": [
@@ -360,7 +360,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ipc.hpp",
-              "token": "return t_ ? t_->ring_init(self_, id_, offset, capacity, direction) : r_;"
+              "token": "return detail::CanCall(t_, &sco_ipc_v1::ring_init) ? t_->ring_init(self_, id_, offset, capacity, direction) : (t_ ? SCO_UNAVAILABLE : r_);"
             }
           ],
           "tests": [
@@ -600,7 +600,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ipc.hpp",
-              "token": "if (!t_ || t_->view(self_, id_, &base, &bytes) != SCO_OK) return {};"
+              "token": "if (!detail::CanCall(t_, &sco_ipc_v1::view) || t_->view(self_, id_, &base, &bytes) != SCO_OK) return {};"
             }
           ],
           "tests": [
@@ -681,7 +681,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ipc.hpp",
-              "token": "if (t_) t_->close(self_, id_);"
+              "token": "if (detail::CanCall(t_, &sco_ipc_v1::close)) t_->close(self_, id_);"
             }
           ],
           "tests": [

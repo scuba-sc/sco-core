@@ -224,7 +224,7 @@
           "evidence": [
             {
               "path": "include/scosdk/storage.hpp",
-              "token": "sco_result Delete(const char* key) noexcept { return t_ ? t_->del(self_, key) : SCO_UNAVAILABLE; }"
+              "token": "sco_result Delete(const char* key) noexcept { return detail::CanCall(t_, &sco_storage_v1::del) ? t_->del(self_, key) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
@@ -408,7 +408,7 @@
           "evidence": [
             {
               "path": "include/scosdk/storage.hpp",
-              "token": "sco_result Begin() noexcept { return t_ ? t_->begin(self_) : SCO_UNAVAILABLE; }"
+              "token": "sco_result Begin() noexcept { return detail::CanCall(t_, &sco_storage_v1::begin) && detail::CanCall(t_, &sco_storage_v1::rollback) ? t_->begin(self_) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
@@ -423,7 +423,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
-              "token": "public ScoResult Begin() => _t == null ? ScoResult.Unavailable : _t->begin(Self);"
+              "token": "public ScoResult Begin() => _t == null || _t->size < (uint)((byte*)&_t->rollback - (byte*)_t + sizeof(nint)) || _t->begin == null || _t->rollback == null ? ScoResult.Unavailable : _t->begin(Self);"
             }
           ],
           "tests": [
@@ -500,7 +500,7 @@
           "evidence": [
             {
               "path": "include/scosdk/storage.hpp",
-              "token": "sco_result Commit() noexcept { return t_ ? t_->commit(self_) : SCO_UNAVAILABLE; }"
+              "token": "sco_result Commit() noexcept { return detail::CanCall(t_, &sco_storage_v1::commit) ? t_->commit(self_) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
@@ -515,7 +515,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
-              "token": "public ScoResult Commit() => _t == null ? ScoResult.Unavailable : _t->commit(Self);"
+              "token": "public ScoResult Commit() => _t == null || _t->size < (uint)((byte*)&_t->commit - (byte*)_t + sizeof(nint)) || _t->commit == null ? ScoResult.Unavailable : _t->commit(Self);"
             }
           ],
           "tests": [
@@ -592,7 +592,7 @@
           "evidence": [
             {
               "path": "include/scosdk/storage.hpp",
-              "token": "sco_result Rollback() noexcept { return t_ ? t_->rollback(self_) : SCO_UNAVAILABLE; }"
+              "token": "sco_result Rollback() noexcept { return detail::CanCall(t_, &sco_storage_v1::rollback) ? t_->rollback(self_) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
@@ -607,7 +607,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
-              "token": "public ScoResult Rollback() => _t == null ? ScoResult.Unavailable : _t->rollback(Self);"
+              "token": "public ScoResult Rollback() => _t == null || _t->size < (uint)((byte*)&_t->rollback - (byte*)_t + sizeof(nint)) || _t->rollback == null ? ScoResult.Unavailable : _t->rollback(Self);"
             }
           ],
           "tests": [
@@ -872,7 +872,7 @@
           "evidence": [
             {
               "path": "include/scosdk/storage.hpp",
-              "token": "sco_result Next() noexcept { return t_ ? t_->step(self_, id_) : r_; }"
+              "token": "sco_result Next() noexcept { return detail::CanCall(t_, &sco_storage_v1::step) ? t_->step(self_, id_) : (t_ ? SCO_UNAVAILABLE : r_); }"
             }
           ],
           "tests": [
@@ -887,7 +887,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
-              "token": "public ScoResult Next() => _id == 0 ? ScoResult.NotFound : _s.Table->step(_s.SelfFor, _id);"
+              "token": "public ScoResult Next() => _id == 0 ? ScoResult.NotFound : !(_s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->step - (byte*)_s.Table + sizeof(nint)) && _s.Table->step != null) ? ScoResult.Unavailable : _s.Table->step(_s.SelfFor, _id);"
             }
           ],
           "tests": [
@@ -968,7 +968,7 @@
           "evidence": [
             {
               "path": "include/scosdk/storage.hpp",
-              "token": "if (t_) t_->column_count(self_, id_, &n);"
+              "token": "if (detail::CanCall(t_, &sco_storage_v1::column_count)) t_->column_count(self_, id_, &n);"
             }
           ],
           "tests": [
@@ -983,7 +983,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
-              "token": "return _id != 0 && _s.Table->column_count(_s.SelfFor, _id, &n) == ScoResult.Ok ? (int)n : 0;"
+              "token": "return _id != 0 && _s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->column_count - (byte*)_s.Table + sizeof(nint)) && _s.Table->column_count != null && _s.Table->column_count(_s.SelfFor, _id, &n) == ScoResult.Ok ? (int)n : 0;"
             }
           ],
           "tests": [
@@ -1063,7 +1063,7 @@
           "evidence": [
             {
               "path": "include/scosdk/storage.hpp",
-              "token": "if (t_) t_->column(self_, id_, index, &v, nullptr, nullptr);"
+              "token": "if (detail::CanCall(t_, &sco_storage_v1::column)) t_->column(self_, id_, index, &v, nullptr, nullptr);"
             }
           ],
           "tests": [
@@ -1078,7 +1078,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
-              "token": "ScoResult r = _id == 0 ? ScoResult.NotFound : _s.Table->column(_s.SelfFor, _id, (uint)i, &value, null, null);"
+              "token": "ScoResult r = _id == 0 ? ScoResult.NotFound : !(_s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->column - (byte*)_s.Table + sizeof(nint)) && _s.Table->column != null) ? ScoResult.Unavailable : _s.Table->column(_s.SelfFor, _id, (uint)i, &value, null, null);"
             }
           ],
           "tests": [
@@ -1250,7 +1250,7 @@
           "evidence": [
             {
               "path": "include/scosdk/storage.hpp",
-              "token": "if (t_) t_->close(self_, id_);"
+              "token": "if (detail::CanCall(t_, &sco_storage_v1::close)) t_->close(self_, id_);"
             }
           ],
           "tests": [
@@ -1265,7 +1265,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Storage.cs",
-              "token": "if (_id != 0 && _s.Table != null) _s.Table->close(_s.SelfFor, _id);"
+              "token": "if (_id != 0 && _s.Table != null && _s.Table->size >= (uint)((byte*)&_s.Table->close - (byte*)_s.Table + sizeof(nint)) && _s.Table->close != null) _s.Table->close(_s.SelfFor, _id);"
             }
           ],
           "tests": [

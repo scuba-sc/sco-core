@@ -40,7 +40,7 @@
           "evidence": [
             {
               "path": "include/scosdk/game/vehicles.hpp",
-              "token": "return ref_ ? ref_->player_ship(&ship) : SCO_UNAVAILABLE;"
+              "token": "return detail::CanCall(ref_.Get(), &sc_vehicles_v1::player_ship) ? ref_->player_ship(&ship) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -54,7 +54,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
-              "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->player_ship(&id);"
+              "token": "ScoResult r = _t == null || _t->size < (uint)((byte*)&_t->player_ship - (byte*)_t + sizeof(nint)) || _t->player_ship == null ? ScoResult.Unavailable : _t->player_ship(&id);"
             }
           ],
           "tests": [
@@ -67,7 +67,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = v ? v->player_ship(&ship) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(v, sc_vehicles_v1, player_ship) ? v->player_ship(&ship) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -158,7 +158,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = v ? v->seats(ship, g_vehSeats, (uint32_t)(sizeof(g_vehSeats) / sizeof(g_vehSeats[0])), &n, &more)"
+              "token": "const sco_result r = GAME_MEMBER(v, sc_vehicles_v1, seats) ? v->seats(ship, g_vehSeats, (uint32_t)(sizeof(g_vehSeats) / sizeof(g_vehSeats[0])), &n, &more)"
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
@@ -226,7 +226,7 @@
           "evidence": [
             {
               "path": "include/scosdk/game/vehicles.hpp",
-              "token": "return ref_ ? ref_->seat_occupant(ship, seatIndex, &actor) : SCO_UNAVAILABLE;"
+              "token": "return detail::CanCall(ref_.Get(), &sc_vehicles_v1::seat_occupant) ? ref_->seat_occupant(ship, seatIndex, &actor) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -240,7 +240,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
-              "token": "ScoResult r = _t == null ? ScoResult.Unavailable : _t->seat_occupant(ship, seatIndex, &id);"
+              "token": "ScoResult r = _t == null || _t->size < (uint)((byte*)&_t->seat_occupant - (byte*)_t + sizeof(nint)) || _t->seat_occupant == null ? ScoResult.Unavailable : _t->seat_occupant(ship, seatIndex, &id);"
             }
           ],
           "tests": [
@@ -253,7 +253,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = v ? v->seat_occupant(ship, (uint32_t)index, &actor) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(v, sc_vehicles_v1, seat_occupant) ? v->seat_occupant(ship, (uint32_t)index, &actor) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -317,7 +317,7 @@
           "evidence": [
             {
               "path": "include/scosdk/game/vehicles.hpp",
-              "token": "return ref_ ? ref_->seat(self_, actor, ship, seatIndex) : SCO_UNAVAILABLE;"
+              "token": "return detail::CanCall(ref_.Get(), &sc_vehicles_v1::seat) ? ref_->seat(self_, actor, ship, seatIndex) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -331,7 +331,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
-              "token": "public ScoResult Seat(ulong actor, ulong ship, uint seatIndex) => _t == null ? ScoResult.Unavailable : _t->seat(Self, actor, ship, seatIndex);"
+              "token": "public ScoResult Seat(ulong actor, ulong ship, uint seatIndex) => _t == null || _t->size < (uint)((byte*)&_t->seat - (byte*)_t + sizeof(nint)) || _t->seat == null ? ScoResult.Unavailable : _t->seat(Self, actor, ship, seatIndex);"
             }
           ],
           "tests": [
@@ -405,7 +405,7 @@
           "evidence": [
             {
               "path": "include/scosdk/game/vehicles.hpp",
-              "token": "sco_result Eject(uint64_t actor) const noexcept { return ref_ ? ref_->eject(self_, actor) : SCO_UNAVAILABLE; }"
+              "token": "sco_result Eject(uint64_t actor) const noexcept { return detail::CanCall(ref_.Get(), &sc_vehicles_v1::eject) ? ref_->eject(self_, actor) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
@@ -419,7 +419,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
-              "token": "public ScoResult Eject(ulong actor) => _t == null ? ScoResult.Unavailable : _t->eject(Self, actor);"
+              "token": "public ScoResult Eject(ulong actor) => _t == null || _t->size < (uint)((byte*)&_t->eject - (byte*)_t + sizeof(nint)) || _t->eject == null ? ScoResult.Unavailable : _t->eject(Self, actor);"
             }
           ],
           "tests": [
@@ -493,7 +493,7 @@
           "evidence": [
             {
               "path": "include/scosdk/game/vehicles.hpp",
-              "token": "sco_result PowerOn(uint64_t ship) const noexcept { return ref_ ? ref_->power_on(self_, ship) : SCO_UNAVAILABLE; }"
+              "token": "sco_result PowerOn(uint64_t ship) const noexcept { return detail::CanCall(ref_.Get(), &sc_vehicles_v1::power_on) ? ref_->power_on(self_, ship) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
@@ -507,7 +507,7 @@
           "evidence": [
             {
               "path": "sdk/csharp/Sco.Sdk/Game/Vehicles.cs",
-              "token": "public ScoResult PowerOn(ulong ship) => _t == null ? ScoResult.Unavailable : _t->power_on(Self, ship);"
+              "token": "public ScoResult PowerOn(ulong ship) => _t == null || _t->size < (uint)((byte*)&_t->power_on - (byte*)_t + sizeof(nint)) || _t->power_on == null ? ScoResult.Unavailable : _t->power_on(Self, ship);"
             }
           ],
           "tests": [
@@ -608,7 +608,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (v->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
+              "token": "if (GAME_MEMBER(v, sc_vehicles_v1, last_error) && v->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
             }
           ],
           "tests": [

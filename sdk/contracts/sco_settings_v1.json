@@ -128,7 +128,7 @@
           "evidence": [
             {
               "path": "include/scosdk/settings.hpp",
-              "token": "return t_ ? t_->get_int(self_, name, &out) : SCO_UNAVAILABLE;"
+              "token": "return detail::CanCall(t_, &sco_settings_v1::get_int) ? t_->get_int(self_, name, &out) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -216,7 +216,7 @@
           "evidence": [
             {
               "path": "include/scosdk/settings.hpp",
-              "token": "return t_ ? t_->get_float(self_, name, &out) : SCO_UNAVAILABLE;"
+              "token": "return detail::CanCall(t_, &sco_settings_v1::get_float) ? t_->get_float(self_, name, &out) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
