@@ -55,7 +55,7 @@ Required fields:
 | `builder.workflow_path`, `builder.workflow_sha` | Regular `.github/workflows/*.yml` or `*.yaml` file at the pinned workflow commit; this commit may differ from the source checkout commit |
 | `builder.run_id`, `builder.run_attempt` | Positive integers, with run id exactly `--run-id` when supplied |
 | `artifacts` | Nonempty array of `{name, role, size, sha256, artifact_id}`; roles are `zip`, `source`, `sbom`, `notices`, `evidence`, `checksums`; positive build-artifact id per entry (several files may share an id) |
-| `profiles` | Exactly `["core", "game-sc", "legacy"]`, in that order |
+| `profiles` | Exactly the historical `["core", "game-sc", "legacy"]` or the five-profile `["core", "game-sc", "legacy", "core-source", "host-source-sc"]`, in that order; SDK 2.1.0 preparation uses the latter |
 | `distribution.status` | Only `approved-for-publication` passes; `internal-only` and `hold` are explicit refusals |
 | `approved_by`, `approved_at` | Nonblank maintainer identity and RFC 3339 UTC timestamp (`Z` or `+00:00`); no future approvals; maximum age seven days by default |
 

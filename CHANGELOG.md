@@ -4,13 +4,14 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-## sdk-v2.1.0 (2026-10-12)
+## sdk-v2.1.0 (release preparation; not published)
 
 SDK 2.1.0 packages the engineering entries below without changing frozen plugin ABI 1.1.
 The additive game contracts raise the separate game-sc package coordinate from 0.3.0 to
-0.4.0; core, legacy and core-source use 2.1.0. The optional game-sc overlay binds the exact
-core archive digest. Only these four profiles are selected for the signed candidate;
-host-source-sc publication and game implementation/product export remain excluded.
+0.4.0; core, legacy, core-source and host-source-sc use 2.1.0. The optional game-sc overlay
+binds the exact core archive digest. All five profiles are selected for candidate generation;
+publication still requires approval of the final bytes and a maintainer signature. Product
+export remains excluded.
 The [SDK2.1 scope decision](docs/legal/release-decisions/2026-10-12-sdk-v2.1.0-scope.md)
 records maintainer scope review, not final signed-byte publication approval.
 
@@ -82,7 +83,8 @@ release preparation. Default-off and fail-closed capability controls remain unch
   Synthetic lifecycle/thread fixtures only; no online-to-offline conversion,
   plugin patch service or frozen ABI change. Legacy offline mutations and product
   migration remain separate; not run in game.
-- **G16 local Star Citizen host-source kit:** `host-source-sc` packages the neutral kernel plus complete tracked game implementation, DataCore, private headers, vendored dependencies and synthetic test inputs in a standalone source layout. Existing SPDX SBOM, provenance and checksum generation is retained; an extracted-archive regression builds the G1 host adapter targets with `SCO_GAME_SC=ON`, runs five synthetic host fixtures and checks `core-source` game exclusions. All six private adapter files are included. No plugin ABI, CI/release workflow, publication or attestation change; Windows/game validation and human-controlled asset publication remain owed.
+- **G16 Star Citizen host-source candidate kit:** `host-source-sc` packages the neutral kernel plus complete tracked game implementation, DataCore, private headers, vendored dependencies and synthetic test inputs in a standalone source layout. Existing SPDX SBOM, provenance and checksum generation is retained; an extracted-archive regression builds the G1 host adapter targets with `SCO_GAME_SC=ON`, runs five synthetic host fixtures and checks `core-source` game exclusions. All six private adapter files are included. Linux and MSVC SDK CI now run this extracted-kit check, and the release candidate includes this fifth profile. Frozen plugin ABI and human signing/publication gates remain unchanged; gameplay validation is still owed.
+- **Legacy wrapper admission:** reject incomplete or null callable members in matching C++, C# and Lua routes, and require cleanup callbacks before creating owned cursors, channels, patches or UI registrations. Public fake-provider regressions run against extracted SDK headers; managed game fixtures cover partial and null callbacks. No game execution or frozen ABI change.
 - **G2 relocation foundation:** size-prefixed `game.relocation` request/cancel/status and tested owner-scoped streaming completion state machinery. Production mutation remains **unavailable** until host safety/session admission, system classification and validated transport are grounded; not Windows/game verified.
 
 - **G3 `game.spatial` 1.0:** new size-prefixed native C/raw C++ full-pose conversion
