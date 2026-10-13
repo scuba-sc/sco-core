@@ -2,6 +2,15 @@
 // Public wrapper fixtures only: not a loader or a game-provider implementation test.
 #include "scosdk/game/actors.hpp"
 #include "scosdk/game/entities.hpp"
+#include "scosdk/game/world.hpp"
+#include "scosdk/game/vehicles.hpp"
+#include "scosdk/game/creative.hpp"
+#include "scosdk/ui.hpp"
+#include "scosdk/storage.hpp"
+#include "scosdk/settings.hpp"
+#include "scosdk/datacore.hpp"
+#include "scosdk/ipc.hpp"
+#include "scosdk/net.hpp"
 #include <cstdio>
 #include <cstring>
 
@@ -9,10 +18,40 @@ static int passed, failed, calls;
 #define CHECK(...) do { if (__VA_ARGS__) ++passed; else { ++failed; std::printf("FAIL line %d: %s\n", __LINE__, #__VA_ARGS__); } } while (0)
 static sc_actors_v1 actors;
 static sc_entities_v1 entities;
+static sc_world_v1 world;
+static sc_vehicles_v1 vehicles;
+static sc_creative_v1 creative;
+static sco_ui_v1 ui;
+static sco_storage_v1 storage;
+static sco_settings_v1 settings;
+static sco_datacore_v1 datacore;
+static sco_ipc_v1 ipc;
+static sco_net_v1 net;
 static sco_result lookupResult = SCO_OK;
 static sco_result Lookup(const char* name, uint32_t, const void** out) {
     *out = nullptr;
     if (lookupResult != SCO_OK) return lookupResult;
+    if (std::strcmp(name, SC_WORLD_NAME) == 0) {
+        *out = &world;
+        return SCO_OK;
+    }
+    if (std::strcmp(name, SC_VEHICLES_SERVICE_NAME) == 0) {
+        *out = &vehicles;
+        return SCO_OK;
+    }
+    if (std::strcmp(name, SC_CREATIVE_SERVICE_NAME) == 0) {
+        *out = &creative;
+        return SCO_OK;
+    }
+    if (std::strcmp(name, SCO_UI_NAME) == 0) {
+        *out = &ui;
+        return SCO_OK;
+    }
+    if (std::strcmp(name, SCO_STORAGE_NAME) == 0) { *out = &storage; return SCO_OK; }
+    if (std::strcmp(name, SCO_SETTINGS_NAME) == 0) { *out = &settings; return SCO_OK; }
+    if (std::strcmp(name, SCO_DATACORE_NAME) == 0) { *out = &datacore; return SCO_OK; }
+    if (std::strcmp(name, SCO_IPC_NAME) == 0) { *out = &ipc; return SCO_OK; }
+    if (std::strcmp(name, SCO_NET_NAME) == 0) { *out = &net; return SCO_OK; }
     *out = std::strcmp(name, SC_ACTORS_NAME) == 0 ? static_cast<void*>(&actors) : static_cast<void*>(&entities);
     return SCO_OK;
 }
@@ -23,6 +62,26 @@ static sco_result Remove(sco_plugin*, uint64_t id) { ++calls; return id == 77 ? 
 static int Alive(uint64_t id) { ++calls; return id == 6 || id == 77; }
 static sco_result Transform(uint64_t, double* p, double* q, uint64_t* z) {
     ++calls; p[0] = 1; p[1] = 2; p[2] = 3; q[0] = q[1] = q[2] = 0; q[3] = 1; *z = 9; return SCO_OK;
+}
+template <class F> struct Probe;
+template <class R, class... A> struct Probe<R (*)(A...)> {
+    static R Call(A...) { ++calls; return static_cast<R>(SCO_FAILED); }
+};
+template <class T, class F, class Call>
+static void CheckField(T& table, F T::* member, Call invoke) {
+    const T saved = table;
+    const auto offset = reinterpret_cast<const char*>(&(table.*member)) - reinterpret_cast<const char*>(&table);
+    table.*member = &Probe<F>::Call;
+    for (uint32_t size = static_cast<uint32_t>(offset); size < offset + sizeof(F); ++size) {
+        table.size = size; calls = 0; invoke(); CHECK(calls == 0);
+    }
+    table.size = static_cast<uint32_t>(offset + sizeof(F));
+    calls = 0; invoke(); CHECK(calls == 1);
+    table.size = sizeof(T) + 16;
+    calls = 0; invoke(); CHECK(calls == 1);
+    table.*member = nullptr;
+    calls = 0; invoke(); CHECK(calls == 0);
+    table = saved;
 }
 int main() {
     sco_api api{}; api.size = sizeof(api); api.query_service = Lookup;
@@ -81,6 +140,117 @@ int main() {
     CHECK(e.QueryRadius(9, pos, 1, nullptr, ids, 1, count, more) == SCO_UNAVAILABLE && count == 0 && more == 0);
     api.query_service = nullptr;
     CHECK(a.Open(&api, self) == SCO_UNAVAILABLE && !a && e.Open(&api, self) == SCO_UNAVAILABLE && !e);
+    api.query_service = Lookup;
+    lookupResult = SCO_OK;
+    world.size = sizeof(uint32_t);
+    world.raycast = [](uint64_t, const double*, const double*, double, sc_world_hit*) -> sco_result {
+        ++calls;
+        return SCO_OK;
+    };
+    sco::sdk::game::World w;
+    CHECK(w.Open(&api, self) == SCO_OK);
+    const double rayFrom[3]{}, rayDir[3]{0, 0, -1};
+    sc_world_hit hit{};
+    calls = 0;
+    CHECK(w.Raycast(0, rayFrom, rayDir, 1, hit) == SCO_UNAVAILABLE);
+    CHECK(calls == 0);
+    sco::sdk::Plugin carrier;
+    CHECK(sco::sdk::LoadPlugin(carrier, &api, self) == SCO_OK);
+    vehicles.size = sizeof(uint32_t);
+    vehicles.player_ship = [](uint64_t* ship) -> sco_result {
+        ++calls;
+        *ship = 9;
+        return SCO_OK;
+    };
+    sco::sdk::game::Vehicles v;
+    CHECK(v.Open(carrier) == SCO_OK);
+    uint64_t ship = 0;
+    calls = 0;
+    CHECK(v.PlayerShip(ship) == SCO_UNAVAILABLE && ship == 0);
+    CHECK(calls == 0);
+    creative.size = sizeof(uint32_t);
+    creative.set_god_mode = [](sco_plugin*, int) -> sco_result {
+        ++calls;
+        return SCO_OK;
+    };
+    sco::sdk::game::Creative c;
+    CHECK(c.Open(&api, self) == SCO_OK);
+    calls = 0;
+    CHECK(c.SetGodMode(true) == SCO_UNAVAILABLE);
+    CHECK(calls == 0);
+    sco::sdk::UnloadPlugin(carrier);
+    ui.size = sizeof(uint32_t);
+    ui.register_tab = [](sco_plugin*, const char*, const char*, int32_t, sco_ui_draw_fn, void*) -> sco_result {
+        ++calls;
+        return SCO_OK;
+    };
+    ui.unregister_tab = [](sco_plugin*, const char*) -> sco_result { return SCO_OK; };
+    sco::sdk::Ui u;
+    CHECK(u.Open(&api, self) == SCO_OK);
+    calls = 0;
+    CHECK(u.AddTab("guard.ui", "Guard", 0, [](void*, void*) {}, nullptr) == SCO_UNAVAILABLE);
+    CHECK(calls == 0);
+    CHECK(sco::sdk::LoadPlugin(carrier, &api, self) == SCO_OK);
+    sco::sdk::Storage st; sco::sdk::Settings se; sco::sdk::DataCore dc;
+    sco::sdk::Ipc ip; sco::sdk::Net nt;
+    CHECK(st.Open(&api, self) == SCO_OK && se.Open(&api, self) == SCO_OK && dc.Open(&api, self) == SCO_OK);
+    CHECK(ip.Open(&api, self) == SCO_OK && nt.Open(&api, self) == SCO_OK);
+    storage.size = sizeof(storage); settings.size = sizeof(settings); datacore.size = sizeof(datacore);
+    ipc.size = sizeof(ipc); net.size = sizeof(net); ui.size = sizeof(ui);
+    storage.close = &Probe<decltype(storage.close)>::Call;
+    storage.rollback = &Probe<decltype(storage.rollback)>::Call;
+    datacore.discard = &Probe<decltype(datacore.discard)>::Call;
+    ipc.close = &Probe<decltype(ipc.close)>::Call;
+    net.unregister_channel = &Probe<decltype(net.unregister_channel)>::Call;
+    int64_t number = 17; double decimal = 2; bool flag = true;
+    std::string text = "unchanged"; std::vector<std::string> keys;
+    CheckField(world, &sc_world_v1::raycast, [&] { (void)w.Raycast(9, rayFrom, rayDir, 1, hit); });
+    CheckField(world, &sc_world_v1::camera, [&] { (void)w.Camera(pos, rot, zone); });
+    CheckField(world, &sc_world_v1::last_error, [&] { (void)w.LastError(); });
+    CheckField(vehicles, &sc_vehicles_v1::player_ship, [&] { (void)v.PlayerShip(ship); });
+    CheckField(vehicles, &sc_vehicles_v1::seat_occupant, [&] { (void)v.SeatOccupant(9, 0, actor); });
+    CheckField(vehicles, &sc_vehicles_v1::seat, [&] { (void)v.Seat(5, 9, 0); });
+    CheckField(vehicles, &sc_vehicles_v1::eject, [&] { (void)v.Eject(5); });
+    CheckField(vehicles, &sc_vehicles_v1::power_on, [&] { (void)v.PowerOn(9); });
+    CheckField(vehicles, &sc_vehicles_v1::last_error, [&] { char buf[32]; (void)v.LastError(buf); });
+    CheckField(creative, &sc_creative_v1::set_god_mode, [&] { (void)c.SetGodMode(true); });
+    CheckField(creative, &sc_creative_v1::set_fly_mode, [&] { (void)c.SetFlyMode(true); });
+    CheckField(creative, &sc_creative_v1::set_fly_speed, [&] { (void)c.SetFlySpeed(1); });
+    CheckField(creative, &sc_creative_v1::set_infinite_ammo, [&] { (void)c.SetInfiniteAmmo(true); });
+    CheckField(creative, &sc_creative_v1::set_infinite_ship_ammo, [&] { (void)c.SetInfiniteShipAmmo(true); });
+    CheckField(creative, &sc_creative_v1::state, [&] { (void)c.State(count); });
+    CheckField(creative, &sc_creative_v1::last_error, [&] { char buf[32]; (void)c.LastError(buf); });
+    CheckField(storage, &sco_storage_v1::put, [&] { (void)st.Put("key", "value"); });
+    CheckField(storage, &sco_storage_v1::get, [&] { (void)st.Get("key", number); });
+    CheckField(storage, &sco_storage_v1::del, [&] { (void)st.Delete("key"); });
+    CheckField(storage, &sco_storage_v1::next_key, [&] { (void)st.Keys("", keys); });
+    CheckField(storage, &sco_storage_v1::exec, [&] { (void)st.Exec("SELECT 1"); });
+    CheckField(storage, &sco_storage_v1::last_error, [&] { (void)st.LastError(); });
+    CheckField(settings, &sco_settings_v1::get_bool, [&] { (void)se.GetBool("key", flag); });
+    CheckField(settings, &sco_settings_v1::get_int, [&] { (void)se.GetInt("key", number); });
+    CheckField(settings, &sco_settings_v1::get_float, [&] { (void)se.GetFloat("key", decimal); });
+    CheckField(settings, &sco_settings_v1::get_string, [&] { (void)se.GetString("key", text); });
+    CheckField(settings, &sco_settings_v1::last_error, [&] { (void)se.LastError(); });
+    CheckField(net, &sco_net_v1::is_active, [&] { (void)nt.Active(); });
+    CheckField(net, &sco_net_v1::self_peer, [&] { (void)nt.SelfPeer(); });
+    CheckField(net, &sco_net_v1::get_peers, [&] { (void)nt.Peers(); });
+    CheckField(net, &sco_net_v1::get_peer_name, [&] { (void)nt.PeerName(1); });
+    CheckField(net, &sco_net_v1::send_channel, [&] { (void)nt.Send("key", number); });
+    storage.query = &Probe<decltype(storage.query)>::Call;
+    storage.close = nullptr; calls = 0;
+    CHECK(st.Query("SELECT 1").Result() == SCO_UNAVAILABLE && calls == 0);
+    datacore.begin = &Probe<decltype(datacore.begin)>::Call;
+    datacore.discard = nullptr; calls = 0;
+    CHECK(dc.Begin().Result() == SCO_UNAVAILABLE && calls == 0);
+    ipc.create = &Probe<decltype(ipc.create)>::Call;
+    ipc.close = nullptr; calls = 0;
+    CHECK(ip.Create("key", 4096, 1, 1).Result() == SCO_UNAVAILABLE && calls == 0);
+    net.register_channel = &Probe<decltype(net.register_channel)>::Call;
+    net.unregister_channel = nullptr; calls = 0;
+    CHECK(nt.Channel("key", 0, 1, [](uint64_t, std::span<const std::byte>) {}).Result() == SCO_UNAVAILABLE && calls == 0);
+    ui.unregister_tab = nullptr; calls = 0;
+    CHECK(u.AddTab("guard.ui", "Guard", 0, [](void*, void*) {}, nullptr) == SCO_UNAVAILABLE && calls == 0);
+    sco::sdk::UnloadPlugin(carrier);
     std::printf("language routes: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

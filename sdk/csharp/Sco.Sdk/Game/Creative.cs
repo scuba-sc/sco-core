@@ -70,19 +70,19 @@ namespace Sco.Sdk.Game
 
         private void* Self => _plugin == null ? null : _plugin.SelfPtr;
 
-        public ScoResult SetGodMode(bool on) => _t == null ? ScoResult.Unavailable : _t->set_god_mode(Self, on ? 1 : 0);
-        public ScoResult SetFlyMode(bool on) => _t == null ? ScoResult.Unavailable : _t->set_fly_mode(Self, on ? 1 : 0);
+        public ScoResult SetGodMode(bool on) => _t == null || _t->size < (uint)((byte*)&_t->set_god_mode - (byte*)_t + sizeof(nint)) || _t->set_god_mode == null ? ScoResult.Unavailable : _t->set_god_mode(Self, on ? 1 : 0);
+        public ScoResult SetFlyMode(bool on) => _t == null || _t->size < (uint)((byte*)&_t->set_fly_mode - (byte*)_t + sizeof(nint)) || _t->set_fly_mode == null ? ScoResult.Unavailable : _t->set_fly_mode(Self, on ? 1 : 0);
 
         /// <summary>Metres per second, above 0 and at most <see cref="GameAbi.CreativeFlySpeedMax"/>.</summary>
-        public ScoResult SetFlySpeed(float mps) => _t == null ? ScoResult.Unavailable : _t->set_fly_speed(Self, mps);
-        public ScoResult SetInfiniteAmmo(bool on) => _t == null ? ScoResult.Unavailable : _t->set_infinite_ammo(Self, on ? 1 : 0);
-        public ScoResult SetInfiniteShipAmmo(bool on) => _t == null ? ScoResult.Unavailable : _t->set_infinite_ship_ammo(Self, on ? 1 : 0);
+        public ScoResult SetFlySpeed(float mps) => _t == null || _t->size < (uint)((byte*)&_t->set_fly_speed - (byte*)_t + sizeof(nint)) || _t->set_fly_speed == null ? ScoResult.Unavailable : _t->set_fly_speed(Self, mps);
+        public ScoResult SetInfiniteAmmo(bool on) => _t == null || _t->size < (uint)((byte*)&_t->set_infinite_ammo - (byte*)_t + sizeof(nint)) || _t->set_infinite_ammo == null ? ScoResult.Unavailable : _t->set_infinite_ammo(Self, on ? 1 : 0);
+        public ScoResult SetInfiniteShipAmmo(bool on) => _t == null || _t->size < (uint)((byte*)&_t->set_infinite_ship_ammo - (byte*)_t + sizeof(nint)) || _t->set_infinite_ship_ammo == null ? ScoResult.Unavailable : _t->set_infinite_ship_ammo(Self, on ? 1 : 0);
 
         /// <summary>The toggles that are on, whoever switched them on.</summary>
         public ScoResult State(out ScCreativeFlag flags)
         {
             uint f = 0;
-            ScoResult r = _t == null ? ScoResult.Unavailable : _t->state(Self, &f);
+            ScoResult r = _t == null || _t->size < (uint)((byte*)&_t->state - (byte*)_t + sizeof(nint)) || _t->state == null ? ScoResult.Unavailable : _t->state(Self, &f);
             flags = (ScCreativeFlag)f;
             return r;
         }
@@ -90,7 +90,7 @@ namespace Sco.Sdk.Game
         /// <summary>The reason for the last failed call ("" if none).</summary>
         public string LastError()
         {
-            if (_t == null) return "";
+            if (_t == null || _t->size < (uint)((byte*)&_t->last_error - (byte*)_t + sizeof(nint)) || _t->last_error == null) return "";
             return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : "";
         }
     }

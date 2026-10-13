@@ -237,6 +237,11 @@ cmake --build "$WORK/build" --config Release
 cmake --install "$WORK/build" --config Release --prefix "$WORK/out"
 CHECK="$WORK/out/bin/sco-plugin-check"
 P="$WORK/out/data/plugins"
+if [ "$GAME" = 1 ]; then
+  ROUTES="$WORK/out/bin/sdk-language-routes"
+  [ -f "$ROUTES.exe" ] && ROUTES="$ROUTES.exe"
+  "$ROUTES"
+fi
 
 check_widgets "$CHECK" "$P/widgets"
 "$CHECK" "$P/hello"

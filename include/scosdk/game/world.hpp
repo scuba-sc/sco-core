@@ -38,7 +38,7 @@ public:
         t_ = nullptr;
         self_ = self;
         if (!api || !self_) return SCO_BAD_ARG;
-        if (!Covers(api->size, offsetof(sco_api, query_service))) return SCO_UNAVAILABLE;
+        if (!Covers(api->size, offsetof(sco_api, query_service)) || !api->query_service) return SCO_UNAVAILABLE;
         const void* table = nullptr;
         const sco_result r = api->query_service(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &table);
         if (r != SCO_OK) return r;
@@ -54,7 +54,9 @@ public:
     sco_result Raycast(uint64_t zone, const double (&from)[3], const double (&dir)[3], double maxDist, sc_world_hit& hit) const noexcept {
         std::memset(&hit, 0, sizeof(hit));
         hit.size = sizeof(hit);
-        return t_ ? t_->raycast(zone, from, dir, maxDist, &hit) : SCO_UNAVAILABLE;
+        if (!t_ || t_->size < offsetof(sc_world_v1, raycast) + sizeof(t_->raycast) || !t_->raycast)
+            return SCO_UNAVAILABLE;
+        return t_->raycast(zone, from, dir, maxDist, &hit);
     }
     // The camera: pos in the world frame, rot (x, y, z, w) the same frame's rotation, zone the zone
     // your player is in. All zero on failure.
@@ -62,12 +64,15 @@ public:
         std::memset(pos, 0, sizeof(pos));
         std::memset(rot, 0, sizeof(rot));
         zone = 0;
-        return t_ ? t_->camera(pos, rot, &zone) : SCO_UNAVAILABLE;
+        if (!t_ || t_->size < offsetof(sc_world_v1, camera) + sizeof(t_->camera) || !t_->camera)
+            return SCO_UNAVAILABLE;
+        return t_->camera(pos, rot, &zone);
     }
 
     // The reason for the last failed call of any plugin.
     std::string LastError() const noexcept {
-        if (!t_) return {};
+        if (!t_ || t_->size < offsetof(sc_world_v1, last_error) + sizeof(t_->last_error) || !t_->last_error)
+            return {};
         try {
             std::string s(256, '\0');
             uint32_t size = static_cast<uint32_t>(s.size());

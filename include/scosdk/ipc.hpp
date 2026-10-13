@@ -21,6 +21,7 @@
 #define SCOSDK_IPC_HPP
 
 #include "plugin.hpp"
+#include "service.hpp"
 #include "sco_ipc.h"
 
 #include <cstddef>
@@ -57,7 +58,7 @@ public:
     // ---- seqlock blocks ----
 
     sco_result Write(uint64_t offset, std::span<const std::byte> data) noexcept {
-        if (!t_) return r_;
+        if (!detail::CanCall(t_, &sco_ipc_v1::block_write)) return t_ ? SCO_UNAVAILABLE : r_;
         if (data.size() > SCO_IPC_MAX_CHANNEL_BYTES) return SCO_BAD_ARG;
         return t_->block_write(self_, id_, offset, data.data(), static_cast<uint32_t>(data.size()));
     }
@@ -68,7 +69,7 @@ public:
     }
     // Exactly data.size() bytes. SCO_FAILED: torn by the writer; try again later.
     sco_result Read(uint64_t offset, std::span<std::byte> data) const noexcept {
-        if (!t_) return r_;
+        if (!detail::CanCall(t_, &sco_ipc_v1::block_read)) return t_ ? SCO_UNAVAILABLE : r_;
         if (data.size() > SCO_IPC_MAX_CHANNEL_BYTES) return SCO_BAD_ARG;
         return t_->block_read(self_, id_, offset, data.data(), static_cast<uint32_t>(data.size()));
     }
@@ -84,10 +85,10 @@ public:
     // ---- rings ----
 
     sco_result InitRing(uint64_t offset, uint64_t capacity, uint32_t direction) noexcept {
-        return t_ ? t_->ring_init(self_, id_, offset, capacity, direction) : r_;
+        return detail::CanCall(t_, &sco_ipc_v1::ring_init) ? t_->ring_init(self_, id_, offset, capacity, direction) : (t_ ? SCO_UNAVAILABLE : r_);
     }
     sco_result Push(uint64_t offset, uint32_t type, std::span<const std::byte> data) noexcept {
-        if (!t_) return r_;
+        if (!detail::CanCall(t_, &sco_ipc_v1::ring_push)) return t_ ? SCO_UNAVAILABLE : r_;
         if (data.size() > SCO_IPC_MAX_CHANNEL_BYTES) return SCO_BAD_ARG;
         return t_->ring_push(self_, id_, offset, type, data.data(), static_cast<uint32_t>(data.size()));
     }
@@ -99,7 +100,7 @@ public:
     // The oldest record of a FROM_PEER ring, any size (the handshake is done here).
     // SCO_NOT_FOUND: nothing queued.
     sco_result Pop(uint64_t offset, uint32_t& type, std::vector<std::byte>& out) noexcept {
-        if (!t_) return r_;
+        if (!detail::CanCall(t_, &sco_ipc_v1::ring_pop)) return t_ ? SCO_UNAVAILABLE : r_;
         try {
             for (int attempt = 0; attempt < 2; ++attempt) {
                 uint32_t size = static_cast<uint32_t>(out.capacity() < SCO_IPC_MAX_CHANNEL_BYTES ? out.capacity()
@@ -119,17 +120,17 @@ public:
     // ---- the rest ----
 
     // Milliseconds since the peer's last beat. SCO_NOT_FOUND: it hasn't beaten yet.
-    sco_result PeerAgeMs(uint32_t& ms) const noexcept { return t_ ? t_->peer_age_ms(self_, id_, &ms) : r_; }
+    sco_result PeerAgeMs(uint32_t& ms) const noexcept { return detail::CanCall(t_, &sco_ipc_v1::peer_age_ms) ? t_->peer_age_ms(self_, id_, &ms) : (t_ ? SCO_UNAVAILABLE : r_); }
     // The plugin's own mapping (header included), for bulk regions; empty on error. Valid until
     // Close or unload.
     std::span<std::byte> View() const noexcept {
         void* base = nullptr;
         uint64_t bytes = 0;
-        if (!t_ || t_->view(self_, id_, &base, &bytes) != SCO_OK) return {};
+        if (!detail::CanCall(t_, &sco_ipc_v1::view) || t_->view(self_, id_, &base, &bytes) != SCO_OK) return {};
         return { static_cast<std::byte*>(base), static_cast<size_t>(bytes) };
     }
     void Close() noexcept {
-        if (t_) t_->close(self_, id_);
+        if (detail::CanCall(t_, &sco_ipc_v1::close)) t_->close(self_, id_);
         t_ = nullptr;
         id_ = 0;
     }
@@ -150,7 +151,7 @@ public:
         t_ = nullptr;
         self_ = self;
         if (!api || !self_) return SCO_BAD_ARG;
-        if (!Covers(api->size, offsetof(sco_api, query_service))) return SCO_UNAVAILABLE;
+        if (!Covers(api->size, offsetof(sco_api, query_service)) || !api->query_service) return SCO_UNAVAILABLE;
         const void* table = nullptr;
         const sco_result r = api->query_service(SCO_IPC_NAME, SCO_IPC_VERSION_1_0, &table);
         if (r != SCO_OK) return r;
@@ -164,7 +165,7 @@ public:
     IpcChannel Create(const char* name, uint64_t bytes, uint32_t layoutId, uint32_t layoutVersion) const noexcept {
         IpcChannel c;
         c.self_ = self_;
-        if (!t_) return c;
+        if (!detail::CanCall(t_, &sco_ipc_v1::create) || !detail::CanCall(t_, &sco_ipc_v1::close)) return c;
         uint64_t id = 0;
         c.r_ = t_->create(self_, name, bytes, layoutId, layoutVersion, &id);
         if (c.r_ == SCO_OK) {

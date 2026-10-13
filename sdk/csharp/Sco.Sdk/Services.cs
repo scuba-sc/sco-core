@@ -79,7 +79,7 @@ namespace Sco.Sdk
             service = default;
             ScoApi* a = Api;
             if (a == null) return ScoResult.BadArg;
-            if (!ApiCovers(ApiOffset.query_service)) return ScoResult.Unavailable;
+            if (!ApiCovers(ApiOffset.query_service) || a->query_service == null) return ScoResult.Unavailable;
             void* table = null;
             ScoResult r;
             fixed (byte* n = Utf8.Z(name)) r = a->query_service(n, minVersion, &table);

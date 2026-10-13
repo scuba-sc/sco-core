@@ -53,7 +53,7 @@ namespace Sco.Sdk
         {
             ArgumentNullException.ThrowIfNull(id);
             ArgumentNullException.ThrowIfNull(draw);
-            if (_t == null || _plugin == null || !_plugin.IsLoaded) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->register_tab - (byte*)_t + sizeof(nint)) || _t->register_tab == null || _t->size < (uint)((byte*)&_t->unregister_tab - (byte*)_t + sizeof(nint)) || _t->unregister_tab == null || _plugin == null || !_plugin.IsLoaded) return ScoResult.Unavailable;
             nint key = Registry.Add(new DrawEntry(_plugin, id, draw));
             ScoResult r;
             fixed (byte* i = Utf8.Z(id))
@@ -67,7 +67,7 @@ namespace Sco.Sdk
         /// <summary>Removes one of this plugin's tabs and its badge.</summary>
         public ScoResult RemoveTab(string id)
         {
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->unregister_tab - (byte*)_t + sizeof(nint)) || _t->unregister_tab == null) return ScoResult.Unavailable;
             ScoResult r;
             fixed (byte* i = Utf8.Z(id)) r = _t->unregister_tab(Self, i);
             Forget(_tabs, id);
@@ -77,7 +77,7 @@ namespace Sco.Sdk
         /// <summary>Text beside the tab title (at most 15 bytes); null or "" clears it.</summary>
         public ScoResult SetBadge(string tabId, string? text)
         {
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->set_badge - (byte*)_t + sizeof(nint)) || _t->set_badge == null) return ScoResult.Unavailable;
             fixed (byte* i = Utf8.Z(tabId))
             fixed (byte* t = Utf8.Z(text))
                 return _t->set_badge(Self, i, t);
@@ -88,7 +88,7 @@ namespace Sco.Sdk
         {
             ArgumentNullException.ThrowIfNull(id);
             ArgumentNullException.ThrowIfNull(draw);
-            if (_t == null || _plugin == null || !_plugin.IsLoaded) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->register_overlay - (byte*)_t + sizeof(nint)) || _t->register_overlay == null || _t->size < (uint)((byte*)&_t->unregister_overlay - (byte*)_t + sizeof(nint)) || _t->unregister_overlay == null || _plugin == null || !_plugin.IsLoaded) return ScoResult.Unavailable;
             nint key = Registry.Add(new DrawEntry(_plugin, id, draw));
             ScoResult r;
             fixed (byte* i = Utf8.Z(id)) r = _t->register_overlay(Self, i, &DrawTrampoline, (void*)key);
@@ -99,7 +99,7 @@ namespace Sco.Sdk
 
         public ScoResult RemoveOverlay(string id)
         {
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->unregister_overlay - (byte*)_t + sizeof(nint)) || _t->unregister_overlay == null) return ScoResult.Unavailable;
             ScoResult r;
             fixed (byte* i = Utf8.Z(id)) r = _t->unregister_overlay(Self, i);
             Forget(_overlays, id);
@@ -121,7 +121,7 @@ namespace Sco.Sdk
         /// is taken or reserved: LastError names the holder.</summary>
         public ScoResult BindHotkey(string chord, string command, params Arg[] args)
         {
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->bind_hotkey - (byte*)_t + sizeof(nint)) || _t->bind_hotkey == null || _t->size < (uint)((byte*)&_t->unbind_hotkey - (byte*)_t + sizeof(nint)) || _t->unbind_hotkey == null) return ScoResult.Unavailable;
             using var block = new ArgBlock(args ?? Array.Empty<Arg>());
             fixed (byte* c = Utf8.Z(chord))
             fixed (byte* n = Utf8.Z(command))
@@ -130,7 +130,7 @@ namespace Sco.Sdk
 
         public ScoResult UnbindHotkey(string chord)
         {
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->unbind_hotkey - (byte*)_t + sizeof(nint)) || _t->unbind_hotkey == null) return ScoResult.Unavailable;
             fixed (byte* c = Utf8.Z(chord)) return _t->unbind_hotkey(Self, c);
         }
 
@@ -138,7 +138,7 @@ namespace Sco.Sdk
         public ScoResult NormalizeChord(string chord, out string normalized)
         {
             normalized = "";
-            if (_t == null) return ScoResult.Unavailable;
+            if (_t == null || _t->size < (uint)((byte*)&_t->normalize_chord - (byte*)_t + sizeof(nint)) || _t->normalize_chord == null) return ScoResult.Unavailable;
             byte[] c = Utf8.Z(chord)!;
             ScoResult r = Storage.Sized((buf, size) => { fixed (byte* cp = c) return _t->normalize_chord(cp, buf, size); }, out byte[] b);
             if (r == ScoResult.Ok) normalized = Utf8.FromBytes(b);
@@ -148,7 +148,7 @@ namespace Sco.Sdk
         /// <summary>The message of this plugin's last refused call ("" if none).</summary>
         public string LastError()
         {
-            if (_t == null) return "";
+            if (_t == null || _t->size < (uint)((byte*)&_t->last_error - (byte*)_t + sizeof(nint)) || _t->last_error == null) return "";
             return Storage.Sized((buf, size) => _t->last_error(Self, buf, size), out byte[] b) == ScoResult.Ok ? Utf8.FromBytes(b) : "";
         }
 

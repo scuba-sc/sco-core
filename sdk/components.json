@@ -6417,6 +6417,7 @@
       "source": "tests/test_language_routes.cpp",
       "destination": "tests/test_language_routes.cpp",
       "profiles": [
+        "game-sc",
         "host-source-sc"
       ],
       "origin": "project-authored",

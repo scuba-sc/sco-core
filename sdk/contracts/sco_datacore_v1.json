@@ -40,7 +40,7 @@
           "evidence": [
             {
               "path": "include/scosdk/datacore.hpp",
-              "token": "uint32_t State() const noexcept { return ref_ ? ref_->state() : SCO_DC_LOADED; }"
+              "token": "uint32_t State() const noexcept { return detail::CanCall(ref_.Get(), &sco_datacore_v1::state) ? ref_->state() : SCO_DC_LOADED; }"
             }
           ],
           "tests": [
@@ -690,7 +690,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = dc ? dc->commit(p->id) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(dc, sco_datacore_v1, commit) ? dc->commit(p->id) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -752,7 +752,7 @@
           "evidence": [
             {
               "path": "include/scosdk/datacore.hpp",
-              "token": "const sco_result r = t_->discard(id_);"
+              "token": "const sco_result r = detail::CanCall(t_, &sco_datacore_v1::discard) ? t_->discard(id_) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -779,7 +779,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = dc ? dc->discard(p->id) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(dc, sco_datacore_v1, discard) ? dc->discard(p->id) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [

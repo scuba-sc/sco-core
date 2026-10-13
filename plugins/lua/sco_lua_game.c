@@ -55,6 +55,9 @@ static void PushGameEventTable(lua_State* L, const char* name, const void* data)
 
 /* ---- sco.datacore (the host service sco_datacore.h) ----------------------------------------- */
 
+
+#define GAME_MEMBER(t, type, member) ((t) && (t)->size >= offsetof(type, member) + sizeof((t)->member) && (t)->member)
+
 #define DC_PATCH "sco-lua.dcpatch"
 #define DC_INST  "sco-lua.dcinst"
 
@@ -65,7 +68,7 @@ typedef struct DcInst  { uint64_t patch, id; } DcInst;
 static const sco_datacore_v1* DataCore(lua_State* L) {
     const sco_api* api = sco_lua_api(L);
     const void* t = NULL;
-    if (!api || api->size <= offsetof(sco_api, query_service) || !api->query_service) return NULL;
+    if (!GAME_MEMBER(api, sco_api, query_service)) return NULL;
     if (api->query_service(SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_0, &t) != SCO_OK) return NULL;
     return (const sco_datacore_v1*)t;
 }
@@ -104,7 +107,7 @@ static DcPatch* CheckPatch(lua_State* L) { return (DcPatch*)luaL_checkudata(L, 1
 
 static int L_dc_state(lua_State* L) {
     const sco_datacore_v1* dc = DataCore(L);
-    if (!dc) return sco_lua_push_result(L, SCO_UNAVAILABLE);
+    if (!GAME_MEMBER(dc, sco_datacore_v1, state)) return sco_lua_push_result(L, SCO_UNAVAILABLE);
     lua_pushstring(L, dc->state() == SCO_DC_OPEN ? "open" : "loaded");
     return 1;
 }
@@ -118,7 +121,7 @@ static int L_dc_begin(lua_State* L) {
         lua_pop(L, 1);
     }
     const sco_datacore_v1* dc = DataCore(L);
-    if (!dc) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(SCO_UNAVAILABLE)); return 2; }
+    if (!GAME_MEMBER(dc, sco_datacore_v1, begin) || !GAME_MEMBER(dc, sco_datacore_v1, discard)) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(SCO_UNAVAILABLE)); return 2; }
     uint64_t id = 0;
     const sco_result r = dc->begin(self, flags, &id);
     sco_lua_check_budget(L);
@@ -135,7 +138,7 @@ static int L_dc_set(lua_State* L) {
     const char* field = luaL_checkstring(L, 3);
     sco_dc_value v;
     const sco_datacore_v1* dc = DataCore(L);
-    if (!dc) return sco_lua_push_result(L, SCO_UNAVAILABLE);
+    if (!GAME_MEMBER(dc, sco_datacore_v1, set)) return sco_lua_push_result(L, SCO_UNAVAILABLE);
     if (!ToDcValue(L, 4, &v)) return sco_lua_push_result(L, SCO_BAD_ARG);
     const sco_result r = dc->set(p->id, record, field, v.type == SCO_DC_NULL ? NULL : &v);
     sco_lua_check_budget(L);
@@ -148,7 +151,7 @@ static int L_dc_append(lua_State* L) {
     const char* field = luaL_checkstring(L, 3);
     sco_dc_value v;
     const sco_datacore_v1* dc = DataCore(L);
-    if (!dc) return sco_lua_push_result(L, SCO_UNAVAILABLE);
+    if (!GAME_MEMBER(dc, sco_datacore_v1, append)) return sco_lua_push_result(L, SCO_UNAVAILABLE);
     if (!ToDcValue(L, 4, &v)) return sco_lua_push_result(L, SCO_BAD_ARG);
     const sco_result r = dc->append(p->id, record, field, v.type == SCO_DC_NULL ? NULL : &v);
     sco_lua_check_budget(L);
@@ -161,7 +164,7 @@ static int L_dc_add_instance(lua_State* L) {
     const char* cloneRecord = luaL_optstring(L, 3, NULL);
     const char* cloneField = luaL_optstring(L, 4, NULL);
     const sco_datacore_v1* dc = DataCore(L);
-    if (!dc) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(SCO_UNAVAILABLE)); return 2; }
+    if (!GAME_MEMBER(dc, sco_datacore_v1, add_instance)) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(SCO_UNAVAILABLE)); return 2; }
     uint64_t id = 0;
     const sco_result r = dc->add_instance(p->id, type, cloneRecord, cloneField, &id);
     sco_lua_check_budget(L);
@@ -179,7 +182,7 @@ static int L_dc_set_pointer(lua_State* L) {
     const char* field = luaL_checkstring(L, 3);
     const DcInst* inst = (const DcInst*)luaL_checkudata(L, 4, DC_INST);
     const sco_datacore_v1* dc = DataCore(L);
-    if (!dc) return sco_lua_push_result(L, SCO_UNAVAILABLE);
+    if (!GAME_MEMBER(dc, sco_datacore_v1, set_pointer)) return sco_lua_push_result(L, SCO_UNAVAILABLE);
     const sco_result r = dc->set_pointer(p->id, record, field, inst->id);
     sco_lua_check_budget(L);
     return sco_lua_push_result(L, r);
@@ -196,7 +199,7 @@ static int L_dc_add_record(lua_State* L) {
     const char* guid = luaL_optstring(L, 5, NULL);
     const char* file = luaL_optstring(L, 6, NULL);
     const sco_datacore_v1* dc = DataCore(L);
-    if (!dc) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(SCO_UNAVAILABLE)); return 2; }
+    if (!GAME_MEMBER(dc, sco_datacore_v1, add_record)) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(SCO_UNAVAILABLE)); return 2; }
     uint64_t id = 0;
     const sco_result r = dc->add_record(p->id, type, name, guid, clone, file, &id);
     sco_lua_check_budget(L);
@@ -211,7 +214,7 @@ static int L_dc_add_record(lua_State* L) {
 static int L_dc_commit(lua_State* L) {
     DcPatch* p = CheckPatch(L);
     const sco_datacore_v1* dc = DataCore(L);
-    const sco_result r = dc ? dc->commit(p->id) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(dc, sco_datacore_v1, commit) ? dc->commit(p->id) : SCO_UNAVAILABLE;
     sco_lua_check_budget(L);
     return sco_lua_push_result(L, r);
 }
@@ -219,7 +222,7 @@ static int L_dc_commit(lua_State* L) {
 static int L_dc_discard(lua_State* L) {
     DcPatch* p = CheckPatch(L);
     const sco_datacore_v1* dc = DataCore(L);
-    const sco_result r = dc ? dc->discard(p->id) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(dc, sco_datacore_v1, discard) ? dc->discard(p->id) : SCO_UNAVAILABLE;
     sco_lua_check_budget(L);
     return sco_lua_push_result(L, r);
 }
@@ -230,7 +233,7 @@ static int L_dc_report(lua_State* L) {
     static const char* const states[] = { "?", "queued", "applied", "skipped", "refused" };
     DcPatch* p = CheckPatch(L);
     const sco_datacore_v1* dc = DataCore(L);
-    if (!dc) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(SCO_UNAVAILABLE)); return 2; }
+    if (!GAME_MEMBER(dc, sco_datacore_v1, report)) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(SCO_UNAVAILABLE)); return 2; }
     lua_newtable(L);
     for (uint32_t i = 0; i <= SCO_DC_MAX_OPS; ++i) {
         sco_dc_report rep;
@@ -271,8 +274,6 @@ static void DataCoreTypes(lua_State* L) {
     lua_pop(L, 1);
 }
 
-/* Require the whole function pointer before reading it, including optional tails. */
-#define GAME_MEMBER(t, type, member) ((t) && (t)->size >= offsetof(type, member) + sizeof((t)->member) && (t)->member)
 
 /* ---- sco.game.actors (the game pack's game.actors, read-only: no function that takes self) ----- */
 
@@ -389,7 +390,7 @@ static int L_actors_health(lua_State* L) {
 static const sc_vehicles_v1* Vehicles(lua_State* L) {
     const sco_api* api = sco_lua_api(L);
     const void* t = NULL;
-    if (!api || api->size <= offsetof(sco_api, query_service) || !api->query_service) return NULL;
+    if (!GAME_MEMBER(api, sco_api, query_service)) return NULL;
     if (api->query_service(SC_VEHICLES_SERVICE_NAME, SC_VEHICLES_SERVICE_VERSION, &t) != SCO_OK) return NULL;
     return (const sc_vehicles_v1*)t;
 }
@@ -401,7 +402,7 @@ static int VehFail(lua_State* L, sco_plugin* self, const sc_vehicles_v1* v, sco_
     lua_pushnil(L);
     lua_pushstring(L, sco_lua_result_name(r));
     if (!v) { lua_pushliteral(L, "game.vehicles is not available on this host"); return 3; }
-    if (v->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
+    if (GAME_MEMBER(v, sc_vehicles_v1, last_error) && v->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
     return 2;
 }
 
@@ -414,7 +415,7 @@ static int L_veh_player_ship(lua_State* L) {
     sco_plugin* self = sco_lua_self(L);
     const sc_vehicles_v1* v = Vehicles(L);
     uint64_t ship = 0;
-    const sco_result r = v ? v->player_ship(&ship) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(v, sc_vehicles_v1, player_ship) ? v->player_ship(&ship) : SCO_UNAVAILABLE;
     if (r != SCO_OK) return VehFail(L, self, v, r);
     lua_pushinteger(L, (lua_Integer)ship);
     return 1;
@@ -430,7 +431,7 @@ static int L_veh_seats(lua_State* L) {
     const uint64_t ship = VehId(L, 1);
     const sc_vehicles_v1* v = Vehicles(L);
     uint32_t n = 0, more = 0;
-    const sco_result r = v ? v->seats(ship, g_vehSeats, (uint32_t)(sizeof(g_vehSeats) / sizeof(g_vehSeats[0])), &n, &more)
+    const sco_result r = GAME_MEMBER(v, sc_vehicles_v1, seats) ? v->seats(ship, g_vehSeats, (uint32_t)(sizeof(g_vehSeats) / sizeof(g_vehSeats[0])), &n, &more)
                            : SCO_UNAVAILABLE;
     if (r != SCO_OK) return VehFail(L, self, v, r);
     lua_createtable(L, (int)n, 0);
@@ -466,7 +467,7 @@ static int L_veh_seat_occupant(lua_State* L) {
         return 3;
     }
     uint64_t actor = 0;
-    const sco_result r = v ? v->seat_occupant(ship, (uint32_t)index, &actor) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(v, sc_vehicles_v1, seat_occupant) ? v->seat_occupant(ship, (uint32_t)index, &actor) : SCO_UNAVAILABLE;
     if (r != SCO_OK) return VehFail(L, self, v, r);
     lua_pushinteger(L, (lua_Integer)actor);
     return 1;
@@ -478,7 +479,7 @@ static int L_veh_seat_occupant(lua_State* L) {
 static const sc_creative_v1* Creative(lua_State* L) {
     const sco_api* api = sco_lua_api(L);
     const void* t = NULL;
-    if (!api || api->size <= offsetof(sco_api, query_service) || !api->query_service) return NULL;
+    if (!GAME_MEMBER(api, sco_api, query_service)) return NULL;
     if (api->query_service(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, &t) != SCO_OK) return NULL;
     return (const sc_creative_v1*)t;
 }
@@ -489,14 +490,14 @@ static int L_creative_state(lua_State* L) {
     sco_plugin* self = sco_lua_self(L);
     const sc_creative_v1* c = Creative(L);
     uint32_t flags = 0;
-    const sco_result r = c ? c->state(self, &flags) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(c, sc_creative_v1, state) ? c->state(self, &flags) : SCO_UNAVAILABLE;
     if (r != SCO_OK) {
         char msg[256];
         uint32_t size = sizeof(msg);
         lua_pushnil(L);
         lua_pushstring(L, sco_lua_result_name(r));
         if (!c) { lua_pushliteral(L, "game.creative is not available on this host"); return 3; }
-        if (c->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
+        if (GAME_MEMBER(c, sc_creative_v1, last_error) && c->last_error(self, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
         return 2;
     }
     lua_createtable(L, 0, 4);
@@ -512,7 +513,7 @@ static int L_creative_state(lua_State* L) {
 static const sc_world_v1* WorldTable(lua_State* L) {
     const sco_api* api = sco_lua_api(L);
     const void* t = NULL;
-    if (!api || api->size <= offsetof(sco_api, query_service) || !api->query_service) return NULL;
+    if (!GAME_MEMBER(api, sco_api, query_service)) return NULL;
     if (api->query_service(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &t) != SCO_OK) return NULL;
     return (const sc_world_v1*)t;
 }
@@ -524,7 +525,7 @@ static int WorldFail(lua_State* L, const sc_world_v1* w, sco_result r) {
     lua_pushnil(L);
     lua_pushstring(L, sco_lua_result_name(r));
     if (!w) { lua_pushliteral(L, "game.world is not available on this host"); return 3; }
-    if (w->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
+    if (GAME_MEMBER(w, sc_world_v1, last_error) && w->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }
     return 2;
 }
 
@@ -534,7 +535,7 @@ static int L_world_camera(lua_State* L) {
     const sc_world_v1* w = WorldTable(L);
     double pos[3] = { 0, 0, 0 }, rot[4] = { 0, 0, 0, 0 };
     uint64_t zone = 0;
-    const sco_result r = w ? w->camera(pos, rot, &zone) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(w, sc_world_v1, camera) ? w->camera(pos, rot, &zone) : SCO_UNAVAILABLE;
     if (r != SCO_OK) return WorldFail(L, w, r);
     lua_createtable(L, 0, 8);
     lua_pushnumber(L, pos[0]); lua_setfield(L, -2, "x");
@@ -560,7 +561,7 @@ static int L_world_raycast(lua_State* L) {
     sc_world_hit hit;
     memset(&hit, 0, sizeof(hit));
     hit.size = sizeof(hit);
-    const sco_result r = w ? w->raycast(zone, from, dir, max, &hit) : SCO_UNAVAILABLE;
+    const sco_result r = GAME_MEMBER(w, sc_world_v1, raycast) ? w->raycast(zone, from, dir, max, &hit) : SCO_UNAVAILABLE;
     if (r != SCO_OK) return WorldFail(L, w, r);
     lua_createtable(L, 0, 4);
     lua_pushnumber(L, hit.pos[0]); lua_setfield(L, -2, "x");

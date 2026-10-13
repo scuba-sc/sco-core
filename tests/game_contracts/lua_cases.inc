@@ -222,7 +222,7 @@ static sco_result FakeCrLastError(sco_plugin*, char* out, uint32_t* io) {
 }
 
 static void TestGameCreative() {
-    static const sc_creative_v1 kFake = { sizeof(sc_creative_v1), 0, FakeCrToggle, FakeCrToggle, FakeCrSpeed, FakeCrToggle,
+    static sc_creative_v1 kFake = { sizeof(sc_creative_v1), 0, FakeCrToggle, FakeCrToggle, FakeCrSpeed, FakeCrToggle,
                                           FakeCrToggle, FakeCrState, FakeCrLastError };
     CHECK(sco::host::ProvideGameService(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, &kFake) == Result::Ok);
     Write("gacreate", R"(
@@ -246,6 +246,16 @@ end }
     r = Invoke(g_caller, "gacreate.state");
     CHECK(r.r == SCO_OK && r.text == "unavailable: no game.creative capability is ready");
     if (r.text != "unavailable: no game.creative capability is ready") std::printf("  gacreate.state -> %s\n", r.text.c_str());
+    kFake.size = offsetof(sc_creative_v1, state) + sizeof(kFake.state) - 1;
+    r = Invoke(g_caller, "gacreate.state");
+    CHECK(r.r == SCO_OK && r.text == "unavailable: nil");
+    kFake.size = sizeof(kFake);
+    kFake.state = nullptr;
+    kFake.last_error = nullptr;
+    r = Invoke(g_caller, "gacreate.state");
+    CHECK(r.r == SCO_OK && r.text == "unavailable: nil");
+    kFake.state = FakeCrState;
+    kFake.last_error = FakeCrLastError;
     Unload(l);
     CHECK(sco::host::WithdrawGameService(SC_CREATIVE_SERVICE_NAME) == Result::Ok);
 }
@@ -300,11 +310,15 @@ static void TestGameWorld() {
     CHECK(none.p && none.p->state == State::Loaded);
     Unload(none);
 
-    static const sc_world_v1 kFake = { sizeof(sc_world_v1), 0, FakeRaycast, FakeCamera, FakeWorldLastError };
+    static sc_world_v1 kFake = { sizeof(sc_world_v1), 0, FakeRaycast, FakeCamera, FakeWorldLastError };
     CHECK(sco::host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &kFake) == Result::Ok);
     Write("gwplay", R"(
 local w = assert(sco.game and sco.game.world, "sco.game.world")
 assert(w.last_error == nil, "queries only")
+sco.register_command{ name = "gwplay.partial", fn = function()
+  local h, e = w.raycast(9, 0, 0, 1, 0, 0, -1, 50)
+  return tostring(h) .. ":" .. tostring(e)
+end }
 local seen = {}
 sco.subscribe("game.actors.died", function(ev, d) seen.actor = d and (d.entity_id .. ":" .. d.killer_id) or "nil" end)
 sco.register_command{ name = "gwplay.actor", title = "Actor death", fn = function() return tostring(seen.actor) end }
@@ -334,6 +348,16 @@ end }
     r = Invoke(g_caller, "gwplay.ray");
     CHECK(r.r == SCO_OK && r.text == "0.0 0.0 -9.0 10.0 / not_found raycast: no hit within 50.0 m");
     if (r.text != "0.0 0.0 -9.0 10.0 / not_found raycast: no hit within 50.0 m") std::printf("  gwplay.ray -> %s\n", r.text.c_str());
+    kFake.size = offsetof(sc_world_v1, raycast) + sizeof(kFake.raycast) - 1;
+    r = Invoke(g_caller, "gwplay.partial");
+    CHECK(r.r == SCO_OK && r.text == "nil:unavailable");
+    kFake.size = sizeof(kFake);
+    kFake.raycast = nullptr;
+    kFake.last_error = nullptr;
+    r = Invoke(g_caller, "gwplay.partial");
+    CHECK(r.r == SCO_OK && r.text == "nil:unavailable");
+    kFake.raycast = FakeRaycast;
+    kFake.last_error = FakeWorldLastError;
 
     // The game.* events reach sco.subscribe handlers as tables; a payload shorter than the struct is nil.
     r = Invoke(g_caller, "gwplay.seen");

@@ -40,7 +40,7 @@
           "evidence": [
             {
               "path": "include/scosdk/game/world.hpp",
-              "token": "return t_ ? t_->raycast(zone, from, dir, maxDist, &hit) : SCO_UNAVAILABLE;"
+              "token": "return t_->raycast(zone, from, dir, maxDist, &hit);"
             }
           ],
           "tests": [
@@ -68,7 +68,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = w ? w->raycast(zone, from, dir, max, &hit) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(w, sc_world_v1, raycast) ? w->raycast(zone, from, dir, max, &hit) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -132,7 +132,7 @@
           "evidence": [
             {
               "path": "include/scosdk/game/world.hpp",
-              "token": "return t_ ? t_->camera(pos, rot, &zone) : SCO_UNAVAILABLE;"
+              "token": "return t_->camera(pos, rot, &zone);"
             }
           ],
           "tests": [
@@ -160,7 +160,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "const sco_result r = w ? w->camera(pos, rot, &zone) : SCO_UNAVAILABLE;"
+              "token": "const sco_result r = GAME_MEMBER(w, sc_world_v1, camera) ? w->camera(pos, rot, &zone) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -252,7 +252,7 @@
           "evidence": [
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (w->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
+              "token": "if (GAME_MEMBER(w, sc_world_v1, last_error) && w->last_error(NULL, msg, &size) == SCO_OK && msg[0]) { lua_pushstring(L, msg); return 3; }"
             }
           ],
           "tests": [

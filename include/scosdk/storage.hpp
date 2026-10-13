@@ -22,6 +22,7 @@
 #define SCOSDK_STORAGE_HPP
 
 #include "plugin.hpp"
+#include "service.hpp"
 #include "sco_storage.h"
 
 #include <cstring>
@@ -84,28 +85,28 @@ public:
     sco_result Result() const noexcept { return r_; }
 
     // SCO_OK: a row is ready. SCO_NOT_FOUND: no more rows.
-    sco_result Next() noexcept { return t_ ? t_->step(self_, id_) : r_; }
+    sco_result Next() noexcept { return detail::CanCall(t_, &sco_storage_v1::step) ? t_->step(self_, id_) : (t_ ? SCO_UNAVAILABLE : r_); }
     uint32_t Columns() const noexcept {
         uint32_t n = 0;
-        if (t_) t_->column_count(self_, id_, &n);
+        if (detail::CanCall(t_, &sco_storage_v1::column_count)) t_->column_count(self_, id_, &n);
         return n;
     }
     // The column's type (sco_sql_type) and, for INT and FLOAT, its value; SCO_SQL_NULL on error.
     sco_sql_value Value(uint32_t index) const noexcept {
         sco_sql_value v{};
-        if (t_) t_->column(self_, id_, index, &v, nullptr, nullptr);
+        if (detail::CanCall(t_, &sco_storage_v1::column)) t_->column(self_, id_, index, &v, nullptr, nullptr);
         return v;
     }
     sco_result Int(uint32_t index, int64_t& out) const noexcept {
         sco_sql_value v{};
-        const sco_result r = t_ ? t_->column(self_, id_, index, &v, nullptr, nullptr) : r_;
+        const sco_result r = detail::CanCall(t_, &sco_storage_v1::column) ? t_->column(self_, id_, index, &v, nullptr, nullptr) : (t_ ? SCO_UNAVAILABLE : r_);
         if (r == SCO_OK && v.type != SCO_SQL_INT) return SCO_BAD_ARG;
         if (r == SCO_OK) out = v.v.i;
         return r;
     }
     sco_result Float(uint32_t index, double& out) const noexcept {
         sco_sql_value v{};
-        const sco_result r = t_ ? t_->column(self_, id_, index, &v, nullptr, nullptr) : r_;
+        const sco_result r = detail::CanCall(t_, &sco_storage_v1::column) ? t_->column(self_, id_, index, &v, nullptr, nullptr) : (t_ ? SCO_UNAVAILABLE : r_);
         if (r == SCO_OK && v.type != SCO_SQL_FLOAT && v.type != SCO_SQL_INT) return SCO_BAD_ARG;
         if (r == SCO_OK) out = v.type == SCO_SQL_INT ? static_cast<double>(v.v.i) : v.v.f;
         return r;
@@ -115,7 +116,7 @@ public:
     sco_result Blob(uint32_t index, std::string& out) const noexcept { return Bytes(index, out); }
 
     void Close() noexcept {
-        if (t_) t_->close(self_, id_);
+        if (detail::CanCall(t_, &sco_storage_v1::close)) t_->close(self_, id_);
         t_ = nullptr;
         id_ = 0;
     }
@@ -123,7 +124,7 @@ public:
 private:
     friend class Storage;
     sco_result Bytes(uint32_t index, std::string& out) const noexcept {
-        if (!t_) return r_;
+        if (!detail::CanCall(t_, &sco_storage_v1::column)) return t_ ? SCO_UNAVAILABLE : r_;
         sco_sql_value v{};
         sco_result r = t_->column(self_, id_, index, &v, nullptr, nullptr);
         if (r != SCO_OK) return r;
@@ -157,7 +158,7 @@ public:
         t_ = nullptr;
         self_ = self;
         if (!api || !self_) return SCO_BAD_ARG;
-        if (!Covers(api->size, offsetof(sco_api, query_service))) return SCO_UNAVAILABLE;
+        if (!Covers(api->size, offsetof(sco_api, query_service)) || !api->query_service) return SCO_UNAVAILABLE;
         const void* table = nullptr;
         const sco_result r = api->query_service(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_0, &table);
         if (r != SCO_OK) return r;
@@ -170,7 +171,7 @@ public:
     // ---- key-value ----
 
     sco_result Put(const char* key, std::span<const std::byte> value) noexcept {
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(t_, &sco_storage_v1::put)) return SCO_UNAVAILABLE;
         if (value.size() > SCO_STORAGE_MAX_VALUE) return SCO_BAD_ARG;
         return t_->put(self_, key, value.data(), static_cast<uint32_t>(value.size()));
     }
@@ -185,7 +186,7 @@ public:
 
     // Reads a value of any size into out (the handshake is done here).
     sco_result Get(const char* key, std::string& out) const noexcept {
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(t_, &sco_storage_v1::get)) return SCO_UNAVAILABLE;
         for (int attempt = 0; attempt < 4; ++attempt) {   // the value may change between calls
             uint32_t size = static_cast<uint32_t>(out.capacity() < UINT32_MAX ? out.capacity() : UINT32_MAX);
             try {
@@ -208,7 +209,7 @@ public:
     template <class T>
         requires(std::is_trivially_copyable_v<T> && !std::is_pointer_v<T> && !std::is_same_v<T, std::string>)
     sco_result Get(const char* key, T& out) const noexcept {
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(t_, &sco_storage_v1::get)) return SCO_UNAVAILABLE;
         T got{};
         uint32_t size = sizeof(T);
         const sco_result r = t_->get(self_, key, &got, &size);
@@ -218,12 +219,12 @@ public:
         out = got;
         return SCO_OK;
     }
-    sco_result Delete(const char* key) noexcept { return t_ ? t_->del(self_, key) : SCO_UNAVAILABLE; }
+    sco_result Delete(const char* key) noexcept { return detail::CanCall(t_, &sco_storage_v1::del) ? t_->del(self_, key) : SCO_UNAVAILABLE; }
 
     // Every key starting with prefix, in byte order.
     sco_result Keys(const char* prefix, std::vector<std::string>& out) const noexcept {
         out.clear();
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(t_, &sco_storage_v1::next_key)) return SCO_UNAVAILABLE;
         try {
             char buf[SCO_STORAGE_MAX_KEY + 1];
             std::string last;
@@ -242,20 +243,20 @@ public:
 
     // ---- transactions ----
 
-    sco_result Begin() noexcept { return t_ ? t_->begin(self_) : SCO_UNAVAILABLE; }
-    sco_result Commit() noexcept { return t_ ? t_->commit(self_) : SCO_UNAVAILABLE; }
-    sco_result Rollback() noexcept { return t_ ? t_->rollback(self_) : SCO_UNAVAILABLE; }
+    sco_result Begin() noexcept { return detail::CanCall(t_, &sco_storage_v1::begin) && detail::CanCall(t_, &sco_storage_v1::rollback) ? t_->begin(self_) : SCO_UNAVAILABLE; }
+    sco_result Commit() noexcept { return detail::CanCall(t_, &sco_storage_v1::commit) ? t_->commit(self_) : SCO_UNAVAILABLE; }
+    sco_result Rollback() noexcept { return detail::CanCall(t_, &sco_storage_v1::rollback) ? t_->rollback(self_) : SCO_UNAVAILABLE; }
 
     // ---- SQL ----
 
     sco_result Exec(const char* sql, std::initializer_list<sco_sql_value> params = {}, int64_t* changes = nullptr) noexcept {
-        if (!t_) return SCO_UNAVAILABLE;
+        if (!detail::CanCall(t_, &sco_storage_v1::exec)) return SCO_UNAVAILABLE;
         return t_->exec(self_, sql, params.size() ? params.begin() : nullptr, static_cast<uint32_t>(params.size()), changes);
     }
     StorageCursor Query(const char* sql, std::initializer_list<sco_sql_value> params = {}) noexcept {
         StorageCursor c;
         c.self_ = self_;
-        if (!t_) return c;
+        if (!detail::CanCall(t_, &sco_storage_v1::query) || !detail::CanCall(t_, &sco_storage_v1::close)) return c;
         uint64_t id = 0;
         c.r_ = t_->query(self_, sql, params.size() ? params.begin() : nullptr, static_cast<uint32_t>(params.size()), &id);
         if (c.r_ == SCO_OK) {
@@ -267,7 +268,7 @@ public:
 
     // The message of the plugin's last failed storage call.
     std::string LastError() const noexcept {
-        if (!t_) return {};
+        if (!detail::CanCall(t_, &sco_storage_v1::last_error)) return {};
         try {
             std::string s(256, '\0');
             uint32_t size = static_cast<uint32_t>(s.size());

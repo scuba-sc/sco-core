@@ -113,7 +113,7 @@ public:
     // A new instance of type, copied from cloneRecord's cloneField ("" : its root), or zero-filled
     // when cloneRecord is empty.
     DataCoreInstance AddInstance(std::string_view type, std::string_view cloneRecord = {}, std::string_view cloneField = {}) noexcept {
-        if (!t_) return { 0, r_ };
+        if (!detail::CanCall(t_, &sco_datacore_v1::add_instance)) return { 0, t_ ? SCO_UNAVAILABLE : r_ };
         try {
             const std::string ty(type), cr(cloneRecord), cf(cloneField);
             uint64_t id = 0;
@@ -124,7 +124,7 @@ public:
         }
     }
     sco_result SetPointer(std::string_view record, std::string_view field, const DataCoreInstance& target) noexcept {
-        if (!t_) return r_;
+        if (!detail::CanCall(t_, &sco_datacore_v1::set_pointer)) return t_ ? SCO_UNAVAILABLE : r_;
         try {
             const std::string rec(record), f(field);
             return t_->set_pointer(id_, rec.c_str(), f.c_str(), target.Id());
@@ -139,7 +139,7 @@ public:
     // points a reference field at it). Result() is SCO_UNAVAILABLE on a sco.datacore 1.0 host.
     DataCoreInstance AddRecord(std::string_view type, std::string_view name, std::string_view cloneRecord, std::string_view guid = {},
                                std::string_view filePath = {}) noexcept {
-        if (!t_) return { 0, r_ };
+        if (!detail::CanCall(t_, &sco_datacore_v1::add_record)) return { 0, t_ ? SCO_UNAVAILABLE : r_ };
         try {
             const std::string a(type), b(name), c(guid), d(cloneRecord), e(filePath);
             uint64_t id = 0;
@@ -153,7 +153,7 @@ public:
 
     // Queues the patch for the load, or after it saves it for the next launch (sco_datacore.h).
     sco_result Commit() noexcept {
-        if (!t_) return r_;
+        if (!detail::CanCall(t_, &sco_datacore_v1::commit)) return t_ ? SCO_UNAVAILABLE : r_;
         const sco_result r = t_->commit(id_);
         if (r == SCO_OK) committed_ = true;
         return r;
@@ -161,7 +161,7 @@ public:
     // Drops the patch (see sco_datacore.h). The object becomes empty.
     sco_result Discard() noexcept {
         if (!t_) return SCO_NOT_FOUND;
-        const sco_result r = t_->discard(id_);
+        const sco_result r = detail::CanCall(t_, &sco_datacore_v1::discard) ? t_->discard(id_) : SCO_UNAVAILABLE;
         t_ = nullptr;
         id_ = 0;
         return r;
@@ -169,7 +169,7 @@ public:
     // One entry per operation, then one for the patch (op_index SCO_DC_OP_PATCH). Empty on error.
     std::vector<sco_dc_report> Reports() const noexcept {
         std::vector<sco_dc_report> out;
-        if (!t_) return out;
+        if (!detail::CanCall(t_, &sco_datacore_v1::report)) return out;
         try {
             for (uint32_t i = 0; i <= SCO_DC_MAX_OPS; ++i) {
                 sco_dc_report rep{};
@@ -212,6 +212,7 @@ private:
     }
     sco_result Put(bool, std::string_view record, std::string_view field, const sco_dc_value& v) noexcept {
         if (!t_) return r_;
+        if (!detail::CanCall(t_, appending_ ? &sco_datacore_v1::append : &sco_datacore_v1::set)) return SCO_UNAVAILABLE;
         if (v.size == 0) return SCO_TOO_MANY;
         try {
             const std::string rec(record), f(field);
@@ -242,15 +243,16 @@ public:
     }
     explicit operator bool() const noexcept { return static_cast<bool>(ref_); }
     // SCO_DC_OPEN or SCO_DC_LOADED; SCO_DC_LOADED when not open.
-    uint32_t State() const noexcept { return ref_ ? ref_->state() : SCO_DC_LOADED; }
+    uint32_t State() const noexcept { return detail::CanCall(ref_.Get(), &sco_datacore_v1::state) ? ref_->state() : SCO_DC_LOADED; }
     // Whether add_record works (sco.datacore 1.1).
     bool AddRecordSupported() const noexcept {
         const void* t = nullptr;
-        return ref_ && api_ && api_->query_service(SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_1, &t) == SCO_OK;
+        return ref_ && api_ && api_->query_service && api_->query_service(SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_1, &t) == SCO_OK
+            && detail::CanCall(static_cast<const sco_datacore_v1*>(t), &sco_datacore_v1::add_record);
     }
     // A new patch; empty (Result() says why) on failure. flags: 0 or SCO_DC_NON_ATOMIC.
     DataCorePatch Begin(uint32_t flags = 0) const noexcept {
-        if (!ref_) return { nullptr, 0, SCO_UNAVAILABLE };
+        if (!detail::CanCall(ref_.Get(), &sco_datacore_v1::begin) || !detail::CanCall(ref_.Get(), &sco_datacore_v1::discard)) return { nullptr, 0, SCO_UNAVAILABLE };
         uint64_t id = 0;
         const sco_result r = ref_->begin(self_, flags, &id);
         if (r != SCO_OK) return { nullptr, 0, r };

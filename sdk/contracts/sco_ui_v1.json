@@ -40,7 +40,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ui.hpp",
-              "token": "return t_ ? t_->register_tab(self_, id, title, order, draw, ctx) : SCO_UNAVAILABLE;"
+              "token": "return detail::CanCall(t_, &sco_ui_v1::register_tab) && detail::CanCall(t_, &sco_ui_v1::unregister_tab)\n            ? t_->register_tab(self_, id, title, order, draw, ctx) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -127,7 +127,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ui.hpp",
-              "token": "sco_result RemoveTab(const char* id) noexcept { return t_ ? t_->unregister_tab(self_, id) : SCO_UNAVAILABLE; }"
+              "token": "sco_result RemoveTab(const char* id) noexcept { return detail::CanCall(t_, &sco_ui_v1::unregister_tab) ? t_->unregister_tab(self_, id) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
@@ -214,7 +214,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ui.hpp",
-              "token": "return t_ ? t_->set_badge(self_, tabId, text) : SCO_UNAVAILABLE;"
+              "token": "return detail::CanCall(t_, &sco_ui_v1::set_badge) ? t_->set_badge(self_, tabId, text) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -301,7 +301,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ui.hpp",
-              "token": "return t_ ? t_->register_overlay(self_, id, draw, ctx) : SCO_UNAVAILABLE;"
+              "token": "return detail::CanCall(t_, &sco_ui_v1::register_overlay) && detail::CanCall(t_, &sco_ui_v1::unregister_overlay)\n            ? t_->register_overlay(self_, id, draw, ctx) : SCO_UNAVAILABLE;"
             }
           ],
           "tests": [
@@ -388,7 +388,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ui.hpp",
-              "token": "sco_result RemoveOverlay(const char* id) noexcept { return t_ ? t_->unregister_overlay(self_, id) : SCO_UNAVAILABLE; }"
+              "token": "sco_result RemoveOverlay(const char* id) noexcept { return detail::CanCall(t_, &sco_ui_v1::unregister_overlay) ? t_->unregister_overlay(self_, id) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
@@ -566,7 +566,7 @@
           "evidence": [
             {
               "path": "include/scosdk/ui.hpp",
-              "token": "sco_result UnbindHotkey(const char* chord) noexcept { return t_ ? t_->unbind_hotkey(self_, chord) : SCO_UNAVAILABLE; }"
+              "token": "sco_result UnbindHotkey(const char* chord) noexcept { return detail::CanCall(t_, &sco_ui_v1::unbind_hotkey) ? t_->unbind_hotkey(self_, chord) : SCO_UNAVAILABLE; }"
             }
           ],
           "tests": [
