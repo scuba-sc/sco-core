@@ -288,7 +288,7 @@ NET=("$ROOT/tests/test_net.cpp" "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable
 # The sco.net service (sco/net/session.h) over the host table: the in-memory network with no thread,
 # two Cores over UDP loopback, and the service's network thread over UDP loopback beside table calls
 # from 8 threads, so both sanitizer sets.
-NETSVC_SRC=("$ROOT/src/net/service.cpp" "$ROOT/src/net/scope.cpp" "$ROOT/src/net/udp_posix.cpp" "${NET[@]:1}")
+NETSVC_SRC=("$ROOT/src/net/service.cpp" "$ROOT/src/net/scope.cpp" "$ROOT/src/net/control.cpp" "$ROOT/src/net/udp_posix.cpp" "${NET[@]:1}")
 NETSVC=("$ROOT/tests/test_net_service.cpp" "${NETSVC_SRC[@]}" "${HOST[@]:1}")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${NETSVC[@]}" "$OUT/sha2_asan.o" -o "$OUT/test_net_service"
 "$OUT/test_net_service"
@@ -451,7 +451,7 @@ done
 DIAGNOSTICS_IPC=("$ROOT/src/ipc/diagnostics_ipc.cpp" "$ROOT/src/ipc/diagnostics_json.cpp"
                  "$ROOT/src/ipc/diagnostics_audit.cpp" "$ROOT/src/ipc/diagnostics_platform_posix.cpp")
 APP=("$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
-     "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/game/diagnostics.cpp"
+     "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/game/diagnostics.cpp" "$ROOT/src/game/private_session.cpp"
      "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$SQLITE_ASAN"
      "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${DIAGNOSTICS_IPC[@]}" "${NETSVC_SRC[@]}" "$OUT/sha2_asan.o"
      "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}")

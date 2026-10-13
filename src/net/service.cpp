@@ -173,7 +173,7 @@ void PushState(bool active, std::string_view reason) {
     it.state.size = sizeof(sco_net_state_event);
     it.state.active = active ? 1 : 0;
     const size_t n = std::min(reason.size(), sizeof(it.state.reason) - 1);
-    std::memcpy(it.state.reason, reason.data(), n);
+    if (n != 0) std::memcpy(it.state.reason, reason.data(), n);
     Push(std::move(it));
 }
 
