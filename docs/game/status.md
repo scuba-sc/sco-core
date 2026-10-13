@@ -40,6 +40,21 @@ see [quantum integration contract](../quantum.md). The portable configured
 provider/real host test is synthetic; **Windows/MSVC, actual drive input/charge/
 effects and gameplay are NOT VERIFIED; not run in game**.
 
+## Private-session broker (G13, unreleased)
+
+`game.private_session` 1.0 ([public C header](../../include/sc_private_session.h),
+[host policy](private-session.md)) is **ON by default for R1 by owner approval**.
+Default bind and exact peer allowlist are `127.0.0.1`; startup publishes the
+broker without sockets. Host/Join needs fresh explicit UI consent, a 12–256-byte
+passphrase, and positive offline/EAC/official-network/target admission. The host,
+not plugins, controls explicit private LAN bind and 1–16 exact peer addresses.
+Authenticated backend messages keep existing size/send/inbox quotas; global
+broker requests are bounded at four/second and raw ingress at 4,096/second.
+Admission loss, owner unload and host stop close the session; lifecycle records
+contain no passphrase, player name or endpoint. Portable real-backend/native-C
+service and ABI checks are synthetic. **Windows/MSVC, private LAN, EAC inspection,
+firewall policy and gameplay are NOT VERIFIED.** G2 relocation stays disabled.
+
 ## Service tables and capabilities
 
 **Unreleased G4 addition:** `game.prefabs` 1.0 uses the existing object-container

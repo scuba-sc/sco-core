@@ -31,6 +31,7 @@ struct Scope {
     bool any = false;          // opt-in: every address (the LAN rule off)
     std::vector<Cidr> allow;   // extra ranges beside the LAN ones
     bool allowOnly = false;   // host broker: ONLY allow, no implicit LAN/memory/any bypass
+    uint32_t maxDatagramsPerSecond = 0; // host-owned global ingress budget; 0 = legacy
 };
 
 // "100.64.0.0/10", "fd00::/8"; an address without "/n" is a single host. false for anything
@@ -61,6 +62,8 @@ private:
     Scope      scope_;
     uint64_t   dropped_ = 0;
     uint64_t   refused_ = 0;
+    uint64_t   rateWindow_ = 0;
+    uint32_t   received_ = 0;
 };
 
 }  // namespace sco::net

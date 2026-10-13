@@ -3,6 +3,12 @@
 #include "sco/host.h"
 #include "sco/net/udp.h"
 #include "net_mem.h"
+#ifdef SCO_TEST_PRIVATE_SESSION
+#include "sco/game/private_session.h"
+#include "sc_private_session.h"
+#include "sco/caps.h"
+#include <thread>
+#endif
 #include <cstdio>
 
 using namespace sco::net;
@@ -11,6 +17,7 @@ static int passed = 0, failed = 0;
 static unsigned socketAttempts = 0;
 namespace sco::net::udp {
 std::unique_ptr<Socket> Socket::Open(uint16_t, bool, std::string*) { ++socketAttempts; return nullptr; }
+std::unique_ptr<Socket> Socket::Open(uint16_t, const std::string&, std::string*) { ++socketAttempts; return nullptr; }
 Socket::~Socket() { (void)fd_; }
 bool Socket::Send(const Endpoint&, const uint8_t*, size_t) { ++socketAttempts; return false; }
 bool Socket::Receive(Endpoint*, uint8_t*, size_t, size_t*) { ++socketAttempts; return false; }
@@ -53,10 +60,10 @@ int main() {
     SessionControlV1 broker{ &local };
     ControlHostRequestV1 h;
     h.passphrase = "synthetic session only"; h.playerName = "SyntheticHost";
-    CHECK(broker.Host(h) == Result::Unavailable);
+    CHECK(broker.Host(h) == Result::Failed); // default enabled, no fresh consent
     CHECK(GetState() == State::Idle && local.sends == 0);
     ControlPolicyV1 p;
-    p.enabled = true; p.allowedAddresses = { "192.168.42.2" };
+    p.enabled = true; p.bindAddress = "192.168.42.1"; p.allowedAddresses = { "192.168.42.2" };
     CHECK(broker.Configure(p) == Result::Ok);
     CHECK(broker.Host(h) == Result::Failed); // no local consent
     h.consent = true;
@@ -118,6 +125,28 @@ int main() {
     CHECK(!filtered.Send(nettest::MemEndpoint(9), &byte, 1));
     CHECK(local.sends == sends && filtered.Refused() == 2);
     Scope legacy; CHECK(InScope(legacy, unchosen) && InScope(legacy, nettest::MemEndpoint(9)));
+    // Global host ingress budget counts even approved malformed frames.
+    Scope rateScope = strict; rateScope.maxDatagramsPerSecond = 2;
+    ScopedTransport limited{local, rateScope};
+    net.Inject(remote.self, local.self, {0}); net.Inject(remote.self, local.self, {0});
+    net.Inject(remote.self, local.self, {0});
+    Endpoint from; uint8_t buffer[8]; size_t len = 0;
+    CHECK(limited.Receive(&from, buffer, sizeof(buffer), &len));
+    CHECK(limited.Receive(&from, buffer, sizeof(buffer), &len));
+    CHECK(!limited.Receive(&from, buffer, sizeof(buffer), &len));
+    nettest::MemNet::Datagram remaining; CHECK(net.Take(local.self, &remaining));
+    for (int i = 0; i < 65; ++i) net.Inject(unchosen, local.self, {0});
+    CHECK(!filtered.Receive(&from, buffer, sizeof(buffer), &len) && filtered.Dropped() == 64);
+    CHECK(!filtered.Receive(&from, buffer, sizeof(buffer), &len) && filtered.Dropped() == 65);
+    ControlPolicyV1 defaultPolicy;
+    CHECK(defaultPolicy.enabled && defaultPolicy.bindAddress == "127.0.0.1");
+    defaultPolicy.allowedAddresses = {"192.168.42.2"};
+    CHECK(broker.Configure(defaultPolicy) == Result::BadArg); // loopback cannot silently expand LAN
+    for (const char* bind : {"0.0.0.0", "203.0.113.5", "fixture.invalid", "192.168.42.0/24"}) {
+        auto invalidBind = p; invalidBind.bindAddress = bind;
+        CHECK(broker.Configure(invalidBind) == Result::BadArg);
+    }
+    CHECK(broker.Configure(p) == Result::Ok);
     // No secret is available for reuse: every new operation supplies one.
     auto empty = h; empty.passphrase = {};
     CHECK(broker.Host(empty) == Result::BadArg);
@@ -143,7 +172,8 @@ int main() {
     CHECK(broker.Join(j) == Result::Ok);
     CHECK(until([&] { return GetState() == State::Joined && Table()->is_active(); }));
     CHECK(peer.Peers().size() == 2);
-    CHECK(broker.Configure(ControlPolicyV1{}) == Result::Ok); // disable tears down
+    ControlPolicyV1 disabled; disabled.enabled = false;
+    CHECK(broker.Configure(disabled) == Result::Ok); // disable tears down
     CHECK(GetState() == State::Idle && broker.Join(j) == Result::Unavailable);
     CHECK(until([&] { return peer.Peers().size() == 1; }));
     peer.Leave("fixture done");
@@ -154,7 +184,8 @@ int main() {
         CHECK(broker.Configure(bad) == Result::BadArg);
         CHECK(GetState() == State::Idle && broker.Host(h) == Result::Unavailable);
     }
-    ControlPolicyV1 bad; bad.enabled = true;
+    ControlPolicyV1 bad; bad.enabled = true; bad.bindAddress = "192.168.42.1";
+    bad.allowedAddresses.clear();
     CHECK(broker.Configure(bad) == Result::BadArg);
     bad.allowedAddresses.assign(17, "192.168.42.2"); CHECK(broker.Configure(bad) == Result::BadArg);
     bad.allowedAddresses.assign(2, "192.168.42.2"); CHECK(broker.Configure(bad) == Result::BadArg);
@@ -174,6 +205,69 @@ int main() {
         CHECK(unavailable.Configure(p) == Result::Ok && unavailable.Host(h) == Result::Unavailable);
         CHECK(unavailable.Join(j) == Result::Unavailable);
     }
+#ifdef SCO_TEST_PRIVATE_SESSION
+    // Public C service drives the same authenticated backend, never plugin sockets.
+    namespace ps = sco::game::private_session;
+    static bool admitted = false;
+    so.ownerReleased = ps::ReleaseOwner;
+    CHECK(Start(so) == Result::Ok);
+    ps::Options po; po.policy = p; po.syntheticTransport = &local;
+    po.admitted = [] { return admitted; };
+    CHECK(ps::Start(po) == Result::Unavailable); // unknown/online/EAC denied
+    const void* publicTable = nullptr;
+    CHECK(sco::QueryService(SC_PRIVATE_SESSION_NAME, SC_PRIVATE_SESSION_VERSION, &publicTable) == Result::NotFound);
+    admitted = true;
+    // A registration collision must never set a ready capability.
+    static const sc_private_session_v1 collision{};
+    CHECK(sco::host::ProvideGameService(SC_PRIVATE_SESSION_NAME, SC_PRIVATE_SESSION_VERSION, &collision) == Result::Ok);
+    CHECK(ps::Start(po) == Result::BadArg && !sco::caps::Has(SC_PRIVATE_SESSION_NAME));
+    CHECK(sco::host::WithdrawGameService(SC_PRIVATE_SESSION_NAME) == Result::Ok);
+    CHECK(ps::Start(po) == Result::Ok);
+    CHECK(sco::caps::Has(SC_PRIVATE_SESSION_NAME) && BoundPort() == 0 && GetState() == State::Idle);
+    CHECK(sco::QueryService(SC_PRIVATE_SESSION_NAME, SC_PRIVATE_SESSION_VERSION, &publicTable) == Result::Ok);
+    auto api = static_cast<const sc_private_session_v1*>(publicTable);
+    sco_plugin* controller = sco::host::NewPlugin("multiplayer");
+    sco_plugin* other = sco::host::NewPlugin("other");
+    sc_private_session_host_request_v1 hr{};
+    hr.size = sizeof(hr); hr.port = kDefaultPort; hr.max_peers = 8;
+    hr.passphrase = "synthetic secret only"; hr.passphrase_len = 21;
+    hr.player_name = "Fixture"; hr.player_name_len = 7;
+    CHECK(api->request_host(controller, &hr) == SCO_FAILED);
+    hr.consent = 2; CHECK(api->request_host(controller, &hr) == SCO_BAD_ARG);
+    hr.consent = 1;
+    hr.size = sizeof(uint32_t); CHECK(api->request_host(controller, &hr) == SCO_BAD_ARG);
+    hr.size = sizeof(hr); hr.passphrase_len = 11; CHECK(api->request_host(controller, &hr) == SCO_BAD_ARG);
+    hr.passphrase_len = 21;
+    sco_result wrongThread = SCO_OK;
+    std::thread worker([&] { wrongThread = api->request_host(controller, &hr); }); worker.join();
+    CHECK(wrongThread == SCO_WRONG_THREAD);
+    CHECK(api->request_host(controller, &hr) == SCO_OK); // attempt 1
+    CHECK(api->request_host(other, &hr) == SCO_UNAVAILABLE);
+    sc_private_session_state_v1 state{sizeof(state), 0, 0, 0};
+    CHECK(api->get_state(&state) == SCO_OK && state.state == SC_PRIVATE_SESSION_HOSTING && state.peer_count == 1);
+    CHECK(api->leave(other) == SCO_UNAVAILABLE && GetState() == State::Hosting);
+    CHECK(api->leave(controller) == SCO_OK);
+    sc_private_session_join_request_v1 jr{};
+    jr.size = sizeof(jr); jr.consent = 1; jr.port = kDefaultPort;
+    jr.address = "203.0.113.5"; jr.address_len = 11;
+    jr.passphrase = hr.passphrase; jr.passphrase_len = hr.passphrase_len;
+    jr.player_name = hr.player_name; jr.player_name_len = hr.player_name_len;
+    CHECK(api->request_join(controller, &jr) == SCO_BAD_ARG); // attempt 2
+    CHECK(api->request_host(controller, &hr) == SCO_OK); // attempt 3
+    CHECK(sco::Release(controller) == Result::Ok && GetState() == State::Idle); // reused net release hook
+    CHECK(api->request_host(controller, &hr) == SCO_BAD_ARG);
+    CHECK(api->request_host(other, &hr) == SCO_OK); // attempt 4
+    admitted = false; ps::Tick();
+    CHECK(GetState() == State::Idle && !sco::caps::Has(SC_PRIVATE_SESSION_NAME));
+    CHECK(api->request_host(other, &hr) == SCO_UNAVAILABLE);
+    admitted = true;
+    CHECK(api->request_host(other, &hr) == SCO_TOO_MANY); // global bounded requests
+    ps::Stop();
+    CHECK(sco::QueryService(SC_PRIVATE_SESSION_NAME, SC_PRIVATE_SESSION_VERSION, &publicTable) == Result::NotFound);
+    CHECK(api->request_host(other, &hr) == SCO_UNAVAILABLE);
+    CHECK(sco::Release(other) == Result::Ok);
+    Stop();
+#endif
     CHECK(socketAttempts == 0);
     CHECK(sco::Release(plugin) == Result::Ok);
     std::printf("test_net_control: %d passed, %d failed (synthetic; no sockets)\n", passed, failed);

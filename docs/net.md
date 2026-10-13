@@ -12,7 +12,7 @@
 ## What a plugin can and can't do
 
 - It **can** see whether a session is up (`is_active`), who is in it (`get_peers`, `get_peer_name`, `self_peer`), register channels under its own id, send on them, and get the other players' messages.
-- It **can't** host, join or leave a session, pick a port or an address, or see one. Those are the product's decisions (sc-offline's launcher and menu). A plugin can never make a player's PC listen.
+- The neutral `sco.net` data table has no Host/Join/Leave or socket authority. The game-pack `game.private_session` table can request those operations after explicit local UI consent; bind/allowlist and offline admission remain host-only.
 - With no session, `is_active()` is 0, `send_channel` answers `SCO_UNAVAILABLE`, and no callback runs. A plugin must work exactly as before offline: send only "in addition" (see the design's [announce, don't centralize](design/multiplayer.md#42-domain-features-announce-dont-centralize)).
 
 Declare the dependency so a host without the service refuses your plugin with a clear reason instead of loading it to find a NULL table:
@@ -94,79 +94,37 @@ On ordinary owner release (including unload or non-retained `crashed` cleanup), 
 
 ## Who can connect (the product's side)
 
-### Host-source private-session control v1
+### Default-on private-session broker (G13)
 
 New host integrations use `sco::net::SessionControlV1` from
-`include/sco/net/control.h`, linked through `sco_net_service`. This is a neutral
-C++ source composition contract (same source/toolchain as the host), **not** a
-versioned C plugin service, command registration, wire message handler or new
-member of `sco_api`/`sco_net_v1`. It ships only in the `core-source` profile.
-The existing backend remains available for legacy hosts and is not silently
-retrofitted with consent; hosts must route their local controls through the broker.
-No C#/Lua/plugin route or multiplayer feature extraction is added here.
+`include/sco/net/control.h` (`core-source`). The broker defaults ON with exact
+`127.0.0.1` bind and peer allowlist; construction/configuration starts no socket.
+LAN requires explicit host-owned numeric private bind and 1–16 exact private
+peer addresses. No wildcard, public IP, DNS, CIDR or implicit LAN expansion.
+Each Host/Join requires fresh local UI consent and a 12–256-byte passphrase.
+Send/receive enforce strict allow-only scope. Raw ingress is capped at 4,096
+packets/second; each receive examines at most 64 packets, including rejected ones.
+The existing authenticated backend and plugin message/queue quotas remain in force.
 
-- **Default off:** construction and `Configure` open no socket and start no
-  session. `ControlPolicyV1::enabled` defaults false. When enabled,
-  `allowedAddresses` must contain 1–16 unique exact numeric IPv4 addresses:
-  RFC 1918 private, loopback, link-local, or CGNAT (`100.64.0.0/10`) VPN addresses.
-  CIDRs, hostnames, public destinations, IPv6, duplicate addresses and empty or
-  oversized allowlists are refused. CGNAT use must be on the owner's chosen VPN;
-  the broker cannot verify routing. It is not a public internet session facility.
-- **Fresh local consent:** every `Host(ControlHostRequestV1)` or
-  `Join(ControlJoinRequestV1)` requires `consent = true` from a host-owned local
-  confirmation. Do not set it from a peer message, plugin command or restored
-  preference. An enabled policy is not consent to start. Leave needs no consent.
-  The host UI remains responsible for authenticating the human action: trusted
-  native in-process code is not sandboxed by this broker.
-- **Narrow filtering:** both receive and send use `Scope::allowOnly`, which
-  removes implicit LAN, `any` and synthetic-memory exceptions. Join must match
-  an approved exact address before calling the backend, including with an
-  injected transport. Hosts accept only datagrams from approved addresses, then
-  the backend's existing passphrase authentication. This is address filtering,
-  not proof of the OS firewall/interface policy or confidentiality. UDP may bind
-  all IPv4 interfaces; the launcher must still implement its owner-approved
-  firewall/network restriction and restoration policy independently.
-- **No remembered secret:** request passphrases are borrowed `string_view`s,
-  required each time, 1–256 bytes without embedded NUL. The broker has no secret,
-  persistence, history or logging field. The existing backend copies session
-  credentials into volatile session state until teardown; this does **not**
-  promise cryptographic memory zeroization. Names use existing `ValidName`
-  validation; port must be nonzero, host peer limit 2–16. Messages remain
-  authenticated but not encrypted; never send personal information or secrets.
-- **Lifecycle/thread contract:** use one broker on one serialized host control
-  thread, as for backend Host/Join/Leave; do not call it from network callbacks,
-  mix direct backend session changes with it, or access it concurrently. Start
-  `sco.net` first. Reconfiguration always leaves its owned session, including
-  when replacement policy is invalid (fails closed to disabled). Leave and Stop
-  are idempotent; Stop is terminal, disables/clears policy, and cannot reopen.
-  Destruction calls Stop. Destroy/Stop before `sco.net::Stop` and before freeing
-  the injected transport. No plugin service/lifetime authority is granted.
-- **Results:** disabled/stopped/service absent → `Unavailable`; missing consent
-  → `Failed`; invalid request/policy or existing backend session → `BadArg`;
-  socket failure → backend `Failed`. `Ok` means backend start accepted, not a
-  completed join. Observe existing `net.state`, `GetState` and `LastReason` for
-  asynchronous authentication/full/timeout/refusal results. No automatic reconnect.
+The game pack adds public `game.private_session` 1.0 request control via
+[`sc_private_session.h`](../include/sc_private_session.h), without changing
+`sco_api` or the data-only `sco_net_v1`. Plugins can request Host/Join/Leave from
+explicit UI, but cannot own sockets, choose bind/allowlist or bypass admission.
+The app host kit publishes before plugin load, checks positive offline/EAC/
+official-network/target admission before requests and queued work, and closes on
+admission loss, ordinary requesting-owner release or host stop. The game host
+wires its existing admission inspector; a bare app host must supply equivalent
+evidence. Requests are globally bounded at four/second. Lifecycle logs do not
+contain credentials, names or endpoints. Full contract, results, host wiring,
+packaging and limitations: [private-session broker](game/private-session.md).
 
-`tests/test_net_control.cpp` configures `ServiceOptions::thread = false` and a
-virtual clock, injects synthetic IPv4 datagrams through the real session backend,
-and replaces UDP functions with failing traps (no platform UDP source is linked
-into that executable). It covers consent/default-off, address rejection and
-pre-framing filtering, wrong-passphrase host/join refusal, successful host and
-join, malformed frames, quotas, stale peers, empty-secret retry and teardown.
-Build/run only this fixture:
-
-```sh
-cmake -S . -B build-g13 -G Ninja -DSCO_GAME_SC=OFF -DSCO_SANITIZE=address,undefined
-cmake --build build-g13 --target test_net_control sco_net_service
-ctest --test-dir build-g13 -R '^test_net_control$' -V
-```
-
-**Decision pending owner:** exact private-host addresses only are the conservative
-v1 policy; wider CIDRs, other VPN ranges, IPv6 and persisted consent/secret support
-are not approved or implemented. Product menu/launcher migration, firewall
-packet-policy proof and two owner-operated Windows offline instances remain
-pending. Synthetic tests do not certify private-LAN, official-server blocking,
-rendering or gameplay behavior. Nothing in G10 is changed.
+`test_net_control` exercises the actual authenticated backend over synthetic
+numeric IPv4 datagrams and traps all socket calls. With `SCO_GAME_SC=ON`, the
+same named fixture exercises public C publication/requests, owner release,
+admission/rate/bounds refusal and C layout pins. This is synthetic proof only:
+**Windows/MSVC, private LAN, EAC/OS admission, firewall policy and game execution
+are NOT VERIFIED**. G2 remains disabled; broader/public address policy and
+persisted credentials/consent are not approved.
 
 ### Legacy backend policy (not the broker defaults)
 

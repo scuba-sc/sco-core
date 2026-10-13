@@ -7,6 +7,7 @@
 #include "sco/content.h"
 #ifndef SCO_KERNEL_ONLY
 #include "sco/game/diagnostics.h"
+#include "sco/game/private_session.h"
 #include "sco/datacore_service.h"   // sco.datacore: the Star Citizen game pack (SCO_GAME_SC)
 #endif
 #ifdef SCO_GAME_SERVICES
@@ -185,7 +186,15 @@ bool Start(const Platform& platform) {
     if (cr != Result::Ok) Log("[app] content not started: %s", ResultName(cr));
     const Result ir = ipc::Start();
     if (ir != Result::Ok) Log("[app] sco.ipc not started: %s", ResultName(ir));
-    const Result nr = net::Start();   // inert until the product calls net::Host or net::Join
+    net::ServiceOptions networkOptions;
+#ifndef SCO_KERNEL_ONLY
+    networkOptions.ownerReleased = game::private_session::ReleaseOwner;
+#endif
+    const Result nr = net::Start(networkOptions); // inert until explicit Host/Join
+#ifndef SCO_KERNEL_ONLY
+    const Result pr = game::private_session::Start({pf.privateSession, pf.privateSessionAdmitted});
+    if (pr != Result::Ok) Log("[app] private-session broker not started: %s", ResultName(pr));
+#endif
     if (nr != Result::Ok) Log("[app] sco.net not started: %s", ResultName(nr));
     if (pf.gameServices) {
 #ifdef SCO_GAME_SERVICES
@@ -306,6 +315,10 @@ bool Start(const Platform& platform) {
 
 void Tick(uint32_t nowMs) {
     if (!g_started || g_stopping) return;
+    if (!OnGameThread()) return;
+#ifndef SCO_KERNEL_ONLY
+    game::private_session::Tick(); // revoke BEFORE queued consumer work
+#endif
     const Result r = GameThreadTick(nowMs);
     if (r != Result::Ok) Log("[app] tick: %s", ResultName(r));
     ipc::Tick();   // the owner heartbeat of every sco.ipc channel
@@ -323,6 +336,9 @@ void Stop() {
     diagnostics::SetLogCapture(nullptr);
     g_diagnostics.Reset(); // invalidate observations BEFORE game.exit and plugin teardown
     diagnostics::StopPublisher(); // cached publisher calls refuse before any unload export
+#ifndef SCO_KERNEL_ONLY
+    game::private_session::Stop(); // close sockets/admission before exit/unload callbacks
+#endif
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload

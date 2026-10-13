@@ -8,11 +8,13 @@ bool PrivateAddress(const Endpoint& e) {
                        e.addr[1] >= 64 && e.addr[1] <= 127);
 }
 bool ValidRequest(std::string_view passphrase, std::string_view name, uint16_t port) {
-    return port != 0 && !passphrase.empty() && passphrase.size() <= 256 &&
+    return port != 0 && passphrase.size() >= 12 && passphrase.size() <= 256 &&
            passphrase.find('\0') == std::string_view::npos && ValidName(name);
 }
 }
-SessionControlV1::SessionControlV1(Transport* transport) : transport_(transport) {}
+SessionControlV1::SessionControlV1(Transport* transport) : transport_(transport) {
+    (void)Configure(ControlPolicyV1{}); // enabled + loopback; still no socket
+}
 SessionControlV1::~SessionControlV1() { Stop(); }
 Result SessionControlV1::Configure(const ControlPolicyV1& policy) {
     if (stopped_) return Result::Unavailable;
@@ -21,17 +23,24 @@ Result SessionControlV1::Configure(const ControlPolicyV1& policy) {
     scope_ = Scope();
     if (!policy.enabled) return Result::Ok;
     if (policy.allowedAddresses.empty() || policy.allowedAddresses.size() > 16) return Result::BadArg;
+    Endpoint bind;
+    if (!ParseAddress(policy.bindAddress, kDefaultPort, &bind) || !PrivateAddress(bind))
+        return Result::BadArg;
+    const bool loopback = bind.addr[0] == 127;
     Scope next;
     next.allowOnly = true;
+    next.maxDatagramsPerSecond = 4096; // bounds all ingress, before parsing/authentication
     for (const auto& address : policy.allowedAddresses) {
         Endpoint e;
         Cidr c;
-        if (!ParseAddress(address, kDefaultPort, &e) || !PrivateAddress(e) || !ParseCidr(address, &c))
+        if (!ParseAddress(address, kDefaultPort, &e) || !PrivateAddress(e) ||
+            (loopback && e.addr[0] != 127) || !ParseCidr(address, &c))
             return Result::BadArg;
         for (const auto& old : next.allow)
             if (InCidr(old, e)) return Result::BadArg;
         next.allow.push_back(c);
     }
+    bindAddress_ = policy.bindAddress;
     scope_ = std::move(next);
     enabled_ = true;
     return Result::Ok;
@@ -44,6 +53,7 @@ Result SessionControlV1::Host(const ControlHostRequestV1& r) {
     HostOptions o;
     o.port = r.port; o.passphrase = r.passphrase; o.playerName = r.playerName;
     o.maxPeers = r.maxPeers; o.scope = scope_; o.transport = transport_;
+    o.bindAddress = bindAddress_; o.loopbackOnly = bindAddress_.compare(0, 4, "127.") == 0;
     const Result result = sco::net::Host(o);
     if (result == Result::Ok) ownsSession_ = true;
     return result;
@@ -57,6 +67,7 @@ Result SessionControlV1::Join(const ControlJoinRequestV1& r) {
     JoinOptions o;
     o.address = r.address; o.port = r.port; o.passphrase = r.passphrase; o.playerName = r.playerName;
     o.scope = scope_; o.transport = transport_; o.endpoint = e;
+    o.bindAddress = bindAddress_; o.loopbackOnly = bindAddress_.compare(0, 4, "127.") == 0;
     const Result result = sco::net::Join(o);
     if (result == Result::Ok) ownsSession_ = true;
     return result;

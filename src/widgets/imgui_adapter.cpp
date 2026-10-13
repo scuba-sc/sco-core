@@ -102,7 +102,8 @@ void RenderNode(const Panel& panel, size_t& cursor, std::vector<Event>& events, 
         if (node.text.size() > SCO_WIDGETS_MAX_TEXT || !Utf8(node.text.c_str())) break;
         char buffer[SCO_WIDGETS_MAX_TEXT + 1]{};
         std::memcpy(buffer, node.text.data(), node.text.size());
-        changed = ImGui::InputText("##value", buffer, sizeof(buffer));
+        changed = ImGui::InputText("##value", buffer, sizeof(buffer),
+            (node.flags & SCO_WIDGET_PASSWORD) ? ImGuiInputTextFlags_Password : 0);
         buffer[SCO_WIDGETS_MAX_TEXT] = '\0';
         if (changed && Utf8(buffer)) event.text = buffer;
         else changed = false;
