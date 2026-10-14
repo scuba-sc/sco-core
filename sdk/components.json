@@ -2093,6 +2093,30 @@
       "public_header": true
     },
     {
+      "id": "include.scosdk.game.hangar.hpp",
+      "source": "include/scosdk/game/hangar.hpp",
+      "destination": "include/scosdk/game/hangar.hpp",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "include.scosdk.game.reputation.hpp",
+      "source": "include/scosdk/game/reputation.hpp",
+      "destination": "include/scosdk/game/reputation.hpp",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
       "id": "LICENSE",
       "source": "LICENSE",
       "destination": "LICENSE",

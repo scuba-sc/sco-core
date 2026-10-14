@@ -36,14 +36,18 @@
           ]
         },
         "cpp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "path": "include/scosdk/game/hangar.hpp",
+              "token": "return t_->lift_of_landing_area(self_, landingAreaId, &lift);"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_language_routes.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
+          ]
         },
         "csharp": {
           "status": "unsupported",
@@ -69,7 +73,10 @@
       "examples": [],
       "tests": [
         "tests/abi_game_hangar.c",
-        "tests/test_hangar.cpp"
+        "tests/test_hangar.cpp",
+        "tests/test_language_routes.cpp",
+        "tests/test_sdk.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -113,14 +120,18 @@
           ]
         },
         "cpp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "path": "include/scosdk/game/hangar.hpp",
+              "token": "return t_->lift_request(self_, liftId, static_cast<uint32_t>(op));"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_language_routes.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
+          ]
         },
         "csharp": {
           "status": "unsupported",
@@ -146,7 +157,10 @@
       "examples": [],
       "tests": [
         "tests/abi_game_hangar.c",
-        "tests/test_hangar.cpp"
+        "tests/test_hangar.cpp",
+        "tests/test_language_routes.cpp",
+        "tests/test_sdk.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -190,14 +204,18 @@
           ]
         },
         "cpp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "path": "include/scosdk/game/hangar.hpp",
+              "token": "return t_->atc_cancel_request(self_, atcId);"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_language_routes.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
+          ]
         },
         "csharp": {
           "status": "unsupported",
@@ -223,7 +241,10 @@
       "examples": [],
       "tests": [
         "tests/abi_game_hangar.c",
-        "tests/test_hangar.cpp"
+        "tests/test_hangar.cpp",
+        "tests/test_language_routes.cpp",
+        "tests/test_sdk.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -267,14 +288,18 @@
           ]
         },
         "cpp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "path": "include/scosdk/game/hangar.hpp",
+              "token": "sco_result r = t_->last_error(self_, s.data(), &size);"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_language_routes.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
+          ]
         },
         "csharp": {
           "status": "unsupported",
@@ -300,7 +325,10 @@
       "examples": [],
       "tests": [
         "tests/abi_game_hangar.c",
-        "tests/test_hangar.cpp"
+        "tests/test_hangar.cpp",
+        "tests/test_language_routes.cpp",
+        "tests/test_sdk.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "internal allocation unspecified.",

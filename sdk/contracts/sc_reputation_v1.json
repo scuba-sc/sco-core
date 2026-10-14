@@ -36,14 +36,18 @@
           ]
         },
         "cpp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.reputation routes are unsupported."
+              "path": "include/scosdk/game/reputation.hpp",
+              "token": "return t_->checks(self_, &out);"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_language_routes.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
+          ]
         },
         "csharp": {
           "status": "unsupported",
@@ -69,7 +73,10 @@
       "examples": [],
       "tests": [
         "tests/abi_game_reputation.c",
-        "tests/test_reputation.cpp"
+        "tests/test_reputation.cpp",
+        "tests/test_language_routes.cpp",
+        "tests/test_sdk.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -113,14 +120,18 @@
           ]
         },
         "cpp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.reputation routes are unsupported."
+              "path": "include/scosdk/game/reputation.hpp",
+              "token": "sco_result r = t_->last_error(self_, s.data(), &size);"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_language_routes.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
+          ]
         },
         "csharp": {
           "status": "unsupported",
@@ -146,7 +157,10 @@
       "examples": [],
       "tests": [
         "tests/abi_game_reputation.c",
-        "tests/test_reputation.cpp"
+        "tests/test_reputation.cpp",
+        "tests/test_language_routes.cpp",
+        "tests/test_sdk.cpp",
+        "tools/test.sh"
       ],
       "limitations": [
         "internal allocation unspecified.",

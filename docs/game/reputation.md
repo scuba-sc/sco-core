@@ -18,3 +18,7 @@ Not wrapped, because the repository doesn't document a meaning for them:
 - **Turning the checks off or on.** The patch at the check sites belongs to sc-offline's contracts feature, and its bytes aren't documented here. `game.reputation` only reports whether a site is still the game's own.
 
 [API header](../../include/sc_reputation.h), [game services](../game-services.md).
+
+## C++ wrapper
+
+[`scosdk/game/reputation.hpp`](../../include/scosdk/game/reputation.hpp) (header-only, not in `scosdk.hpp`) wraps the table as `sco::sdk::game::Reputation`: `Open(plugin)` queries `game.reputation` 1.0, then `Checks(out)` and `LastError()`. `Checks` zeroes `out` and sets its `size` before the call, so a failed call leaves it zero apart from `size`; like `LastError`, it checks that the published table's `size` covers the member and that the member is set, and answers `SCO_UNAVAILABLE` otherwise. `game.reputation.checks` stays OFF by default, so on a stock product `Checks` answers `SCO_UNAVAILABLE`. Tests: `tests/test_sdk.cpp` (`TestGameReputation`, over a stand-in table) and `tests/test_language_routes.cpp` (the size sweep for each member). Nothing here has been verified in game.
