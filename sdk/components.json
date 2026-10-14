@@ -80,6 +80,18 @@
       "why": "Repository catalogue refusal tests; not part of the kernel source kit."
     },
     {
+      "path": "sdk/status_registry.json",
+      "why": "Repository source of the docs/game/status.md service table; the packaged page carries the rendered table."
+    },
+    {
+      "path": "tools/status_registry.py",
+      "why": "Repository status registry validator and docs/game/status.md table generator; not part of the kernel source kit."
+    },
+    {
+      "path": "tools/test_status_registry.py",
+      "why": "Repository status registry refusal and drift tests; not part of the kernel source kit."
+    },
+    {
       "path": "sdk/package.py",
       "why": "packaging tool"
     },
