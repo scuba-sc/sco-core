@@ -92,6 +92,18 @@
       "why": "Repository status registry refusal and drift tests; not part of the kernel source kit."
     },
     {
+      "path": "sdk/native_index.json",
+      "why": "Repository-only public index of signature row ids, symbolic hashes and promotion tiers; excluded from every SDK profile."
+    },
+    {
+      "path": "tools/native_index.py",
+      "why": "Repository native index generator and drift check; not part of the kernel source kit."
+    },
+    {
+      "path": "tools/test_native_index.py",
+      "why": "Repository native index parser, tier, collision and leak tests; not part of the kernel source kit."
+    },
+    {
       "path": "sdk/package.py",
       "why": "packaging tool"
     },
