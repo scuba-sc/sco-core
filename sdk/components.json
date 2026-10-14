@@ -124,6 +124,10 @@
       "why": "packaging test"
     },
     {
+      "path": "sdk/test_new_plugin.py",
+      "why": "Repository test for tools/sco-new-plugin.py: builds generated plugins against sdk/ and runs sco-plugin-check."
+    },
+    {
       "path": "tools/ip_audit.py",
       "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
     },
@@ -2819,6 +2823,17 @@
       "id": "tools.sco-plugin-check.c",
       "source": "sdk/tools/sco-plugin-check.c",
       "destination": "tools/sco-plugin-check.c",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "tools.sco-new-plugin.py",
+      "source": "sdk/tools/sco-new-plugin.py",
+      "destination": "tools/sco-new-plugin.py",
       "profiles": [
         "core",
         "core-source"
