@@ -94,6 +94,38 @@ int main(int argc, char** argv) {
     p::Close(peer); p::Close(host); p::Close(host);
     assert(!p::Open(absent));
 #ifndef _WIN32
+    // An owner and a peer that die without Close/Release leave their files behind;
+    // the next Create in the session reclaims both, while a live owner still wins.
+    const std::string mappingPath = p::MappingName(), leasePath = mappingPath + ".peer";
+    const pid_t crashed = fork(); assert(crashed >= 0);
+    if (!crashed) {
+        p::Mapping dead; p::Lease deadLease;
+        _exit(p::Create(dead) && p::Acquire(deadLease) ? 0 : 1);
+    }
+    int crashStatus = 0; assert(waitpid(crashed, &crashStatus, 0) == crashed);
+    assert(WIFEXITED(crashStatus) && WEXITSTATUS(crashStatus) == 0);
+    assert(access(mappingPath.c_str(), F_OK) == 0 && access(leasePath.c_str(), F_OK) == 0);
+    assert(!p::Open(peer)); // Peers never attach to a dead owner's mapping.
+    assert(p::Create(host) && host.owner && host.bytes == 262144);
+    assert(access(leasePath.c_str(), F_OK) != 0);
+    const pid_t contender = fork(); assert(contender >= 0);
+    if (!contender) { p::Mapping second; _exit(p::Create(second) ? 1 : 0); }
+    int contenderStatus = 0; assert(waitpid(contender, &contenderStatus, 0) == contender);
+    assert(WIFEXITED(contenderStatus) && WEXITSTATUS(contenderStatus) == 0);
+    static_cast<unsigned char*>(host.base)[0] = 0x5a;
+    assert(p::Open(peer) && static_cast<unsigned char*>(peer.base)[0] == 0x5a);
+    p::Close(peer); p::Close(host); assert(access(mappingPath.c_str(), F_OK) != 0);
+    assert(p::Acquire(lease) && access(leasePath.c_str(), F_OK) == 0);
+    p::Release(lease); assert(access(leasePath.c_str(), F_OK) != 0);
+    // An unlocked leftover that fails the private-file checks is refused, never removed.
+    int foreign = open(mappingPath.c_str(), O_CREAT | O_EXCL | O_RDWR, 0600); assert(foreign >= 0);
+    assert(ftruncate(foreign, 262144) == 0); assert(fchmod(foreign, 0644) == 0);
+    assert(!p::Create(host)); assert(access(mappingPath.c_str(), F_OK) == 0);
+    close(foreign); assert(unlink(mappingPath.c_str()) == 0);
+    assert(symlink(leasePath.c_str(), mappingPath.c_str()) == 0);
+    struct stat leftover{};
+    assert(!p::Create(host)); assert(lstat(mappingPath.c_str(), &leftover) == 0 && S_ISLNK(leftover.st_mode));
+    assert(unlink(mappingPath.c_str()) == 0);
     const std::string name = p::MappingName();
     int fd = open(name.c_str(), O_CREAT | O_EXCL | O_RDWR, 0600); assert(fd >= 0);
     assert(ftruncate(fd, 262143) == 0); assert(!p::Open(absent));
