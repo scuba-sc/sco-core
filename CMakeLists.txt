@@ -1193,6 +1193,11 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_widgets_sdk)
   add_test(NAME test_widgets_sdk COMMAND test_widgets_sdk)
 
+  add_executable(test_menu_builder tests/test_menu_builder.cpp)
+  target_link_libraries(test_menu_builder PRIVATE sco_widgets)
+  sco_project_target(test_menu_builder)
+  add_test(NAME test_menu_builder COMMAND test_menu_builder)
+
   add_executable(test_hook tests/test_hook.cpp)
   target_link_libraries(test_hook PRIVATE sco_hook)
   add_test(NAME test_hook COMMAND test_hook)

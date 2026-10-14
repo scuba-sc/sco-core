@@ -1196,6 +1196,18 @@
       "public_header": true
     },
     {
+      "id": "include.scosdk.menu_builder.hpp",
+      "source": "include/scosdk/menu_builder.hpp",
+      "destination": "include/scosdk/menu_builder.hpp",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
       "id": "source.include.sco.widgets.h",
       "source": "include/sco/widgets.h",
       "destination": "include/sco/widgets.h",
@@ -1269,6 +1281,16 @@
       "id": "source.tests.test_widgets_sdk.cpp",
       "source": "tests/test_widgets_sdk.cpp",
       "destination": "tests/test_widgets_sdk.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_menu_builder.cpp",
+      "source": "tests/test_menu_builder.cpp",
+      "destination": "tests/test_menu_builder.cpp",
       "profiles": [
         "core-source"
       ],
