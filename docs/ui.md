@@ -2,13 +2,16 @@
 
 ## Renderer-neutral widgets (`sco.widgets`)
 
-For new native UI, use **`sco.widgets` 1.0**, the retained renderer-neutral service
+For new native UI, use **`sco.widgets`**, the retained renderer-neutral service
 in [`sco_widgets.h`](../include/sco_widgets.h) and [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp).
 The host owns rendering; plugins submit copied preorder trees and receive typed
 game-thread events. See [widget design](design/widgets.md) and
-[SDK widget guide](../sdk/docs/widgets.md). C/C++ are supported; C# and Lua are
-explicitly deferred in [#142](https://github.com/scubamount/sco-core/issues/142)
-and [#143](https://github.com/scubamount/sco-core/issues/143).
+[SDK widget guide](../sdk/docs/widgets.md). The host publishes 1.1, a strictly additive
+extension of 1.0 (next section). The C, C++20, C# and Lua routes in the SDK widget guide
+cover 1.0, and each wrapper language has a declarative panel builder that writes the
+1.0 preorder array for you: C++ in the cookbook below, C# in
+[the C# SDK guide](sdk-csharp.md) ("Panel builder"), Lua in
+[the Lua guide](../sdk/docs/lua.md) ("Nested panels").
 
 ### `sco.widgets` 1.1
 
@@ -56,6 +59,90 @@ coloring it, shows tooltips on hover, and draws only the visible rows of a paged
 with Previous/Next controls that produce `SCO_WIDGET_EVENT_PAGE`. The scosdk C++ wrapper, C#
 and Lua do not expose the 1.1 members yet; C and C++ call the table directly. Nothing here has
 run in the game.
+
+### Cookbook: declarative C++ panels (`scosdk/menu_builder.hpp`)
+
+[`scosdk/menu_builder.hpp`](../include/scosdk/menu_builder.hpp) (C++20, header-only, include it
+explicitly) writes the flat preorder `sco_widget_node` array for you. Nest `Row` / `Column`
+bodies; every other call adds one widget to the innermost open one and binds it to your variable.
+
+```cpp
+#include "scosdk/menu_builder.hpp"
+
+static bool              g_god = false;
+static float             g_dist = 10.f;
+static sco::sdk::Widgets g_widgets;
+static scosdk::PanelTree g_tree;              // lives as long as the registered panel
+
+void ShowPanel(const sco::sdk::Plugin& plugin) {  // game thread
+    if (g_widgets.Open(plugin) != SCO_OK) return;  // optional service: the plugin works without UI
+    scosdk::PanelBuilder panel;
+    panel.Column([&] {
+        panel.Row([&] {
+            panel.Toggle("God", &g_god);
+            panel.Slider("Dist", &g_dist, 1.f, 50.f);
+            panel.Button("Spawn", [] { /* invoke a command */ });
+        });
+        panel.Label("Example status");
+    });
+    scosdk::PanelTree next = panel.Build();
+    if (!next) return;  // next.Result(): SCO_BAD_ARG / SCO_TOO_MANY; next.Error(): "node 4: ..."
+    if (next.Submit(g_widgets, "my_plugin.main", "My plugin") == SCO_OK) g_tree = std::move(next);
+}
+```
+
+That produces the array a hand-written `set_panel` call would pass, ids being the 1-based
+preorder position:
+
+| id | kind | parent | from |
+|---|---|---|---|
+| 1 | COLUMN | 0 | `Column` |
+| 2 | ROW | 1 | `Row` |
+| 3 | TOGGLE | 2 | `Toggle("God", &g_god)`, value 0/1 from `g_god` |
+| 4 | SLIDER | 2 | `Slider("Dist", ...)`, value from `g_dist`, range 1..50 |
+| 5 | BUTTON | 2 | `Button("Spawn", fn)` |
+| 6 | LABEL | 1 | `Label("Example status")` |
+
+| Call | Node | On an event |
+|---|---|---|
+| `Label(text)` | LABEL | none |
+| `Button(label, fn)` | BUTTON | calls `fn()` |
+| `Toggle(label, bool*, fn(bool))` | TOGGLE | writes the `bool`, then `fn` |
+| `Slider(label, T*, min, max, fn(T))` | SLIDER, `T` = `float` or `double` | writes the value, then `fn` |
+| `Combo` / `List(label, int*, items, fn(int))` | COMBO / LIST, index -1 = none | writes the index, then `fn` |
+| `TextInput(label, std::string*, fn(std::string_view))` | TEXT_INPUT | writes the string, then `fn` |
+| `Table(label, columns, cells)` | TABLE, row-major cells | none |
+| `Row(body)` / `Column(body)` | ROW / COLUMN | none |
+
+Each call returns a `WidgetRef`: chain `.Disabled()` (a disabled row or column disables its
+subtree), `.Password()` on a text input (display masking only), or read `.Id()`. Callbacks and
+`items` / `cells` lists are optional where shown; every binding pointer is required.
+
+What to rely on:
+
+- **Validation.** `Build()` checks the finished array against every `sco_widgets.h` rule
+  `set_panel` enforces (preorder, contiguous subtrees, unique nonzero ids, kinds, unused fields,
+  toggle/slider/index values, 256 nodes, 256 items, 16 columns, 255-byte UTF-8 strings,
+  nonempty interactive labels) and fails with the host's own code: `SCO_BAD_ARG` for malformed
+  data, `SCO_TOO_MANY` for limits. Embedded NULs, missing bindings and `Build()` inside a body
+  are `SCO_BAD_ARG` too. The first problem is reported; nothing throws. Hand-written arrays can
+  use `scosdk::ValidateWidgetNodes(nodes, count, stride, &why)`. The panel id, title, ownership
+  and the 4096-node live quota stay the host's to check. `tests/test_menu_builder.cpp` holds
+  the validator to the real host's answers.
+- **Values.** Bound values are read when the call is made. An event writes the binding, updates
+  the tree's own node (so `Submit` again re-sends what is shown) and then runs the callback.
+  Malformed, disabled or unknown-node events are ignored, matching the host's event rules. Ids
+  are positions, so a rebuild with a different shape renumbers; match on bindings, not ids.
+- **Lifetimes.** Keep the tree and every bound variable alive until the panel is replaced,
+  removed or the plugin unloads. A `PanelTree` may be moved freely (the registered context stays
+  put) and a callback may `RemovePanel` and destroy its own tree. Replace a panel by building a
+  new tree and swapping it in only after its `Submit` returns `SCO_OK`, as above: a failed
+  `set_panel` keeps the old callback, which still points at the old tree.
+- **Threads and errors.** Build, submit and receive events on the game thread. An exception
+  from a callback is caught and dropped; it never crosses the C ABI. `Build()` and the widget
+  calls are `noexcept`; only your `Row` / `Column` bodies can throw, and the nesting unwinds.
+- **Version.** The builder targets `sco.widgets` 1.0 only. It works unchanged on a 1.1
+  host; 1.1 nodes (tooltips, severity, paging) are written by hand as in the section above.
 
 The sections below document the **legacy, still-supported `sco.ui` route**. Its
 opaque draw context is host-specific (sc-offline passes an ImGui context), so a
