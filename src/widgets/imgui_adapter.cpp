@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "sco/widgets_imgui.h"
 #include "imgui.h"
+#include <algorithm>
 #include <cstring>
+#include <string>
 #include <utility>
 
 namespace sco::widgets {
@@ -33,9 +35,64 @@ bool Utf8(const char* text) {
     }
     return true;
 }
+size_t Rows(const Node& node) {
+    if (node.kind == SCO_WIDGET_TABLE) return node.columns ? node.items.size() / node.columns : 0;
+    return node.items.size();
+}
+// Rows [first, last) shown for a paged LIST/TABLE; every row without paging.
+void Window(const Node& node, size_t& first, size_t& last) {
+    const size_t rows = Rows(node);
+    first = node.visible_rows ? std::min<size_t>(node.first_row, rows) : 0;
+    last = node.visible_rows ? std::min<size_t>(rows, first + node.visible_rows) : rows;
+}
+// Previous/Next controls; at most one page request per node and pass.
+bool Pager(const Node& node, int32_t& row) {
+    const size_t rows = Rows(node);
+    if (!node.visible_rows || rows <= node.visible_rows) return false;
+    size_t first, last;
+    Window(node, first, last);
+    Plain("Rows " + std::to_string(first + 1) + "-" + std::to_string(last) + " of " + std::to_string(rows));
+    bool pressed = false;
+    {
+        ImGui::BeginDisabled(first == 0);
+        EndScope enabled{ImGui::EndDisabled};
+        if (ImGui::Button("Previous")) {
+            row = static_cast<int32_t>(first > node.visible_rows ? first - node.visible_rows : 0);
+            pressed = true;
+        }
+    }
+    ImGui::SameLine();
+    {
+        ImGui::BeginDisabled(last >= rows);
+        EndScope enabled{ImGui::EndDisabled};
+        if (ImGui::Button("Next") && !pressed) {
+            row = static_cast<int32_t>(last);
+            pressed = true;
+        }
+    }
+    return pressed;
+}
+// Severity is spelled out as text as well as colored, so it never relies on color alone.
+void Label(const Node& node) {
+    const char* name = nullptr;
+    ImVec4 color;
+    switch (node.severity) {
+    case SCO_WIDGET_SEVERITY_INFO: name = "Info:"; color = ImVec4(0.55f, 0.75f, 1.0f, 1.0f); break;
+    case SCO_WIDGET_SEVERITY_WARNING: name = "Warning:"; color = ImVec4(1.0f, 0.8f, 0.3f, 1.0f); break;
+    case SCO_WIDGET_SEVERITY_ERROR: name = "Error:"; color = ImVec4(1.0f, 0.45f, 0.45f, 1.0f); break;
+    default: Plain(node.label); return;
+    }
+    ImGui::PushStyleColor(ImGuiCol_Text, color);
+    EndScope style{[] { ImGui::PopStyleColor(); }};
+    ImGui::TextUnformatted(name);
+    ImGui::SameLine();
+    Plain(node.label);
+}
 int32_t Options(const Node& node) {
     int32_t index = node.index;
-    for (size_t i = 0; i < node.items.size(); ++i) {
+    size_t first, last;
+    Window(node, first, last);
+    for (size_t i = first; i < last; ++i) {
         ImGui::PushID(static_cast<int>(i));
         EndScope id{ImGui::PopID};
         ImGui::BeginGroup();
@@ -52,89 +109,103 @@ void RenderNode(const Panel& panel, size_t& cursor, std::vector<Event>& events, 
     const Node& node = panel.nodes[cursor++];
     ImGui::PushID(static_cast<int>(node.id));
     EndScope id{ImGui::PopID};
-    ImGui::BeginGroup();
-    EndScope group{ImGui::EndGroup};
     const bool disabled = inherited_disabled || (node.flags & SCO_WIDGET_DISABLED) != 0;
-    ImGui::BeginDisabled(disabled);
-    EndScope enabled{ImGui::EndDisabled};
-    Plain(node.label);
     Event event;
     event.node_id = node.id;
     event.kind = node.kind;
-    bool changed = false;
-    switch (node.kind) {
-    case SCO_WIDGET_LABEL:
-        break;
-    case SCO_WIDGET_BUTTON:
-        changed = ImGui::Button("Activate");
-        break;
-    case SCO_WIDGET_TOGGLE: {
-        bool value = node.value != 0;
-        changed = ImGui::Checkbox("##value", &value);
-        event.value = value ? 1 : 0;
-        break;
-    }
-    case SCO_WIDGET_SLIDER: {
-        double value = node.value;
-        changed = ImGui::SliderScalar("##value", ImGuiDataType_Double, &value,
-                                      &node.minimum, &node.maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-        event.value = value;
-        break;
-    }
-    case SCO_WIDGET_COMBO:
-        if (node.index >= 0 && static_cast<size_t>(node.index) < node.items.size())
-            Plain(node.items[static_cast<size_t>(node.index)]);
-        if (ImGui::BeginCombo("##value", nullptr, ImGuiComboFlags_NoPreview)) {
-            EndScope combo{ImGui::EndCombo};
-            event.index = Options(node);
-            changed = event.index != node.index;
+    Event page;
+    page.node_id = node.id;
+    page.kind = SCO_WIDGET_EVENT_PAGE;
+    bool changed = false, paged = false;
+    {
+        ImGui::BeginGroup();
+        EndScope group{ImGui::EndGroup};
+        ImGui::BeginDisabled(disabled);
+        EndScope enabled{ImGui::EndDisabled};
+        Label(node);
+        switch (node.kind) {
+        case SCO_WIDGET_LABEL:
+            break;
+        case SCO_WIDGET_BUTTON:
+            changed = ImGui::Button("Activate");
+            break;
+        case SCO_WIDGET_TOGGLE: {
+            bool value = node.value != 0;
+            changed = ImGui::Checkbox("##value", &value);
+            event.value = value ? 1 : 0;
+            break;
         }
-        break;
-    case SCO_WIDGET_LIST:
-        if (ImGui::BeginListBox("##value")) {
-            EndScope list{ImGui::EndListBox};
-            event.index = Options(node);
-            changed = event.index != node.index;
+        case SCO_WIDGET_SLIDER: {
+            double value = node.value;
+            changed = ImGui::SliderScalar("##value", ImGuiDataType_Double, &value,
+                                          &node.minimum, &node.maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+            event.value = value;
+            break;
         }
-        break;
-    case SCO_WIDGET_TEXT_INPUT: {
-        // Never truncate a UTF-8 code point; the service already validates input.
-        if (node.text.size() > SCO_WIDGETS_MAX_TEXT || !Utf8(node.text.c_str())) break;
-        char buffer[SCO_WIDGETS_MAX_TEXT + 1]{};
-        std::memcpy(buffer, node.text.data(), node.text.size());
-        changed = ImGui::InputText("##value", buffer, sizeof(buffer),
-            (node.flags & SCO_WIDGET_PASSWORD) ? ImGuiInputTextFlags_Password : 0);
-        buffer[SCO_WIDGETS_MAX_TEXT] = '\0';
-        if (changed && Utf8(buffer)) event.text = buffer;
-        else changed = false;
-        break;
-    }
-    case SCO_WIDGET_TABLE:
-        if (node.columns && node.columns <= SCO_WIDGETS_MAX_COLUMNS &&
-            ImGui::BeginTable("##value", static_cast<int>(node.columns), ImGuiTableFlags_Borders)) {
-            EndScope table{ImGui::EndTable};
-            for (size_t i = 0; i < node.items.size(); ++i) {
-                if (i % node.columns == 0) ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                Plain(node.items[i]);
+        case SCO_WIDGET_COMBO:
+            if (node.index >= 0 && static_cast<size_t>(node.index) < node.items.size())
+                Plain(node.items[static_cast<size_t>(node.index)]);
+            if (ImGui::BeginCombo("##value", nullptr, ImGuiComboFlags_NoPreview)) {
+                EndScope combo{ImGui::EndCombo};
+                event.index = Options(node);
+                changed = event.index != node.index;
             }
+            break;
+        case SCO_WIDGET_LIST:
+            if (ImGui::BeginListBox("##value")) {
+                EndScope list{ImGui::EndListBox};
+                event.index = Options(node);
+                changed = event.index != node.index;
+            }
+            paged = Pager(node, page.row);
+            break;
+        case SCO_WIDGET_TEXT_INPUT: {
+            // Never truncate a UTF-8 code point; the service already validates input.
+            if (node.text.size() > SCO_WIDGETS_MAX_TEXT || !Utf8(node.text.c_str())) break;
+            char buffer[SCO_WIDGETS_MAX_TEXT + 1]{};
+            std::memcpy(buffer, node.text.data(), node.text.size());
+            changed = ImGui::InputText("##value", buffer, sizeof(buffer),
+                (node.flags & SCO_WIDGET_PASSWORD) ? ImGuiInputTextFlags_Password : 0);
+            buffer[SCO_WIDGETS_MAX_TEXT] = '\0';
+            if (changed && Utf8(buffer)) event.text = buffer;
+            else changed = false;
+            break;
         }
-        break;
-    case SCO_WIDGET_ROW:
-    case SCO_WIDGET_COLUMN: {
-        bool first = true;
-        while (cursor < panel.nodes.size() && panel.nodes[cursor].parent == node.id) {
-            if (!first && node.kind == SCO_WIDGET_ROW) ImGui::SameLine();
-            RenderNode(panel, cursor, events, disabled);
-            first = false;
+        case SCO_WIDGET_TABLE:
+            if (node.columns && node.columns <= SCO_WIDGETS_MAX_COLUMNS &&
+                ImGui::BeginTable("##value", static_cast<int>(node.columns), ImGuiTableFlags_Borders)) {
+                EndScope table{ImGui::EndTable};
+                size_t first, last;
+                Window(node, first, last);
+                for (size_t i = first * node.columns; i < last * node.columns; ++i) {
+                    if (i % node.columns == 0) ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    Plain(node.items[i]);
+                }
+            }
+            paged = Pager(node, page.row);
+            break;
+        case SCO_WIDGET_ROW:
+        case SCO_WIDGET_COLUMN: {
+            bool first = true;
+            while (cursor < panel.nodes.size() && panel.nodes[cursor].parent == node.id) {
+                if (!first && node.kind == SCO_WIDGET_ROW) ImGui::SameLine();
+                RenderNode(panel, cursor, events, disabled);
+                first = false;
+            }
+            break;
         }
-        break;
+        default:
+            break;
+        }
     }
-    default:
-        break;
+    if (!node.tooltip.empty() && ImGui::BeginItemTooltip()) {
+        EndScope tooltip{ImGui::EndTooltip};
+        Plain(node.tooltip);
     }
-    if (changed && !disabled && events.size() < SCO_WIDGETS_MAX_EVENTS)
-        events.push_back(std::move(event));
+    if (disabled) return;
+    if (changed && events.size() < SCO_WIDGETS_MAX_EVENTS) events.push_back(std::move(event));
+    if (paged && events.size() < SCO_WIDGETS_MAX_EVENTS) events.push_back(std::move(page));
 }
 } // namespace
 void ImGuiRenderer::Render(const Panel& panel, std::vector<Event>& events) {

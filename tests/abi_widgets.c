@@ -59,7 +59,7 @@ AT(sco_widget_event, kind, 8);
 AT(sco_widget_event, index, 12);
 AT(sco_widget_event, value, 16);
 AT(sco_widget_event, text, 24);
-PIN(sizeof(sco_widgets_v1) == 24);
+PIN(sizeof(sco_widgets_v1) == 48);
 PIN(ALIGN(sco_widgets_v1) == 8);
 AT(sco_widgets_v1, size, 0);
 AT(sco_widgets_v1, _pad, 4);
@@ -73,3 +73,53 @@ static void signatures(const sco_widgets_v1* t) {
 }
 void sco_abi_widgets_pins(void);
 void sco_abi_widgets_pins(void) { (void)&signatures; }
+/* sco.widgets 1.1: additions only. Every 1.0 pin above keeps its value except
+ * the table size (24 -> 48, three tail members); the 1.0 node and event stay
+ * 80 and 32 bytes, so 1.0 strides and size checks remain valid. */
+PIN(SCO_WIDGETS_VERSION_1_1 == 0x00010001u);
+PIN(SCO_WIDGET_SEVERITY_NONE == 0u);
+PIN(SCO_WIDGET_SEVERITY_INFO == 1u);
+PIN(SCO_WIDGET_SEVERITY_WARNING == 2u);
+PIN(SCO_WIDGET_SEVERITY_ERROR == 3u);
+PIN(SCO_WIDGET_EVENT_PAGE == 0x100u);
+PIN(SCO_WIDGETS_CAP_COUNT == 0u);
+PIN(SCO_WIDGETS_CAP_FEATURES == 1u);
+PIN(SCO_WIDGETS_CAP_MAX_PANELS == 2u);
+PIN(SCO_WIDGETS_CAP_MAX_NODES == 3u);
+PIN(SCO_WIDGETS_CAP_MAX_TOTAL_NODES == 4u);
+PIN(SCO_WIDGETS_CAP_MAX_ITEMS == 5u);
+PIN(SCO_WIDGETS_CAP_MAX_COLUMNS == 6u);
+PIN(SCO_WIDGETS_CAP_MAX_TEXT == 7u);
+PIN(SCO_WIDGETS_CAP_MAX_EVENTS == 8u);
+PIN(SCO_WIDGETS_CAPS_1_1 == 9u);
+PIN(SCO_WIDGETS_FEATURE_UPDATE_NODES == 0x01u);
+PIN(SCO_WIDGETS_FEATURE_REMOVE_NODES == 0x02u);
+PIN(SCO_WIDGETS_FEATURE_SEVERITY == 0x04u);
+PIN(SCO_WIDGETS_FEATURE_TOOLTIP == 0x08u);
+PIN(SCO_WIDGETS_FEATURE_PAGING == 0x10u);
+PIN(SCO_WIDGETS_FEATURE_EVENT_ROW == 0x20u);
+PIN(SCO_WIDGETS_FEATURE_COALESCED_RENDER == 0x40u);
+PIN(sizeof(sco_widget_node_1_1) == 104);
+PIN(ALIGN(sco_widget_node_1_1) == 8);
+AT(sco_widget_node_1_1, base, 0);
+AT(sco_widget_node_1_1, tooltip, 80);
+AT(sco_widget_node_1_1, severity, 88);
+AT(sco_widget_node_1_1, first_row, 92);
+AT(sco_widget_node_1_1, visible_rows, 96);
+AT(sco_widget_node_1_1, _reserved, 100);
+PIN(sizeof(sco_widget_event_1_1) == 40);
+PIN(ALIGN(sco_widget_event_1_1) == 8);
+AT(sco_widget_event_1_1, base, 0);
+AT(sco_widget_event_1_1, row, 32);
+AT(sco_widget_event_1_1, _reserved, 36);
+AT(sco_widgets_v1, update_nodes, 24);
+AT(sco_widgets_v1, remove_nodes, 32);
+AT(sco_widgets_v1, capabilities, 40);
+static void signatures_1_1(const sco_widgets_v1* t) {
+    sco_result (*update)(sco_plugin*, const char*, const sco_widget_node*, uint32_t, uint32_t) = t->update_nodes;
+    sco_result (*remove)(sco_plugin*, const char*, const uint32_t*, uint32_t) = t->remove_nodes;
+    sco_result (*caps)(sco_plugin*, uint32_t*) = t->capabilities;
+    (void)update; (void)remove; (void)caps;
+}
+void sco_abi_widgets_1_1_pins(void);
+void sco_abi_widgets_1_1_pins(void) { (void)&signatures_1_1; }

@@ -10,6 +10,53 @@ game-thread events. See [widget design](design/widgets.md) and
 explicitly deferred in [#142](https://github.com/scubamount/sco-core/issues/142)
 and [#143](https://github.com/scubamount/sco-core/issues/143).
 
+### `sco.widgets` 1.1
+
+The host publishes **1.1** (`SCO_WIDGETS_VERSION_1_1`), a strictly additive extension: a
+plugin that asks for 1.0 gets the same table and the same behaviour, and a plugin built
+against the 1.0 header keeps its 80-byte node stride and 32-byte events. Contracts per
+method: [contracts](contracts.md#scowidgets-sco_widgets_v1); pins: `tests/abi_widgets.c`.
+
+| 1.1 addition | What it does |
+|---|---|
+| `update_nodes(self, panel, nodes, count, stride)` | Atomically replaces one subtree in place (same root id, same parent) or inserts a new one as the last child of its parent (`0` or a ROW/COLUMN). `nodes[0]` is the subtree root; the rest descend from it. Same node rules, limits and errors as `set_panel`; `NOT_FOUND` for no such own panel |
+| `remove_nodes(self, panel, ids, count)` | Atomically removes each listed node with its subtree. `NOT_FOUND` for an absent id; refusing to empty the panel (use `remove_panel`) |
+| `capabilities(self, caps)` | `caps[0]` = array length in, elements written out. Fills `SCO_WIDGETS_CAP_FEATURES` (`SCO_WIDGETS_FEATURE_*` bits) and the running host's limits (panels, nodes per panel, live nodes, items, columns, text bytes, events per pass). Ask instead of hard-coding the 1.0 macros |
+| `sco_widget_node_1_1` | Opt-in node: `base.size = sizeof(sco_widget_node_1_1)` and a stride that covers it. Adds `tooltip` (plain UTF-8, <= 255 bytes), `severity` (`SCO_WIDGET_SEVERITY_INFO/WARNING/ERROR`) and, for LIST/TABLE, `first_row` + `visible_rows` paging (`visible_rows` 0 = no paging). A smaller node is read as 1.0 |
+| `sco_widget_event_1_1` | Panels holding at least one 1.1 node get 40-byte events with `row` (PAGE: new first row; LIST: the selected row; else -1), and `SCO_WIDGET_EVENT_PAGE` when the user pages. Check `event->size >= sizeof(sco_widget_event_1_1)` before casting. Other panels keep 32-byte 1.0 events |
+
+Check each member before calling it, as for any appended tail:
+
+```c
+const sco_widgets_v1* w = /* query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_0, ...) */;
+if (w->size >= offsetof(sco_widgets_v1, update_nodes) + sizeof(w->update_nodes) && w->update_nodes) {
+    sco_widget_node_1_1 status = {0};
+    status.base.size = sizeof(status);
+    status.base.kind = SCO_WIDGET_LABEL;
+    status.base.id = 7;
+    status.base.label = "Shields offline";
+    status.severity = SCO_WIDGET_SEVERITY_WARNING;
+    status.tooltip = "Synthetic example text";
+    w->update_nodes(self, "example.main", &status.base, 1, sizeof(status));
+}
+```
+
+On a 1.0 host the same 1.1 node array still works with `set_panel` (the tail is ignored),
+but the table has no 1.1 members and events stay 1.0-shaped.
+
+**Coalescing.** The host renders from a shared snapshot of each panel and rebuilds it at most
+once per `RenderPanel` pass, and only when the panel changed since the last pass. Any
+number of `update_nodes` / `remove_nodes` calls between frames cost one rebuild; an unchanged
+panel costs none (`sco::widgets::SnapshotBuilds()` counts them for host tests). Structural
+changes start a new generation, so like `set_panel` they drop the rest of the current pass's
+events; the new tree renders next pass.
+
+**Host adapter.** The optional ImGui adapter spells severity out as text (`Warning:`) as well as
+coloring it, shows tooltips on hover, and draws only the visible rows of a paged LIST/TABLE
+with Previous/Next controls that produce `SCO_WIDGET_EVENT_PAGE`. The scosdk C++ wrapper, C#
+and Lua do not expose the 1.1 members yet; C and C++ call the table directly. Nothing here has
+run in the game.
+
 The sections below document the **legacy, still-supported `sco.ui` route**. Its
 opaque draw context is host-specific (sc-offline passes an ImGui context), so a
 drawing plugin on that route remains coupled to the host renderer ABI. Adding

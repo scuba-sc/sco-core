@@ -4,6 +4,9 @@
  * All methods and event callbacks: game thread only. Strings/arrays are copied
  * on successful set_panel; fn/ctx borrowed until remove, replacement or unload.
  * Every size/stride must cover the complete v1 struct; larger tails are ignored.
+ * 1.1 appends update_nodes/remove_nodes/capabilities to the table and adds
+ * opt-in sco_widget_node_1_1/sco_widget_event_1_1 extensions; the 1.0 node and
+ * event structs keep their 80/32-byte layouts so 1.0 strides stay valid.
  */
 #ifndef SCO_WIDGETS_H
 #define SCO_WIDGETS_H
@@ -13,6 +16,7 @@ extern "C" {
 #endif
 #define SCO_WIDGETS_NAME "sco.widgets"
 #define SCO_WIDGETS_VERSION_1_0 0x00010000u
+#define SCO_WIDGETS_VERSION_1_1 0x00010001u /* + update_nodes, remove_nodes, capabilities */
 #define SCO_WIDGETS_MAX_PANELS 64u
 #define SCO_WIDGETS_MAX_NODES 256u
 #define SCO_WIDGETS_MAX_TOTAL_NODES 4096u
@@ -73,6 +77,59 @@ typedef struct sco_widget_event {
     double value;
     const char* text;
 } sco_widget_event;
+/* ---- 1.1 extensions (opt-in; a 1.0 host ignores their tails) ----
+ * Node extension: base.size = sizeof(sco_widget_node_1_1) and a stride covering
+ * it. Nodes whose size is below that are read as 1.0 nodes. tooltip: optional
+ * plain UTF-8 <=255 bytes. severity: SCO_WIDGET_SEVERITY_*. Paging applies to
+ * LIST (rows = items) and TABLE (rows = item_count / columns) only:
+ * visible_rows 0 = no paging (first_row must be 0); otherwise
+ * 1..SCO_WIDGETS_MAX_ITEMS rows shown from first_row, which is 0 or < rows.
+ * _reserved and paging fields of other kinds must be zero. */
+#define SCO_WIDGET_SEVERITY_NONE 0u
+#define SCO_WIDGET_SEVERITY_INFO 1u
+#define SCO_WIDGET_SEVERITY_WARNING 2u
+#define SCO_WIDGET_SEVERITY_ERROR 3u
+typedef struct sco_widget_node_1_1 {
+    sco_widget_node base;
+    const char* tooltip;
+    uint32_t severity;
+    uint32_t first_row;
+    uint32_t visible_rows;
+    uint32_t _reserved;
+} sco_widget_node_1_1;
+/* Paging event of a paged LIST/TABLE: event kind (not a node kind), new first
+ * visible row in row; index/value/text are zero/NULL. Never sent to 1.0 panels. */
+#define SCO_WIDGET_EVENT_PAGE 0x100u
+/* Event extension, sent instead of a bare 1.0 event only for panels holding at
+ * least one 1.1-sized node; base.size = sizeof(sco_widget_event_1_1). Check
+ * event->size >= sizeof(sco_widget_event_1_1) before casting. row: PAGE = new
+ * first visible row; LIST = selected row (the index); otherwise -1. */
+typedef struct sco_widget_event_1_1 {
+    sco_widget_event base;
+    int32_t row;
+    uint32_t _reserved;
+} sco_widget_event_1_1;
+/* capabilities(self, caps): caps[SCO_WIDGETS_CAP_COUNT] is the array length on
+ * entry (>= 2) and the number of elements written on return; the host fills
+ * the indices below that it knows, up to that length. Limits are the running
+ * host's, which may exceed the 1.0 macros above. */
+#define SCO_WIDGETS_CAP_COUNT 0u
+#define SCO_WIDGETS_CAP_FEATURES 1u
+#define SCO_WIDGETS_CAP_MAX_PANELS 2u
+#define SCO_WIDGETS_CAP_MAX_NODES 3u
+#define SCO_WIDGETS_CAP_MAX_TOTAL_NODES 4u
+#define SCO_WIDGETS_CAP_MAX_ITEMS 5u
+#define SCO_WIDGETS_CAP_MAX_COLUMNS 6u
+#define SCO_WIDGETS_CAP_MAX_TEXT 7u
+#define SCO_WIDGETS_CAP_MAX_EVENTS 8u
+#define SCO_WIDGETS_CAPS_1_1 9u /* array length that covers every 1.1 index */
+#define SCO_WIDGETS_FEATURE_UPDATE_NODES 0x01u
+#define SCO_WIDGETS_FEATURE_REMOVE_NODES 0x02u
+#define SCO_WIDGETS_FEATURE_SEVERITY 0x04u
+#define SCO_WIDGETS_FEATURE_TOOLTIP 0x08u
+#define SCO_WIDGETS_FEATURE_PAGING 0x10u
+#define SCO_WIDGETS_FEATURE_EVENT_ROW 0x20u
+#define SCO_WIDGETS_FEATURE_COALESCED_RENDER 0x40u /* <= 1 snapshot rebuild per panel render pass */
 typedef void (*sco_widget_event_fn)(const char* panel_id, const sco_widget_event* event, void* ctx);
 typedef struct sco_widgets_v1 {
     uint32_t size;
@@ -95,6 +152,24 @@ typedef struct sco_widgets_v1 {
      * invalid self/id, UNAVAILABLE after stop, WRONG_THREAD off game thread.
      * On success callback ctx may be freed immediately, including inside fn. */
     sco_result (*remove_panel)(sco_plugin* self, const char* id);
+    /* ---- 1.1 tail: check size covers the member and it is non-NULL ---- */
+    /* Atomically replaces or inserts one subtree of an own panel. nodes[0] is
+     * the subtree root; every later node descends from it (preorder, same node
+     * rules and stride rules as set_panel, 1.0 or 1.1 node sizes). An existing
+     * root id is replaced in place and must keep its parent; a new root id is
+     * appended as the last child of its parent (0 or an existing ROW/COLUMN).
+     * IDs must not collide with nodes outside the replaced subtree. NOT_FOUND:
+     * no such own panel. Limits/errors as set_panel; callback unchanged. The
+     * change renders next pass; remaining events of the current pass drop. */
+    sco_result (*update_nodes)(sco_plugin* self, const char* panel_id,
+                               const sco_widget_node* nodes, uint32_t count, uint32_t node_stride);
+    /* Atomically removes each listed node with its subtree (1..256 ids).
+     * NOT_FOUND: no such own panel or an absent id; BAD_ARG: zero id or a
+     * removal that would leave the panel empty (use remove_panel). */
+    sco_result (*remove_nodes)(sco_plugin* self, const char* panel_id,
+                               const uint32_t* node_ids, uint32_t count);
+    /* See SCO_WIDGETS_CAP_*. BAD_ARG: invalid self, NULL caps or caps[0] < 2. */
+    sco_result (*capabilities)(sco_plugin* self, uint32_t* caps);
 } sco_widgets_v1;
 #ifdef __cplusplus
 }

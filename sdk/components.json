@@ -1286,6 +1286,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.tests.test_widgets11.cpp",
+      "source": "tests/test_widgets11.cpp",
+      "destination": "tests/test_widgets11.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.tests.test_widgets_sdk.cpp",
       "source": "tests/test_widgets_sdk.cpp",
       "destination": "tests/test_widgets_sdk.cpp",

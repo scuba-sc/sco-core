@@ -199,7 +199,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sco_settings_v1` | 5 | 48 | 1.0 |
 | `sco_content_v1` | 2 | 24 | 1.0 |
 | `sco_ui_v1` | 9 | 80 | 1.0 |
-| `sco_widgets_v1` | 2 | 24 | 1.0 |
+| `sco_widgets_v1` | 5 | 48 | 1.1 |
 | `sco_diagnostics_publisher_v1` | 1 | 16 | 1.0 |
 | `sc_relocation_v1` | 3 | 32 | 1.0 |
 | `sc_spatial_v1` | 6 | 56 | 1.0 |
@@ -429,7 +429,7 @@ the value, for every plugin's changes. See [settings](api-v1.md#scosettings-10).
 
 ## sco.widgets: `sco_widgets_v1`
 
-Renderer-neutral retained panels, host-owned service 1.0. Source: `include/sco_widgets.h`,
+Renderer-neutral retained panels, host-owned service 1.1. Source: `include/sco_widgets.h`,
 `src/widgets/widgets.cpp`; design: [widgets](design/widgets.md). This does not change
 the frozen sco_api ABI or the legacy sco.ui draw-context/hotkey route. Limits:
 64 panels, 256 nodes/panel, 4096 live nodes, 256 items/node, 16 table columns.
@@ -441,10 +441,22 @@ and registry-rooted typed callbacks. C# is unsupported/deferred in
 [#142](https://github.com/scubamount/sco-core/issues/142), a follow-up to #139.
 The optional ImGui adapter is host-only; plugins never include it.
 
+1.1 appends `update_nodes`, `remove_nodes` and `capabilities` (table 24 -> 48 bytes) and
+adds opt-in `sco_widget_node_1_1` (104 bytes: tooltip, severity, LIST/TABLE paging) and
+`sco_widget_event_1_1` (40 bytes: row). The 80-byte node and 32-byte event are unchanged, so
+1.0 strides and size checks stay valid; a node below 104 bytes is a 1.0 node. Panels that
+hold a 1.1 node receive 1.1 events, including `SCO_WIDGET_EVENT_PAGE`; other panels keep
+32-byte events. Render snapshots are rebuilt at most once per panel render pass, after a
+change. C# and Lua sco.widgets 1.1 routes are unsupported. Pins: `tests/abi_widgets.c`; host tests:
+`tests/test_widgets11.cpp`.
+
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
 | `sco_widgets_v1.set_panel` | `size >= 16`; 1.0 | `sco_result (*set_panel)(sco_plugin* self, const char* id, const char* title, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride, sco_widget_event_fn fn, void* ctx);`<br>Atomically adds/replaces an owned complete preorder tree. ID/title <=63 bytes; 1..256 nodes, aligned stride >=80 and node size within stride. Unique nonzero node IDs, parent 0 or preceding active ROW/COLUMN; all subtrees contiguous. Copies valid UTF-8 labels/text/items <=255 bytes; 256 items/node and 16 table columns. Zero unused fields; finite/ranged numeric values and valid selections. Failure preserves old tree/callback. | Host deep-copies tree/strings on success; fn/ctx borrowed until successful replacement/removal or ordinary owner release. No allocation transfer. | Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard. | OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG malformed owner/ID/title/tree/size/stride/data; TOO_MANY limits or allocation failure. Failure atomic. | Successful replacement/removal and ordinary owner release discard stale-generation events and end borrowed callbacks. Fault guard stops delivery; retained-provider faults skip ordinary resource release until restart. No separate cancel token. |
 | `sco_widgets_v1.remove_panel` | `size >= 24`; 1.0 | `sco_result (*remove_panel)(sco_plugin* self, const char* id);`<br>Removes an owned panel. Absent ID returns NOT_FOUND; success ends pending callbacks for that generation and permits immediate ctx destruction, including inside its callback. Failure preserves the panel. | Host releases copied tree and borrowed callback registration, never frees plugin ctx; caller may free ctx after success. | Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard. | OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG invalid/released owner or malformed ID; NOT_FOUND absent owned panel. Failure leaves registration unchanged. | Successful replacement/removal and ordinary owner release discard stale-generation events and end borrowed callbacks. Fault guard stops delivery; retained-provider faults skip ordinary resource release until restart. No separate cancel token. |
+| `sco_widgets_v1.update_nodes` | `size >= 32`; 1.1 | `sco_result (*update_nodes)(sco_plugin* self, const char* panel_id, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride);`<br>Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0 or 1.1 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree. | Host deep-copies the subtree on success; the panel's fn/ctx stay unchanged and borrowed. No allocation transfer. | Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard. | OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG malformed owner/ID/tree/size/stride/data or a moved root; NOT_FOUND absent owned panel; TOO_MANY limits or allocation failure. Failure atomic. | Success starts a new generation: remaining events of the current pass drop and the change renders next pass. Owner release and fault rules as set_panel. No separate cancel token. |
+| `sco_widgets_v1.remove_nodes` | `size >= 40`; 1.1 | `sco_result (*remove_nodes)(sco_plugin* self, const char* panel_id, const uint32_t* node_ids, uint32_t count);`<br>Atomically removes 1..256 listed nodes of an owned panel, each with its subtree. Every ID must be nonzero and present; a removal that would empty the panel is refused (use remove_panel). The ID array is read during the call only. Failure preserves the tree. | Host releases the removed copies; caller keeps the ID array. fn/ctx unchanged. No allocation transfer. | Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard. | OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG invalid owner/ID, NULL or empty array, zero ID or emptied panel; NOT_FOUND absent owned panel or node ID; TOO_MANY more than 256 IDs. Failure atomic. | Success starts a new generation: remaining events of the current pass drop and the change renders next pass. Owner release and fault rules as set_panel. No separate cancel token. |
+| `sco_widgets_v1.capabilities` | `size >= 48`; 1.1 | `sco_result (*capabilities)(sco_plugin* self, uint32_t* caps);`<br>caps[0] is the array length on entry (at least 2) and the number of elements written on success; the host fills the SCO_WIDGETS_CAP_* indices it knows up to that length: feature bits, then the running limits for panels, nodes/panel, live nodes, items, columns, text bytes and events per pass. 1.1 defines 9 elements. Failure writes nothing. | Caller-owned array written in place. No allocation transfer. | Game thread only; WRONG_THREAD elsewhere. No callbacks. | OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG invalid/released owner, NULL caps or caps[0] below 2. | Synchronous query; nothing to release. No cancellation entrypoint. |
 
 ## sco.ui: `sco_ui_v1`
 
