@@ -64,10 +64,11 @@
       "kind": "service",
       "service": "game.world",
       "header": "include/sc_world.h",
-      "version": "1.0",
+      "version": "1.1",
       "capabilities": [
         {"name": "game.world.raycast", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
         {"name": "game.world.camera", "display": "`game.world.camera` (position, rotation, zone)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.to_camera", "build.camera_fields"], "evidence_source": "docs/game/status.md"},
+        {"name": "game.world.free_camera_flag", "display": "`game.world.free_camera_flag` (`free_camera_flag`, read-only)", "methods": ["free_camera_flag"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["build.free_cam_on", "build.free_cam_off", "build.free_cam_flag"], "evidence_source": "docs/game/world.md"},
         {"name": null, "display": "camera field of view", "methods": [], "default": "none", "evidence_level": "blocked", "evidence": "BLOCKED", "spike_ref": "B2", "evidence_source": "docs/game/status.md"}
       ]
     },
@@ -121,6 +122,27 @@
         {"name": "game.creative.fly", "methods": ["set_fly_mode", "set_fly_speed"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.landing_helper", "spawn.request_fly_mode", "spawn.actor_link", "spawn.game_cvars", "spawn.fly_speed_scaler"], "evidence_source": "docs/game/creative.md"},
         {"name": "game.creative.ammo", "methods": ["set_infinite_ammo"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.handle_to_id", "ammo.set_ammo"], "evidence_source": "docs/game/creative.md"},
         {"name": "game.creative.ship_ammo", "display": "`game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard)", "methods": ["set_infinite_ship_ammo"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.handle_to_id", "ammo.set_ammo", "spawn.landing_helper"], "evidence_source": "docs/game/creative.md"}
+      ]
+    },
+    {
+      "id": "game.hangar",
+      "kind": "service",
+      "service": "game.hangar",
+      "header": "include/sc_hangar.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.hangar.lift", "methods": ["lift_of_landing_area", "lift_request"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["lift.open_request", "lift.close_request", "teleport.entity_system", "spawn.find_entity_by_name", "spawn.handle_to_id"], "evidence_source": "docs/game/hangar.md"},
+        {"name": "game.hangar.atc_cancel", "methods": ["atc_cancel_request"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["atc.get_component", "atc.request_cancel", "spawn.handle_to_id"], "evidence_source": "docs/game/hangar.md"}
+      ]
+    },
+    {
+      "id": "game.reputation",
+      "kind": "service",
+      "service": "game.reputation",
+      "header": "include/sc_reputation.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.reputation.checks", "display": "`game.reputation.checks` (`checks`, read-only)", "methods": ["checks"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["contracts.reputation_services"], "evidence_source": "docs/game/reputation.md"}
       ]
     },
     {

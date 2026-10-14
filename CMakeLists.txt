@@ -335,10 +335,13 @@ if(SCO_GAME_SC AND WIN32)
   add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp src/game/services/relocation.cpp
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
-                                       src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/events.cpp
+                                       src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp
+                                       src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
-                                       src/game/services/loadout.cpp src/game/services/cvars.cpp)
+                                       src/game/services/loadout.cpp src/game/services/cvars.cpp
+                                       src/game/services/hangar.cpp src/game/services/hangar_engine.cpp
+                                       src/game/services/reputation.cpp src/game/services/reputation_engine.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_quantum sco_offline_missions sco_mining)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
@@ -816,7 +819,7 @@ if(SCO_BUILD_TESTS)
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events game_spatial world_control prefabs game_loadout)
+    list(APPEND _abi_bridge_pins game_world game_events game_spatial world_control prefabs game_loadout game_hangar game_reputation)
     add_executable(test_prefabs tests/test_prefabs.cpp src/game/services/prefabs.cpp)
     target_include_directories(test_prefabs PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(test_prefabs)
@@ -826,6 +829,21 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_world_control PRIVATE sco_runtime)
     sco_project_target(test_world_control)
     add_test(NAME world_control COMMAND test_world_control)
+    add_executable(test_hangar tests/test_hangar.cpp src/game/services/hangar.cpp)
+    target_include_directories(test_hangar PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_hangar PRIVATE sco_host)
+    sco_project_target(test_hangar)
+    add_test(NAME hangar COMMAND test_hangar)
+    add_executable(test_reputation tests/test_reputation.cpp src/game/services/reputation.cpp)
+    target_include_directories(test_reputation PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_reputation PRIVATE sco_host)
+    sco_project_target(test_reputation)
+    add_test(NAME reputation COMMAND test_reputation)
+    add_executable(test_world_free_cam tests/test_world_free_cam.cpp src/game/services/world_free_cam.cpp)
+    target_include_directories(test_world_free_cam PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_world_free_cam PRIVATE sco_host)
+    sco_project_target(test_world_free_cam)
+    add_test(NAME world_free_cam COMMAND test_world_free_cam)
   endif()
   foreach(_b IN LISTS _abi_bridge_pins)
     set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")

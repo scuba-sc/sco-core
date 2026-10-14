@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-hangar-v1-lift-of-landing-area",
+      "kind": "table-method",
+      "symbol": "sc_hangar_v1.lift_of_landing_area",
+      "table": "sc_hangar_v1",
+      "service": "game.hangar",
+      "version_macro": "SC_HANGAR_SERVICE_VERSION",
+      "source_header": "include/sc_hangar.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t *)",
+      "member_extent": 16,
+      "table_size": 40,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "*out_lift_id = the entity id of the ship lift that serves the landing area landing_area_id: the lift whose name matches the landing area's and that is in the landing area's zone. SCO_BAD_ARG: an id of 0, out_lift_id NULL, or the entity isn't a landing area. SCO_NOT_FOUND: the landing area isn't streamed in, or no lift goes with it. SCO_FAILED: the game faulted. game.hangar.lift.",
+      "buffer_contract": "`sco_result (*lift_of_landing_area)(sco_plugin* self, uint64_t landing_area_id, uint64_t* out_lift_id);`<br>*out_lift_id = the entity id of the ship lift that serves the landing area landing_area_id: the lift whose name matches the landing area's and that is in the landing area's zone. SCO_BAD_ARG: an id of 0, out_lift_id NULL, or the entity isn't a landing area. SCO_NOT_FOUND: the landing area isn't streamed in, or no lift goes with it. SCO_FAILED: the game faulted. game.hangar.lift.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; game.hangar.lift OFF (the default): UNAVAILABLE without an engine call; null/unknown self: BAD_ARG. Other failures as in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; game.hangar.lift OFF: UNAVAILABLE",
+      "cleanup": "No in-flight cancellation entrypoint; a lift request or ATC cancel is one call and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_hangar.h",
+              "token": "(*lift_of_landing_area)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_hangar.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_hangar.c",
+        "tests/test_hangar.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-hangar-v1-lift-request",
+      "kind": "table-method",
+      "symbol": "sc_hangar_v1.lift_request",
+      "table": "sc_hangar_v1",
+      "service": "game.hangar",
+      "version_macro": "SC_HANGAR_SERVICE_VERSION",
+      "source_header": "include/sc_hangar.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint32_t)",
+      "member_extent": 24,
+      "table_size": 40,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Asks the ship lift lift_id (an id from lift_of_landing_area) to open or close (sc_hangar_lift_op). SCO_OK means the request was handed to the game, not that the lift has moved. SCO_BAD_ARG: an id of 0, an unknown op, or the entity isn't a ship lift. SCO_NOT_FOUND: the lift isn't streamed in. SCO_FAILED: the game faulted. game.hangar.lift.",
+      "buffer_contract": "`sco_result (*lift_request)(sco_plugin* self, uint64_t lift_id, uint32_t op);`<br>Asks the ship lift lift_id (an id from lift_of_landing_area) to open or close (sc_hangar_lift_op). SCO_OK means the request was handed to the game, not that the lift has moved. SCO_BAD_ARG: an id of 0, an unknown op, or the entity isn't a ship lift. SCO_NOT_FOUND: the lift isn't streamed in. SCO_FAILED: the game faulted. game.hangar.lift.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; game.hangar.lift OFF (the default): UNAVAILABLE without an engine call; null/unknown self: BAD_ARG. Other failures as in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; game.hangar.lift OFF: UNAVAILABLE",
+      "cleanup": "No in-flight cancellation entrypoint; a lift request or ATC cancel is one call and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_hangar.h",
+              "token": "(*lift_request)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_hangar.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_hangar.c",
+        "tests/test_hangar.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-hangar-v1-atc-cancel-request",
+      "kind": "table-method",
+      "symbol": "sc_hangar_v1.atc_cancel_request",
+      "table": "sc_hangar_v1",
+      "service": "game.hangar",
+      "version_macro": "SC_HANGAR_SERVICE_VERSION",
+      "source_header": "include/sc_hangar.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "member_extent": 32,
+      "table_size": 40,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Withdraws the local player's pending request at the air traffic controller atc_id (the game's own request cancel). SCO_BAD_ARG: an id of 0. SCO_NOT_FOUND: that entity has no ATC data. SCO_FAILED: you're not spawned, or the game faulted. game.hangar.atc_cancel.",
+      "buffer_contract": "`sco_result (*atc_cancel_request)(sco_plugin* self, uint64_t atc_id);`<br>Withdraws the local player's pending request at the air traffic controller atc_id (the game's own request cancel). SCO_BAD_ARG: an id of 0. SCO_NOT_FOUND: that entity has no ATC data. SCO_FAILED: you're not spawned, or the game faulted. game.hangar.atc_cancel.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; game.hangar.atc_cancel OFF (the default): UNAVAILABLE without an engine call; null/unknown self: BAD_ARG. Other failures as in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; game.hangar.atc_cancel OFF: UNAVAILABLE",
+      "cleanup": "No in-flight cancellation entrypoint; a lift request or ATC cancel is one call and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_hangar.h",
+              "token": "(*atc_cancel_request)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_hangar.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_hangar.c",
+        "tests/test_hangar.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-hangar-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sc_hangar_v1.last_error",
+      "table": "sc_hangar_v1",
+      "service": "game.hangar",
+      "version_macro": "SC_HANGAR_SERVICE_VERSION",
+      "source_header": "include/sc_hangar.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 40,
+      "table_size": 40,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: your own last failed call; on another thread: the last refusal on that thread. Any thread.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: your own last failed call; on another thread: the last refusal on that thread. Any thread.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Any thread; diagnostic scope as described; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid buffer; TOO_MANY required bytes. On the game thread with a loaded self: your own last error; otherwise the thread's last refusal.",
+      "absent_capability": "unspecified",
+      "cleanup": "No in-flight cancellation entrypoint; a lift request or ATC cancel is one call and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_hangar.h",
+              "token": "(*last_error)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_hangar.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.hangar routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_hangar.c",
+        "tests/test_hangar.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    }
+  ]
+}

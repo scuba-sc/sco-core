@@ -129,12 +129,13 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_world.c", "AT(sc_world_hit, pos, 16);"));
             lines.Add(("tests/abi_game_world.c", "AT(sc_world_hit, normal, 40);"));
             lines.Add(("tests/abi_game_world.c", "AT(sc_world_hit, distance, 64);"));
-            lines.Add(("tests/abi_game_world.c", "SIZE(sc_world_v1, 32);"));
+            lines.Add(("tests/abi_game_world.c", "SIZE(sc_world_v1, 40);"));
             lines.Add(("tests/abi_game_world.c", "AT(sc_world_v1, size, 0);"));
             lines.Add(("tests/abi_game_world.c", "AT(sc_world_v1, _pad, 4);"));
             lines.Add(("tests/abi_game_world.c", "AT(sc_world_v1, raycast, 8);"));
             lines.Add(("tests/abi_game_world.c", "AT(sc_world_v1, camera, 16);"));
             lines.Add(("tests/abi_game_world.c", "AT(sc_world_v1, last_error, 24);"));
+            lines.Add(("tests/abi_game_world.c", "AT(sc_world_v1, free_camera_flag, 32); /* 1.1 */"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(void*) == 8);"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_PLAYER_SPAWNED) == 20);  /* \"game.player.spawned\" */"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_PLAYER_DIED) == 17);     /* \"game.player.died\" */"));

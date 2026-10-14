@@ -96,8 +96,9 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.0 | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | | | `game.world.free_camera` (`camera_acquire`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
-| `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.0 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.1 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | `game.world.free_camera_flag` (`free_camera_flag`, read-only) | OFF | OFF pending in-game confirmation |
 | | | camera field of view | none | BLOCKED |
 | `game.entities` ([`sc_entities.h`](../../include/sc_entities.h)) | 1.1 | `game.entities.transform` (`alive`, `get_transform`, `set_transform`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.entities.spawn` (`spawn`, `despawn`, `keep`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
@@ -114,6 +115,9 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | `game.creative.fly` (`set_fly_mode`, `set_fly_speed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.creative.ammo` (`set_infinite_ammo`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.hangar` ([`sc_hangar.h`](../../include/sc_hangar.h)) | 1.0 | `game.hangar.lift` (`lift_of_landing_area`, `lift_request`) | OFF | OFF pending in-game confirmation |
+| | | `game.hangar.atc_cancel` (`atc_cancel_request`) | OFF | OFF pending in-game confirmation |
+| `game.reputation` ([`sc_reputation.h`](../../include/sc_reputation.h)) | 1.0 | `game.reputation.checks` (`checks`, read-only) | OFF | OFF pending in-game confirmation |
 | `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
 | `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
 | `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.0 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
