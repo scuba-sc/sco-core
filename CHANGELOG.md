@@ -4,21 +4,29 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-## sdk-v2.1.0 (release preparation; not published)
+## sdk-v2.1.0 (2026-10-13)
+
+Published 2026-10-13 at 22:42:09 UTC as tag `sdk-v2.1.0`. The tag peels to approval commit
+`8ef24243b4b8ee45fb49bde4192bdbdfa7473ace`, which adds only the signed approval record; the
+published archives were built from source commit `77c328fc088f85336f1241c0c054bc461fe8b64c`. See the [SDK 2.1.0 release notes](docs/releases/sdk-v2.1.0.md)
+and the published [release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.1.0).
 
 SDK 2.1.0 packages the engineering entries below without changing frozen plugin ABI 1.1.
 The additive game contracts raise the separate game-sc package coordinate from 0.3.0 to
 0.4.0; core, legacy, core-source and host-source-sc use 2.1.0. The optional game-sc overlay
-binds the exact core archive digest. All five profiles are selected for candidate generation;
-publication still requires approval of the final bytes and a maintainer signature. Product
-export remains excluded.
-The [SDK2.1 scope decision](docs/legal/release-decisions/2026-10-12-sdk-v2.1.0-scope.md)
-records maintainer scope review, not final signed-byte publication approval.
+binds the exact core archive digest. The release publishes all five profiles — core, game-sc,
+legacy, core-source and host-source-sc — as immutable approved payloads. Product export
+remains excluded.
+The [SDK 2.1.0 host-source scope decision](docs/legal/release-decisions/2026-10-13-sdk-v2.1.0-host-source.md)
+selected the five-profile candidate, superseding the earlier
+[four-profile scope review](docs/legal/release-decisions/2026-10-12-sdk-v2.1.0-scope.md);
+the signed exact-byte approval binds the published archive bytes. A local build with the same
+version is not proof of byte equality with the published assets.
 
 Native Windows CI fixtures are no-game engineering evidence, not engine or gameplay
 acceptance. Preserve each entry's historical verification limits: real-game, anti-cheat,
 official-network, private-LAN/firewall and renderer acceptance are not established by this
-release preparation. Default-off and fail-closed capability controls remain unchanged.
+release. Default-off and fail-closed capability controls remain unchanged.
 
 - Renderer-neutral text inputs gain `SCO_WIDGET_PASSWORD` display masking for explicit G13 credentials; only text inputs accept the flag. This is not encrypted storage or a guarantee against host-memory disclosure.
 

@@ -1,8 +1,8 @@
 # Status of every game.* table
 
-The SDK 2.1.0 release preparation uses game pack **0.4.0**. That package coordinate includes additive contracts; it does not establish new game-build verification.
+SDK 2.1.0 (published 2026-10-13 as `sdk-v2.1.0`) uses game pack **0.4.0**. That package coordinate includes additive contracts; it does not establish new game-build verification.
 
-The dated signature evidence below was recorded at sco-core `main` `2197dfb` (2026-10-11, with `game.actors.died`), then game pack **0.3.0**, against Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, whether it is on by default, and how far it has been checked. Later sections retain their own synthetic-only and unverified limits.
+The dated signature evidence below was recorded at sco-core `main` `2197dfb` (2026-10-11, with `game.actors.died`), where the game pack was still **0.2.0** (0.3.0 arrived in `95a0d34` and first shipped in `sdk-v2.0.0`), against Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, whether it is on by default, and how far it has been checked. Later sections retain their own synthetic-only and unverified limits.
 
 > **Nothing has been verified in game since these services landed.** Every "ON" below means the signature rows behind it resolve on the build and the code is allowed to run; it does not mean anyone has seen it work in a game session. The maintainer deferred the in-game runs to one batch after the conversion ([ledger](#sources), 2026-10-10). Nothing on this page says "verified in game" for that reason; when a run happens, this page is where its date goes.
 

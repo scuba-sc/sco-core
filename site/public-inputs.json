@@ -18,6 +18,8 @@
     "docs/game/status.md",
     "docs/contracts.md",
     "docs/agent-integration.md",
-    "docs/reference-snapshots.md"
+    "docs/reference-snapshots.md",
+    "docs/host-source-sc.md",
+    "docs/releases/sdk-v2.1.0.md"
   ]
 }
