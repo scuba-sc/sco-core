@@ -14,6 +14,10 @@ struct Node {
     double value = 0, minimum = 0, maximum = 0;
     std::vector<std::string> items;
     uint32_t columns = 0;
+    // 1.1 node extension (zero/empty for 1.0-sized nodes).
+    uint32_t severity = 0, first_row = 0, visible_rows = 0;
+    std::string tooltip;
+    bool extended = false; // submitted as sco_widget_node_1_1
 };
 struct Panel {
     std::string id, title, owner;
@@ -24,6 +28,7 @@ struct Event {
     int32_t index = 0;
     double value = 0;
     std::string text{};
+    int32_t row = -1; // SCO_WIDGET_EVENT_PAGE: requested first visible row
 };
 class Renderer {
 public:
@@ -42,4 +47,7 @@ std::vector<Panel> Panels();
 // are ignored, only the first MAX_EVENTS candidates are considered. Adapter
 // exceptions return Failed. Replacement/removal during callbacks drops the tail.
 Result RenderPanel(const char* id, Renderer& renderer);
+// Render snapshots built so far (any thread). RenderPanel rebuilds a panel's
+// shared snapshot at most once per call, and only after the panel changed.
+uint64_t SnapshotBuilds();
 } // namespace sco::widgets

@@ -55,6 +55,7 @@ static std::vector<bool> disabled_stack;
 static std::string panel_namespace;
 static int group_depth = 0, id_depth = 0, same_lines = 0, cells = 0;
 static int input_mode = 0;
+static int style_depth = 0, tooltips = 0;
 static bool Disabled() {
     for (bool value : disabled_stack) if (value) return true;
     return false;
@@ -96,6 +97,10 @@ bool BeginTable(const char*, int columns, ImGuiTableFlags, const ImVec2&, float)
 void EndTable() {}
 void TableNextRow(ImGuiTableRowFlags, float) {}
 bool TableNextColumn() { ++cells; return true; }
+void PushStyleColor(ImGuiCol, const ImVec4&) { ++style_depth; }
+void PopStyleColor(int count) { style_depth -= count; }
+bool BeginItemTooltip() { ++tooltips; return true; }
+void EndTooltip() {}
 } // namespace ImGui
 static void TestAdapter() {
     sco::widgets::Panel panel;
@@ -167,6 +172,39 @@ static void TestAdapter() {
     for (const auto& event : events) CHECK(event.node_id >= 7);
     CHECK(id_depth == 0 && group_depth == 0 && disabled_stack.empty());
 }
+// 1.1 presentation: severity as text plus color, tooltips, and paged LIST/TABLE windows.
+static void TestAdapter11() {
+    sco::widgets::Panel panel;
+    panel.id = "test.paged";
+    sco::widgets::Node list;
+    list.id = 1; list.kind = SCO_WIDGET_LIST; list.label = "Pick"; list.index = -1;
+    list.items = {"r0", "r1", "r2", "r3", "r4"}; list.visible_rows = 2;
+    list.severity = SCO_WIDGET_SEVERITY_WARNING; list.tooltip = "Choose a row";
+    panel.nodes.push_back(list);
+    sco::widgets::Node grid;
+    grid.id = 2; grid.kind = SCO_WIDGET_TABLE; grid.label = "Grid"; grid.columns = 2;
+    grid.items = {"a", "b", "c", "d", "e", "f"}; grid.visible_rows = 1; grid.first_row = 2;
+    panel.nodes.push_back(grid);
+    texts.clear(); cells = 0; tooltips = 0; style_depth = 0;
+    sco::widgets::ImGuiRenderer renderer;
+    std::vector<sco::widgets::Event> events;
+    renderer.Render(panel, events);
+    CHECK(id_depth == 0 && group_depth == 0 && disabled_stack.empty() && style_depth == 0);
+    CHECK(tooltips == 1 && cells == 2);
+    auto shown = [&](const char* text) { for (const auto& t : texts) if (t == text) return true; return false; };
+    CHECK(shown("Warning:") && shown("Choose a row") && shown("r0") && shown("r1") && !shown("r2"));
+    CHECK(shown("Rows 1-2 of 5") && shown("e") && shown("f") && !shown("a") && shown("Rows 3-3 of 3"));
+    CHECK(events.size() == 3);
+    if (events.size() == 3) {
+        CHECK(events[0].kind == SCO_WIDGET_LIST && events[0].index == 1);
+        CHECK(events[1].kind == SCO_WIDGET_EVENT_PAGE && events[1].node_id == 1 && events[1].row == 2);
+        CHECK(events[2].kind == SCO_WIDGET_EVENT_PAGE && events[2].node_id == 2 && events[2].row == 1);
+    }
+    panel.nodes[0].flags = panel.nodes[1].flags = SCO_WIDGET_DISABLED;
+    events.clear();
+    renderer.Render(panel, events);
+    CHECK(events.empty() && disabled_stack.empty());
+}
 #endif
 int main() {
     sco_api api{};
@@ -216,7 +254,7 @@ int main() {
     CHECK(widgets.Open(&api, self) == SCO_OK);
     CHECK(widgets.SetPanel("test.main", "Panel", &node, 1) == SCO_TOO_MANY);
     CHECK(widgets.RemovePanel("test.main") == SCO_UNAVAILABLE);
-    sco_widgets_v1 table{sizeof(sco_widgets_v1), 0, nullptr, nullptr};
+    sco_widgets_v1 table{sizeof(sco_widgets_v1), 0, nullptr, nullptr, nullptr, nullptr, nullptr};
     service = &table;
     CHECK(widgets.Open(&api, self) == SCO_OK);
     CHECK(widgets.SetPanel("test.main", "Panel", &node, 1) == SCO_UNAVAILABLE);
@@ -236,6 +274,7 @@ int main() {
     CHECK(widgets.RemovePanel("test.main") == SCO_UNAVAILABLE);
 #ifdef SCO_TEST_IMGUI_ADAPTER
     TestAdapter();
+    TestAdapter11();
 #endif
     std::printf("widgets SDK: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;

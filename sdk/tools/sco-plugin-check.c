@@ -958,8 +958,9 @@ static sco_result widget_remove_panel(sco_plugin* self, const char* id) {
     return SCO_OK;
 }
 
+/* The stand-in serves sco.widgets 1.0, so its size stops before the 1.1 tail. */
 static const sco_widgets_v1 widget_api = {
-    sizeof(sco_widgets_v1), 0, widget_set_panel, widget_remove_panel
+    (uint32_t)offsetof(sco_widgets_v1, update_nodes), 0, widget_set_panel, widget_remove_panel, NULL, NULL, NULL
 };
 
 static void widget_stop(void) {

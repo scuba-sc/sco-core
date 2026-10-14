@@ -1181,6 +1181,11 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_widgets)
   add_test(NAME test_widgets COMMAND test_widgets)
 
+  add_executable(test_widgets11 tests/test_widgets11.cpp)
+  target_link_libraries(test_widgets11 PRIVATE sco_widgets)
+  sco_project_target(test_widgets11)
+  add_test(NAME test_widgets11 COMMAND test_widgets11)
+
   add_executable(test_widgets_app tests/test_widgets_app.cpp)
   target_link_libraries(test_widgets_app PRIVATE sco_app)
   sco_project_target(test_widgets_app)
