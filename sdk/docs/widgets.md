@@ -1,6 +1,6 @@
 # Widgets without renderer dependencies
 
-For new native plugin UI, use the host-owned `sco.widgets` 1.0 service. Include
+For new native plugin UI, use the host-owned `sco.widgets` service (1.0 with additive 1.1 extensions). Include
 `include/sco_widgets.h` (C) or `include/scosdk/widgets.hpp` (C++20); no renderer
 header, renderer library, GPU or game data is needed to build the example.
 Frozen `sco_api` 1.1 discovers the optional service with `query_service`.
@@ -52,6 +52,43 @@ object with `OnEvent(const char* panel, const sco_widget_event& event)`. The thu
 catches exceptions; keep the object alive until successful removal/replacement
 or ordinary unload. `Open` returning OK does not promise every method exists:
 each wrapper method separately checks its extent and function pointer.
+
+### Declarative C++ builder
+
+Include `scosdk/menu_builder.hpp` for `scosdk::PanelBuilder`. Nest `Row` / `Column`
+bodies and bind controls to variables; `Build()` returns a validated, move-only
+`PanelTree`. Chain attributes on the `WidgetRef` returned by a control:
+
+```cpp
+scosdk::PanelBuilder panel;
+panel.Label("Example status").Tooltip("Synthetic help").Severity(SCO_WIDGET_SEVERITY_INFO);
+int selected = 0; // keep the binding and the built tree alive until removal/replacement
+panel.List("Examples", &selected, {"One", "Two", "Three"}).Paging(1, 2);
+auto tree = panel.Build();
+if (tree) (void)tree.Submit(widgets, "my_plugin.main", "Example");
+```
+
+Without extended attributes, `Build()` preserves the 80-byte 1.0 node layout.
+Using `Tooltip(const char*)`, `Severity(uint32_t)` or `Paging(first_row, visible_rows)`
+opts the entire tree into 104-byte `sco_widget_node_1_1` nodes, even for zero/NULL
+attributes. Tooltips are copied, optional UTF-8 text up to 255 bytes; severity uses
+`SCO_WIDGET_SEVERITY_*`. Paging is for LIST/TABLE only; zero visible rows disables
+paging and requires first row zero, otherwise visible rows are 1..256 and first row
+is zero or below the row count. Invalid attributes fail the build with `BAD_ARG`
+or `TOO_MANY`, as the host would.
+
+`Submit` checks that the host table covers the complete `capabilities` member and
+that pointer is non-NULL before sending extended nodes. Otherwise it submits
+80-byte 1.0 nodes, dropping tooltips, severity and paging while retaining base
+values and callbacks. The built tree keeps its extended data for a later 1.1
+submission. For direct `set_panel` calls use `tree.Nodes()`, `tree.Count()` and
+`tree.Stride()` together, and perform the host version check yourself; do not index
+an extended array as `sco_widget_node[]`. `Find(id)` accesses either layout.
+Events update both bound values and the tree; PAGE events update the first visible
+row without invoking the list's selection callback.
+
+See [the full builder cookbook](../../docs/ui.md#cookbook-declarative-c-panels-scosdkmenu_builderhpp)
+for validation and lifetime rules.
 
 ## Contract essentials
 
