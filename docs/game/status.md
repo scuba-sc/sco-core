@@ -8,7 +8,9 @@ The dated signature evidence below was recorded at sco-core `main` `2197dfb` (20
 
 ## How to read it
 
-**Default.** *ON*: the capability is set when its rows are OK on the running build, and the service answers (it is published only when the product sets `Platform::gameServices`; [game services](../game-services.md#for-products)). *OFF*: the code holds the capability off whatever the rows say, so the function answers `SCO_UNAVAILABLE` with a reason in `last_error`.
+**Default.** *ON*: the capability is set when its rows are OK on the running build, and the service answers (it is published only when the product sets `Platform::gameServices`; [game services](../game-services.md#for-products)). *OFF*: the code holds the capability off whatever the rows say, so the function answers `SCO_UNAVAILABLE` with a reason in `last_error`. *none*: no capability of its own gates the line (a composition or conversion table), or, with BLOCKED, nothing is published.
+
+**Source.** The service table below is generated from `sdk/status_registry.json` by `python3 tools/status_registry.py --write`, and CI fails when the two differ (`--check`). Change the registry, never the table; its evidence levels restate what the linked pages already record and never claim an in-game run.
 
 **Evidence level**, exactly one of:
 
@@ -79,6 +81,7 @@ Only synthetic provider/ownership fixtures and header layout checks are supplied
 not disappearance. Retained build ownership lasts only while loaded and ordinary
 unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 
+<!-- status-registry:start -->
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
 | `teleport.spatial` ([`sc_spatial.h`](../../include/sc_spatial.h)) | 1.0 | the four `teleport.*` rows (the product's capability `teleport`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
@@ -91,7 +94,8 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.0 | `game.world.raycast_filtered`, `game.world.free_camera` | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
+| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.0 | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
+| | | `game.world.free_camera` (`camera_acquire`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.0 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | camera field of view | none | BLOCKED |
@@ -106,6 +110,27 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | `game.events.zone_changed` (`game.zone.changed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`) | OFF | OFF pending in-game confirmation |
 | mining rows ([`mining.md`](mining.md)) | row | `game.mining` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.creative` ([`sc_creative.h`](../../include/sc_creative.h)) | 1.0 | `game.creative.god_mode` (`set_god_mode`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | `game.creative.fly` (`set_fly_mode`, `set_fly_speed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | `game.creative.ammo` (`set_infinite_ammo`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | `game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
+| `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
+| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.0 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
+| `game.quantum` ([`sc_quantum.h`](../../include/sc_quantum.h)) | 1.0 | `game.quantum.control` | OFF | Default production adapter absent (ON only with a configured private host backend); synthetic provider/host tests only; Windows/MSVC and gameplay NOT VERIFIED |
+| `game.private_session` ([`sc_private_session.h`](../../include/sc_private_session.h)) | 1.0 | `game.private_session` | ON | ON by owner approval for R1 (loopback broker, no socket until Host/Join); synthetic service and ABI checks only; Windows/MSVC, private LAN, EAC inspection and gameplay NOT VERIFIED |
+| `game.cvars` ([`sc_cvars.h`](../../include/sc_cvars.h)) | 1.0 | `game.cvars.read` (`get_bool`) | OFF | Default production adapter absent; synthetic engine callbacks only; engine types NOT VERIFIED |
+| `game.cvars_write` ([`sc_cvars_write.h`](../../include/sc_cvars_write.h)) | 1.0 | `game.cvars.write` (`set_bool`) | OFF | Default production adapter absent; synthetic write fixtures only; engine types NOT VERIFIED |
+| `game.economy` ([`sc_economy.h`](../../include/sc_economy.h)) | 1.0 | `game.economy.read` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| | | `game.economy.apply` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| `game.missions` ([`sc_missions.h`](../../include/sc_missions.h)) | 1.0 | `game.missions.read` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| | | `game.missions.accept` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| | | `game.missions.progress` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| | | `game.missions.scripts` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| `game.mining` ([`sc_mining.h`](../../include/sc_mining.h)) | 1.0 | `game.mining` (the service's mining activation) | OFF | Off by default; native adapter not verified on Windows or in game; synthetic provider tests only |
+| `game.relocation` ([`sc_relocation.h`](../../include/sc_relocation.h)) | 1.0 | `game.relocation` | OFF | Production mutation unavailable (no certified host admission, system classifier or validated transport); synthetic provider tests only |
+| `game.spatial` ([`sc_game_spatial.h`](../../include/sc_game_spatial.h)) | 1.0 | no capability of its own: full-pose conversion and copied observed zones | none | Synthetic fixtures only; not verified on Windows or in game |
+<!-- status-registry:end -->
 
 Fields a published table leaves empty, because nothing in the game's code pins them:
 
@@ -114,10 +139,6 @@ Fields a published table leaves empty, because nothing in the game's code pins t
 | camera field of view | `game.world.camera` | BLOCKED (spike B2: one candidate, `CalculateFOV`, whose returned value is not pinned) |
 | the entity and normal of a hit | `game.world.raycast`'s `sc_world_hit` (`entity_id` and `normal` stay 0, `flags` has neither bit) | BLOCKED (the game's hit record doesn't pin where they are) |
 | the killer | `game.player.died`'s `killer_id` (always 0) | BLOCKED (the death record doesn't pin it) |
-| `game.creative` ([`sc_creative.h`](../../include/sc_creative.h)) | 1.0 | `game.creative.god_mode` (`set_god_mode`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.creative` | 1.0 | `game.creative.fly` (`set_fly_mode`, `set_fly_speed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.creative` | 1.0 | `game.creative.ammo` (`set_infinite_ammo`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.creative` | 1.0 | `game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 
 An actor's maximum health (`game.actors.health`'s `max`, 0) is not read yet; that is unfinished work, not a spike verdict.
 
