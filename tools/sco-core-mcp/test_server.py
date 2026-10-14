@@ -641,6 +641,84 @@ class ExampleSecurityTests(ServerCase):
         self.result(self.start(catalogue=catalogue, repo_root=root).call("get_example", {"symbol_or_id": "sample-read"}), data=data, is_error=True)
 
 
+class ArchiveLayoutTests(ServerCase):
+    """Records name sdk/examples/...; extracted core/legacy archives hold examples/..."""
+
+    def layout(self, name="sdk/examples/read.c"):
+        data = fixture()
+        record = next(record for record in data["records"] if record["id"] == "sample-read")
+        record["examples"] = [name]
+        root, catalogue = self.temporary_catalogue(data)
+        return data, root, catalogue
+
+    def outside(self):
+        temporary = tempfile.TemporaryDirectory(prefix="sco_mcp_outside_")
+        self.addCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        (directory / "examples").mkdir()
+        (directory / "examples/read.c").write_text("sensitive-marker", encoding="utf-8")
+        return directory
+
+    def get_example(self, data, root, catalogue, is_error=False):
+        client = self.start(catalogue=catalogue, repo_root=root)
+        result = self.result(client.call("get_example", {"symbol_or_id": "sample-read"}), data=data, is_error=is_error)
+        if is_error:
+            self.assertNotIn("sensitive-marker", json.dumps(result))
+        return result
+
+    def test_archive_root_reads_recorded_sdk_path_without_prefix(self):
+        data, root, catalogue = self.layout()
+        self.assertFalse((root / "sdk").exists())
+        result = self.get_example(data, root, catalogue)
+        self.assertEqual(result["examples"], [{"path": "sdk/examples/read.c",
+                                               "content": (FIXTURES / "examples/read.c").read_text(encoding="utf-8")}])
+
+    def test_repository_root_reads_recorded_path_first(self):
+        data, root, catalogue = self.layout()
+        (root / "sdk/examples").mkdir(parents=True)
+        (root / "sdk/examples/read.c").write_text("repository-layout\n", encoding="utf-8")
+        result = self.get_example(data, root, catalogue)
+        self.assertEqual(result["examples"], [{"path": "sdk/examples/read.c", "content": "repository-layout\n"}])
+
+    def test_repository_root_missing_file_is_not_served_from_archive_layout(self):
+        data, root, catalogue = self.layout()
+        (root / "sdk/examples").mkdir(parents=True)
+        (root / "examples/read.c").write_text("sensitive-marker", encoding="utf-8")
+        self.get_example(data, root, catalogue, is_error=True)
+
+    def test_symlinked_sdk_entry_is_refused_and_blocks_fallback(self):
+        data, root, catalogue = self.layout()
+        (root / "sdk").symlink_to(self.outside(), target_is_directory=True)
+        self.get_example(data, root, catalogue, is_error=True)
+
+    def test_dangling_sdk_symlink_blocks_fallback(self):
+        data, root, catalogue = self.layout()
+        (root / "sdk").symlink_to(root / "absent", target_is_directory=True)
+        (root / "examples/read.c").write_text("sensitive-marker", encoding="utf-8")
+        self.get_example(data, root, catalogue, is_error=True)
+
+    def test_archive_fallback_refuses_symlinked_directory(self):
+        data, root, catalogue = self.layout()
+        shutil.rmtree(root / "examples")
+        (root / "examples").symlink_to(self.outside() / "examples", target_is_directory=True)
+        self.get_example(data, root, catalogue, is_error=True)
+
+    def test_archive_fallback_refuses_symlinked_file(self):
+        data, root, catalogue = self.layout()
+        (root / "examples/read.c").unlink()
+        (root / "examples/read.c").symlink_to(self.outside() / "examples/read.c")
+        self.get_example(data, root, catalogue, is_error=True)
+
+    def test_archive_fallback_does_not_admit_traversal(self):
+        data, root, catalogue = self.layout("sdk/../sensitive.c")
+        (root / "sensitive.c").write_text("sensitive-marker", encoding="utf-8")
+        self.get_example(data, root, catalogue, is_error=True)
+
+    def test_only_the_sdk_prefix_is_dropped(self):
+        data, root, catalogue = self.layout("src/examples/read.c")
+        self.get_example(data, root, catalogue, is_error=True)
+
+
 class StartupTests(ServerCase):
     def rejected(self, path):
         environment = os.environ.copy()

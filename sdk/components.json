@@ -120,6 +120,22 @@
       "why": "Release publication verifier tests; not part of the kernel source kit."
     },
     {
+      "path": "tools/doc_release_gate.py",
+      "why": "Release documentation readiness gate; not part of the kernel source kit."
+    },
+    {
+      "path": "tools/test_doc_release_gate.py",
+      "why": "Release documentation readiness gate tests; not part of the kernel source kit."
+    },
+    {
+      "path": "tools/release_notify.py",
+      "why": "Release completion verifier and announcement sender; not part of the kernel source kit."
+    },
+    {
+      "path": "tools/test_release_notify.py",
+      "why": "Release completion and announcement tests; not part of the kernel source kit."
+    },
+    {
       "path": "tools/sigcheck.sh",
       "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
     },

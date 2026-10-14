@@ -8,6 +8,7 @@ export default defineConfig({
   integrations: [starlight({
     title: 'sco-core SDK',
     description: 'Public SDK contracts and engineering guides',
+    customCss: ['./src/styles/portal.css'],
     sidebar: [
       { label: 'Overview', slug: 'index' },
       { label: 'Start a plugin', slug: 'guides/getting-started' },

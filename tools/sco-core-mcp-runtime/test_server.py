@@ -73,12 +73,19 @@ class RuntimeTests(unittest.TestCase):
     def test_original_discovery_remains_exact_six(self):
         launcher = HERE.parent / 'sco-core-mcp/server.py'
         fixture = HERE.parent / 'sco-core-mcp/fixtures/catalogue.json'
-        frames = [{'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': server.VERSION}},
+        # The discovery server enforces a complete MCP handshake; the test supplies it.
+        frames = [{'jsonrpc': '2.0', 'id': 1, 'method': 'initialize',
+                   'params': {'protocolVersion': server.VERSION, 'capabilities': {},
+                              'clientInfo': {'name': 'sco-core-mcp-runtime-test', 'version': '1.0.0'}}},
+                  {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
                   {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'}]
         proc = subprocess.run([sys.executable, str(launcher), '--catalogue', str(fixture)],
             input=b'\n'.join(server.encode(x) for x in frames) + b'\n', capture_output=True, timeout=5)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        tools = json.loads(proc.stdout.splitlines()[1])['result']['tools']
+        replies = {reply['id']: reply for reply in map(json.loads, proc.stdout.splitlines())}
+        self.assertEqual(sorted(replies), [1, 2])
+        self.assertIn('result', replies[1], replies[1])
+        tools = replies[2]['result']['tools']
         self.assertEqual([t['name'] for t in tools], ['search_api', 'get_symbol', 'list_services', 'get_example', 'get_capability_status', 'check_compatibility'])
 
 if __name__ == '__main__':

@@ -8,6 +8,10 @@ name: release
 # publish uploads a complete DRAFT, lists and re-downloads every asset, re-verifies, then publishes.
 # Both jobs use environment release; its SCO_RELEASE_ALLOWED_SIGNERS variable must hold the
 # trusted SSH allowed_signers content. Only publish has repository write access.
+# notify then verifies completion (published release, peeled approval tag, asset digests, deployed
+# Pages) and posts one receipted announcement through tools/release_notify.py. Releases published
+# with GITHUB_TOKEN trigger no release event, so discord.yml never sees them; its workflow_dispatch
+# replay uses the same script, artifact names and per-tag concurrency group.
 
 on:
   push:
@@ -149,3 +153,54 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 tools/release_promote.py publish
+
+  notify:
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read   # read prior attempt markers and receipts
+    concurrency:
+      group: release-notify-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # The tag, its approval files and main's deployed Pages commit.
+
+      - name: Verify release completion and the prior delivery state
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          python3 tools/release_notify.py prepare --tag "$RELEASE_TAG" --work "$RUNNER_TEMP/release-notify"
+
+      - name: Persist the delivery-attempt marker before posting
+        id: marker
+        if: steps.prepare.outputs.action == 'send'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.prepare.outputs.attempt-artifact }}
+          path: ${{ runner.temp }}/release-notify/attempt.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Post once and record the outcome
+        if: steps.prepare.outputs.action == 'send'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          python3 tools/release_notify.py send --work "$RUNNER_TEMP/release-notify"
+
+      - name: Persist the delivery receipt
+        if: always() && steps.marker.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.prepare.outputs.receipt-artifact }}
+          path: ${{ runner.temp }}/release-notify/receipt.json
+          if-no-files-found: error
+          retention-days: 90

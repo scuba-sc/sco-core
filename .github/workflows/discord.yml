@@ -1,14 +1,18 @@
 name: discord
 
 # Posts sco-core activity to the sc-offline Discord channel (same feed as sc-offline):
-# releases, merged PRs, issues opened or closed, pushes to main, and workflow runs starting.
+# releases, merged PRs, issues opened or closed, and pushes to main.
 #
 # The webhook URL lives only in the DISCORD_WEBHOOK_URL Actions secret. Untrusted text
 # (titles, labels, bodies) reaches the payload only through env vars and `jq --arg`, never
 # through `${{ }}` inside a shell script, and `allowed_mentions` is empty so nothing pings.
 # PRs from forks get no secrets on `pull_request`, so they don't post; there is deliberately
-# no `pull_request_target` here. `workflow_run` runs from main with secrets even for fork PR runs,
-# so its step reads only event fields (through env) and never checks out the run's code.
+# no `pull_request_target` here.
+#
+# SDK releases are announced by release.yml's notify job (GITHUB_TOKEN publications raise no
+# release event). workflow_dispatch with release_tag replays that one receipted announcement from
+# main through tools/release_notify.py: same verification, same artifact receipts, same per-tag
+# concurrency group. A valid receipt makes the replay a no-op; an unresolved attempt halts it.
 
 on:
   release:
@@ -19,16 +23,26 @@ on:
     types: [opened, closed]
   push:
     branches: [main]
-  workflow_run:
-    workflows: [cmake, release, sdk, test]
-    types: [requested]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published SDK tag to announce (sdk-vX.Y.Z)
+        required: true
+        type: string
+      docs_sha:
+        description: Optional full SHA the deployed Pages build must contain
+        required: false
+        type: string
+        default: ''
 
 permissions: {}
 
 jobs:
   post:
     runs-on: ubuntu-24.04
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    if: >-
+      github.event_name != 'workflow_dispatch' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.merged == true)
     permissions:
       contents: read   # checkout, for the release's CHANGELOG section
     steps:
@@ -80,17 +94,6 @@ jobs:
           PUSH_AVATAR: ${{ github.event.sender.avatar_url }}
           PUSH_AT: ${{ github.event.head_commit.timestamp }}
           PUSH_COMMITS: ${{ toJSON(github.event.commits) }}
-          WR_NAME: ${{ github.event.workflow_run.name }}
-          WR_NUM: ${{ github.event.workflow_run.run_number }}
-          WR_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-          WR_URL: ${{ github.event.workflow_run.html_url }}
-          WR_EVENT: ${{ github.event.workflow_run.event }}
-          WR_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          WR_SHA: ${{ github.event.workflow_run.head_sha }}
-          WR_TITLE: ${{ github.event.workflow_run.display_title }}
-          WR_ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
-          WR_AVATAR: ${{ github.event.workflow_run.triggering_actor.avatar_url }}
-          WR_AT: ${{ github.event.workflow_run.created_at }}
         run: |
           set -eu
           # A body excerpt: HTML comments (PR/issue templates) and blank runs dropped, first 700 chars.
@@ -159,20 +162,6 @@ jobs:
                 footer: {text: "sco-core · game core and plugin SDK for sc-offline"}}' > embed.json
               fi
               ;;
-            workflow_run)
-              attempt=""; [ "${WR_ATTEMPT:-1}" = "1" ] || attempt=" (attempt $WR_ATTEMPT)"
-              jq -n --arg t "Started: $WR_NAME #$WR_NUM$attempt" --arg u "$WR_URL" --arg d "$WR_TITLE" \
-                    --arg a "$WR_ACTOR" --arg av "$WR_AVATAR" --arg at "$WR_AT" --arg e "$WR_EVENT" \
-                    --arg b "$WR_BRANCH" --arg sha "$WR_SHA" --arg repo "$REPO" '{
-                title: ($t | .[0:256]), url: $u, color: 16766720, timestamp: $at,
-                author: {name: ("Workflow started by " + $a), icon_url: $av},
-                description: ($d | .[0:300]),
-                fields: [
-                  {name: "Trigger", value: $e, inline: true},
-                  {name: "Branch", value: ($b | .[0:100]), inline: true},
-                  {name: "Commit", value: ("[`" + $sha[0:7] + "`](https://github.com/" + $repo + "/commit/" + $sha + ")"), inline: true}],
-                footer: {text: "sco-core · game core and plugin SDK for sc-offline"}}' > embed.json
-              ;;
           esac
           jq '{username: "sco-core", allowed_mentions: {parse: []}, embeds: [.]}' embed.json > payload.json
           jq -c . payload.json
@@ -190,3 +179,56 @@ jobs:
           curl -fsS --retry 3 --retry-all-errors --max-time 20 -o /dev/null \
             -H 'Content-Type: application/json' --data @payload.json "$DISCORD_WEBHOOK_URL"
           echo "posted"
+
+  release-replay:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read   # read prior attempt markers and receipts
+    concurrency:
+      group: release-notify-${{ inputs.release_tag }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # The tag, its approval files and main's deployed Pages commit.
+
+      - name: Verify release completion and the prior delivery state
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          DOCS_SHA: ${{ inputs.docs_sha }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          python3 tools/release_notify.py prepare --tag "$RELEASE_TAG" --docs-sha "$DOCS_SHA" \
+            --work "$RUNNER_TEMP/release-notify"
+
+      - name: Persist the delivery-attempt marker before posting
+        id: marker
+        if: steps.prepare.outputs.action == 'send'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.prepare.outputs.attempt-artifact }}
+          path: ${{ runner.temp }}/release-notify/attempt.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Post once and record the outcome
+        if: steps.prepare.outputs.action == 'send'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          python3 tools/release_notify.py send --work "$RUNNER_TEMP/release-notify"
+
+      - name: Persist the delivery receipt
+        if: always() && steps.marker.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.prepare.outputs.receipt-artifact }}
+          path: ${{ runner.temp }}/release-notify/receipt.json
+          if-no-files-found: error
+          retention-days: 90

@@ -3,23 +3,47 @@
 import argparse
 from copy import deepcopy
 import gzip
+import html
 from html.parser import HTMLParser
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 from urllib.parse import unquote, urlsplit
+import zlib
 
 import gen
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILT = None
-FORBIDDEN = ('/' + 'Users' + '/', 'task' + '-register', 'sco' + '-private')
+# Tokens assembled from fragments so this test file never matches its own denylist.
+FORBIDDEN = ('/' + 'Users' + '/', 'task' + '-register', 'sco' + '-private',
+             'sco-core-' + 'ecosystem-analysis', 'PRIVATE ENGINEERING ' + 'DOCUMENTATION',
+             'version_' + 'registry.mjs', 'ghidra_' + 'checkpoint.mjs', 'sc-' + 'reconstructed')
 SENTINELS = ('PRIVATE_SENTINEL_73c61ae9', 'PRIVATE_FILENAME_93b4167a')
+GZIP_FILE_LIMIT = 16 << 20
+GZIP_TOTAL_LIMIT = 256 << 20
+
+
+def gunzip_bounded(data, limit):
+    """Decompress every gzip member in data, refusing output beyond limit bytes."""
+    out = bytearray()
+    try:
+        while data:
+            stream = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            out += stream.decompress(data, limit + 1 - len(out))
+            if len(out) > limit:
+                raise AssertionError('Gzip output exceeds %d bytes' % limit)
+            if not stream.eof:
+                raise AssertionError('Truncated gzip stream')
+            data = stream.unused_data
+    except zlib.error as error:
+        raise AssertionError('Invalid gzip stream') from error
+    return bytes(out)
 
 
 def snapshot(root):
@@ -27,15 +51,18 @@ def snapshot(root):
             for p in sorted(root.rglob('*')) if p.is_file()}
 
 
-def check_leaks(root, forbidden=FORBIDDEN):
+def check_leaks(root, forbidden=FORBIDDEN, file_limit=GZIP_FILE_LIMIT, total_limit=GZIP_TOTAL_LIMIT):
     files = snapshot(root)
     if not files:
         raise AssertionError('Output tree is empty')
+    expanded = 0
     for name, data in files.items():
         payloads = [data]
         # Pagefind fragments/indexes are gzip-compressed even without a .gz suffix.
         if data.startswith(b'\x1f\x8b'):
-            payloads.append(gzip.decompress(data))
+            plain = gunzip_bounded(data, min(file_limit, total_limit - expanded))
+            expanded += len(plain)
+            payloads.append(plain)
         for token in forbidden:
             if token in name or any(token.encode() in payload for payload in payloads):
                 raise AssertionError('Forbidden publication token in ' + name)
@@ -48,7 +75,10 @@ def check_markdown_links(content, public):
     for name, data in files.items():
         if not name.endswith('.md'):
             continue
-        for target in re.findall(r'(?<!!)\[[^\]\n]*\]\(([^\s)]+)\)', data.decode()):
+        text = data.decode()
+        targets = re.findall(r'(?<!!)\[[^\]\n]*\]\(([^\s)]+)\)', text)
+        targets += [html.unescape(href) for href in re.findall(r'<a href="([^"]+)"', text)]
+        for target in targets:
             url = urlsplit(target)
             if target.startswith('#'):
                 continue
@@ -96,7 +126,10 @@ def check_built(root):
                 continue
             if not url.path.startswith(gen.BASE + '/'):
                 raise AssertionError('Link lost site base: ' + target)
-            dest = root / unquote(url.path[len(gen.BASE) + 1:])
+            relative = unquote(url.path[len(gen.BASE) + 1:])
+            if '..' in PurePosixPath(relative).parts or '\\' in relative:
+                raise AssertionError('Traversal in built link: ' + target)
+            dest = root / relative
             if dest.is_dir():
                 dest /= 'index.html'
             if not dest.is_file():
@@ -107,6 +140,11 @@ def check_built(root):
     if not (root / 'sdk-catalogue.json').is_file():
         raise AssertionError('Missing built catalogue')
     return len(pages), checked
+
+
+def git_track(root):
+    subprocess.run(['git', 'init', '-q', str(root)], check=True)
+    subprocess.run(['git', '-C', str(root), 'add', '-A'], check=True)
 
 
 class SiteTests(unittest.TestCase):
@@ -136,6 +174,7 @@ class SiteTests(unittest.TestCase):
             for page in docs.rglob('*.md'):
                 text = page.read_text()
                 self.assertIn('development preview', text)
+                self.assertIn(gen.RELEASES + gen.PUBLISHED_RELEASE, text)
                 for key in ('sdk_version', 'game_pack_version', 'source_sha'):
                     self.assertIn(self.catalogue[key], text)
             self.assertEqual(json.loads((output / 'public/sdk-catalogue.json').read_text()), self.catalogue)
@@ -189,14 +228,18 @@ class SiteTests(unittest.TestCase):
             (root / ('docs/design/' + SENTINELS[1] + '.md')).write_text(SENTINELS[0])
             with (root / 'docs/building.md').open('a') as doc:
                 doc.write('\n' + SENTINELS[0] + '\n')
+            (root / 'sdk').mkdir()
+            shutil.copyfile(ROOT / 'sdk/components.json', root / 'sdk/components.json')
             output = root / 'site'
             output.mkdir()
             for name in ('public-inputs.json', 'package.json', 'package-lock.json', 'astro.config.mjs'):
                 shutil.copyfile(ROOT / 'site' / name, output / name)
+            git_track(root)
             (output / 'src').mkdir()
             (output / 'scripts').mkdir()
             shutil.copyfile(ROOT / 'site/scripts/sanitize_search.py', output / 'scripts/sanitize_search.py')
             shutil.copyfile(ROOT / 'site/src/content.config.ts', output / 'src/content.config.ts')
+            shutil.copytree(ROOT / 'site/src/styles', output / 'src/styles')
             self.generate(root, output)
             shutil.copyfile(ROOT / 'site/public/favicon.svg', output / 'public/favicon.svg')
             check_leaks(output / 'src/content/docs', FORBIDDEN + SENTINELS)
@@ -218,6 +261,81 @@ class SiteTests(unittest.TestCase):
                 self.fail('Node available but dependencies missing; run npm ci in site first')
             else:
                 print('Sentinel generated content clean; built sentinel check skipped: Node unavailable')
+
+    def test_home_portal_matches_release_scope(self):
+        notes = (ROOT / 'docs/releases' / (gen.PUBLISHED_RELEASE + '.md')).read_text()
+        block = re.search(r'<!-- release-scope:start -->\s*```json\n(.+?)\n```\s*<!-- release-scope:end -->', notes, re.S)
+        if block is None:
+            self.fail('Published release notes have no release-scope block')
+        scope = json.loads(block[1])
+        defined = json.loads((ROOT / 'sdk/components.json').read_text())['profiles']
+        expected = []
+        for name in scope['profiles']:
+            version = scope['game_pack_version' if defined[name]['version_from'] == 'include/sc_game_pack.h' else 'sdk_version']
+            expected.append({'data-profile': name, 'data-version': version,
+                             'data-archive': defined[name]['zip'].format(version=version, game_pack_version=version) + '.zip'})
+
+        class Portal(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.cards, self.tracks, self.track_links, self.current = [], {}, {}, None
+
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == 'li' and 'data-profile' in attrs:
+                    self.cards.append({k: attrs[k] for k in ('data-profile', 'data-archive', 'data-version')})
+                if tag == 'section' and 'data-track' in attrs:
+                    self.current = attrs['data-track']
+                    self.tracks[self.current] = attrs
+                    self.track_links[self.current] = []
+                if tag == 'a' and self.current:
+                    self.track_links[self.current].append(attrs['href'])
+
+            def handle_endtag(self, tag):
+                if tag == 'section':
+                    self.current = None
+
+        with tempfile.TemporaryDirectory(prefix='site-portal-') as work:
+            output = Path(work)
+            self.generate(ROOT, output)
+            index = (output / 'src/content/docs/index.md').read_text()
+            portal = Portal()
+            portal.feed(index)
+            self.assertEqual(portal.cards, expected)
+            self.assertEqual(set(portal.tracks), {'published', 'preview'})
+            self.assertEqual(portal.tracks['published']['data-tag'], scope['tag'])
+            self.assertIn(gen.RELEASES + scope['tag'], portal.track_links['published'])
+            self.assertEqual(portal.tracks['preview']['data-source-sha'], self.catalogue['source_sha'])
+            self.assertIn(gen.COMMITS + self.catalogue['source_sha'], portal.track_links['preview'])
+            downloads = gen.DOWNLOADS + scope['tag'] + '/'
+            for card in expected:
+                section = index.split('### Verify ' + card['data-profile'] + '\n', 1)[1].split('\n```\n', 1)[0]
+                self.assertIn(downloads + 'SHA256SUMS', section)
+                self.assertIn(downloads + card['data-archive'], section)
+                self.assertIn('$2 == "' + card['data-archive'] + '"', section)
+                self.assertIn('href="' + gen.BASE + '/#verify-' + card['data-profile'] + '"', index)
+            check_markdown_links(output / 'src/content/docs', output / 'public')
+            check_leaks(output)
+            release = gen.release_portal(ROOT, self.catalogue, 'sdk-v9.9.9', {n: gen.guide_id(n) for n in gen.inputs(ROOT)})
+            self.assertIn('data-track="release"', release)
+            self.assertNotIn('data-track="preview"', release)
+
+    def test_release_portal_fails_closed(self):
+        good = ('<!-- release-scope:start -->\n```json\n' + json.dumps(
+            {'tag': 'sdk-v2.1.0', 'sdk_version': '2.1.0', 'game_pack_version': '0.4.0', 'plugin_abi': '1.1',
+             'profiles': ['core']}) + '\n```\n<!-- release-scope:end -->\n')
+        self.assertEqual(gen.release_scope(good, 'sdk-v2.1.0')['profiles'], ['core'])
+        for label, text, tag in [('missing', '# notes\n', 'sdk-v2.1.0'), ('twice', good + good, 'sdk-v2.1.0'),
+                                 ('wrong tag', good, 'sdk-v2.2.0'),
+                                 ('extra key', good.replace('"profiles"', '"extra": 1, "profiles"'), 'sdk-v2.1.0'),
+                                 ('duplicate profile', good.replace('["core"]', '["core", "core"]'), 'sdk-v2.1.0'),
+                                 ('bad version', good.replace('"2.1.0"', '"2.1"'), 'sdk-v2.1.0')]:
+            with self.subTest(case=label), self.assertRaises(ValueError):
+                gen.release_scope(text, tag)
+        unknown = {'tag': 'sdk-v2.1.0', 'sdk_version': '2.1.0', 'game_pack_version': '0.4.0',
+                   'plugin_abi': '1.1', 'profiles': ['core', 'undeclared-profile']}
+        with self.assertRaises(ValueError):
+            gen.published_profiles(ROOT, unknown)
 
     def test_dependency_license_inventory(self):
         from licenses import inventory
@@ -297,6 +415,137 @@ class SiteTests(unittest.TestCase):
             self.skipTest(result.stderr.strip())
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         print(result.stdout.strip())
+
+    def allowlist_fixture(self, files, docs, init_git=True):
+        work = tempfile.TemporaryDirectory(prefix='site-allow-')
+        self.addCleanup(work.cleanup)
+        root = Path(work.name).resolve()
+        for name, text in files.items():
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).write_text(text)
+        (root / 'site').mkdir(exist_ok=True)
+        (root / 'site/public-inputs.json').write_text(json.dumps({'schema_version': 1, 'docs': docs}))
+        if init_git:
+            git_track(root)
+        return root
+
+    def test_allowlist_clean_pass(self):
+        docs = ['docs/a.md', 'docs/sub/b.md', 'docs/releases/sdk-v9.9.9.md']
+        root = self.allowlist_fixture({name: '# ok\n' for name in docs}, docs)
+        self.assertEqual(gen.inputs(root), sorted(docs))
+        self.assertIn('docs/releases/sdk-v2.1.0.md', gen.inputs(ROOT))
+        self.assertIn('docs/host-source-sc.md', gen.inputs(ROOT))
+
+    def test_allowlist_refuses_unsafe_inputs(self):
+        refused_names = ['docs/legal/x.md', 'docs/design/x.md', 'docs/releases/notes.md',
+                         'docs/releases/sdk-v2.1.0-rc1.md', 'docs/releases/old/sdk-v1.0.0.md',
+                         'docs/releases/sdk-v2.1.md', 'docs/a.txt']
+        for name in refused_names:
+            with self.subTest(name=name):
+                root = self.allowlist_fixture({name: '# tracked\n'}, [name])
+                with self.assertRaises(ValueError):
+                    gen.inputs(root)
+        for name in ('docs/%2e%2e/x.md', 'docs/./a.md', 'docs//a.md', 'docs/../site/a.md', '../docs/a.md'):
+            with self.subTest(name=name):
+                root = self.allowlist_fixture({'docs/a.md': '# a\n'}, [name])
+                with self.assertRaises(ValueError):
+                    gen.inputs(root)
+
+    def test_allowlist_requires_tracked_regular_files(self):
+        def untracked(root):
+            (root / 'docs/late.md').write_text('# never added\n')
+
+        def tracked_symlink(root):
+            os.symlink('a.md', root / 'docs/link.md')
+            git_track(root)
+
+        def symlinked_directory(root):
+            (root / 'outside').mkdir()
+            (root / 'docs/sub').rename(root / 'outside/sub')
+            os.symlink('../outside/sub', root / 'docs/sub')
+
+        cases = [('untracked', 'docs/late.md', untracked),
+                 ('tracked symlink', 'docs/link.md', tracked_symlink),
+                 ('symlinked directory', 'docs/sub/b.md', symlinked_directory)]
+        for label, name, mutate in cases:
+            with self.subTest(case=label):
+                root = self.allowlist_fixture({'docs/a.md': '# a\n', 'docs/sub/b.md': '# b\n'}, [name])
+                mutate(root)
+                with self.assertRaises(ValueError):
+                    gen.inputs(root)
+        root = self.allowlist_fixture({'docs/a.md': '# a\n'}, ['docs/a.md'], init_git=False)
+        with self.assertRaises(ValueError):
+            gen.inputs(root)
+        outer = self.allowlist_fixture({'inner/docs/a.md': '# a\n'}, ['docs/a.md'])
+        (outer / 'inner/site').mkdir()
+        (outer / 'inner/site/public-inputs.json').write_text(json.dumps({'schema_version': 1, 'docs': ['docs/a.md']}))
+        with self.assertRaises(ValueError):
+            gen.inputs(outer / 'inner')
+
+    def test_allowlist_refuses_route_collision(self):
+        self.assertEqual(gen.guide_id('docs/releases/sdk-v2.1.0.md'), 'guides/releases/sdk-v210')
+        for docs in (['docs/game.md', 'docs/game/index.md'], ['docs/a.b.md', 'docs/ab.md']):
+            with self.subTest(docs=docs):
+                root = self.allowlist_fixture({name: '# x\n' for name in docs}, docs)
+                with self.assertRaises(ValueError):
+                    gen.inputs(root)
+
+    def test_encoded_link_traversal_refused(self):
+        sha = self.catalogue['source_sha']
+        for target in ('%2e%2e/%2e%2e/secret.md', '..%2F..%2Fsecret.md', '%2E%2E/x.md', '%5c..%5csecret.md',
+                       '../../../outside.md', gen.SOURCE_ROOT + 'main/%2e%2e/x.md'):
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                gen.rewrite_links('[x](' + target + ')', 'docs/a.md', sha, {})
+        self.assertEqual(gen.rewrite_links('[x](b.md)', 'docs/a.md', sha, {'docs/b.md': 'guides/b'}),
+                         '[x](' + gen.route('guides/b') + ')')
+        self.assertEqual(gen.rewrite_links('[x](https://example.com/a%2Fb)', 'docs/a.md', sha, {}),
+                         '[x](https://example.com/a%2Fb)')
+        with tempfile.TemporaryDirectory(prefix='site-built-') as work:
+            built = Path(work)
+            (built / 'pagefind').mkdir()
+            (built / 'pagefind/a.pf_index').write_bytes(b'index')
+            (built / 'sdk-catalogue.json').write_text('{}')
+            (built / 'index.html').write_text('<a href="' + gen.BASE + '/">home</a>')
+            self.assertEqual(check_built(built), (1, 1))
+            (built / 'index.html').write_text('<a href="' + gen.BASE + '/%2e%2e/%2e%2e/secret">x</a>')
+            with self.assertRaises(AssertionError):
+                check_built(built)
+
+    def test_private_markers_refused_plain_and_gzip(self):
+        with tempfile.TemporaryDirectory(prefix='site-markers-') as work:
+            output = Path(work)
+            (output / 'page.html').write_text('public engineering documentation')
+            self.assertEqual(check_leaks(output), 1)
+            for token in FORBIDDEN:
+                for data in (token.encode(), gzip.compress(token.encode(), mtime=0)):
+                    with self.subTest(token=token, compressed=data != token.encode()):
+                        (output / 'fragment.pf_fragment').write_bytes(data)
+                        with self.assertRaises(AssertionError):
+                            check_leaks(output)
+
+    def test_gzip_decompression_bounds(self):
+        at_limit = gzip.compress(b'\0' * GZIP_FILE_LIMIT, mtime=0)
+        self.assertEqual(len(gunzip_bounded(at_limit, GZIP_FILE_LIMIT)), GZIP_FILE_LIMIT)
+        members = gzip.compress(b'first ', mtime=0) + gzip.compress(SENTINELS[0].encode(), mtime=0)
+        self.assertEqual(gunzip_bounded(members, 1024), b'first ' + SENTINELS[0].encode())
+        for bad in (gzip.compress(b'x' * 64, mtime=0)[:-12], gzip.compress(b'x', mtime=0) + b'junk'):
+            with self.assertRaises(AssertionError):
+                gunzip_bounded(bad, 1024)
+        with tempfile.TemporaryDirectory(prefix='site-gzip-') as work:
+            output = Path(work)
+            (output / 'members.pf_fragment').write_bytes(members)
+            with self.assertRaises(AssertionError):
+                check_leaks(output, SENTINELS)
+            (output / 'members.pf_fragment').unlink()
+            (output / 'bomb.pf_fragment').write_bytes(gzip.compress(b'\0' * (GZIP_FILE_LIMIT + 1), mtime=0))
+            with self.assertRaises(AssertionError):
+                check_leaks(output, SENTINELS)
+            (output / 'bomb.pf_fragment').unlink()
+            for index in range(3):
+                (output / ('part-%d.pf_fragment' % index)).write_bytes(gzip.compress(b'\0' * 1000, mtime=0))
+            self.assertEqual(check_leaks(output, SENTINELS, file_limit=1024, total_limit=3000), 3)
+            with self.assertRaises(AssertionError):
+                check_leaks(output, SENTINELS, file_limit=1024, total_limit=2999)
 
     def test_supplied_build(self):
         if BUILT is None:

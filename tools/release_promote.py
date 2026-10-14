@@ -89,6 +89,7 @@ REQUIRED = {
     "sdk": {"package", "windows", "csharp-host-sim"},
     "test": {"test"},
     "ip-compliance": {"audit"},
+    "docs-site": {"docs-site"},
 }
 
 
