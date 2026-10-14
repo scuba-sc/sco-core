@@ -1363,7 +1363,8 @@ if(SCO_BUILD_TESTS)
   # name, and --short-tables (sco_api at its 1.0 extent). Cases in tests/plugin_check.cmake.
   add_executable(sco-plugin-check sdk/tools/sco-plugin-check.c)
   target_include_directories(sco-plugin-check PRIVATE "${SCO_INCLUDE_DIR}")
-  set_target_properties(sco-plugin-check PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+  # gnu11 like sdk/CMakeLists.txt (the root sets C_EXTENSIONS OFF); the checker uses POSIX lstat.
+  set_target_properties(sco-plugin-check PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS ON)
   if(MSVC)
     target_compile_options(sco-plugin-check PRIVATE /W4 /WX /wd5105 /D_CRT_SECURE_NO_WARNINGS)
   else()
