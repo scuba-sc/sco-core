@@ -2,7 +2,9 @@
 """Read-only, tools-only MCP 2025-11-25 server for SDK catalogue schema 1.
 
 No SDK invocation, subprocesses, network access, or filesystem writes. Stdout is
-reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr.
+reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr. Besides
+the catalogue and record-listed examples, only docs/game/status.md and
+docs/legal/release-decisions/ are read, and only beneath --repo-root.
 """
 import argparse
 from collections import deque
@@ -32,6 +34,22 @@ RECORD_KEYS = {
 TABLE_KEYS = {"source_header", "version_macro", "members", "size", "version", "service", "context"}
 ANNOTATIONS = {"readOnlyHint": True, "destructiveHint": False,
                "idempotentHint": True, "openWorldHint": False}
+TAG_PATTERN = r"^sdk-v[0-9]+\.[0-9]+\.[0-9]+$"
+SHA_PATTERN = r"^[0-9a-f]{40}$"
+VERSION_PATTERN = r"^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})$"
+RELEASE_DIR = ("docs", "legal", "release-decisions")
+MAX_RELEASE_RECORDS = 64
+DISTRIBUTION_STATUSES = {"approved-for-publication", "internal-only", "hold"}
+GAME_STATUS = ("docs", "game", "status.md")
+GAME_STATUS_HEADER = "| Table | Version | Capability | Default | Evidence |"
+GAME_STATUS_SEPARATOR = "|---|---|---|---|---|"
+GAME_STATUS_TABLE = re.compile(r"`([^`]+)` \(\[`([^`/]+)`\]\([^)\s]+\)\)")
+SIGCHECK_LEVEL = re.compile(r"row resolved on ([0-9][0-9.]*) \(sigcheck\)")
+RELEASE_CONCLUSIONS = [
+    "Approval records are read from the --repo-root checkout; a record committed only at its release tag is absent elsewhere, so no matching record is not proof that no release exists.",
+    "built_source_sha is the approved candidate's built source commit. The release tag names a later approval-only commit that adds the record; the two are distinct and this server does not resolve tags.",
+    "No signature is verified here: tools/release_verify.py checks the detached SSH signature against independently trusted allowed signers, the payload and the approval-only descendant.",
+    "approved-for-publication records a decision, not that a release was published; publication is not checked."]
 STATUS_CAVEAT = (
     "Language mappings describe source-backed exposure, not live availability. "
     "Capability gating, signature resolution and game-session evidence are separate; "
@@ -44,10 +62,12 @@ def string_schema(maximum=512):
     return {"type": "string", "minLength": 1, "maxLength": maximum}
 
 
-def tool(name, description, properties=None, required=()):
-    return {"name": name, "description": description,
-            "inputSchema": {"type": "object", "properties": properties or {},
-                            "required": list(required), "additionalProperties": False},
+def tool(name, description, properties=None, required=(), dependent=None):
+    schema = {"type": "object", "properties": properties or {},
+              "required": list(required), "additionalProperties": False}
+    if dependent:
+        schema["dependentRequired"] = dependent
+    return {"name": name, "description": description, "inputSchema": schema,
             "annotations": dict(ANNOTATIONS)}
 
 
@@ -61,9 +81,16 @@ TOOLS = [
     tool("list_services", "List catalogue table names, services, packed table versions, x64 sizes and member counts."),
     tool("get_example", "Return record-listed examples only; without a repository root return paths only.",
          {**SYMBOL, "language": LANGUAGE}, ("symbol_or_id",)),
-    tool("get_capability_status", "Read language exposure and absent-capability contracts, not running-game status.", SYMBOL, ("symbol_or_id",)),
-    tool("check_compatibility", "Compare exact SDK/game-pack version strings with catalogue coordinates; not runtime certification.",
-         {"sdk_version": string_schema(), "game_pack_version": string_schema()}),
+    tool("get_capability_status", "Read language exposure, absent-capability contracts and recorded evidence state, not running-game status.", SYMBOL, ("symbol_or_id",)),
+    tool("check_compatibility", "Compare exact SDK/game-pack/source coordinates with catalogue metadata, optionally read a release approval record "
+         "(no signature verification) and compare a service's minimum version and member extent with the catalogue table; not runtime certification.",
+         {"sdk_version": string_schema(), "game_pack_version": string_schema(),
+          "tag": {**string_schema(32), "pattern": TAG_PATTERN},
+          "source_sha": {**string_schema(40), "pattern": SHA_PATTERN},
+          "service": string_schema(128),
+          "min_version": {**string_schema(11), "pattern": VERSION_PATTERN},
+          "member_extent": {"type": "integer", "minimum": 1, "maximum": 65535}},
+         dependent={"min_version": ["service"], "member_extent": ["service"]}),
 ]
 TOOL_INDEX = {definition["name"]: definition for definition in TOOLS}
 
@@ -187,6 +214,11 @@ def validate_arguments(name, arguments):
             raise ToolError(key + " must be an integer within the advertised range")
         if "enum" in spec and value not in spec["enum"]:
             raise ToolError(key + " is not an advertised language")
+        if "pattern" in spec and not re.fullmatch(spec["pattern"], value):
+            raise ToolError(key + " does not match the advertised pattern")
+    for key, needed in schema.get("dependentRequired", {}).items():
+        if key in arguments and not set(needed) <= set(arguments):
+            raise ToolError(key + " requires " + ", ".join(needed))
 
 
 def example_parts(name):
@@ -271,6 +303,76 @@ def read_recorded_example(root, parts):
     return read_example(root, parts[1:])
 
 
+def list_contained_directory(root, parts):
+    """List a fixed directory beneath the trusted root without following symlinks."""
+    if (os.open in os.supports_dir_fd and os.listdir in os.supports_fd
+            and hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY")):
+        directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            for part in parts:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+                os.close(directory)
+                directory = child
+            return os.listdir(directory)
+        finally:
+            os.close(directory)
+    reject_symlinks(root, parts)
+    return os.listdir(root.joinpath(*parts))
+
+
+def parse_game_status(text, tables):
+    """Strictly parse the five-column service table of docs/game/status.md.
+
+    Rows are attributed to a catalogue table only when the backticked service
+    and the linked header both match it. Any malformed row refuses the whole
+    table, so evidence is reported unknown rather than half-read.
+    """
+    lines = [line.strip() for line in text.splitlines()]
+    starts = [index for index, line in enumerate(lines) if line == GAME_STATUS_HEADER]
+    require(len(starts) == 1, "service table header not found exactly once")
+    start = starts[0] + 1
+    require(start < len(lines) and lines[start] == GAME_STATUS_SEPARATOR, "service table separator missing")
+    by_service = {table["service"]: (name, table) for name, table in tables.items()}
+    groups, current, started = {}, None, False
+    for line in lines[start + 1:]:
+        if not line.startswith("|"):
+            break
+        require(line.endswith("|"), "unterminated service table row")
+        cells = [cell.strip() for cell in line[1:-1].split("|")]
+        require(len(cells) == 5, "service table row does not have five cells")
+        table_cell, version, capability, default, evidence = cells
+        if table_cell:
+            require(version, "service table row has no version")
+            match = GAME_STATUS_TABLE.fullmatch(table_cell)
+            current, started = None, True
+            if match and match[1] in by_service:
+                name, table = by_service[match[1]]
+                if PurePosixPath(table["source_header"]).name == match[2]:
+                    require(name not in groups, "service table repeats a service")
+                    current = name
+                    catalogue_version = "%d.%d" % (table["version"] >> 16, table["version"] & 0xFFFF)
+                    groups[name] = {"documented_version": version,
+                                    "version_matches_catalogue": version == catalogue_version, "rows": []}
+        else:
+            require(started and not version, "continuation row without a table")
+        require(capability and evidence and default in {"ON", "OFF", "none"}, "unrecognized service table row")
+        if current is None:
+            continue
+        row = {"capability": capability, "default": default, "evidence": evidence}
+        level = SIGCHECK_LEVEL.match(evidence)
+        if level:
+            row.update(evidence_level="row_resolved_sigcheck", game_build=level[1])
+        elif evidence == "OFF pending in-game confirmation":
+            row["evidence_level"] = "off_pending_in_game_confirmation"
+        elif evidence == "BLOCKED":
+            row["evidence_level"] = "blocked"
+        else:
+            # Includes any in-game claim: this server never reports gameplay verification.
+            row["evidence_level"] = "unclassified"
+        groups[current]["rows"].append(row)
+    return groups
+
+
 def aliases(record):
     # Schema 1 has no aliases field: derive searchable names from source evidence,
     # retaining the full original mapping evidence in get_symbol.
@@ -292,6 +394,132 @@ class Server:
                               for r in catalogue["records"]]
         self.state = "new"
         self.calls = deque()
+        self.game_status, self.game_status_reason = self.load_game_status()
+
+    def load_game_status(self):
+        """Return (rows by catalogue table, None) or (None, reason)."""
+        if self.repo_root is None:
+            return None, "No --repo-root: docs/game/status.md is not read"
+        try:
+            text = read_example(self.repo_root, GAME_STATUS)
+        except (OSError, UnicodeError, ToolError):
+            return None, "docs/game/status.md unavailable beneath --repo-root"
+        try:
+            return parse_game_status(text, self.catalogue["tables"]), None
+        except ValueError as error:
+            return None, "docs/game/status.md service table refused: " + str(error)
+
+    def evidence_state(self, record):
+        """Per-record evidence from the catalogue and, for game-pack records, status rows."""
+        game = record["source_header"].startswith("include/sc_")
+        state = {"scope": "game-pack" if game else "neutral",
+                 "contract_status": {"state": "documented", "source": self.catalogue["contract_context"]["source"]},
+                 "default_runtime_state": {"state": "unknown", "reason": "No machine-readable per-method default is recorded"}}
+        if not game:
+            absent = {"state": "not_applicable", "reason": "Game-independent contract; game-build evidence does not apply"}
+            return state | {"sigcheck_receipt": absent, "gameplay_receipt": dict(absent)}
+        state["sigcheck_receipt"] = {"state": "unknown", "reason": "No per-method sigcheck receipt is recorded; see service_status"}
+        state["gameplay_receipt"] = {"state": "unknown", "reason": "No machine-readable gameplay receipt exists; this server never reports in-game verification"}
+        base = {"scope": "service", "source": "/".join(GAME_STATUS),
+                "snapshot": "Read from --repo-root at server start; not bound to the catalogue source_sha"}
+        if self.game_status is None:
+            state["service_status"] = {**base, "state": "unavailable", "reason": self.game_status_reason, "rows": []}
+        elif record["table"] not in self.game_status:
+            state["service_status"] = {**base, "state": "no_rows", "rows": []}
+        else:
+            state["service_status"] = {**base, "state": "rows_found", **self.game_status[record["table"]]}
+        return state
+
+    def release_record(self, name):
+        """Shape-check one approval record; never verifies its signature."""
+        entry = {"path": "/".join(RELEASE_DIR + (name,))}
+        try:
+            text = read_example(self.repo_root, RELEASE_DIR + (name,))
+        except FileNotFoundError:
+            return None
+        except (OSError, UnicodeError, ToolError):
+            return entry | {"format": "unreadable"}
+        try:
+            data = parse_json(text)
+        except (ValueError, RecursionError):
+            return entry | {"format": "unparseable"}
+        if not isinstance(data, dict) or type(data.get("schema_version")) is not int:
+            return entry | {"format": "unrecognized"}
+        if data["schema_version"] == 1:
+            return entry | {"format": "legacy_unsigned_v1"}
+        source, distribution = data.get("source"), data.get("distribution")
+        if not (data["schema_version"] == 2
+                and isinstance(data.get("tag"), str) and re.fullmatch(TAG_PATTERN, data["tag"])
+                and isinstance(source, dict) and isinstance(source.get("sha"), str) and re.fullmatch(SHA_PATTERN, source["sha"])
+                and isinstance(distribution, dict) and distribution.get("status") in DISTRIBUTION_STATUSES
+                and nonempty(data.get("approved_at")) and len(data["approved_at"]) <= 64):
+            return entry | {"format": "unrecognized"}
+        try:
+            signature = read_example(self.repo_root, RELEASE_DIR + (name + ".sig",))
+            signature_file = "present" if signature.startswith("-----BEGIN SSH SIGNATURE-----") else "unrecognized"
+        except FileNotFoundError:
+            signature_file = "absent"
+        except (OSError, UnicodeError, ToolError):
+            signature_file = "unreadable"
+        return entry | {"format": "approval_schema_v2", "tag": data["tag"], "tag_matches_filename": data["tag"] + ".json" == name,
+                        "built_source_sha": source["sha"], "distribution_status": distribution["status"],
+                        "approved_at": data["approved_at"], "signature_file": signature_file}
+
+    def release_lookup(self, tag, source_sha):
+        result = {"state": "unavailable", "records": [], "signature_verification": "not_performed",
+                  "publication": "not_checked", "conclusions": RELEASE_CONCLUSIONS}
+        if self.repo_root is None:
+            return result | {"reason": "No --repo-root: approval records are read only from a configured checkout"}
+        if tag is not None:
+            names = [tag + ".json"]
+        else:
+            try:
+                names = sorted(n for n in list_contained_directory(self.repo_root, RELEASE_DIR)
+                               if re.fullmatch(r"sdk-v[0-9]+\.[0-9]+\.[0-9]+\.json", n))
+            except (OSError, ToolError):
+                return result | {"reason": "docs/legal/release-decisions unavailable beneath --repo-root"}
+            if len(names) > MAX_RELEASE_RECORDS:
+                return result | {"reason": "More than 64 approval records; pass tag"}
+        records = []
+        for name in names:
+            entry = self.release_record(name)
+            if entry is None:
+                continue
+            approved = entry["format"] == "approval_schema_v2"
+            if approved and tag is not None:
+                entry["tag_matches"] = entry["tag"] == tag
+            if approved and source_sha is not None:
+                entry["built_source_sha_matches"] = entry["built_source_sha"] == source_sha
+            # A source-only scan reports matches plus records it could not read.
+            if tag is None and (entry.get("built_source_sha_matches") is False or entry["format"] == "legacy_unsigned_v1"):
+                continue
+            records.append(entry)
+        matching = any(entry["format"] == "approval_schema_v2" and entry["tag_matches_filename"]
+                       and entry.get("tag_matches", True) and entry.get("built_source_sha_matches", True)
+                       for entry in records)
+        return result | {"state": "matching_approval_record" if matching else "no_matching_approval_record",
+                         "records": records}
+
+    def service_table(self, args):
+        matches = [(name, table) for name, table in sorted(self.catalogue["tables"].items())
+                   if table["service"] == args["service"]]
+        if len(matches) != 1:
+            raise ToolError("Unknown or ambiguous service; use list_services")
+        name, table = matches[0]
+        version = table["version"]
+        result = {"table": name, "service": table["service"],
+                  "catalogue_version": "%d.%d" % (version >> 16, version & 0xFFFF), "catalogue_size": table["size"]}
+        if "min_version" in args:
+            major, minor = (int(part) for part in args["min_version"].split("."))
+            if major > 0xFFFF or minor > 0xFFFF:
+                raise ToolError("min_version components must be at most 65535")
+            result["version_satisfies"] = major == version >> 16 and minor <= version & 0xFFFF
+        if "member_extent" in args:
+            result["extent_within_catalogue_size"] = args["member_extent"] <= table["size"]
+        result["conclusions"] = [
+            "Compared with the catalogue's compiled x64 header snapshot, using query_service's rule: equal major, provider minor at least the requested minor.",
+            "A runtime provider table can be older or shorter: still check table->size covers the member extent and the pointer is non-NULL before calling."]
+        return result
 
     def symbol(self, key):
         if key not in self.records:
@@ -334,20 +562,27 @@ class Server:
                                   "size": table["size"], "member_count": len(table["members"])}
                                  for name, table in sorted(self.catalogue["tables"].items())]}
         if name == "check_compatibility":
-            return {"requested": args, "catalogue_coordinates": {k: self.catalogue[k] for k in PROVENANCE_KEYS[1:]},
-                    "coordinate_matches": {key: value == self.catalogue[key] for key, value in args.items()},
-                    "conclusions": [
+            coordinates = {k: self.catalogue[k] for k in PROVENANCE_KEYS[1:]}
+            result = {"requested": args, "catalogue_coordinates": coordinates,
+                      "coordinate_matches": {key: value == coordinates[key] for key, value in args.items() if key in coordinates},
+                      "conclusions": [
                         "Exact version-string equality identifies catalogue coordinates only; no version ordering or ABI compatibility is inferred.",
                         "source_sha identifies the supplied source snapshot, not a verified checkout or running binary.",
                         "Without a requested coordinate no comparison is made. A mismatch is not proof of incompatibility.",
                         "This cannot establish plugin loading, live table size/non-NULL members, enabled capabilities, semantic behavior or game-build support.",
                         "Service-table packed major/minor versions and complete member extents must be checked in the runtime; SDK/game-pack strings are separate."]}
+            if "service" in args:
+                result["service_table"] = self.service_table(args)
+            if "tag" in args or "source_sha" in args:
+                result["release"] = self.release_lookup(args.get("tag"), args.get("source_sha"))
+            return result
         record = self.symbol(args["symbol_or_id"])
         if name == "get_symbol":
             return {"record": record, "table_context": self.catalogue["tables"].get(record["table"]),
-                    "contract_context": self.catalogue["contract_context"]}
+                    "contract_context": self.catalogue["contract_context"], "evidence_state": self.evidence_state(record)}
         if name == "get_capability_status":
-            return {key: record[key] for key in ("language_mappings", "absent_capability", "limitations")} | {"status_caveat": STATUS_CAVEAT}
+            return ({key: record[key] for key in ("language_mappings", "absent_capability", "limitations")}
+                    | {"status_caveat": STATUS_CAVEAT, "evidence_state": self.evidence_state(record)})
         examples = record["examples"]
         if len(examples) > MAX_EXAMPLES:
             raise ToolError("Example result exceeds 16 files")

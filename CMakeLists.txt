@@ -1358,6 +1358,41 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_plugins
            COMMAND test_plugins "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/plugins" "${SCO_TEST_OUT}")
 
+  # sco-plugin-check's stand-in host (built as sdk/CMakeLists.txt builds it) on one plugin per
+  # PROBE_MODE of tests/fixtures/plugins/native/checker_probe.c: release_service on a borrowed
+  # name, and --short-tables (sco_api at its 1.0 extent). Cases in tests/plugin_check.cmake.
+  add_executable(sco-plugin-check sdk/tools/sco-plugin-check.c)
+  target_include_directories(sco-plugin-check PRIVATE "${SCO_INCLUDE_DIR}")
+  set_target_properties(sco-plugin-check PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+  if(MSVC)
+    target_compile_options(sco-plugin-check PRIVATE /W4 /WX /wd5105 /D_CRT_SECURE_NO_WARNINGS)
+  else()
+    target_compile_options(sco-plugin-check PRIVATE -Wall -Wextra -Werror)
+    target_link_libraries(sco-plugin-check PRIVATE ${CMAKE_DL_LIBS})
+  endif()
+  set(_chk "${SCO_TEST_OUT}/plugin_check")
+  file(REMOVE_RECURSE "${_chk}")
+  foreach(probe IN ITEMS chk_release_own:0 chk_release_borrowed:1 chk_tail_unchecked:2 chk_tail_checked:3)
+    string(REPLACE ":" ";" probe "${probe}")
+    list(GET probe 0 id)
+    list(GET probe 1 mode)
+    file(WRITE "${_chk}/${id}/plugin.ini"
+         "id = ${id}\nname = Checker probe ${id}\nversion = 1.0.0\napi = 1.0\nkind = native\nentry = ${id}.${_ext}\n")
+    add_library(sco_chk_${id} SHARED tests/fixtures/plugins/native/checker_probe.c)
+    target_include_directories(sco_chk_${id} PRIVATE "${SCO_INCLUDE_DIR}")
+    target_compile_definitions(sco_chk_${id} PRIVATE PROBE_MODE=${mode} "PROBE_ID=\"${id}\"")
+    set_target_properties(sco_chk_${id} PROPERTIES
+      OUTPUT_NAME ${id} PREFIX "" SUFFIX ".${_ext}"
+      LIBRARY_OUTPUT_DIRECTORY "$<1:${_chk}/${id}>"
+      RUNTIME_OUTPUT_DIRECTORY "$<1:${_chk}/${id}>")
+    sco_warnings(sco_chk_${id})
+    add_dependencies(sco-plugin-check sco_chk_${id})
+  endforeach()
+  add_test(NAME plugin_check_services
+           COMMAND "${CMAKE_COMMAND}" "-DCHECK=$<TARGET_FILE:sco-plugin-check>" "-DROOT=${_chk}"
+                   -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/plugin_check.cmake")
+  set_tests_properties(plugin_check_services PROPERTIES FAIL_REGULAR_EXPRESSION "plugin_check_services: FAIL")
+
   if(SCO_GAME_SC)
     # Public game CONTRACT consumers on the neutral host, not game implementation.
     # Kept outside core-source; no game library is linked into this fixture.
