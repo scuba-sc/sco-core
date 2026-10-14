@@ -134,7 +134,9 @@
       "tier": 1,
       "capability": [
         "game.creative.ammo",
-        "game.creative.ship_ammo"
+        "game.creative.ship_ammo",
+        "game.hangar.atc_cancel",
+        "game.hangar.lift"
       ],
       "source": "src/game/actors_sigs.cpp"
     },
@@ -173,7 +175,10 @@
       "id": "spawn.find_entity_by_name",
       "subsystem": "actors",
       "hash": "_0x1B82EC8A03F0CF4D",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.hangar.lift"
+      ],
       "source": "src/game/actors_sigs.cpp"
     },
     {
@@ -425,7 +430,10 @@
       "id": "atc.get_component",
       "subsystem": "asop",
       "hash": "_0x4C144F7D411A181B",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.hangar.atc_cancel"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
@@ -530,7 +538,10 @@
       "id": "atc.request_cancel",
       "subsystem": "atc",
       "hash": "_0xEB0F9D85C414EC59",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.hangar.atc_cancel"
+      ],
       "source": "src/game/atc_sigs.cpp"
     },
     {
@@ -1342,7 +1353,10 @@
       "id": "contracts.reputation_services",
       "subsystem": "features",
       "hash": "_0x1EAA8B6887C88985",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.reputation.checks"
+      ],
       "source": "src/game/features_sigs.cpp"
     },
     {
@@ -1552,14 +1566,20 @@
       "id": "lift.close_request",
       "subsystem": "hangar",
       "hash": "_0x6CF7349EC0955141",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.hangar.lift"
+      ],
       "source": "src/game/hangar_sigs.cpp"
     },
     {
       "id": "lift.open_request",
       "subsystem": "hangar",
       "hash": "_0x3AA24009F6F495F3",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.hangar.lift"
+      ],
       "source": "src/game/hangar_sigs.cpp"
     },
     {
@@ -2089,6 +2109,7 @@
         "game.creative.fly",
         "game.creative.god_mode",
         "game.creative.ship_ammo",
+        "game.hangar.lift",
         "spawn.ship"
       ],
       "source": "src/game/teleport_sigs.cpp"
@@ -2097,21 +2118,30 @@
       "id": "build.free_cam_on",
       "subsystem": "world",
       "hash": "_0xEB48D88CBB4ACDCF",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.world.free_camera_flag"
+      ],
       "source": "src/game/world_sigs.cpp"
     },
     {
       "id": "build.free_cam_off",
       "subsystem": "world",
       "hash": "_0x382B13A1A336BCAE",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.world.free_camera_flag"
+      ],
       "source": "src/game/world_sigs.cpp"
     },
     {
       "id": "build.free_cam_flag",
       "subsystem": "world",
       "hash": "_0x2210C2B0EC51656B",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.world.free_camera_flag"
+      ],
       "source": "src/game/world_sigs.cpp"
     },
     {
