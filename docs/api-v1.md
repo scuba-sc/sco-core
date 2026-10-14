@@ -311,6 +311,7 @@ Some services are published by the host itself rather than by a plugin. They liv
 | `sco.net` | 1.0 | [`sco_net.h`](../include/sco_net.h) | Typed message channels between the players of a private session the product opened (`<plugin id>.<name>`, unreliable or reliable, per-plugin send quotas); callbacks on the game thread, `net.state` / `net.peer` events. Published with the capability `sco.net` (`requires = sco.net`); plugins can't open or join sessions. [Multiplayer messages](net.md) |
 | `sco.settings` | 1.0 | [`sco_settings.h`](../include/sco_settings.h) | The typed `[settings]` of the plugin's `plugin.ini`, read-only: `get_bool` / `get_int` / `get_float` / `get_string`, and the event `settings.changed`. [Below](#scosettings-10), [plugin.ini](plugins.md#typed-settings-settings) |
 | `sco.ui` | 1.0 | [`sco_ui.h`](../include/sco_ui.h) | Tabs, overlays and badges in the product's menu, drawn by the product through the plugin's draw function, and hotkeys: key chords bound to commands. [UI](ui.md) |
+| `sco.ui.surfaces` | 1.0 | [`sco_ui_surfaces.h`](../include/sco_ui_surfaces.h) | Where a `sco.widgets` panel is shown: a 2D HUD rectangle, a camera-facing 3D billboard or a world-anchored 3D quad; the host validates and stores the poses, the product's renderer projects them. Published while `sco.ui` runs. [UI: Surfaces](ui.md#surfaces) |
 
 The host side is `sco::host::ProvideHostService` ([API: sco/host.h](api.md#scohosth-the-hosts-sco_api-table)).
 

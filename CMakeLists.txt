@@ -218,8 +218,9 @@ target_link_libraries(sco_storage PUBLIC sco_host sco_sqlite)
 sco_project_target(sco_storage)
 
 # sco.ui (sco/ui.h, include/sco_ui.h): plugin tabs, overlays and badges and the hotkey table, a
-# host-owned service. No renderer: the product draws what is registered.
-add_library(sco_ui STATIC src/ui/ui.cpp)
+# host-owned service. No renderer: the product draws what is registered. sco.ui.surfaces
+# (sco/surfaces.h, include/sco_ui_surfaces.h) lives here too and shares sco.ui's release hook.
+add_library(sco_ui STATIC src/ui/ui.cpp src/ui/surfaces.cpp)
 target_link_libraries(sco_ui PUBLIC sco_host)
 sco_project_target(sco_ui)
 
@@ -697,6 +698,28 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_widgets
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_widgets_targets})
 
+  # The sco.ui.surfaces table and payload pins (tests/abi_ui_surfaces.c), the same three ways.
+  set(_abi_ui_surfaces_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_ui_surfaces.cpp")
+  file(CONFIGURE OUTPUT "${_abi_ui_surfaces_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_ui_surfaces.c\"\n")
+  add_library(sco_abi_ui_surfaces_c OBJECT tests/abi_ui_surfaces.c)
+  add_library(sco_abi_ui_surfaces_cxx OBJECT "${_abi_ui_surfaces_cxx}")
+  set(_abi_ui_surfaces_targets sco_abi_ui_surfaces_c sco_abi_ui_surfaces_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_ui_surfaces_short_enums OBJECT tests/abi_ui_surfaces.c)
+    target_compile_options(sco_abi_ui_surfaces_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_ui_surfaces_targets sco_abi_ui_surfaces_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_ui_surfaces_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_ui_surfaces
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ui_surfaces_targets})
+
   if(SCO_GAME_SC)
   # The sco.datacore table pin (tests/abi_datacore.c), the same three ways.
   set(_abi_datacore_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_datacore.cpp")
@@ -1142,6 +1165,13 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_ui PRIVATE sco_ui sco_plugins)
   sco_project_target(test_ui)
   add_test(NAME test_ui COMMAND test_ui)
+
+  # sco.ui.surfaces over the real host table, the release hook it shares with sco.ui, and
+  # scosdk/ui_surfaces.hpp.
+  add_executable(test_surfaces tests/test_surfaces.cpp)
+  target_link_libraries(test_surfaces PRIVATE sco_ui)
+  sco_project_target(test_surfaces)
+  add_test(NAME test_surfaces COMMAND test_surfaces)
 
   if(SCO_GAME_SC)
     add_executable(test_cvars tests/test_cvars.cpp src/game/services/cvars.cpp)

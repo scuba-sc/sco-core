@@ -1626,6 +1626,18 @@
       "public_header": true
     },
     {
+      "id": "include.sco_ui_surfaces.h",
+      "source": "include/sco_ui_surfaces.h",
+      "destination": "include/sco_ui_surfaces.h",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
       "id": "include.sco_settings.h",
       "source": "include/sco_settings.h",
       "destination": "include/sco_settings.h",
@@ -2012,6 +2024,18 @@
       "id": "include.scosdk.ui.hpp",
       "source": "include/scosdk/ui.hpp",
       "destination": "include/scosdk/ui.hpp",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "include.scosdk.ui_surfaces.hpp",
+      "source": "include/scosdk/ui_surfaces.hpp",
+      "destination": "include/scosdk/ui_surfaces.hpp",
       "profiles": [
         "core",
         "core-source"
@@ -3348,6 +3372,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.include.sco.surfaces.h",
+      "source": "include/sco/surfaces.h",
+      "destination": "include/sco/surfaces.h",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.include.sco.vfs.h",
       "source": "include/sco/vfs.h",
       "destination": "include/sco/vfs.h",
@@ -4418,6 +4452,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.src.ui.surfaces.cpp",
+      "source": "src/ui/surfaces.cpp",
+      "destination": "src/ui/surfaces.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.src.vfs.compose.cpp",
       "source": "src/vfs/compose.cpp",
       "destination": "src/vfs/compose.cpp",
@@ -4663,6 +4707,16 @@
       "id": "source.tests.abi_ui.c",
       "source": "tests/abi_ui.c",
       "destination": "tests/abi_ui.c",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.abi_ui_surfaces.c",
+      "source": "tests/abi_ui_surfaces.c",
+      "destination": "tests/abi_ui_surfaces.c",
       "profiles": [
         "core-source"
       ],
@@ -5183,6 +5237,16 @@
       "id": "source.tests.test_ui.cpp",
       "source": "tests/test_ui.cpp",
       "destination": "tests/test_ui.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_surfaces.cpp",
+      "source": "tests/test_surfaces.cpp",
+      "destination": "tests/test_surfaces.cpp",
       "profiles": [
         "core-source"
       ],

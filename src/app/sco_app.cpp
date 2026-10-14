@@ -23,6 +23,7 @@
 #include "sco/storage.h"
 #include "sco/ui.h"
 #include "sco/widgets.h"
+#include "sco/surfaces.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -178,6 +179,8 @@ bool Start(const Platform& platform) {
     }
     const Result ur = ui::Start();
     if (ur != Result::Ok) Log("[app] ui not started: %s", ResultName(ur));
+    const Result sur = surfaces::Start();   // after ui: owner cleanup rides its release hook
+    if (sur != Result::Ok) Log("[app] ui surfaces not started: %s", ResultName(sur));
     const Result wr = widgets::Start();
     if (wr != Result::Ok) Log("[app] widgets not started: %s", ResultName(wr));
     const Result str = settings::Start();   // after storage: kept values are read from it
@@ -351,6 +354,7 @@ void Stop() {
     net::Stop();   // leaves any session
     ipc::Stop();
     widgets::Stop();
+    surfaces::Stop();
     ui::Stop();
 #ifndef SCO_KERNEL_ONLY
     datacore::service::Stop();

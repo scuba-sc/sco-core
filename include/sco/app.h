@@ -27,7 +27,7 @@
 //   3. setCapabilities() (after the rows are resolved, so it can use caps::SetFromSignatures)
 //   4. host::BuildApi({ hostVersion }); with dataRoot set, storage::Start (sco.storage) and, with
 //      dataCore too, datacore::service::Start (sco.datacore); widgets::Start (sco.widgets);
-//      ui::Start (sco.ui) and ui::ReserveChord
+//      ui::Start (sco.ui), surfaces::Start (sco.ui.surfaces) and ui::ReserveChord
 //      for each of reservedChords; ipc::Start (sco.ipc); net::Start (sco.net and the capability
 //      "sco.net"; no socket until the product calls net::Host or net::Join, sco/net/session.h); with
 //      gameServices, game::services::Start (teleport.spatial under the owner "game")
@@ -43,7 +43,7 @@
 // messages and events (net::Tick).
 // Stop: Dispatch "game.exit", close runtime admissions and cancel all queued work,
 // then UnloadAll (newest first, built-ins last), storage::Stop, net::Stop (leaves
-// any session), ipc::Stop, widgets::Stop, ui::Stop,
+// any session), ipc::Stop, widgets::Stop, surfaces::Stop, ui::Stop,
 // datacore::service::Stop, game::services::Stop and host::WithdrawGameServices, and
 // host::WithdrawHostServices (host and game services outlive every plugin),
 // ContainCallouts(nullptr).
