@@ -1153,7 +1153,7 @@ static sco_result widget_remove_nodes(sco_plugin* self, const char* panel_id, co
     SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER)
 
 /* Advertises what the real host does (src/widgets/widgets.cpp), with the 1.0 limit macros. */
-static sco_result widget_capabilities(sco_plugin* self, uint32_t* caps) {
+static sco_result widget_capabilities(sco_plugin* self, uint32_t* out) {
     static const uint32_t known[SCO_WIDGETS_CAPS_1_1] = {
         SCO_WIDGETS_CAPS_1_1, WIDGET_FEATURES, SCO_WIDGETS_MAX_PANELS, SCO_WIDGETS_MAX_NODES,
         SCO_WIDGETS_MAX_TOTAL_NODES, SCO_WIDGETS_MAX_ITEMS, SCO_WIDGETS_MAX_COLUMNS,
@@ -1161,10 +1161,10 @@ static sco_result widget_capabilities(sco_plugin* self, uint32_t* caps) {
     };
     uint32_t i, n;
     if (!widget_running) return SCO_UNAVAILABLE;
-    if (self != &the_plugin || !caps || caps[SCO_WIDGETS_CAP_COUNT] < 2u) return SCO_BAD_ARG;
-    n = caps[SCO_WIDGETS_CAP_COUNT] < SCO_WIDGETS_CAPS_1_1 ? caps[SCO_WIDGETS_CAP_COUNT] : SCO_WIDGETS_CAPS_1_1;
-    for (i = 1; i < n; ++i) caps[i] = known[i];
-    caps[SCO_WIDGETS_CAP_COUNT] = n;
+    if (self != &the_plugin || !out || out[SCO_WIDGETS_CAP_COUNT] < 2u) return SCO_BAD_ARG;
+    n = out[SCO_WIDGETS_CAP_COUNT] < SCO_WIDGETS_CAPS_1_1 ? out[SCO_WIDGETS_CAP_COUNT] : SCO_WIDGETS_CAPS_1_1;
+    for (i = 1; i < n; ++i) out[i] = known[i];
+    out[SCO_WIDGETS_CAP_COUNT] = n;
     printf("  widgets capabilities count=%u features=0x%02x\n", (unsigned)n, (unsigned)WIDGET_FEATURES);
     return SCO_OK;
 }
@@ -1193,8 +1193,8 @@ static sco_result short_remove_nodes(sco_plugin* self, const char* panel_id, con
     return SCO_UNAVAILABLE;
 }
 
-static sco_result short_capabilities(sco_plugin* self, uint32_t* caps) {
-    (void)self; (void)caps;
+static sco_result short_capabilities(sco_plugin* self, uint32_t* out) {
+    (void)self; (void)out;
     widget_short_fail("capabilities", WIDGETS_EXTENT(capabilities));
     return SCO_UNAVAILABLE;
 }
