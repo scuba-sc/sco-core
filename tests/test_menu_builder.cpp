@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// scosdk/menu_builder.hpp: preorder tree shape, validation parity with the real sco.widgets 1.0
+// scosdk/menu_builder.hpp: preorder tree shape, validation parity with the real sco.widgets
 // host, and event dispatch back to bindings. Synthetic labels only; no renderer or game.
 #include "scosdk/menu_builder.hpp"
 #include "sco/widgets.h"
@@ -103,6 +103,186 @@ static void TestShape() {
     panel.Label("after");
     scosdk::PanelTree unwound = panel.Build();
     CHECK(threw && unwound && unwound.Count() == 2 && unwound.Nodes()[1].parent == 0);
+}
+
+static void TestLegacyBytes() {
+    bool on = true;
+    float value = 2.f;
+    int index = 1;
+    std::string text = "Input";
+    scosdk::PanelBuilder panel;
+    panel.Column([&] {
+        panel.Row([&] {
+            panel.Label("Status");
+            panel.Button("Press").Disabled();
+            panel.Toggle("On", &on);
+            panel.Slider("Value", &value, 0.f, 5.f);
+            panel.Combo("Choice", &index, {"a", "b"});
+            panel.List("List", &index, {"a", "b"});
+            panel.TextInput("Text", &text).Password();
+            panel.Table("Table", 2, {"k", "v"});
+        });
+    });
+    auto tree = panel.Build();
+    CHECK(tree && tree.Count() == 10 && tree.Stride() == sizeof(sco_widget_node));
+    if (!tree || tree.Count() != 10) return;
+    const uint32_t kinds[] = {SCO_WIDGET_COLUMN, SCO_WIDGET_ROW, SCO_WIDGET_LABEL, SCO_WIDGET_BUTTON,
+        SCO_WIDGET_TOGGLE, SCO_WIDGET_SLIDER, SCO_WIDGET_COMBO, SCO_WIDGET_LIST, SCO_WIDGET_TEXT_INPUT, SCO_WIDGET_TABLE};
+    const char* labels[] = {nullptr, nullptr, "Status", "Press", "On", "Value", "Choice", "List", "Text", "Table"};
+    sco_widget_node expected[10]{};
+    for (uint32_t i = 0; i < tree.Count(); ++i) {
+        const auto& n = tree.Nodes()[i];
+        auto& want = expected[i];
+        want.size = sizeof(sco_widget_node);
+        want.kind = kinds[i];
+        want.id = i + 1;
+        want.parent = i == 0 ? 0 : (i == 1 ? 1 : 2);
+        CHECK(labels[i] ? n.label && std::strcmp(n.label, labels[i]) == 0 : n.label == nullptr);
+        // Normalize only owned pointer addresses; every other byte has an independent expected value.
+        want.label = n.label;
+        if (i == 3) want.flags = SCO_WIDGET_DISABLED;
+        if (i == 4) want.value = 1;
+        if (i == 5) { want.value = 2; want.maximum = 5; }
+        if (i == 6 || i == 7 || i == 9) {
+            CHECK(n.items && std::strcmp(n.items[0], i == 9 ? "k" : "a") == 0 &&
+                  std::strcmp(n.items[1], i == 9 ? "v" : "b") == 0);
+            want.items = n.items;
+            want.item_count = 2;
+            if (i == 9) want.columns = 2;
+            else want.index = 1;
+        }
+        if (i == 8) {
+            CHECK(n.text && std::strcmp(n.text, "Input") == 0);
+            want.text = n.text;
+            want.flags = SCO_WIDGET_PASSWORD;
+        }
+    }
+    CHECK(std::memcmp(tree.Nodes(), expected, sizeof(expected)) == 0);
+    CHECK(HostSet(tree.Nodes(), tree.Count(), tree.Stride()) == SCO_OK);
+}
+
+static uint32_t submitted_stride = 0;
+static std::vector<sco_widget_node> submitted_nodes;
+static sco_result CaptureSet(sco_plugin* self, const char* id, const char* title,
+                            const sco_widget_node* nodes, uint32_t count, uint32_t stride,
+                            sco_widget_event_fn fn, void* ctx) {
+    submitted_stride = stride;
+    submitted_nodes.clear();
+    const auto* bytes = reinterpret_cast<const unsigned char*>(nodes);
+    for (uint32_t i = 0; i < count; ++i) {
+        sco_widget_node n;
+        std::memcpy(&n, bytes + static_cast<std::size_t>(i) * stride, sizeof(n));
+        submitted_nodes.push_back(n);
+    }
+    return table->set_panel(self, id, title, nodes, count, stride, fn, ctx);
+}
+static const void* discovered_widgets = nullptr;
+static sco_result QueryWidgets(const char* name, uint32_t version, const void** out) {
+    *out = nullptr;
+    if (std::strcmp(name, SCO_WIDGETS_NAME) != 0) return SCO_NOT_FOUND;
+    if (version != SCO_WIDGETS_VERSION_1_0) return SCO_UNAVAILABLE;
+    *out = discovered_widgets;
+    return SCO_OK;
+}
+
+static void TestExtendedNodes() {
+    bool on = false;
+    int index = 0;
+    std::string text = "Old";
+    std::string tooltip = "Owned tooltip";
+    scosdk::PanelBuilder panel;
+    panel.Column([&] {
+        panel.Label("Plain");
+        panel.Toggle("On", &on).Tooltip(tooltip.c_str()).Severity(SCO_WIDGET_SEVERITY_WARNING).Disabled(false);
+        panel.List("List", &index, {"a", "b", "c"}).Paging(1, 2);
+        panel.Table("Table", 2, {"k", "v", "a", "b", "c", "d"}).Paging(2, 1).Severity(SCO_WIDGET_SEVERITY_INFO);
+        panel.TextInput("Text", &text).Tooltip("Input help").Password();
+    });
+    tooltip.assign("Changed");
+    auto tree = panel.Build();
+    CHECK(tree && tree.Count() == 6 && tree.Stride() == sizeof(sco_widget_node_1_1));
+    if (!tree || tree.Count() != 6) return;
+    const auto* nodes = reinterpret_cast<const sco_widget_node_1_1*>(tree.Nodes());
+    for (uint32_t i = 0; i < tree.Count(); ++i) {
+        CHECK(nodes[i].base.size == sizeof(sco_widget_node_1_1));
+        CHECK(tree.Find(i + 1) == &nodes[i].base && nodes[i]._reserved == 0);
+        CHECK(nodes[i].base.parent == (i ? 1u : 0u));
+    }
+    CHECK(nodes[1].tooltip == nullptr && nodes[1].severity == SCO_WIDGET_SEVERITY_NONE);
+    CHECK(std::strcmp(nodes[2].tooltip, "Owned tooltip") == 0 && nodes[2].severity == SCO_WIDGET_SEVERITY_WARNING);
+    CHECK(nodes[3].first_row == 1 && nodes[3].visible_rows == 2);
+    CHECK(nodes[4].first_row == 2 && nodes[4].visible_rows == 1);
+    CHECK(scosdk::ValidateWidgetNodes(tree.Nodes(), tree.Count(), tree.Stride()) == SCO_OK);
+
+    sco_api fake_api = *api;
+    fake_api.query_service = &QueryWidgets;
+    sco_widgets_v1 full = *table;
+    full.set_panel = &CaptureSet;
+    discovered_widgets = &full;
+    sco::sdk::Widgets widgets;
+    CHECK(widgets.Open(&fake_api, alpha) == SCO_OK);
+    CHECK(tree.Submit(widgets, kPanel, "Builder") == SCO_OK);
+    CHECK(submitted_stride == sizeof(sco_widget_node_1_1));
+    const W::Node* retained = HostNode(3);
+    CHECK(retained && retained->tooltip == "Owned tooltip" && retained->severity == SCO_WIDGET_SEVERITY_WARNING);
+    retained = HostNode(5);
+    CHECK(retained && retained->first_row == 2 && retained->visible_rows == 1);
+
+    ScriptedRenderer renderer;
+    renderer.candidates = {{3, SCO_WIDGET_TOGGLE, 0, 1}, {6, SCO_WIDGET_TEXT_INPUT, 0, 0, "New"},
+                           {4, SCO_WIDGET_EVENT_PAGE, 0, 0, "", 2}};
+    CHECK(W::RenderPanel(kPanel, renderer) == Result::Ok);
+    CHECK(on && text == "New" && nodes[2].base.value == 1 && std::strcmp(nodes[5].base.text, "New") == 0);
+    CHECK(nodes[3].first_row == 2 && index == 0);
+    CHECK(tree.Submit(widgets, kPanel, "Builder") == SCO_OK);
+    retained = HostNode(4);
+    CHECK(retained && retained->first_row == 2);
+    sco_widget_event short_page{sizeof(sco_widget_event), 4, SCO_WIDGET_EVENT_PAGE, 0, 0, nullptr};
+    CHECK(!tree.Dispatch(short_page));
+    sco_widget_event_1_1 invalid_page{{sizeof(sco_widget_event_1_1), 4, SCO_WIDGET_EVENT_PAGE, 0, 0, nullptr}, 3, 0};
+    CHECK(!tree.Dispatch(invalid_page.base));
+
+    // A physically short 1.0 provider proves Submit never reads an uncovered tail.
+    struct LegacyTable {
+        uint32_t size, pad;
+        decltype(sco_widgets_v1::set_panel) set_panel;
+        decltype(sco_widgets_v1::remove_panel) remove_panel;
+    } legacy{sizeof(LegacyTable), 0, &CaptureSet, table->remove_panel};
+    static_assert(sizeof(LegacyTable) == offsetof(sco_widgets_v1, update_nodes));
+    discovered_widgets = &legacy;
+    CHECK(widgets.Open(&fake_api, alpha) == SCO_OK);
+    CHECK(tree.Submit(widgets, kPanel, "Builder") == SCO_OK);
+    CHECK(submitted_stride == sizeof(sco_widget_node));
+    for (uint32_t i = 0; i < tree.Count(); ++i) {
+        sco_widget_node expected = nodes[i].base;
+        expected.size = sizeof(sco_widget_node);
+        CHECK(std::memcmp(&submitted_nodes[i], &expected, sizeof(expected)) == 0);
+    }
+    retained = HostNode(3);
+    CHECK(retained && !retained->extended && retained->tooltip.empty() && retained->severity == 0 && retained->value == 1);
+    retained = HostNode(4);
+    CHECK(retained && retained->first_row == 0 && retained->visible_rows == 0);
+    retained = HostNode(6);
+    CHECK(retained && retained->text == "New");
+    full.size = sizeof(full) - 1;
+    discovered_widgets = &full;
+    CHECK(widgets.Open(&fake_api, alpha) == SCO_OK && tree.Submit(widgets, kPanel, "Builder") == SCO_OK);
+    CHECK(submitted_stride == sizeof(sco_widget_node));
+    full.size = sizeof(full);
+    full.capabilities = nullptr;
+    CHECK(tree.Submit(widgets, kPanel, "Builder") == SCO_OK && submitted_stride == sizeof(sco_widget_node));
+    CHECK(widgets.RemovePanel(kPanel) == SCO_OK);
+    panel.Label("Reset");
+    auto reset = panel.Build();
+    CHECK(reset && reset.Stride() == sizeof(sco_widget_node));
+    panel.Label("Explicit opt-in").Tooltip(nullptr).Severity(SCO_WIDGET_SEVERITY_NONE).Paging(0, 0);
+    CHECK(panel.Build().Stride() == sizeof(sco_widget_node_1_1));
+    panel.Label("Tooltip only").Tooltip("");
+    CHECK(panel.Build().Stride() == sizeof(sco_widget_node_1_1));
+    panel.Label("Severity only").Severity(SCO_WIDGET_SEVERITY_ERROR);
+    CHECK(panel.Build().Stride() == sizeof(sco_widget_node_1_1));
+    panel.List("Paging only", &index, {"a", "b"}).Paging(0, 1);
+    CHECK(panel.Build().Stride() == sizeof(sco_widget_node_1_1));
 }
 
 static void TestEventsThroughHost() {
@@ -250,6 +430,23 @@ static void TestBuildErrors() {
     CHECK(expect(SCO_BAD_ARG, "UTF-8"));
     panel.Label(std::string_view("a\0b", 3));
     CHECK(expect(SCO_BAD_ARG, "NUL"));
+    panel.Label("Status").Tooltip("\xff");
+    CHECK(expect(SCO_BAD_ARG, "tooltip"));
+    panel.Label("Status").Tooltip(std::string(256, 'x').c_str());
+    CHECK(expect(SCO_TOO_MANY, "tooltip"));
+    panel.Label("Status").Severity(SCO_WIDGET_SEVERITY_ERROR + 1);
+    CHECK(expect(SCO_BAD_ARG, "severity"));
+    panel.Label("Status").Paging(0, 1);
+    CHECK(expect(SCO_BAD_ARG, "paging"));
+    int page_index = 0;
+    panel.List("Rows", &page_index, {"a", "b"}).Paging(1, 0);
+    CHECK(expect(SCO_BAD_ARG, "paging"));
+    panel.List("Rows", &page_index, {"a", "b"}).Paging(2, 1);
+    CHECK(expect(SCO_BAD_ARG, "first_row"));
+    panel.Table("Rows", 2, {"a", "b", "c", "d"}).Paging(2, 1);
+    CHECK(expect(SCO_BAD_ARG, "first_row"));
+    panel.List("Rows", &page_index, {"a", "b"}).Paging(0, 257);
+    CHECK(expect(SCO_TOO_MANY, "visible rows"));
     panel.Toggle("Null", nullptr);
     CHECK(expect(SCO_BAD_ARG, "bound bool"));
     panel.Button("Masked").Password();
@@ -360,6 +557,37 @@ static void TestValidatorParity() {
     wide[0].node.size = wide[1].node.size = sizeof(Wide);
     CHECK(scosdk::ValidateWidgetNodes(&wide[0].node, 2, sizeof(Wide)) == SCO_OK);
     CHECK(HostSet(&wide[0].node, 2, sizeof(Wide)) == SCO_OK);
+    sco_widget_node_1_1 extended{};
+    extended.base = node(SCO_WIDGET_LIST, 1);
+    extended.base.size = sizeof(extended);
+    extended.base.items = two;
+    extended.base.item_count = 2;
+    extended.tooltip = "Help";
+    extended.severity = SCO_WIDGET_SEVERITY_INFO;
+    extended.first_row = 1;
+    extended.visible_rows = 1;
+    const auto valid = extended;
+    auto tail = [&](sco_result want) {
+        const sco_result mine = scosdk::ValidateWidgetNodes(&extended.base, 1, sizeof(extended));
+        return mine == want && mine == HostSet(&extended.base, 1, sizeof(extended));
+    };
+    CHECK(tail(SCO_OK));
+    extended.severity = SCO_WIDGET_SEVERITY_ERROR + 1;
+    CHECK(tail(SCO_BAD_ARG));
+    extended = valid; extended._reserved = 1;
+    CHECK(tail(SCO_BAD_ARG));
+    extended = valid; extended.tooltip = "\xff";
+    CHECK(tail(SCO_BAD_ARG));
+    extended = valid; extended.tooltip = long_label.c_str();
+    CHECK(tail(SCO_TOO_MANY));
+    extended = valid; extended.visible_rows = 257;
+    CHECK(tail(SCO_TOO_MANY));
+    extended = valid; extended.first_row = 2;
+    CHECK(tail(SCO_BAD_ARG));
+    extended = valid; extended.visible_rows = 0;
+    CHECK(tail(SCO_BAD_ARG));
+    extended = valid; extended.base.kind = SCO_WIDGET_COMBO;
+    CHECK(tail(SCO_BAD_ARG));
     CHECK(table->remove_panel(alpha, kPanel) == SCO_OK);
 }
 
@@ -370,6 +598,8 @@ int main() {
     CHECK(W::Start() == Result::Ok);
     table = W::Table();
     TestShape();
+    TestLegacyBytes();
+    TestExtendedNodes();
     TestEventsThroughHost();
     TestDispatchRules();
     TestBuildErrors();

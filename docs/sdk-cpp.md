@@ -37,6 +37,7 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 | [`scosdk/game/creative.hpp`](../include/scosdk/game/creative.hpp) | `sco::sdk::game::Creative`: `SetGodMode`, `SetFlyMode`, `SetFlySpeed`, `SetInfiniteAmmo`, `SetInfiniteShipAmmo`, `State`, `LastError` (the game service `game.creative`, [`sc_creative.h`](../include/sc_creative.h); [API](api-v1.md#gamecreative-10-game-pack)); toggles you switch on go off when your plugin unloads; not in `scosdk.hpp` |
 | [`scosdk/settings.hpp`](../include/scosdk/settings.hpp) | `Settings`, `AsSettingsChanged`: read the typed `[settings]` of your `plugin.ini` (the host service `sco.settings`, [`sco_settings.h`](../include/sco_settings.h)); not in `scosdk.hpp`, include it when you use settings |
 | [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp) | `Widgets`: renderer-neutral retained panels and events (`sco.widgets` 1.0); include explicitly |
+| [`scosdk/menu_builder.hpp`](../include/scosdk/menu_builder.hpp) | `scosdk::PanelBuilder`, `PanelTree`: declarative widgets, 1.0 by default with opt-in 1.1 tooltip, severity and paging; include explicitly |
 | [`scosdk/ui.hpp`](../include/scosdk/ui.hpp) | `Ui`: tabs, overlays, badges and hotkeys (the host service `sco.ui`, [`sco_ui.h`](../include/sco_ui.h)); not in `scosdk.hpp`, include it when you use UI |
 | [`scosdk/game/actors.hpp`](../include/scosdk/game/actors.hpp) | `sco::sdk::game::Actors`: `LocalPlayer`, `SpawnNpc`, `Despawn`, `Health`, `State` (game.actors 1.1; `Health`'s `max` is 0, `State` is `SCO_UNAVAILABLE` until `game.actors.state` is ready), `LastError`, `LastReadError` (the game pack's service `game.actors`, [`sc_actors.h`](../include/sc_actors.h); [game services](game-services.md)); not in `scosdk.hpp` |
 | [`scosdk/game/world.hpp`](../include/scosdk/game/world.hpp) | `sco::sdk::game::World`: `Raycast(zone, from, dir, maxDist, hit)`, `Camera(pos, rot, zone)` (world frame; no field of view), `LastError` (the game pack's service `game.world`, [`sc_world.h`](../include/sc_world.h); [API](api-v1.md#gameworld-10-game-pack)); not in `scosdk.hpp` |
@@ -198,6 +199,18 @@ before they cross the C ABI. All methods/events are game-thread only.
 See [widget contract](design/widgets.md) and the
 [renderer-free example](../sdk/examples/widgets/widgets.c). This route has no
 ImGui types or link requirement.
+
+`scosdk/menu_builder.hpp` adds `scosdk::PanelBuilder`: nest `Row` / `Column` bodies,
+then `Build()` and `PanelTree::Submit(widgets, id, title)`. A returned `WidgetRef`
+supports `.Disabled()`, `.Password()`, `.Tooltip(const char*)`,
+`.Severity(uint32_t)` (`SCO_WIDGET_SEVERITY_*`) and `.Paging(first_row, visible_rows)`
+(LIST/TABLE only). No extended attribute means unchanged 80-byte 1.0 nodes; any
+extended attribute opts into 104-byte 1.1 nodes. `Submit` requires the full
+`capabilities` member extent and a non-NULL pointer to send 1.1; otherwise it
+falls back to 1.0 nodes, dropping only the extended attributes. `Nodes()` must be
+paired with `Count()` and `Stride()` for direct submission; use `Find(id)` rather
+than indexing the base pointer when nodes are extended. Keep the tree and bound
+variables alive until replacement/removal. See [the builder cookbook](ui.md#cookbook-declarative-c-panels-scosdkmenu_builderhpp).
 
 ## UI
 
