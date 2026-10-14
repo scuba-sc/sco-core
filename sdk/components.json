@@ -2079,6 +2079,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "csharp.Sco.Sdk.PanelBuilder.cs",
+      "source": "sdk/csharp/Sco.Sdk/PanelBuilder.cs",
+      "destination": "csharp/Sco.Sdk/PanelBuilder.cs",
+      "profiles": [
+        "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "csharp.Sco.Sdk.Widgets.cs",
       "source": "sdk/csharp/Sco.Sdk/Widgets.cs",
       "destination": "csharp/Sco.Sdk/Widgets.cs",
