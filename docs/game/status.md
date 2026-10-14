@@ -96,8 +96,9 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.0 | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | | | `game.world.free_camera` (`camera_acquire`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
-| `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.0 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.1 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | `game.world.free_camera_flag` (`free_camera_flag`, read-only) | OFF | OFF pending in-game confirmation |
 | | | camera field of view | none | BLOCKED |
 | `game.entities` ([`sc_entities.h`](../../include/sc_entities.h)) | 1.1 | `game.entities.transform` (`alive`, `get_transform`, `set_transform`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.entities.spawn` (`spawn`, `despawn`, `keep`) | ON | row resolved on 4.10.196.36804 (sigcheck) |

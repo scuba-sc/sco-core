@@ -9,8 +9,13 @@
 // Both functions are read-only queries on the game thread. A ray's length is clamped to
 // SC_WORLD_RAY_MAX_DISTANCE, and nothing here waits or loops on the game: one physics call per
 // zone, at most three zones.
+//
+// 1.1's free_camera_flag reads the byte build.free_cam_flag finds (the one the FreeCamDisable
+// console handler build.free_cam_off tests). The policy is world_free_cam.cpp; its capability
+// stays OFF because no in-game run has confirmed what the byte shows (probed is false).
 #include "world.h"
 #include "world_control.h"
+#include "world_free_cam.h"
 #include "spawn.h"
 #include "../../api/internal.h"   // detail::Released
 #include "sco/caps.h"
@@ -64,6 +69,9 @@ int  g_raySlots = -1;   // the live-entity slot check: -1 not run, 0 failed, 1 p
 std::mutex g_errLock;
 char       g_error[192] = "";
 
+FreeCamFlag    g_freeCam;
+const uint8_t* g_freeCamFlag = nullptr;   // build.free_cam_flag
+
 template <typename T> T Rd(uintptr_t p) { return *reinterpret_cast<const T*>(p); }
 
 template <typename R, typename... A> R VCall(uintptr_t obj, size_t off, A... a) {
@@ -105,11 +113,34 @@ bool SetCap(const char* name, const std::vector<const char*>& rows, char* why, s
     return ready;
 }
 
+bool RowsOk(const std::vector<const char*>& rows) {
+    for (const char* id : rows) {
+        const SigResult* s = SigLookup(id);
+        if (!s || s->state != SigState::Ok) return false;
+    }
+    return !rows.empty();
+}
+
+sco_result ReadFreeCamFlag(uint32_t* set, const char** why);
+
+FreeCamFlagProvider FreeCamProvider(const world::Capability* wc, size_t nw) {
+    std::vector<const char*> rows;
+    AddRows(wc, nw, "build.free_cam", rows);
+    FreeCamFlagProvider p;
+    p.on_thread = OnGameThread;
+    p.rows = RowsOk(rows);
+    p.probed = false;
+    p.read_flag = ReadFreeCamFlag;
+    g_freeCamFlag = p.rows ? Sig("build.free_cam_flag") : nullptr;
+    return p;
+}
+
 void Resolve() {
     g_game = {};
     g_raySlots = -1;
     size_t nw = 0;
     const world::Capability* wc = world::Capabilities(nw);
+    g_freeCam.Start(FreeCamProvider(wc, nw));
     const std::vector<const char*> teleport(std::begin(kTeleportRows), std::end(kTeleportRows));
     std::vector<const char*> ray = teleport, camera = teleport;
     AddRows(wc, nw, "build.ground_ray", ray);
@@ -208,6 +239,25 @@ double CastInZone(uintptr_t zone, const double o[3], const double d[3], double l
         fault = true;
         return -1;
     }
+}
+
+// 1 read, -1 the game faulted.
+int ReadByte(const uint8_t* p, uint8_t& out) {
+    __try {
+        out = *reinterpret_cast<const volatile uint8_t*>(p);
+        return 1;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        out = 0;
+        return -1;
+    }
+}
+
+sco_result ReadFreeCamFlag(uint32_t* set, const char** why) {
+    uint8_t v = 0;
+    if (!g_freeCamFlag) { *why = "build.free_cam_flag isn't resolved"; return SCO_UNAVAILABLE; }
+    if (ReadByte(g_freeCamFlag, v) < 0) { *why = "fault while reading the free-camera flag"; return SCO_FAILED; }
+    *set = v ? 1u : 0u;
+    return SCO_OK;
 }
 
 struct Camera { double pos[3]; double rot[4]; uint64_t zone; };
@@ -342,7 +392,13 @@ sco_result SvcLastError(sco_plugin* self, char* out, uint32_t* inoutSize) {
     return SCO_OK;
 }
 
-const sc_world_v1 kWorld = { sizeof(sc_world_v1), 0, SvcRaycast, SvcCamera, SvcLastError };
+sco_result SvcFreeCameraFlag(uint32_t* outSet) {
+    const char* why = "the game didn't say why";
+    const sco_result r = g_freeCam.Query(outSet, &why);
+    return r == SCO_OK ? r : Fail(r, "free_camera_flag: %s", why);
+}
+
+const sc_world_v1 kWorld = { sizeof(sc_world_v1), 0, SvcRaycast, SvcCamera, SvcLastError, SvcFreeCameraFlag };
 
 // No engine adapter is installed: filtered skip construction and comprehensive
 // reversible camera mutation are NOT inferred from signature/offset matches.
@@ -373,9 +429,11 @@ void LogCap(const char* cap, bool ready, const char* why) {
 Result StartWorld() {
     if (g_started) return Result::Ok;
     Resolve();
-    const Result r = host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &kWorld);
+    const Result r = host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_1, &kWorld);
     if (r != Result::Ok) {
         for (const char* cap : { kCapRay, kCapCamera }) caps::Set(cap, false, "game.world not published");
+        g_freeCam.Stop();
+        g_freeCamFlag = nullptr;
         g_game = {};
         g_canRay = g_canCamera = false;
         return r;
@@ -389,6 +447,8 @@ Result StartWorld() {
         (void)g_control.Stop();
         host::WithdrawGameService(SC_WORLD_NAME);
         for (const char* cap : { kCapRay, kCapCamera }) caps::Set(cap, false, "world control not published");
+        g_freeCam.Stop();
+        g_freeCamFlag = nullptr;
         g_game = {}; g_canRay = g_canCamera = false;
         return controlResult;
     }
@@ -396,6 +456,7 @@ Result StartWorld() {
         caps::Set(cap, false, "no verified offline engine adapter; synthetic policy only");
     LogCap(kCapRay, g_canRay, g_whyRay);
     LogCap(kCapCamera, g_canCamera, g_whyCamera);
+    Log("[game] game.world 1.1: game.world.free_camera_flag held OFF pending an in-game run");
     g_started = true;
     return Result::Ok;
 }
@@ -410,6 +471,8 @@ void StopWorld() {
     host::WithdrawGameService(SC_WORLD_NAME);
     for (const char* cap : { kCapRay, kCapCamera, "game.world.raycast_filtered", "game.world.free_camera" })
         caps::Set(cap, false, "stopped");
+    g_freeCam.Stop();
+    g_freeCamFlag = nullptr;
     {
         std::lock_guard<std::mutex> hold(g_errLock);
         g_error[0] = 0;

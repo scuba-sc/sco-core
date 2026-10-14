@@ -64,10 +64,11 @@
       "kind": "service",
       "service": "game.world",
       "header": "include/sc_world.h",
-      "version": "1.0",
+      "version": "1.1",
       "capabilities": [
         {"name": "game.world.raycast", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
         {"name": "game.world.camera", "display": "`game.world.camera` (position, rotation, zone)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.to_camera", "build.camera_fields"], "evidence_source": "docs/game/status.md"},
+        {"name": "game.world.free_camera_flag", "display": "`game.world.free_camera_flag` (`free_camera_flag`, read-only)", "methods": ["free_camera_flag"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["build.free_cam_on", "build.free_cam_off", "build.free_cam_flag"], "evidence_source": "docs/game/world.md"},
         {"name": null, "display": "camera field of view", "methods": [], "default": "none", "evidence_level": "blocked", "evidence": "BLOCKED", "spike_ref": "B2", "evidence_source": "docs/game/status.md"}
       ]
     },

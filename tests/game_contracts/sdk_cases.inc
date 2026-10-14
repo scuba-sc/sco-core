@@ -157,7 +157,7 @@ static void TestGameWorld(const sco_api* api) {
     CHECK(none.Open(api, self) == SCO_NOT_FOUND && !none);
     CHECK(none.Camera(pos, rot, zone) == SCO_UNAVAILABLE && zone == 0 && none.Raycast(9, from, down, 5.0, hit) == SCO_UNAVAILABLE &&
           none.LastError().empty());
-    static const sc_world_v1 kFake = { sizeof(sc_world_v1), 0, GwRaycast, GwCamera, GwLastError };
+    static const sc_world_v1 kFake = { sizeof(sc_world_v1), 0, GwRaycast, GwCamera, GwLastError, nullptr };
     CHECK(sco::host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &kFake) == sco::Result::Ok);
     sdk::game::World world;
     CHECK(world.Open(api, self) == SCO_OK && world && world.Table() == &kFake);

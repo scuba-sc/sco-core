@@ -15,7 +15,7 @@
  * Rules (docs/design/game-services.md):
  *  - Game thread only (a command, a tick or a run_on_game_thread task). From another thread every
  *    function except last_error answers SCO_WRONG_THREAD without touching the game.
- *  - Both functions are read-only queries: they take no plugin handle and change nothing in the
+ *  - Every function is a read-only query: none takes a plugin handle or changes anything in the
  *    game.
  *  - Positions are metres as doubles. raycast works in a zone's local frame, like teleport.spatial
  *    (sc_spatial.h); camera answers in the world frame plus the zone you're in, so you can hand it
@@ -24,8 +24,9 @@
  *  - Nothing is allocated across the boundary; text comes back through caller buffers.
  *  - Every failure leaves a reason for last_error.
  *  - Capabilities (sco_api has()): "game.world.raycast" and "game.world.camera", each ready when
- *    its signature rows are OK on this game build. A function whose capability isn't ready answers
- *    SCO_UNAVAILABLE.
+ *    its signature rows are OK on this game build. 1.1 adds "game.world.free_camera_flag", OFF by
+ *    default: the game pack holds it off until an in-game run has confirmed what the flag shows
+ *    (docs/game/status.md). A function whose capability isn't ready answers SCO_UNAVAILABLE.
  *  - Not here: the camera's field of view. The game computes it per view; nothing pins which value
  *    is the one on screen (docs/design/game-world-spikes.md, B2), so there is no fov, not even a
  *    guess. The struct and table gain one when it is pinned.
@@ -43,6 +44,7 @@ extern "C" {
  * Separate service; no change to this read-only 1.0 table. */
 #define SC_WORLD_NAME        "game.world"
 #define SC_WORLD_VERSION_1_0 0x00010000u
+#define SC_WORLD_VERSION_1_1 0x00010001u /* + free_camera_flag */
 
 /* The longest ray, metres. A longer max_dist is clamped to this, not refused. */
 #define SC_WORLD_RAY_MAX_DISTANCE 20000
@@ -92,6 +94,13 @@ typedef struct sc_world_v1 {
      * The queries keep no per-plugin state, so self is only checked: NULL or a loaded plugin's
      * handle (anything else is SCO_BAD_ARG). Any thread. */
     sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);
+    /* 1.1; check world->size > offsetof(sc_world_v1, free_camera_flag) first. *out_set = 1 when
+     * the game's free-camera flag (the byte its own free-camera disable command tests) is
+     * non-zero, else 0. Only reads; it neither turns the free camera on nor off, and nothing pins
+     * what the flag shows on screen yet, which is why game.world.free_camera_flag is OFF.
+     * SCO_BAD_ARG: out_set is NULL. SCO_UNAVAILABLE: game.world.free_camera_flag isn't ready.
+     * SCO_FAILED: the game faulted. *out_set is 0 on every failure. */
+    sco_result (*free_camera_flag)(uint32_t* out_set);
 } sc_world_v1;
 
 #ifdef __cplusplus

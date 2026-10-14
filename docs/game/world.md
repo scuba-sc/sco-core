@@ -36,4 +36,19 @@ The rows in [`src/game/world_sigs.cpp`](../../src/game/world_sigs.cpp) are the s
 | `cvars.*` (seven) | the one registration of each name (`call [rax+0x40]`, floats `0x48`) | storage `lea r8` within 0x20 bytes before |
 | `quantum.*` | one unique pattern each; `quantum.audio_system` is the global the match reads at `+0x2F` | |
 
+## game.world 1.1: `free_camera_flag`
+
+`game.world` 1.1 ([`sc_world.h`](../../include/sc_world.h)) appends one read-only function, `free_camera_flag`, behind its own capability `game.world.free_camera_flag`. It uses only rows that already existed: no row was added. The policy (thread and argument checks, the capability gate) is in [`src/game/services/world_free_cam.cpp`](../../src/game/services/world_free_cam.cpp); the read is in [`src/game/services/world.cpp`](../../src/game/services/world.cpp).
+
+**The capability is OFF by default** (evidence level `off_pending_probe`, [status](status.md)). The rows resolve, but nobody has read the flag from a plugin in a game session, and nothing pins what its value shows on screen. While it is off, `free_camera_flag` answers `SCO_UNAVAILABLE` with the reason in `last_error`, and the game is not touched. Nothing on this page has been verified in game.
+
+| Capability | Function | Rows it reads | What it does with them |
+|---|---|---|---|
+| `game.world.free_camera_flag` | `free_camera_flag` | `build.free_cam_on`, `build.free_cam_off`, `build.free_cam_flag` (the `build.free_cam` group) | Reads the byte `build.free_cam_flag` finds, the one the `FreeCamDisable` console handler (`build.free_cam_off`) tests before it disables the free camera, and reports 1 when it is non-zero, else 0. Reads only; it calls neither handler |
+
+Not wrapped:
+
+- **Turning the free camera on or off.** `build.free_cam_on` / `build.free_cam_off` find the `FreeCamEnable` / `FreeCamDisable` console handlers, but the repository documents neither how such a handler is called (its arguments) nor what state it changes beyond the flag. Mutating the camera also belongs to `game.world.control`'s reversible lease ([design](../design/world-control.md)), whose adapter stays unavailable.
+- **A second ground ray.** `game.world` 1.0's `raycast` already is the build-mode ground ray on every `build.ground_ray` row (spike B1), so 1.1 adds no copy of it.
+
 Not checked by any row (sc-offline keeps them as constants): the mission manager's slot 0x48 and the library offset read from it at run time, `kLoadXmlFileSlot` 0x3C0 / `kLoadXmlBufferSlot` 0x3B8, the console slots 0x130 / 0xC0 and cvar slots 0x38 / 0x20 (0x130 is checked by `cvars.console`'s sites), the zone grid slot 0x30 and physical world slot 0x1C0 the ground ray calls, the entity registry slots 0xC0 / 0x20, and the quantum drive fields (`+0xB60`, `+0xC48`, `+0xCA8`, `+0x7F0`, `+0x800`, ...).
