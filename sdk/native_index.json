@@ -1057,7 +1057,10 @@
       "id": "contracts.mission_settings",
       "subsystem": "contracts",
       "hash": "_0x9997946D61272F3D",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.contracts.stream_radius"
+      ],
       "source": "src/game/contracts_sigs.cpp"
     },
     {

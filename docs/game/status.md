@@ -120,6 +120,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.reputation` ([`sc_reputation.h`](../../include/sc_reputation.h)) | 1.0 | `game.reputation.checks` (`checks`, read-only) | OFF | OFF pending in-game confirmation |
 | `game.asop` ([`sc_asop.h`](../../include/sc_asop.h)) | 1.0 | `game.asop.claim_timeout` (`claim_timeout`) | OFF | OFF pending in-game confirmation |
 | | | `game.asop.shard_persisted` (`shard_persisted`) | OFF | OFF pending in-game confirmation |
+| `game.contracts` ([`sc_contracts.h`](../../include/sc_contracts.h)) | 1.0 | `game.contracts.stream_radius` (`stream_radius`, read-only) | OFF | OFF pending in-game confirmation |
 | `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
 | `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
 | `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.0 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |

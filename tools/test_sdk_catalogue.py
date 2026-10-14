@@ -54,9 +54,9 @@ class CatalogueTests(unittest.TestCase):
     def test_baseline_matches_header_count(self):
         records, extracted = catalogue.validate(self.root)
         self.assertEqual(len(records), len(extracted['methods']))
-        self.assertEqual(len(records), 180)
-        self.assertEqual(len(extracted['tables']), 33)
-        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 177)
+        self.assertEqual(len(records), 182)
+        self.assertEqual(len(extracted['tables']), 34)
+        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 179)
         wave3 = {
             'sc_mining_v1': (['request', 'state'], 'tests/abi_catalogue_mining.c', 'tests/test_mining.cpp'),
             'sc_private_session_v1': (['request_host', 'request_join', 'leave', 'get_state'],

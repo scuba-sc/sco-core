@@ -21,6 +21,23 @@ What each change means for plugin authors and for products built on sco-core (sc
   unsupported. Registry entry, docs/game/status.md rows and sdk/native_index.json regenerated.
   Nothing here has run in a game session.
 
+* Game services: game.contracts 1.0 (mission stream radius read), default OFF.
+  include/sc_contracts.h: sc_contracts_v1 (24 bytes, size-prefixed, version 1.0, pinned by
+  tests/abi_game_contracts.c): stream_radius, last_error. Capability
+  game.contracts.stream_radius is held OFF (evidence level off_pending_probe) until an in-game
+  run confirms it; while off the call answers SCO_UNAVAILABLE without touching the game. The
+  function only reads the contracts.mission_settings row that already exists in
+  src/game/contracts_sigs.cpp and that docs/game/contracts.md documents (the float at
+  kStreamRadius); no row, hook, patch or write was added. The service name game.contracts was
+  unused; the host-internal contracts.* capabilities and game.missions are separate.
+  src/game/services/contracts_service.cpp is the portable policy behind a ContractsProvider seam;
+  src/game/services/contracts_engine.cpp (Windows game pack) reads the row under SEH. The other
+  contracts rows stay unwrapped (docs/game/contracts-service.md). Tests: tests/test_contracts.cpp
+  (synthetic provider) and abi_game_contracts as C11, C++20 and -fshort-enums. Catalogue records
+  (sdk/contracts/sc_contracts_v1.json) and docs/contracts.md rows added; C++, C# and Lua routes
+  unsupported. Registry entry, docs/game/status.md rows and sdk/native_index.json regenerated.
+  Nothing here has run in a game session.
+
 ## sdk-v2.2.0 (2026-10-14)
 
 See the [SDK 2.2.0 release notes](docs/releases/sdk-v2.2.0.md) and the
