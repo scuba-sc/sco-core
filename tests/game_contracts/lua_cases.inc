@@ -202,6 +202,16 @@ static sco_result FakeWorldLastError(sco_plugin*, char* out, uint32_t* io) {
     return SCO_OK;
 }
 
+static uint32_t g_freeCamCalls = 0;
+static sco_result g_freeCamResult = SCO_OK;
+static uint32_t g_freeCamValue = 0;
+static sco_result FakeFreeCam(uint32_t* out) {
+    ++g_freeCamCalls;
+    if (!out) return SCO_BAD_ARG;
+    *out = g_freeCamResult == SCO_OK ? g_freeCamValue : 0u;
+    return g_freeCamResult;
+}
+
 // ---- sco.game.creative (read-only: state() only; a stand-in table) -------------------------------
 
 static uint32_t g_creativeFlags = 0;
@@ -310,7 +320,7 @@ static void TestGameWorld() {
     CHECK(none.p && none.p->state == State::Loaded);
     Unload(none);
 
-    static sc_world_v1 kFake = { sizeof(sc_world_v1), 0, FakeRaycast, FakeCamera, FakeWorldLastError, nullptr };
+    static sc_world_v1 kFake = { sizeof(sc_world_v1), 0, FakeRaycast, FakeCamera, FakeWorldLastError, FakeFreeCam };
     CHECK(sco::host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &kFake) == Result::Ok);
     Write("gwplay", R"(
 local w = assert(sco.game and sco.game.world, "sco.game.world")
@@ -335,6 +345,11 @@ sco.register_command{ name = "gwplay.ray", title = "Ray", fn = function()
   local none, e, m = sco.game.world.raycast(8, 0, 0, 1, 0, 0, -1, 50)
   return string.format("%.1f %.1f %.1f %.1f / %s %s", h.x, h.y, h.z, h.distance, tostring(e), tostring(m))
 end }
+sco.register_command{ name = "gwplay.freecam", fn = function()
+  local f, e, m = w.free_camera_flag()
+  if f == nil then return "nil:" .. tostring(e) .. ":" .. tostring(m) end
+  return tostring(f)
+end }
 sco.register_command{ name = "gwplay.seen", title = "Seen", fn = function()
   return tostring(seen.died) .. "," .. tostring(seen.zone) .. "," .. tostring(seen.spawn)
 end }
@@ -357,6 +372,37 @@ end }
     r = Invoke(g_caller, "gwplay.partial");
     CHECK(r.r == SCO_OK && r.text == "nil:unavailable");
     kFake.raycast = FakeRaycast;
+    kFake.last_error = FakeWorldLastError;
+
+    // game.world 1.1's free_camera_flag: read-only, gated on the table's size and a non-null member.
+    g_freeCamCalls = 0;
+    g_freeCamValue = 1;
+    r = Invoke(g_caller, "gwplay.freecam");
+    CHECK(r.r == SCO_OK && r.text == "true");
+    if (r.text != "true") std::printf("  gwplay.freecam -> %s\n", r.text.c_str());
+    g_freeCamValue = 0;
+    r = Invoke(g_caller, "gwplay.freecam");
+    CHECK(r.r == SCO_OK && r.text == "false");
+    CHECK(g_freeCamCalls == 2);
+    g_freeCamResult = SCO_UNAVAILABLE;
+    r = Invoke(g_caller, "gwplay.freecam");
+    CHECK(r.r == SCO_OK && r.text == "nil:unavailable:raycast: no hit within 50.0 m");
+    if (r.text != "nil:unavailable:raycast: no hit within 50.0 m") std::printf("  gwplay.freecam -> %s\n", r.text.c_str());
+    g_freeCamResult = SCO_OK;
+    g_freeCamCalls = 0;
+    kFake.size = offsetof(sc_world_v1, free_camera_flag);   // a game.world 1.0 table
+    kFake.last_error = nullptr;
+    r = Invoke(g_caller, "gwplay.freecam");
+    CHECK(r.r == SCO_OK && r.text == "nil:unavailable:nil");
+    kFake.size = offsetof(sc_world_v1, free_camera_flag) + sizeof(kFake.free_camera_flag) - 1;
+    r = Invoke(g_caller, "gwplay.freecam");
+    CHECK(r.r == SCO_OK && r.text == "nil:unavailable:nil");
+    CHECK(g_freeCamCalls == 0);   // never called past the table's end
+    kFake.size = sizeof(kFake);
+    kFake.free_camera_flag = nullptr;
+    r = Invoke(g_caller, "gwplay.freecam");
+    CHECK(r.r == SCO_OK && r.text == "nil:unavailable:nil");
+    kFake.free_camera_flag = FakeFreeCam;
     kFake.last_error = FakeWorldLastError;
 
     // The game.* events reach sco.subscribe handlers as tables; a payload shorter than the struct is nil.
