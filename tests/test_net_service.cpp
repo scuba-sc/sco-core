@@ -497,7 +497,7 @@ static void TestJoinSession() {
 // old limit gets SCO_TOO_MANY with the first 16 peers written; a buffer that asks first gets all 51.
 static void TestFullSession() {
     constexpr uint32_t kSeats = SCO_NET_MAX_PEERS;
-    CHECK(kSeats == 51);
+    static_assert(kSeats == 51, "the session limit is 51 players");
 
     MemNet net(51);
     MemTransport svc(net, 1);
