@@ -6,6 +6,7 @@ An actual build is exercised when SCO_CORE_MCP_TEST_CATALOGUE is set, or when
  dist/sdk-catalogue.json exists. That integration test otherwise skips explicitly.
 All fixture records are synthetic; none assert runtime or game compatibility.
 """
+import copy
 import importlib
 import json
 import os
@@ -34,6 +35,45 @@ PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source
 
 def fixture():
     return json.loads(CATALOGUE.read_text(encoding="utf-8"))
+
+
+SYNTHETIC_SHA = "a" * 40
+OTHER_SHA = "b" * 40
+GAME_STATUS = """# Synthetic status
+
+| Table | Version | Capability | Default | Evidence |
+|---|---|---|---|---|
+| `game.sample` ([`sc_sample.h`](../../include/sc_sample.h)) | 1.1 | `game.sample.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
+| | | `game.sample.watch` | OFF | OFF pending in-game confirmation |
+| | | sample field | none | BLOCKED |
+| | | `game.sample.claim` | ON | verified in game (2099-01-01) |
+| `game.other` ([`sc_other.h`](../../include/sc_other.h)) | 1.0 | `game.other.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
+
+Trailing prose.
+"""
+
+
+def game_fixture():
+    """The schema 1 fixture plus one synthetic game-pack table and record."""
+    data = fixture()
+    data["tables"]["sc_sample_v1"] = {
+        "source_header": "include/sc_sample.h", "version_macro": "SC_SAMPLE_VERSION", "members": ["read"],
+        "size": 16, "version": 65537, "service": "game.sample", "context": "Synthetic game-pack table."}
+    record = copy.deepcopy(next(r for r in data["records"] if r["id"] == "sample-read"))
+    record.update(id="game-sample-read", symbol="sc_sample_v1.read", table="sc_sample_v1", service="game.sample",
+                  source_header="include/sc_sample.h", version_macro="SC_SAMPLE_VERSION", member_extent=16, table_size=16)
+    data["records"].append(record)
+    return data
+
+
+def approval(tag, sha=SYNTHETIC_SHA, status="approved-for-publication"):
+    return {"schema_version": 2, "tag": tag,
+            "source": {"repo": "scubamount/sco-core", "sha": sha, "dependencies": []},
+            "components_manifest_sha256": "0" * 64,
+            "builder": {"workflow_path": ".github/workflows/release-candidate.yml", "workflow_sha": sha,
+                        "run_id": 1, "run_attempt": 1},
+            "artifacts": [], "profiles": ["core"], "distribution": {"status": status},
+            "approved_by": "synthetic-approver", "approved_at": "2099-01-01T00:00:00Z"}
 
 
 class Client:
@@ -849,6 +889,196 @@ class LanguageMetadataTests(ServerCase):
             server.load_catalogue(path)
 
 
+class EvidenceStateTests(ServerCase):
+    def game_root(self, status=GAME_STATUS, write=True):
+        data = game_fixture()
+        root, catalogue = self.temporary_catalogue(data)
+        if write:
+            (root / "docs/game").mkdir(parents=True)
+            (root / "docs/game/status.md").write_text(status, encoding="utf-8")
+        return data, root, catalogue
+
+    def evidence(self, symbol, data=None, catalogue=CATALOGUE, repo_root=None):
+        client = self.start(catalogue=catalogue, repo_root=repo_root)
+        symbol_state = self.result(client.call("get_symbol", {"symbol_or_id": symbol}), data=data)["evidence_state"]
+        capability = self.result(client.call("get_capability_status", {"symbol_or_id": symbol}), data=data)
+        self.assertEqual(capability["evidence_state"], symbol_state)
+        return symbol_state
+
+    def test_neutral_records_mark_game_evidence_not_applicable(self):
+        for symbol in ["sample-read", "api-query-service", "plugin-load"]:
+            with self.subTest(symbol=symbol):
+                state = self.evidence(symbol, repo_root=FIXTURES)
+                self.assertEqual(state["scope"], "neutral")
+                self.assertEqual(state["contract_status"]["state"], "documented")
+                self.assertEqual(state["default_runtime_state"]["state"], "unknown")
+                self.assertEqual(state["sigcheck_receipt"]["state"], "not_applicable")
+                self.assertEqual(state["gameplay_receipt"]["state"], "not_applicable")
+                self.assertNotIn("service_status", state)
+
+    def test_game_record_reports_service_rows_and_never_gameplay(self):
+        data, root, catalogue = self.game_root()
+        state = self.evidence("game-sample-read", data, catalogue, root)
+        self.assertEqual(state["scope"], "game-pack")
+        self.assertEqual(state["default_runtime_state"]["state"], "unknown")
+        self.assertEqual(state["sigcheck_receipt"]["state"], "unknown")
+        self.assertEqual(state["gameplay_receipt"]["state"], "unknown")
+        status = state["service_status"]
+        self.assertEqual((status["state"], status["scope"], status["documented_version"]), ("rows_found", "service", "1.1"))
+        self.assertIs(status["version_matches_catalogue"], True)
+        self.assertEqual([(row["default"], row["evidence_level"]) for row in status["rows"]], [
+            ("ON", "row_resolved_sigcheck"), ("OFF", "off_pending_in_game_confirmation"),
+            ("none", "blocked"), ("ON", "unclassified")])
+        self.assertEqual(status["rows"][0]["game_build"], "1.2.3.4")
+        self.assertNotIn("game_build", status["rows"][3])
+
+    def test_game_record_without_repo_root_is_unavailable(self):
+        data, _, catalogue = self.game_root()
+        status = self.evidence("game-sample-read", data, catalogue)["service_status"]
+        self.assertEqual((status["state"], status["rows"]), ("unavailable", []))
+
+    def test_game_record_absent_from_status_table_has_no_rows(self):
+        data, root, catalogue = self.game_root(GAME_STATUS.replace("`game.sample`", "`game.renamed`"))
+        status = self.evidence("game-sample-read", data, catalogue, root)["service_status"]
+        self.assertEqual((status["state"], status["rows"]), ("no_rows", []))
+
+    def test_mismatched_header_is_not_attributed(self):
+        data, root, catalogue = self.game_root(GAME_STATUS.replace("`sc_sample.h`", "`sc_other_sample.h`"))
+        self.assertEqual(self.evidence("game-sample-read", data, catalogue, root)["service_status"]["state"], "no_rows")
+
+    def test_malformed_status_table_refuses_all_rows(self):
+        for status in [GAME_STATUS.replace("| sample field | none | BLOCKED |", "| sample field | BLOCKED |"),
+                       GAME_STATUS.replace("| OFF | OFF pending", "| MAYBE | OFF pending"),
+                       GAME_STATUS.replace("|---|---|---|---|---|", ""),
+                       GAME_STATUS + "\n| Table | Version | Capability | Default | Evidence |\n"]:
+            with self.subTest(status=status[-80:]):
+                data, root, catalogue = self.game_root(status)
+                state = self.evidence("game-sample-read", data, catalogue, root)
+                self.assertEqual((state["service_status"]["state"], state["service_status"]["rows"]), ("unavailable", []))
+                self.assertEqual(state["sigcheck_receipt"]["state"], "unknown")
+
+    def test_symlinked_status_document_is_refused(self):
+        data, root, catalogue = self.game_root(write=False)
+        (root / "docs/game").mkdir(parents=True)
+        (root / "real-status.md").write_text(GAME_STATUS, encoding="utf-8")
+        (root / "docs/game/status.md").symlink_to(root / "real-status.md")
+        self.assertEqual(self.evidence("game-sample-read", data, catalogue, root)["service_status"]["state"], "unavailable")
+
+
+class CompatibilityReleaseTests(ServerCase):
+    def release_root(self, records=None, signatures=("sdk-v1.2.3",)):
+        data = fixture()
+        root, catalogue = self.temporary_catalogue(data)
+        directory = root / "docs/legal/release-decisions"
+        directory.mkdir(parents=True)
+        for tag, record in (records if records is not None else {"sdk-v1.2.3": approval("sdk-v1.2.3")}).items():
+            text = record if isinstance(record, str) else json.dumps(record)
+            (directory / (tag + ".json")).write_text(text, encoding="utf-8")
+        for tag in signatures:
+            (directory / (tag + ".json.sig")).write_text("-----BEGIN SSH SIGNATURE-----\nsynthetic\n", encoding="utf-8")
+        return root, catalogue
+
+    def release(self, arguments, root, catalogue):
+        return self.result(self.start(catalogue=catalogue, repo_root=root).call("check_compatibility", arguments))
+
+    def test_existing_callers_get_no_new_sections(self):
+        data = self.result(self.start().call("check_compatibility", {"sdk_version": "1.1.0"}))
+        self.assertEqual(set(data), {"requested", "catalogue_coordinates", "coordinate_matches", "conclusions", "provenance"})
+
+    def test_tag_with_matching_source_is_found_but_not_signature_verified(self):
+        root, catalogue = self.release_root()
+        data = self.release({"tag": "sdk-v1.2.3", "source_sha": SYNTHETIC_SHA}, root, catalogue)
+        release = data["release"]
+        self.assertEqual(release["state"], "matching_approval_record")
+        self.assertEqual((release["signature_verification"], release["publication"]), ("not_performed", "not_checked"))
+        [record] = release["records"]
+        self.assertEqual(record["path"], "docs/legal/release-decisions/sdk-v1.2.3.json")
+        self.assertEqual((record["format"], record["built_source_sha"], record["signature_file"]),
+                         ("approval_schema_v2", SYNTHETIC_SHA, "present"))
+        self.assertIs(record["built_source_sha_matches"], True)
+        self.assertIs(data["coordinate_matches"]["source_sha"], False)
+
+    def test_tag_with_other_source_does_not_match(self):
+        root, catalogue = self.release_root()
+        release = self.release({"tag": "sdk-v1.2.3", "source_sha": OTHER_SHA}, root, catalogue)["release"]
+        self.assertEqual(release["state"], "no_matching_approval_record")
+        self.assertIs(release["records"][0]["built_source_sha_matches"], False)
+
+    def test_source_only_scan_reports_matching_records(self):
+        root, catalogue = self.release_root({"sdk-v1.2.3": approval("sdk-v1.2.3"), "sdk-v1.3.0": approval("sdk-v1.3.0", OTHER_SHA),
+                                             "sdk-v0.9.0": {"schema_version": 1}})
+        release = self.release({"source_sha": OTHER_SHA}, root, catalogue)["release"]
+        self.assertEqual(release["state"], "matching_approval_record")
+        self.assertEqual([record["tag"] for record in release["records"]], ["sdk-v1.3.0"])
+        self.assertEqual(release["records"][0]["signature_file"], "absent")
+
+    def test_missing_tag_record_and_missing_root(self):
+        root, catalogue = self.release_root()
+        release = self.release({"tag": "sdk-v9.9.9"}, root, catalogue)["release"]
+        self.assertEqual((release["state"], release["records"]), ("no_matching_approval_record", []))
+        release = self.result(self.start().call("check_compatibility", {"tag": "sdk-v1.2.3"}))["release"]
+        self.assertEqual((release["state"], release["records"]), ("unavailable", []))
+
+    def test_record_formats_are_reported_without_matching(self):
+        bad_tag = approval("sdk-v1.2.4")
+        cases = {"sdk-v1.2.3": ({"schema_version": 1}, "legacy_unsigned_v1"),
+                 "sdk-v1.2.5": ("{", "unparseable"),
+                 "sdk-v1.2.6": ({**approval("sdk-v1.2.6"), "source": {"sha": "short"}}, "unrecognized"),
+                 "sdk-v1.2.7": ([], "unrecognized")}
+        for tag, (record, expected) in cases.items():
+            with self.subTest(tag=tag):
+                root, catalogue = self.release_root({tag: record})
+                release = self.release({"tag": tag}, root, catalogue)["release"]
+                self.assertEqual(release["state"], "no_matching_approval_record")
+                self.assertEqual(release["records"][0]["format"], expected)
+        root, catalogue = self.release_root({"sdk-v1.2.3": bad_tag})
+        release = self.release({"tag": "sdk-v1.2.3"}, root, catalogue)["release"]
+        self.assertEqual(release["state"], "no_matching_approval_record")
+        self.assertIs(release["records"][0]["tag_matches_filename"], False)
+
+    def test_symlinked_record_is_unreadable(self):
+        root, catalogue = self.release_root({})
+        (root / "outside.json").write_text(json.dumps(approval("sdk-v1.2.3")), encoding="utf-8")
+        (root / "docs/legal/release-decisions/sdk-v1.2.3.json").symlink_to(root / "outside.json")
+        release = self.release({"tag": "sdk-v1.2.3"}, root, catalogue)["release"]
+        self.assertEqual(release["records"][0]["format"], "unreadable")
+        self.assertEqual(release["state"], "no_matching_approval_record")
+
+    def test_service_table_version_and_extent(self):
+        client = self.start()
+        data = self.result(client.call("check_compatibility", {"service": "sco.sample", "min_version": "1.0", "member_extent": 24}))
+        table = data["service_table"]
+        self.assertEqual((table["table"], table["catalogue_version"], table["catalogue_size"]), ("sco_sample_v1", "1.0", 24))
+        self.assertIs(table["version_satisfies"], True)
+        self.assertIs(table["extent_within_catalogue_size"], True)
+        for arguments, key in [({"min_version": "1.1"}, "version_satisfies"), ({"min_version": "2.0"}, "version_satisfies"),
+                               ({"member_extent": 25}, "extent_within_catalogue_size")]:
+            with self.subTest(arguments=arguments):
+                result = self.result(client.call("check_compatibility", {"service": "sco.sample", **arguments}))
+                self.assertIs(result["service_table"][key], False)
+        only = self.result(client.call("check_compatibility", {"service": "sco_api"}))["service_table"]
+        self.assertEqual(only["catalogue_version"], "1.1")
+        self.assertNotIn("version_satisfies", only)
+
+    def test_schema_advertises_patterns_and_dependencies(self):
+        tools = {tool["name"]: tool for tool in self.start().request("tools/list")["result"]["tools"]}
+        schema = tools["check_compatibility"]["inputSchema"]
+        self.assertEqual(schema["dependentRequired"], {"min_version": ["service"], "member_extent": ["service"]})
+        self.assertTrue(all("pattern" in schema["properties"][key] for key in ("tag", "source_sha", "min_version")))
+
+    def test_refusals(self):
+        client = self.start()
+        for arguments in [{"tag": "../sdk-v1.2.3"}, {"tag": "sdk-v1.2.3\n"}, {"tag": "v1.2.3"}, {"tag": "sdk-v1.2"},
+                          {"source_sha": SYNTHETIC_SHA.upper()}, {"source_sha": "abc"}, {"source_sha": 1},
+                          {"min_version": "1.0"}, {"member_extent": 8}, {"service": "sco.unknown"},
+                          {"service": "sco.sample", "min_version": "1"}, {"service": "sco.sample", "min_version": "01.0"},
+                          {"service": "sco.sample", "min_version": "70000.0"}, {"service": "sco.sample", "member_extent": 0},
+                          {"service": "sco.sample", "member_extent": True}, {"service": "sco.sample", "member_extent": 65536},
+                          {"table": "sco_sample_v1"}]:
+            with self.subTest(arguments=arguments):
+                self.result(client.call("check_compatibility", arguments), is_error=True)
+
+
 class BuildIntegrationTests(ServerCase):
     def test_actual_build_catalogue_mcp_transcript(self):
         override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")
@@ -877,6 +1107,38 @@ class BuildIntegrationTests(ServerCase):
         self.assertEqual(capability["language_mappings"], record["language_mappings"])
         compatibility = self.result(client.call("check_compatibility", {"sdk_version": data["sdk_version"]}), data=data)
         self.assertIs(compatibility["coordinate_matches"]["sdk_version"], True)
+
+    def test_actual_repository_evidence_and_release_records(self):
+        override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")
+        path = Path(override) if override else ROOT / "dist/sdk-catalogue.json"
+        if not path.is_file():
+            self.skipTest("No build catalogue; build one or set SCO_CORE_MCP_TEST_CATALOGUE")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        client = self.start(catalogue=path, repo_root=ROOT)
+        # One record per service keeps the session under the 120-call rate limit.
+        for record in {r["service"]: r for r in data["records"]}.values():
+            state = self.result(client.call("get_capability_status", {"symbol_or_id": record["id"]}), data=data)["evidence_state"]
+            with self.subTest(symbol=record["symbol"]):
+                game = record["source_header"].startswith("include/sc_")
+                self.assertEqual(state["scope"], "game-pack" if game else "neutral")
+                self.assertNotEqual(state["gameplay_receipt"]["state"], "verified")
+                if game:
+                    self.assertIn(state["service_status"]["state"], {"rows_found", "no_rows"})
+                else:
+                    self.assertEqual(state["sigcheck_receipt"]["state"], "not_applicable")
+                    self.assertNotIn("service_status", state)
+        decisions = ROOT / "docs/legal/release-decisions"
+        for record_path in sorted(decisions.glob("sdk-v*.json")):
+            recorded = json.loads(record_path.read_text(encoding="utf-8"))
+            if recorded.get("schema_version") != 2:
+                continue
+            with self.subTest(tag=record_path.stem):
+                arguments = {"tag": record_path.stem, "source_sha": recorded["source"]["sha"]}
+                release = self.result(client.call("check_compatibility", arguments), data=data)["release"]
+                self.assertEqual(release["state"], "matching_approval_record")
+                self.assertEqual(release["signature_verification"], "not_performed")
+                self.assertEqual(release["records"][0]["signature_file"],
+                                 "present" if record_path.with_name(record_path.name + ".sig").is_file() else "absent")
 
 
 if __name__ == "__main__":

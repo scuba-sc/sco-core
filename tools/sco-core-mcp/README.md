@@ -120,8 +120,8 @@ These are the complete six tool names. Enable them explicitly, not with a wildca
 | `get_symbol` | Retrieve a symbol's contract and its source-backed language mappings. |
 | `list_services` | Discover public service tables, versions, sizes and member counts. |
 | `get_example` | Return a selected record's listed example paths, and optionally their bounded contents. |
-| `get_capability_status` | Read documented capability evidence and limitations; not a live availability probe. |
-| `check_compatibility` | Compare requested SDK/game-pack versions with catalogue metadata; not a runtime compatibility test. |
+| `get_capability_status` | Read documented capability evidence, limitations and the record's [evidence state](#evidence-state); not a live availability probe. |
+| `check_compatibility` | Compare requested coordinates with catalogue metadata, read a [release approval record](#release-approval-records) and check a service's minimum version and member extent; not a runtime compatibility test. |
 
 Inspect `tools/list` for each tool's input schema. Language values are `c`, `cpp`,
 `csharp`, and `lua`; use those tokens rather than display names. `search_api` accepts
@@ -131,6 +131,46 @@ optional `service`. `check_compatibility` accepts `sdk_version` as a string and
 These are exact coordinate comparisons, not version-ordering claims. Service-table
 versions are packed major/minor integers; SDK and game-pack coordinates are
 separate strings. Do not substitute one for another.
+
+`check_compatibility` also takes these optional arguments. Each adds a section to
+the result only when supplied, so existing callers see the same fields:
+
+| Argument | Format | Result |
+|---|---|---|
+| `source_sha` | full lowercase 40-hex commit | `coordinate_matches.source_sha` against the catalogue, and a `release` section |
+| `tag` | `sdk-vMAJOR.MINOR.PATCH` | a `release` section for `docs/legal/release-decisions/<tag>.json` |
+| `service` | a catalogue service name from `list_services` | a `service_table` section with the catalogue table, version and size |
+| `min_version` | `MAJOR.MINOR`; requires `service` | `version_satisfies`: equal major and catalogue minor at least the requested minor (the `query_service` rule) |
+| `member_extent` | integer bytes 1-65535; requires `service` | `extent_within_catalogue_size`: the extent fits the catalogue table size |
+
+The input schema advertises the patterns and `dependentRequired`. Arguments
+outside it, a malformed value, `min_version`/`member_extent` without `service`,
+or an unknown service are refused as tool errors. `service_table` describes the
+catalogue's compiled header snapshot: a runtime provider table can still be older
+or shorter, so check `table->size` and a non-NULL pointer before calling.
+
+### Release approval records
+
+With `--repo-root`, a `tag` reads `docs/legal/release-decisions/<tag>.json`; a
+`source_sha` alone scans the `sdk-v*.json` records there (at most 64). Without a
+root, `release.state` is `unavailable`. Otherwise it is `matching_approval_record`
+when a schema-2 approval's filename, `tag` and built source SHA all agree with the
+request, and `no_matching_approval_record` otherwise. Each record reports its
+`format` (`approval_schema_v2`, `legacy_unsigned_v1`, `unrecognized`,
+`unparseable` or `unreadable`), `built_source_sha`, `distribution_status`,
+`approved_at` and whether a detached `.json.sig` file is `present`.
+
+- `built_source_sha` is the candidate's built source commit. The release tag points
+  at a later, approval-only commit that adds the record. They are different
+  commits, and this server does not resolve tags.
+- `signature_verification` is always `not_performed`. Verifying the SSH signature,
+  payload and approval-only descendant is
+  [`tools/release_verify.py`](../release_verify.py)'s job, with independently
+  trusted allowed signers. A present `.sig` file is not a valid signature.
+- `publication` is always `not_checked`. `approved-for-publication` records a
+  decision, not a published release.
+- A record is committed at its release tag, so a branch without it reports no
+  match. That is not proof that no release exists.
 
 Every tool advertises these MCP annotations:
 
@@ -250,6 +290,9 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
   its output; the server does neither.
 - **Not arbitrary file access.** `get_example` reads only paths listed in the
   selected catalogue record's `examples`, beneath the configured repository root.
+  The only other files read under that root are `docs/game/status.md` (once, at
+  start) and the `sdk-v*.json`/`.json.sig` records in `docs/legal/release-decisions/`
+  (per `check_compatibility` call), using the same no-symlink containment and size limit.
   Absolute paths, traversal outside the root, and symlinks anywhere the catalogue
   names are refused, including on the extracted-archive `examples/...` fallback;
   an `sdk` symlink in the root disables that fallback. The configured root itself is operator-supplied and trusted,
@@ -307,26 +350,45 @@ An empty examples list means none is identified, not that no example could exist
 No MCP response upgrades deferred or absent in-game verification, fills missing
 behavioral guarantees, or changes the runtime's capability gates.
 
-## Banked design: explicit capability evidence states
+## Evidence state
 
-Future design note only. Schema 1 and this server are unchanged; nothing below is
-implemented or implied by current results.
+`get_symbol` and `get_capability_status` return an `evidence_state` object for the
+selected record. The server computes it from the schema 1 catalogue and, for
+game-pack records, from `docs/game/status.md` under `--repo-root`. The catalogue
+is unchanged and still `schema_version` 1, so its consumers (including the docs
+site generator) are unaffected. Each state is reported only where a
+machine-readable or strictly parsed source exists; otherwise it is `unknown`.
 
-- **Problem.** Schema 1 records language exposure with source evidence, but
-  capability gating, signature resolution and game-session evidence exist only
-  as prose (`absent_capability`, `limitations`, the status caveat). A client
-  cannot tell "not applicable" apart from "not yet verified".
-- **Neutral records stay neutral.** Game-independent `sco.*` contracts should not
-  gain blanket `sigcheck` or `gameplay` fields. A field that is always
-  "not applicable" there would read as missing evidence.
-- **Direction for a future schema version.** Optional, game-scoped evidence
-  entries, present only on records whose behavior depends on a game build. Each
-  entry names its evidence kind (for example capability gate, signature row,
-  in-game observation), an explicit state (`verified`, `not-verified`,
-  `failed`, `not-applicable`), the game build or pack version it applies to,
-  and a repository source for the claim. Absence of an entry means "no evidence
-  recorded", never "works".
-- **Compatibility.** The change needs a new `schema_version`. This server
-  rejects any version other than 1, so schema 1 consumers are unaffected. A
-  schema-2 server would have to keep the no-"works"-flag rule above and
-  pass the evidence through verbatim instead of summarising it.
+| Field | Values | Source |
+|---|---|---|
+| `scope` | `game-pack` or `neutral` | `source_header`: `include/sc_*.h` is game pack, the `sco_*` headers (services and entrypoints) are neutral |
+| `contract_status.state` | `documented` | the record exists in a catalogue that `tools/sdk_catalogue.py build` validated against compiled headers and `docs/contracts.md` |
+| `default_runtime_state.state` | `unknown` | no machine-readable per-method default exists |
+| `sigcheck_receipt.state` | `not_applicable` (neutral) or `unknown` (game pack) | no per-method sigcheck receipt is in the repository |
+| `gameplay_receipt.state` | `not_applicable` (neutral) or `unknown` (game pack) | no machine-readable gameplay receipt exists. The server never reports in-game verification |
+
+Neutral `sco.*` records, `sco_api` and the entrypoints carry no game fields:
+sigcheck and gameplay are `not_applicable`, and there is no `service_status`.
+
+Game-pack records also carry `service_status`. It is **service-scoped**: rows of the
+`| Table | Version | Capability | Default | Evidence |` table in
+`docs/game/status.md` whose backticked service and linked header both match the
+record's catalogue table. Each row keeps `capability`, `default` (`ON`, `OFF` or
+`none`) and `evidence` verbatim, plus an `evidence_level`:
+`row_resolved_sigcheck` (with `game_build`), `off_pending_in_game_confirmation`,
+`blocked`, or `unclassified` for any other text, including in-game claims.
+`documented_version` and `version_matches_catalogue` compare the row's version with
+the catalogue. `state` is:
+
+- `rows_found`: matching rows exist. They describe capabilities of the service, not
+  this method.
+- `no_rows`: the table has no row for this service. Some services are described
+  only in prose.
+- `unavailable`: there is no `--repo-root`, the file is missing or a symlink, or
+  the table is malformed. Any row with the wrong cell count, an unknown default
+  or a missing separator refuses the whole table rather than half-reading it.
+
+The status document is read from the configured root when the server starts. It
+is not bound to the catalogue's `source_sha`. Its sigcheck rows are dated to the
+build named in each row, and none of it is evidence that an operation worked in
+a game session.

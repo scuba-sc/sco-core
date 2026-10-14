@@ -149,7 +149,10 @@ void GeometryAttacks() {
     struct Attack { size_t offset; uint8_t value; };
     const std::vector<Attack> attacks{{4,2},{32,1},{48,0},{52,2},{60,1},{64,0},{68,2},{70,0},{88,0xff},{96,0xff},{104,1},{112,1},
         {132,1},{136,0xff},{152,1},{33092,2},{33104,1},{33112,1},{164352,1}};
-    for(auto [offset,value]:attacks){Fixture f;os::Mapping m;CHECK(os::Open(m));sc_ipc_i_st8r(static_cast<uint8_t*>(m.base)+offset,value);
+    for(auto [offset,value]:attacks){Fixture f;os::Mapping m;CHECK(os::Open(m));
+        // Some targets hold per-run random bytes (ring epochs): always change the byte.
+        uint8_t* target=static_cast<uint8_t*>(m.base)+offset;const uint8_t before=sc_ipc_i_ld8r(target);
+        sc_ipc_i_st8r(target,before==value?uint8_t(~value):value);CHECK(sc_ipc_i_ld8r(target)!=before);
         di::Peer p;CHECK(p.Begin(path,1000)!=di::Result::Ok);CHECK(f.host.Poll(1000)!=di::Result::Ok);os::Close(m);}
     for(unsigned kind=0;kind<5;++kind){Fixture f;Raw r;auto* ring=r.request.ring;
         if(kind==0)sc_ipc_i_st64(&ring->head,1);

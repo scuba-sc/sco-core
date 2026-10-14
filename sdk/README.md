@@ -195,6 +195,10 @@ lua5.4 tools/lua-check.lua examples/greeter --invoke greeter.greet "Pilot One" t
 
 `sco-plugin-check` reads `plugin.ini` with the host's rules. For a native plugin it then loads the DLL, calls `sco_plugin_query` and `sco_plugin_load` against a stand-in host that enforces the documented rules, fires `game.ready` and a few `tick`s, runs every command that takes no arguments (and the one you name with `--invoke`), and unloads. For a data pack it lists the files the host would index. `--cap NAME` makes `has(NAME)` answer 1; by default every capability is missing, as on a game build the mod doesn't support yet. Exit code 0 means every check passed.
 
+`release_service` withdraws one of your own services; it does not release a table you got from `query_service` (that table is borrowed, and the host answers `SCO_NOT_FOUND`). The checker fails a `release_service` for any name the plugin doesn't provide at that moment, naming the case where the plugin only queried it.
+
+`--short-tables` hands the plugin a 1.0 host's `sco_api`: `size` 88 (`offsetof(sco_api, provide_service)`) and `minor` 0. Calling a 1.1 member (`provide_service`, `query_service`, `release_service`, `invoke_raw`, `register_raw`) without first checking `api->size >= offsetof(sco_api, member) + sizeof(api->member)` fails the check, with the size the call needed. Run it once on a plugin that should still load on an older host.
+
 The stand-in host is not the game: it has no game thread, no crash guard and no game features. A plugin that passes still needs a run in the game.
 
 ## Install a plugin

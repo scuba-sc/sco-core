@@ -1,7 +1,7 @@
 /*
  * sco-plugin-check: checks a built plugin folder on a dev machine, without the game.
  *
- *   sco-plugin-check <plugin folder> [--cap NAME]... [--invoke NAME [ARG]...]
+ *   sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]
  *
  * For every kind it reads plugin.ini with the same rules as the host (id, name, version, api,
  * kind, entry, requires and the [settings] section) and checks the folder name matches the id. A requires name is a
@@ -17,6 +17,14 @@
  * --cap NAME makes has(NAME) answer 1 (default: only the built-in sco.widgets service is present). Give a --cap for a
  * capability or a host or game service the plugin requires; a plugin id or another plugin's
  * service is only found by the real host, which sees the other plugins.
+ * --short-tables serves sco_api at its 1.0 extent (size = offsetof(sco_api, provide_service), minor 0),
+ * as a 1.0 host does: calling a 1.1 member (provide_service .. register_raw) without first checking
+ * size >= offsetof(sco_api, member) + sizeof(member) fails the check (docs/contracts.md, size / since).
+ *
+ * release_service withdraws one of the plugin's own services; there is no reference to release for a
+ * table it got from query_service. A release_service for a name the plugin does not provide at that
+ * moment (a queried service, one never provided, or one already withdrawn) fails the check and gets
+ * SCO_NOT_FOUND, the real host's answer.
  *
  * Exit 0 = every check passed. 1 = a check failed (the reason is printed). 2 = bad usage.
  *
@@ -693,6 +701,12 @@ static cmd   cmds[MAX_CMDS];
 static int   ncmds;
 static task  tasks[MAX_TASKS];
 static int   ntasks;
+static int short_tables;   /* --short-tables: sco_api at its 1.0 extent */
+#define MAX_SERVICES 32
+static char provided[MAX_SERVICES][64];   /* names the plugin publishes now */
+static int  nprovided;
+static char queried[MAX_SERVICES][64];    /* names it asked query_service for */
+static int  nqueried;
 static int widget_running = 1;
 static int widget_dispatching;
 static uint32_t widget_callback_logs, widget_callback_invokes;
@@ -1130,11 +1144,22 @@ static uint32_t list_commands(const sco_command** out, uint32_t max) {
     return (uint32_t)ncmds;
 }
 
+static int find_name(char (*list)[64], int n, const char* name) {
+    int i;
+    for (i = 0; i < n; ++i) if (!strcmp(list[i], name)) return i;
+    return -1;
+}
+
+static void remember_name(char (*list)[64], int* n, const char* name) {
+    if (strlen(name) < 64 && *n < MAX_SERVICES && find_name(list, *n, name) < 0) strcpy(list[(*n)++], name);
+}
+
 /* 1.1. Only the built-in widgets service is queryable. Plugin-provided
  * services and raw handlers are listed, not connected to other plugins. */
 static sco_result provide_service(sco_plugin* self, const char* name, uint32_t version, const void* vtable) {
     (void)self;
     if (!name || !vtable) return SCO_BAD_ARG;
+    remember_name(provided, &nprovided, name);
     printf("  service %s %u.%u\n", name, version >> 16, version & 0xFFFFu);
     return SCO_OK;
 }
@@ -1142,6 +1167,7 @@ static sco_result provide_service(sco_plugin* self, const char* name, uint32_t v
 static sco_result query_service(const char* name, uint32_t min_version, const void** out) {
     if (out) *out = NULL;
     if (!name || !out) return SCO_BAD_ARG;
+    remember_name(queried, &nqueried, name);
     if (strcmp(name, SCO_WIDGETS_NAME)) return SCO_NOT_FOUND;
     if (!widget_running) return SCO_NOT_FOUND;
     if ((min_version >> 16) != (SCO_WIDGETS_VERSION_1_0 >> 16) ||
@@ -1150,9 +1176,71 @@ static sco_result query_service(const char* name, uint32_t min_version, const vo
     return SCO_OK;
 }
 
+/* Withdraws one of the plugin's own services (sco_api.h). Not a reference release: a table from
+ * query_service is borrowed, and releasing its name is the host's SCO_NOT_FOUND. */
 static sco_result release_service(sco_plugin* self, const char* name) {
+    int i;
     (void)self;
-    return name ? SCO_OK : SCO_BAD_ARG;
+    if (!name) return SCO_BAD_ARG;
+    i = find_name(provided, nprovided, name);
+    if (i >= 0) {
+        memmove(provided[i], provided[i + 1], (size_t)(nprovided - i - 1) * sizeof provided[0]);
+        --nprovided;
+        printf("  release %s\n", name);
+        return SCO_OK;
+    }
+    if (find_name(queried, nqueried, name) >= 0)
+        fail("release_service '%s': the plugin queried this service but does not provide it; release_service "
+             "withdraws one of the plugin's own services (provide_service), a queried table is borrowed and "
+             "has no reference to release (the host returns not_found)", name);
+    else
+        fail("release_service '%s': the plugin does not provide a service by that name, or already withdrew it "
+             "(the host returns not_found)", name);
+    return SCO_NOT_FOUND;
+}
+
+/* --short-tables: what a 1.1 plugin finds past the end of a 1.0 host's sco_api. A real 1.0 host
+ * has nothing there; these stand-ins report the call instead of jumping to garbage. */
+#define SHORT_API_SIZE offsetof(sco_api, provide_service)
+#define API_EXTENT(m) (offsetof(sco_api, m) + sizeof(((const sco_api*)0)->m))
+
+static void short_table_fail(const char* member, size_t extent) {
+    fail("plugin called sco_api.%s, but this host's sco_api.size is %u (a 1.0 host, --short-tables): "
+         "check size >= %u (offsetof + sizeof of %s) before reading that pointer",
+         member, (unsigned)SHORT_API_SIZE, (unsigned)extent, member);
+}
+
+static sco_result short_provide_service(sco_plugin* self, const char* name, uint32_t version, const void* vtable) {
+    (void)self; (void)name; (void)version; (void)vtable;
+    short_table_fail("provide_service", API_EXTENT(provide_service));
+    return SCO_UNAVAILABLE;
+}
+
+static sco_result short_query_service(const char* name, uint32_t min_version, const void** out) {
+    (void)name; (void)min_version;
+    if (out) *out = NULL;
+    short_table_fail("query_service", API_EXTENT(query_service));
+    return SCO_UNAVAILABLE;
+}
+
+static sco_result short_release_service(sco_plugin* self, const char* name) {
+    (void)self; (void)name;
+    short_table_fail("release_service", API_EXTENT(release_service));
+    return SCO_UNAVAILABLE;
+}
+
+static sco_result short_invoke_raw(sco_plugin* self, const char* name, const void* in, uint32_t in_size,
+                                   void* out, uint32_t* out_size) {
+    (void)self; (void)name; (void)in; (void)in_size; (void)out;
+    if (out_size) *out_size = 0;
+    short_table_fail("invoke_raw", API_EXTENT(invoke_raw));
+    return SCO_UNAVAILABLE;
+}
+
+static sco_result short_register_raw(sco_plugin* self, const char* name, const char* capability, sco_raw_fn fn, void* ctx) {
+    (void)self; (void)name; (void)capability; (void)fn; (void)ctx;
+    short_table_fail("register_raw", API_EXTENT(register_raw));
+    return SCO_UNAVAILABLE;
 }
 
 static sco_result invoke_raw(sco_plugin* self, const char* name, const void* in, uint32_t in_size,
@@ -1390,6 +1478,16 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
     api.release_service = release_service;
     api.invoke_raw = invoke_raw;
     api.register_raw = register_raw;
+    if (short_tables) {
+        api.size = (uint32_t)SHORT_API_SIZE;
+        api.minor = 0;
+        api.provide_service = short_provide_service;
+        api.query_service = short_query_service;
+        api.release_service = short_release_service;
+        api.invoke_raw = short_invoke_raw;
+        api.register_raw = short_register_raw;
+        printf("  api     1.0 table: size %u, minor 0 (--short-tables)\n", (unsigned)api.size);
+    }
 
     r = load(&api, &the_plugin);
     if (r != SCO_OK) { fail("sco_plugin_load returned %s", result_name(r)); unload(); widget_stop(); return; }
@@ -1440,6 +1538,7 @@ int main(int argc, char** argv) {
 
     for (i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--cap") && i + 1 < argc && ncaps < 32) caps[ncaps++] = argv[++i];
+        else if (!strcmp(argv[i], "--short-tables")) short_tables = 1;
         else if (!strcmp(argv[i], "--invoke") && i + 1 < argc) {
             invoke_name = argv[++i];
             invoke_args = argv + i + 1;
@@ -1449,7 +1548,7 @@ int main(int argc, char** argv) {
         else { dir = NULL; break; }
     }
     if (!dir) {
-        fprintf(stderr, "usage: sco-plugin-check <plugin folder> [--cap NAME]... [--invoke NAME [ARG]...]\n");
+        fprintf(stderr, "usage: sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]\n");
         return 2;
     }
 

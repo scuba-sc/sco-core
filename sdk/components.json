@@ -4497,6 +4497,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.tests.fixtures.plugins.native.checker_probe.c",
+      "source": "tests/fixtures/plugins/native/checker_probe.c",
+      "destination": "tests/fixtures/plugins/native/checker_probe.c",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.tests.fixtures.plugins.native.fake_plugin.c",
       "source": "tests/fixtures/plugins/native/fake_plugin.c",
       "destination": "tests/fixtures/plugins/native/fake_plugin.c",
@@ -4810,6 +4820,16 @@
       "id": "source.tests.host_sim.cmake",
       "source": "tests/host_sim.cmake",
       "destination": "tests/host_sim.cmake",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.plugin_check.cmake",
+      "source": "tests/plugin_check.cmake",
+      "destination": "tests/plugin_check.cmake",
       "profiles": [
         "core-source"
       ],
