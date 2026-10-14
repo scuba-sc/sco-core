@@ -4448,6 +4448,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.src.vfs.files.cpp",
+      "source": "src/vfs/files.cpp",
+      "destination": "src/vfs/files.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.tests.abi.released.sco_api.h",
       "source": "tests/abi/released/sco_api.h",
       "destination": "tests/abi/released/sco_api.h",
@@ -6775,6 +6785,17 @@
       "id": "host-source-sc-tests-test_pak.cpp",
       "source": "tests/test_pak.cpp",
       "destination": "tests/test_pak.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
+      "id": "host-source-sc-tests-test_pak_files.cpp",
+      "source": "tests/test_pak_files.cpp",
+      "destination": "tests/test_pak_files.cpp",
       "profiles": [
         "host-source-sc"
       ],

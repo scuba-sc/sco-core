@@ -24,7 +24,15 @@
 // seeks on that handle, on that thread, are served by a sco::vfs::Reader over the mount; every
 // other handle and every other thread pass straight through to the engine's functions. Tell,
 // size and eof aren't routed: the loader doesn't call them on the file (pak.slots checks the
-// calls it does make), and plan PR 10 adds them with persistent hooks.
+// calls it does make).
+//
+// Scope::AllFiles (plan PR 10; capability game.pak.all_files, OFF by default): the same four slots
+// stay swapped from Enable to Disable, on every thread, and every mounted path is served (files/
+// replacement mounts, sco::vfs::FileMounts, as well as splices). Enable refuses it unless
+// Options.allFilesProbed is set, which no sco-core caller does: the frame-time cost and the engine's
+// use of the unrouted slots are unmeasured. Tell, size and eof slots have no row pinning their
+// offsets, so they are never swapped: the engine's own tell/size/eof on a served handle answer for
+// the real file. QueryHandle gives the virtual answers.
 #include "sco/runtime.h"
 #include "sco/vfs.h"
 #include <cstddef>
@@ -53,7 +61,10 @@ struct Targets {
 };
 bool Resolve(Targets& out);   // false (out untouched) unless all three pak.* rows are OK
 
-enum class Scope { DataCoreLoad, AllFiles };   // AllFiles arrives with persistent hooks (plan PR 10)
+enum class Scope { DataCoreLoad, AllFiles };
+
+// Set ready by Enable(Scope::AllFiles) once its slots are swapped; off otherwise, with the reason.
+constexpr char kAllFilesCap[] = "game.pak.all_files";
 
 struct LoadReport;
 
@@ -74,18 +85,28 @@ struct Options {
     //     to the engine unchanged. Stack corruption and fast-fail are not catchable.
     // Read when the load starts: a load that started before Disable still calls it.
     void (*onLoad)(const LoadReport& report) = nullptr;
+    // Scope::AllFiles only: the product's statement that the in-game probe of persistent hooks
+    // passed (frame time, and no engine use of tell/size/eof on served handles). False: Enable
+    // refuses AllFiles (Unavailable) and game.pak.all_files stays off.
+    bool allFilesProbed = false;
 };
 
 // Installs the loader detour (sco::hook::InstallDetour, stolen bytes counted by StolenLength) and
 // sets the capability "vfs.pak". Ok, or nothing changes and vfs.pak is off with the reason:
-// BadArg (size, null mounts, null targets, already enabled), Unavailable (Scope::AllFiles, a
-// pak.* row not OK), Failed (the detour was refused).
+// BadArg (size, unknown scope, null mounts, null targets, already enabled, AllFiles slots still
+// draining), Unavailable (a pak.* row not OK; Scope::AllFiles without Options.allFilesProbed or
+// with the ICryPak* still null), Failed (the detour or slot swap was refused).
+// Scope::AllFiles installs no loader detour (Targets.loader unused): it swaps the four slots of
+// *Targets.cryPak's vtable at once and sets game.pak.all_files; LastLoad stays None.
 Result Enable(const Options& options);
 Result Enable(const Options& options, const Targets& targets);
 
 // Removes the loader detour and restores the slots (sco::hook::RestoreSlot), clears "vfs.pak".
 // Idempotent. A load running on another thread keeps its slots until it returns (the slots are
 // restored at its end either way), so calling Disable mid-load never cuts a file in half.
+// Scope::AllFiles: new opens pass through at once; while a served handle is still open the slots
+// stay swapped and the handle keeps its virtual file, and the slots go back when the last one
+// closes (Enable refuses a new scope until then).
 void Disable();
 bool Enabled();
 
@@ -109,5 +130,14 @@ struct LoadReport {
     uint64_t    durationMs = 0;       // the engine's loader call, start to return (steady clock)
 };
 LoadReport LastLoad();
+
+// Scope::AllFiles: a served handle as its virtual file sees it (what the unswapped tell, size and
+// eof slots would answer if they were routed). False for any handle that isn't served.
+struct HandleState {
+    uint64_t pos = 0, size = 0;
+    bool     eof = false;   // at or past the end
+};
+bool QueryHandle(uintptr_t file, HandleState& out);
+size_t ServedHandles();   // served handles open now
 
 }  // namespace sco::game::pak

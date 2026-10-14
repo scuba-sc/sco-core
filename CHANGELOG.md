@@ -4,6 +4,21 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **`sco::game::pak` `Scope::AllFiles` (design plan PR 10), OFF by default:** persistent swaps of
+  the four pinned `ICryPak` slots (open 0x148, read 0x160, seek 0x1D0, close 0x1E0) serve every
+  mounted path on every thread, through a sharded map of served handles. `Enable` refuses it unless
+  the product sets the new `Options::allFilesProbed`, which no sco-core caller does. The new
+  capability `game.pak.all_files` is registered OFF pending in-game confirmation. Tell, size and
+  eof slots have no row, so they are never swapped; `QueryHandle` and `ServedHandles` report the
+  virtual position, size and eof of a served handle. `Disable` drains: open served handles keep
+  their virtual file, and the slots go back when the last one closes. The mount check is guarded
+  like `Options::onLoad` (`try`/`catch`, and SEH on MSVC). `Scope::DataCoreLoad` behaves as before.
+- **`files/` replacement mounts (`sco/vfs.h`):** `vfs::ReplaceMount` (a whole-file `Transform`,
+  refusing absolute, drive and `.`/`..` game paths, inert at open when the file is missing or over
+  `maxBytes`) and `vfs::FileMounts` (a data pack's `files/` folder, symlinks skipped). The plugin
+  content index doesn't list `files/` yet. Nothing here has run in the game: the evidence is
+  synthetic tests (`test_pak_files`) over a fake `ICryPak` vtable.
+
 ## sdk-v2.2.0 (2026-10-14)
 
 See the [SDK 2.2.0 release notes](docs/releases/sdk-v2.2.0.md) and the

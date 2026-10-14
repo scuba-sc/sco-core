@@ -149,7 +149,7 @@ sco_project_target(sco_engine)
 
 # Game-file overrides (sco/vfs.h): virtual files from splices, the reader arithmetic and the mount
 # table. Engine-agnostic: no engine, no Windows; the CryPak adapter comes separately.
-add_library(sco_vfs STATIC src/vfs/compose.cpp src/vfs/table.cpp)
+add_library(sco_vfs STATIC src/vfs/compose.cpp src/vfs/table.cpp src/vfs/files.cpp)
 target_include_directories(sco_vfs PUBLIC "${SCO_INCLUDE_DIR}")
 target_link_libraries(sco_vfs PUBLIC Threads::Threads)
 sco_project_target(sco_vfs)
@@ -1238,6 +1238,12 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_pak PRIVATE sco_pak)
   sco_project_target(test_pak)
   add_test(NAME test_pak COMMAND test_pak)
+  # Scope::AllFiles (persistent slot swaps, files/ replacement mounts) over a fake ICryPak; no
+  # loader detour, so it runs on every platform.
+  add_executable(test_pak_files tests/test_pak_files.cpp)
+  target_link_libraries(test_pak_files PRIVATE sco_pak)
+  sco_project_target(test_pak_files)
+  add_test(NAME test_pak_files COMMAND test_pak_files)
   endif()
 
   add_executable(test_vfs tests/test_vfs.cpp)

@@ -2051,21 +2051,30 @@
       "id": "pak.datacore_loader",
       "subsystem": "pak",
       "hash": "_0xFEC952200E333875",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.pak.all_files"
+      ],
       "source": "src/game/pak_sigs.cpp"
     },
     {
       "id": "pak.crypak",
       "subsystem": "pak",
       "hash": "_0xE766B80F7B0092BA",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.pak.all_files"
+      ],
       "source": "src/game/pak_sigs.cpp"
     },
     {
       "id": "pak.slots",
       "subsystem": "pak",
       "hash": "_0xDE7C554FB55F6EE9",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.pak.all_files"
+      ],
       "source": "src/game/pak_sigs.cpp"
     },
     {
