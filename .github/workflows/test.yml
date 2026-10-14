@@ -20,6 +20,11 @@ jobs:
       - name: Allow ThreadSanitizer
         run: sudo sysctl -w vm.mmap_rnd_bits=28
 
+      - name: Documentation release gate (Gate H)
+        run: |
+          v=$(tr -d '\r\n' < sdk/VERSION)
+          python3 tools/doc_release_gate.py --tag "sdk-v$v"
+
       - name: Host unit tests
         run: CC=clang CXX=clang++ tools/test.sh
 

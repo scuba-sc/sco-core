@@ -1,8 +1,10 @@
 # SDK release checklist
 
 How an SDK release goes from a green `main` to a published GitHub release. Gates A–G and the
-stop-ship conditions come from the release-hardening plan; this page says which are checked by a
-machine and which need a person. Machine checks collect evidence; they are not a legal opinion
+stop-ship conditions come from the release-hardening plan; Gates H (documentation readiness),
+I (deployed Pages verification) and J (announcement receipt) cover what the public is told.
+This page says which are checked by a machine and which need a person. An SDK release has five
+profiles: `core`, `game-sc`, `legacy`, `core-source` and `host-source-sc`. Machine checks collect evidence; they are not a legal opinion
 ([IP_POLICY.md](../../IP_POLICY.md)).
 
 ## Machine-checked (CI)
@@ -13,6 +15,7 @@ machine and which need a person. Machine checks collect evidence; they are not a
 | A | The core SDK zip builds and passes from its own files; it includes no extension header and names no game C# type | `sdk.yml`, `release-candidate.yml` (`sdk/test-zip.sh <core.zip>`), `tools/ip_audit.py zip --profile core` |
 | A | The Star Citizen extension unpacked over the core builds and passes; overwrites no core file, and keeps its own `VERSIONS.txt.game-sc` / `SHA256SUMS.game-sc` | `sdk.yml`, `release-candidate.yml` (`sdk/test-zip.sh <core.zip> <game-sc.zip>`) |
 | A | The core source archive builds a kernel and exercises the synthetic host from an empty directory, without the game implementation | `sdk.yml`, `release-candidate.yml` (`sdk/test-zip.sh <core-source.zip>`) |
+| A | The Star Citizen host-source kit builds standalone from its extracted archive | `release-candidate.yml` (`sdk/test_host_source.py HostSourceArchive`) |
 | A | ABI v1.1 pins unchanged (`tests/abi_*.c`, C# `Pins.cs`/`GamePins.cs`) | `test.yml`, `sdk.yml` |
 | B, 1 | Every tracked file matches a `docs/legal/provenance.json` entry; none `unresolved` | `ip-compliance.yml` (`tools/ip_audit.py repo`) |
 | C, 2 | No binary or refused-extension file outside the exact-hash allowlist, in the repository or any zip | `ip-compliance.yml`, `release-candidate.yml` |
@@ -20,7 +23,8 @@ machine and which need a person. Machine checks collect evidence; they are not a
 | E, 5 | SPDX 2.3 SBOM per zip, bound to commit and zip hash | `ip-compliance.yml`, `release-candidate.yml` (`ip_audit.py zip --sbom`); SPDX validation in `ip-compliance.yml` |
 | E, 6 | Each profile packaged twice gives the same bytes; each profile's `SHA256SUMS` matches every entry | `ip-compliance.yml`, `sdk/test_package.py` |
 | E, 7 | Each check refuses a synthetic defect (52 cases) | `ip-compliance.yml` (`tools/test_ip_audit.py`) |
-| G | All eight required jobs succeed on the exact builder SHA; workflow ownership disambiguates the two `windows` checks | `release-candidate.yml` `prerequisites` |
+| G | All nine required jobs succeed on the exact builder SHA, including `docs-site/docs-site` (the documentation site built and validated from that exact SHA); workflow ownership disambiguates the two `windows` checks | `release-candidate.yml` `prerequisites` (`tools/release_promote.py prerequisites`) |
+| H | `docs/releases/<tag>.md` holds exactly one strict JSON release-scope block whose tag, SDK version, game-pack version, plugin ABI and profile list equal `sdk/VERSION`, `SCO_GAME_PACK_VERSION`, `SCO_API_MAJOR`/`SCO_API_MINOR`, the `sdk/components.json` profiles and the candidate workflow's profile loop; active download/extraction coordinates in `docs/getting-started.md` name those versions; active release-notes and host-source sections carry no pre-release scope denial ("not published", "publication is excluded") | `test.yml` `test` and `release-candidate.yml` `prerequisites` (`tools/doc_release_gate.py --tag <tag>`); refusal tests `tools/test_doc_release_gate.py` in `ip-compliance.yml` |
 | G | Trusted SSH signature, approval and complete payload verified; downloads use approved run/artifact IDs, never a name or latest run; each file's attestation names this repository and candidate workflow | `release.yml` `verify` (`tools/release_verify.py verify`, `gh attestation verify`) |
 | G | Only verified bytes are uploaded, with the committed approval and signature, to a draft; exact asset inventory is listed, downloaded and re-verified before publication | `release.yml` `publish` |
 
@@ -34,6 +38,9 @@ CI creates a tag. Candidate generation and public promotion are separate operati
 - [ ] **D:** counsel has reviewed the plugin-licence wording ([option A, chosen 2026-10-11](release-decisions/2026-10-11-plugin-licence.md)), or the release states nothing stronger than it.
 - [ ] **G:** the maintainer checks the source commit, candidate run, artifact IDs and every file hash, and qualified counsel reviews any open material legal question.
 - [ ] **G:** the maintainer signs and commits the approval record, then tags. Publishing is a separate act from CI going green.
+- [ ] **H:** before dispatching the candidate, the release notes describe the declared profiles in prose as well as in the scope block, and `docs/getting-started.md` walks through the new archives. The gate compares coordinates and refuses scope denials; it does not judge whether the prose is accurate.
+- [ ] **I:** after publication, the documentation deployed to GitHub Pages is from the published commit, and the public release-notes and getting-started routes show the published versions and profiles. Gate H checks the source, not the deployed site.
+- [ ] **J:** after Pages verification, the release announcement is sent once and its delivery receipt is recorded. An announcement attempt is not a delivery; an ambiguous timeout is investigated, never blindly resent.
 
 ## Signed release manifest (schema version 2)
 
@@ -108,7 +115,9 @@ tests skip with an explicit message only if `ssh-keygen` is absent.
 
 `V` means `tools/test_release_verify.py` (`ReleaseVerifyTests`); `P` means
 `tools/test_release_promote.py` (`PromotionTests`); `S` means the same promotion test file's
-`SignedPromotionTests`. Mixed rows name tests from both files/classes. Existing verifier cases
+`SignedPromotionTests`; `D` means `tools/test_doc_release_gate.py` (`DocReleaseGateTests`), whose
+passing controls are `test_current_release_passes`, `test_next_release_passes` and
+`test_historical_prose_and_older_notes_allowed`. Mixed rows name tests from both files/classes. Existing verifier cases
 are reused, not copied. Every negative case asserts a refusal; the signed integration cases
 use the real verifier CLI, Git and throwaway OpenSSH keys with an injected, offline GitHub client.
 `test_offline_signed_candidate_draft_publish_round_trip` is the passing round-trip control;
@@ -150,6 +159,13 @@ its create/edit responses are synthetic and perform no GitHub writes.
 | Existing draft or published release for tag | P: `test_draft_existing_draft_refused_before_create`, `test_draft_existing_published_release_refused_before_create` |
 | Verified draft identity / inventory changes before publication | P: `test_publish_replaced_draft_id`, `test_publish_asset_id_changed`, `test_publish_asset_size_changed`, `test_publish_asset_updated_at_changed` |
 | Non-approval source change after building | V: `test_non_approval_change_refused` |
+| Documentation site not built from the exact SHA (missing, other SHA, PR build) | P: `test_prerequisites_docs_site_build_missing`, `test_prerequisites_docs_site_built_from_other_sha`, `test_prerequisites_docs_site_pull_request_build_does_not_count` |
+| Missing, wrong or reordered declared profile | D: `test_missing_profile_refused`, `test_wrong_or_reordered_profiles_refused`, `test_workflow_profiles_must_match_components` |
+| Declared version, ABI or tag mismatch | D: `test_version_mismatches_refused`, `test_tag_mismatches_refused`, `test_missing_version_sources_refused` |
+| Missing, duplicate or malformed release-scope block | D: `test_scope_block_structure_refused` |
+| Pre-release scope denial in active sections | D: `test_forbidden_phrases_refused_in_active_notes`, `test_forbidden_phrase_refused_in_host_source_doc`, `test_section_after_historical_section_is_active_again` |
+| Stale or absent getting-started coordinates | D: `test_stale_getting_started_coordinates_refused`, `test_getting_started_without_coordinates_refused` |
+| Approval record absent, unsigned or with different profiles | D: `test_approval_refusals` |
 
 The workflow's `fetch`, `prerequisites`, `draft`, `publish` and `summary` calls are implemented
 in `tools/release_promote.py`. All GitHub commands use one injectable client boundary;
@@ -224,13 +240,15 @@ No candidate job can create or modify a release. Configuration is a maintainer a
 
 ## Releasing
 
-1. Set `sdk/VERSION`, add a `## sdk-v<version> (<date>)` section to `CHANGELOG.md`, and merge
-   the intended source changes into `main`. Wait for **cmake/linux, cmake/kernel-only,
-   cmake/windows, sdk/package, sdk/windows, sdk/csharp-host-sim, test/test and
-   ip-compliance/audit** to succeed on that exact main commit.
+1. Set `sdk/VERSION`, add a `## sdk-v<version> (<date>)` section to `CHANGELOG.md`, write
+   `docs/releases/sdk-v<version>.md` with its release-scope block, update the download and
+   extraction coordinates in `docs/getting-started.md`, and merge the intended source changes
+   into `main`. Wait for **cmake/linux, cmake/kernel-only, cmake/windows, sdk/package,
+   sdk/windows, sdk/csharp-host-sim, test/test, ip-compliance/audit and docs-site/docs-site**
+   to succeed on that exact main commit.
 2. Manually dispatch **`release-candidate.yml` on that main commit**, with input
-   `tag: sdk-v<version>`. It checks those prerequisites, builds `core`, `game-sc`, `legacy` and
-   `core-source`, audits each archive, writes its SBOM, and exercises each zip (the extension
+   `tag: sdk-v<version>`. It runs the documentation gate, checks those prerequisites, builds
+   `core`, `game-sc`, `legacy`, `core-source` and `host-source-sc`, audits each archive, writes its SBOM, and exercises each zip (the extension
    overlays core). It writes `SHA256SUMS`, attests every payload file and uploads one immutable
    artifact named **`release-candidate`**. Do not push a tag yet.
 3. Download and review that candidate. Copy the summary's **`builder.run_id`**, artifact ID,
@@ -267,6 +285,8 @@ No candidate job can create or modify a release. Configuration is a maintainer a
    every draft asset, compares the approval files with the tag, and verifies the downloaded payload
    again. Only then does it make the draft public. It never uses `--clobber`. A failed round trip
    leaves a draft for investigation; do not manually publish it or replace its assets to bypass CI.
+8. Verify the deployed documentation (Gate I), then send the announcement once and record its
+   delivery receipt (Gate J).
 
 ## Signed approval record
 

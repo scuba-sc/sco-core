@@ -198,7 +198,8 @@ class PromotionTests(unittest.TestCase):
         checks, runs = [], {}
         required = {"cmake": ("linux", "kernel-only", "windows"),
                     "sdk": ("package", "windows", "csharp-host-sim"),
-                    "test": ("test",), "ip-compliance": ("audit",)}
+                    "test": ("test",), "ip-compliance": ("audit",),
+                    "docs-site": ("docs-site",)}
         for run_id, (workflow, jobs) in enumerate(required.items(), 200):
             runs[str(run_id)] = {"path": f".github/workflows/{workflow}.yml", "head_sha": SHA,
                                  "event": "push", "head_branch": "main", "status": "completed",
@@ -222,7 +223,28 @@ class PromotionTests(unittest.TestCase):
         self.assertTrue(callable(getattr(promote, "require_prerequisites", None)),
                         "prerequisite validation has not been extracted")
         self.prerequisites(*self.prerequisite_fixtures())
-        self.assertEqual(len(self.github.calls), 5)  # Each workflow run is fetched only once.
+        self.assertEqual(len(self.github.calls), 6)  # Each workflow run is fetched only once.
+
+    def docs_site_fixture(self):
+        checks, runs = self.prerequisite_fixtures()
+        run_id = next(key for key, run in runs.items()
+                      if run["path"] == ".github/workflows/docs-site.yml")
+        return checks, runs, run_id
+
+    def test_prerequisites_docs_site_build_missing(self):
+        checks, runs, run_id = self.docs_site_fixture()
+        checks = [check for check in checks if f"/runs/{run_id}/" not in check["details_url"]]
+        self.assert_prerequisites_refused(checks, runs, "docs-site/docs-site")
+
+    def test_prerequisites_docs_site_built_from_other_sha(self):
+        checks, runs, run_id = self.docs_site_fixture()
+        runs[run_id]["head_sha"] = "b" * 40
+        self.assert_prerequisites_refused(checks, runs, "docs-site/docs-site")
+
+    def test_prerequisites_docs_site_pull_request_build_does_not_count(self):
+        checks, runs, run_id = self.docs_site_fixture()
+        runs[run_id]["event"] = "pull_request"
+        self.assert_prerequisites_refused(checks, runs, "docs-site/docs-site")
 
 
     def assert_prerequisites_refused(self, checks, runs, key="cmake/linux"):
@@ -596,7 +618,7 @@ class PromotionTests(unittest.TestCase):
     def test_cli_prerequisites(self):
         self.prerequisites(*self.prerequisite_fixtures(), configure_only=True)
         self.assertEqual(promote.main(["prerequisites"], self.cli_environment(), self.github), 0)
-        self.assertEqual(len(self.github.calls), 5)
+        self.assertEqual(len(self.github.calls), 6)
 
     def test_cli_draft_records_id_only_after_round_trip(self):
         self.draft_fixtures()
