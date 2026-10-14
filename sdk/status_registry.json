@@ -108,7 +108,7 @@
       "doc": "docs/game/mining.md",
       "version": "row",
       "capabilities": [
-        {"name": "game.mining", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["mining.cell"], "evidence_source": "docs/game/status.md"}
+        {"name": "mining.cell", "display": "`mining.cell` (legacy host row)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["mining.cell"], "evidence_source": "docs/game/status.md"}
       ]
     },
     {

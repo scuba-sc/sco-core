@@ -1623,7 +1623,7 @@
       "hash": "_0x6807C869EBDC42DF",
       "tier": 1,
       "capability": [
-        "game.mining"
+        "mining.cell"
       ],
       "source": "src/game/mining_sigs.cpp"
     },
