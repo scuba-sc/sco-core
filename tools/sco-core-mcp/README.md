@@ -9,7 +9,7 @@ tooling, not an SDK runtime component.
 [Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
 implements the fixed runtime tool surface. This discovery executable remains
 credentials-free and catalogue-only, with its original six tools/dependencies by
-default; three more read-only tools are [opt-in](#extended-tools-opt-in).
+default; four more read-only tools are [opt-in](#extended-tools-opt-in).
 The current task supersedes the historical same-server placement in the
 [runtime design](../../docs/design/runtime-mcp.md). No live runtime/game acceptance is claimed.
 
@@ -113,7 +113,7 @@ recorded path.
 
 ## Tools and explicit allowlist
 
-These are the complete six default tool names (three more are
+These are the complete six default tool names (four more are
 [opt-in](#extended-tools-opt-in)). Enable them explicitly, not with a wildcard:
 
 | Tool | Purpose |
@@ -190,7 +190,7 @@ methods mentioned in the returned contracts read-only or safe to invoke.
 
 ### Extended tools (opt-in)
 
-Start the server with `--extended-tools` to add three more read-only tools after
+Start the server with `--extended-tools` to add four more read-only tools after
 the six above. Without the flag, `tools/list` is exactly the six, and calling an
 extended name is refused as an unknown tool, so existing allowlists and the
 launcher in [the integration guide](../../docs/agent-integration.md) are
@@ -202,6 +202,7 @@ explicitly:
 | `list_engine_natives` | Page through `sdk/native_index.json`, filtered by `subsystem`, `tier` (1-4) or a case-insensitive `query` substring of id, hash, subsystem, source or capability. |
 | `get_engine_native` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
 | `validate_manifest_and_widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
+| `generate_plugin_scaffold` | Return the files [`sco-new-plugin`](../../sdk/tools/sco-new-plugin.py) would generate for a plugin spec, without writing them. |
 
 **Engine natives.** Both native tools read `sdk/native_index.json` beneath
 `--repo-root` once, at start. The file has the same no-symlink containment as
@@ -275,6 +276,39 @@ with the node index, its id and the host result it maps to (`BAD_ARG`, or
 The host refuses the whole panel at its first violation. These checks are not
 made: the panel id and title, the stride and size fields, pointer readability, and
 renderer markup in labels.
+
+**Plugin scaffold.** `generate_plugin_scaffold` returns the native plugin folder
+that [`sdk/tools/sco-new-plugin.py`](../../sdk/tools/sco-new-plugin.py) would
+write, as `files`: a map from relative path to text (`plugin.ini`,
+`CMakeLists.txt` and `<id>.c` or `<id>.cpp`). It takes these arguments:
+
+| Argument | Required | Content |
+|---|---|---|
+| `id` | yes | 1-31 characters from `a-z`, `0-9` and `_`; `sco`, `host`, `menu` and `game` are reserved. |
+| `lang` | yes | `c` or `cpp`. |
+| `with_menu` | no | `true` adds a `sco.widgets` panel. Default `false`. |
+| `services` | no | Up to 16 `NAME` or `NAME@MAJOR.MINOR` strings, looked up as optional services on `game.ready`. |
+
+The display name and author take the generator's defaults; there is no output
+path. Any other argument, or a value outside the schema, is refused as a tool
+error. A spec the generator itself refuses, such as a reserved id or a service
+listed twice, comes back as a tool error that carries the generator's message.
+
+The server writes no files and runs no build or check. To use the result, write
+the files into a missing or empty folder, then run
+`cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder>` and
+`cmake --build DIR/build --target check`, the same steps the CLI prints.
+The output is exactly what `render_plugin(spec)` returns for the same spec; the
+tests compare the two.
+
+The generator is code from `--repo-root`. On the first call the server reads
+`sdk/tools/sco-new-plugin.py`, with the examples' no-symlink containment and the
+256 KiB limit, and runs it in its own process through `importlib`. It does not
+start a subprocess or write `__pycache__`. Without a root, or when the file is
+missing, a symlink or fails to load, `state` is `unavailable` with a `reason` and
+`files` is empty. The result is not bound to the catalogue `source_sha`.
+Generated plugins declare `api = 1.0`. Nothing generated here has been loaded by
+a host or run in game.
 
 ## MCP clients
 
@@ -377,14 +411,19 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 - **No network, subprocess execution, or file writes by the server.** Its interface
   is stdio and its discovery operations read local catalogue data and optional
   example files. The separate catalogue builder compiles/runs probes and writes
-  its output; the server does neither.
+  its output; the server does neither. The one piece of repository code it runs is
+  `sdk/tools/sco-new-plugin.py`, and only with `--extended-tools` and a
+  `--repo-root`, in-process, on the first `generate_plugin_scaffold` call. Treat
+  that root as code you would run yourself.
 - **Not arbitrary file access.** `get_example` reads only paths listed in the
   selected catalogue record's `examples`, beneath the configured repository root.
   The only other files read under that root are `sdk/status_registry.json` (at
   most 1 MiB), or `docs/game/status.md` when there is no registry (each read once,
   at start), the `sdk-v*.json`/`.json.sig` records in `docs/legal/release-decisions/`
   (per `check_compatibility` call) and, with `--extended-tools` only,
-  `sdk/native_index.json` (at most 4 MiB, once at start). All use the same
+  `sdk/native_index.json` (at most 4 MiB, once at start) and
+  `sdk/tools/sco-new-plugin.py` (at most 256 KiB, once, on the first scaffold
+  call). All use the same
   no-symlink containment, and the default size limit applies to the rest.
   Absolute paths, traversal outside the root, and symlinks anywhere the catalogue
   names are refused, including on the extracted-archive `examples/...` fallback;

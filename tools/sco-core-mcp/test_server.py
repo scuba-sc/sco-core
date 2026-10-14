@@ -9,6 +9,7 @@ All fixture records are synthetic; none assert runtime or game compatibility.
 import copy
 import hashlib
 import importlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -33,7 +34,9 @@ TOOLS = {
     "get_capability_status", "check_compatibility",
 }
 ORIGINAL_ORDER = ["search_api", "get_symbol", "list_services", "get_example", "get_capability_status", "check_compatibility"]
-EXTENDED_ORDER = ORIGINAL_ORDER + ["list_engine_natives", "get_engine_native", "validate_manifest_and_widgets"]
+EXTENDED_ORDER = ORIGINAL_ORDER + ["list_engine_natives", "get_engine_native", "validate_manifest_and_widgets",
+                                   "generate_plugin_scaffold"]
+SCAFFOLDER = ROOT / "sdk" / "tools" / "sco-new-plugin.py"
 PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source_sha"}
 
 
@@ -1375,6 +1378,116 @@ class ValidatorTests(ServerCase):
                 self.validate(client, widgets=widgets, is_error=True)
         self.result(client.call("validate_manifest_and_widgets", {"widgets": [node]}), is_error=True)
         self.result(client.call("validate_manifest_and_widgets", {"plugin_ini": GOOD_INI, "path": "plugin.ini"}), is_error=True)
+
+
+def load_scaffolder():
+    """Import render_plugin the way the scaffolder documents, without writing __pycache__ into sdk/tools."""
+    spec = importlib.util.spec_from_file_location("sco_new_plugin_reference", SCAFFOLDER)
+    assert spec is not None and spec.loader is not None, SCAFFOLDER
+    module = importlib.util.module_from_spec(spec)
+    previous, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = previous
+    return module
+
+
+SCAFFOLD_SPECS = [
+    {"id": "my_radar", "lang": "c"},
+    {"id": "my_radar", "lang": "c", "with_menu": True, "services": ["game.actors", "sco.widgets"]},
+    {"id": "hud_probe", "lang": "cpp", "services": ["game.actors@1.1"]},
+    {"id": "hud_probe", "lang": "cpp", "with_menu": True, "services": ["sco.widgets"]},
+    {"id": "plain", "lang": "cpp", "with_menu": False, "services": []},
+]
+
+
+class ScaffoldTests(ServerCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.reference = load_scaffolder()
+
+    def scaffold(self, client, arguments, is_error=False):
+        return self.result(client.call("generate_plugin_scaffold", arguments), is_error=is_error)
+
+    def expected(self, spec):
+        return self.reference.render_plugin(copy.deepcopy(spec))
+
+    def scaffold_root(self, source=None):
+        root, catalogue = self.temporary_catalogue(fixture())
+        (root / "sdk/tools").mkdir(parents=True)
+        if source is not None:
+            (root / "sdk/tools/sco-new-plugin.py").write_text(source, encoding="utf-8")
+        return root, catalogue
+
+    def test_files_equal_render_plugin(self):
+        client = self.start(repo_root=ROOT, extended=True)
+        for spec in SCAFFOLD_SPECS:
+            with self.subTest(spec=spec):
+                result = self.scaffold(client, spec)
+                self.assertEqual((result["state"], result["source"], result["written"], result["spec"]),
+                                 ("available", "sdk/tools/sco-new-plugin.py", False, spec))
+                self.assertEqual(result["files"], self.expected(spec))
+
+    def test_copied_scaffolder_matches_and_nothing_is_written(self):
+        root, catalogue = self.scaffold_root(SCAFFOLDER.read_text(encoding="utf-8"))
+        before = sorted(path.relative_to(root).as_posix() for path in root.rglob("*"))
+        client = self.start(catalogue=catalogue, repo_root=root, extended=True)
+        for spec in SCAFFOLD_SPECS[1:3]:
+            with self.subTest(spec=spec):
+                self.assertEqual(self.scaffold(client, spec)["files"], self.expected(spec))
+        self.assertEqual(sorted(path.relative_to(root).as_posix() for path in root.rglob("*")), before)
+
+    def test_unavailable_without_root_or_loadable_scaffolder(self):
+        result = self.scaffold(self.start(extended=True), SCAFFOLD_SPECS[0])
+        self.assertEqual((result["state"], result["files"], result["written"]), ("unavailable", {}, False))
+        self.assertIn("No --repo-root", result["reason"])
+        root, catalogue = self.scaffold_root()
+        missing = self.scaffold(self.start(catalogue=catalogue, repo_root=root, extended=True), SCAFFOLD_SPECS[0])
+        self.assertEqual((missing["state"], missing["files"]), ("unavailable", {}))
+        self.assertIn("unavailable beneath --repo-root", missing["reason"])
+        for source, reason in [("def render_plugin(:\n", "failed to load: SyntaxError"),
+                               ("raise RuntimeError('boom')\n", "failed to load: RuntimeError"),
+                               ("render_plugin = None\n", "defines no render_plugin and SpecError")]:
+            with self.subTest(reason=reason):
+                root, catalogue = self.scaffold_root(source)
+                client = self.start(catalogue=catalogue, repo_root=root, extended=True)
+                for _ in range(2):  # The failure is reported again and the server keeps serving.
+                    broken = self.scaffold(client, SCAFFOLD_SPECS[0])
+                    self.assertEqual((broken["state"], broken["files"]), ("unavailable", {}))
+                    self.assertIn(reason, broken["reason"])
+
+    def test_symlinked_scaffolder_is_refused(self):
+        root, catalogue = self.scaffold_root()
+        try:
+            (root / "sdk/tools/sco-new-plugin.py").symlink_to(SCAFFOLDER)
+        except OSError as error:
+            self.skipTest("symlinks unavailable: " + type(error).__name__)
+        result = self.scaffold(self.start(catalogue=catalogue, repo_root=root, extended=True), SCAFFOLD_SPECS[0])
+        self.assertEqual((result["state"], result["files"]), ("unavailable", {}))
+        self.assertIn("symlink", result["reason"])
+
+    def test_strict_schema_and_spec_refusals(self):
+        client = self.start(repo_root=ROOT, extended=True)
+        base = {"id": "my_radar", "lang": "c"}
+        for arguments in [{"id": "my_radar"}, {"lang": "c"}, {**base, "lang": "lua"}, {**base, "id": "My-Radar"},
+                          {**base, "id": "x" * 32}, {**base, "id": 7}, {**base, "with_menu": "yes"}, {**base, "with_menu": 1},
+                          {**base, "services": "game.actors"}, {**base, "services": [1]}, {**base, "services": ["Game.Actors"]},
+                          {**base, "services": ["game..actors"]}, {**base, "services": ["game.actors@1"]},
+                          {**base, "services": ["s%d" % n for n in range(17)]},
+                          {**base, "name": "Radar"}, {**base, "author": "someone"}, {**base, "out": "radar"}]:
+            with self.subTest(arguments=arguments):
+                self.assertNotIn("files", self.scaffold(client, arguments, is_error=True))
+        for arguments, message in [({**base, "id": "game"}, "reserved"),
+                                   ({**base, "services": ["game.actors", "game.actors@1.1"]}, "listed twice"),
+                                   ({**base, "services": ["a" * 64]}, "1-63 characters")]:
+            with self.subTest(arguments=arguments):
+                refused = self.scaffold(client, arguments, is_error=True)
+                self.assertIn("Spec refused by sco-new-plugin", refused["error"])
+                self.assertIn(message, refused["error"])
+                with self.assertRaises(self.reference.SpecError):
+                    self.reference.render_plugin(arguments)
 
 
 class CompatibilityReleaseTests(ServerCase):

@@ -79,6 +79,21 @@ then review the exposed tools and enable only those six. The envelope under
 `.vscode/mcp.json` is `servers`, not Copilot CLI's `mcpServers`; do not blindly
 copy an entire client config into another client.
 
+**Opt-in extended tools.** Add `--extended-tools` to `args` and the server offers
+four more read-only tools after the six. They are `list_engine_natives`,
+`get_engine_native`, `validate_manifest_and_widgets` and
+`generate_plugin_scaffold`. Add each name you want to `tools` explicitly.
+
+`generate_plugin_scaffold` takes an `id`, a `lang` (`c` or `cpp`), an optional
+`with_menu` and an optional `services` list. It returns the files
+`sdk/tools/sco-new-plugin.py` would generate, as relative path to text. It writes
+and builds nothing; save the files into an empty folder and build them with the
+SDK yourself. Without `--repo-root` it reports `unavailable`. With a root, the
+server runs that root's scaffolder in its own process, so grant only a reviewed
+checkout. The
+[server README](../tools/sco-core-mcp/README.md#extended-tools-opt-in) gives the
+schemas and limits. The launcher above stays at the six default tools.
+
 ## Copilot code review: maintainer-owned repository setting
 
 A repository administrator may prepare the same JSON above in **Settings >

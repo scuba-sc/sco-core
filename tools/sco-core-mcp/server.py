@@ -5,11 +5,15 @@ No SDK invocation, subprocesses, network access, or filesystem writes. Stdout is
 reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr. Besides
 the catalogue and record-listed examples, only sdk/status_registry.json (else
 docs/game/status.md), docs/legal/release-decisions/ and, with --extended-tools,
-sdk/native_index.json are read, and only beneath --repo-root.
+sdk/native_index.json and sdk/tools/sco-new-plugin.py are read, and only beneath
+--repo-root. The scaffolder is the one piece of repository code this process runs:
+with --extended-tools, on the first generate_plugin_scaffold call, in-process.
 """
 import argparse
 from collections import deque
 import hashlib
+import importlib.machinery
+import importlib.util
 import json
 import math
 import os
@@ -58,6 +62,13 @@ MAX_NATIVE_INDEX = 4 * 1024 * 1024
 NATIVE_KEYS = {"schema_version", "about", "tiers", "row_count", "entries"}
 NATIVE_ENTRY_KEYS = {"id", "subsystem", "hash", "tier", "source"}
 NATIVE_HASH = re.compile(r"_0x[0-9A-F]{16}")
+SCAFFOLDER = ("sdk", "tools", "sco-new-plugin.py")
+SCAFFOLD_SERVICE = r"^[a-z0-9_]+(\.[a-z0-9_]+)*(@[0-9]{1,5}\.[0-9]{1,5})?$"
+SCAFFOLD_CONCLUSIONS = [
+    "files maps each relative path to the text sdk/tools/sco-new-plugin.py's render_plugin returns for this spec; nothing was written, built or checked.",
+    "To use them, write the files into a missing or empty folder, then: cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder> and cmake --build DIR/build --target check.",
+    "The generator is read from --repo-root and run in this server process; it is not bound to the catalogue source_sha.",
+    "The plugin declares api = 1.0 and looks services up as optional; nothing generated here has been loaded by a host or run in game."]
 NATIVE_CONCLUSIONS = [
     "hash is _0x plus 16 hex digits of sha256('sco-core:native:' + id): a stable symbolic name, not an address. The index records no pattern, mask, offset or address.",
     "tier comes from sdk/status_registry.json sig_rows: tier 2 means no registry capability names the row, not that the row is unused.",
@@ -140,6 +151,13 @@ EXTENDED_TOOLS = [
          "objects against the sco_widgets.h tree invariants; returns findings and touches no files.",
          {"plugin_ini": string_schema(32768), "folder": {**string_schema(255), "pattern": r"^[^/\\]+$"},
           "widgets": {"type": "array", "minItems": 1, "maxItems": 256, "items": WIDGET_NODE}}, ("plugin_ini",)),
+    tool("generate_plugin_scaffold", "Return, as {relative path: text}, the plugin folder sdk/tools/sco-new-plugin.py beneath --repo-root "
+         "would generate for this spec; writes, builds and runs nothing.",
+         {"id": {**string_schema(31), "pattern": r"^[a-z0-9_]{1,31}$"},
+          "lang": {"type": "string", "enum": ["c", "cpp"]},
+          "with_menu": {"type": "boolean", "default": False},
+          "services": {"type": "array", "minItems": 0, "maxItems": 16,
+                       "items": {**string_schema(75), "pattern": SCAFFOLD_SERVICE}}}, ("id", "lang")),
 ]
 TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS}
 
@@ -262,6 +280,14 @@ def validate_arguments(name, arguments):
         elif spec["type"] == "array":
             if not isinstance(value, list) or not spec["minItems"] <= len(value) <= spec["maxItems"]:
                 raise ToolError("%s must be an array of %d-%d items" % (key, spec["minItems"], spec["maxItems"]))
+            items = spec["items"]
+            if items.get("type") == "string" and not all(
+                    nonempty(item) and items["minLength"] <= len(item) <= items["maxLength"]
+                    and re.fullmatch(items["pattern"], item) for item in value):
+                raise ToolError(key + " items must be strings matching the advertised pattern")
+        elif spec["type"] == "boolean":
+            if type(value) is not bool:
+                raise ToolError(key + " must be true or false")
         elif type(value) is not int or not spec["minimum"] <= value <= spec["maximum"]:
             raise ToolError(key + " must be an integer within the advertised range")
         if "enum" in spec and value not in spec["enum"]:
@@ -998,6 +1024,44 @@ class Server:
         self.natives_reason = "Not loaded"
         if extended_tools:
             self.natives, self.natives_by_key, self.natives_reason = self.load_natives()
+        self.scaffolder = None
+
+    def load_scaffolder(self):
+        """Return ((render_plugin, SpecError), None) or (None, reason).
+
+        The source is read with the examples' no-symlink containment and executed from
+        those exact bytes, so nothing else is opened and no __pycache__ is written.
+        """
+        if self.repo_root is None:
+            return None, "No --repo-root: sdk/tools/sco-new-plugin.py is not loaded"
+        source_name = "/".join(SCAFFOLDER)
+        try:
+            source = read_example(self.repo_root, SCAFFOLDER)
+        except (OSError, UnicodeError, ToolError):
+            return None, source_name + " unavailable beneath --repo-root (missing, symlink, not a regular file or over 256 KiB)"
+        module = importlib.util.module_from_spec(importlib.machinery.ModuleSpec("sco_new_plugin", None, origin=source_name))
+        try:
+            exec(compile(source, source_name, "exec"), module.__dict__)
+        except Exception as error:  # Repository code: report any load failure as unavailable, keep serving.
+            return None, source_name + " failed to load: " + type(error).__name__
+        render, spec_error = getattr(module, "render_plugin", None), getattr(module, "SpecError", None)
+        if not callable(render) or not (isinstance(spec_error, type) and issubclass(spec_error, Exception)):
+            return None, source_name + " defines no render_plugin and SpecError"
+        return (render, spec_error), None
+
+    def scaffold(self, args):
+        if self.scaffolder is None:
+            self.scaffolder = self.load_scaffolder()
+        loaded, reason = self.scaffolder
+        result = {"source": "/".join(SCAFFOLDER), "written": False, "conclusions": SCAFFOLD_CONCLUSIONS}
+        if loaded is None:
+            return result | {"state": "unavailable", "reason": reason, "files": {}}
+        render, spec_error = loaded
+        try:
+            files = render(dict(args))
+        except spec_error as error:
+            raise ToolError("Spec refused by sco-new-plugin: " + str(error)) from None
+        return result | {"state": "available", "spec": args, "files": files}
 
     def load_game_status(self):
         """Return (rows by catalogue table, source, None) or (None, source, reason).
@@ -1238,6 +1302,8 @@ class Server:
             if entry is None:
                 raise ToolError("Unknown native row id or hash; use list_engine_natives")
             return result | {"entry": entry, "tier_meaning": self.natives["tiers"][str(entry["tier"])]}
+        if name == "generate_plugin_scaffold":
+            return self.scaffold(args)
         if name == "validate_manifest_and_widgets":
             result = {"manifest": check_manifest(args["plugin_ini"], args.get("folder"))}
             if "widgets" in args:
@@ -1355,7 +1421,8 @@ def main():
     parser.add_argument("--catalogue", default=os.environ.get("SCO_CORE_CATALOGUE"))
     parser.add_argument("--repo-root")
     parser.add_argument("--extended-tools", action="store_true",
-                        help="also offer list_engine_natives, get_engine_native and validate_manifest_and_widgets")
+                        help="also offer list_engine_natives, get_engine_native, validate_manifest_and_widgets "
+                             "and generate_plugin_scaffold")
     args = parser.parse_args()
     if not args.catalogue:
         parser.error("--catalogue or SCO_CORE_CATALOGUE is required")
