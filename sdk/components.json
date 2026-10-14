@@ -1740,6 +1740,18 @@
       "public_header": true
     },
     {
+      "id": "include.sc_reputation.h",
+      "source": "include/sc_reputation.h",
+      "destination": "include/sc_reputation.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
       "id": "include.sc_world.h",
       "source": "include/sc_world.h",
       "destination": "include/sc_world.h",
@@ -4371,6 +4383,18 @@
       "group": "game-contract"
     },
     {
+      "id": "source.tests.abi_game_reputation.c",
+      "source": "tests/abi_game_reputation.c",
+      "destination": "tests/abi_game_reputation.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
       "id": "source.tests.abi_game_entities.c",
       "source": "tests/abi_game_entities.c",
       "destination": "tests/abi_game_entities.c",
@@ -5198,6 +5222,17 @@
       "group": "host-source-sc"
     },
     {
+      "id": "host-source-sc-docs-game-reputation.md",
+      "source": "docs/game/reputation.md",
+      "destination": "docs/game/reputation.md",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
       "id": "host-source-sc-docs-game-entities.md",
       "source": "docs/game/entities.md",
       "destination": "docs/game/entities.md",
@@ -5775,6 +5810,42 @@
       "id": "host-source-sc-src-game-services-hangar_engine.cpp",
       "source": "src/game/services/hangar_engine.cpp",
       "destination": "src/game/services/hangar_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-reputation.cpp",
+      "source": "src/game/services/reputation.cpp",
+      "destination": "src/game/services/reputation.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-reputation.h",
+      "source": "src/game/services/reputation.h",
+      "destination": "src/game/services/reputation.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-reputation_engine.cpp",
+      "source": "src/game/services/reputation_engine.cpp",
+      "destination": "src/game/services/reputation_engine.cpp",
       "profiles": [
         "host-source-sc"
       ],
@@ -7332,6 +7403,18 @@
       "id": "host-source-sc-tests-test_hangar.cpp",
       "source": "tests/test_hangar.cpp",
       "destination": "tests/test_hangar.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_reputation.cpp",
+      "source": "tests/test_reputation.cpp",
+      "destination": "tests/test_reputation.cpp",
       "profiles": [
         "host-source-sc"
       ],

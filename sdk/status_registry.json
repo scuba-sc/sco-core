@@ -135,6 +135,16 @@
       ]
     },
     {
+      "id": "game.reputation",
+      "kind": "service",
+      "service": "game.reputation",
+      "header": "include/sc_reputation.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.reputation.checks", "display": "`game.reputation.checks` (`checks`, read-only)", "methods": ["checks"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["contracts.reputation_services"], "evidence_source": "docs/game/reputation.md"}
+      ]
+    },
+    {
       "id": "game.prefabs",
       "kind": "service",
       "service": "game.prefabs",
