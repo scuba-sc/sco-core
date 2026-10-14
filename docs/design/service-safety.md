@@ -6,9 +6,9 @@ Current behavior is documented in [service-table lifetime](service-table-lifetim
 
 ## The problem, in today's code
 
-- `QueryService` (`src/api/sco_services.cpp:63`) returns `s.table`, the provider's pointer. The caller calls through it directly.
-- **Wrong blame.** A fault inside the provider unwinds to the nearest guard, which is the caller's callout (`ContainedCallout`, `src/plugins/loader.cpp:304`). The caller is marked Crashed and unloaded. The provider stays Loaded and keeps faulting for the next caller. Off the game thread, nothing catches it at all.
-- **Use after unload.** When a provider unloads or crashes, `detail::ReleaseServices` drops its entries, and `UnloadCode` then `FreeLibrary`s the module (`loader.cpp:329`). A caller that kept the table jumps into unmapped memory.
+- `QueryService` (`src/api/sco_services.cpp`) returns `s.table`, the provider's pointer. The caller calls through it directly.
+- **Wrong blame.** A fault inside the provider unwinds to the nearest guard, which is the caller's callout (`ContainedCallout`, `src/plugins/loader.cpp`). The caller is marked Crashed and unloaded. The provider stays Loaded and keeps faulting for the next caller. Off the game thread, nothing catches it at all.
+- **Use after unload.** When a provider unloads or crashes, `detail::ReleaseServices` drops its entries, and `UnloadCode` then `FreeLibrary`s the module (through `ModuleOps::close`, `loader.cpp`). A caller that kept the table jumps into unmapped memory.
 - **Built-ins are not affected** by the unload half (they never unmap), but they are by the blame half.
 
 ## Goals and limits

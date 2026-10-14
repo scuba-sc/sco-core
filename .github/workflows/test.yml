@@ -25,6 +25,16 @@ jobs:
           v=$(tr -d '\r\n' < sdk/VERSION)
           python3 tools/doc_release_gate.py --tag "sdk-v$v"
 
+      - name: Game status registry matches docs/game/status.md
+        run: |
+          python3 tools/status_registry.py --check
+          python3 tools/test_status_registry.py
+
+      - name: Native index matches src/game/*_sigs.cpp
+        run: |
+          python3 tools/native_index.py --check
+          python3 tools/test_native_index.py
+
       - name: Host unit tests
         run: CC=clang CXX=clang++ tools/test.sh
 

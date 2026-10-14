@@ -23,6 +23,11 @@ def scope_block(**overrides):
             + "\n```\n<!-- release-scope:end -->\n")
 
 
+SYMBOL_CITATIONS = ("# API\n\n`QueryService` (`src/api/sco_services.cpp`) records the hand-out.\n"
+                    "A script error reads `main.lua:<line>: message`; the report is "
+                    "`docs/plugins.md:205`.\n\n```sh\ncurl http://localhost:8080/x.py\n```\n")
+
+
 def getting_started(version, game_pack):
     return (f"# Start\n\n| `sco-sdk-core-{version}.zip` | core |\n"
             f"| `sco-sdk-game-sc-{game_pack}.zip` | overlay |\n\n"
@@ -45,6 +50,12 @@ class Fixture:
                 "        true\n      done\n",
             "docs/getting-started.md": getting_started(version, game_pack),
             "docs/host-source-sc.md": f"# Host source\n\nPublished as sco-sdk-host-source-sc-{version}.zip.\n",
+            "site/public-inputs.json": json.dumps({"schema_version": 1, "docs": [
+                "docs/getting-started.md", "docs/api.md", "docs/host-source-sc.md",
+                f"docs/releases/sdk-v{version}.md"]}),
+            "docs/api.md": SYMBOL_CITATIONS,
+            "README.md": "# sco-core\n\nSee `QueryService` in `src/api/sco_services.cpp`.\n",
+            "sdk/README.md": "# SDK\n\nStart from `sdk/examples/cpp_hello/cpp_hello.cpp`.\n",
             f"docs/releases/sdk-v{version}.md":
                 f"# SDK {version}\n\n" + scope_block(tag=f"sdk-v{version}", sdk_version=version,
                                                      game_pack_version=game_pack,
@@ -248,6 +259,48 @@ class DocReleaseGateTests(unittest.TestCase):
         self.assert_refused("--tag", tag="")
         self.assert_refused("--tag", tag="v2.1.0")
         self.assert_refused("docs/releases/sdk-v9.9.9.md", tag="sdk-v9.9.9")
+
+    def test_source_line_citations_refused(self):
+        self.repo.set("docs/api.md", "# API\n\n`ProvideService` (`src/api/sco_services.cpp:42`).\n"
+                                     "Range `include/sc_ipc.h:85-112`.\n")
+        self.repo.set("README.md", "# sco-core\n\nSee quantum.cpp:417 and sco-plugin-check.c:891.\n")
+        self.repo.set("sdk/README.md", "`Plugin.cs:446`, `main.lua:3` and `plugin.hpp:447`\n")
+        self.repo.set(self.repo.notes, self.repo.files[self.repo.notes] + "Fixed in `tools/x.py:7`.\n")
+        err = self.assert_refused("line number")
+        cited = [line for line in err if "cites source by line number" in line]
+        self.assertEqual(len(cited), 8, err)
+        for token in ("docs/api.md line 3", "docs/api.md line 4", "README.md line 3",
+                      "sdk/README.md line 1", f"{self.repo.notes} line ", "'src/api/sco_services.cpp:42'",
+                      "'include/sc_ipc.h:85'", "'quantum.cpp:417'", "'main.lua:3'"):
+            self.assertTrue(any(token in line for line in cited), (token, err))
+
+    def test_symbol_citations_pass(self):
+        self.assertEqual(gate.citation_refusals(self.repo.root, self.repo.notes), [])
+        self.assert_passes()
+
+    def test_unlisted_documents_are_not_scanned(self):
+        self.repo.set("docs/design/notes.md", "`src/api/sco_services.cpp:42`\n")
+        self.assert_passes()
+
+    def test_public_inputs_list_refused_when_missing_or_malformed(self):
+        for text in (None, "[]", '{"docs": []}', '{"docs": ["../outside.md"]}',
+                     '{"docs": ["/abs.md"]}'):
+            with self.subTest(text=text):
+                path = self.repo.root / gate.PUBLIC_INPUTS
+                if text is None:
+                    path.unlink()
+                else:
+                    path.write_text(text)
+                self.assert_refused(gate.PUBLIC_INPUTS)
+                self.repo.write()
+
+    def test_listed_public_doc_missing_refused(self):
+        (self.repo.root / "docs/api.md").unlink()
+        self.assert_refused("docs/api.md")
+
+    def test_repository_public_docs_cite_no_source_lines(self):
+        notes = f"docs/releases/sdk-v{(REPO_ROOT / 'sdk/VERSION').read_text().strip()}.md"
+        self.assertEqual(gate.citation_refusals(REPO_ROOT, notes), [])
 
     def test_repository_workflow_and_components_profiles_agree(self):
         self.assertEqual(gate.workflow_profiles(REPO_ROOT), gate.components_profiles(REPO_ROOT))

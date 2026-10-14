@@ -13,6 +13,8 @@
 #include "vehicles.h"
 #include "entities.h"
 #include "creative.h"
+#include "hangar.h"
+#include "reputation.h"
 #include "loadout.h"
 #include "quantum.h"
 #include "cvars.h"
@@ -449,9 +451,23 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    r = StartHangar(); // both capabilities held OFF pending an in-game run
+    if (r != Result::Ok) {
+        StopCvars(); StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
+        StopWorld(); StopVehicles(); StopActors(); StopSpawn();
+        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
+    r = StartReputation(); // game.reputation.checks held OFF pending an in-game run
+    if (r != Result::Ok) {
+        StopHangar(); StopCvars(); StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
+        StopWorld(); StopVehicles(); StopActors(); StopSpawn();
+        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
+        return r;
+    }
     r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
     if (r != Result::Ok) {
-        StopCvars(); StopQuantum(); StopLoadout();
+        StopReputation(); StopHangar(); StopCvars(); StopQuantum(); StopLoadout();
         StopCreative();
         StopEntities();
         StopEvents();
@@ -465,7 +481,7 @@ Result Start() {
     r = offline::Start(); // published unavailable until a separately validated adapter exists
     if (r != Result::Ok) {
         Unsubscribe(host::GameOwner(), "tick", OnTick);
-        StopCreative(); StopEntities(); StopEvents(); StopWorld();
+        StopReputation(); StopHangar(); StopCreative(); StopEntities(); StopEvents(); StopWorld();
         StopVehicles(); StopActors(); StopSpawn();
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
@@ -481,6 +497,8 @@ Result Start() {
 void Stop() {
     if (!g_started) return;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
+    StopReputation();
+    StopHangar();
     StopCvars();
     StopQuantum();
     StopLoadout();

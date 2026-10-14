@@ -14,6 +14,7 @@ namespace Sco.Sdk.Game
     {
         public const string WorldName = "game.world";            // SC_WORLD_NAME
         public const uint WorldVersion1_0 = 0x00010000u;        // SC_WORLD_VERSION_1_0
+        public const uint WorldVersion1_1 = 0x00010001u;        // SC_WORLD_VERSION_1_1 (+ free-camera flag)
         public const int WorldRayMaxDistance = 20000;           // SC_WORLD_RAY_MAX_DISTANCE, metres
     }
 
@@ -38,7 +39,7 @@ namespace Sco.Sdk.Game
         public double distance;
     }
 
-    /// <summary>sc_world_v1, the table of the game service "game.world": 32 bytes.</summary>
+    /// <summary>sc_world_v1, the table of the game service "game.world": 40 bytes (1.1; a 1.0 table is 32).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct ScWorldV1
     {
@@ -47,6 +48,7 @@ namespace Sco.Sdk.Game
         public delegate* unmanaged[Cdecl]<ulong, double*, double*, double, ScWorldHit*, ScoResult> raycast;
         public delegate* unmanaged[Cdecl]<double*, double*, ulong*, ScoResult> camera;
         public delegate* unmanaged[Cdecl]<void*, byte*, uint*, ScoResult> last_error;
+        public delegate* unmanaged[Cdecl]<uint*, ScoResult> free_camera_flag; // 1.1, layout only: no managed route
     }
 
     /// <summary>A ray's hit: where, how far, and which optional fields the game pack filled.</summary>

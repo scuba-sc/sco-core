@@ -7,11 +7,11 @@
       "symbol": "sco_widgets_v1.set_panel",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_0",
+      "version_macro": "SCO_WIDGETS_VERSION_1_1",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, const char *, const sco_widget_node *, uint32_t, uint32_t, sco_widget_event_fn, void *)",
       "member_extent": 16,
-      "table_size": 24,
+      "table_size": 48,
       "since": "`size >= 16`; 1.0",
       "purpose": "Atomically adds/replaces an owned complete preorder tree. ID/title <=63 bytes; 1..256 nodes, aligned stride >=80 and node size within stride. Unique nonzero node IDs, parent 0 or preceding active ROW/COLUMN; all subtrees contiguous. Copies valid UTF-8 labels/text/items <=255 bytes; 256 items/node and 16 table columns. Zero unused fields; finite/ranged numeric values and valid selections. Failure preserves old tree/callback.",
       "buffer_contract": "`sco_result (*set_panel)(sco_plugin* self, const char* id, const char* title, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride, sco_widget_event_fn fn, void* ctx);`<br>Atomically adds/replaces an owned complete preorder tree. ID/title <=63 bytes; 1..256 nodes, aligned stride >=80 and node size within stride. Unique nonzero node IDs, parent 0 or preceding active ROW/COLUMN; all subtrees contiguous. Copies valid UTF-8 labels/text/items <=255 bytes; 256 items/node and 16 table columns. Zero unused fields; finite/ranged numeric values and valid selections. Failure preserves old tree/callback.",
@@ -97,11 +97,11 @@
       "symbol": "sco_widgets_v1.remove_panel",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_0",
+      "version_macro": "SCO_WIDGETS_VERSION_1_1",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *)",
       "member_extent": 24,
-      "table_size": 24,
+      "table_size": 48,
       "since": "`size >= 24`; 1.0",
       "purpose": "Removes an owned panel. Absent ID returns NOT_FOUND; success ends pending callbacks for that generation and permits immediate ctx destruction, including inside its callback. Failure preserves the panel.",
       "buffer_contract": "`sco_result (*remove_panel)(sco_plugin* self, const char* id);`<br>Removes an owned panel. Absent ID returns NOT_FOUND; success ends pending callbacks for that generation and permits immediate ctx destruction, including inside its callback. Failure preserves the panel.",
@@ -179,6 +179,201 @@
         "C# provides bounded copied UTF-8 trees and registry-rooted callbacks; Windows NativeAOT host loading remains unverified locally.",
         "Lua uses bounded declarative tables, registry-rooted callbacks and shared sandbox budgets; no native FFI or draw callbacks.",
         "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
+      ]
+    },
+    {
+      "id": "sco-widgets-v1-update-nodes",
+      "kind": "table-method",
+      "symbol": "sco_widgets_v1.update_nodes",
+      "table": "sco_widgets_v1",
+      "service": "sco.widgets",
+      "version_macro": "SCO_WIDGETS_VERSION_1_1",
+      "source_header": "include/sco_widgets.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const sco_widget_node *, uint32_t, uint32_t)",
+      "member_extent": 32,
+      "table_size": 48,
+      "since": "`size >= 32`; 1.1",
+      "purpose": "Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0 or 1.1 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
+      "buffer_contract": "`sco_result (*update_nodes)(sco_plugin* self, const char* panel_id, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride);`<br>Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0 or 1.1 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
+      "ownership": "Host deep-copies the subtree on success; the panel's fn/ctx stay unchanged and borrowed. No allocation transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard.",
+      "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned.",
+      "reentrancy": "Callable from the panel's own event callback; generation change drops remaining stale events, new tree renders next pass. Registry lock not held during plugin code.",
+      "results": "OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG malformed owner/ID/tree/size/stride/data or a moved root; NOT_FOUND absent owned panel; TOO_MANY limits or allocation failure. Failure atomic.",
+      "absent_capability": "Check the table size covers the member and the pointer is non-NULL: a 1.0 table (24 bytes) has no 1.1 members. query_service answers UNAVAILABLE for 1.1 against a 1.0 host.",
+      "cleanup": "Success starts a new generation: remaining events of the current pass drop and the change renders next pass. Owner release and fault rules as set_panel. No separate cancel token.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            { "path": "include/sco_widgets.h", "token": "(*update_nodes)" }
+          ],
+          "tests": [
+            "tests/abi_widgets.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            { "path": "include/sco_widgets.h", "token": "(*update_nodes)" }
+          ],
+          "tests": [
+            "tests/test_widgets11.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_widgets.c",
+        "tests/test_widgets11.cpp"
+      ],
+      "limitations": [
+        "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",
+        "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
+      ]
+    },
+    {
+      "id": "sco-widgets-v1-remove-nodes",
+      "kind": "table-method",
+      "symbol": "sco_widgets_v1.remove_nodes",
+      "table": "sco_widgets_v1",
+      "service": "sco.widgets",
+      "version_macro": "SCO_WIDGETS_VERSION_1_1",
+      "source_header": "include/sco_widgets.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, const uint32_t *, uint32_t)",
+      "member_extent": 40,
+      "table_size": 48,
+      "since": "`size >= 40`; 1.1",
+      "purpose": "Atomically removes 1..256 listed nodes of an owned panel, each with its subtree. Every ID must be nonzero and present; a removal that would empty the panel is refused (use remove_panel). The ID array is read during the call only. Failure preserves the tree.",
+      "buffer_contract": "`sco_result (*remove_nodes)(sco_plugin* self, const char* panel_id, const uint32_t* node_ids, uint32_t count);`<br>Atomically removes 1..256 listed nodes of an owned panel, each with its subtree. Every ID must be nonzero and present; a removal that would empty the panel is refused (use remove_panel). The ID array is read during the call only. Failure preserves the tree.",
+      "ownership": "Host releases the removed copies; caller keeps the ID array. fn/ctx unchanged. No allocation transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard.",
+      "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned.",
+      "reentrancy": "Callable from the panel's own event callback; generation change drops remaining stale events, new tree renders next pass. Registry lock not held during plugin code.",
+      "results": "OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG invalid owner/ID, NULL or empty array, zero ID or emptied panel; NOT_FOUND absent owned panel or node ID; TOO_MANY more than 256 IDs. Failure atomic.",
+      "absent_capability": "Check the table size covers the member and the pointer is non-NULL: a 1.0 table (24 bytes) has no 1.1 members. query_service answers UNAVAILABLE for 1.1 against a 1.0 host.",
+      "cleanup": "Success starts a new generation: remaining events of the current pass drop and the change renders next pass. Owner release and fault rules as set_panel. No separate cancel token.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            { "path": "include/sco_widgets.h", "token": "(*remove_nodes)" }
+          ],
+          "tests": [
+            "tests/abi_widgets.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            { "path": "include/sco_widgets.h", "token": "(*remove_nodes)" }
+          ],
+          "tests": [
+            "tests/test_widgets11.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_widgets.c",
+        "tests/test_widgets11.cpp"
+      ],
+      "limitations": [
+        "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",
+        "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
+      ]
+    },
+    {
+      "id": "sco-widgets-v1-capabilities",
+      "kind": "table-method",
+      "symbol": "sco_widgets_v1.capabilities",
+      "table": "sco_widgets_v1",
+      "service": "sco.widgets",
+      "version_macro": "SCO_WIDGETS_VERSION_1_1",
+      "source_header": "include/sco_widgets.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t *)",
+      "member_extent": 48,
+      "table_size": 48,
+      "since": "`size >= 48`; 1.1",
+      "purpose": "caps[0] is the array length on entry (at least 2) and the number of elements written on success; the host fills the SCO_WIDGETS_CAP_* indices it knows up to that length: feature bits, then the running limits for panels, nodes/panel, live nodes, items, columns, text bytes and events per pass. 1.1 defines 9 elements. Failure writes nothing.",
+      "buffer_contract": "`sco_result (*capabilities)(sco_plugin* self, uint32_t* caps);`<br>caps[0] is the array length on entry (at least 2) and the number of elements written on success; the host fills the SCO_WIDGETS_CAP_* indices it knows up to that length: feature bits, then the running limits for panels, nodes/panel, live nodes, items, columns, text bytes and events per pass. 1.1 defines 9 elements. Failure writes nothing.",
+      "ownership": "Caller-owned array written in place. No allocation transfer.",
+      "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. No callbacks.",
+      "callback_context": "No plugin callback.",
+      "reentrancy": "Callable from an event callback; reads constants under the registry lock, never held during plugin code.",
+      "results": "OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG invalid/released owner, NULL caps or caps[0] below 2.",
+      "absent_capability": "Check the table size covers the member and the pointer is non-NULL: a 1.0 table (24 bytes) has no 1.1 members. query_service answers UNAVAILABLE for 1.1 against a 1.0 host.",
+      "cleanup": "Synchronous query; nothing to release. No cancellation entrypoint.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            { "path": "include/sco_widgets.h", "token": "(*capabilities)" }
+          ],
+          "tests": [
+            "tests/abi_widgets.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            { "path": "include/sco_widgets.h", "token": "(*capabilities)" }
+          ],
+          "tests": [
+            "tests/test_widgets11.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_widgets.c",
+        "tests/test_widgets11.cpp"
+      ],
+      "limitations": [
+        "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",
+        "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
       ]
     }
   ]

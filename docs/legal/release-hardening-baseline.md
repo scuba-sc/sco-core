@@ -67,7 +67,7 @@ spatial, storage, ui, vfs). C# tests: `sdk/csharp/Sco.Sdk.Tests`.
 1. macOS now ships a BSD `/sbin/sha256sum` that rejects `--quiet`. The toml++ check and
    `sdk/test-zip.sh` take that path and stop. This PR fixes it: both scripts use GNU `sha256sum`
    only when it is GNU, else `shasum -a 256`.
-2. Apple's libc++ has no `std::atomic<std::shared_ptr<T>>` (`include/sco/vfs.h:198`), so
+2. Apple's libc++ has no `std::atomic<std::shared_ptr<T>>` (`MountTable::cur_` in `include/sco/vfs.h`), so
    `test_core.cpp` doesn't compile with Apple clang. Linux CI (clang + libstdc++) is unaffected.
    Not fixed here: it is a toolchain limit, and a code change would alter `sco::vfs`.
 

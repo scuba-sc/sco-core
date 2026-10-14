@@ -2,8 +2,17 @@
 
 This is one complete path from a published SDK archive to a checked, renamed C
 plugin, then Windows game deployment. You do not need a sco-core checkout.
-SDK **2.1.0** is a package version; the plugin ABI remains **1.1**. Get other
-published versions from [releases](https://github.com/scubamount/sco-core/releases/latest).
+The newest published SDK is **2.1.0**; the plugin ABI remains **1.1**. The
+archive names and commands below use 2.1.0. They sit under "Previous release"
+subheadings because this documentation build describes the next version. Get
+other published versions from
+[releases](https://github.com/scubamount/sco-core/releases/latest).
+
+**Development preview:** this documentation build describes SDK **2.2.0**, an
+unpublished candidate. Its tag `sdk-v2.2.0` and archives such as
+`sco-sdk-core-2.2.0.zip` are not on the release page yet, so do not try to
+download them; they exist only after the maintainer publishes 2.2.0. This page
+switches its commands to 2.2.0 at that point.
 
 ## 1. Choose a language and archive
 
@@ -19,6 +28,8 @@ For C++, C#, Lua or data, follow that route's canonical guide after downloading
 and verifying the archive; return here for deployment and diagnostics. The
 copy/build/check commands below deliberately choose **C**, not a universal
 recipe for every language.
+
+### Previous release: published SDK 2.1.0 assets
 
 | Published SDK 2.1.0 asset | Choose it when |
 | --- | --- |
@@ -54,11 +65,13 @@ manage the core/overlay descriptors separately, use the combined archive.
 ## 3. Download, verify, extract
 
 Use an empty working directory. The verify, extract, build and check commands
-in sections 3 to 5 were executed on macOS against the **published** `sdk-v2.1.0`
+in sections 3 to 5 were executed on macOS against the **published** SDK 2.1.0
 core archive and its release `SHA256SUMS`; the `gh release download` line itself
 was not re-run for 2.1.0. On Windows, use a shell that supports these shell
 blocks, or perform the download/extraction in the UI and use the linked Windows
 CMake recipe.
+
+### Previous release: published SDK 2.1.0 download
 
 ```sh
 env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.1.0 -R scubamount/sco-core -p 'sco-sdk-core-2.1.0.zip' -p SHA256SUMS
@@ -91,6 +104,8 @@ Only extract archives from the trusted project release.
 
 From the same working directory:
 
+### Previous release: published SDK 2.1.0 build
+
 ```sh
 cmake -S sco-sdk-core-2.1.0 -B sdk-build -DCMAKE_BUILD_TYPE=Release
 cmake --build sdk-build --config Release
@@ -107,6 +122,8 @@ cmake -S first_plugin -B first-plugin-build -DSCO_SDK="$PWD/sco-sdk-core-2.1.0" 
 cmake --build first-plugin-build --config Release
 cmake --install first-plugin-build --config Release --prefix first-plugin-out
 ```
+
+### Name your plugin
 
 Pick your own unique id later: 1–31 characters from `a-z`, `0-9` and `_`, not
 `sco`, `host`, `menu` or `game`, and not a host built-in id. Keep the folder,

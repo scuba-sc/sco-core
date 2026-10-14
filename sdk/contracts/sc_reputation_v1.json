@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-reputation-v1-checks",
+      "kind": "table-method",
+      "symbol": "sc_reputation_v1.checks",
+      "table": "sc_reputation_v1",
+      "service": "game.reputation",
+      "version_macro": "SC_REPUTATION_SERVICE_VERSION",
+      "source_header": "include/sc_reputation.h",
+      "signature": "sco_result (*)(sco_plugin *, sc_reputation_checks *)",
+      "member_extent": 16,
+      "table_size": 24,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Fills *out (sc_reputation_checks) from the game's reputation-service check sites and the services object they load. Reads only; nothing is called or written in the game. SCO_BAD_ARG: out NULL or out->size smaller than sizeof(sc_reputation_checks). SCO_FAILED: the game faulted. game.reputation.checks.",
+      "buffer_contract": "`sco_result (*checks)(sco_plugin* self, sc_reputation_checks* out);`<br>Fills *out (sc_reputation_checks) from the game's reputation-service check sites and the services object they load. Reads only; nothing is called or written in the game. SCO_BAD_ARG: out NULL or out->size smaller than sizeof(sc_reputation_checks). SCO_FAILED: the game faulted. game.reputation.checks.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; game.reputation.checks OFF (the default): UNAVAILABLE without an engine read; null/unknown self: BAD_ARG. Other failures as in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; game.reputation.checks OFF: UNAVAILABLE",
+      "cleanup": "No in-flight cancellation entrypoint; checks only reads and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_reputation.h",
+              "token": "(*checks)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_reputation.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.reputation routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.reputation routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.reputation routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_reputation.c",
+        "tests/test_reputation.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-reputation-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sc_reputation_v1.last_error",
+      "table": "sc_reputation_v1",
+      "service": "game.reputation",
+      "version_macro": "SC_REPUTATION_SERVICE_VERSION",
+      "source_header": "include/sc_reputation.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 24,
+      "table_size": 24,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: your own last failed call; on another thread: the last refusal on that thread. Any thread.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: your own last failed call; on another thread: the last refusal on that thread. Any thread.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Any thread; diagnostic scope as described; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid buffer; TOO_MANY required bytes. On the game thread with a loaded self: your own last error; otherwise the thread's last refusal.",
+      "absent_capability": "unspecified",
+      "cleanup": "No in-flight cancellation entrypoint; checks only reads and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_reputation.h",
+              "token": "(*last_error)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_reputation.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.reputation routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.reputation routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.reputation routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_reputation.c",
+        "tests/test_reputation.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    }
+  ]
+}

@@ -66,6 +66,7 @@ namespace Sco.Sdk.Tests
             constants.Add("SC_ACTOR_DEAD", (long)ScActorState.Dead);
             constants.Add("SC_ACTOR_STATE_FORCE32", (long)ScActorState.Force32);
             constants.Add("SC_WORLD_VERSION_1_0", GameAbi.WorldVersion1_0);
+            constants.Add("SC_WORLD_VERSION_1_1", GameAbi.WorldVersion1_1);
             constants.Add("SC_WORLD_RAY_MAX_DISTANCE", GameAbi.WorldRayMaxDistance);
             constants.Add("SC_WORLD_HIT_ENTITY", (long)ScWorldHitFlag.Entity);
             constants.Add("SC_WORLD_HIT_NORMAL", (long)ScWorldHitFlag.Normal);

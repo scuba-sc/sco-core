@@ -3,4 +3,6 @@ dist/
 .astro/
 src/content/docs/
 public/sdk-catalogue.json
+public/native-index.json
+src/generated-sidebar.json
 __pycache__/

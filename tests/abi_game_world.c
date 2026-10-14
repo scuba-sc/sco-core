@@ -1,5 +1,5 @@
 /*
- * abi_game_world.c: pins the layout of sc_world.h (the game pack's service "game.world", 1.0).
+ * abi_game_world.c: pins the layout of sc_world.h (the game pack's service "game.world", 1.1).
  *
  * Compile-only, like abi_v1.c: if anything here fails, the service table changed and every
  * plugin built against the old header would break. Version 1 only grows at the end of
@@ -28,6 +28,7 @@ PIN(sizeof(void*) == 8);
 
 /* ---- name, version, limits ---- */
 PIN(SC_WORLD_VERSION_1_0 == 0x00010000u);
+PIN(SC_WORLD_VERSION_1_1 == 0x00010001u);
 PIN(sizeof(SC_WORLD_NAME) == 11); /* "game.world" */
 PIN(SC_WORLD_RAY_MAX_DISTANCE == 20000);
 
@@ -47,19 +48,21 @@ AT(sc_world_hit, normal, 40);
 AT(sc_world_hit, distance, 64);
 
 /* ---- sc_world_v1 ---- */
-SIZE(sc_world_v1, 32);
+SIZE(sc_world_v1, 40);
 AT(sc_world_v1, size, 0);
 AT(sc_world_v1, _pad, 4);
 AT(sc_world_v1, raycast, 8);
 AT(sc_world_v1, camera, 16);
 AT(sc_world_v1, last_error, 24);
+AT(sc_world_v1, free_camera_flag, 32); /* 1.1 */
 
 /* ---- signatures: a changed parameter list fails to convert ---- */
 static void pin_world_signatures(const sc_world_v1* w) {
     sco_result (*raycast)(uint64_t, const double*, const double*, double, sc_world_hit*) = w->raycast;
     sco_result (*camera)(double*, double*, uint64_t*) = w->camera;
     sco_result (*last_error)(sco_plugin*, char*, uint32_t*) = w->last_error;
-    (void)raycast; (void)camera; (void)last_error;
+    sco_result (*free_camera_flag)(uint32_t*) = w->free_camera_flag;
+    (void)raycast; (void)camera; (void)last_error; (void)free_camera_flag;
 }
 
 /* Keeps the pins referenced so -Wunused does not fire. */

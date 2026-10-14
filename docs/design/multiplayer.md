@@ -64,11 +64,11 @@ Plugin rules gain three lines: a plugin may use `sco.net` and `sco.ipc`, and onl
 
 | Role | How it starts | What it is |
 |---|---|---|
-| Dedicated server | The fork's launcher `host` command starts a second `StarCitizen.exe` with `SC_OFFLINE_DEDICATED=1`, its own `SC_USER` folder and `data\mod-server.log` (fork `launcher/launcher.cpp:4233`, `:4325`) | The game client booted as a dedicated game server: `StartupFillerHook` sets `params[0x41] = 1` (`F:multiplayer.cpp:400-404`). The mod thread never reaches the menu: it loops `ProcessDedicatedServer()` every 100 ms (`F:dllmain.cpp:203`), and game-thread work runs from the `CCryAction::PostUpdate` hook (`F:multiplayer.cpp:1254-1259`) |
-| Client | `join <ip>` sets `SC_OFFLINE_JOIN=<ip>`, `SC_OFFLINE_NAME`, and optionally `SC_OFFLINE_JOIN_PORT` (launcher `:4305-4306`; `F:multiplayer.cpp:335-339`, `:2130-2133`) | An ordinary sc-offline game that, once in its menu, asks the server to expect it and then runs the game's own `connect` |
+| Dedicated server | The fork's launcher `host` command starts a second `StarCitizen.exe` with `SC_OFFLINE_DEDICATED=1`, its own `SC_USER` folder and `data\mod-server.log` (the fork's `launcher/launcher.cpp`, `host` command, `:4325`) | The game client booted as a dedicated game server: `StartupFillerHook` sets `params[0x41] = 1` (`StartupFillerHook`, `F:multiplayer.cpp`). The mod thread never reaches the menu: it loops `ProcessDedicatedServer()` every 100 ms (the mod thread in `F:dllmain.cpp`), and game-thread work runs from the `CCryAction::PostUpdate` hook (the `PostUpdate` detour in `F:multiplayer.cpp`) |
+| Client | `join <ip>` sets `SC_OFFLINE_JOIN=<ip>`, `SC_OFFLINE_NAME`, and optionally `SC_OFFLINE_JOIN_PORT` (launcher `:4305-4306`; the join settings read in `F:multiplayer.cpp`, `:2130-2133`) | An ordinary sc-offline game that, once in its menu, asks the server to expect it and then runs the game's own `connect` |
 | Hosting player | `host` starts the server, then the player's own game joins `127.0.0.1` (launcher `:4233-4234`) | A client of their own server |
 
-There is no listen-server mode. Only a dedicated process answers `SCOHELLO` (`F:multiplayer.cpp:253`). A client that reaches a non-dedicated host logs that ship spawns and contracts stay local (`:279`). The server keeps at most 16 joiners and never forgets one (`:138-157`). Players get a per-player database file copied from `data/OfflineDB/default_1.xml` (`EnsurePlayerData`, `:343-356`). Their names come from `SC_OFFLINE_NAME` or the Windows user name, written into the game's `default_%` name template (`UseOwnPlayerName`, `:358-385`).
+There is no listen-server mode. Only a dedicated process answers `SCOHELLO` (the `SCOHELLO` handler in `F:multiplayer.cpp`). A client that reaches a non-dedicated host logs that ship spawns and contracts stay local (`:279`). The server keeps at most 16 joiners and never forgets one (`:138-157`). Players get a per-player database file copied from `data/OfflineDB/default_1.xml` (`EnsurePlayerData`, `:343-356`). Their names come from `SC_OFFLINE_NAME` or the Windows user name, written into the game's `default_%` name template (`UseOwnPlayerName`, `:358-385`).
 
 ### Join sequence
 
@@ -90,7 +90,7 @@ Every one is found by a string in `.rdata` plus a prologue check, or by a unique
 | Server nub | `"CNetNub::CreateSocketGroups"`, prologue `48 8B C4 55 56 48 8D 68 D8 ...` | 9-byte detour, captures `this` | `:1357-1361`, `:162-165` | Server |
 | Connect | `"[CSessionManager::ConnectCmd] Connect started!"`; the function is at the `lea` minus 0x22, checked; the framework global and the session-manager getter are read from it | Called, not patched; session state at `+0x30` | `:2134-2141`, `:1267-1273` | Client |
 | Dedicated boot | `FF 15 ?? ?? ?? ?? 4C 8D 05 ...`, then the startup-settings filler with `C6 41 38 01` | 10-byte detour; sets the dedicated flag | `:476-485` | Server |
-| Stand-in services hub | `FindServicesObject` (`F:services.cpp:153`) | Detour on its first user; swaps in the hub slot of sc-offline's existing offline stand-in | `:407-417` | Server |
+| Stand-in services hub | `FindServicesObject` (`F:services.cpp`) | Detour on its first user; swaps in the hub slot of sc-offline's existing offline stand-in | `:407-417` | Server |
 | Server-only features | `"CSCPlayerMarkerSubscription::RestoreMarkerStates"`, `"AddMarkerToSubscriptionService"`, a quantum-travel-group pattern, two mission-entity class-switch patterns | Jumps over dedicated-server checks; one detour (markers become streamable) | `SkipServerFeatures`, `:448-474`; `:428-437` | Server |
 | Host-type forcing | — | **Permanently excluded** ([see exclusions](#permanent-exclusions-never-ported)); not described here | `:1366` | Server |
 | Network-context override | — | **Permanently excluded** ([see exclusions](#permanent-exclusions-never-ported)); not described here | `:1399` | Server |
@@ -114,11 +114,11 @@ These fork pieces are **permanently excluded** from every sco-core and sc-offlin
 
 | Excluded | Fork location |
 |---|---|
-| Skipping the anti-cheat step | `F:multiplayer.cpp:1417` |
-| Joiner entitlement / account tampering | `F:multiplayer.cpp:1434` |
-| Host-type forcing | `F:multiplayer.cpp:1366` |
-| Network-context override | `F:multiplayer.cpp:1399` |
-| Unauthenticated remote console (`Cmd_Console`) | `F:multiplayer.cpp:980-1043`, dispatch at `:1032-1036` |
+| Skipping the anti-cheat step | `F:multiplayer.cpp` |
+| Joiner entitlement / account tampering | `F:multiplayer.cpp` |
+| Host-type forcing | `F:multiplayer.cpp` |
+| Network-context override | `F:multiplayer.cpp` |
+| Unauthenticated remote console (`Cmd_Console`) | `Cmd_Console` handling in `F:multiplayer.cpp`, dispatch at `:1032-1036` |
 
 The co-presence model (section 3) reaches none of these: it never boots the client as a server, never alters the game's connection, host-type or account handling, and carries no remote-command channel. A plugin or PR that reintroduces any of them is out of scope and closed.
 
@@ -145,7 +145,7 @@ Every side-channel packet starts with an 8-byte magic. Packed structs are sent r
 | `SCOCMD` | c -> s | `CommandPacket` (sequence, command, flags, player, zone, position, rotation, value, target, 200 chars of text) | noclip, god, ammo, spawn (entity or `.socpak`), undo, clear, seat actions, **console command** | `:83-95`, `:99`, `:787-805`, `:980-1043` |
 | `SCOGEAR` | c -> s | 16 + XML up to 60,000 bytes | my loadout | `:1055-1066`, `:1072-1139` |
 | `SCOPLAYQ` / `SCOPLAYR` | c -> s / s -> c | 8 / 9 + 16 x 40 | the player list, asked every 3 s | `:902-933` |
-| `SCOOFFER` | c -> s | up to 1,908 | a contract offer from the joiner's game | `:523-531`, `F:contracts.cpp:2975`, `:2980` |
+| `SCOOFFER` | c -> s | up to 1,908 | a contract offer from the joiner's game | `:523-531`; the offer path in `F:contracts.cpp`, `:2980` |
 | `SCOOBJ` | s -> c | up to 1,640 | a contract objective: mission GUID, **vtable RVA, 272 raw bytes of the game object**, texts, up to 16 marker ids | `:61-74`, `:700-745`, `:765-776` |
 | `SCOEND` | s -> c | `MissionEndPacket` | mission ended | `:75-82`, `:747-763` |
 | `SCOLAYQ1` -> size + `SCOLAYT1` blob | TCP | up to 512 MiB | the universe hierarchy: graphs of 88-byte nodes | `:1594-1658` |
@@ -158,20 +158,20 @@ Player and ship transforms are not sent by the mod. **The game's own netcode rep
 |---|---|---|
 | Players, ships, NPCs, markers seeing each other | Every second, on the game's replication tick, each streamable entity the mod noted (spawned ships and entities, mission markers, entities the game registers) and every other ready player is bound to each joiner with the game's bind-to-player call. Players are shown 30 s after they exist; entities missing 10 times are dropped | `BindStreamablesToJoiners`, `:2010-2064`; `NoteStreamable`, `:1995-2002` |
 | Bodies and gear | 3 s after a player is first bound to someone, the server re-equips their last loadout, so others see it | `RedressShownPlayers`, `:1141-1150` |
-| Ship spawns | Client spawns go to the server, which spawns there (so every peer sees the same entity id). Optional seat job: up to 8 seat requests, 3 min timeout, then power-up or "press Flight Ready" | `ServerFrame`, `:1199-1249`; `UpdateServerSeatJobs`, `:620-660`; `F:spawner.cpp:1399`, `:1550`, `:1563`, `:1582` |
-| ASOP / fleet retrieval | `SCOATCRQ`: the server runs the ATC request for the joiner | `F:hooks.cpp:458`, `:487-488` |
-| NPCs and build pieces | `Cmd_Spawn` with kind NPC or Build; the server keeps up to 256 ids per player and kind for undo and clear | `:964-978`, `:999-1018`; `F:npc.cpp:159`, `:203-212`; `F:build.cpp:397-400`, `:476-481` |
-| Seating and crew | `Cmd_Seat` -> `ServerSeatAction` | `:1020-1031`; `F:spawner.cpp:1669`, `:1686` |
-| Noclip, god mode, ammo | Desired states sent when they change and every 5 s; the server enforces them on its tick | `:807-849`, `:1152-1174`; `F:ammo.cpp:20`, `:161`, `:171`; `F:spawner.cpp:1788`, `:1813`, `:1875`, `:1932` |
-| Loadout | `SCOGEAR` XML written to `SC_USER` and loaded for that player | `PutGearOn`, `:1096-1119`; `F:loadout.cpp:214`, `:229-230` |
-| Contracts | The server runs mission scripts once someone has joined. Objectives and mission ends go to the owning player (resent twice at 5 s and 15 s); joiners' offers come to the server; wallets saved every 10 s | `:1236-1248`; `F:contracts.cpp:226-271`, `:1314`, `:1380-1383`, `:1398`, `:2975`, `:3107`, `:3211` |
-| Console | `Cmd_Console`: any text runs on the server's console | `:864-866`, `:1032-1036`; `F:cvars.cpp:224` |
+| Ship spawns | Client spawns go to the server, which spawns there (so every peer sees the same entity id). Optional seat job: up to 8 seat requests, 3 min timeout, then power-up or "press Flight Ready" | `ServerFrame`, `:1199-1249`; `UpdateServerSeatJobs`, `:620-660`; the seat job in `F:spawner.cpp`, `:1550`, `:1563`, `:1582` |
+| ASOP / fleet retrieval | `SCOATCRQ`: the server runs the ATC request for the joiner | the ATC request hook in `F:hooks.cpp`, `:487-488` |
+| NPCs and build pieces | `Cmd_Spawn` with kind NPC or Build; the server keeps up to 256 ids per player and kind for undo and clear | `:964-978`, `:999-1018`; `F:npc.cpp`, `:203-212`; `F:build.cpp`, `:476-481` |
+| Seating and crew | `Cmd_Seat` -> `ServerSeatAction` | `:1020-1031`; `ServerSeatAction` in `F:spawner.cpp`, `:1686` |
+| Noclip, god mode, ammo | Desired states sent when they change and every 5 s; the server enforces them on its tick | `:807-849`, `:1152-1174`; `F:ammo.cpp`, `:161`, `:171`; `F:spawner.cpp`, `:1813`, `:1875`, `:1932` |
+| Loadout | `SCOGEAR` XML written to `SC_USER` and loaded for that player | `PutGearOn`, `:1096-1119`; `F:loadout.cpp`, `:229-230` |
+| Contracts | The server runs mission scripts once someone has joined. Objectives and mission ends go to the owning player (resent twice at 5 s and 15 s); joiners' offers come to the server; wallets saved every 10 s | `:1236-1248`; `F:contracts.cpp`, `:1314`, `:1380-1383`, `:1398`, `:2975`, `:3107`, `:3211` |
+| Console | `Cmd_Console`: any text runs on the server's console | `:864-866`, `:1032-1036`; `F:cvars.cpp` |
 | Universe layout | TCP blob, injected into the client's entity graph | above |
 
 ### Threading
 
-- **Server.** The mod thread polls the UDP socket every 100 ms (`F:dllmain.cpp:203`, `:1289-1291`) and queues spawns, commands and gear under one SRW lock (`g_spawnLock`). The game thread drains the queues in `ServerFrame` from `PostUpdate`. The replication tick hook runs on whatever thread the game calls it from (`:2066-2074`). The TCP layout server has an accept thread plus one thread per connection (`:1594-1627`). The layout is packed from inside the game's own send path (`SendLayoutTo`, `:1549-1570`).
-- **Client.** The game thread (through the message-hook tick, `F:dllmain.cpp:150`) polls the socket, sends and runs the join state machine. A worker thread fetches the layout. The player list is under an SRW lock, and "go to player" is an interlocked id (`:871-933`).
+- **Server.** The mod thread polls the UDP socket every 100 ms (the mod thread in `F:dllmain.cpp`; `:1289-1291`) and queues spawns, commands and gear under one SRW lock (`g_spawnLock`). The game thread drains the queues in `ServerFrame` from `PostUpdate`. The replication tick hook runs on whatever thread the game calls it from (`:2066-2074`). The TCP layout server has an accept thread plus one thread per connection (`:1594-1627`). The layout is packed from inside the game's own send path (`SendLayoutTo`, `:1549-1570`).
+- **Client.** The game thread (through the message-hook tick in `F:dllmain.cpp`) polls the socket, sends and runs the join state machine. A worker thread fetches the layout. The player list is under an SRW lock, and "go to player" is an interlocked id (`:871-933`).
 - **Races.** `g_joiners` and `g_joinerCount` are written on the mod thread (`RememberJoiner`, `:142-157`) and read without a lock on the game thread and the replication thread (`:667-671`, `:2018-2031`).
 
 ### Failure handling
@@ -185,7 +185,7 @@ Player and ship transforms are not sent by the mod. **The game's own netcode rep
 
 1. **No authentication.** Anyone who can reach UDP 64091 on a server can send commands. `QueueCommand` (`:939-949`) and `QueueGear` (`:1072-1085`) only check that the claimed player id is a known joiner, and never compare the source address. Player ids show up in the player list (`SCOPLAYR`), which anyone can ask for (`:301-302`).
 2. **Remote console.** `Cmd_Console` runs any text on the server's console (`:1032-1036`).
-3. **Raw game objects from the network.** A client builds a game objective from a network-supplied **vtable RVA and 272 raw bytes**, which include pointers that belong to the server's process (`F:contracts.cpp:279-293`). A malicious or buggy host can point a client's objective at arbitrary code in the game module. This must never be ported: peers exchange semantic fields, and each side builds its own objects with game calls.
+3. **Raw game objects from the network.** A client builds a game objective from a network-supplied **vtable RVA and 272 raw bytes**, which include pointers that belong to the server's process (`F:contracts.cpp`). A malicious or buggy host can point a client's objective at arbitrary code in the game module. This must never be ported: peers exchange semantic fields, and each side builds its own objects with game calls.
 4. **Files from the network.** Gear XML up to 60 KB per message is written to `SC_USER` (`:1096-1119`). `names.txt` grows by one line per new IP (`:213-243`).
 5. **The TCP layout server** starts a thread for every connection, and each thread can wait 15 minutes. That's an easy way to exhaust threads.
 6. **The firewall rule** allows every remote address on every network profile (launcher `:1987-1994`).
@@ -196,7 +196,7 @@ Player and ship transforms are not sent by the mod. **The game's own netcode rep
 
 A host-owned service like `sco.storage`: published under the reserved id `sco`, found with `query_service`, `sco_api.h` unchanged. The table is `sco_net_v1` in `include/sco_net.h`, pinned by `tests/abi_net.c`. It follows our conventions, not a C++ class: first field `uint32_t size`, plain C function pointers (**no virtuals, no `IScoNetService`**), `int` returns rather than `bool`, `uint32_t` sizes rather than `size_t`, and **ids, never pointers** ([lesson 6](../framework.md#6-services-hand-out-ids-never-pointers)). A blueprint that suggested a virtual `class IScoNetService` with an inline `char name[32]` and `size_t` is **not** used: that would break the ABI. The peer name comes from a sized copy (`get_peer_name`), not an inline array.
 
-**Capability.** The host sets the capability `sco.net` (through `caps::Set`) whenever the service is published, so a plugin manifest with `requires = sco.net` validates in discovery (`src/plugins/discover.cpp:118-119` checks each `requires` against `opts.has`). A plugin that needs multiplayer is refused with a clear reason on a build without it, instead of querying a NULL table.
+**Capability.** The host sets the capability `sco.net` (through `caps::Set`) whenever the service is published, so a plugin manifest with `requires = sco.net` validates in discovery (`Discover` in `src/plugins/discover.cpp` checks each `requires` against `opts.has`). A plugin that needs multiplayer is refused with a clear reason on a build without it, instead of querying a NULL table.
 
 **Who controls the session.** Hosting, joining and leaving are **the product's** decisions, from the launcher or the menu, through the host-side C++ API `sco/net.h` — not the plugin table. sc-offline's `builtins/multiplayer` calls it; built-ins may read internal headers. Plugins see whether a session is active, its peers, and their own channels, and cannot open or join one. That is least privilege: a third-party plugin can't make a player's PC listen.
 
@@ -304,7 +304,7 @@ Co-presence needs almost nothing from the engine's networking: each player's own
 | `net.session` | `session_state` (the `CSessionManager` state read, `connect_cmd` anchor), `local_params` (the local player's own session id, entity id `+0x18` and name `+0x28`) | Reads the **local** player's in-world state and identity to drive presence. It observes only; it starts no connection and accepts none | `:126-136`, `:1267-1273`, `:2134-2141` |
 | `net.flymode` | `fly_mode_check` | Lets the **local** player's own noclip (an existing offline feature) work while a session is active | `:2121-2126` |
 
-That is three capabilities, not the fork's ~35. `net.flymode` is **off** unless a session is active and the anti-cheat-absent check has passed (`AntiCheatPresent`, `F:dllmain.cpp:92`, which sc-offline keeps): it relaxes only the local player's own movement, the same relaxation noclip already makes offline, and nothing on another peer. No excluded patch sits under any of these capabilities.
+That is three capabilities, not the fork's ~35. `net.flymode` is **off** unless a session is active and the anti-cheat-absent check has passed (`AntiCheatPresent` in `F:dllmain.cpp`, which sc-offline keeps): it relaxes only the local player's own movement, the same relaxation noclip already makes offline, and nothing on another peer. No excluded patch sits under any of these capabilities.
 
 **Honesty, not stability.** None of these rows is assumed stable. `sco-sigcheck` runs them against `StarCitizen.exe` **every patch** (acceptance for the PR: the `net.*` and `game.post_update` rows `OK` on 4.10.196, pasted into the PR), each resolver checks the bytes it relies on and fails with a static reason, and a failed row disables only its own capability — presence keeps working when `net.flymode` breaks, and so on. CI runs the registry rules against a synthetic image, as today.
 
@@ -322,7 +322,7 @@ int  SetLocalNoclip(int on);     // gated on net.flymode + anti-cheat-absent + a
 
 ### 3.3 `sc_ipc.h` (the wire, MIT) and the `sco.ipc` service (the in-game wrapper)
 
-Both fork bridges share a shape: a named mapping, a header with magic/version/pids/heartbeat (`F:build.cpp:2823-2845`, `:1285-1305`), seqlock snapshot blocks (`TfPublish` `:2859-2877`; `TfReadTf` `:2846-2857`; TitanLink `plugin.cpp:189-201`), and single-producer rings (`McColWrite` `:1307-1329`; `McInput` `:1331-1343`). Two pieces, with two licenses:
+Both fork bridges share a shape: a named mapping, a header with magic/version/pids/heartbeat (`F:build.cpp`, `:1285-1305`), seqlock snapshot blocks (`TfPublish` `:2859-2877`; `TfReadTf` `:2846-2857`; TitanLink's `plugin.cpp`), and single-producer rings (`McColWrite` `:1307-1329`; `McInput` `:1331-1343`). Two pieces, with two licenses:
 
 **`include/sc_ipc.h` — the wire format, MIT.** A single header-only C file, no sco-core dependency, that **both** sides of a bridge include: sc-offline's built-in on one side, and the other program (a Northstar plugin, a voxel-game mod) on the other. Because that other side isn't a GPL plugin, the header carries a per-file `SPDX-License-Identifier: MIT`, and `LICENSE` and `CONTRIBUTING.md` note the **interface exception**: `sc_ipc.h` is MIT so a non-GPL program may speak the protocol, while everything else stays GPL-3.0. It defines:
 
@@ -452,7 +452,7 @@ Only entities the **calling plugin** spawned can be moved, so `multiplayer` move
 
 ### 4.4 The bridges: optional built-ins on `sc_ipc.h`
 
-`build.cpp` in the fork is three features in one file: build mode (`F:build.cpp:1-639`, already `builtins/build_plugin.cpp` on `main`), the Minecraft bridge (`:640-2262`, `Local\SkyCraft_v1`, a DirectComposition overlay, raw-input handover, collision and render rings, world scanning), and the Titanfall 2 bridge (`:2263-3743`, `Local\SCTitanLink_v1`, its own overlay, starting the EA app and `NorthstarLauncher.exe`, a pilot simulation). Each becomes an **optional built-in**:
+`build.cpp` in the fork is three features in one file: build mode (the first part of `F:build.cpp`, already `builtins/build_plugin.cpp` on `main`), the Minecraft bridge (`:640-2262`, `Local\SkyCraft_v1`, a DirectComposition overlay, raw-input handover, collision and render rings, world scanning), and the Titanfall 2 bridge (`:2263-3743`, `Local\SCTitanLink_v1`, its own overlay, starting the EA app and `NorthstarLauncher.exe`, a pilot simulation). Each becomes an **optional built-in**:
 
 - **Behind a CMake option,** `SC_OFFLINE_BRIDGE_TITANLINK` / `SC_OFFLINE_BRIDGE_VOXEL`, and **excluded from the default release zip** (resolved: bridges are not in the shipped build). Built or not, a bridge is off until the player enables it.
 - **On `sco.ipc`.** The mappings become `Local\SCO_titanlink.link` and `Local\SCO_voxel_bridge.link` with the `sc_ipc.h` header and rings; the bridge's own blocks (`ScBlock`, `TfBlock`) keep their layouts behind it, pinned by `static_assert`. The other side (the Northstar plugin `TitanLink/src/plugin.cpp`; the voxel-game mod, whose source isn't in the download) includes only MIT `sc_ipc.h`.
@@ -504,7 +504,7 @@ The directive settled the earlier open questions. This document takes no legal p
 | Topic | Decision |
 |---|---|
 | Model | Co-presence by ghost replication; the dedicated-server model and the game's `connect` are dropped. Pure P2P (one player's client hosts); a headless broker is deferred to v1.x |
-| Permanent exclusions | The anti-cheat skip (`F:multiplayer.cpp:1417`), joiner entitlement/account tampering (`:1434`), host-type forcing (`:1366`), network-context override (`:1399`) and the unauthenticated remote console (`Cmd_Console`) are never in any repo, header or official plugin. No research into joining without the anti-cheat step (R1 removed) |
+| Permanent exclusions | The anti-cheat skip (`F:multiplayer.cpp`), joiner entitlement/account tampering (`:1434`), host-type forcing (`:1366`), network-context override (`:1399`) and the unauthenticated remote console (`Cmd_Console`) are never in any repo, header or official plugin. No research into joining without the anti-cheat step (R1 removed) |
 | Benign rows | Only session connect, the main tick, and the local-player fly-mode toggle; kept honest by `sco-sigcheck` each patch, never assumed stable |
 | `sco.net` ABI | A plain C table `sco_net_v1` (no virtual `IScoNetService`); `uint32_t size` first, `int` returns, `uint32` sizes, ids never pointers, the peer name by sized copy (no inline `char[32]`) |
 | `sco.net` capability | The host publishes the capability `sco.net` so `requires = sco.net` validates in `discover.cpp` |

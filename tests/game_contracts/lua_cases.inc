@@ -310,7 +310,7 @@ static void TestGameWorld() {
     CHECK(none.p && none.p->state == State::Loaded);
     Unload(none);
 
-    static sc_world_v1 kFake = { sizeof(sc_world_v1), 0, FakeRaycast, FakeCamera, FakeWorldLastError };
+    static sc_world_v1 kFake = { sizeof(sc_world_v1), 0, FakeRaycast, FakeCamera, FakeWorldLastError, nullptr };
     CHECK(sco::host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &kFake) == Result::Ok);
     Write("gwplay", R"(
 local w = assert(sco.game and sco.game.world, "sco.game.world")

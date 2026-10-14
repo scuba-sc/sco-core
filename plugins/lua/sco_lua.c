@@ -18,6 +18,7 @@
 #include "sco_storage.h"
 #include "sco_ui.h"
 #include "sco_widgets.h"
+#include "sco_panel_builder.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1545,6 +1546,20 @@ static int SetupBody(lua_State* L) {
             { "remove_panel", L_widgets_remove_panel }, { NULL, NULL } };
         luaL_newlib(L, wfns);
         lua_setfield(L, -2, "widgets");
+    }
+    {
+        luaL_Buffer source;
+        luaL_buffinit(L, &source);
+        for (size_t i = 0; i < sizeof(kPanelBuilderSource) / sizeof(kPanelBuilderSource[0]); ++i)
+            luaL_addstring(&source, kPanelBuilderSource[i]);
+        luaL_pushresult(&source);
+        size_t size = 0;
+        const char* text = lua_tolstring(L, -1, &size);
+        const int st = luaL_loadbufferx(L, text, size, "@sco.panel_builder", "t");
+        if (st != LUA_OK) return lua_error(L);
+        lua_call(L, 0, 1);
+        lua_remove(L, -2);
+        lua_setfield(L, -2, "panel_builder");
     }
     for (int i = 0; i < g_nextensions; ++i)          /* optional adapters (sco_lua_ext.h): sco.datacore, sco.game */
         g_extensions[i]->open(L);

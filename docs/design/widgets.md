@@ -44,7 +44,9 @@ segments, at most 63 bytes. Titles are nonempty UTF-8, at most 63 bytes.
 Every node's `size` covers the complete 80-byte v1 node and fits inside
 `node_stride`. The stride covers that struct, is aligned to its alignment, and
 can include future ignored tails. The array itself must be aligned and readable.
-The table is 24 bytes on x64; the event is 32 bytes. Pins: `tests/abi_widgets.c`.
+The 1.0 table is 24 bytes on x64 (48 with the 1.1 tail); the event is 32 bytes.
+Pins: `tests/abi_widgets.c`. 1.1 (subtree updates, opt-in node/event extensions,
+paging, capabilities, snapshot coalescing): [UI](../ui.md#scowidgets-11).
 
 | Bound | Limit |
 |---|---:|

@@ -4,6 +4,94 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+## sdk-v2.2.0 (unpublished candidate)
+
+Candidate prepared 2026-10-14; no tag, signed approval, candidate run or release exists yet.
+At publication the maintainer replaces this heading's parenthesis with the release date and this
+paragraph with the published identities, as for 2.1.0. See the
+[SDK 2.2.0 release notes draft](docs/releases/sdk-v2.2.0.md) and the
+[SDK 2.2.0 scope draft](docs/legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md), which still
+needs the maintainer's approval before any candidate.
+
+SDK 2.2.0 packages the entries below without changing frozen plugin ABI 1.1
+(`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.1.0). Core, legacy,
+core-source and host-source-sc use 2.2.0. Three game service tables landed on the candidate
+branch, and the [game-pack policy](docs/game-pack.md) raises the game-sc coordinate to 0.5.0 for a
+release that adds or grows a game service; `SCO_GAME_PACK_VERSION` still reads 0.4.0 until the
+maintainer decides whether the candidate includes them (scope draft, decision 2). Nothing below
+has run in the game: evidence is macOS local builds and synthetic fixtures. Linux, native
+Windows, GPU and real-game acceptance are unproven. The new game capabilities
+(`game.hangar.lift`, `game.hangar.atc_cancel`, `game.reputation.checks`,
+`game.world.free_camera_flag`) default OFF, and no production adapter turns them on.
+
+- **`sco.widgets` 1.1 (additive):** the table grows from 24 to 48 bytes with tail members
+  `update_nodes` (atomic subtree replace/insert), `remove_nodes` (refuses to empty a panel) and
+  `capabilities` (runtime limits by fixed index). Opt-in `sco_widget_node_1_1` (severity,
+  tooltip, paged LIST/TABLE windows) and `sco_widget_event_1_1` (row; new `SCO_WIDGET_EVENT_PAGE`)
+  are selected by their `size` field; panels without a 1.1 node keep byte-identical 1.0 events.
+  The ImGui adapter draws severity, tooltips and Previous/Next paging, and rebuilds a shared
+  render snapshot only when a panel changes. 1.0 pins are unchanged except the table size.
+  `sco-plugin-check` remains a 1.0 stand-in; the C++, C# and Lua wrappers expose 1.0 only.
+  Headless ImGui-shim fixtures only; GPU rendering not verified.
+- **C++ `scosdk::PanelBuilder` (`include/scosdk/menu_builder.hpp`):** header-only C++20
+  declarative Row/Column panels for `sco.widgets` 1.0 with typed bindings, preorder ids,
+  host-equivalent `ValidateWidgetNodes` and callback dispatch that tolerates a callback
+  destroying its own tree. Compared with the real host on 27 node arrays; ASan clean.
+- **C# `Sco.Sdk.PanelBuilder`:** fluent Column/Row/Button/Toggle/Slider builder over
+  `sco.widgets` 1.0 with explicit stable ids, frozen build snapshots and typed dispatch.
+  **Not compiled locally** (no .NET SDK on the preparing host); the hosted
+  `sdk/csharp-host-sim` job is its first build.
+- **Lua `sco.panel_builder`:** embedded module installed in every plugin sandbox (`new()`,
+  `column`/`row`, `toggle`/`slider`/`button`, `build()` returning node snapshots plus a
+  dispatcher). Runs inside the existing instruction and memory budgets; no `require`,
+  filesystem or bytecode.
+- **POSIX diagnostics transport recovery:** an owner that died without cleanup no longer
+  blocks every later session. The mapping is published atomically and held under `flock`; a
+  stale entry is reclaimed only by the holder of its lock after identity re-checks, peers refuse
+  a dead owner's mapping, and peer leases are removed on release. Fails closed on the remaining
+  crash windows. macOS only; Linux unverified.
+- **Game status registry (repository only):** `sdk/status_registry.json` generates the service
+  table in `docs/game/status.md`; `tools/status_registry.py --check` runs in `test.yml`. No
+  evidence level was raised.
+- **Documentation gate:** the public documentation set must name the function, table or test
+  instead of citing source by line number. A scheduled, read-only `live-site` job in
+  `docs-site.yml` checks that the deployed docs site is fresh against `main`.
+- **Game tables (game-sc headers, host-source-sc implementation):** `game.hangar` 1.0
+  (`include/sc_hangar.h`: lift open/close request for a landing area, ATC request cancel),
+  `game.reputation` 1.0 (`include/sc_reputation.h`: read-only state of the reputation check
+  sites) and `game.world` 1.1 (`include/sc_world.h` grows 32 to 40 bytes with the read-only
+  `free_camera_flag` tail member). ABI pins in `tests/abi_game_hangar.c`,
+  `tests/abi_game_reputation.c` and `tests/abi_game_world.c`; host-sim contract tests
+  `hangar`, `reputation` and `world_free_cam`. Windows game-pack adapters are not built or run
+  locally; no wrapper language exposes these tables yet.
+- **Plugin scaffolder (`sdk/tools/sco-new-plugin.py`, shipped as `tools/sco-new-plugin.py` in
+  core and core-source):** writes a buildable C or C++20 native plugin with optional
+  `--with-menu` panel and optional service lookups (logged when missing, never required), and
+  its CMake `check` target runs `sco-plugin-check`. It refuses to overwrite files or write
+  through symbolic links. `sdk/test_new_plugin.py` builds the generated projects on macOS; it
+  is not wired into CI yet and MSVC builds are unverified.
+- **Engine-native index (repository, site and MCP only, in no SDK zip):** `sdk/native_index.json`
+  lists every signature row by id, subsystem, symbolic hash and promotion tier, generated by
+  `tools/native_index.py` and checked in `test.yml`. The docs site renders it at `/natives/`
+  inside four new library hubs, with a downloadable copy of the same JSON. Rows name readiness
+  only: no patterns, masks, offsets or addresses. Publication follows the
+  [2026-10-14 native-index decision](docs/legal/release-decisions/2026-10-14-native-index.md).
+- **Discovery MCP server, opt-in tools (repository only):** `tools/sco-core-mcp` offers four
+  tools behind `--extended-tools`; the default six tools and the documented launcher are
+  unchanged. `list_engine_natives` and `get_engine_native` read `sdk/native_index.json` and
+  refuse a malformed index whole. `validate_manifest_and_widgets` ports the `sco-plugin-check`
+  manifest rules and checks `sco.widgets` node arrays. `generate_plugin_scaffold` returns the
+  files `sco-new-plugin.py` would write as text and writes nothing; it runs the granted
+  checkout's scaffolder in the server's own process, so grant only a reviewed checkout.
+  Service evidence now prefers `sdk/status_registry.json` and never reports gameplay
+  verification.
+- **Docs site:** pages are grouped into four library hubs (start and SDK profiles, language
+  SDKs and cookbooks, native and service reference, host integration and AI agents) with no
+  route moved. Page titles no longer show code backticks.
+- **Getting started:** while 2.2.0 is unpublished, `docs/getting-started.md` keeps the
+  published 2.1.0 download and build commands under "Previous release" subheadings and
+  describes 2.2.0 as the development preview only.
+
 ## sdk-v2.1.0 (2026-10-13)
 
 Published 2026-10-13 at 22:42:09 UTC as tag `sdk-v2.1.0`. The tag peels to approval commit

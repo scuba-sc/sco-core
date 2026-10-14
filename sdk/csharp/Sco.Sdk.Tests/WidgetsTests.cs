@@ -61,6 +61,124 @@ namespace Sco.Sdk.Tests
             return new WeakReference(receiver);
         }
         private static void Collect() { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); }
+        private static void Reject<T>(Action action, string what) where T : Exception
+        {
+            bool rejected = false;
+            try { action(); }
+            catch (T) { rejected = true; }
+            Expect(rejected, "builder " + what);
+        }
+        private static void BuilderTests(Widgets w)
+        {
+            int clicks = 0, changes = 0;
+            bool toggle = true;
+            double slider = 0;
+            var builder = new PanelBuilder()
+                .Column(10, column => column
+                    .Row(20, row => row
+                        .Toggle(30, "Enabled", true, value => { toggle = value; ++changes; })
+                        .Slider(40, "Level", 5, 0, 10, value => { slider = value; ++changes; })
+                        .Row(50, nested => nested.Button(60, "Apply", () => ++clicks)))
+                    .Button(70, "Reset", () => ++clicks)
+                    .Row(80, row => row.Button(90, "Blocked", () => ++clicks), disabled: true))
+                .Button(100, "Disabled root", () => ++clicks, disabled: true)
+                .Button(110, "No handler");
+            WidgetNode[] nodes = builder.Build();
+            uint[] ids = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110 };
+            uint[] parents = { 0, 10, 20, 20, 20, 50, 10, 10, 80, 0, 0 };
+            WidgetKind[] kinds = { WidgetKind.Column, WidgetKind.Row, WidgetKind.Toggle, WidgetKind.Slider,
+                WidgetKind.Row, WidgetKind.Button, WidgetKind.Button, WidgetKind.Row, WidgetKind.Button,
+                WidgetKind.Button, WidgetKind.Button };
+            Expect(nodes.Length == ids.Length, "builder node count");
+            for (int i = 0; i < nodes.Length; ++i)
+            {
+                Expect(nodes[i].Id == ids[i] && nodes[i].Parent == parents[i] && nodes[i].Kind == kinds[i],
+                    "builder preorder/parent/kind " + i);
+                Expect(nodes[i].Index == 0 && nodes[i].Text == null && nodes[i].Items == null && nodes[i].Columns == 0,
+                    "builder zero unused fields " + i);
+            }
+            Expect(nodes[2].Value == 1 && nodes[3].Value == 5 && nodes[3].Minimum == 0 && nodes[3].Maximum == 10,
+                "builder initial typed values");
+            Expect(nodes[7].Disabled && !nodes[8].Disabled && nodes[9].Disabled, "builder local disabled flags");
+            nodes[5] = nodes[5] with { Id = 999, Parent = 0 };
+            nodes = builder.Build();
+            Expect(nodes[5].Id == 60 && nodes[5].Parent == 50, "builder independent Build copies");
+            Reject<InvalidOperationException>(() => builder.Button(120, "Late"), "frozen after Build");
+            Expect(w.SetPanel("test.events", "Builder", nodes, builder.Dispatch) == ScoResult.Ok, "builder tree accepted");
+            void* ctx = _ctx;
+            Send(new() { size = 32, node_id = 30, kind = 3, value = 0 }, ctx);
+            Send(new() { size = 32, node_id = 40, kind = 4, value = 7.5 }, ctx);
+            Send(new() { size = 32, node_id = 60, kind = 2 }, ctx);
+            Send(new() { size = 32, node_id = 70, kind = 2 }, ctx);
+            Expect(!toggle && slider == 7.5 && changes == 2 && clicks == 2, "builder typed callback dispatch");
+            Send(new() { size = 32, node_id = 90, kind = 2 }, ctx);
+            Send(new() { size = 32, node_id = 100, kind = 2 }, ctx);
+            Send(new() { size = 32, node_id = 110, kind = 2 }, ctx);
+            Send(new() { size = 32, node_id = 60, kind = 3 }, ctx);
+            Send(new() { size = 32, node_id = 40, kind = 4, value = 11 }, ctx);
+            Send(new() { size = 32, node_id = 40, kind = 4, value = double.NaN }, ctx);
+            Send(new() { size = 32, node_id = 30, kind = 3, value = 0.5 }, ctx);
+            builder.Dispatch("test.events", new(999, WidgetKind.Button, 0, 0, null));
+            builder.Dispatch("test.events", new(60, WidgetKind.Toggle, 0, 1, null));
+            builder.Dispatch("test.events", new(90, WidgetKind.Button, 0, 0, null));
+            Expect(changes == 2 && clicks == 2, "builder ignores disabled, absent and invalid events");
+            int replacements = 0;
+            var replacement = new PanelBuilder().Button(60, "Replacement", () => ++replacements);
+            WidgetNode[] replaced = replacement.Build();
+            _mutation = ScoResult.TooMany;
+            Expect(w.SetPanel("test.events", "Replacement", replaced, replacement.Dispatch) == ScoResult.TooMany,
+                "builder failed replacement");
+            _mutation = ScoResult.Ok;
+            Send(new() { size = 32, node_id = 60, kind = 2 }, ctx);
+            Expect(clicks == 3 && replacements == 0, "builder failure preserves callback");
+            Expect(w.SetPanel("test.events", "Replacement", replaced, replacement.Dispatch) == ScoResult.Ok,
+                "builder successful replacement");
+            Send(new() { size = 32, node_id = 60, kind = 2 }, ctx);
+            Send(new() { size = 32, node_id = 60, kind = 2 }, _ctx);
+            Expect(clicks == 3 && replacements == 1, "builder replacement drops stale dispatch");
+            ctx = _ctx;
+            Expect(w.RemovePanel("test.events") == ScoResult.Ok, "builder removal");
+            Send(new() { size = 32, node_id = 60, kind = 2 }, ctx);
+            Expect(replacements == 1, "builder removal drops late dispatch");
+
+            Reject<InvalidOperationException>(() => new PanelBuilder().Build(), "empty tree");
+            Reject<ArgumentOutOfRangeException>(() => new PanelBuilder().Button(0, "Zero"), "zero ID");
+            Reject<ArgumentException>(() => new PanelBuilder().Button(1, "First").Row(1, _ => { }), "duplicate ID");
+            Reject<ArgumentNullException>(() => new PanelBuilder().Column(1, null!), "null children");
+            Reject<ArgumentNullException>(() => new PanelBuilder().Button(1, null!), "null label");
+            Reject<ArgumentException>(() => new PanelBuilder().Button(1, ""), "empty label");
+            Reject<ArgumentException>(() => new PanelBuilder().Toggle(1, "x\0y", false), "NUL label");
+            Reject<ArgumentException>(() => new PanelBuilder().Button(1, "\ud800"), "invalid UTF-16 label");
+            Reject<ArgumentException>(() => new PanelBuilder().Button(1, new string('é', 128)), "UTF-8 byte cap");
+            Expect(new PanelBuilder().Button(1, new string('x', 255)).Build()[0].Label!.Length == 255,
+                "builder exact text limit");
+            Reject<ArgumentOutOfRangeException>(() => new PanelBuilder().Slider(1, "Level", double.NaN, 0, 1), "NaN value");
+            Reject<ArgumentOutOfRangeException>(() => new PanelBuilder().Slider(1, "Level", 0, 0, double.PositiveInfinity), "infinite bound");
+            Reject<ArgumentOutOfRangeException>(() => new PanelBuilder().Slider(1, "Level", 2, 0, 1), "outside range");
+            Reject<ArgumentOutOfRangeException>(() => new PanelBuilder().Slider(1, "Level", 0, 1, 0), "reversed range");
+            Expect(new PanelBuilder().Slider(1, "Fixed", 2, 2, 2).Build()[0].Value == 2, "builder closed single-value range");
+            var bounded = new PanelBuilder();
+            for (uint i = 1; i <= Abi.WidgetsMaxNodes; ++i) bounded.Button(i, "Node");
+            Reject<InvalidOperationException>(() => bounded.Button(257, "Overflow"), "node cap");
+            Expect(bounded.Build().Length == 256, "builder exact node limit");
+
+            var recovered = new PanelBuilder().Button(1, "Before");
+            Reject<InvalidOperationException>(() => recovered.Row(2, row =>
+            {
+                row.Toggle(3, "Rolled back", true, _ => ++clicks);
+                throw new InvalidOperationException("test layout failure");
+            }, disabled: true), "layout exception");
+            recovered.Row(2, row =>
+            {
+                Reject<InvalidOperationException>(() => row.Build(), "Build inside layout");
+                row.Button(3, "Recovered", () => ++clicks);
+            }).Button(4, "After");
+            WidgetNode[] recoveredNodes = recovered.Build();
+            Expect(recoveredNodes.Length == 4 && recoveredNodes[1].Parent == 0 && recoveredNodes[2].Parent == 2 &&
+                recoveredNodes[3].Parent == 0 && !recoveredNodes[1].Disabled, "builder rollback restores IDs and parent");
+            recovered.Dispatch("test.events", new(3, WidgetKind.Button, 0, 0, null));
+            Expect(clicks == 4, "builder rollback restores inherited enabled state");
+        }
         public static int Run()
         {
             _thread = Environment.CurrentManagedThreadId;
@@ -113,6 +231,7 @@ namespace Sco.Sdk.Tests
             table.remove_panel = null; Expect(w.RemovePanel("test.main") == ScoResult.Unavailable, "null remove"); table.remove_panel = &Remove;
             _table = null; Expect(w.Open(p) == ScoResult.NotFound && !w.IsOpen && w.RemovePanel("test.main") == ScoResult.Unavailable, "failed reopen clears table");
             _table = &table; w.Open(p);
+            BuilderTests(w);
             WidgetNode[] all = {
                 new() { Id = 1, Kind = WidgetKind.Column }, new() { Id = 2, Kind = WidgetKind.Row, Parent = 1 },
                 new() { Id = 3, Kind = WidgetKind.Label, Parent = 2, Label = "Status" },
