@@ -211,6 +211,33 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_creative.c", "AT(sc_creative_v1, set_infinite_ship_ammo, 40);"));
             lines.Add(("tests/abi_game_creative.c", "AT(sc_creative_v1, state, 48);"));
             lines.Add(("tests/abi_game_creative.c", "AT(sc_creative_v1, last_error, 56);"));
+            lines.Add(("tests/abi_game_hangar.c", "PIN(sizeof(void*) == 8);"));
+            lines.Add(("tests/abi_game_hangar.c", "PIN(SC_HANGAR_SERVICE_VERSION == 0x00010000u);"));
+            lines.Add(("tests/abi_game_hangar.c", "PIN(sizeof(SC_HANGAR_SERVICE_NAME) == 12); /* \"game.hangar\" */"));
+            lines.Add(("tests/abi_game_hangar.c", "SIZE(sc_hangar_lift_op, 4);"));
+            lines.Add(("tests/abi_game_hangar.c", "PIN(SC_HANGAR_LIFT_OPEN == 1);"));
+            lines.Add(("tests/abi_game_hangar.c", "PIN(SC_HANGAR_LIFT_CLOSE == 2);"));
+            lines.Add(("tests/abi_game_hangar.c", "PIN(SC_HANGAR_LIFT_OP_FORCE32 == 0x7fffffff);"));
+            lines.Add(("tests/abi_game_hangar.c", "SIZE(sc_hangar_v1, 40);"));
+            lines.Add(("tests/abi_game_hangar.c", "AT(sc_hangar_v1, size, 0);"));
+            lines.Add(("tests/abi_game_hangar.c", "AT(sc_hangar_v1, _pad, 4);"));
+            lines.Add(("tests/abi_game_hangar.c", "AT(sc_hangar_v1, lift_of_landing_area, 8);"));
+            lines.Add(("tests/abi_game_hangar.c", "AT(sc_hangar_v1, lift_request, 16);"));
+            lines.Add(("tests/abi_game_hangar.c", "AT(sc_hangar_v1, atc_cancel_request, 24);"));
+            lines.Add(("tests/abi_game_hangar.c", "AT(sc_hangar_v1, last_error, 32);"));
+            lines.Add(("tests/abi_game_reputation.c", "PIN(sizeof(void*) == 8);"));
+            lines.Add(("tests/abi_game_reputation.c", "PIN(SC_REPUTATION_SERVICE_VERSION == 0x00010000u);"));
+            lines.Add(("tests/abi_game_reputation.c", "PIN(sizeof(SC_REPUTATION_SERVICE_NAME) == 16); /* \"game.reputation\" */"));
+            lines.Add(("tests/abi_game_reputation.c", "SIZE(sc_reputation_checks, 16);"));
+            lines.Add(("tests/abi_game_reputation.c", "AT(sc_reputation_checks, size, 0);"));
+            lines.Add(("tests/abi_game_reputation.c", "AT(sc_reputation_checks, sites, 4);"));
+            lines.Add(("tests/abi_game_reputation.c", "AT(sc_reputation_checks, intact, 8);"));
+            lines.Add(("tests/abi_game_reputation.c", "AT(sc_reputation_checks, services, 12);"));
+            lines.Add(("tests/abi_game_reputation.c", "SIZE(sc_reputation_v1, 24);"));
+            lines.Add(("tests/abi_game_reputation.c", "AT(sc_reputation_v1, size, 0);"));
+            lines.Add(("tests/abi_game_reputation.c", "AT(sc_reputation_v1, _pad, 4);"));
+            lines.Add(("tests/abi_game_reputation.c", "AT(sc_reputation_v1, checks, 8);"));
+            lines.Add(("tests/abi_game_reputation.c", "AT(sc_reputation_v1, last_error, 16);"));
         }
     }
 }

@@ -36,6 +36,10 @@ namespace Sco.Sdk.Tests
             types.Add("sc_vehicles_v1", typeof(ScVehiclesV1));
             types.Add("sc_creative_flag", typeof(ScCreativeFlag));
             types.Add("sc_creative_v1", typeof(ScCreativeV1));
+            types.Add("sc_hangar_lift_op", typeof(ScHangarLiftOp));
+            types.Add("sc_hangar_v1", typeof(ScHangarV1));
+            types.Add("sc_reputation_checks", typeof(ScReputationChecks));
+            types.Add("sc_reputation_v1", typeof(ScReputationV1));
             constants.Add("SCO_DATACORE_VERSION_1_0", Abi.DataCoreVersion1_0);
             constants.Add("SCO_DATACORE_VERSION_1_1", Abi.DataCoreVersion1_1);
             constants.Add("SCO_DC_OPEN", Abi.DcOpen);
@@ -93,6 +97,11 @@ namespace Sco.Sdk.Tests
             constants.Add("SC_CREATIVE_INFINITE_AMMO", (long)ScCreativeFlag.InfiniteAmmo);
             constants.Add("SC_CREATIVE_INFINITE_SHIP_AMMO", (long)ScCreativeFlag.InfiniteShipAmmo);
             constants.Add("SC_CREATIVE_FLAG_FORCE32", (long)ScCreativeFlag.Force32);
+            constants.Add("SC_HANGAR_SERVICE_VERSION", GameAbi.HangarVersion1_0);
+            constants.Add("SC_HANGAR_LIFT_OPEN", (long)ScHangarLiftOp.Open);
+            constants.Add("SC_HANGAR_LIFT_CLOSE", (long)ScHangarLiftOp.Close);
+            constants.Add("SC_HANGAR_LIFT_OP_FORCE32", (long)ScHangarLiftOp.Force32);
+            constants.Add("SC_REPUTATION_SERVICE_VERSION", GameAbi.ReputationVersion1_0);
             strings.Add("SCO_DATACORE_NAME", Abi.DataCoreName);
             strings.Add("SCO_DC_APPLIED_EVENT", Abi.DataCoreAppliedEvent);
             strings.Add("SC_ACTORS_NAME", GameAbi.ActorsName);
@@ -106,6 +115,8 @@ namespace Sco.Sdk.Tests
             strings.Add("SC_ENTITIES_NAME", GameAbi.EntitiesName);
             strings.Add("SC_VEHICLES_SERVICE_NAME", GameAbi.VehiclesName);
             strings.Add("SC_CREATIVE_SERVICE_NAME", GameAbi.CreativeName);
+            strings.Add("SC_HANGAR_SERVICE_NAME", GameAbi.HangarName);
+            strings.Add("SC_REPUTATION_SERVICE_NAME", GameAbi.ReputationName);
         }
 
         static partial void GameSizeOf(Type t, ref int size)
@@ -126,6 +137,9 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScVehicleSeat)) size = Unsafe.SizeOf<ScVehicleSeat>();
             if (t == typeof(ScVehiclesV1)) size = Unsafe.SizeOf<ScVehiclesV1>();
             if (t == typeof(ScCreativeV1)) size = Unsafe.SizeOf<ScCreativeV1>();
+            if (t == typeof(ScHangarV1)) size = Unsafe.SizeOf<ScHangarV1>();
+            if (t == typeof(ScReputationChecks)) size = Unsafe.SizeOf<ScReputationChecks>();
+            if (t == typeof(ScReputationV1)) size = Unsafe.SizeOf<ScReputationV1>();
         }
     }
 }
