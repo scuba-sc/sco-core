@@ -1,15 +1,6 @@
-# sco-core SDK 2.2.0 (release notes, unpublished candidate)
+# sco-core SDK 2.2.0 (release notes)
 
-Tag `sdk-v2.2.0`, combined zip `sco-sdk-2.2.0.zip`. **Status: unpublished candidate.** This page
-is a draft prepared on 2026-10-14 for the maintainer. No tag, signature, approval record, candidate
-run or release exists for 2.2.0, and nothing on this page authorizes one. The maintainer recorded
-the candidate scope on 2026-10-14 in the
-[SDK 2.2.0 scope decision](../legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md); that
-record does not itself dispatch a candidate, create an approval record, sign, tag or publish. Until the
-maintainer publishes 2.2.0, the newest published SDK is 2.1.0
-([latest release](https://github.com/scubamount/sco-core/releases/latest)). The release workflow
-publishes the CHANGELOG section [`## sdk-v2.2.0`](../../CHANGELOG.md) as the release's notes;
-this page is the longer reference behind it.
+Tag `sdk-v2.2.0`, combined zip `sco-sdk-2.2.0.zip`. **Published on 2026-10-14 at 20:01:25 UTC:** [SDK 2.2.0 release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.2.0). The tag peels to approval commit `686187ce936400450d448f1fe754b1e58263e4af`, which adds only the signed approval record (`docs/legal/release-decisions/sdk-v2.2.0.json` and `.sig`); the published archives were built from source commit `81437e1a12993a4484308bd76443a003ae57b7fa` by candidate run `38627571934`. The two identities are distinct. The release publishes all five profiles (combined/legacy, core, core-source, the Star Citizen game-sc 0.5.0 overlay and the Star Citizen host-source kit), their SBOMs and `SHA256SUMS`. The scope is the maintainer's [SDK 2.2.0 scope decision](../legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md). The release workflow publishes the CHANGELOG section [`## sdk-v2.2.0`](../../CHANGELOG.md) as the release's notes; this page is the longer reference behind it.
 
 <!-- release-scope:start -->
 ```json
@@ -25,7 +16,7 @@ this page is the longer reference behind it.
 | Plugin ABI | 1.1, unchanged | `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h` (frozen; `include/sco_api.h` and `tests/abi_v1.c` byte-identical to 2.1.0) |
 | `sco.widgets` service table | 1.1 (was 1.0) | `SCO_WIDGETS_VERSION_1_1` in `sco_widgets.h`; additive, 1.0 consumers unchanged |
 | Star Citizen game pack | 0.5.0 (was 0.4.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
-| Verified game build | unchanged from 2.1.0 | no new sigcheck or in-game verification in this candidate |
+| Verified game build | unchanged from 2.1.0 | no new sigcheck or in-game verification in this release |
 
 `VERSIONS.txt` in the zip states the same lines, generated from the headers by `sdk/package.py`.
 
@@ -34,7 +25,7 @@ this page is the longer reference behind it.
 - Core SDK, combined/legacy SDK, the neutral core-source kit and the Star Citizen
   host-source kit (`host-source-sc`): 2.2.0.
 - Optional game-sc public overlay: 0.5.0 (was 0.4.0). The maintainer kept `game.hangar` 1.0,
-  `game.reputation` 1.0 and `game.world` 1.1 in this candidate, and the
+  `game.reputation` 1.0 and `game.world` 1.1 in this release, and the
   [game-pack policy](../game-pack.md) raises the minor for a release that adds or grows a game
   service. The overlay ships as `sco-sdk-game-sc-0.5.0.zip`, so its compatibility descriptor,
   which binds the exact 2.2.0 core archive SHA-256, never shares a file name with the published
@@ -66,13 +57,14 @@ verification limits. In short:
 | Docs site grouped into four library hubs; no route moved | `site/scripts/gen.py` | docs site only |
 
 Profiles are the `sdk/components.json` classification; `legacy` includes `core`, and
-`host-source-sc` includes `core-source`. All three panel builders target `sco.widgets` 1.0. 1.1 nodes are written against the C header;
-no language wrapper exposes 1.1 yet.
+`host-source-sc` includes `core-source`. The C++, C# and Lua panel builders target `sco.widgets` 1.0; the C++
+`scosdk::PanelBuilder` emits 1.1 nodes when `.Tooltip()`, `.Severity()` or `.Paging()` is used on a 1.1 host.
 
-## Not in this candidate
+## Language routes for the new game tables
 
-- C++, C# and Lua wrappers for `game.hangar`, `game.reputation` and the `game.world` 1.1 member.
-  C and C++ call the tables through their headers.
+- C++ (`include/scosdk/game/`) and C# (`Sco.Sdk.Game`) wrap `game.hangar`, `game.reputation` and the
+  `game.world` 1.1 member. Lua wraps the `game.world` 1.1 free-camera flag; Lua routes for
+  `game.hangar` and `game.reputation` are unsupported.
 - C++, C# and Lua wrappers for the `sco.widgets` 1.1 members, and 1.1 emulation in
   `sco-plugin-check`, which stays a 1.0 stand-in.
 - `sdk/test_new_plugin.py` in CI. It runs locally only.
@@ -83,24 +75,22 @@ documentation site and the static MCP server only, never an SDK zip.
 
 ## Engineering limits
 
-Nothing in this candidate has run in the game. Evidence is macOS local builds and synthetic
+Nothing in this release has run in the game. Evidence is macOS local builds and synthetic
 fixtures: the host test suite, the panel-builder tests and the diagnostics dead-owner fixture. The
-C# builder has not been compiled locally (no .NET SDK on the preparing host); the hosted
-`sdk/csharp-host-sim` job is its first build. Linux and native Windows builds of the merged
-branch, GPU rendering of the 1.1 adapter, and real-game, anti-cheat, official-network and
-private-LAN acceptance remain unproven. The Windows game-pack adapters for the new game tables
-have not been built locally. The MCP `generate_plugin_scaffold` tool and the native-index page
+C# SDK and its builder were first compiled by the hosted `sdk/csharp-host-sim` job; Linux and
+native Windows (MSVC) builds of the release source passed hosted CI. GPU rendering of the 1.1
+adapter, and real-game, anti-cheat, official-network and private-LAN acceptance remain unproven.
+The Windows game-pack adapters for the new game tables have not run in game. The MCP `generate_plugin_scaffold` tool and the native-index page
 were exercised by unit tests and a local site build only. New game capabilities stay default-off: no production adapter turns on
-the four this candidate adds.
+the four this release adds.
 
 ## Checking the zip
 
-After publication, the same checks as every release apply:
+The same checks as every release apply:
 
 ```sh
 sha256sum -c SHA256SUMS
 unzip -p sco-sdk-2.2.0.zip sco-sdk-2.2.0/VERSIONS.txt
 ```
 
-Publication follows the [maintainer release procedure](../legal/release-checklist.md#releasing);
-these notes do not authorize a candidate, a tag or a release.
+Publication followed the [maintainer release procedure](../legal/release-checklist.md#releasing).

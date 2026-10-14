@@ -21,7 +21,7 @@ SOURCE_ROOT = 'https://github.com/scubamount/sco-core/blob/'
 RELEASES = 'https://github.com/scubamount/sco-core/releases/tag/'
 # Most recent SDK release verified as published. A preview links here instead of
 # deriving a tag from its own sdk_version, which may name an unpublished version.
-PUBLISHED_RELEASE = 'sdk-v2.1.0'
+PUBLISHED_RELEASE = 'sdk-v2.2.0'
 DOWNLOADS = 'https://github.com/scubamount/sco-core/releases/download/'
 COMMITS = 'https://github.com/scubamount/sco-core/commit/'
 # The same delimited block tools/doc_release_gate.py checks against packaging.
@@ -88,6 +88,7 @@ HUB_DOCS = {
     'integration': (
         ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
         ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),
+        ('docs/releases/sdk-v2.2.0.md', 'Release notes, scope and archives of SDK 2.2.0.'),
         ('docs/releases/sdk-v2.1.0.md', 'Release notes, scope and archives of SDK 2.1.0.'),
         ('docs/reference-snapshots.md', 'Snapshots that bind reference content to SDK inputs.'),
     ),
