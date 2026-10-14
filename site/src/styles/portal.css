@@ -436,3 +436,15 @@ html:not([data-has-toc]):has([data-sco-natives]) {
 		justify-self: start;
 	}
 }
+
+@media (max-width: 50rem) {
+	.sl-markdown-content :is(th, td) {
+		overflow-wrap: break-word;
+		hyphens: auto;
+	}
+	.sl-markdown-content :is(th, td) code {
+		overflow-wrap: anywhere;
+		white-space: normal;
+		hyphens: manual;
+	}
+}
