@@ -128,6 +128,14 @@
       "why": "Release documentation readiness gate tests; not part of the kernel source kit."
     },
     {
+      "path": "tools/check_live_site.py",
+      "why": "Published documentation site freshness check; not part of the kernel source kit."
+    },
+    {
+      "path": "tools/test_check_live_site.py",
+      "why": "Published documentation site freshness check tests; not part of the kernel source kit."
+    },
+    {
       "path": "tools/release_notify.py",
       "why": "Release completion verifier and announcement sender; not part of the kernel source kit."
     },
