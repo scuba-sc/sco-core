@@ -124,6 +124,17 @@
       ]
     },
     {
+      "id": "game.hangar",
+      "kind": "service",
+      "service": "game.hangar",
+      "header": "include/sc_hangar.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.hangar.lift", "methods": ["lift_of_landing_area", "lift_request"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["lift.open_request", "lift.close_request", "teleport.entity_system", "spawn.find_entity_by_name", "spawn.handle_to_id"], "evidence_source": "docs/game/hangar.md"},
+        {"name": "game.hangar.atc_cancel", "methods": ["atc_cancel_request"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["atc.get_component", "atc.request_cancel", "spawn.handle_to_id"], "evidence_source": "docs/game/hangar.md"}
+      ]
+    },
+    {
       "id": "game.prefabs",
       "kind": "service",
       "service": "game.prefabs",

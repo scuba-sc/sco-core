@@ -1728,6 +1728,18 @@
       "public_header": true
     },
     {
+      "id": "include.sc_hangar.h",
+      "source": "include/sc_hangar.h",
+      "destination": "include/sc_hangar.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
       "id": "include.sc_world.h",
       "source": "include/sc_world.h",
       "destination": "include/sc_world.h",
@@ -4347,6 +4359,18 @@
       "group": "game-contract"
     },
     {
+      "id": "source.tests.abi_game_hangar.c",
+      "source": "tests/abi_game_hangar.c",
+      "destination": "tests/abi_game_hangar.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
       "id": "source.tests.abi_game_entities.c",
       "source": "tests/abi_game_entities.c",
       "destination": "tests/abi_game_entities.c",
@@ -5163,6 +5187,17 @@
       "group": "host-source-sc"
     },
     {
+      "id": "host-source-sc-docs-game-hangar.md",
+      "source": "docs/game/hangar.md",
+      "destination": "docs/game/hangar.md",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
       "id": "host-source-sc-docs-game-entities.md",
       "source": "docs/game/entities.md",
       "destination": "docs/game/entities.md",
@@ -5711,6 +5746,42 @@
       "origin": "interoperability-derived",
       "license": "GPL-3.0-only",
       "group": "host-source-sc"
+    },
+    {
+      "id": "host-source-sc-src-game-services-hangar.cpp",
+      "source": "src/game/services/hangar.cpp",
+      "destination": "src/game/services/hangar.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-hangar.h",
+      "source": "src/game/services/hangar.h",
+      "destination": "src/game/services/hangar.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-hangar_engine.cpp",
+      "source": "src/game/services/hangar_engine.cpp",
+      "destination": "src/game/services/hangar_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
     },
     {
       "id": "host-source-sc-src-game-services-death_events.h",
@@ -7249,6 +7320,18 @@
       "id": "host-source-sc-tests-test_world_control.cpp",
       "source": "tests/test_world_control.cpp",
       "destination": "tests/test_world_control.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_hangar.cpp",
+      "source": "tests/test_hangar.cpp",
+      "destination": "tests/test_hangar.cpp",
       "profiles": [
         "host-source-sc"
       ],
