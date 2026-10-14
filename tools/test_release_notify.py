@@ -25,7 +25,7 @@ RELEASE_ID = 4242
 TOKEN = "s3cr3t-token_value"
 WEBHOOK = "https://discord.com/api/webhooks/123456/" + TOKEN
 ORIGIN = "https://example.github.io"
-NOTES_ROUTE = f"/sdk/guides/releases/{TAG}/"
+NOTES_ROUTE = "/sdk/guides/releases/" + TAG.replace(".", "") + "/"
 NOW = "2026-10-14T00:00:00Z"
 CHANGELOG = (f"# Changelog\n\n## {TAG} (2026-10-14)\n\n"
              "Quote \"double\" and 'single' \\ backslash\n"
