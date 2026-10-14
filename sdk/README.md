@@ -209,6 +209,24 @@ The stand-in host is not the game: it has no game thread, no crash guard and no 
 
 To switch one plugin off, create an empty file named `disabled` in its folder.
 
+## Generate a plugin folder
+
+`tools/sco-new-plugin.py` (Python 3.8 or newer) writes a ready-to-build native plugin in one command:
+
+```sh
+python3 tools/sco-new-plugin.py --id my_radar --lang c --out ../my_radar
+python3 tools/sco-new-plugin.py --id my_radar --lang cpp --with-menu --services game.actors,sco.widgets --out ../my_radar
+cmake -S ../my_radar -B ../my_radar/build -DSCO_SDK="$PWD"
+cmake --build ../my_radar/build --target check
+```
+
+- The folder holds `plugin.ini` (`api = 1.0`), `<id>.c` (C11) or `<id>.cpp` (C++20, `include/scosdk/`), and a `CMakeLists.txt` that builds the plugin with `cmake/sco-plugin.cmake`. Its `check` target builds `sco-plugin-check` from `tools/` and runs it on the plugin twice: as is, and with `--short-tables`.
+- Every generated plugin registers `<id>.ping`. The code checks `sco_api`'s size before any 1.1 member and each service table's `size` before using it, so the plugin also loads on a 1.0 host.
+- `--with-menu` adds a `sco.widgets` panel (`<id>.main`). C++ builds it with `scosdk::PanelBuilder` ([UI cookbook](../docs/ui.md)); C writes the `sco_widget_node` array itself. Without the service the plugin runs with no panel.
+- `--services NAME[@MAJOR.MINOR],...` (default version 1.0) looks each service up on `game.ready` and logs the ones that are missing; the plugin keeps working. `plugin.ini` lists them on a commented `requires` line. Uncomment it if the plugin can't run without them. Include a service's header to call its table.
+- `--name` and `--author` set the display name and author. The id follows the rules below. The tool refuses an unsafe id, an output that is a file or a symbolic link, and a folder that isn't empty, and it never overwrites a file.
+- Other tools can import the file and call `render_plugin(spec)`, which returns `{relative path: text}` and writes nothing.
+
 ## Start your own native plugin
 
 1. Copy `template\` to a new folder outside the SDK.
