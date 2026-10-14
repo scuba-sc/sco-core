@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sc-asop-v1-claim-timeout",
+      "kind": "table-method",
+      "symbol": "sc_asop_v1.claim_timeout",
+      "table": "sc_asop_v1",
+      "service": "game.asop",
+      "version_macro": "SC_ASOP_SERVICE_VERSION",
+      "source_header": "include/sc_asop.h",
+      "signature": "sco_result (*)(sco_plugin *, int32_t *)",
+      "member_extent": 16,
+      "table_size": 32,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "*out_seconds = the request timeout, in seconds, of the game's insurance component configuration: how long a ship terminal claim request waits for an answer. SCO_BAD_ARG: out_seconds NULL. SCO_NOT_FOUND: the insurance configuration isn't loaded yet. SCO_FAILED: the game faulted. game.asop.claim_timeout.",
+      "buffer_contract": "`sco_result (*claim_timeout)(sco_plugin* self, int32_t* out_seconds);`<br>*out_seconds = the request timeout, in seconds, of the game's insurance component configuration: how long a ship terminal claim request waits for an answer. SCO_BAD_ARG: out_seconds NULL. SCO_NOT_FOUND: the insurance configuration isn't loaded yet. SCO_FAILED: the game faulted. game.asop.claim_timeout.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; game.asop.claim_timeout OFF (the default): UNAVAILABLE without an engine call; null/unknown self: BAD_ARG. Other failures as in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; game.asop.claim_timeout OFF: UNAVAILABLE",
+      "cleanup": "No in-flight cancellation entrypoint; both functions are reads and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop.h",
+              "token": "(*claim_timeout)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_asop.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_asop.c",
+        "tests/test_asop.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-asop-v1-shard-persisted",
+      "kind": "table-method",
+      "symbol": "sc_asop_v1.shard_persisted",
+      "table": "sc_asop_v1",
+      "service": "game.asop",
+      "version_macro": "SC_ASOP_SERVICE_VERSION",
+      "source_header": "include/sc_asop.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t *)",
+      "member_extent": 24,
+      "table_size": 32,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "*out_persisted = 1 when the game's IsShardPersisted flag is set, 0 when it is clear: the flag the ship terminal's open checks before it opens. SCO_BAD_ARG: out_persisted NULL. SCO_FAILED: the game faulted. game.asop.shard_persisted.",
+      "buffer_contract": "`sco_result (*shard_persisted)(sco_plugin* self, uint32_t* out_persisted);`<br>*out_persisted = 1 when the game's IsShardPersisted flag is set, 0 when it is clear: the flag the ship terminal's open checks before it opens. SCO_BAD_ARG: out_persisted NULL. SCO_FAILED: the game faulted. game.asop.shard_persisted.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "Absent table: query_service NOT_FOUND; game.asop.shard_persisted OFF (the default): UNAVAILABLE without an engine call; null/unknown self: BAD_ARG. Other failures as in the buffer contract.",
+      "absent_capability": "Absent table: query_service NOT_FOUND; game.asop.shard_persisted OFF: UNAVAILABLE",
+      "cleanup": "No in-flight cancellation entrypoint; both functions are reads and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop.h",
+              "token": "(*shard_persisted)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_asop.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_asop.c",
+        "tests/test_asop.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "Recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    },
+    {
+      "id": "sc-asop-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sc_asop_v1.last_error",
+      "table": "sc_asop_v1",
+      "service": "game.asop",
+      "version_macro": "SC_ASOP_SERVICE_VERSION",
+      "source_header": "include/sc_asop.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 32,
+      "table_size": 32,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: your own last failed call; on another thread: the last refusal on that thread. Any thread.",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The reason for the last failed call (\"\" if none), NUL-terminated, with sco.storage's size handshake: *inout_size is out's capacity on entry and the bytes written (NUL included) on SCO_OK, or the bytes needed on SCO_TOO_MANY. out may be NULL when *inout_size is 0. On the game thread: your own last failed call; on another thread: the last refusal on that thread. Any thread.",
+      "ownership": "Caller outputs; nothing owned, the host keeps only your last error. No allocation transfer; internal allocation unspecified.",
+      "thread_affinity": "Any thread; diagnostic scope as described; recursive reentrancy unspecified.",
+      "callback_context": "unspecified",
+      "reentrancy": "unspecified",
+      "results": "BAD_ARG invalid buffer; TOO_MANY required bytes. On the game thread with a loaded self: your own last error; otherwise the thread's last refusal.",
+      "absent_capability": "unspecified",
+      "cleanup": "No in-flight cancellation entrypoint; both functions are reads and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop.h",
+              "token": "(*last_error)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_asop.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C++, C# and Lua game.asop routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_game_asop.c",
+        "tests/test_asop.cpp"
+      ],
+      "limitations": [
+        "internal allocation unspecified.",
+        "recursive reentrancy unspecified.",
+        "Capabilities OFF by default pending an in-game run.",
+        "Game-service behavior not verified in a game session."
+      ]
+    }
+  ]
+}

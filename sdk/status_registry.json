@@ -146,6 +146,27 @@
       ]
     },
     {
+      "id": "game.asop",
+      "kind": "service",
+      "service": "game.asop",
+      "header": "include/sc_asop.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.asop.claim_timeout", "methods": ["claim_timeout"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["insurance.update_pending_requests", "insurance.config"], "evidence_source": "docs/game/asop-service.md"},
+        {"name": "game.asop.shard_persisted", "methods": ["shard_persisted"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["asop.on_request_open", "asop.shard_persisted"], "evidence_source": "docs/game/asop-service.md"}
+      ]
+    },
+    {
+      "id": "game.contracts",
+      "kind": "service",
+      "service": "game.contracts",
+      "header": "include/sc_contracts.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.contracts.stream_radius", "display": "`game.contracts.stream_radius` (`stream_radius`, read-only)", "methods": ["stream_radius"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["contracts.mission_settings"], "evidence_source": "docs/game/contracts-service.md"}
+      ]
+    },
+    {
       "id": "game.prefabs",
       "kind": "service",
       "service": "game.prefabs",
