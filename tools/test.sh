@@ -47,6 +47,13 @@ echo "abi_ui: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_widgets.c"
 clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_widgets.c"
 echo "abi_widgets: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
+# The sco.ui.surfaces table and payloads (tests/abi_ui_surfaces.c), the same five ways.
+"$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_ui_surfaces.c"
+"$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_ui_surfaces.c"
+"$CC"  -std=c11   "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_ui_surfaces.c"
+clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_ui_surfaces.c"
+clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_ui_surfaces.c"
+echo "abi_ui_surfaces: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 # The sco.settings table (tests/abi_settings.c), the same five ways.
 "$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_settings.c"
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_settings.c"
@@ -397,12 +404,19 @@ done
 
 # sco.ui (sco/ui.h, sco_ui.h, scosdk/ui.hpp): built-in plugins under the loader's crash guard (a
 # signal-based stand-in here), registration from threads beside a frame, so both sanitizer sets.
-UI=("$ROOT/tests/test_ui.cpp" "$ROOT/src/ui/ui.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
+UI=("$ROOT/tests/test_ui.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
     "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${UI[@]}" -ldl -o "$OUT/test_ui"
 "$OUT/test_ui"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "${UI[@]}" -ldl -o "$OUT/test_ui_tsan"
 "$OUT/test_ui_tsan"
+# sco.ui.surfaces (sco/surfaces.h, sco_ui_surfaces.h, scosdk/ui_surfaces.hpp): registrations from
+# threads beside a renderer's snapshots, so both sanitizer sets.
+SURFACES=("$ROOT/tests/test_surfaces.cpp" "${UI[@]:1}")
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${SURFACES[@]}" -ldl -o "$OUT/test_surfaces"
+"$OUT/test_surfaces"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "${SURFACES[@]}" -ldl -o "$OUT/test_surfaces_tsan"
+"$OUT/test_surfaces_tsan"
 
 # Retained widgets over the neutral real host, and the host-only ImGui API shim.
 WIDGETS=("$ROOT/tests/test_widgets.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}"
@@ -418,7 +432,7 @@ WIDGETS=("$ROOT/tests/test_widgets.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/s
 # sco.settings (sco/settings.h, sco_settings.h, scosdk/settings.hpp): the declarations' values, the service
 # over the real host table and storage, persistence across a restart, settings.changed; readers on
 # threads beside the game thread's sets, so both sanitizer sets.
-SETTINGS=("$ROOT/tests/test_settings.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/storage/storage.cpp"
+SETTINGS=("$ROOT/tests/test_settings.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/storage/storage.cpp"
           "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
           "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${SETTINGS[@]}" "$SQLITE_ASAN" -ldl -lm -o "$OUT/test_settings"
@@ -439,7 +453,7 @@ for f in "$LUA_SRC"/*.c "$ROOT/plugins/lua/sco_lua.c" "$ROOT/plugins/lua/sco_lua
 done
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -isystem "$LUA_SRC" "$ROOT/tests/test_lua.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" \
   "${HOST_IMPL[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" \
-  "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}" "$ROOT/src/storage/storage.cpp" "$SQLITE_ASAN" \
+  "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}" "$ROOT/src/storage/storage.cpp" "$SQLITE_ASAN" \
   "$ROOT/src/widgets/widgets.cpp" "${LUA_OBJS[@]}" -ldl -lm -o "$OUT/test_lua"
 "$OUT/test_lua" "$ROOT/sdk" "$OUT"
 "$OUT/test_lua" "$ROOT/sdk" "$OUT/widgets" widgets
@@ -452,7 +466,7 @@ DIAGNOSTICS_IPC=("$ROOT/src/ipc/diagnostics_ipc.cpp" "$ROOT/src/ipc/diagnostics_
                  "$ROOT/src/ipc/diagnostics_audit.cpp" "$ROOT/src/ipc/diagnostics_platform_posix.cpp")
 APP=("$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
      "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/game/diagnostics.cpp" "$ROOT/src/game/private_session.cpp"
-     "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/settings/settings.cpp" "$SQLITE_ASAN"
+     "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/settings/settings.cpp" "$SQLITE_ASAN"
      "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${DIAGNOSTICS_IPC[@]}" "${NETSVC_SRC[@]}" "$OUT/sha2_asan.o"
      "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}")
 # Step-1 copied diagnostics: host/runtime only, synthetic app boundaries and no endpoint.

@@ -87,7 +87,7 @@ links follow from them. **Game-pack** targets exist only with `SCO_GAME_SC=ON`;
 | `sco_lua_game` (game-pack) | `plugins/lua/sco_lua_game.c`: optional game adapters | `sco_lua` |
 | `sco_sqlite` | `third_party/sqlite/sqlite3.c` ([options](../third_party/sqlite/README.md)), `-std=gnu11`, warnings off | `Threads::Threads`, `m` on Unix |
 | `sco_storage` | `src/storage/storage.cpp`: the `sco.storage` host service ([docs](storage.md)) | `sco_host`, `sco_sqlite` |
-| `sco_ui` | `src/ui/ui.cpp`: the legacy `sco.ui` host service ([docs](ui.md)) | `sco_host` |
+| `sco_ui` | `src/ui/ui.cpp`: the legacy `sco.ui` host service ([docs](ui.md)); `src/ui/surfaces.cpp`: the `sco.ui.surfaces` host service ([docs](ui.md#surfaces)) | `sco_host` |
 | `sco_widgets` | `src/widgets/widgets.cpp`: renderer-neutral retained panels ([design](design/widgets.md)) | `sco_host` |
 | `sco_widgets_imgui` (optional) | `src/widgets/imgui_adapter.cpp`: host-only adapter (`SCO_WIDGETS_IMGUI=ON`, product links ImGui) | `sco_widgets` |
 | `sco_settings` | `src/settings/settings.cpp`: typed plugin settings | `sco_host`, `sco_plugins`, `sco_storage`, `sco_ui` |
@@ -135,11 +135,13 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 | `abi_storage` | The same for the `sco.storage` table pin, `tests/abi_storage.c` |
 | `abi_ui` | The same for the `sco.ui` table pin, `tests/abi_ui.c` |
 | `abi_widgets` | The `sco.widgets` table, node and event layout pins, `tests/abi_widgets.c` |
+| `abi_ui_surfaces` | The `sco.ui.surfaces` table, desc and pose layout pins, `tests/abi_ui_surfaces.c` |
 | `test_widgets` | Every neutral widget kind, events, bounds, malformed inputs, atomic replacement and owner cleanup through a headless renderer |
 | `test_widgets_sdk` | C++ table extent/null/reopen guards and optional ImGui adapter API shim (no GPU) |
 | `test_widgets_app` | Automatic widget publication and teardown through the real host kit across two sessions |
 | `abi_settings` | The same for the `sco.settings` table pin, `tests/abi_settings.c` |
 | `test_settings` | `sco.settings` over the real host table and storage: defaults, typed sets, `settings.changed`, persistence across a restart, stale kept values |
+| `test_surfaces` | `sco.ui.surfaces`: every kind, every refused field, ownership of ids and panels, per-plugin and host limits, release through sco.ui's hook, threads registering beside snapshots, `scosdk/ui_surfaces.hpp` |
 | `test_ui` | `sco.ui`: tab order, ids outside the plugin's prefix, badges, overlays, the chord grammar, conflicts and reserved chords, dispatch with arguments, unload, a fault in a draw under the loader's guard, threads registering beside frames |
 | `test_storage` | Host-owned services and `sco.storage`: key-value and the size handshake, transactions, SQL, isolation (no `ATTACH`, `PRAGMA` or `VACUUM INTO` escape), the quota, unload, threads, and a child process killed mid-transaction |
 | `test_core` | Scanners and the signature registry against a synthetic image |

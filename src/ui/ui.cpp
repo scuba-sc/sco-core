@@ -8,6 +8,7 @@
 // may call back into the table and a crash guard's Release(owner) can reach the release hook.
 #include "sco/ui.h"
 #include "sco/host.h"
+#include "sco/surfaces.h"
 #include "../api/internal.h"
 #include <algorithm>
 #include <cstring>
@@ -436,14 +437,18 @@ void EraseOwned(std::vector<T>& v, const void* owner) {
     v.erase(std::remove_if(v.begin(), v.end(), [owner](const T& x) { return x.owner == owner; }), v.end());
 }
 
-// The runtime calls this once Release(owner) has removed the owner's items.
+// The runtime calls this once Release(owner) has removed the owner's items. It also withdraws the
+// owner's sco.ui.surfaces entries, which share this hook rather than take a slot of their own.
 void OnRelease(const void* owner) {
-    std::lock_guard<std::mutex> hold(g_lock);
-    EraseOwned(g_tabs, owner);
-    EraseOwned(g_overlays, owner);
-    EraseOwned(g_keys, owner);
-    g_errors.erase(std::remove_if(g_errors.begin(), g_errors.end(), [owner](const auto& e) { return e.first == owner; }),
-                   g_errors.end());
+    {
+        std::lock_guard<std::mutex> hold(g_lock);
+        EraseOwned(g_tabs, owner);
+        EraseOwned(g_overlays, owner);
+        EraseOwned(g_keys, owner);
+        g_errors.erase(std::remove_if(g_errors.begin(), g_errors.end(), [owner](const auto& e) { return e.first == owner; }),
+                       g_errors.end());
+    }
+    surfaces::detail::ReleaseOwner(owner);
 }
 
 // ---- drawing --------------------------------------------------------------------------------------

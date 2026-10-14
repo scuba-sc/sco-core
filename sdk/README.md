@@ -17,7 +17,7 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | Path | What |
 |---|---|
 | `include/sco_api.h` | The only header a native C plugin includes |
-| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core); `sco_datacore.h` (Star Citizen extension) |
+| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_ui_surfaces.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core); `sco_datacore.h` (Star Citizen extension) |
 | `include/sc_*.h` | Core: the MIT wires and bridge layouts (`sc_ipc.h`, `sc_net.h`, `sc_titanlink.h`, `sc_voxel_bridge.h`). Star Citizen extension: the game pack's service tables and events (`sc_spatial.h`, `sc_spawn.h`, `sc_actors.h`, `sc_vehicles.h`, `sc_world.h`, `sc_entities.h`, `sc_creative.h`, `sc_game_events.h`; [game services](../docs/game-services.md), [status](../docs/game/status.md)) and its version (`sc_game_pack.h`) |
 | `include/scosdk/` | The C++20 layer over `sco_api.h`, header-only: [C++ plugins](#c-plugins). `scosdk/game/` and `scosdk/datacore.hpp` come with the Star Citizen extension |
 | `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins-1). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |

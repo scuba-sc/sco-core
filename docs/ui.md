@@ -172,6 +172,124 @@ Legacy plugins register draw callbacks in the product's menu and bind keys to co
 
 It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned services](api-v1.md#host-owned-services)) named `sco.ui`, version 1.0, found with the ordinary `query_service` of sco_api 1.1. `sco_api.h` is unchanged; the table is declared in [`include/sco_ui.h`](../include/sco_ui.h) (plain C) and pinned by [`tests/abi_ui.c`](../tests/abi_ui.c). The host kit (`sco::app::Start`) always publishes it.
 
+## Surfaces
+
+**`sco.ui.surfaces`** 1.0 ([`sco_ui_surfaces.h`](../include/sco_ui_surfaces.h),
+[`scosdk/ui_surfaces.hpp`](../include/scosdk/ui_surfaces.hpp)) says *where* one of the
+plugin's `sco.widgets` panels is shown: as a 2D HUD rectangle, as a camera-facing 3D billboard or
+as a world-anchored 3D quad. It is a renderer-neutral, host-owned service: the host validates and
+stores each surface per plugin (withdrawn on unload or crash) and draws nothing; the product's
+renderer reads the registry through the internal `sco/surfaces.h` (`sco::surfaces::Surfaces()`,
+`Revision()`) and projects each surface itself. Contracts:
+[contracts](contracts.md#scouisurfaces-sco_ui_surfaces_v1); pins: `tests/abi_ui_surfaces.c`;
+host tests: `tests/test_surfaces.cpp`. Nothing here has run in a game: the host side is covered by
+headless tests, and projection is the renderer's job.
+
+```c
+#include "sco_ui_surfaces.h"
+
+static const sco_ui_surfaces_v1* surfaces;
+static uint32_t screen_id;
+
+/* in sco_plugin_load, after set_panel(self, "hello.main", ...) */
+if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &&
+    api->query_service(SCO_UI_SURFACES_NAME, SCO_UI_SURFACES_VERSION_1_0, (const void**)&surfaces) == SCO_OK) {
+    sco_surface_pose pose = { sizeof(sco_surface_pose) };
+    pose.pos[0] = 12.0; pose.pos[1] = -3.0; pose.pos[2] = 1.5;   /* world metres */
+    pose.normal[1] = -1.0;                                     /* the face looks along -y */
+    pose.up[2] = 1.0;
+    pose.width_m = 1.6; pose.height_m = 0.9;
+    pose.max_distance_m = 50.0;
+    pose.flags = SCO_SURFACE_OCCLUDE_RAYCAST;
+    pose.panel_id = "hello.main";
+    sco_surface_desc desc = { sizeof(sco_surface_desc), SCO_SURFACE_QUAD_3D, &pose };
+    if (surfaces->register_surface(self, &desc, &screen_id) != SCO_OK) { /* last_error says why */ }
+}
+```
+
+| Kind | `pos` | `normal` | `up` | `width_m`, `height_m` | `max_distance_m`, `flags` |
+|---|---|---|---|---|---|
+| `SCO_SURFACE_HUD_2D` | centre in viewport fractions, x and y in [0, 1] (origin top-left), z = 0 | zero | zero | viewport fractions in (0, 1] | 0, none |
+| `SCO_SURFACE_BILLBOARD_3D` | centre, world metres | zero (faces the camera) | unit | metres, (0, 1000] | [0, 1e7] m (0 = no limit); `OCCLUDE_RAYCAST` optional |
+| `SCO_SURFACE_QUAD_3D` | centre, world metres | unit, the visible side | unit, perpendicular to `normal` | metres, (0, 1000] | as billboard |
+
+Every double must be finite, coordinates within 1e12 m, unit vectors within 1e-3 of length 1,
+and a quad's `normal . up` within 1e-3 of 0. `panel_id` must name a panel under the plugin's own
+id; it need not exist yet. 32 surfaces per plugin, 256 in all. `update_surface_pose` replaces the
+pose (and panel) under the same kind; `unregister_surface` removes it. Any thread; no callbacks.
+
+### Projection (the renderer's side)
+
+Notation: world points are column vectors; `C` is the camera position; `V` the view matrix and
+`P` the projection matrix of the frame, `M = P V` (4x4); the viewport is `W x H` pixels with the
+origin top-left. A panel is rendered into its own texture (or directly) in panel coordinates
+`(s, t)` in [0, 1] x [0, 1], origin top-left, like the HUD.
+
+**HUD rectangle.** No projection: the panel's screen rectangle has centre
+`(pos[0] W, pos[1] H)` and size `(width_m W, height_m H)` pixels; panel point `(s, t)` is at
+`x = (pos[0] + (s - 1/2) width_m) W`, `y = (pos[1] + (t - 1/2) height_m) H`.
+
+**Surface frame.** Each 3D surface needs an orthonormal frame at its centre `p = pos`: a facing
+`n`, a right `r` and an up `u`.
+
+- Quad: `n = normal`; `r = normalize(up x n)`; `u = n x r`. (`up` is already perpendicular to `n`
+  within 1e-3; re-orthogonalising this way removes the residue.)
+- Billboard: `n = normalize(C - p)` (toward the camera, recomputed every frame);
+  `r = normalize(up x n)`; `u = n x r`. When `up` and `n` are nearly parallel
+  (`|up x n| < 1e-6`, the camera straight above or below), use the camera's own up vector in
+  place of `up`, so the panel stays upright on screen.
+
+With `(x, y, z)` as right, up, toward-viewer, `r = u x n` and the frame is right-handed.
+
+**Panel to world.** Panel point `(s, t)` lies at
+
+```
+X(s, t) = p + (s - 1/2) w r + (1/2 - t) h u          w = width_m, h = height_m
+```
+
+so the corners are `p -/+ (w/2) r +/- (h/2) u`: top-left `(0, 0)`, top-right `(1, 0)`,
+bottom-left `(0, 1)`, bottom-right `(1, 1)`. A renderer that draws the panel texture on these four
+corners with perspective-correct interpolation needs nothing more.
+
+**Homography.** `X` is affine in `(s, t)`, so homogeneous world point `[X; 1] = A [s; t; 1]` with
+the 4x3 matrix
+
+```
+A = [ w r    -h u    p - (w/2) r + (h/2) u ]
+    [  0       0               1           ]
+```
+
+and clip coordinates are `M A [s; t; 1]`. Keep rows 1, 2 and 4 of the 4x3 product `M A` (clip x,
+y, w) to get the 3x3 homography `G`; with `q = G [s; t; 1]`, the normalised device coordinates are
+`(q1 / q3, q2 / q3)` and the pixel is
+
+```
+x = (q1 / q3 + 1) W / 2          y = (1 - q2 / q3) H / 2
+```
+
+Folding the viewport into it gives the panel-to-pixel homography
+`Hs = [[W/2, 0, W/2], [0, -H/2, H/2], [0, 0, 1]] G`, so `[x; y; 1] ~ Hs [s; t; 1]`.
+For hit testing, the inverse maps a cursor pixel back into the panel:
+`[s'; t'; k] = inverse(Hs) [x; y; 1]`, `(s, t) = (s'/k, t'/k)`; the cursor is on the panel when
+both are in [0, 1] (and the surface is visible, below). `Hs` is invertible whenever the surface is
+not seen exactly edge-on.
+
+**Visibility**, in order:
+
+1. Clip: skip the surface when any corner has clip `w <= 0` (behind the camera) unless the
+   renderer clips the quad against the near plane itself.
+2. Distance: with `max_distance_m > 0`, skip it when `|p - C| > max_distance_m`.
+3. Facing (quads only): the visible side faces along `n`; skip it when `n . (C - p) <= 0`.
+   Billboards always face the camera.
+4. Occlusion: with `SCO_SURFACE_OCCLUDE_RAYCAST`, cast a ray from `C` toward `p` against the
+   world; skip the surface when a hit lies closer than `|p - C| - epsilon` (a few centimetres,
+   so the surface's own mounting geometry does not hide it). Casting at the four corners as well
+   and hiding only when all are blocked keeps partly-visible surfaces up; either is acceptable.
+
+The panel's widget tree is the same retained `sco.widgets` tree the menu shows; how the renderer
+maps it to pixels (fonts, scale per metre) is the product's choice. Events from a projected panel
+are delivered exactly as from the menu, through the panel's `sco_widget_event_fn`.
+
 ## Contents
 
 - [Using it from C](#using-it-from-c)

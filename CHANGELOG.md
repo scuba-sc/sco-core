@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **`sco.ui.surfaces` 1.0: renderer-neutral panel placement** (`sco_api.h` unchanged), a host-owned service ([docs](docs/ui.md#surfaces), [contracts](docs/contracts.md#scouisurfaces-sco_ui_surfaces_v1)). A plugin shows one of its `sco.widgets` panels as a 2D HUD rectangle (`SCO_SURFACE_HUD_2D`), a camera-facing 3D billboard (`SCO_SURFACE_BILLBOARD_3D`) or a world-anchored 3D quad (`SCO_SURFACE_QUAD_3D`): `register_surface`, `update_surface_pose`, `unregister_surface`, `last_error` over size-prefixed `sco_surface_desc` / `sco_surface_pose` (position, normal, up, size in metres, max distance, an occlusion-raycast flag, the panel id). The host validates every field (finite numbers, unit and perpendicular vectors, bounded sizes, distances and coordinates, 32 surfaces per plugin and 256 in all, panels under the plugin's own id), stores surfaces per plugin and withdraws them on unload or crash through `sco.ui`'s release hook (no new hook slot). Products read the registry through `sco/surfaces.h` (`Surfaces()`, `Revision()`, `CheckPose`) and project it themselves; `docs/ui.md` documents the billboard and quad frames and the panel-to-pixel homography. C++ wrapper `scosdk/ui_surfaces.hpp`; C# and Lua are unsupported. Pins `tests/abi_ui_surfaces.c`, host tests `tests/test_surfaces.cpp`; both ship in core-source, the headers in core. Headless tests only: nothing has run in the game.
+
 ## sdk-v2.2.0 (2026-10-14)
 
 See the [SDK 2.2.0 release notes](docs/releases/sdk-v2.2.0.md) and the
