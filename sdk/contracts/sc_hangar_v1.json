@@ -50,14 +50,17 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "path": "sdk/csharp/Sco.Sdk/Game/Hangar.cs",
+              "token": "_t->lift_of_landing_area(Self, landingAreaId, &l);"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
+          ]
         },
         "lua": {
           "status": "unsupported",
@@ -76,7 +79,9 @@
         "tests/test_hangar.cpp",
         "tests/test_language_routes.cpp",
         "tests/test_sdk.cpp",
-        "tools/test.sh"
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -134,14 +139,17 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "path": "sdk/csharp/Sco.Sdk/Game/Hangar.cs",
+              "token": "_t->lift_request(Self, liftId, (uint)op);"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
+          ]
         },
         "lua": {
           "status": "unsupported",
@@ -160,7 +168,9 @@
         "tests/test_hangar.cpp",
         "tests/test_language_routes.cpp",
         "tests/test_sdk.cpp",
-        "tools/test.sh"
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -218,14 +228,17 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "path": "sdk/csharp/Sco.Sdk/Game/Hangar.cs",
+              "token": "_t->atc_cancel_request(Self, atcId);"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
+          ]
         },
         "lua": {
           "status": "unsupported",
@@ -244,7 +257,9 @@
         "tests/test_hangar.cpp",
         "tests/test_language_routes.cpp",
         "tests/test_sdk.cpp",
-        "tools/test.sh"
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -302,14 +317,17 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "path": "sdk/csharp/Sco.Sdk/Game/Hangar.cs",
+              "token": "return Storage.Sized((buf, size) => ((ScHangarV1*)t)->last_error((void*)self, buf, size), out byte[] b) == ScoResult.Ok"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
+          ]
         },
         "lua": {
           "status": "unsupported",
@@ -328,7 +346,9 @@
         "tests/test_hangar.cpp",
         "tests/test_language_routes.cpp",
         "tests/test_sdk.cpp",
-        "tools/test.sh"
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",

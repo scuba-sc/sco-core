@@ -1,5 +1,5 @@
-// World.cs: the game pack's service "game.world" 1.0 (sc_world.h): ray casts into the game's physics
-// and the camera the player sees through. Sco.Sdk.Game holds the game pack's services
+// World.cs: the game pack's service "game.world" 1.0 and 1.1 (sc_world.h): ray casts into the game's
+// physics, the camera the player sees through, and (1.1) the free-camera flag. Sco.Sdk.Game holds the game pack's services
 // (docs/game-services.md).
 //
 // Part of the sco SDK. GPL-3.0, like sco-core.
@@ -48,7 +48,7 @@ namespace Sco.Sdk.Game
         public delegate* unmanaged[Cdecl]<ulong, double*, double*, double, ScWorldHit*, ScoResult> raycast;
         public delegate* unmanaged[Cdecl]<double*, double*, ulong*, ScoResult> camera;
         public delegate* unmanaged[Cdecl]<void*, byte*, uint*, ScoResult> last_error;
-        public delegate* unmanaged[Cdecl]<uint*, ScoResult> free_camera_flag; // 1.1, layout only: no managed route
+        public delegate* unmanaged[Cdecl]<uint*, ScoResult> free_camera_flag; // 1.1
     }
 
     /// <summary>A ray's hit: where, how far, and which optional fields the game pack filled.</summary>
@@ -62,8 +62,9 @@ namespace Sco.Sdk.Game
     /// The game service "game.world" (docs/game-services.md). Published by the Star Citizen game
     /// pack: Open answers NotFound on a host without it. Game thread only (a command, a tick or a
     /// RunOnGameThread task); from another thread every call answers WrongThread. Both calls are
-    /// read-only. Capabilities: game.world.raycast, game.world.camera. There is no field of view: the
-    /// game doesn't pin one (sc_world.h).
+    /// read-only. Capabilities: game.world.raycast, game.world.camera, and (1.1)
+    /// game.world.free_camera_flag (OFF by default). There is no field of view: the game doesn't pin
+    /// one (sc_world.h).
     /// </summary>
     public sealed unsafe class World
     {
@@ -116,6 +117,19 @@ namespace Sco.Sdk.Game
             ulong zone = 0;
             ScoResult r = _t->camera(pos, rot, &zone);
             if (r == ScoResult.Ok) camera = new WorldCamera(pos[0], pos[1], pos[2], rot[0], rot[1], rot[2], rot[3], zone);
+            return r;
+        }
+
+        /// <summary>1.1: enabled = true when the game's free-camera flag is non-zero. Only reads; it
+        /// neither turns the free camera on nor off. false on any failure. Unavailable on a 1.0 table
+        /// (shorter than free_camera_flag) or while game.world.free_camera_flag is off.</summary>
+        public ScoResult TryGetFreeCameraFlag(out bool enabled)
+        {
+            enabled = false;
+            if (_t == null || _t->size < (uint)((byte*)&_t->free_camera_flag - (byte*)_t + sizeof(nint)) || _t->free_camera_flag == null) return ScoResult.Unavailable;
+            uint raw = 0;
+            ScoResult r = _t->free_camera_flag(&raw);
+            enabled = r == ScoResult.Ok && raw != 0;
             return r;
         }
 

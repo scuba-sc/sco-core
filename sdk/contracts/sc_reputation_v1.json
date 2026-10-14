@@ -50,14 +50,17 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.reputation routes are unsupported."
+              "path": "sdk/csharp/Sco.Sdk/Game/Reputation.cs",
+              "token": "_t->checks(Self, &c);"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
+          ]
         },
         "lua": {
           "status": "unsupported",
@@ -76,7 +79,9 @@
         "tests/test_reputation.cpp",
         "tests/test_language_routes.cpp",
         "tests/test_sdk.cpp",
-        "tools/test.sh"
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",
@@ -134,14 +139,17 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.reputation routes are unsupported."
+              "path": "sdk/csharp/Sco.Sdk/Game/Reputation.cs",
+              "token": "return Storage.Sized((buf, size) => ((ScReputationV1*)t)->last_error((void*)self, buf, size), out byte[] b) == ScoResult.Ok"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
+          ]
         },
         "lua": {
           "status": "unsupported",
@@ -160,7 +168,9 @@
         "tests/test_reputation.cpp",
         "tests/test_language_routes.cpp",
         "tests/test_sdk.cpp",
-        "tools/test.sh"
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "internal allocation unspecified.",

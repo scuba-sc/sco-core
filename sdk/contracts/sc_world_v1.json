@@ -326,14 +326,17 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.world free_camera_flag routes are unsupported."
+              "path": "sdk/csharp/Sco.Sdk/Game/World.cs",
+              "token": "ScoResult r = _t->free_camera_flag(&raw);"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
+          ]
         },
         "lua": {
           "status": "unsupported",
@@ -352,7 +355,9 @@
         "tests/test_world_free_cam.cpp",
         "tests/test_language_routes.cpp",
         "tests/test_sdk.cpp",
-        "tools/test.sh"
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
         "Internal allocation unspecified.",

@@ -1,5 +1,5 @@
 // GameFakeHost.cs: the Star Citizen extension's part of the fake-host test: stand-ins for game.actors,
-// game.entities, game.world and game.creative, and the tests of their C# wrappers and of the game.*
+// game.entities, game.world, game.creative, game.hangar and game.reputation, and the tests of their C# wrappers and of the game.*
 // events. Part of sco-sdk-game-sc; FakeHost.cs runs without it.
 //
 // Part of the sco SDK. GPL-3.0, like sco-core.
@@ -20,6 +20,11 @@ namespace Sco.Sdk.Tests
         private static uint _creativeFlags;      // its toggles
         private static float _creativeSpeed;
         private static bool _actorEntityServicesMissing;
+        private static ScHangarV1* _hangar;      // a stand-in game.hangar
+        private static uint _hangarLastOp;       // the last op a lift request handed over
+        private static ScReputationV1* _reputation;  // a stand-in game.reputation
+        private static uint _freeCamValue = 1;   // what the stand-in free-camera flag reads
+        private static int _freeCamCalls;
 
         static partial void GameQueryService(string name, void** o, ref bool found)
         {
@@ -28,6 +33,52 @@ namespace Sco.Sdk.Tests
             if (name == GameAbi.EntitiesName) { *o = _entities; found = true; return; }
             if (name == GameAbi.WorldName) { *o = _world; found = true; return; }
             if (name == GameAbi.CreativeName) { *o = _creative; found = true; return; }
+            if (name == GameAbi.HangarName) { *o = _hangar; found = true; return; }
+            if (name == GameAbi.ReputationName) { *o = _reputation; found = true; return; }
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult HgLiftOf(void* self, ulong area, ulong* lift)
+        {
+            if (self != _self || area == 0 || lift == null) return ScoResult.BadArg;
+            if (area != 21) return ScoResult.NotFound;
+            *lift = 31;
+            return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult HgLiftRequest(void* self, ulong lift, uint op)
+        {
+            if (self != _self || lift != 31 || (op != 1 && op != 2)) return ScoResult.BadArg;
+            _hangarLastOp = op;
+            return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult HgAtcCancel(void* self, ulong atc) => self == _self && atc == 41 ? ScoResult.Ok : ScoResult.NotFound;
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult HgLastError(void* self, byte* o, uint* io) => Bytes(self == _self ? "no lift" : "hangar-other", o, io);
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult RepChecks(void* self, ScReputationChecks* c)
+        {
+            if (self != _self || c == null || c->size < (uint)sizeof(ScReputationChecks)) return ScoResult.BadArg;
+            c->sites = 3;
+            c->intact = 2;
+            c->services = 1;
+            return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult RepLastError(void* self, byte* o, uint* io) => Bytes(self == _self ? "rep-why" : "rep-other", o, io);
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult WorldFreeCam(uint* set)
+        {
+            ++_freeCamCalls;
+            *set = _freeCamValue;
+            return ScoResult.Ok;
         }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -264,6 +315,17 @@ namespace Sco.Sdk.Tests
             _world->raycast = &WorldRaycast;
             _world->camera = &WorldCamera;
             _world->last_error = &WorldLastError;
+            _world->free_camera_flag = &WorldFreeCam;
+            _hangar = (ScHangarV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScHangarV1));
+            _hangar->size = (uint)sizeof(ScHangarV1);
+            _hangar->lift_of_landing_area = &HgLiftOf;
+            _hangar->lift_request = &HgLiftRequest;
+            _hangar->atc_cancel_request = &HgAtcCancel;
+            _hangar->last_error = &HgLastError;
+            _reputation = (ScReputationV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScReputationV1));
+            _reputation->size = (uint)sizeof(ScReputationV1);
+            _reputation->checks = &RepChecks;
+            _reputation->last_error = &RepLastError;
             _creative = (ScCreativeV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScCreativeV1));
             _creative->size = (uint)sizeof(ScCreativeV1);
             _creative->set_god_mode = &CrGod;
@@ -470,6 +532,49 @@ namespace Sco.Sdk.Tests
             Expect(world.Raycast(9, new double[] { 0, 0 }, new double[] { 0, 0, -1 }, 10, out _) == ScoResult.BadArg, "Raycast wants 3 coordinates");
             Expect(world.Camera(out WorldCamera cam) == ScoResult.Ok && cam.X == 1 && cam.Z == 3 && cam.Qw == 1 && cam.ZoneId == 9, "World.Camera");
             Expect(world.LastError() == "no hit", "World.LastError");
+            Expect(world.TryGetFreeCameraFlag(out bool freeCam) == ScoResult.Ok && freeCam, "World.TryGetFreeCameraFlag (1.1)");
+            _freeCamValue = 0;
+            Expect(world.TryGetFreeCameraFlag(out freeCam) == ScoResult.Ok && !freeCam, "TryGetFreeCameraFlag reads a zero flag as false");
+            _freeCamValue = 1;
+            uint worldSize = _world->size;
+            int freeCamCalls = _freeCamCalls;
+            _world->size = 32;   // a 1.0 table: free_camera_flag is past its end
+            Expect(world.Open(p) == ScoResult.Ok && world.Camera(out _) == ScoResult.Ok, "a 1.0 world table still opens and answers its 1.0 calls");
+            Expect(world.TryGetFreeCameraFlag(out freeCam) == ScoResult.Unavailable && !freeCam && _freeCamCalls == freeCamCalls,
+                   "a 1.0 world table answers Unavailable without calling free_camera_flag");
+            _world->size = worldSize;
+            Expect(new World().TryGetFreeCameraFlag(out freeCam) == ScoResult.Unavailable && !freeCam, "a World that isn't open answers Unavailable");
+
+            var hangar = new Hangar();
+            Expect(new Hangar().LiftRequest(31, ScHangarLiftOp.Open) == ScoResult.Unavailable && new Hangar().LastError() == "",
+                   "a Hangar that isn't open answers Unavailable");
+            Expect(hangar.Open(p) == ScoResult.Ok && hangar.IsOpen, "game.hangar opens");
+            Expect(hangar.LiftOfLandingArea(21, out ulong lift) == ScoResult.Ok && lift == 31, "Hangar.LiftOfLandingArea");
+            Expect(hangar.LiftOfLandingArea(22, out lift) == ScoResult.NotFound && lift == 0, "LiftOfLandingArea without a lift");
+            Expect(hangar.LiftRequest(31, ScHangarLiftOp.Open) == ScoResult.Ok && _hangarLastOp == 1 &&
+                   hangar.LiftRequest(31, ScHangarLiftOp.Close) == ScoResult.Ok && _hangarLastOp == 2, "Hangar.LiftRequest passes the op");
+            Expect(hangar.LiftRequest(31, (ScHangarLiftOp)7) == ScoResult.BadArg, "LiftRequest of an unknown op is the host's BadArg");
+            Expect(hangar.AtcCancelRequest(41) == ScoResult.Ok && hangar.AtcCancelRequest(42) == ScoResult.NotFound, "Hangar.AtcCancelRequest");
+            Expect(hangar.LastError() == "no lift", "Hangar.LastError passes this plugin's handle");
+            uint hangarSize = _hangar->size;
+            _hangar->size = 39;   // shorter than the 1.0 table
+            Expect(hangar.Open(p) == ScoResult.Unavailable && !hangar.IsOpen, "hangar rejects a short table and closes");
+            _hangar->size = hangarSize;
+            Expect(hangar.AtcCancelRequest(41) == ScoResult.Unavailable, "a failed hangar reopen disables its calls");
+            Expect(hangar.Open(p) == ScoResult.Ok, "hangar recovers after a failed reopen");
+
+            var rep = new Reputation();
+            Expect(new Reputation().Checks(out ScReputationChecks rc) == ScoResult.Unavailable && rc.size == (uint)sizeof(ScReputationChecks) && rc.sites == 0,
+                   "a Reputation that isn't open answers Unavailable with a zeroed, sized struct");
+            Expect(rep.Open(p) == ScoResult.Ok && rep.IsOpen, "game.reputation opens");
+            Expect(rep.Checks(out rc) == ScoResult.Ok && rc.sites == 3 && rc.intact == 2 && rc.services == 1, "Reputation.Checks");
+            Expect(rep.LastError() == "rep-why", "Reputation.LastError passes this plugin's handle");
+            uint repSize = _reputation->size;
+            _reputation->size = 23;   // shorter than the 1.0 table
+            Expect(rep.Open(p) == ScoResult.Unavailable && !rep.IsOpen, "reputation rejects a short table and closes");
+            _reputation->size = repSize;
+            Expect(rep.Checks(out rc) == ScoResult.Unavailable && rc.sites == 0, "a failed reputation reopen disables Checks");
+            Expect(rep.Open(p) == ScoResult.Ok, "reputation recovers after a failed reopen");
 
             ScGamePlayerDied died = default;
             int diedCount = 0;
@@ -514,6 +619,29 @@ namespace Sco.Sdk.Tests
                 (nameof(ScWorldV1.camera), () => world.Camera(out WorldCamera cam) == ScoResult.Unavailable && cam == default,
                     () => world.Camera(out _) == ScoResult.Ok),
                 (nameof(ScWorldV1.last_error), () => world.LastError() == "", () => world.LastError() == "no hit"),
+                (nameof(ScWorldV1.free_camera_flag),
+                    () => world.TryGetFreeCameraFlag(out bool fcOff) == ScoResult.Unavailable && !fcOff,
+                    () => world.TryGetFreeCameraFlag(out bool fcOn) == ScoResult.Ok && fcOn),
+            });
+            CheckGameFields(_hangar, new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
+            {
+                (nameof(ScHangarV1.lift_of_landing_area),
+                    () => hangar.LiftOfLandingArea(21, out ulong l0) == ScoResult.Unavailable && l0 == 0,
+                    () => hangar.LiftOfLandingArea(21, out ulong l1) == ScoResult.Ok && l1 == 31),
+                (nameof(ScHangarV1.lift_request),
+                    () => hangar.LiftRequest(31, ScHangarLiftOp.Open) == ScoResult.Unavailable,
+                    () => hangar.LiftRequest(31, ScHangarLiftOp.Open) == ScoResult.Ok),
+                (nameof(ScHangarV1.atc_cancel_request),
+                    () => hangar.AtcCancelRequest(41) == ScoResult.Unavailable,
+                    () => hangar.AtcCancelRequest(41) == ScoResult.Ok),
+                (nameof(ScHangarV1.last_error), () => hangar.LastError() == "", () => hangar.LastError() == "no lift"),
+            });
+            CheckGameFields(_reputation, new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
+            {
+                (nameof(ScReputationV1.checks),
+                    () => rep.Checks(out ScReputationChecks c0) == ScoResult.Unavailable && c0.sites == 0,
+                    () => rep.Checks(out ScReputationChecks c1) == ScoResult.Ok && c1.sites == 3),
+                (nameof(ScReputationV1.last_error), () => rep.LastError() == "", () => rep.LastError() == "rep-why"),
             });
             CheckGameFields(_creative, new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
             {
