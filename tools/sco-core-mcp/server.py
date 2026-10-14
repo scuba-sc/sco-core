@@ -3,12 +3,15 @@
 
 No SDK invocation, subprocesses, network access, or filesystem writes. Stdout is
 reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr. Besides
-the catalogue and record-listed examples, only docs/game/status.md and
-docs/legal/release-decisions/ are read, and only beneath --repo-root.
+the catalogue and record-listed examples, only sdk/status_registry.json (else
+docs/game/status.md), docs/legal/release-decisions/ and, with --extended-tools,
+sdk/native_index.json are read, and only beneath --repo-root.
 """
 import argparse
 from collections import deque
+import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -41,6 +44,25 @@ RELEASE_DIR = ("docs", "legal", "release-decisions")
 MAX_RELEASE_RECORDS = 64
 DISTRIBUTION_STATUSES = {"approved-for-publication", "internal-only", "hold"}
 GAME_STATUS = ("docs", "game", "status.md")
+STATUS_REGISTRY = ("sdk", "status_registry.json")
+MAX_REGISTRY = 1024 * 1024
+REGISTRY_KINDS = {"service", "event_bus", "signature_rows"}
+REGISTRY_DEFAULTS = {"ON", "OFF", "none"}
+REGISTRY_LEVELS = {"sigcheck_resolved", "in_game_verified", "off_pending_probe",
+                   "synthetic_only", "blocked", "undocumented"}
+REGISTRY_ENTRY_KEYS = {"id", "kind", "service", "header", "doc", "title", "version", "capabilities"}
+REGISTRY_CAP_KEYS = {"name", "display", "methods", "default", "evidence_level", "evidence", "game_build",
+                     "sig_rows", "spike_ref", "evidence_source"}
+NATIVE_INDEX = ("sdk", "native_index.json")
+MAX_NATIVE_INDEX = 4 * 1024 * 1024
+NATIVE_KEYS = {"schema_version", "about", "tiers", "row_count", "entries"}
+NATIVE_ENTRY_KEYS = {"id", "subsystem", "hash", "tier", "source"}
+NATIVE_HASH = re.compile(r"_0x[0-9A-F]{16}")
+NATIVE_CONCLUSIONS = [
+    "hash is _0x plus 16 hex digits of sha256('sco-core:native:' + id): a stable symbolic name, not an address. The index records no pattern, mask, offset or address.",
+    "tier comes from sdk/status_registry.json sig_rows: tier 2 means no registry capability names the row, not that the row is unused.",
+    "A registered row is not evidence that it resolves on any game build or that anything ran in game.",
+    "Read from --repo-root at server start; not bound to the catalogue source_sha."]
 GAME_STATUS_HEADER = "| Table | Version | Capability | Default | Evidence |"
 GAME_STATUS_SEPARATOR = "|---|---|---|---|---|"
 GAME_STATUS_TABLE = re.compile(r"`([^`]+)` \(\[`([^`/]+)`\]\([^)\s]+\)\)")
@@ -92,7 +114,34 @@ TOOLS = [
           "member_extent": {"type": "integer", "minimum": 1, "maximum": 65535}},
          dependent={"min_version": ["service"], "member_extent": ["service"]}),
 ]
-TOOL_INDEX = {definition["name"]: definition for definition in TOOLS}
+UINT32 = {"type": "integer", "minimum": 0, "maximum": 0xFFFFFFFF}
+WIDGET_KIND_NAMES = ("label", "button", "toggle", "slider", "combo", "list", "text_input", "table", "row", "column")
+WIDGET_TEXT = {"type": ["string", "null"], "maxLength": 1024}
+WIDGET_NODE = {
+    "type": "object", "required": ["kind", "id"], "additionalProperties": False,
+    "properties": {
+        "kind": {"oneOf": [UINT32, {"type": "string", "enum": list(WIDGET_KIND_NAMES)}]},
+        "id": UINT32, "parent": UINT32, "flags": UINT32, "columns": UINT32,
+        "index": {"type": "integer", "minimum": -0x80000000, "maximum": 0x7FFFFFFF},
+        "label": WIDGET_TEXT, "text": WIDGET_TEXT,
+        "value": {"type": "number"}, "minimum": {"type": "number"}, "maximum": {"type": "number"},
+        "items": {"type": ["array", "null"], "maxItems": 1024, "items": {"type": "string", "maxLength": 1024}}}}
+# Opt-in with --extended-tools, so the default tools/list stays the original six for existing allowlists.
+EXTENDED_TOOLS = [
+    tool("list_engine_natives", "List signature rows of sdk/native_index.json beneath --repo-root, filtered by subsystem, tier or a "
+         "case-insensitive substring of id, hash, subsystem, source or capability, one bounded page per call; symbolic hashes only.",
+         {"subsystem": string_schema(64), "tier": {"type": "integer", "minimum": 1, "maximum": 4},
+          "query": string_schema(128), "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25},
+          "cursor": {**string_schema(6), "pattern": r"^(0|[1-9][0-9]{0,5})$"}}),
+    tool("get_engine_native", "Return one signature row of sdk/native_index.json by row id or _0x hash with its tier meaning; "
+         "not evidence that the row resolves on a game build or ran in game.",
+         {"id_or_hash": string_schema(128)}, ("id_or_hash",)),
+    tool("validate_manifest_and_widgets", "Check plugin.ini text with sco-plugin-check's manifest rules and optional sco_widget_node "
+         "objects against the sco_widgets.h tree invariants; returns findings and touches no files.",
+         {"plugin_ini": string_schema(32768), "folder": {**string_schema(255), "pattern": r"^[^/\\]+$"},
+          "widgets": {"type": "array", "minItems": 1, "maxItems": 256, "items": WIDGET_NODE}}, ("plugin_ini",)),
+]
+TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS}
 
 
 class ToolError(ValueError):
@@ -210,6 +259,9 @@ def validate_arguments(name, arguments):
         if spec["type"] == "string":
             if not nonempty(value) or not spec.get("minLength", 0) <= len(value) <= spec.get("maxLength", 512):
                 raise ToolError(key + " must be a nonempty bounded string")
+        elif spec["type"] == "array":
+            if not isinstance(value, list) or not spec["minItems"] <= len(value) <= spec["maxItems"]:
+                raise ToolError("%s must be an array of %d-%d items" % (key, spec["minItems"], spec["maxItems"]))
         elif type(value) is not int or not spec["minimum"] <= value <= spec["maximum"]:
             raise ToolError(key + " must be an integer within the advertised range")
         if "enum" in spec and value not in spec["enum"]:
@@ -239,7 +291,7 @@ def reject_symlinks(base, parts):
             raise ToolError("Symlink example paths are refused")
 
 
-def read_example(root, parts):
+def read_example(root, parts, limit=MAX_EXAMPLE):
     """Open a catalogue-supplied relative path inside the configured root.
 
     The root is operator-configured and therefore trusted: symlinks in it are
@@ -276,11 +328,11 @@ def read_example(root, parts):
         info = os.fstat(stream.fileno())
         if not stat.S_ISREG(info.st_mode):
             raise ToolError("Example must be a regular file")
-        if info.st_size > MAX_EXAMPLE:
-            raise ToolError("Example exceeds 256 KiB")
-        raw = stream.read(MAX_EXAMPLE + 1)
-    if len(raw) > MAX_EXAMPLE:
-        raise ToolError("Example exceeds 256 KiB")
+        if info.st_size > limit:
+            raise ToolError("Example exceeds %d KiB" % (limit // 1024))
+        raw = stream.read(limit + 1)
+    if len(raw) > limit:
+        raise ToolError("Example exceeds %d KiB" % (limit // 1024))
     return raw.decode("utf-8")
 
 
@@ -358,19 +410,564 @@ def parse_game_status(text, tables):
         require(capability and evidence and default in {"ON", "OFF", "none"}, "unrecognized service table row")
         if current is None:
             continue
-        row = {"capability": capability, "default": default, "evidence": evidence}
-        level = SIGCHECK_LEVEL.match(evidence)
-        if level:
-            row.update(evidence_level="row_resolved_sigcheck", game_build=level[1])
-        elif evidence == "OFF pending in-game confirmation":
-            row["evidence_level"] = "off_pending_in_game_confirmation"
-        elif evidence == "BLOCKED":
-            row["evidence_level"] = "blocked"
-        else:
-            # Includes any in-game claim: this server never reports gameplay verification.
-            row["evidence_level"] = "unclassified"
-        groups[current]["rows"].append(row)
+        groups[current]["rows"].append({"capability": capability, "default": default, "evidence": evidence,
+                                         **classify_evidence(evidence)})
     return groups
+
+
+def classify_evidence(evidence):
+    level = SIGCHECK_LEVEL.match(evidence)
+    if level:
+        return {"evidence_level": "row_resolved_sigcheck", "game_build": level[1]}
+    if evidence == "OFF pending in-game confirmation":
+        return {"evidence_level": "off_pending_in_game_confirmation"}
+    if evidence == "BLOCKED":
+        return {"evidence_level": "blocked"}
+    # Includes any in-game claim: this server never reports gameplay verification.
+    return {"evidence_level": "unclassified"}
+
+
+def registry_row(cap):
+    """One registry capability as a status row: the rendered cell plus the registry's structured fields."""
+    require(isinstance(cap, dict) and set(cap) <= REGISTRY_CAP_KEYS, "capability has unknown keys")
+    require(isinstance(cap.get("default"), str) and cap["default"] in REGISTRY_DEFAULTS, "capability default is not ON, OFF or none")
+    require(isinstance(cap.get("evidence_level"), str) and cap["evidence_level"] in REGISTRY_LEVELS, "unknown evidence_level")
+    require(nonempty(cap.get("evidence")) and "|" not in cap["evidence"], "capability evidence must be text")
+    require(cap.get("name") is None or nonempty(cap["name"]), "capability name must be text or null")
+    require("display" not in cap or nonempty(cap["display"]), "capability display must be text")
+    require(nonempty(cap.get("display")) or nonempty(cap.get("name")), "capability needs a name or display")
+    for key in ("methods", "sig_rows"):
+        require(key not in cap or (isinstance(cap[key], list) and all(nonempty(v) for v in cap[key])), key + " must be a list of text")
+    for key in ("game_build", "spike_ref", "evidence_source"):
+        require(key not in cap or nonempty(cap[key]), key + " must be text")
+    if cap.get("display"):
+        cell = cap["display"]
+    else:
+        cell = "`%s`" % cap["name"]
+        if cap.get("methods"):
+            cell += " (%s)" % ", ".join("`%s`" % m for m in cap["methods"])
+    row = {"capability": cell, "default": cap["default"], "evidence": cap["evidence"], **classify_evidence(cap["evidence"])}
+    # The registry's own level, except that an in-game claim is withheld like any other.
+    row["registry_evidence_level"] = "unclassified" if cap["evidence_level"] == "in_game_verified" else cap["evidence_level"]
+    for key in ("name", "methods", "sig_rows", "spike_ref", "evidence_source"):
+        if key in cap:
+            row[key] = cap[key]
+    return row
+
+
+def parse_status_registry(text, tables):
+    """Strictly read sdk/status_registry.json into the same groups parse_game_status returns.
+
+    Only kind "service" entries are attributed, and only when the service and the header
+    file name both match a catalogue table (the status.md rule). Any malformed entry
+    refuses the whole registry.
+    """
+    data = parse_json(text)
+    require(isinstance(data, dict) and set(data) == {"schema_version", "about", "services"}, "unexpected top-level keys")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "unsupported schema_version; expected 1")
+    entries = data["services"]
+    require(isinstance(entries, list) and len(entries) <= 512, "services must be a list of at most 512 entries")
+    by_service = {table["service"]: (name, table) for name, table in tables.items()}
+    groups = {}
+    for entry in entries:
+        require(isinstance(entry, dict) and set(entry) <= REGISTRY_ENTRY_KEYS, "entry has unknown keys")
+        require(isinstance(entry.get("kind"), str) and entry["kind"] in REGISTRY_KINDS, "unknown entry kind")
+        require(all(nonempty(entry.get(key)) for key in ("id", "service", "version")), "entry needs id, service and version")
+        capabilities = entry.get("capabilities")
+        require(isinstance(capabilities, list) and 1 <= len(capabilities) <= 256, "entry needs 1-256 capabilities")
+        rows = [registry_row(cap) for cap in capabilities]
+        if entry["kind"] != "service":
+            continue
+        require(nonempty(entry.get("header")), "service entry has no header")
+        if entry["service"] not in by_service:
+            continue
+        name, table = by_service[entry["service"]]
+        if PurePosixPath(table["source_header"]).name != PurePosixPath(entry["header"]).name:
+            continue
+        require(name not in groups, "registry repeats a service")
+        catalogue_version = "%d.%d" % (table["version"] >> 16, table["version"] & 0xFFFF)
+        groups[name] = {"documented_version": entry["version"],
+                        "version_matches_catalogue": entry["version"] == catalogue_version, "rows": rows}
+    return groups
+
+
+def native_hash(identifier):
+    return "_0x" + hashlib.sha256(("sco-core:native:" + identifier).encode("utf-8")).hexdigest()[:16].upper()
+
+
+def parse_native_index(text):
+    """Strictly read sdk/native_index.json; any malformed entry refuses the whole index."""
+    data = parse_json(text)
+    require(isinstance(data, dict) and set(data) == NATIVE_KEYS, "unexpected top-level keys")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "unsupported schema_version; expected 1")
+    tiers = data["tiers"]
+    require(isinstance(tiers, dict) and set(tiers) == {"1", "2", "3", "4"} and all(nonempty(v) for v in tiers.values()),
+            "tiers must describe 1-4")
+    entries = data["entries"]
+    require(isinstance(entries, list) and len(entries) <= 65536 and type(data["row_count"]) is int
+            and data["row_count"] == len(entries), "row_count must equal the number of entries")
+    by_key = {}
+    for entry in entries:
+        require(isinstance(entry, dict) and set(entry) in (NATIVE_ENTRY_KEYS, NATIVE_ENTRY_KEYS | {"capability"}), "entry keys")
+        require(all(nonempty(entry[key]) and len(entry[key]) <= 256 for key in ("id", "subsystem", "source")), "entry text")
+        require(type(entry["tier"]) is int and 1 <= entry["tier"] <= 4, "entry tier must be 1-4")
+        require(entry["hash"] == native_hash(entry["id"]), "entry hash is not derived from its id")
+        require("capability" not in entry or (isinstance(entry["capability"], list) and entry["capability"]
+                                              and all(nonempty(c) for c in entry["capability"])), "entry capability")
+        require(entry["id"] not in by_key and entry["hash"] not in by_key, "duplicate id or hash")
+        by_key[entry["id"]] = by_key[entry["hash"]] = entry
+    return data, by_key
+
+
+# ---- plugin.ini: sdk/tools/sco-plugin-check.c read_manifest/setting_line, rule for rule, on bytes ----
+SCO_API_VERSION = (1, 1)  # SCO_API_MAJOR/SCO_API_MINOR in include/sco_api.h; the tests compare them.
+MAX_MANIFEST_BYTES = 16 * 1024
+MANIFEST_KEYS = (b"id", b"name", b"version", b"author", b"api", b"kind", b"entry", b"requires")
+SETTING_FIELDS = (b"default", b"min", b"max", b"label", b"help")
+SPACE = b" \t"
+
+
+class ManifestRefused(ValueError):
+    def __init__(self, message, line=None):
+        super().__init__(message)
+        self.line = line
+
+
+def _text(raw):
+    return raw.decode("utf-8", errors="replace")
+
+
+def _bad(line, what):
+    raise ManifestRefused("plugin.ini line %d: %s" % (line, what), line)
+
+
+def _trim(s):
+    return s.lstrip(SPACE).rstrip(b" \t\r")
+
+
+def _strip_comment(s):
+    for i, c in enumerate(s):
+        if c in b";#" and (i == 0 or s[i - 1] in SPACE):
+            return s[:i]
+    return s
+
+
+def _strip_settings_comment(s):
+    quoted = False
+    for i, c in enumerate(s):
+        if c == 0x22:
+            quoted = not quoted
+        elif not quoted and c in b";#" and (i == 0 or s[i - 1] in SPACE):
+            return s[:i]
+    return s
+
+
+def _id_chars(s):
+    return all(0x61 <= c <= 0x7A or 0x30 <= c <= 0x39 or c == 0x5F for c in s)
+
+
+def _valid_word(s, maximum):
+    return 1 <= len(s) <= maximum and _id_chars(s)
+
+
+def _valid_capability(s):
+    return (1 <= len(s) <= 63 and not s.startswith(b".") and not s.endswith(b".") and b".." not in s
+            and _id_chars(s.replace(b".", b"")))
+
+
+def _valid_text(s, maximum):
+    return 1 <= len(s) <= maximum and all(c >= 0x20 and c != 0x7F for c in s)
+
+
+def _valid_entry(s):
+    return (1 <= len(s) <= 63 and s not in (b".", b"..")
+            and all(c >= 0x20 and c not in b'/\\:*?"<>|' for c in s))
+
+
+def _parse_api(s):
+    major, dot, minor = s.partition(b".")
+    parts = [major, minor]
+    if not dot or not all(re.fullmatch(rb"[0-9]{1,5}", p) and int(p) <= 0xFFFF for p in parts):
+        return None
+    return int(major), int(minor)
+
+
+def _parse_i64(s):
+    if not re.fullmatch(rb"[+-]?[0-9]{1,19}", s):
+        return None
+    value = int(s)
+    return value if -2 ** 63 <= value <= 2 ** 63 - 1 else None
+
+
+def _parse_f64(s):
+    if len(s) > 64 or not re.fullmatch(rb"[+-]?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?", s):
+        return None
+    value = float(s)
+    return value if math.isfinite(value) else None
+
+
+def _check_setting(decl, text):
+    """None when text is a value of decl (type, range, choice); else why."""
+    kind = decl["type"]
+    if kind == "bool":
+        return None if text in (b"true", b"false") else "'%s' is not true or false" % _text(text)
+    if kind in ("int", "float"):
+        value = _parse_i64(text) if kind == "int" else _parse_f64(text)
+        if value is None:
+            return "'%s' is not %s" % (_text(text), "an integer" if kind == "int" else "a number")
+        shown = "%d" if kind == "int" else "%.17g"
+        if "min" in decl and value < decl["min"]:
+            return (shown + " is below min " + shown) % (value, decl["min"])
+        if "max" in decl and value > decl["max"]:
+            return (shown + " is above max " + shown) % (value, decl["max"])
+        return None
+    if kind == "string":
+        return None if len(text) <= 255 and all(c >= 0x20 and c != 0x7F for c in text) else \
+            "a string is at most 255 printable characters"
+    if text in decl["choices"]:
+        return None
+    return "'%s' is not one of %s" % (_text(text), ", ".join(_text(c) for c in decl["choices"]))
+
+
+class _Lexer:
+    def __init__(self, s):
+        self.s, self.p, self.bad = s, 0, False
+
+    def skip(self):
+        while self.p < len(self.s) and self.s[self.p] in SPACE:
+            self.p += 1
+
+    def next(self):
+        """(token, quoted), or None at the end or on a malformed quote (then bad is set)."""
+        s = self.s
+        self.skip()
+        if self.p >= len(s):
+            return None
+        if s[self.p] == 0x22:
+            close = s.find(b'"', self.p + 1)
+            if close < 0:
+                self.bad = True
+                return None
+            token = s[self.p + 1:close]
+            self.p = close + 1
+            if self.p < len(s) and s[self.p] not in SPACE:
+                self.bad = True
+                return None
+            return token, True
+        begin = self.p
+        while self.p < len(s) and s[self.p] not in SPACE:
+            if s[self.p] == 0x22:
+                self.bad = True
+                return None
+            self.p += 1
+        return s[begin:self.p], False
+
+
+def _setting_line(line, settings, number):
+    eq = line.find(b"=")
+    if eq < 0:
+        _bad(number, "expected name = type ...")
+    name = _trim(line[:eq])
+    if not _valid_word(name, 31):
+        _bad(number, "setting name must be 1-31 of [a-z0-9_]")
+
+    def refuse(what):
+        raise ManifestRefused("plugin.ini line %d: setting '%s': %s" % (number, _text(name), what), number)
+
+    if any(setting["name"] == _text(name) for setting in settings):
+        refuse("declared twice")
+    if len(settings) == 32:
+        refuse("more than 32 settings")
+    lexer = _Lexer(line[eq + 1:])
+    lexer.skip()
+    if lexer.s.startswith(b"enum(", lexer.p):
+        close = lexer.s.find(b")", lexer.p)
+        if close < 0:
+            refuse("enum( needs a closing )")
+        kind = lexer.s[lexer.p:close + 1]
+        lexer.p = close + 1
+        if lexer.p < len(lexer.s) and lexer.s[lexer.p] not in SPACE:
+            refuse("expected a space after the type")
+    else:
+        token = lexer.next()
+        if token is None or token[1]:
+            refuse("missing type (bool, int, float, string or enum(a,b,c))")
+        kind = token[0]
+    decl = {"choices": []}
+    if kind in (b"bool", b"int", b"float", b"string"):
+        decl["type"] = kind.decode("ascii")
+    elif kind.startswith(b"enum("):
+        decl["type"] = "enum"
+        for choice in kind[5:-1].split(b","):
+            choice = _trim(choice)
+            if not _valid_word(choice, 31):
+                refuse("enum choices are a comma list of 1-31 of [a-z0-9_]")
+            if choice in decl["choices"]:
+                refuse("enum lists a choice twice")
+            if len(decl["choices"]) == 16:
+                refuse("enum lists more than 16 choices")
+            decl["choices"].append(choice)
+    else:
+        refuse("type must be bool, int, float, string or enum(a,b,c)")
+    have = {}
+    while True:
+        key = lexer.next()
+        if key is None:
+            break
+        if key[1] or key[0] not in SETTING_FIELDS:
+            refuse("unknown field '%s' (default, min, max, label, help)" % _text(key[0]))
+        field = key[0].decode("ascii")
+        if field in have:
+            refuse("field '%s' given twice" % field)
+        value = lexer.next()
+        if value is None:
+            if lexer.bad:
+                break
+            refuse("field '%s' needs a value" % field)
+        have[field] = value[0]
+    if lexer.bad:
+        refuse("a quote is not closed, or not at the start of a value")
+    if "min" in have or "max" in have:
+        if decl["type"] not in ("int", "float"):
+            refuse("min and max apply to int and float only")
+        probe = dict(decl)  # bounds are values of the type, checked before any bound exists
+        for field in ("min", "max"):
+            if field in have:
+                why = _check_setting(probe, have[field])
+                if why:
+                    refuse(field + " " + why)
+                decl[field] = (_parse_i64 if decl["type"] == "int" else _parse_f64)(have[field])
+        if "min" in decl and "max" in decl and decl["min"] > decl["max"]:
+            refuse("min %s is above max %s" % (_text(have["min"]), _text(have["max"])))
+    if "label" in have and not _valid_text(have["label"], 63):
+        refuse("label must be 1-63 printable characters")
+    if "help" in have and not _valid_text(have["help"], 255):
+        refuse("help must be 1-255 printable characters")
+    if "default" in have:
+        why = _check_setting(decl, have["default"])
+        if why:
+            refuse("default " + why)
+    settings.append({"name": _text(name), "type": decl["type"]})
+
+
+def read_manifest(raw, notes):
+    """The parsed manifest, or ManifestRefused at the first failure, as the host's reader stops."""
+    if len(raw) > MAX_MANIFEST_BYTES:
+        raise ManifestRefused("plugin.ini: too big (over %d bytes)" % MAX_MANIFEST_BYTES)
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raw = raw[3:]
+    lines = raw.split(b"\n")
+    if lines[-1] == b"":
+        lines.pop()
+    values, requires, settings = {}, [], []
+    section, seen_settings = 0, False  # 0 top level, 1 [settings], 2 another section
+    for number, raw_line in enumerate(lines, 1):
+        line = _trim(_strip_comment(raw_line))
+        if section == 1:
+            line = _trim(_strip_settings_comment(raw_line))  # quotes may hold ';' or '#'
+        if not line:
+            continue
+        if line[:1] == b"[":
+            if line[-1:] != b"]":
+                _bad(number, "a [section] line ends with ]")
+            name = _trim(line[1:-1])
+            if name == b"settings":
+                if seen_settings:
+                    _bad(number, "duplicate section '[settings]'")
+                seen_settings, section = True, 1
+            else:
+                section = 2
+                notes.append("plugin.ini line %d: section '[%s]' skipped (a later minor's)" % (number, _text(name)))
+            continue
+        if section == 1:
+            _setting_line(line, settings, number)
+            continue
+        if section == 2:
+            continue
+        eq = line.find(b"=")
+        if eq < 0:
+            _bad(number, "expected key = value")
+        key, value = _trim(line[:eq]), _trim(line[eq + 1:])
+        if key not in MANIFEST_KEYS:
+            notes.append("plugin.ini line %d: unknown key '%s' ignored (a later minor's)" % (number, _text(key)))
+            continue
+        name = key.decode("ascii")
+        if name in values:
+            _bad(number, "duplicate key '%s'" % name)
+        if key == b"id":
+            if not _valid_word(value, 31):
+                _bad(number, "id must be 1-31 of [a-z0-9_]")
+            if value in (b"sco", b"host", b"menu", b"game"):
+                _bad(number, "id is reserved")
+        elif key in (b"name", b"author") and not _valid_text(value, 63):
+            _bad(number, name + " must be 1-63 printable characters")
+        elif key == b"version" and not _valid_text(value, 31):
+            _bad(number, "version must be 1-31 printable characters")
+        elif key == b"api" and _parse_api(value) is None:
+            _bad(number, "api must be <major>.<minor>")
+        elif key == b"kind" and value not in (b"native", b"lua", b"data"):
+            _bad(number, "kind must be native, lua or data")
+        elif key == b"entry" and not _valid_entry(value):
+            _bad(number, "entry must be a file name in the plugin folder")
+        elif key == b"requires":
+            for capability in value.split(b","):
+                capability = _trim(capability)
+                if not _valid_capability(capability):
+                    _bad(number, "requires must be a comma list of capability names")
+                if _text(capability) in requires:
+                    _bad(number, "requires lists a capability twice")
+                if len(requires) == 16:
+                    _bad(number, "requires lists more than 16 capabilities")
+                requires.append(_text(capability))
+        values[name] = _text(value)
+    for name in ("id", "name", "version", "api", "kind"):
+        if name not in values:
+            raise ManifestRefused("plugin.ini: missing key '%s'" % name)
+    if values["kind"] == "data" and "entry" in values:
+        raise ManifestRefused("plugin.ini: a data pack has no entry")
+    if values["kind"] != "data" and "entry" not in values:
+        raise ManifestRefused("plugin.ini: missing key 'entry'")
+    if values["kind"] == "data" and settings:
+        raise ManifestRefused("plugin.ini: a data pack has no settings")
+    for capability in requires:
+        if capability == values["id"] or capability.startswith(values["id"] + "."):
+            raise ManifestRefused("plugin.ini: requires '%s' names the plugin itself (a requires cycle)" % capability)
+    major, minor = _parse_api(values["api"].encode("utf-8"))
+    if major != SCO_API_VERSION[0] or minor > SCO_API_VERSION[1]:
+        raise ManifestRefused("plugin.ini: api %s, but this SDK is %d.%d" % ((values["api"],) + SCO_API_VERSION))
+    return {**values, "requires": requires, "settings": settings}
+
+
+def check_manifest(text, folder):
+    findings, notes, parsed = [], [], None
+    try:
+        parsed = read_manifest(text.encode("utf-8"), notes)
+    except UnicodeEncodeError:
+        findings.append({"line": None, "message": "plugin.ini text has a lone surrogate; it is not UTF-8"})
+    except ManifestRefused as error:
+        findings.append({"line": error.line, "message": str(error)})
+    if parsed is not None and folder is not None and folder != parsed["id"]:
+        findings.append({"line": None, "message": "id '%s' does not match folder '%s'" % (parsed["id"], folder)})
+    return {"valid": not findings, "findings": findings, "notes": notes, "parsed": parsed,
+            "folder_checked": folder is not None, "sdk_api": "%d.%d" % SCO_API_VERSION}
+
+
+# ---- sco_widget_node trees: the include/sco_widgets.h invariants ----
+WIDGET = {name: number for number, name in enumerate(WIDGET_KIND_NAMES, 1)}
+WIDGET_DISABLED, WIDGET_PASSWORD = 1, 2
+
+
+def widget_node_shape(index, node):
+    """Refuse a node outside the advertised item schema; semantic problems are findings instead."""
+    where = "widgets[%d]" % index
+    properties = WIDGET_NODE["properties"]
+    if not isinstance(node, dict) or set(node) - set(properties) or not {"kind", "id"} <= set(node):
+        raise ToolError(where + " must be an object with kind and id and only advertised keys; consult tools/list inputSchema")
+    for key, value in node.items():
+        if key == "kind":
+            ok = (type(value) is int and 0 <= value <= 0xFFFFFFFF) or (isinstance(value, str) and value in WIDGET)
+        elif key in ("value", "minimum", "maximum"):
+            ok = type(value) in (int, float)
+        elif key in ("label", "text"):
+            ok = value is None or (isinstance(value, str) and len(value) <= 1024)
+        elif key == "items":
+            ok = value is None or (isinstance(value, list) and len(value) <= 1024
+                                   and all(isinstance(item, str) and len(item) <= 1024 for item in value))
+        else:
+            ok = type(value) is int and properties[key]["minimum"] <= value <= properties[key]["maximum"]
+        if not ok:
+            raise ToolError("%s.%s does not match the advertised schema" % (where, key))
+
+
+def widget_text_problem(value, name, required):
+    """(message, result) for one string field, or None."""
+    if value is None:
+        return (name + " is required: interactive nodes need a nonempty label (accessible name)", "BAD_ARG") if required else None
+    try:
+        raw = value.encode("utf-8")
+    except UnicodeEncodeError:
+        return name + " is not valid UTF-8", "BAD_ARG"
+    if b"\x00" in raw:
+        return name + " contains NUL; a C string ends there", "BAD_ARG"
+    if len(raw) > 255:
+        return "%s is %d bytes; at most 255" % (name, len(raw)), "TOO_MANY"
+    if required and not raw:
+        return name + " must be nonempty on an interactive node (accessible name)", "BAD_ARG"
+    return None
+
+
+def check_widgets(nodes):
+    """Every invariant violation in a node array; the host refuses the panel at the first one."""
+    findings, seen, open_layouts = [], set(), []
+    for index, node in enumerate(nodes):
+        def find(message, result="BAD_ARG"):
+            findings.append({"node": index, "id": node["id"], "result": result, "message": message})
+        kind = WIDGET[node["kind"]] if isinstance(node["kind"], str) else node["kind"]
+        identifier, parent, flags = node["id"], node.get("parent", 0), node.get("flags", 0)
+        value, minimum, maximum = node.get("value", 0), node.get("minimum", 0), node.get("maximum", 0)
+        selected, columns, items = node.get("index", 0), node.get("columns", 0), node.get("items") or []
+        if not WIDGET["label"] <= kind <= WIDGET["column"]:
+            find("kind %d is not 1 (label) to 10 (column)" % kind)
+        if not identifier:
+            find("id must be nonzero")
+        elif identifier in seen:
+            find("id %d repeats an earlier node's id; ids are unique within a panel" % identifier)
+        seen.add(identifier)
+        if flags & ~(WIDGET_DISABLED | WIDGET_PASSWORD):
+            find("flags has bits other than DISABLED (1) and PASSWORD (2)")
+        if flags & WIDGET_PASSWORD and kind != WIDGET["text_input"]:
+            find("PASSWORD applies to text_input only")
+        if not parent:
+            open_layouts.clear()
+        elif parent in open_layouts:
+            del open_layouts[open_layouts.index(parent) + 1:]
+        else:
+            find("parent %d is not an open row/column ancestor: a parent precedes its children, "
+                 "is a row or column, and each subtree is contiguous in preorder" % parent)
+        interactive = WIDGET["button"] <= kind <= WIDGET["text_input"]
+        for problem in (widget_text_problem(node.get("label"), "label", interactive),
+                        widget_text_problem(node.get("text"), "text", False) if kind == WIDGET["text_input"] else None):
+            if problem:
+                find(*problem)
+        if kind != WIDGET["text_input"] and node.get("text") is not None:
+            find("text applies to text_input only; leave it null")
+        if kind not in (WIDGET["toggle"], WIDGET["slider"]) and value != 0:
+            find("value applies to toggle and slider only; leave it 0")
+        if kind != WIDGET["slider"] and (minimum != 0 or maximum != 0):
+            find("minimum and maximum apply to slider only; leave them 0")
+        if kind not in (WIDGET["combo"], WIDGET["list"]) and selected not in (0, -1):
+            find("index applies to combo and list only; leave it 0 or -1")
+        if kind != WIDGET["table"] and columns:
+            find("columns applies to table only; leave it 0")
+        if kind not in (WIDGET["combo"], WIDGET["list"], WIDGET["table"]) and items:
+            find("items apply to combo, list and table only; leave them null")
+        if kind == WIDGET["toggle"] and value not in (0, 1):
+            find("a toggle value is 0 or 1")
+        if kind == WIDGET["slider"] and not minimum <= value <= maximum:
+            find("a slider needs minimum <= value <= maximum")
+        if len(items) > 256:
+            find("%d items; at most 256" % len(items), "TOO_MANY")
+        if columns > 16:
+            find("%d columns; at most 16" % columns, "TOO_MANY")
+        if kind in (WIDGET["combo"], WIDGET["list"]) and not -1 <= selected < len(items):
+            find("index %d is not -1 or an item index (%d items)" % (selected, len(items)))
+        if kind == WIDGET["table"] and (not columns or len(items) % columns):
+            find("a table needs columns > 0 and an item count divisible by columns (row-major cells)")
+        for position, item in enumerate(items):
+            problem = widget_text_problem(item, "items[%d]" % position, False)
+            if problem:
+                find(*problem)
+        if kind in (WIDGET["row"], WIDGET["column"]):
+            open_layouts.append(identifier)
+    return {"valid": not findings, "node_count": len(nodes), "findings": findings}
+
+
+VALIDATION_CONCLUSIONS = [
+    "Manifest rules are sco-plugin-check's read_manifest (the host's manifest.cpp and settings_ini.cpp): the reader stops at the first failure, so fix and re-check. "
+    "It does not check that entry exists, that required capabilities have providers, or load the plugin.",
+    "Widget findings restate the sco_widgets.h invariants; the host refuses the whole panel at its first violation. "
+    "Panel id/title, node_stride, size fields, pointer readability, renderer markup in labels and the game thread are not checked.",
+    "Pure validation of the supplied text: no file is read or written and nothing is executed."]
 
 
 def aliases(record):
@@ -384,8 +981,10 @@ def aliases(record):
 
 
 class Server:
-    def __init__(self, catalogue, repo_root=None):
+    def __init__(self, catalogue, repo_root=None, extended_tools=False):
         self.catalogue = catalogue
+        self.tools = TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS
+        self.enabled = {definition["name"] for definition in self.tools}
         self.provenance = {key: catalogue[key] for key in PROVENANCE_KEYS}
         self.repo_root = Path(os.path.abspath(repo_root)) if repo_root is not None else None
         self.records = {key: record for record in catalogue["records"] for key in (record["id"], record["symbol"])}
@@ -394,20 +993,59 @@ class Server:
                               for r in catalogue["records"]]
         self.state = "new"
         self.calls = deque()
-        self.game_status, self.game_status_reason = self.load_game_status()
+        self.game_status, self.game_status_source, self.game_status_reason = self.load_game_status()
+        self.natives = self.natives_by_key = None
+        self.natives_reason = "Not loaded"
+        if extended_tools:
+            self.natives, self.natives_by_key, self.natives_reason = self.load_natives()
 
     def load_game_status(self):
-        """Return (rows by catalogue table, None) or (None, reason)."""
+        """Return (rows by catalogue table, source, None) or (None, source, reason).
+
+        sdk/status_registry.json is preferred. docs/game/status.md is read only when the
+        registry is absent; a registry that exists but is refused is reported, not bypassed.
+        """
         if self.repo_root is None:
-            return None, "No --repo-root: docs/game/status.md is not read"
+            return None, GAME_STATUS, "No --repo-root: sdk/status_registry.json and docs/game/status.md are not read"
+        try:
+            text = read_example(self.repo_root, STATUS_REGISTRY, MAX_REGISTRY)
+        except FileNotFoundError:
+            text = None
+        except (OSError, UnicodeError, ToolError):
+            return None, STATUS_REGISTRY, "sdk/status_registry.json unreadable beneath --repo-root (symlink, not a regular file or over 1 MiB)"
+        if text is not None:
+            try:
+                return parse_status_registry(text, self.catalogue["tables"]), STATUS_REGISTRY, None
+            except (ValueError, TypeError, RecursionError) as error:
+                return None, STATUS_REGISTRY, "sdk/status_registry.json refused: " + str(error)
         try:
             text = read_example(self.repo_root, GAME_STATUS)
         except (OSError, UnicodeError, ToolError):
-            return None, "docs/game/status.md unavailable beneath --repo-root"
+            return None, GAME_STATUS, "docs/game/status.md unavailable beneath --repo-root"
         try:
-            return parse_game_status(text, self.catalogue["tables"]), None
+            return parse_game_status(text, self.catalogue["tables"]), GAME_STATUS, None
         except ValueError as error:
-            return None, "docs/game/status.md service table refused: " + str(error)
+            return None, GAME_STATUS, "docs/game/status.md service table refused: " + str(error)
+
+    def load_natives(self):
+        """Return (index, entries by id and hash, None) or (None, None, reason)."""
+        if self.repo_root is None:
+            return None, None, "No --repo-root: sdk/native_index.json is not read"
+        try:
+            text = read_example(self.repo_root, NATIVE_INDEX, MAX_NATIVE_INDEX)
+        except (OSError, UnicodeError, ToolError):
+            return None, None, "sdk/native_index.json unavailable beneath --repo-root (missing, symlink, not a regular file or over 4 MiB)"
+        try:
+            index, by_key = parse_native_index(text)
+        except (ValueError, TypeError, RecursionError) as error:
+            return None, None, "sdk/native_index.json refused: " + str(error)
+        return index, by_key, None
+
+    def natives_context(self):
+        context = {"source": "/".join(NATIVE_INDEX), "conclusions": NATIVE_CONCLUSIONS}
+        if self.natives is None:
+            return context | {"state": "unavailable", "reason": self.natives_reason}
+        return context | {"state": "available", "row_count": self.natives["row_count"], "tiers": self.natives["tiers"]}
 
     def evidence_state(self, record):
         """Per-record evidence from the catalogue and, for game-pack records, status rows."""
@@ -420,7 +1058,7 @@ class Server:
             return state | {"sigcheck_receipt": absent, "gameplay_receipt": dict(absent)}
         state["sigcheck_receipt"] = {"state": "unknown", "reason": "No per-method sigcheck receipt is recorded; see service_status"}
         state["gameplay_receipt"] = {"state": "unknown", "reason": "No machine-readable gameplay receipt exists; this server never reports in-game verification"}
-        base = {"scope": "service", "source": "/".join(GAME_STATUS),
+        base = {"scope": "service", "source": "/".join(self.game_status_source),
                 "snapshot": "Read from --repo-root at server start; not bound to the catalogue source_sha"}
         if self.game_status is None:
             state["service_status"] = {**base, "state": "unavailable", "reason": self.game_status_reason, "rows": []}
@@ -576,6 +1214,38 @@ class Server:
             if "tag" in args or "source_sha" in args:
                 result["release"] = self.release_lookup(args.get("tag"), args.get("source_sha"))
             return result
+        if name == "list_engine_natives":
+            result = self.natives_context()
+            if self.natives is None:
+                return result | {"entries": [], "total_matches": 0, "next_cursor": None}
+            query = args["query"].strip().casefold() if "query" in args else None
+            hits = [entry for entry in self.natives["entries"]
+                    if args.get("subsystem", entry["subsystem"]) == entry["subsystem"]
+                    and args.get("tier", entry["tier"]) == entry["tier"]
+                    and (query is None or query in " ".join([entry["id"], entry["hash"], entry["subsystem"], entry["source"]]
+                                                             + entry.get("capability", [])).casefold())]
+            start, limit = int(args.get("cursor", "0")), args.get("limit", 25)
+            return result | {"entries": hits[start:start + limit], "total_matches": len(hits), "limit": limit,
+                             "cursor": str(start), "next_cursor": str(start + limit) if start + limit < len(hits) else None}
+        if name == "get_engine_native":
+            result = self.natives_context()
+            if self.natives is None:
+                return result
+            key = args["id_or_hash"]
+            if re.fullmatch(r"_0x[0-9A-Fa-f]{16}", key):
+                key = "_0x" + key[3:].upper()
+            entry = self.natives_by_key.get(key)
+            if entry is None:
+                raise ToolError("Unknown native row id or hash; use list_engine_natives")
+            return result | {"entry": entry, "tier_meaning": self.natives["tiers"][str(entry["tier"])]}
+        if name == "validate_manifest_and_widgets":
+            result = {"manifest": check_manifest(args["plugin_ini"], args.get("folder"))}
+            if "widgets" in args:
+                for index, node in enumerate(args["widgets"]):
+                    widget_node_shape(index, node)
+                result["widgets"] = check_widgets(args["widgets"])
+            return result | {"valid": all(part["valid"] for part in result.values()),
+                             "conclusions": VALIDATION_CONCLUSIONS}
         record = self.symbol(args["symbol_or_id"])
         if name == "get_symbol":
             return {"record": record, "table_context": self.catalogue["tables"].get(record["table"]),
@@ -634,9 +1304,9 @@ class Server:
         if method == "tools/list":
             if "cursor" in params:
                 raise RpcError(-32602, "No pagination cursor: the complete static tool list fits one response")
-            return {"tools": TOOLS}
+            return {"tools": self.tools}
         name = params.get("name")
-        if not isinstance(name, str) or name not in TOOL_INDEX:
+        if not isinstance(name, str) or name not in self.enabled:
             raise RpcError(-32602, "Unknown tool")
         args = params.get("arguments", {})
         if not isinstance(args, dict):
@@ -684,6 +1354,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalogue", default=os.environ.get("SCO_CORE_CATALOGUE"))
     parser.add_argument("--repo-root")
+    parser.add_argument("--extended-tools", action="store_true",
+                        help="also offer list_engine_natives, get_engine_native and validate_manifest_and_widgets")
     args = parser.parse_args()
     if not args.catalogue:
         parser.error("--catalogue or SCO_CORE_CATALOGUE is required")
@@ -694,7 +1366,7 @@ def main():
               (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
         return 1
     try:
-        Server(catalogue, args.repo_root).serve(sys.stdin.buffer, sys.stdout.buffer)
+        Server(catalogue, args.repo_root, args.extended_tools).serve(sys.stdin.buffer, sys.stdout.buffer)
     except BrokenPipeError:
         return 0
     return 0
