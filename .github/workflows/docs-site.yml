@@ -1,18 +1,22 @@
 name: docs-site
 
 # PRs build read-only artifacts; only trusted main events publish to Pages.
+# The daily schedule only runs the read-only live-site freshness check.
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '23 5 * * *'
 
 permissions:
   contents: read
 
 jobs:
   docs-site:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -85,3 +89,23 @@ jobs:
         with:
           artifact_name: github-pages
           preview: false
+
+  live-site:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # Full main history: the live catalogue may name an older main commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test the live-site check offline
+        run: python3 tools/test_check_live_site.py
+
+      - name: Check the published catalogue against main
+        run: python3 tools/check_live_site.py --ref origin/main

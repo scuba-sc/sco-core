@@ -21,7 +21,7 @@ product startup policy, protected OS audit, adapter packaging and runtime MCP re
 The six existing tools describe a compiler-backed SDK catalogue, not a running
 host. `list_services` enumerates catalogue tables; `check_compatibility` explicitly
 cannot establish plugin loading, live members or behavior
-(`tools/sco-core-mcp/server.py:56-68,313-325`). The current development-only,
+(`TOOLS` and the `list_services` branch of `execute` in `tools/sco-core-mcp/server.py`). The current development-only,
 stdlib launcher promises no game/host connection (`tools/sco-core-mcp/README.md:3-7`;
 `docs/agent-integration.md:3-7`). A plugin author needs a separate observation of
 load/refusal/fault state, publication, lifecycle and existing signature resolution.
@@ -133,8 +133,8 @@ with poisoned runtime paths/credentials configured while the enable value is `0`
 Also exercise unset/invalid/exact `1` environment and explicit flag cases, and
 require opt-in evaluation before optional imports. No assertions based only on
 mock registration or annotations. Run the existing discovery test file alongside
-this narrow regression (`tools/sco-core-mcp/test_server.py:1-7`; documented stdio
-acceptance seam `tools/sco-core-mcp/test_integration.py:32-49`). This is a future
+this narrow regression (the module docstring of `tools/sco-core-mcp/test_server.py`;
+documented stdio acceptance seam `IntegrationTests` in `tools/sco-core-mcp/test_integration.py`). This is a future
 acceptance requirement, **not coverage already provided by step 0**.
 
 ## Six tools: exact JSON contracts
@@ -207,7 +207,7 @@ one text content item, and set `isError=true` for `unavailable`/`unknown`, false
 for observations. Runtime annotations are `readOnlyHint=true`,
 `destructiveHint=false`, `openWorldHint=false`, **`idempotentHint=false`** because
 successive observations can differ. Existing discovery annotations stay unchanged
-(`tools/sco-core-mcp/server.py:33-34,282-285`). No universal `works` field exists.
+(`ANNOTATIONS` and `tool_result` in `tools/sco-core-mcp/server.py`). No universal `works` field exists.
 
 ### Error and observation states
 
@@ -238,12 +238,12 @@ All `path:line` references in this document use that revision, not moving PR lin
 
 | Existing source seam | Required new copy/publication; prohibited shortcut |
 |---|---|
-| `include/sco_api.h:147-154`; host version storage `src/host/sco_host.cpp:120-126` | Copy host-owned ABI/version metadata at startup; add actual build identity. Do not invoke the SDK table for an agent. Unknown build metadata stays null. |
-| `include/sco/plugins.h:118-160`; list lifetime `include/sco/app.h:125-127` | New game-thread immutable copy of known states/valid manifest fields. Never serialize `dir`, author, name, `reloadCopy`, module/self/export pointers, or read mutable list fields from an IPC worker. Invalid manifest IDs receive deterministic session-local safe aliases (`unknown_` plus bounded ordinal), with `manifest_valid=false`; do not leak raw folder names. |
-| Plugin log wrapper `src/host/sco_host.cpp:143-164`; current sink `src/sco_log_status.cpp:10-24`; reports `docs/plugins.md:205-207` | New bounded structured capture plus host lifecycle/fault records; current logger is not a historical log endpoint. Do not open/tail `mod.log`. Built-in capture uses host-assigned identity, not plugin-supplied prefixes. |
-| Registry `src/api/sco_services.cpp:15-31,57-74,113-145` | New metadata snapshot under the existing registry lock, with bounded withdrawal tombstones/observation history needed for withdrawn status. `QueryService` records a hand-out (`:78-95`): **never call it**. Exposed status is owner-level (`:108-111`), not counted consumer leases. No table dereference, method probe, hand-out or new pin; table size unknown unless explicit trusted diagnostic registration provides it. |
-| `include/sco/signatures.h:17-24,32-38,54-64`; startup rule `docs/architecture.md:94-97` | Copy existing row result only after resolution completes; never `ResolveAll`/`Sig`/subprocess scanner. Exclude `at`, patterns, resolver pointers and image bytes/RVAs. |
-| `src/app/sco_app.cpp:79-96,195-224`; product configuration `include/sco/app.h:61-99` | New lifecycle/capability summary and trusted product offline verdict. No gameplay methods or inferred authorization from service flags. Close diagnostics before plugin teardown, not merely at the existing later IPC stop. |
+| `struct sco_api` in `include/sco_api.h`; host version storage `g_version`/`HostVersion` in `src/host/sco_host.cpp` | Copy host-owned ABI/version metadata at startup; add actual build identity. Do not invoke the SDK table for an agent. Unknown build metadata stays null. |
+| `State` and `Plugin` in `include/sco/plugins.h`; list lifetime `app::Plugins` in `include/sco/app.h` | New game-thread immutable copy of known states/valid manifest fields. Never serialize `dir`, author, name, `reloadCopy`, module/self/export pointers, or read mutable list fields from an IPC worker. Invalid manifest IDs receive deterministic session-local safe aliases (`unknown_` plus bounded ordinal), with `manifest_valid=false`; do not leak raw folder names. |
+| Plugin log wrapper `OneLine`/`StatusC`/`LogC` in `src/host/sco_host.cpp`; current sink `SetLogSink`/`Emit`/`Log` in `src/sco_log_status.cpp`; reports `docs/plugins.md:205-207` | New bounded structured capture plus host lifecycle/fault records; current logger is not a historical log endpoint. Do not open/tail `mod.log`. Built-in capture uses host-assigned identity, not plugin-supplied prefixes. |
+| Registry `Service`, `ProvideService` and `ServiceWithdrawal` in `src/api/sco_services.cpp` | New metadata snapshot under the existing registry lock, with bounded withdrawal tombstones/observation history needed for withdrawn status. `QueryService` records a hand-out: **never call it**. Exposed status is owner-level (`ServiceTableHandedOut`), not counted consumer leases. No table dereference, method probe, hand-out or new pin; table size unknown unless explicit trusted diagnostic registration provides it. |
+| `SigState`, `SigDef` and the `Sig` accessors in `include/sco/signatures.h`; startup rule `docs/architecture.md:94-97` | Copy existing row result only after resolution completes; never `ResolveAll`/`Sig`/subprocess scanner. Exclude `at`, patterns, resolver pointers and image bytes/RVAs. |
+| `app::Start` and `app::Stop` in `src/app/sco_app.cpp`; product configuration `Platform` in `include/sco/app.h` | New lifecycle/capability summary and trusted product offline verdict. No gameplay methods or inferred authorization from service flags. Close diagnostics before plugin teardown, not merely at the existing later IPC stop. |
 
 Publish immutable snapshots on game-thread startup/tick/lifecycle boundaries.
 The worker reads copies only and never triggers a refresh on demand. Registry
@@ -271,11 +271,11 @@ withheld records), so retrying does not repeatedly disclose a redaction gap.
 
 Host owns `Local\\SCO_sco.diagnostics`; native peer opens only, never creates,
 repairs or initializes it. Existing generic creation validates a plugin handle
-(`src/ipc/ipc.cpp:141-174`), so add a **host-only** creation path using the permanent
-host owner (`include/sco/host.h:44-66`), existing name construction/security/quota
+(`Create` in `src/ipc/ipc.cpp`), so add a **host-only** creation path using the permanent
+host owner (`NewPlugin`/`HostOwner` in `include/sco/host.h`), existing name construction/security/quota
 machinery and geometry checks; never cast `HostOwner` into `sco_plugin*` or give
 plugins a reserved-name escape. Existing Windows mapping ACL/owner/size checks
-are source seams, not proof of the new endpoint (`src/ipc/shm_win.cpp:36-96`).
+are source seams, not proof of the new endpoint (`Create` in `src/ipc/shm_win.cpp`).
 
 Proposed layout ID `0x31444753` (little-endian bytes `SGD1`), layout version **1**,
 diagnostics schema/framing version **1**, mapping size **262144 bytes**. Reuse
@@ -294,10 +294,11 @@ Geometry is fixed independently of descriptor claims. Verify OS-reported extent,
 transport header, complete descriptor, direction, ring capacity/epoch, non-overlap,
 zero reserved fields and versions before using cached local views. Do not trust
 mutable shared geometry a second time. Existing wire pins/validation/ring framing:
-`include/sc_ipc.h:85-112,116-192,326-348,473-499,511-590`;
+the constants, the `sc_ipc_hdr`/`sc_ipc_ring`/`sc_ipc_block` layouts, `sc_ipc_attach`,
+`sc_ipc_ring_attach` and `sc_ipc_ring_push` in `include/sc_ipc.h`;
 `docs/ipc.md:23-30,60-67`. PIDs are informational, not auth, and never reach the
 model. Future heartbeat values are corrupt diagnostics input, not a fresh link;
-the generic `sc_ipc_age` alone caps future ages at zero (`include/sc_ipc.h:377-396`).
+the generic `sc_ipc_age` alone caps future ages at zero (`include/sc_ipc.h`).
 
 One authenticated peer, one outstanding read, bounded queue of eight records.
 A user-only local named peer-lease mutex, verified by opened handle and acquired
@@ -386,7 +387,7 @@ plugin lifecycle route or SDK service selector, even for authenticated peers.
 ### Limits and scheduling
 
 Independent host and enabled-server enforcement; discovery limits remain unchanged
-(`tools/sco-core-mcp/server.py:18-22,287-294`). The owner approved the new values below on 2026-10-12; rollout still requires fixture measurements.
+(the `MAX_FRAME`..`MAX_EXAMPLES` limits and `execute` in `tools/sco-core-mcp/server.py`). The owner approved the new values below on 2026-10-12; rollout still requires fixture measurements.
 
 | Boundary | Approved v1 limit (fixture-gated) |
 |---|---|
@@ -407,7 +408,7 @@ need fixture measurements and Windows offline acceptance, not a documentation
 claim. Audit acknowledgement occurs on the diagnostics worker within deadline.
 Do not block the game on collector/storage. Capture overwrite/rate refusal changes
 no game/plugin state. Native adapter uses the pinned `sc_ipc.h` atomics and geometry
-checks, never hand-rolled Python atomics (`include/sc_ipc.h:37-59,194-254`).
+checks, never hand-rolled Python atomics (the header's concurrency notes and local views such as `sc_ipc_chan` in `include/sc_ipc.h`).
 Package/select an audited adapter by explicit trusted path/hash; no runtime compile,
 download, `PATH` search or arbitrary DLL loading. Adapter absent with runtime
 opt-in is a sanitized startup error; absent in disabled mode is irrelevant.
@@ -416,7 +417,7 @@ opt-in is a sanitized startup error; absent in disabled mode is irrelevant.
 
 Proposed host option on `Platform` plus product `runtime_inspection=off` developer
 setting is **new work**; no offline/diagnostics field exists in the current
-`Platform` (`include/sco/app.h:61-100`). Require positive trusted-product offline
+`Platform` (`include/sco/app.h`). Require positive trusted-product offline
 authorization before channel, secret or capture creation. Unknown/online/disallowed
 means disabled; do not contact servers, interrogate/bypass anti-cheat or infer
 posture from signatures, plugin enablement or `gameServices`. Product ownership
@@ -443,7 +444,7 @@ with `session_changed`; re-read/verify a fresh credential and handshake on the
 Bound `SC_IPC_BUSY` retries by the same deadline, then `snapshot_busy`. A live
 heartbeat with an old snapshot returns measured `stale`, not a fresh empty list.
 Existing epoch/closure behavior is transport evidence only
-(`include/sc_ipc.h:351-396`; `docs/ipc.md:55-58`).
+(`sc_ipc_check` and the heartbeat ages in `include/sc_ipc.h`; `docs/ipc.md:55-58`).
 
 ## Redaction and protected audit
 
@@ -537,7 +538,7 @@ needs, starts or injects a game or reads proprietary files.
 
 | Step | One PR / exit condition | Narrow test and required documentation |
 |---|---|---|
-| **0 (this PR)** | Placement A and eight defaults approved by the owner on 2026-10-12; runtime data-source decision tracked in #141. No runtime implementation. | Synthetic schema/golden vectors using existing stdlib schema validator (`tools/ip_audit.py:658-728`); refuse unknown fields/opcode/version and oversized bounds. Add SECURITY/design links/changelog/provenance; current discovery tests unchanged. No live peer, crypto, ACL or audit proof claimed. |
+| **0 (this PR)** | Placement A and eight defaults approved by the owner on 2026-10-12; runtime data-source decision tracked in #141. No runtime implementation. | Synthetic schema/golden vectors using existing stdlib schema validator (`validate_schema` in `tools/ip_audit.py`); refuse unknown fields/opcode/version and oversized bounds. Add SECURITY/design links/changelog/provenance; current discovery tests unchanged. No live peer, crypto, ACL or audit proof claimed. |
 | **1: copied host snapshots** | **Implemented by this PR (`runtime/snapshots`).** Game-thread immutable plugin/lifecycle/signature copies, metadata registry copy and bounded keyed capture; no external channel. | `test_runtime_diagnostics_snapshot` fixture: all states, invalid manifests, withdrawal/exposure/restart/log gaps, redaction, generation pages, physically short trusted tables. Zero QueryService/new hand-outs, plugin callbacks, SDK/game methods and unchanged plugin/capability state. Update architecture/plugins/log privacy docs; frozen ABI untouched. |
 | **2: host IPC/auth gate** | **Implemented locally (`r1/rt-ipc`), fixture-only admission.** Host-only channel path, versioned geometry/frames, secrets, singleton lease, mutual MAC and strict read dispatcher; default off. Fixture audit interface only. | `test_runtime_diagnostics_ipc` real transport + hostile peer: malformed geometry/counters/lengths/UTF-8, forged responses, credentials/replay/epoch/deadline, second peer, authenticated raw/mutation/reload/network opcodes and zero side-effect counters. Independent literal frame/layout/ABI pins; update IPC and explicit no-net/key-reuse docs; record wire licence/package ownership. |
 | **3: audit and product policy** | Collector acknowledgement/ACL adapter, default-off host integration, positive offline admission, revocation ordering. Downstream consumer PR is separately authorized. | `test_runtime_diagnostics_policy`: off/unknown/online, pending-read revocation, audit full/timeout/unavailable, rate aggregation, timing/caps, stop-before-teardown. Dedicated Windows no-game process checks token/mapping/collector permissions as intended identities. Update SECURITY, plugin rules, install/disable/retention docs; human provisions collector. |
@@ -545,7 +546,7 @@ needs, starts or injects a game or reads proprietary files.
 | **5: fixture then human acceptance** | Implemented no-game fixture target/harness connecting real dispatcher/mapping/native peer/actual stdio launcher. Defaults remain off. | `test_runtime_diagnostics_integration` compiled, NOT RUN. Synthetic audit is not OS privilege proof. Windows effective-identity collector/mapping proof and manual offline/game acceptance remain NOT VERIFIED. See separate acceptance ledger; game evidence ledger unchanged. |
 
 Current useful precedents are the synthetic discovery stdio tests and no-game IPC
-fixture (`tools/sco-core-mcp/test_server.py:1-7`; `tests/test_ipc.cpp:1-5`), not
+fixture (`tools/sco-core-mcp/test_server.py`; `tests/test_ipc.cpp`), not
 coverage of proposed runtime admission. Step 0's vectors test schema contracts
 only. Future literal binary/MAC vectors must come from independently specified
 bytes and execute against the actual native implementation, not expectations
@@ -571,7 +572,7 @@ Project-authored design, schema and synthetic vectors use GPL-3.0-only and remai
 repository-only under `sdk/components.json:57-60`'s existing MCP exclusion.
 `docs/legal/provenance.json` records the new path scopes and generated REUSE
 mapping. No proprietary extracts or third-party implementation are introduced.
-Existing MIT `sc_ipc.h` is reused under its own grant (`include/sc_ipc.h:1-25`);
+Existing MIT `sc_ipc.h` is reused under its own grant (its SPDX licence header in `include/sc_ipc.h`);
 that grant covers only the four named headers, not a new diagnostics wire/adapter
 (`IP_POLICY.md:9-20`). Owner must resolve future per-file grants and package
 membership before implementation distribution. Provenance and artifact policy
