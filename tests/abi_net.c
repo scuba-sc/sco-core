@@ -28,7 +28,8 @@ PIN(sizeof(void*) == 8);
 /* ---- name, version, limits, flags ---- */
 PIN(SCO_NET_VERSION_1_0 == 0x00010000u);
 PIN(sizeof(SCO_NET_NAME) == 8); /* "sco.net" */
-PIN(SCO_NET_MAX_PEERS == 16u);
+PIN(SCO_NET_MAX_PEERS == 51u);
+PIN(SCO_NET_MAX_PEERS == SC_NET_MAX_PEERS); /* the alias never drifts from the wire header's constant */
 PIN(SCO_NET_MAX_UNREL == 1200u);
 PIN(SCO_NET_MAX_RELIABLE == 262144u);
 PIN(SCO_NET_MAX_FQN == 64u);

@@ -219,7 +219,7 @@ void   SetPeerEntity(PeerId, uint64_t entityId);   // the ghost entity this prod
 /* include/sco_net.h: service "sco.net", version 1.0 */
 #define SCO_NET_NAME          "sco.net"
 #define SCO_NET_VERSION_1_0   0x00010000u
-#define SCO_NET_MAX_PEERS     16u
+#define SCO_NET_MAX_PEERS     51u   /* 16 when this was designed; see net-wire.md, "Session size" */
 #define SCO_NET_MAX_UNREL     1200u           /* bytes in one unreliable datagram (poses) */
 #define SCO_NET_MAX_RELIABLE  (256u * 1024u)  /* bytes in one reliable message (announcements) */
 
@@ -268,7 +268,8 @@ typedef struct sco_net_v1 {
 
 - **Unreliable** (default): at most 1,200 bytes, one datagram, may be lost or reordered; for poses, which are resent anyway.
 - **Reliable** (`SCO_NET_RELIABLE`): at most 256 KiB, fragmented, exactly once and in order per channel and peer; for announcements.
-- Peers: 16 per session cap, `maxPeers` default 8. Per-plugin, per-peer reliable queue capped (then `send_channel` returns 0). A peer over its receive rate or sending unknown channels past a threshold is disconnected with a reason.
+- Peers: 51 per session cap (16 when this was designed; [Session size](../net-wire.md#session-size) says why the
+  protocol version stayed 1), `maxPeers` default 8. Per-plugin, per-peer reliable queue capped (then `send_channel` returns 0). A peer over its receive rate or sending unknown channels past a threshold is disconnected with a reason.
 
 **Events** on the existing bus, game thread, each `data` starting with `size`: `net.state` `{ size, active, reason[128] }` and `net.peer` `{ size, what (JOINED|LEFT|ENTITY), peer }`.
 

@@ -3,8 +3,9 @@
  *
  * Compile-only, like abi_ipc.c. A program outside sco-core frames and verifies packets with these
  * numbers, so any line failing here is a protocol change: it needs SC_NET_PROTOCOL_VERSION bumped
- * and docs/net-wire.md updated in the same change. The service table (sco_net.h, plan PR 4b) gets
- * its own pin, tests/abi_net.c.
+ * and docs/net-wire.md updated in the same change. The one exception is SC_NET_MAX_PEERS: it is the
+ * host's admission limit and nothing on the wire is sized by it (docs/net-wire.md, "Session size").
+ * The service table (sco_net.h, plan PR 4b) gets its own pin, tests/abi_net.c.
  *
  * tools/test.sh compiles it as C11 and C++20 for the host, with -fshort-enums, and for
  * x86_64-pc-windows-msvc; the CMake test abi_sc_net rebuilds it. tests/test_net.cpp checks the
@@ -28,7 +29,7 @@
 PIN(SC_NET_MAGIC == 0x4E4F4353u);
 PIN(SC_NET_PROTOCOL_VERSION == 1u);
 PIN(SC_NET_PBKDF2_ITERS == 200000u);
-PIN(SC_NET_MAX_PEERS == 16u);
+PIN(SC_NET_MAX_PEERS == 51u); /* the host's limit, not a wire field: raised with the version kept */
 PIN(SC_NET_MAX_UNREL == 1200u);
 PIN(SC_NET_MAX_RELIABLE == 262144u);
 PIN(SC_NET_MAX_DATAGRAM == 1400u);

@@ -82,13 +82,19 @@ Two events on the bus, on the game thread, each starting with its size:
 
 | Limit | Value |
 |---|---|
-| Players in a session | 16 at most (the host picks; default 8) |
+| Players in a session | 51 at most, the host included (the host picks; default 8) |
 | Unreliable message | 1,200 bytes |
 | Reliable message | 256 KiB |
 | Channels per plugin | 32 |
 | Send quota per plugin | 256 messages and 512 KiB per second (a bucket holding one second's worth; the product may change both). Over it: `SCO_TOO_MANY`, the message is dropped |
 | Waiting to go out | 1 MiB per plugin (then `SCO_TOO_MANY`) |
 | Waiting for your next tick | 1,024 messages or 4 MiB per plugin (more are dropped) |
+
+Size a `get_peers` buffer by asking first, not by `SCO_NET_MAX_PEERS`: call it with `out` NULL and
+`*inout_count` 0, read the count it leaves in `*inout_count`, allocate, and call again (`scosdk::Net::Peers()`
+does this). A plugin built against a header from before the limit was 51 (it was 16) and sized its buffer
+by `SCO_NET_MAX_PEERS` gets `SCO_TOO_MANY`, with the first 16 peers written, once more than 16 players are
+in the session.
 
 On ordinary owner release (including unload or non-retained `crashed` cleanup), the network release hook removes the plugin's channels and messages still queued for it or by it. Restart-required retained-provider faults skip this resource hook: host callbacks are suppressed, but channels and queued network state are not removed by quarantine alone. Terminal network shutdown clears remaining state.
 

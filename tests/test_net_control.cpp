@@ -13,6 +13,12 @@
 
 using namespace sco::net;
 using sco::Result;
+#ifdef SCO_TEST_PRIVATE_SESSION
+// The broker's cap and the session layer's limit are two constants for one number. If they drifted
+// apart, a request the broker lets through would be refused one layer down.
+static_assert(SC_PRIVATE_SESSION_MAX_PEERS == kMaxPeers, "broker cap and session limit agree");
+static_assert(SC_PRIVATE_SESSION_MAX_PEERS == 51u, "the limit is 51 players, the host included");
+#endif
 static int passed = 0, failed = 0;
 static unsigned socketAttempts = 0;
 namespace sco::net::udp {
@@ -153,6 +159,12 @@ int main() {
     empty = h; empty.playerName = "bad\nname"; CHECK(broker.Host(empty) == Result::BadArg);
     empty = h; empty.port = 0; CHECK(broker.Host(empty) == Result::BadArg);
     empty = h; empty.maxPeers = 1; CHECK(broker.Host(empty) == Result::BadArg);
+    // The limit is kMaxPeers (51): one more is refused, the limit itself starts a session.
+    empty = h; empty.maxPeers = kMaxPeers + 1; CHECK(broker.Host(empty) == Result::BadArg);
+    empty = h; empty.maxPeers = kMaxPeers; CHECK(broker.Host(empty) == Result::Ok);
+    CHECK(GetState() == State::Hosting);
+    broker.Leave();
+    CHECK(GetState() == State::Idle);
     empty = h; const std::string huge(257, 'x'); empty.passphrase = huge;
     CHECK(broker.Host(empty) == Result::BadArg);
     // Join uses the real backend and parsed approved IPv4 even through injection.
@@ -241,10 +253,16 @@ int main() {
     sco_result wrongThread = SCO_OK;
     std::thread worker([&] { wrongThread = api->request_host(controller, &hr); }); worker.join();
     CHECK(wrongThread == SCO_WRONG_THREAD);
+    // The cap is SC_PRIVATE_SESSION_MAX_PEERS (51). One more, or fewer than two, is refused before it
+    // counts as an attempt; the cap itself is the limit used for the sessions below.
+    hr.max_peers = SC_PRIVATE_SESSION_MAX_PEERS + 1; CHECK(api->request_host(controller, &hr) == SCO_BAD_ARG);
+    hr.max_peers = 1; CHECK(api->request_host(controller, &hr) == SCO_BAD_ARG);
+    hr.max_peers = SC_PRIVATE_SESSION_MAX_PEERS;
     CHECK(api->request_host(controller, &hr) == SCO_OK); // attempt 1
     CHECK(api->request_host(other, &hr) == SCO_UNAVAILABLE);
     sc_private_session_state_v1 state{sizeof(state), 0, 0, 0};
     CHECK(api->get_state(&state) == SCO_OK && state.state == SC_PRIVATE_SESSION_HOSTING && state.peer_count == 1);
+    CHECK(state.max_peers == SC_PRIVATE_SESSION_MAX_PEERS);
     CHECK(api->leave(other) == SCO_UNAVAILABLE && GetState() == State::Hosting);
     CHECK(api->leave(controller) == SCO_OK);
     sc_private_session_join_request_v1 jr{};

@@ -17,7 +17,10 @@
 #define SC_PRIVATE_SESSION_MAX_PASSPHRASE 256u
 #define SC_PRIVATE_SESSION_MAX_PLAYER_NAME 64u
 #define SC_PRIVATE_SESSION_MAX_ADDRESS 15u
-#define SC_PRIVATE_SESSION_MAX_PEERS 16u
+/* The largest max_peers a host request may name, the host included. It is the same number as
+ * SC_NET_MAX_PEERS (the session layer refuses a larger one) and has nothing to do with the policy's
+ * allow-list of 1-16 exact peer addresses. */
+#define SC_PRIVATE_SESSION_MAX_PEERS 51u
 #define SC_PRIVATE_SESSION_DEFAULT_PORT 64091u
 #ifdef __cplusplus
 extern "C" {

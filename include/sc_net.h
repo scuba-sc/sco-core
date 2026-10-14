@@ -95,7 +95,16 @@ extern "C" {
 /* PBKDF2 iterations for K. Part of the protocol: changing it bumps SC_NET_PROTOCOL_VERSION. */
 #define SC_NET_PBKDF2_ITERS     200000u
 
-#define SC_NET_MAX_PEERS     16u              /* a session, the host included */
+/* The session size, the host included. It is the host's own admission rule and no part of any
+ * packet: no field is sized or bounded by it. Peer ids are 64-bit and never reused, the ACK mask is
+ * per reliable unit, and the peer list in SYNC carries its own u16 count that a joiner reads without
+ * comparing it to this value. Only a host compares a join against its limit, and answers REFUSE
+ * SC_NET_REFUSE_FULL at it. So the limit went from 16 to 51 with SC_NET_PROTOCOL_VERSION kept at 1:
+ * a joiner built for 16 seats joins a 51-seat host, and a host built for 16 seats still refuses at
+ * 16. The peer list travels in one SYNC control message on the reliable stream (fragmented, about
+ * 21 KB at most against SC_NET_CONTROL_MAX), never in one datagram. See docs/net-wire.md, "Session
+ * size". */
+#define SC_NET_MAX_PEERS     51u              /* a session, the host included */
 #define SC_NET_MAX_UNREL     1200u            /* bytes in one unreliable message */
 #define SC_NET_MAX_RELIABLE  (256u * 1024u)   /* bytes in one reliable message */
 #define SC_NET_MAX_DATAGRAM  1400u

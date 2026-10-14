@@ -15,7 +15,7 @@ borrowed for the call, lengths in bytes excluding terminators; embedded NUL is
 refused. Nothing from a request is stored in settings or broker history.
 
 - `request_host(self, host_request*)`: consent, nonzero port (default 64091),
-  passphrase 12–256 bytes, player name 1–64 bytes, peer limit 2–16 including self.
+  passphrase 12–256 bytes, player name 1–64 bytes, peer limit 2–51 including self.
 - `request_join(self, join_request*)`: consent, exact numeric IPv4 host address
   (1–15 bytes), nonzero port, passphrase and player name with the same bounds.
 - `leave(self)`: the requesting owner only; no consent needed to stop. Ordinary
@@ -52,6 +52,8 @@ Explicit LAN requires an exact numeric private local bind and 1–16 unique exac
 private peer addresses. Private means RFC1918, loopback, link-local or chosen
 CGNAT VPN (`100.64.0.0/10`); no wildcard, public address, CIDR, DNS or IPv6.
 Loopback bind rejects non-loopback peers rather than silently expanding scope.
+The two limits are separate: the allow-list (1–16 addresses) names who may reach the host, the peer
+limit (2–51) counts the players in the session.
 No public request can alter bind, allowlist or transport. Both UDP platform
 implementations bind the configured interface exactly. Synthetic host tests may
 inject a non-owned transport, but must obey the same numeric/scope policy.
@@ -85,7 +87,7 @@ information or secrets, and use an owner-chosen private VPN for confidentiality.
 - Each filtered receive examines at most 64 datagrams, bounding rejection floods.
 - Existing data limits: 1,200-byte unreliable payload; 256-KiB reliable payload;
   256 messages/512 KiB per second per plugin, 1-MiB outbound queue and
-  1,024-message/4-MiB inbound queue per plugin. Peer maximum is 16.
+  1,024-message/4-MiB inbound queue per plugin. Peer maximum is 51, the session limit of `sco.net`.
 - Existing bounded backend pending joins, replay filtering and stale-peer expiry
   remain in force.
 

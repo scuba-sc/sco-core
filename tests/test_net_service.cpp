@@ -21,11 +21,13 @@
 #include "sco_net.h"
 #include "scosdk/net.hpp"
 #include "net_mem.h"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -486,6 +488,121 @@ static void TestJoinSession() {
     CHECK(g_t->unregister_channel(g_a2, "alpha.cmd") == SCO_OK);
 }
 
+// ---- a full session: 51 players through the service ----------------------------------------------
+
+// The service hosts a session at the limit, SCO_NET_MAX_PEERS (51) players with the host, and 50 Cores
+// join it over the in-memory network. They join in waves of 25 because a host remembers at most 32
+// half-open joins at once. The remotes keep the default maxPeers: a joiner never reads the limit, so
+// they stand for joiners built for the old limit of 16. A plugin that sized its get_peers buffer by that
+// old limit gets SCO_TOO_MANY with the first 16 peers written; a buffer that asks first gets all 51.
+static void TestFullSession() {
+    constexpr uint32_t kSeats = SCO_NET_MAX_PEERS;
+    CHECK(kSeats == 51);
+
+    MemNet net(51);
+    MemTransport svc(net, 1);
+    MemTransport extraTr(net, static_cast<uint16_t>(kSeats + 1));
+    Remote extra(extraTr);   // the player who finds the session full
+    std::vector<std::unique_ptr<MemTransport>> transports;
+    std::vector<std::unique_ptr<Remote>> remotes;
+    for (uint32_t i = 1; i < kSeats; ++i) {
+        transports.push_back(std::make_unique<MemTransport>(net, static_cast<uint16_t>(i + 1)));
+        remotes.push_back(std::make_unique<Remote>(*transports.back()));
+        CHECK(remotes.back()->core.RegisterChannel("fifty.say", kReliable, 64));
+    }
+    auto step = [&] {
+        g_clock += 10;
+        net.now = g_clock;
+        PumpNetwork();
+        for (auto& r : remotes) r->core.Pump(g_clock);
+        extra.core.Pump(g_clock);
+    };
+    auto until = [&](const std::function<bool()>& done, int steps = 3000) {
+        for (int i = 0; i < steps; ++i) {
+            if (done()) return true;
+            step();
+        }
+        return done();
+    };
+
+    sco_plugin* p = sco::host::NewPlugin("fifty");
+    Got seen;
+    CHECK(g_t->register_channel(p, "fifty.say", SCO_NET_RELIABLE, 64, OnMsg, &seen) == SCO_OK);
+    TickNet();
+    const size_t events0 = g_events.peers.size();
+
+    HostOptions h;
+    h.transport = &svc;
+    h.passphrase = kPass;
+    h.playerName = "Host";
+    h.maxPeers = kSeats;
+    CHECK(Host(h) == Result::Ok);
+    for (size_t first = 0; first < remotes.size(); first += 25) {
+        const size_t stop = std::min(first + 25, remotes.size());
+        for (size_t i = first; i < stop; ++i) {
+            Options o = RemoteOpts();
+            o.playerName = "R" + std::to_string(i + 1);
+            CHECK(remotes[i]->core.Join(o, svc.Self(), g_clock));
+        }
+        CHECK(until([&] {
+            for (size_t i = first; i < stop; ++i)
+                if (!remotes[i]->core.Active()) return false;
+            return PeerCount() == stop + 1;
+        }));
+    }
+    TickNet();
+    CHECK(g_events.peers.size() == events0 + (kSeats - 1));   // one "net.peer" JOINED per remote
+
+    // get_peers: a buffer of SCO_NET_MAX_PEERS holds everyone, one of the old 16 does not.
+    CHECK(PeerCount() == kSeats);
+    sco_net_peer all[SCO_NET_MAX_PEERS] = {};
+    uint32_t n = SCO_NET_MAX_PEERS;
+    CHECK(g_t->get_peers(all, &n) == SCO_OK && n == kSeats);
+    CHECK(all[0].peer_id == kHostPeer && all[kSeats - 1].peer_id == kSeats);
+    sco_net_peer old[16] = {};
+    n = 16;
+    CHECK(g_t->get_peers(old, &n) == SCO_TOO_MANY && n == kSeats);
+    CHECK(old[0].peer_id == kHostPeer && old[15].peer_id == 16);
+    sco::sdk::Net wrapper;
+    CHECK(wrapper.Open(g_api, p) == SCO_OK && wrapper.Peers().size() == kSeats);
+    char name[16];
+    CHECK(g_t->get_peer_name(kSeats, name, sizeof name) == SCO_OK && std::strcmp(name, "R50") == 0);
+
+    // The plugin speaks: all 50 remotes hear it once, from the host.
+    CHECK(SendStr(p, "fifty.say", "all") == SCO_OK);
+    CHECK(until([&] {
+        for (auto& r : remotes)
+            if (r->got.size() != 1) return false;
+        return true;
+    }));
+    for (auto& r : remotes) CHECK(r->got.size() == 1 && r->got[0].from == kHostPeer && r->got[0].data == "all");
+
+    // The last remote speaks: the plugin hears it on the game thread, the 49 others get the relayed copy.
+    CHECK(remotes.back()->core.Send("fifty.say", "last", 4) == SendResult::Ok);
+    CHECK(until([] { return WaitForDelivery(0); }));
+    TickNet();
+    CHECK(seen.msgs.size() == 1 && seen.msgs[0].from == kSeats && seen.msgs[0].data == "last" && !seen.offTick);
+    CHECK(until([&] {
+        for (size_t i = 0; i + 1 < remotes.size(); ++i)
+            if (remotes[i]->got.size() != 2) return false;
+        return true;
+    }));
+
+    // One more is refused: the session is full.
+    const uint64_t refused0 = GetServiceStats().core.joinsRefused;
+    CHECK(extra.core.Join(RemoteOpts(), svc.Self(), g_clock));
+    CHECK(until([&] { return extra.core.GetState() == State::Idle; }));
+    CHECK(extra.core.LastReason() == "refused: the session is full");
+    CHECK(GetServiceStats().core.joinsRefused == refused0 + 1 && PeerCount() == kSeats);
+
+    Leave("done");
+    CHECK(GetState() == State::Idle);
+    TickNet();
+    g_events.peers.clear();
+    g_events.states.clear();
+    CHECK(sco::Release(p) == Result::Ok);
+}
+
 // ---- the LAN rule ---------------------------------------------------------------------------------
 
 namespace {
@@ -750,6 +867,7 @@ int main() {
         std::printf("%s TestHostSession/Quotas/ReleaseOnUnload/Leave\n", g_fail.load() == before ? "ok  " : "FAIL");
     }
     Run("TestJoinSession", TestJoinSession);
+    Run("TestFullSession", TestFullSession);
     Run("TestScope", TestScope);
     Run("TestUdpCores", TestUdpCores);
 

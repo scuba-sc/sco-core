@@ -10,6 +10,7 @@
 #include "sco/net/sha2.h"
 #include "sco/net/wire.h"
 #include "net_mem.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -1030,6 +1031,97 @@ static void TestPeers() {
     CHECK(cid.lastDown == "the host timed out");
 }
 
+// A session at the limit: the host and 50 joiners, 51 players in all (the limit was 16). Nothing on the
+// wire is sized by the limit (docs/net-wire.md, "Session size"), so the joiners keep the default
+// maxPeers of 8, which a joiner never reads: they stand for joiners built for the old limit. They join
+// in waves of 25 because the host remembers at most kMaxPending (32) half-open joins at once; players
+// arrive one by one in real use.
+static void TestSessionLimit() {
+    constexpr uint32_t kSeats = 51;
+    static_assert(SC_NET_MAX_PEERS == kSeats && kMaxPeers == kSeats, "the session limit is 51 players");
+    MemNet net(51);
+    std::vector<std::unique_ptr<Node>> nodes;   // [0] the host, [1..50] the joiners, [51] one too many
+    for (uint32_t i = 0; i <= kSeats; ++i) nodes.push_back(std::make_unique<Node>(net, static_cast<uint16_t>(i + 1)));
+    for (auto& n : nodes) CHECK(n->core.RegisterChannel("g.chat", kReliable, 100));
+    Node& host = *nodes[0];
+    Options ho = Opts("Host", "pw", 1);
+    ho.maxPeers = kSeats;
+    CHECK(host.core.Host(ho, 0));
+
+    std::vector<Node*> live{ &host };
+    size_t joined = 0;
+    auto seated = [&] {
+        for (size_t i = 1; i <= joined; ++i)
+            if (!Joined(*nodes[i])) return false;
+        return host.core.Peers().size() == joined + 1;
+    };
+    while (joined < kSeats - 1) {
+        const size_t wave = std::min<size_t>(25, kSeats - 1 - joined);
+        for (size_t k = 0; k < wave; ++k) {
+            Node& n = *nodes[++joined];
+            const std::string name = "P" + std::to_string(joined);
+            CHECK(n.core.Join(Opts(name.c_str(), "pw", 1000 + joined), host.tr.Self(), net.now));
+            live.push_back(&n);
+        }
+        CHECK(RunUntil(net, live, net.now + 20000, seated));
+    }
+
+    // Every player ends up with all 51 on its list, and the ids run 1..51 in join order.
+    CHECK(RunUntil(net, live, net.now + 5000, [&] {
+        for (Node* n : live)
+            if (n->core.Peers().size() != kSeats) return false;
+        return true;
+    }));
+    const std::vector<PeerInfo> roster = host.core.Peers();
+    CHECK(roster.size() == kSeats && roster.front().id == kHostPeer && roster.back().id == kSeats);
+    for (uint32_t i = 1; i < kSeats; ++i)
+        CHECK(nodes[i]->core.Self() == i + 1 && nodes[i]->core.Peers().size() == kSeats);
+    std::string name;
+    CHECK(nodes[1]->core.PeerName(kSeats, &name) && name == "P50");
+
+    // The host speaks: all 50 joiners hear it once, from the host.
+    const uint8_t hi[2] = { 'h', 'i' };
+    CHECK(host.core.Send("g.chat", hi, 2) == SendResult::Ok);
+    CHECK(RunUntil(net, live, net.now + 3000, [&] {
+        for (uint32_t i = 1; i < kSeats; ++i)
+            if (nodes[i]->Count("g.chat") != 1) return false;
+        return true;
+    }));
+    for (uint32_t i = 1; i < kSeats; ++i)
+        CHECK(nodes[i]->got.size() == 1 && nodes[i]->got[0].from == kHostPeer && nodes[i]->got[0].data.size() == 2);
+
+    // The last joiner speaks: the host and the 49 other joiners hear it once, from it, and it hears nothing back.
+    Node& last = *nodes[kSeats - 1];
+    CHECK(last.core.Send("g.chat", hi, 2) == SendResult::Ok);
+    CHECK(RunUntil(net, live, net.now + 3000, [&] {
+        if (host.Count("g.chat") != 1) return false;
+        for (uint32_t i = 1; i < kSeats - 1; ++i)
+            if (nodes[i]->Count("g.chat") != 2) return false;
+        return true;
+    }));
+    RunUntil(net, live, net.now + 500, [] { return false; });   // a stray copy would show up now
+    CHECK(last.Count("g.chat") == 1 && host.Count("g.chat") == 1 && host.got[0].from == last.core.Self());
+    for (uint32_t i = 1; i < kSeats - 1; ++i)
+        CHECK(nodes[i]->Count("g.chat") == 2 && nodes[i]->got.back().from == last.core.Self());
+
+    // One more is refused: the session is full, nobody else notices.
+    Node& extra = *nodes[kSeats];
+    const uint64_t refused0 = host.core.GetStats().joinsRefused;
+    const size_t hostEvents = host.events.size();
+    CHECK(extra.core.Join(Opts("Extra", "pw", 2000), host.tr.Self(), net.now));
+    live.push_back(&extra);
+    CHECK(RunUntil(net, live, net.now + 5000, [&] { return extra.core.GetState() == State::Idle; }));
+    CHECK(extra.lastDown == "refused: the session is full" && host.core.GetStats().joinsRefused == refused0 + 1);
+    CHECK(host.core.Peers().size() == kSeats && host.events.size() == hostEvents);
+
+    // A freed seat can be taken again. Ids are never reused, so the newcomer is id 52 in a 51-seat session.
+    nodes[10]->core.Leave("seat");
+    CHECK(RunUntil(net, live, net.now + 3000, [&] { return host.core.Peers().size() == kSeats - 1; }));
+    CHECK(extra.core.Join(Opts("Extra", "pw", 2001), host.tr.Self(), net.now));
+    CHECK(RunUntil(net, live, net.now + 5000, [&] { return Joined(extra) && host.core.Peers().size() == kSeats; }));
+    CHECK(extra.core.Self() == kSeats + 1);
+}
+
 static void Run(const char* name, void (*fn)()) {
     const int before = g_fail;
     fn();
@@ -1055,6 +1147,7 @@ int main() {
     Run("TestReliableLossy(3)", [] { TestReliableLossy(3); });
     Run("TestReliableLossy(4)", [] { TestReliableLossy(4); });
     Run("TestPeers", TestPeers);
+    Run("TestSessionLimit", TestSessionLimit);
     std::printf("sco-core net tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

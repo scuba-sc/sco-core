@@ -1,6 +1,7 @@
 # sco.net wire format (internal, as built)
 
-What plan PR 4a built for [design section 3.5](design/multiplayer.md#35-session-crypto-d4): the packets, the handshake, the keys and the delivery rules of `sco.net`, in `src/net/` with headers in `include/sco/net/`. Plugins see only the `sco_net_v1` table ([Multiplayer messages](net.md), plan PR 4b). The wire itself is defined once, in **[`include/sc_net.h`](../include/sc_net.h), MIT** (the [interface exception](../LICENSE), like `sc_ipc.h`): a program outside sco-core includes only that file to frame, parse and verify packets, supplying its own HMAC-SHA-256. sco-core's code takes its constants, parser, MAC input, replay window and name rules from it, and `tests/abi_sc_net.c` pins it. Change it only together with `SC_NET_PROTOCOL_VERSION`.
+What plan PR 4a built for [design section 3.5](design/multiplayer.md#35-session-crypto-d4): the packets, the handshake, the keys and the delivery rules of `sco.net`, in `src/net/` with headers in `include/sco/net/`. Plugins see only the `sco_net_v1` table ([Multiplayer messages](net.md), plan PR 4b). The wire itself is defined once, in **[`include/sc_net.h`](../include/sc_net.h), MIT** (the [interface exception](../LICENSE), like `sc_ipc.h`): a program outside sco-core includes only that file to frame, parse and verify packets, supplying its own HMAC-SHA-256. sco-core's code takes its constants, parser, MAC input, replay window and name rules from it, and `tests/abi_sc_net.c` pins it. Change it only together with `SC_NET_PROTOCOL_VERSION`; the one exception is `SC_NET_MAX_PEERS`, the
+host's admission limit, which no packet field depends on ([Session size](#session-size)).
 
 | File | What |
 |---|---|
@@ -83,6 +84,26 @@ DATA body:
 - **The channel table** maps names to indexes and is the host's. A joiner's HELLO names its channels; the rest, and any registered later, go as REGISTER on the control channel. The host assigns indexes (at most 256 entries) and sends the joiner a SYNC (the table and the peers) right after WELCOME, then a CHANNEL for every new entry. A joiner can send on a channel once it is in its table.
 - **Control channel** (index 0, `sco.net`, reliable, 64 KiB): SYNC (1), CHANNEL (2), REGISTER (3, joiner to host), PEER_JOINED (4), PEER_LEFT (5).
 - **Receiving.** A message on a channel this endpoint didn't register is counted (`unknownChannel`) and dropped; one over the receiver's `max_len`, or on a FROM_HOST channel from anyone but the host, is counted as `refused` and dropped.
+
+## Session size
+
+A session holds at most `SC_NET_MAX_PEERS` players, the host included: 51. The number is the host's own
+admission rule, and **the protocol version stays 1** because nothing on the wire depends on it:
+
+- Only the host compares a join with the limit. When the session is full it answers the joiner's PROOF
+  with REFUSE code 3 (full). A joiner never learns the limit and never checks it.
+- Every id and count is wide enough for any limit. Peer ids are 64-bit and never reused (the header's
+  `sender_peer_id`, the DATA origin, WELCOME, PEER_JOINED, PEER_LEFT); the channel index is 16-bit; the ACK
+  mask is per reliable unit, not per peer; the HELLO, CHALLENGE, PROOF and WELCOME bodies have fixed sizes.
+- The peer list in SYNC has its own u16 count, which a joiner reads without comparing it to any limit.
+  The list travels in one SYNC control message on the reliable control stream, fragmented in units of
+  `SC_NET_FRAG_BYTES`, never in one datagram. At most 256 channel entries of up to 68 bytes and 51 peers
+  of up to 74 bytes make about 21 KB, against the 64 KiB `SC_NET_CONTROL_MAX`.
+
+So a joiner built for 16 seats joins a 51-seat host and reads its peer list like any other, and a host
+built for 16 seats keeps refusing at 16, with the same packets on the wire. Only a plugin can notice: one
+that sized a `get_peers` buffer by `SCO_NET_MAX_PEERS` from an older header gets `SCO_TOO_MANY` (with the
+first 16 peers written) once more than 16 players are in the session ([Limits](net.md#limits)).
 
 ## The service on top (plan PR 4b)
 

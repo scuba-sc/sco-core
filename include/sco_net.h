@@ -62,7 +62,11 @@ extern "C" {
 #define SCO_NET_NAME "sco.net"
 #define SCO_NET_VERSION_1_0 0x00010000u
 
-#define SCO_NET_MAX_PEERS     SC_NET_MAX_PEERS     /* 16: a session, self included */
+/* The session limit of the headers a plugin was built with: 51 here, 16 in SDK 2.2.0 and earlier.
+ * Do not size a get_peers buffer by it and stop there: a session can hold more players than an older
+ * header allowed. Ask for the count first (out NULL, *inout_count 0) or grow on SCO_TOO_MANY, as
+ * scosdk::Net::Peers() does. */
+#define SCO_NET_MAX_PEERS     SC_NET_MAX_PEERS     /* 51: a session, self included */
 #define SCO_NET_MAX_UNREL     SC_NET_MAX_UNREL     /* 1200: bytes in one unreliable message */
 #define SCO_NET_MAX_RELIABLE  SC_NET_MAX_RELIABLE  /* 262144: bytes in one reliable message */
 #define SCO_NET_MAX_FQN       SC_NET_MAX_FQN       /* 64: bytes in a channel name, NUL excluded */
