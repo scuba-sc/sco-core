@@ -18,6 +18,10 @@ pre-release scope denials ("not published", "publication is excluded") in the ac
 the release notes and of docs/host-source-sc.md. Sections under a historical heading (for example
 "Previous release") and older release-notes files are not read.
 
+The public documentation set (the docs listed in site/public-inputs.json, the release notes,
+README.md and sdk/README.md) must not cite source by line number (`src/x.cpp:120`): those numbers
+move with every edit. Name the function, table or test instead.
+
 With --approval PATH the declared profiles are also compared with that approval record's profiles;
 the record and its detached PATH.sig must exist. Signature cryptography stays with
 tools/release_verify.py. Without --approval the comparison is reported as not requested.
@@ -45,6 +49,9 @@ API_HEADER = "include/sco_api.h"
 CANDIDATE_WORKFLOW = ".github/workflows/release-candidate.yml"
 GETTING_STARTED = "docs/getting-started.md"
 HOST_SOURCE_DOC = "docs/host-source-sc.md"
+PUBLIC_INPUTS = "site/public-inputs.json"
+READMES = ("README.md", "sdk/README.md")
+LINE_CITATION = re.compile(r"(?<![\w./-])(?:[\w.-]+/)*[\w.-]+\.(?:cpp|hpp|cs|py|lua|c|h):\d+")
 
 # Heading prefixes whose sections describe earlier releases and are exempt from every prose check.
 HISTORICAL_HEADINGS = ("previous release", "earlier release", "historical", "superseded",
@@ -165,6 +172,35 @@ def coordinate_refusals(text, scope):
     return refusals
 
 
+def public_docs(root, notes_path):
+    data = load_json_strict(read_text(root, PUBLIC_INPUTS), PUBLIC_INPUTS)
+    docs = data.get("docs") if isinstance(data, dict) else None
+    if (not isinstance(docs, list) or not docs
+            or not all(isinstance(d, str) and d and not Path(d).is_absolute()
+                       and ".." not in Path(d).parts for d in docs)):
+        raise Refusal(f"{PUBLIC_INPUTS} must list docs as nonempty repository-relative paths")
+    return list(dict.fromkeys([*docs, notes_path, GETTING_STARTED, *READMES]))
+
+
+def citation_refusals(root, notes_path):
+    try:
+        documents = public_docs(root, notes_path)
+    except Refusal as exc:
+        return [str(exc)]
+    refusals = []
+    for relative in documents:
+        try:
+            text = read_text(root, relative)
+        except Refusal as exc:
+            refusals.append(str(exc))
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            refusals += [f"{relative} line {number} cites source by line number {m.group(0)!r}; "
+                         "name the function, table or test instead"
+                         for m in LINE_CITATION.finditer(line)]
+    return refusals
+
+
 def header_define(root, relative, pattern):
     match = re.search(pattern, read_text(root, relative), re.MULTILINE)
     if not match:
@@ -253,6 +289,7 @@ def run_gate(root, tag, approval=None):
         refusals.append(str(exc))
 
     refusals += denial_refusals(active_text(notes), notes_path)
+    refusals += citation_refusals(root, notes_path)
     if "host-source-sc" in scope["profiles"]:
         try:
             refusals += denial_refusals(active_text(read_text(root, HOST_SOURCE_DOC)),

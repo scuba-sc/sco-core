@@ -19,40 +19,40 @@ All references are to sc-offline `origin/main` at `dd79026`.
 
 ### Finding the loader and CryPak
 
-`ResolveQuantumApi` (`src/quantum.cpp:409-440`) runs at startup:
+`ResolveQuantumApi` (`src/quantum.cpp`) runs at startup:
 
 | Step | Where | What |
 |---|---|---|
-| Anchor string | `quantum.cpp:417-418` | Finds `"DCB file is smaller than expected"` in `.rdata` and the `lea r9, [rip+...]` (`4C 8D 0D`) that loads it |
-| Function start | `quantum.cpp:419-426` | `RtlLookupFunctionEntry` on that site, following chained unwind info (up to 8 links) to the primary function: the DataCore loader (`CDataCoreLoader::InitializeBinary`, by the tag string at `quantum.cpp:42`) |
-| Prologue check | `quantum.cpp:427` | The first 24 bytes must be the expected `mov [rsp+...]` / `push` prologue, else no loader |
-| CryPak global | `quantum.cpp:428-430` | In the first 0x400 bytes, `mov rcx, [rip+X]; lea r8, ...; mov rdx, [rbp+..]; xor r9d, r9d; mov rax, [rcx]; call [rax+0x148]`: `X` is the global `ICryPak*`, slot 0x148 its `FOpen` |
-| Slot check | `quantum.cpp:431-436` | The loader's first 0x2400 bytes must contain `call [rax+0x160]`, `[rax+0x1D0]` and `[rax+0x1E0]` (read, seek, close) |
-| Hook | `quantum.cpp:437-439` | `BuildRuns()`, then a 15-byte detour on the loader (`HookFunction`) |
+| Anchor string | `ResolveQuantumApi`, `FindCString` | Finds `"DCB file is smaller than expected"` in `.rdata` and the `lea r9, [rip+...]` (`4C 8D 0D`) that loads it |
+| Function start | `ResolveQuantumApi`, unwind walk | `RtlLookupFunctionEntry` on that site, following chained unwind info (up to 8 links) to the primary function: the DataCore loader (`CDataCoreLoader::InitializeBinary`, by the tag string in `ReadTag`) |
+| Prologue check | `ResolveQuantumApi`, `BytesMatch` | The first 24 bytes must be the expected `mov [rsp+...]` / `push` prologue, else no loader |
+| CryPak global | `ResolveQuantumApi`, `g_cryPak` scan | In the first 0x400 bytes, `mov rcx, [rip+X]; lea r8, ...; mov rdx, [rbp+..]; xor r9d, r9d; mov rax, [rcx]; call [rax+0x148]`: `X` is the global `ICryPak*`, slot 0x148 its `FOpen` |
+| Slot check | `ResolveQuantumApi`, `kSlots` loop | The loader's first 0x2400 bytes must contain `call [rax+0x160]`, `[rax+0x1D0]` and `[rax+0x1E0]` (read, seek, close) |
+| Hook | `ResolveQuantumApi`, end | `BuildRuns()`, then a 15-byte detour on the loader (`HookFunction`) |
 
-The four vtable slots and their signatures are at `quantum.cpp:6-11` (`kPakOpen = 0x148`, `kPakRead = 0x160`, `kPakSeek = 0x1D0`, `kPakClose = 0x1E0`). Readiness becomes the capability `quantum.drive` (`QuantumDriveReady`, `quantum.cpp:442`; `SetCap` at `src/dllmain.cpp:165`).
+The four vtable slots and their signatures are the `Pak*Fn` typedefs and slot constants at the top of `quantum.cpp` (`kPakOpen = 0x148`, `kPakRead = 0x160`, `kPakSeek = 0x1D0`, `kPakClose = 0x1E0`). Readiness becomes the capability `quantum.drive` (`QuantumDriveReady`; set by `SetFeatureCaps` in `src/dllmain.cpp`).
 
 ### Hooking only while the loader runs
 
-`LoadDataCoreHook` (`quantum.cpp:131-150`) records the loader's thread id, swaps the four CryPak vtable slots for its own functions (`SwapPakSlots`, `quantum.cpp:111-129`: `VirtualProtect` on the vtable, write four pointers, restore), calls the real loader, swaps the slots back, and logs one of four outcomes. The swap is on the CryPak *vtable*, not a code detour, and it lasts exactly as long as the loader call.
+`LoadDataCoreHook` (`quantum.cpp`) records the loader's thread id, swaps the four CryPak vtable slots for its own functions (`SwapPakSlots`: `VirtualProtect` on the vtable, write four pointers, restore), calls the real loader, swaps the slots back, and logs one of four outcomes. The swap is on the CryPak *vtable*, not a code detour, and it lasts exactly as long as the loader call.
 
-`PakOpenHook` (`quantum.cpp:82-91`) passes every open through. Only the first `.dcb` opened **on the loader's thread** while no other is tracked becomes the patched file: it resets the virtual position and runs `IsPatchable`.
+`PakOpenHook` passes every open through. Only the first `.dcb` opened **on the loader's thread** while no other is tracked becomes the patched file: it resets the virtual position and runs `IsPatchable`.
 
 ### The gate
 
-`IsPatchable` (`quantum.cpp:70-80`) reads the first 120 bytes and compares them with `dcbpatch::kOrigHeader` (`src/dcb_patch.h:6-12`). Then, for every edit that removes bytes, it seeks to the edit and compares the old bytes with `kOld`. It seeks back to 0 and sets `state = 1` (patch) or `-1` (leave alone).
+`IsPatchable` reads the first 120 bytes and compares them with `dcbpatch::kOrigHeader` (`src/dcb_patch.h`). Then, for every edit that removes bytes, it seeks to the edit and compares the old bytes with `kOld`. It seeks back to 0 and sets `state = 1` (patch) or `-1` (leave alone).
 
-The header holds every table count and both string-pool lengths (section 2), so comparing it pins the exact build of the file almost as tightly as a hash. `kOrigSize = 331932921` and `kPatchedSize = 331936569` (`dcb_patch.h:5`) aren't compared against the file. They size the last run (`quantum.cpp:38`) and the base for `SEEK_END` (`quantum.cpp:100`). In effect the patch is gated on that exact file.
+The header holds every table count and both string-pool lengths (section 2), so comparing it pins the exact build of the file almost as tightly as a hash. `kOrigSize = 331932921` and `kPatchedSize = 331936569` (`dcb_patch.h`) aren't compared against the file. They size the last run (in `BuildRuns`) and the base for `SEEK_END` (in `PakSeekHook`). In effect the patch is gated on that exact file.
 
 ### The run table and the read/seek arithmetic
 
-`dcbpatch::kEdits` (`dcb_patch.h:173-190`) is 15 `{ at, removed, added, bytes, old }` entries, sorted by `at` in original-file offsets. `BuildRuns` (`quantum.cpp:30-39`) turns them into at most 31 runs that tile the patched file: `{ start (patched offset), len, orig (original offset), bytes }`. A run either copies from the original file (`bytes == nullptr`) or from `kNew`.
+`dcbpatch::kEdits` (`dcb_patch.h`) is 15 `{ at, removed, added, bytes, old }` entries, sorted by `at` in original-file offsets. `BuildRuns` turns them into at most 31 runs that tile the patched file: `{ start (patched offset), len, orig (original offset), bytes }`. A run either copies from the original file (`bytes == nullptr`) or from `kNew`.
 
-- `PakSeekHook` (`quantum.cpp:98-104`) never touches the real file. It moves the virtual position `g_dcb.pos` (`SEEK_END` is relative to `kPatchedSize`) and returns 0, or -1 for a bad mode or a negative position.
-- `PakReadHook` (`quantum.cpp:93-96`) converts `length * elems` to bytes and calls `ReadPatched`, then returns whole elements (`done / length`).
-- `ReadPatched` (`quantum.cpp:48-68`) walks the runs linearly from the first one not entirely before `pos`. Buffer runs are `memcpy`. Base runs seek the real file only if its real position `g_dcb.real` differs, then read. A short base read stops the loop and returns what was read.
-- `PakCloseHook` (`quantum.cpp:106-109`) forgets the tracked file.
-- `ReadTag` (`quantum.cpp:41-46`) supplies the engine's debug tag argument when the caller passed none.
+- `PakSeekHook` never touches the real file. It moves the virtual position `g_dcb.pos` (`SEEK_END` is relative to `kPatchedSize`) and returns 0, or -1 for a bad mode or a negative position.
+- `PakReadHook` converts `length * elems` to bytes and calls `ReadPatched`, then returns whole elements (`done / length`).
+- `ReadPatched` walks the runs linearly from the first one not entirely before `pos`. Buffer runs are `memcpy`. Base runs seek the real file only if its real position `g_dcb.real` differs, then read. A short base read stops the loop and returns what was read.
+- `PakCloseHook` forgets the tracked file.
+- `ReadTag` supplies the engine's debug tag argument when the caller passed none.
 
 ### What the 15 edits mean
 
@@ -82,15 +82,15 @@ The inserts add up to 3648 bytes, exactly `kPatchedSize - kOrigSize`. Every stru
 
 | Case | What happens | Log |
 |---|---|---|
-| Loader, CryPak or slot calls not found | No hook; `quantum.drive` off | `game data loader not hooked (CryPak ..., its calls ...)` (`quantum.cpp:451`) |
-| `ICryPak` pointer null at load | Unpatched load | `CryPak not found; game data loaded ok without the new drive` (`quantum.cpp:141`) |
-| Header or old bytes differ (any game patch) | `state = -1`, the file passes through untouched | `Game2.dcb isn't the 4.10.0 one the patch was made for (game updated?)` (`quantum.cpp:146`) |
-| No `.dcb` opened on the loader thread | Unpatched load | `the loader opened no .dcb` (`quantum.cpp:148`) |
+| Loader, CryPak or slot calls not found | No hook; `quantum.drive` off | `game data loader not hooked (CryPak ..., its calls ...)` (`LogQuantum`) |
+| `ICryPak` pointer null at load | Unpatched load | `CryPak not found; game data loaded ok without the new drive` (`LoadDataCoreHook`) |
+| Header or old bytes differ (any game patch) | `state = -1`, the file passes through untouched | `Game2.dcb isn't the 4.10.0 one the patch was made for (game updated?)` (`LoadDataCoreHook`) |
+| No `.dcb` opened on the loader thread | Unpatched load | `the loader opened no .dcb` (`LoadDataCoreHook`) |
 | Short read from the real file | Partial read returned, as the engine would see without the patch | None |
 
 The failure handling is sound (never a corrupt read; the game loads its own data). The cost is that **every game patch turns the feature off**: the diff must be rebuilt from a re-patched file, and there is no tool for that in the repository.
 
-Smaller points the new design fixes on the way: positions are 64-bit, but the engine's seek takes an `int` offset (`PakSeekFn`, `quantum.cpp:9`), so files above 2 GiB need care. Run lookup is linear (fine for 31 runs, not for thousands of overrides). `FTell`, `FGetSize` and `FEof` aren't intercepted, which is safe only because this loader doesn't call them for the tracked file. The vtable swap affects every CryPak caller on every thread during the load window; other threads pass through because they aren't the tracked handle.
+Smaller points the new design fixes on the way: positions are 64-bit, but the engine's seek takes an `int` offset (`PakSeekFn`), so files above 2 GiB need care. Run lookup is linear (fine for 31 runs, not for thousands of overrides). `FTell`, `FGetSize` and `FEof` aren't intercepted, which is safe only because this loader doesn't call them for the tracked file. The vtable swap affects every CryPak caller on every thread during the load window; other threads pass through because they aren't the tracked handle.
 
 ## 2. The DataCore binary layout
 
@@ -174,7 +174,7 @@ Result Compose(uint64_t baseSize, std::span<const Splice> splices, Composed& out
 }
 ```
 
-`Compose` generalizes `BuildRuns` (`quantum.cpp:30-39`): the same tiling, with 64-bit sizes, a validated input, and a third segment kind `File` for whole-file replacements streamed from a pack file instead of held in memory.
+`Compose` generalizes `BuildRuns` (`quantum.cpp`): the same tiling, with 64-bit sizes, a validated input, and a third segment kind `File` for whole-file replacements streamed from a pack file instead of held in memory.
 
 ### Reading
 
@@ -230,9 +230,9 @@ Everything engine-specific lives in sco-core, beside the other game rows ([decis
 
 | Row | Kind | From |
 |---|---|---|
-| `pak.datacore_loader` | Resolver: string `"DCB file is smaller than expected"`, `lea r9` site, chained unwind to the function start, prologue check. The detour on it uses `StolenLength` (hook v2) | `quantum.cpp:417-427` |
-| `pak.crypak` | Resolver (needs `pak.datacore_loader`): the `mov rcx, [rip+X] ... call [rax+0x148]` site, result the `ICryPak*` global | `quantum.cpp:428-430` |
-| `pak.slots` | Layout check (needs `pak.datacore_loader`): the loader calls slots 0x160, 0x1D0, 0x1E0. The accessor exposes the four slot offsets as constants pinned by this row (as `stolenBytes` is for `system.quit`) | `quantum.cpp:11, 431-436` |
+| `pak.datacore_loader` | Resolver: string `"DCB file is smaller than expected"`, `lea r9` site, chained unwind to the function start, prologue check. The detour on it uses `StolenLength` (hook v2) | `ResolveQuantumApi`: anchor string through prologue check |
+| `pak.crypak` | Resolver (needs `pak.datacore_loader`): the `mov rcx, [rip+X] ... call [rax+0x148]` site, result the `ICryPak*` global | `ResolveQuantumApi`: `g_cryPak` scan |
+| `pak.slots` | Layout check (needs `pak.datacore_loader`): the loader calls slots 0x160, 0x1D0, 0x1E0. The accessor exposes the four slot offsets as constants pinned by this row (as `stolenBytes` is for `system.quit`) | `kPakOpen`..`kPakClose`; `ResolveQuantumApi`: `kSlots` loop |
 
 **Hooks** (`src/game/pak_hooks.cpp`, Windows): the four CryPak vtable slots are switched with a new `sco::hook::SwapSlot(void** slot, void* fn, void** original)` ([decision 2](#decisions-maintainer-2026-10-09)). It goes through sco::hook's registry, so two users can't swap the same slot, and it writes through `WriteCode`. It joins a `Transaction` so the four slots switch together or not at all. Slot swaps need no stolen-byte analysis, are trivially reversible, and catch every call through `ICryPak`, which is how engine file access goes. Detours on the slot targets would also catch devirtualized calls but hook the implementation for every caller, so they're not used.
 
@@ -255,7 +255,7 @@ With `Scope::DataCoreLoad`, the slots are swapped only while the DataCore loader
 
 **What sc-offline keeps:** a call to `sco::game::pak::Enable` from `StartOffline` (DllMain time, before the game loads DataCore, where `ResolveQuantumApi` hooks today), and its data. At first that data is the existing `dcb_patch.h` edits, mounted as a `Splices` producer with expected old bytes. Later it is a built-in data pack (plan PRs 8-9).
 
-A `Splices` producer may carry each splice's expected old bytes and an expected base header, the generalization of `IsPatchable` (`quantum.cpp:70-80`). If they don't match, the mount is inert for the run and the reason is logged.
+A `Splices` producer may carry each splice's expected old bytes and an expected base header, the generalization of `IsPatchable` (`quantum.cpp`). If they don't match, the mount is inert for the run and the reason is logged.
 
 ## 4. The semantic DataCore patcher
 
@@ -456,7 +456,7 @@ Parsing reads about 12 MB through the engine's own reader plus a few KB per over
 
 ## 5. Data packs: overrides without code
 
-A new content kind, `datacore`: files `datacore\*.toml` in a data pack (the content index rule `{ ContentKind::DataCore, "datacore", ".toml", false }` beside the four in `src/plugins/content.cpp:39-44`).
+A new content kind, `datacore`: files `datacore\*.toml` in a data pack (the content index rule `{ ContentKind::DataCore, "datacore", ".toml", false }` beside the four in `kRules`, `src/plugins/content.cpp`).
 
 ```toml
 # data/plugins/gladius_qt/datacore/drive.toml
@@ -628,7 +628,7 @@ The equivalence check for the migration (plan PR 9): on 4.10.193, the pack produ
 | 5 | sco-core | toml++ vendored at `third_party/tomlplusplus/`; the `datacore` content kind, the `.toml` format, per-pack atomicity and report; `sco-dcb check`, `show`, `diff`, `lint` | CI green; a sample pack in `sdk/examples/` |
 | 6 | sco-core | The `sco.datacore` service: host-owned services, `include/sco_datacore.h`, `tests/abi_datacore.c`, the `datacore.applied` event, sco-lua's `sco.datacore`, `scosdk/datacore.hpp`, `sco-host-sim` tests. Can be developed beside PR 5 | CI green; the `sdk-cpp.md`, `lua.md` and `api-v1.md` pages document it |
 | 7 | sco-core | `sco::game::pak`: the `pak.*` rows (byte for byte from `quantum.cpp`), `sco::hook::SwapSlot` in `Transaction`, `pak_hooks.cpp` with `Scope::DataCoreLoad`, `Enable`/`Disable`, the fake-CryPak tests | CI green; `sco-sigcheck` on 4.10.193 shows the `pak.*` rows OK |
-| 8 | sc-offline | Adopt `sco::game::pak`: bump the sco-core submodule, call `Enable` from `StartOffline`, mount the unchanged `dcb_patch.h` edits as a `Splices` producer with expected old bytes and header. **Delete `quantum.cpp`'s DataCore hook code** (`quantum.cpp:6-150` and the loader/CryPak part of `ResolveQuantumApi`). `quantum.drive` follows `vfs.pak` and the mount's state | No behavior change; the in-game quantum checklist passes; `mod.log` shows the mount applied |
+| 8 | sc-offline | Adopt `sco::game::pak`: bump the sco-core submodule, call `Enable` from `StartOffline`, mount the unchanged `dcb_patch.h` edits as a `Splices` producer with expected old bytes and header. **Delete `quantum.cpp`'s DataCore hook code** (the `Pak*Fn` typedefs through `LoadDataCoreHook`, and the loader/CryPak part of `ResolveQuantumApi`). `quantum.drive` follows `vfs.pak` and the mount's state | No behavior change; the in-game quantum checklist passes; `mod.log` shows the mount applied |
 | 9 | sc-offline | The quantum drive's data becomes a built-in data pack (`datacore/quantum_drive.toml`, from `sco-dcb diff`); `dcb_patch.h` removed | Byte-identical check (section 7) on 4.10.193; in-game checklist; `sco-dcb check` exit 0 |
 | 10 | sco-core, sc-offline | `Scope::AllFiles` (persistent hooks, frame-time measured first), `Replace` mounts (`files\` content kind), `Tell`/`Size`/`Eof` slots | Separate design review on the extra slots and the measured cost |
 
