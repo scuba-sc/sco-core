@@ -4,15 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-## sdk-v2.2.0 (unpublished candidate)
+## sdk-v2.2.0 (2026-10-14)
 
-Candidate prepared 2026-10-14; no tag, signed approval, candidate run or release exists yet.
-At publication the maintainer replaces this heading's parenthesis with the release date and this
-paragraph with the published identities, as for 2.1.0. See the
-[SDK 2.2.0 release notes draft](docs/releases/sdk-v2.2.0.md) and the
-[SDK 2.2.0 scope decision](docs/legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md), recorded
-by the maintainer on 2026-10-14; it does not itself dispatch a candidate, create an approval
-record, sign, tag or publish.
+See the [SDK 2.2.0 release notes](docs/releases/sdk-v2.2.0.md) and the
+[SDK 2.2.0 scope decision](docs/legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md).
 
 SDK 2.2.0 packages the entries below without changing frozen plugin ABI 1.1
 (`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.1.0). Core, legacy,
@@ -89,9 +84,8 @@ Windows, GPU and real-game acceptance are unproven. The new game capabilities
 - **Docs site:** pages are grouped into four library hubs (start and SDK profiles, language
   SDKs and cookbooks, native and service reference, host integration and AI agents) with no
   route moved. Page titles no longer show code backticks.
-- **Getting started:** while 2.2.0 is unpublished, `docs/getting-started.md` keeps the
-  published 2.1.0 download and build commands under "Previous release" subheadings and
-  describes 2.2.0 as the development preview only.
+- **Getting started:** `docs/getting-started.md` downloads, verifies and builds against the
+  2.2.0 core archive; the game extension is `sco-sdk-game-sc-0.5.0.zip`.
 
 ## sdk-v2.1.0 (2026-10-13)
 
