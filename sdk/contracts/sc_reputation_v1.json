@@ -67,7 +67,7 @@
           "evidence": [
             {
               "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.reputation routes are unsupported."
+              "token": "Lua game.reputation routes are unsupported."
             }
           ],
           "tests": []
@@ -156,7 +156,7 @@
           "evidence": [
             {
               "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.reputation routes are unsupported."
+              "token": "Lua game.reputation routes are unsupported."
             }
           ],
           "tests": []

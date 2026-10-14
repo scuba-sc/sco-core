@@ -602,7 +602,7 @@ Capabilities: lift (`lift_of_landing_area`, `lift_request`) and atc_cancel
 (`atc_cancel_request`), both OFF by default pending an in-game run: while off,
 every call answers UNAVAILABLE without touching the game. Nothing is owned: a
 lift request or an ATC cancel is one call into the game, not coordinated with the
-game pack's own Store/Retrieve, and nothing is undone at unload. C++, C# and Lua game.hangar routes are unsupported.
+game pack's own Store/Retrieve, and nothing is undone at unload. C++ (scosdk::game::Hangar) and C# (Sco.Sdk.Game) wrap game.hangar. Lua game.hangar routes are unsupported.
 
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
@@ -619,7 +619,7 @@ Capability: checks (`checks`), OFF by default pending an in-game run: while off,
 checks answers UNAVAILABLE without touching the game. Read-only: checks reads the
 reputation-service check sites and the services global the rows locate; nothing reads or
 changes a player's standing, nothing is called or written in the game, and nothing is
-owned. C++, C# and Lua game.reputation routes are unsupported.
+owned. C++ (scosdk::game::Reputation) and C# (Sco.Sdk.Game) wrap game.reputation. Lua game.reputation routes are unsupported.
 
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
@@ -638,7 +638,7 @@ NULL/undersized output is rejected before zeroing, and caller extra tail is not
 written. last_error is shared across query callers, with no per-plugin isolation.
 1.1 appends free_camera_flag (capability game.world.free_camera_flag, OFF by
 default pending an in-game run): a read of the free-camera flag byte, never a
-toggle. C++, C# and Lua game.world free_camera_flag routes are unsupported.
+toggle. C++, C# and Lua wrap game.world free_camera_flag, each checking the table size first.
 
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|

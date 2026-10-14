@@ -290,7 +290,7 @@ actual = re.findall(r'^layout: .*$', Path(sys.argv[2]).read_text(), re.M)
 want = f"layout: {expected} pins checked, 0 failed"
 if actual != [want]:
     sys.exit(f"C#: expected {want}; actual: {actual or 'no layout summary'}")
-print(f"C#: expected {expected} pins, actual {expected} pins, 0 failed")
+print(f"C#: {want} (matches the copied pin entries)")
 PY
   dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" -o "$WORK/cs_publish"
   mkdir -p "$WORK/cs/cs_hello"

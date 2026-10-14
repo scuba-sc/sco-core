@@ -67,7 +67,7 @@
           "evidence": [
             {
               "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "token": "Lua game.hangar routes are unsupported."
             }
           ],
           "tests": []
@@ -156,7 +156,7 @@
           "evidence": [
             {
               "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "token": "Lua game.hangar routes are unsupported."
             }
           ],
           "tests": []
@@ -245,7 +245,7 @@
           "evidence": [
             {
               "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "token": "Lua game.hangar routes are unsupported."
             }
           ],
           "tests": []
@@ -334,7 +334,7 @@
           "evidence": [
             {
               "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.hangar routes are unsupported."
+              "token": "Lua game.hangar routes are unsupported."
             }
           ],
           "tests": []
