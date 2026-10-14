@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <span>
@@ -139,6 +140,34 @@ struct Mount {
     std::string source;     // pack id, for the report
     std::variant<SpliceList, Transform> producer;
 };
+
+// ---- whole-file replacement (the `files\<game path>` content kind, design plan PR 10) -------
+
+// Replacement files are read into memory at their path's first open and count against
+// Limits::bufferBytes like any other replacement bytes (streamed File segments are not built yet).
+constexpr uint64_t kMaxReplaceBytes = 64ull << 20;   // one replacement file
+constexpr size_t   kMaxReplaceFiles = 4096;          // files one pack's files/ folder may mount
+
+// A mount that serves the game file at `gamePath` as the bytes of `sourceFile` (on disk). The
+// producer is a Transform that replaces the whole base, so the merge rules above apply to it: the
+// highest-priority replacement of a path wins and lower-priority mounts of that path are dropped
+// with a reason. Refused here (out untouched, the error says why): a game path that is empty,
+// over kMaxPathLength, absolute, with a drive ("c:") or with a "." or ".." segment; an empty
+// sourceFile. At the path's first open the mount is inert (the game file passes through) when
+// sourceFile is missing, not a regular file, over maxBytes or can't be read in full.
+Result ReplaceMount(std::string_view gamePath, std::filesystem::path sourceFile, std::string source,
+                    int priority, Mount& out, uint64_t maxBytes = kMaxReplaceBytes);
+
+// One data pack's `files/` folder: every regular file under <packDir>/files becomes a ReplaceMount
+// whose game path is its path relative to files/ ("files/Data/Scripts/a.xml" serves
+// "data/scripts/a.xml"), with `packId` as the source. Symlinked files and folders are skipped, so
+// nothing outside the pack is mounted. A file over maxBytes or with a refused game path is left
+// out with one line in `refused`. Error (out unchanged) when the folder can't be read to the end or
+// holds more than kMaxReplaceFiles files: a pack is never mounted with part of its files. No
+// files/ folder: Ok, nothing added.
+Result FileMounts(const std::filesystem::path& packDir, std::string_view packId, int priority,
+                  std::vector<Mount>& out, std::vector<std::string>& refused,
+                  uint64_t maxBytes = kMaxReplaceBytes);
 
 enum class MountState {
     Pending,   // not composed yet (no Open of its path)

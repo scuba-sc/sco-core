@@ -5,6 +5,20 @@ What each change means for plugin authors and for products built on sco-core (sc
 ## Unreleased
 
 - **`sco.ui.surfaces` 1.0: renderer-neutral panel placement** (`sco_api.h` unchanged), a host-owned service ([docs](docs/ui.md#surfaces), [contracts](docs/contracts.md#scouisurfaces-sco_ui_surfaces_v1)). A plugin shows one of its `sco.widgets` panels as a 2D HUD rectangle (`SCO_SURFACE_HUD_2D`), a camera-facing 3D billboard (`SCO_SURFACE_BILLBOARD_3D`) or a world-anchored 3D quad (`SCO_SURFACE_QUAD_3D`): `register_surface`, `update_surface_pose`, `unregister_surface`, `last_error` over size-prefixed `sco_surface_desc` / `sco_surface_pose` (position, normal, up, size in metres, max distance, an occlusion-raycast flag, the panel id). The host validates every field (finite numbers, unit and perpendicular vectors, bounded sizes, distances and coordinates, 32 surfaces per plugin and 256 in all, panels under the plugin's own id), stores surfaces per plugin and withdraws them on unload or crash through `sco.ui`'s release hook (no new hook slot). Products read the registry through `sco/surfaces.h` (`Surfaces()`, `Revision()`, `CheckPose`) and project it themselves; `docs/ui.md` documents the billboard and quad frames and the panel-to-pixel homography. C++ wrapper `scosdk/ui_surfaces.hpp`; C# and Lua are unsupported. Pins `tests/abi_ui_surfaces.c`, host tests `tests/test_surfaces.cpp`; both ship in core-source, the headers in core. Headless tests only: nothing has run in the game.
+- **`sco::game::pak` `Scope::AllFiles` (design plan PR 10), OFF by default:** persistent swaps of
+  the four pinned `ICryPak` slots (open 0x148, read 0x160, seek 0x1D0, close 0x1E0) serve every
+  mounted path on every thread, through a sharded map of served handles. `Enable` refuses it unless
+  the product sets the new `Options::allFilesProbed`, which no sco-core caller does. The new
+  capability `game.pak.all_files` is registered OFF pending in-game confirmation. Tell, size and
+  eof slots have no row, so they are never swapped; `QueryHandle` and `ServedHandles` report the
+  virtual position, size and eof of a served handle. `Disable` drains: open served handles keep
+  their virtual file, and the slots go back when the last one closes. The mount check is guarded
+  like `Options::onLoad` (`try`/`catch`, and SEH on MSVC). `Scope::DataCoreLoad` behaves as before.
+- **`files/` replacement mounts (`sco/vfs.h`):** `vfs::ReplaceMount` (a whole-file `Transform`,
+  refusing absolute, drive and `.`/`..` game paths, inert at open when the file is missing or over
+  `maxBytes`) and `vfs::FileMounts` (a data pack's `files/` folder, symlinks skipped). The plugin
+  content index doesn't list `files/` yet. Nothing here has run in the game: the evidence is
+  synthetic tests (`test_pak_files`) over a fake `ICryPak` vtable.
 
 ## sdk-v2.2.0 (2026-10-14)
 

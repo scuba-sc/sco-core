@@ -2,12 +2,15 @@
 // which four ICryPak vtable slots point here; the first .dcb the loader's thread opens is served
 // through sco::vfs, everything else goes to the engine's own functions. Generalizes sc-offline's
 // quantum.cpp:82-150 (LoadDataCoreHook, SwapPakSlots, PakOpen/Read/Seek/CloseHook).
+// Scope::AllFiles (plan PR 10, OFF pending an in-game probe) swaps the same four slots from Enable
+// to Disable and serves every mounted path on every thread, one sharded map entry per served handle.
 //
 // Not in sco_core (sco-sigcheck and the signature tests don't need hooks): library sco_pak.
 #include "sco/caps.h"
 #include "sco/game/pak.h"
 #include "sco/hook.h"
 #include "sco/log.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <climits>
@@ -16,6 +19,7 @@
 #include <exception>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
 #if defined(_MSC_VER)
 #include <excpt.h>    // __try / __except, GetExceptionCode
 #include <malloc.h>   // _resetstkoflw
@@ -179,34 +183,219 @@ bool Redirected(uintptr_t file) {
     return true;
 }
 
+// ---- Scope::AllFiles: persistent slots and the served handles -----------------------------
+
+using MountsFn = std::shared_ptr<const vfs::Table> (*)();
+
+// Sequentially consistent on purpose: Disable flips g_allServe and then reads g_allTracking, an
+// open flips g_allTracking and then reads g_allServe, so one of them always sees the other and the
+// slots are never restored under an open that is about to serve its handle.
+std::atomic<bool>     g_allSwapped{ false };   // the persistent swaps are in (serving or draining)
+std::atomic<bool>     g_allServe{ false };     // new opens of mounted paths are served
+std::atomic<int>      g_allTracking{ 0 };      // opens inside the AllFiles part of OpenHook
+std::atomic<MountsFn> g_allMounts{ nullptr };
+hook::Transaction     g_allSlots;              // g_mu
+Scope                 g_scope = Scope::DataCoreLoad;   // g_mu: the enabled scope
+
+struct Served {
+    vfs::Reader reader;   // used by the handle's own calls only (the engine serializes one handle)
+};
+struct Shard {
+    std::mutex mu;
+    std::unordered_map<uintptr_t, std::shared_ptr<Served>> map;
+};
+constexpr size_t kShards = 16;
+std::array<Shard, kShards> g_shards;
+std::atomic<size_t> g_servedCount{ 0 };   // 0: reads and seeks skip the map entirely
+
+Shard& ShardOf(uintptr_t file) { return g_shards[static_cast<size_t>((file ^ (file >> 9)) >> 4) % kShards]; }
+
+std::shared_ptr<Served> FindServed(uintptr_t file) {
+    if (!file || g_servedCount.load(std::memory_order_acquire) == 0) return nullptr;
+    Shard& s = ShardOf(file);
+    std::lock_guard<std::mutex> hold(s.mu);
+    const auto it = s.map.find(file);
+    return it == s.map.end() ? nullptr : it->second;
+}
+
+void Remember(uintptr_t file, std::shared_ptr<Served> served) {
+    Shard& s = ShardOf(file);
+    std::lock_guard<std::mutex> hold(s.mu);
+    if (s.map.insert_or_assign(file, std::move(served)).second) g_servedCount.fetch_add(1);
+}
+
+// True when file was served (and now isn't).
+bool ForgetServed(uintptr_t file) {
+    if (!file || g_servedCount.load(std::memory_order_acquire) == 0) return false;
+    Shard& s = ShardOf(file);
+    std::shared_ptr<Served> gone;   // released after the shard lock
+    {
+        std::lock_guard<std::mutex> hold(s.mu);
+        const auto it = s.map.find(file);
+        if (it == s.map.end()) return false;
+        gone = std::move(it->second);
+        s.map.erase(it);
+    }
+    g_servedCount.fetch_sub(1);
+    return true;
+}
+
+// Reading modes only: a mounted path opened to write, append or update is the engine's alone.
+bool ReadOnlyMode(const char* mode) {
+    if (!mode || !*mode) return false;
+    for (const char* c = mode; *c; ++c)
+        if (*c == 'w' || *c == 'W' || *c == 'a' || *c == 'A' || *c == '+') return false;
+    return true;
+}
+
+// g_mu held. On failure the slots stay swapped and registered; the next drain check or Disable
+// retries.
+void RestoreAllSlots() {
+    const hook::Error e = g_allSlots.Rollback();
+    if (e != hook::Error::None) {
+        Log("[!] [pak] restoring the persistent CryPak slots: %s", hook::ErrorName(e));
+        return;
+    }
+    g_allSwapped.store(false);
+    Log("[pak] persistent CryPak slots restored");
+}
+
+// After Disable: the slots go back once no served handle is open and no open is being tracked.
+void RestoreIfDrained() {
+    if (!g_allSwapped.load() || g_allServe.load() || g_allTracking.load() != 0 || g_servedCount.load() != 0) return;
+    std::lock_guard<std::mutex> hold(g_mu);
+    if (!g_allSwapped.load() || g_allServe.load() || g_allTracking.load() != 0 || g_servedCount.load() != 0) return;
+    RestoreAllSlots();
+}
+
+struct TrackAllCall {
+    uintptr_t   pak, file;
+    const char* path;
+};
+
+// A mounted path opened for reading: compose it and remember the handle, or let it pass (and put
+// the real handle back at 0, where the engine expects a fresh one).
+void TrackAllBody(const TrackAllCall& c) {
+    const MountsFn mounts = g_allMounts.load(std::memory_order_acquire);
+    const std::shared_ptr<const vfs::Table> table = mounts ? mounts() : nullptr;
+    if (!table || !table->Mounted(c.path)) return;   // the fast path: no allocation
+    PakBase base(c.pak, c.file, AdapterTag());
+    uint64_t baseSize = 0;
+    std::string reason;
+    if (!ProbeSize(base, baseSize)) {
+        reason = "the file's size couldn't be read";
+    } else if (std::shared_ptr<const vfs::Composed> composed = table->Open(c.path, base, baseSize)) {
+        auto served = std::make_shared<Served>();
+        served->reader = vfs::Reader(composed);
+        Remember(c.file, std::move(served));
+        Log("[+] [pak] %s served from its mount (%llu -> %llu bytes)", c.path,
+            static_cast<unsigned long long>(composed->baseSize), static_cast<unsigned long long>(composed->size));
+        return;
+    } else {
+        reason = "every mount of it is inert";
+        const std::string norm = vfs::NormalizePath(c.path);
+        for (const vfs::MountInfo& m : table->Mounts())
+            if (m.path == norm && !m.reason.empty()) { reason = m.source + ": " + m.reason; break; }
+    }
+    if (!base.Seek(0)) reason += "; seeking the file back to 0 failed";
+    Log("[pak] %s passed through (%s)", c.path, reason.c_str());
+}
+
+void TrackAllThunk(void* p) noexcept {
+    const TrackAllCall& c = *static_cast<const TrackAllCall*>(p);
+    try {
+        TrackAllBody(c);
+    } catch (const std::exception& e) {
+        Log("[!] [pak] mount check of %s failed (%s); the file passes through", c.path, e.what());
+    } catch (...) {
+        Log("[!] [pak] mount check of %s failed; the file passes through", c.path);
+    }
+}
+
+#if defined(_MSC_VER)
+// The structured-exception guard for TrackAllThunk (no C++ objects in it: C2712), as GuardedOnLoad.
+unsigned long GuardedTrackAll(void* p) {
+    unsigned long code = 0;
+    __try {
+        TrackAllThunk(p);
+    } __except (code = GetExceptionCode(), EXCEPTION_EXECUTE_HANDLER) {
+        if (code == 0xC00000FDul) _resetstkoflw();   // EXCEPTION_STACK_OVERFLOW: restore the guard page
+        return code ? code : 0xFFFFFFFFul;
+    }
+    return 0;
+}
+#endif
+
+void TrackAll(uintptr_t pak, uintptr_t file, const char* path) {
+    TrackAllCall c{ pak, file, path };
+#if defined(_MSC_VER)
+    if (const unsigned long code = GuardedTrackAll(&c)) {
+        ForgetServed(file);
+        Log("[!] [pak] a mount check crashed (exception 0x%08lX); the file passes through", code);
+    }
+#else
+    TrackAllThunk(&c);
+#endif
+}
+
 // ---- the four slots -----------------------------------------------------------------------
+
+size_t ServeRead(vfs::Reader& r, uintptr_t pak, void* data, size_t length, size_t elems, uintptr_t file, const void* tag) {
+    if (!length || !elems) return 0;
+    if (elems > SIZE_MAX / length) return 0;   // the byte count doesn't fit: nothing read
+    PakBase base(pak, file, tag ? tag : AdapterTag());
+    return r.Read(data, length * elems, base) / length;
+}
+
+int ServeSeek(vfs::Reader& r, int offset, int mode) {
+    if (mode != SEEK_SET && mode != SEEK_CUR && mode != SEEK_END) return -1;
+    const vfs::Whence w = mode == SEEK_SET ? vfs::Whence::Set : mode == SEEK_CUR ? vfs::Whence::Cur : vfs::Whence::End;
+    return r.Seek(offset, w) ? 0 : -1;
+}
 
 uintptr_t OpenHook(uintptr_t pak, const char* path, const char* mode, uint32_t flags) {
     const uintptr_t file = g_open.load(std::memory_order_acquire)(pak, path, mode, flags);
-    if (file && OnLoaderThread() && !g_tracked.load(std::memory_order_acquire) && EndsWithDcb(path))
+    if (!file) return file;
+    if (g_allSwapped.load()) {
+        g_allTracking.fetch_add(1);
+        // A handle value the engine hands out again after a close that didn't come through us.
+        const bool forgot = ForgetServed(file);
+        if (g_allServe.load() && path && ReadOnlyMode(mode)) TrackAll(pak, file, path);
+        g_allTracking.fetch_sub(1);
+        if (forgot || !g_allServe.load()) RestoreIfDrained();
+        return file;
+    }
+    if (OnLoaderThread() && !g_tracked.load(std::memory_order_acquire) && EndsWithDcb(path))
         Track(pak, file, path);
     return file;
 }
 
 size_t ReadHook(uintptr_t pak, void* data, size_t length, size_t elems, uintptr_t file, const void* tag) {
+    if (const std::shared_ptr<Served> s = FindServed(file)) {
+        // Engine calls this adapter doesn't route (getc, gets, ...) may have moved the real handle,
+        // so a served read never trusts the base position it last left.
+        const uint64_t pos = s->reader.Tell();
+        s->reader = vfs::Reader(s->reader.File());
+        s->reader.Seek(static_cast<int64_t>(pos), vfs::Whence::Set);
+        return ServeRead(s->reader, pak, data, length, elems, file, tag);
+    }
     if (!Redirected(file)) return g_read.load(std::memory_order_acquire)(pak, data, length, elems, file, tag);
-    if (!length || !elems) return 0;
-    if (elems > SIZE_MAX / length) return 0;   // the byte count doesn't fit: nothing read
-    PakBase base(pak, file, tag ? tag : AdapterTag());
-    return g_reader.Read(data, length * elems, base) / length;
+    return ServeRead(g_reader, pak, data, length, elems, file, tag);
 }
 
 int SeekHook(uintptr_t pak, uintptr_t file, int offset, int mode) {
+    if (const std::shared_ptr<Served> s = FindServed(file)) return ServeSeek(s->reader, offset, mode);
     if (!Redirected(file)) return g_seek.load(std::memory_order_acquire)(pak, file, offset, mode);
-    const vfs::Whence w = mode == SEEK_SET ? vfs::Whence::Set : mode == SEEK_CUR ? vfs::Whence::Cur : vfs::Whence::End;
-    if (mode != SEEK_SET && mode != SEEK_CUR && mode != SEEK_END) return -1;
-    return g_reader.Seek(offset, w) ? 0 : -1;
+    return ServeSeek(g_reader, offset, mode);
 }
 
 int CloseHook(uintptr_t pak, uintptr_t file) {
     uintptr_t tracked = file;
     if (file) g_tracked.compare_exchange_strong(tracked, 0, std::memory_order_acq_rel);   // forget it, from any thread
-    return g_close.load(std::memory_order_acquire)(pak, file);
+    const bool served = ForgetServed(file);   // before the engine can hand the value out again
+    const int rc = g_close.load(std::memory_order_acquire)(pak, file);
+    if (served) RestoreIfDrained();
+    return rc;
 }
 
 template <class F> void* Code(F f) {
@@ -218,15 +407,16 @@ template <class F> void* Code(F f) {
 
 // ---- the load window ----------------------------------------------------------------------
 
-// Swaps the four slots of the current ICryPak's vtable (g_mu held).
-void SwapSlots(uintptr_t pak) {
+// Swaps the four slots of an ICryPak's vtable in one transaction (g_mu held). Only these four:
+// no other slot of the vtable is read or written.
+hook::Error SwapInto(hook::Transaction& tx, uintptr_t pak) {
     void** vt = nullptr;
     std::memcpy(&vt, reinterpret_cast<const void*>(pak), sizeof vt);
     void* orig[4] = {};
-    g_slots.AddSlot(vt + kOpenSlot / 8, Code(&OpenHook), &orig[0]);
-    g_slots.AddSlot(vt + kReadSlot / 8, Code(&ReadHook), &orig[1]);
-    g_slots.AddSlot(vt + kSeekSlot / 8, Code(&SeekHook), &orig[2]);
-    g_slots.AddSlot(vt + kCloseSlot / 8, Code(&CloseHook), &orig[3]);
+    tx.AddSlot(vt + kOpenSlot / 8, Code(&OpenHook), &orig[0]);
+    tx.AddSlot(vt + kReadSlot / 8, Code(&ReadHook), &orig[1]);
+    tx.AddSlot(vt + kSeekSlot / 8, Code(&SeekHook), &orig[2]);
+    tx.AddSlot(vt + kCloseSlot / 8, Code(&CloseHook), &orig[3]);
     // SwapSlot sets each original before its slot changes, but the hooks read the atomics: store
     // them from the vtable first, so a call through a just-swapped slot finds them.
     OpenFn o; ReadFn r; SeekFn s; CloseFn c;
@@ -238,7 +428,12 @@ void SwapSlots(uintptr_t pak) {
     g_read.store(r, std::memory_order_release);
     g_seek.store(s, std::memory_order_release);
     g_close.store(c, std::memory_order_release);
-    const hook::Error e = g_slots.Commit();
+    return tx.Commit();
+}
+
+// The load window's swap (g_mu held).
+void SwapSlots(uintptr_t pak) {
+    const hook::Error e = SwapInto(g_slots, pak);
     g_swapped = e == hook::Error::None;
     if (!g_swapped) g_load.reason = std::string("slot swap refused: ") + hook::ErrorName(e);
 }
@@ -369,6 +564,43 @@ Result Refuse(Result r, const char* reason) {
     return r;
 }
 
+constexpr char kAllFilesOff[] = "OFF pending in-game confirmation (docs/design/vfs-datacore.md plan PR 10)";
+
+Result RefuseAllFiles(Result r, const char* reason, const char* capReason) {
+    caps::Set(kAllFilesCap, false, capReason);
+    return Refuse(r, reason);
+}
+
+Result EnableAllFiles(const Options& options, const Targets& targets) {
+    if (!options.allFilesProbed)
+        return RefuseAllFiles(Result::Unavailable, "Scope::AllFiles is OFF pending an in-game probe (Options.allFilesProbed)", kAllFilesOff);
+    if (!targets.cryPak) return RefuseAllFiles(Result::BadArg, "no CryPak global", "no CryPak global");
+    std::lock_guard<std::mutex> hold(g_mu);
+    if (g_enabled) return Result::BadArg;   // vfs.pak and game.pak.all_files stay as they are
+    const uintptr_t pak = *targets.cryPak;
+    if (!pak) return RefuseAllFiles(Result::Unavailable, "CryPak not created yet (the ICryPak* is null)", "CryPak not created yet");
+    if (!g_allSwapped.load()) {   // still swapped while draining: reuse those swaps
+        const hook::Error e = SwapInto(g_allSlots, pak);
+        if (e != hook::Error::None) {
+            char reason[64];
+            std::snprintf(reason, sizeof reason, "slot swap refused: %s", hook::ErrorName(e));
+            return RefuseAllFiles(Result::Failed, reason, reason);
+        }
+        g_allSwapped.store(true);
+    }
+    g_allMounts.store(options.mounts, std::memory_order_release);
+    g_options = options;
+    g_targets = targets;
+    g_last = LoadReport();
+    g_scope = Scope::AllFiles;
+    g_enabled = true;
+    g_allServe.store(true);
+    caps::Set("vfs.pak", true);
+    caps::Set(kAllFilesCap, true);
+    Log("[+] [pak] CryPak open/read/seek/close swapped for all files (Scope::AllFiles; tell, size and eof not routed)");
+    return Result::Ok;
+}
+
 }  // namespace
 
 const char* OutcomeName(Outcome o) {
@@ -396,11 +628,13 @@ Result Enable(const Options& options) {
 
 Result Enable(const Options& options, const Targets& targets) {
     if (options.size != sizeof(Options)) return Refuse(Result::BadArg, "Options.size mismatch");
-    if (options.scope != Scope::DataCoreLoad) return Refuse(Result::Unavailable, "Scope::AllFiles arrives with persistent hooks (plan PR 10)");
+    if (options.scope != Scope::DataCoreLoad && options.scope != Scope::AllFiles) return Refuse(Result::BadArg, "unknown scope");
     if (!options.mounts) return Refuse(Result::BadArg, "no mount table (Options.mounts)");
+    if (options.scope == Scope::AllFiles) return EnableAllFiles(options, targets);
     if (!targets.loader || !targets.cryPak) return Refuse(Result::BadArg, "no loader or CryPak global");
     std::lock_guard<std::mutex> hold(g_mu);
     if (g_enabled) return Result::BadArg;   // vfs.pak stays as it is
+    if (g_allSwapped.load()) return Refuse(Result::BadArg, "Scope::AllFiles slots still serve open handles");
     void* orig = nullptr;
     const hook::Error e = hook::InstallDetour(targets.loader, 0, Code(&LoaderHook), &orig);
     if (e != hook::Error::None) {
@@ -412,6 +646,7 @@ Result Enable(const Options& options, const Targets& targets) {
     g_options = options;
     g_targets = targets;
     g_last = LoadReport();
+    g_scope = Scope::DataCoreLoad;
     g_enabled = true;
     caps::Set("vfs.pak", true);
     Log("[+] [pak] DataCore loader hooked (CryPak open/read/seek/close swapped while it runs)");
@@ -421,6 +656,16 @@ Result Enable(const Options& options, const Targets& targets) {
 void Disable() {
     std::lock_guard<std::mutex> hold(g_mu);
     if (!g_enabled) return;
+    if (g_scope == Scope::AllFiles) {
+        g_allServe.store(false);   // new opens pass through from here
+        g_enabled = false;
+        g_scope = Scope::DataCoreLoad;
+        caps::Set("vfs.pak", false, "disabled");
+        caps::Set(kAllFilesCap, false, "disabled");
+        if (g_allTracking.load() == 0 && g_servedCount.load() == 0) RestoreAllSlots();
+        else Log("[pak] %zu served handle(s) still open; the CryPak slots go back when the last one closes", g_servedCount.load());
+        return;
+    }
     const hook::Error e = hook::RemoveDetour(g_targets.loader);
     if (e != hook::Error::None && e != hook::Error::NotHooked)
         Log("[!] [pak] removing the loader detour: %s", hook::ErrorName(e));
@@ -438,5 +683,16 @@ LoadReport LastLoad() {
     std::lock_guard<std::mutex> hold(g_mu);
     return g_last;
 }
+
+bool QueryHandle(uintptr_t file, HandleState& out) {
+    const std::shared_ptr<Served> s = FindServed(file);
+    if (!s) return false;
+    out.pos = s->reader.Tell();
+    out.size = s->reader.Size();
+    out.eof = s->reader.Eof();
+    return true;
+}
+
+size_t ServedHandles() { return g_servedCount.load(); }
 
 }  // namespace sco::game::pak

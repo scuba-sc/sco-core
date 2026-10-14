@@ -268,6 +268,17 @@
       "capabilities": [
         {"name": null, "display": "no capability of its own: full-pose conversion and copied observed zones", "methods": [], "default": "none", "evidence_level": "synthetic_only", "evidence": "Synthetic fixtures only; not verified on Windows or in game", "evidence_source": "docs/game-services.md"}
       ]
+    },
+    {
+      "id": "game.pak.rows",
+      "kind": "signature_rows",
+      "service": "game.pak",
+      "title": "CryPak adapter rows",
+      "doc": "docs/api.md",
+      "version": "row",
+      "capabilities": [
+        {"name": "game.pak.all_files", "display": "`game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts)", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["pak.datacore_loader", "pak.crypak", "pak.slots"], "evidence_source": "docs/api.md"}
+      ]
     }
   ]
 }
