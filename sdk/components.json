@@ -3271,6 +3271,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.plugins.lua.sco_panel_builder.h",
+      "source": "plugins/lua/sco_panel_builder.h",
+      "destination": "plugins/lua/sco_panel_builder.h",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.plugins.lua.sco_lua.c",
       "source": "plugins/lua/sco_lua.c",
       "destination": "plugins/lua/sco_lua.c",

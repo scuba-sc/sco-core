@@ -135,6 +135,91 @@ See [widgets](widgets.md) and [the Lua example](../examples/widgets_lua).
 The targeted real-loader fixture is `ctest -R '^test_lua_widgets$'`; headless
 synthetic events do not certify production GPU rendering or gameplay.
 
+## Nested panels (`sco.panel_builder`)
+
+`sco.panel_builder.new()` creates an independent builder. The runtime installs
+this trusted text module before the entry script; no `require`, filesystem
+access or extra library is needed. It is available even without the widgets
+service. Check `sco.widgets.available()` before submitting a panel.
+
+```lua
+local b = sco.panel_builder.new()
+b:column(function(ui)
+  ui:row(function(ui)
+    ui:toggle{
+      label="Enabled", value=false,
+      on_change=function(panel, event)
+        sco.log("info", panel .. ": " .. tostring(event.value))
+      end
+    }
+    ui:slider{
+      label="Speed", value=0.5, minimum=0, maximum=1,
+      on_change=function(_, event) sco.log("info", tostring(event.value)) end
+    }
+  end)
+  ui:button{
+    label="Apply",
+    on_click=function(panel, event)
+      sco.log("info", panel .. ": button " .. event.node_id)
+    end
+  }
+end)
+
+local nodes, dispatch = b:build()
+if sco.widgets.available() then
+  assert(sco.widgets.set_panel("my_plugin.main", "Settings", nodes, dispatch))
+end
+```
+
+| Builder method | Result |
+|---|---|
+| `b:column(fn[, options])`, `b:row(fn[, options])` | Adds a layout, calls `fn(b)` synchronously for its children, then restores the enclosing parent; returns the layout's node ID |
+| `b:toggle{label, value, disabled, on_change}` | Adds a toggle; `value` defaults to false; returns its node ID |
+| `b:slider{label, value, minimum, maximum, disabled, on_change}` | Adds a slider with required finite numeric range/value; returns its node ID |
+| `b:button{label, disabled, on_click}` | Adds a button; returns its node ID |
+| `b:build()` | Returns a fresh dense preorder `nodes` array and `dispatch(panel_id, event)` |
+
+Layout options accept optional `label` and boolean `disabled`. Control labels
+are required, nonempty UTF-8 strings, at most 255 bytes, without NUL. `disabled`
+and callbacks are optional; callbacks must be functions. A slider must satisfy
+`minimum <= value <= maximum`. Unknown options (including manual `id`, `parent`
+and `kind`), wrong types, invalid strings, an empty build and more than 256 nodes
+raise Lua errors before submission. Options are read raw, without table
+metamethods. `build()` is refused inside an open layout body. If a layout body
+raises, that entire subtree is discarded and the prior parent restored;
+an enclosing `pcall` can catch ordinary construction errors.
+
+IDs are assigned in call order, starting at 1 for each builder. Layout bodies
+produce contiguous subtrees; root nodes have `parent=0`, and nested nodes name
+their enclosing layout. Duplicate display labels do not share IDs. Each build
+copies the node data and captures a separate callback map. Changing options or
+adding more nodes cannot change a previous build; mutating one returned array
+does not change the builder or another snapshot. Callbacks are kept out of the
+node fields accepted by `sco.widgets`.
+
+`on_click` and `on_change` both receive `(panel_id, event)`, exactly as the raw
+widgets callback does. The dispatcher calls only the matching node ID/kind;
+missing callbacks, unknown IDs, mismatched kinds, disabled controls and children
+of disabled layouts return false. A handled event returns true. Callback errors
+propagate to the existing runtime error guard. Widget submission retains the
+dispatcher and its callbacks until successful replacement, removal or unload;
+the builder itself can be dropped after submission. Build snapshots do not
+update toggle/slider values automatically: create or submit a replacement tree
+when application state changes.
+
+Callbacks may replace/remove the panel or invoke commands under the existing
+widget lifecycle rules. Construction, layout bodies and dispatched callbacks
+use the same step and memory limits as other Lua code; no sandbox restrictions
+are lifted. Host ownership, title validity, service availability and aggregate
+panel/node quotas remain checked by `sco.widgets.set_panel`.
+
+The implementation is embedded Lua text in
+`plugins/lua/sco_panel_builder.h`, included in the source SDK profiles.
+`test_lua_widgets` checks generated trees against the real host validator,
+typed event dispatch, rollback, snapshot/callback lifetime, reentrant
+replacement/removal and callback budget enforcement. These are headless
+synthetic checks, not in-game verification.
+
 ## Commands
 
 ```lua

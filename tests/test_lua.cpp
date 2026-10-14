@@ -213,6 +213,176 @@ static void TestWidgetsTypedEvents() {
 }
 
 static const sco_widgets_v1* g_widgetsFixture = nullptr;
+static void TestPanelBuilder() {
+    CHECK(sco::widgets::Start() == Result::Ok);
+    Write("panelbuilder", R"lua(
+      local M, seen = sco.panel_builder, {}
+      assert(type(M)=="table" and type(M.new)=="function")
+      assert(require==nil and package==nil and load==nil and io==nil and os==nil and debug==nil)
+      assert(not pcall(setmetatable, {}, {__gc=function() end}))
+      local b = M.new()
+      assert(not pcall(function() b:build() end))
+      local function changed(panel, event)
+        assert(panel=="panelbuilder.main")
+        if event.kind=="toggle" then assert(event.value==true)
+        else assert(event.kind=="slider" and event.value==0.75) end
+        seen[#seen+1]=event.kind
+      end
+      local weak = setmetatable({changed=changed}, {__mode="v"})
+      local options = {label="Same", value=false, on_change=changed}
+      assert(b:column(function(ui)
+        assert(ui==b)
+        assert(not pcall(function() ui:build() end))
+        assert(ui:row(function(ui)
+          assert(ui:toggle(options)==3)
+          assert(ui:slider{label="Same", value=0.5, minimum=0, maximum=1, on_change=changed}==4)
+        end)==2)
+        assert(ui:button{label="Same", on_click=function(panel, event)
+          assert(panel=="panelbuilder.main" and event.kind=="button" and event.value==nil)
+          seen[#seen+1]="button"
+        end}==5)
+        ui:column(function(ui)
+          ui:button{label="Disabled", on_click=function() error("disabled callback") end}
+        end, {disabled=true})
+      end)==1)
+      options.label="mutated"; options.on_change=function() error("mutated callback") end
+      b:button{label="Root", disabled=true, on_click=function() error("disabled leaf") end}
+      local nodes, dispatch = b:build()
+      local parents = {0,1,2,2,1,1,6,0}
+      assert(#nodes==8)
+      for i,n in ipairs(nodes) do
+        assert(n.id==i and n.parent==parents[i])
+        assert(n.on_change==nil and n.on_click==nil)
+      end
+      assert(nodes[3].label=="Same" and nodes[3].value==false)
+      assert(not dispatch("panelbuilder.main", {node_id=999, kind="button"}))
+      assert(not dispatch("panelbuilder.main", {node_id=3, kind="button"}))
+      assert(not dispatch("panelbuilder.main", {node_id=7, kind="button"}))
+      assert(not dispatch("panelbuilder.main", {node_id=8, kind="button"}))
+      assert(b:button{label="Future", on_click=function() error("future callback") end}==9)
+      assert(not dispatch("panelbuilder.main", {node_id=9, kind="button"}))
+      nodes[3].label="snapshot changed"
+      local fresh = b:build()
+      assert(#fresh==9 and fresh[3].label=="Same" and fresh~=nodes and fresh[3]~=nodes[3])
+      nodes[3].label="Same"
+      assert(sco.widgets.set_panel("panelbuilder.main", "Builder", nodes, dispatch))
+      b=nil; nodes=nil; fresh=nil; dispatch=nil; changed=nil; options=nil
+      sco.widget_test_gc(); assert(weak.changed~=nil)
+      assert(sco.register_command{name="panelbuilder.seen", title="Seen", fn=function()
+        return table.concat(seen, ",") end})
+      assert(sco.register_command{name="panelbuilder.remove", title="Remove", fn=function()
+        assert(sco.widgets.remove_panel("panelbuilder.main"))
+        sco.widget_test_gc()
+        assert(weak.changed==nil)
+        return "removed" end})
+    )lua");
+    Loaded live = Load("panelbuilder");
+    CHECK(live.p && live.p->state == State::Loaded);
+    if (live.p && live.p->state != State::Loaded) std::printf("  panelbuilder: %s\n", live.p->reason.c_str());
+    const auto panels = sco::widgets::Panels();
+    CHECK(panels.size() == 1 && panels[0].nodes.size() == 8);
+    if (panels.size() == 1 && panels[0].nodes.size() == 8) {
+        const uint32_t parents[] = {0,1,2,2,1,1,6,0};
+        for (size_t i = 0; i < 8; ++i)
+            CHECK(panels[0].nodes[i].id == i + 1 && panels[0].nodes[i].parent == parents[i]);
+        CHECK(panels[0].nodes[2].label == "Same" && panels[0].nodes[3].value == 0.5);
+    }
+    LuaWidgetRenderer renderer;
+    renderer.events = {{3,SCO_WIDGET_TOGGLE,0,1}, {4,SCO_WIDGET_SLIDER,0,0.75},
+                       {5,SCO_WIDGET_BUTTON}, {7,SCO_WIDGET_BUTTON}, {8,SCO_WIDGET_BUTTON}};
+    CHECK(sco::widgets::RenderPanel("panelbuilder.main", renderer) == Result::Ok);
+    CHECK(Invoke(g_caller, "panelbuilder.seen").text == "toggle,slider,button");
+    CHECK(Invoke(g_caller, "panelbuilder.remove").text == "removed");
+    CHECK(sco::widgets::Panels().empty());
+    Unload(live);
+
+    Write("builderinvalid", R"lua(
+      local b = sco.panel_builder.new()
+      local function refused(fn) assert(not pcall(fn)) end
+      for _,options in ipairs{
+        {}, {label=""}, {label=1}, {label="x\0y"}, {label="\192\128"},
+        {label=string.rep("x",256)}, {label="x", disabled=1}, {label="x", on_click=true},
+        {label="x", id=1}, {label="x", parent=99}, {label="x", kind="toggle"}
+      } do refused(function() b:button(options) end) end
+      refused(function() b:button(nil) end)
+      refused(function() b:toggle{label="x", value=1} end)
+      for _,value in ipairs{0/0, math.huge, -math.huge, -1, 2, "0.5"} do
+        refused(function() b:slider{label="x", value=value, minimum=0, maximum=1} end)
+      end
+      refused(function() b:slider{label="x", value=0} end)
+      refused(function() b:slider{label="x", value=0, minimum=1, maximum=0} end)
+      refused(function() b:slider{label="x", value=0, minimum=0, maximum=math.huge} end)
+      refused(function() b:row(nil) end)
+      refused(function() b:row(function() end, false) end)
+      refused(function() b:row(function() end, {value=1}) end)
+      local hidden = setmetatable({}, {__index=function() error("metamethod called") end})
+      refused(function() b:button(hidden) end)
+      assert(b:button{label=string.rep("x",255)}==1)
+      refused(function() b:column(function(ui)
+        ui:row(function(ui) ui:button{label="rolled back", on_click=function() error("stale") end} end)
+        error("abort scope")
+      end) end)
+      assert(b:row(function(ui) assert(ui:toggle{label="Default"}==3) end)==2)
+      assert(b:slider{label="Fixed", value=1, minimum=1, maximum=1}==4)
+      local nodes, dispatch = b:build()
+      assert(#nodes==4 and nodes[3].parent==2 and nodes[3].value==false and nodes[4].parent==0)
+      assert(not dispatch("builderinvalid.main", {node_id=3, kind="toggle", value=true}))
+      assert(sco.widgets.set_panel("builderinvalid.main", "Recovered", nodes, dispatch))
+      local other = sco.panel_builder.new()
+      for i=1,256 do assert(other:button{label="x"}==i) end
+      refused(function() other:button{label="overflow"} end)
+      assert(#other:build()==256)
+      assert(sco.widgets.set_panel("builderinvalid.limit", "Limit", other:build()))
+    )lua");
+    Loaded invalid = Load("builderinvalid");
+    CHECK(invalid.p && invalid.p->state == State::Loaded);
+    if (invalid.p && invalid.p->state != State::Loaded) std::printf("  builderinvalid: %s\n", invalid.p->reason.c_str());
+    CHECK(sco::widgets::Panels().size() == 2);
+    Unload(invalid);
+    CHECK(sco::widgets::Panels().empty());
+
+    Write("builderreplace", R"lua(
+      local b = sco.panel_builder.new()
+      b:button{label="Replace", on_click=function(panel)
+        local replacement = sco.panel_builder.new()
+        replacement:button{label="Remove", on_click=function(panel)
+          assert(sco.widgets.remove_panel(panel))
+          sco.widget_test_gc()
+          sco.log("info", "builder removed")
+        end}
+        assert(sco.widgets.set_panel(panel, "Replaced", replacement:build()))
+        sco.widget_test_gc()
+        sco.log("info", "builder replaced")
+      end}
+      assert(sco.widgets.set_panel("builderreplace.main", "Original", b:build()))
+    )lua");
+    Loaded replaced = Load("builderreplace");
+    CHECK(replaced.p && replaced.p->state == State::Loaded);
+    renderer.events = {{1,SCO_WIDGET_BUTTON}, {1,SCO_WIDGET_BUTTON}};
+    CHECK(sco::widgets::RenderPanel("builderreplace.main", renderer) == Result::Ok);
+    CHECK(Logged("[builderreplace] builder replaced") && sco::widgets::Panels().size() == 1);
+    CHECK(sco::widgets::RenderPanel("builderreplace.main", renderer) == Result::Ok);
+    CHECK(Logged("[builderreplace] builder removed") && sco::widgets::Panels().empty());
+    Unload(replaced);
+
+    Write("builderspin", R"lua(
+      local b = sco.panel_builder.new()
+      b:button{label="Spin", on_click=function()
+        sco.log("info", "builder spin entered")
+        while true do end
+      end}
+      assert(sco.widgets.set_panel("builderspin.main", "Budget", b:build()))
+    )lua");
+    Loaded spin = Load("builderspin");
+    CHECK(spin.p && spin.p->state == State::Loaded);
+    CHECK(sco::widgets::RenderPanel("builderspin.main", renderer) == Result::Ok);
+    CHECK(spin.p && !sco_lua_alive(spin.p->self));
+    CHECK(Logged("[builderspin] error: script disabled: ran past its step budget"));
+    Unload(spin);
+    CHECK(sco::widgets::Panels().empty());
+    sco::widgets::Stop();
+}
+
 static sco_result WidgetsFixtureQuery(const char* name, uint32_t version, const void** out) {
     CHECK(strcmp(name, SCO_WIDGETS_NAME) == 0 && version == SCO_WIDGETS_VERSION_1_0);
     *out = g_widgetsFixture;
@@ -1298,6 +1468,7 @@ int main(int argc, char** argv) {
         CHECK(sco_lua_add_extension(&kWidgetTestExtension) == SCO_OK);
         TestWidgets();
         TestWidgetsTypedEvents();
+        TestPanelBuilder();
         TestWidgetsServiceTables();
         TestWidgetsInvalid();
         TestWidgetsLifetime();
