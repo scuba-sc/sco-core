@@ -2,8 +2,11 @@
 
 This is one complete path from a published SDK archive to a checked, renamed C
 plugin, then Windows game deployment. You do not need a sco-core checkout.
-SDK **2.1.0** is a package version; the plugin ABI remains **1.1**. Get other
-published versions from [releases](https://github.com/scubamount/sco-core/releases/latest).
+SDK **2.2.0** is a package version; the plugin ABI remains **1.1**. SDK 2.2.0 is
+a release candidate that the maintainer has yet to publish: until its release
+exists, the newest published SDK is 2.1.0, so take that version from
+[releases](https://github.com/scubamount/sco-core/releases/latest) and use it in
+place of 2.2.0 in the file names and commands below.
 
 ## 1. Choose a language and archive
 
@@ -20,13 +23,13 @@ and verifying the archive; return here for deployment and diagnostics. The
 copy/build/check commands below deliberately choose **C**, not a universal
 recipe for every language.
 
-| Published SDK 2.1.0 asset | Choose it when |
+| SDK 2.2.0 asset | Choose it when |
 | --- | --- |
-| `sco-sdk-core-2.1.0.zip` | You need the neutral ABI, host services, native template and generic examples. Used below. |
-| `sco-sdk-2.1.0.zip` | You also need Star Citizen service headers, DataCore, or game data-pack examples. Simplest game-specific choice: combined core + game extension. |
+| `sco-sdk-core-2.2.0.zip` | You need the neutral ABI, host services, native template and generic examples. Used below. |
+| `sco-sdk-2.2.0.zip` | You also need Star Citizen service headers, DataCore, or game data-pack examples. Simplest game-specific choice: combined core + game extension. |
 | `sco-sdk-game-sc-0.4.0.zip` | Optional extension over its **exact matching** core archive, not a standalone SDK. Check `COMPATIBILITY.json.game-sc` and the required base digest before composing; equal version strings are insufficient. See [archive composition](../sdk/README.md#zips). |
-| `sco-sdk-core-source-2.1.0.zip` | You are embedding/building the host kernel, not following the plugin template path. See [source-kit instructions](../sdk/README.md#build-the-kernel-source-kit). Do not overlay it with a plugin SDK. |
-| `sco-sdk-host-source-sc-2.1.0.zip` | You are building the Star Citizen host source standalone, not a plugin. See the [host-source guide](host-source-sc.md). Do not overlay it with a plugin SDK. |
+| `sco-sdk-core-source-2.2.0.zip` | You are embedding/building the host kernel, not following the plugin template path. See [source-kit instructions](../sdk/README.md#build-the-kernel-source-kit). Do not overlay it with a plugin SDK. |
+| `sco-sdk-host-source-sc-2.2.0.zip` | You are building the Star Citizen host source standalone, not a plugin. See the [host-source guide](host-source-sc.md). Do not overlay it with a plugin SDK. |
 
 Raw unzip does not validate an overlay's compatibility. If you do not need to
 manage the core/overlay descriptors separately, use the combined archive.
@@ -54,33 +57,34 @@ manage the core/overlay descriptors separately, use the combined archive.
 ## 3. Download, verify, extract
 
 Use an empty working directory. The verify, extract, build and check commands
-in sections 3 to 5 were executed on macOS against the **published** `sdk-v2.1.0`
-core archive and its release `SHA256SUMS`; the `gh release download` line itself
-was not re-run for 2.1.0. On Windows, use a shell that supports these shell
+in sections 3 to 5 were executed on macOS against the **published** SDK 2.1.0
+core archive and its release `SHA256SUMS`, with 2.1.0 in the file names; they
+have not been run against a 2.2.0 archive, and the `gh release download` line
+itself was not re-run for 2.1.0. On Windows, use a shell that supports these shell
 blocks, or perform the download/extraction in the UI and use the linked Windows
 CMake recipe.
 
 ```sh
-env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.1.0 -R scubamount/sco-core -p 'sco-sdk-core-2.1.0.zip' -p SHA256SUMS
+env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.2.0 -R scubamount/sco-core -p 'sco-sdk-core-2.2.0.zip' -p SHA256SUMS
 python3 - <<'PY'
 import hashlib
 from pathlib import Path
 import zipfile
-archive = Path('sco-sdk-core-2.1.0.zip')
+archive = Path('sco-sdk-core-2.2.0.zip')
 entries = dict(line.split(None, 1)[::-1] for line in Path('SHA256SUMS').read_text().splitlines() if line.strip())
 expected = entries[archive.name]
 actual = hashlib.sha256(archive.read_bytes()).hexdigest()
 if actual != expected:
     raise SystemExit('SHA256 mismatch: stop; do not extract or build')
 print(archive.name + ': SHA256 OK')
-if Path('sco-sdk-core-2.1.0').exists():
+if Path('sco-sdk-core-2.2.0').exists():
     raise SystemExit('Extraction destination already exists; choose an empty directory')
 with zipfile.ZipFile(archive) as sdk:
     sdk.extractall('.')
 PY
 ```
 
-Expected: `sco-sdk-core-2.1.0.zip: SHA256 OK`. The release-level `SHA256SUMS`
+Expected: `sco-sdk-core-2.2.0.zip: SHA256 OK`. The release-level `SHA256SUMS`
 checks archive bytes; the similarly named file **inside** the SDK covers
 extracted files. A checksum downloaded alongside an archive is an integrity
 check, not independent signer authentication. Maintainers' signed approval and
@@ -92,18 +96,18 @@ Only extract archives from the trusted project release.
 From the same working directory:
 
 ```sh
-cmake -S sco-sdk-core-2.1.0 -B sdk-build -DCMAKE_BUILD_TYPE=Release
+cmake -S sco-sdk-core-2.2.0 -B sdk-build -DCMAKE_BUILD_TYPE=Release
 cmake --build sdk-build --config Release
 cmake --install sdk-build --config Release --prefix sdk-out
 python3 - <<'PY'
 from pathlib import Path
 import shutil
-shutil.copytree('sco-sdk-core-2.1.0/template', 'first_plugin')
+shutil.copytree('sco-sdk-core-2.2.0/template', 'first_plugin')
 for name in ('plugin.c', 'plugin.ini', 'CMakeLists.txt'):
     path = Path('first_plugin') / name
     path.write_text(path.read_text().replace('my_plugin', 'first_plugin'))
 PY
-cmake -S first_plugin -B first-plugin-build -DSCO_SDK="$PWD/sco-sdk-core-2.1.0" -DCMAKE_BUILD_TYPE=Release
+cmake -S first_plugin -B first-plugin-build -DSCO_SDK="$PWD/sco-sdk-core-2.2.0" -DCMAKE_BUILD_TYPE=Release
 cmake --build first-plugin-build --config Release
 cmake --install first-plugin-build --config Release --prefix first-plugin-out
 ```

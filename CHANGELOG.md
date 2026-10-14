@@ -4,6 +4,58 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+## sdk-v2.2.0 (unpublished candidate)
+
+Candidate prepared 2026-10-14; no tag, signed approval, candidate run or release exists yet.
+At publication the maintainer replaces this heading's parenthesis with the release date and this
+paragraph with the published identities, as for 2.1.0. See the
+[SDK 2.2.0 release notes draft](docs/releases/sdk-v2.2.0.md) and the
+[SDK 2.2.0 scope draft](docs/legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md), which still
+needs the maintainer's approval before any candidate.
+
+SDK 2.2.0 packages the entries below without changing frozen plugin ABI 1.1
+(`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.1.0). Core, legacy,
+core-source and host-source-sc use 2.2.0; no game service changed, so the game-sc package
+coordinate stays 0.4.0. Nothing below has run in the game: evidence is macOS local builds and
+synthetic fixtures. Linux, native Windows, GPU and real-game acceptance are unproven. No new
+game capability is added; default-off controls are unchanged.
+
+- **`sco.widgets` 1.1 (additive):** the table grows from 24 to 48 bytes with tail members
+  `update_nodes` (atomic subtree replace/insert), `remove_nodes` (refuses to empty a panel) and
+  `capabilities` (runtime limits by fixed index). Opt-in `sco_widget_node_1_1` (severity,
+  tooltip, paged LIST/TABLE windows) and `sco_widget_event_1_1` (row; new `SCO_WIDGET_EVENT_PAGE`)
+  are selected by their `size` field; panels without a 1.1 node keep byte-identical 1.0 events.
+  The ImGui adapter draws severity, tooltips and Previous/Next paging, and rebuilds a shared
+  render snapshot only when a panel changes. 1.0 pins are unchanged except the table size.
+  `sco-plugin-check` remains a 1.0 stand-in; the C++, C# and Lua wrappers expose 1.0 only.
+  Headless ImGui-shim fixtures only; GPU rendering not verified.
+- **C++ `scosdk::PanelBuilder` (`include/scosdk/menu_builder.hpp`):** header-only C++20
+  declarative Row/Column panels for `sco.widgets` 1.0 with typed bindings, preorder ids,
+  host-equivalent `ValidateWidgetNodes` and callback dispatch that tolerates a callback
+  destroying its own tree. Compared with the real host on 27 node arrays; ASan clean.
+- **C# `Sco.Sdk.PanelBuilder`:** fluent Column/Row/Button/Toggle/Slider builder over
+  `sco.widgets` 1.0 with explicit stable ids, frozen build snapshots and typed dispatch.
+  **Not compiled locally** (no .NET SDK on the preparing host); the hosted
+  `sdk/csharp-host-sim` job is its first build.
+- **Lua `sco.panel_builder`:** embedded module installed in every plugin sandbox (`new()`,
+  `column`/`row`, `toggle`/`slider`/`button`, `build()` returning node snapshots plus a
+  dispatcher). Runs inside the existing instruction and memory budgets; no `require`,
+  filesystem or bytecode.
+- **POSIX diagnostics transport recovery:** an owner that died without cleanup no longer
+  blocks every later session. The mapping is published atomically and held under `flock`; a
+  stale entry is reclaimed only by the holder of its lock after identity re-checks, peers refuse
+  a dead owner's mapping, and peer leases are removed on release. Fails closed on the remaining
+  crash windows. macOS only; Linux unverified.
+- **Game status registry (repository only):** `sdk/status_registry.json` generates the service
+  table in `docs/game/status.md`; `tools/status_registry.py --check` runs in `test.yml`. No
+  evidence level was raised.
+- **Documentation gate:** the public documentation set must name the function, table or test
+  instead of citing source by line number. A scheduled, read-only `live-site` job in
+  `docs-site.yml` checks that the deployed docs site is fresh against `main`.
+- **Not in this candidate:** the engine-native index and its site page and MCP tools, the
+  `game.hangar`, `game.reputation` and `game.world` 1.1 game tables, and the plugin scaffolder
+  and its MCP tool have no code on the candidate branch.
+
 ## sdk-v2.1.0 (2026-10-13)
 
 Published 2026-10-13 at 22:42:09 UTC as tag `sdk-v2.1.0`. The tag peels to approval commit
