@@ -1796,6 +1796,18 @@
       "public_header": true
     },
     {
+      "id": "include.sc_asop.h",
+      "source": "include/sc_asop.h",
+      "destination": "include/sc_asop.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
       "id": "include.sc_reputation.h",
       "source": "include/sc_reputation.h",
       "destination": "include/sc_reputation.h",
@@ -4516,6 +4528,18 @@
       "group": "game-contract"
     },
     {
+      "id": "source.tests.abi_game_asop.c",
+      "source": "tests/abi_game_asop.c",
+      "destination": "tests/abi_game_asop.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
       "id": "source.tests.abi_game_reputation.c",
       "source": "tests/abi_game_reputation.c",
       "destination": "tests/abi_game_reputation.c",
@@ -5355,6 +5379,17 @@
       "group": "host-source-sc"
     },
     {
+      "id": "host-source-sc-docs-game-asop-service.md",
+      "source": "docs/game/asop-service.md",
+      "destination": "docs/game/asop-service.md",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
       "id": "host-source-sc-docs-game-reputation.md",
       "source": "docs/game/reputation.md",
       "destination": "docs/game/reputation.md",
@@ -5928,6 +5963,18 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-asop_service.cpp",
+      "source": "src/game/services/asop_service.cpp",
+      "destination": "src/game/services/asop_service.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-src-game-services-hangar.h",
       "source": "src/game/services/hangar.h",
       "destination": "src/game/services/hangar.h",
@@ -5940,9 +5987,33 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-asop_service.h",
+      "source": "src/game/services/asop_service.h",
+      "destination": "src/game/services/asop_service.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-src-game-services-hangar_engine.cpp",
       "source": "src/game/services/hangar_engine.cpp",
       "destination": "src/game/services/hangar_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-asop_engine.cpp",
+      "source": "src/game/services/asop_engine.cpp",
+      "destination": "src/game/services/asop_engine.cpp",
       "profiles": [
         "host-source-sc"
       ],
@@ -7572,6 +7643,18 @@
       "id": "host-source-sc-tests-test_hangar.cpp",
       "source": "tests/test_hangar.cpp",
       "destination": "tests/test_hangar.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_asop.cpp",
+      "source": "tests/test_asop.cpp",
+      "destination": "tests/test_asop.cpp",
       "profiles": [
         "host-source-sc"
       ],

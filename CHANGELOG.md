@@ -4,6 +4,23 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+* Game services: game.asop 1.0 (insurance claim timeout and IsShardPersisted reads), default OFF.
+  include/sc_asop.h: sc_asop_v1 (32 bytes, size-prefixed, version 1.0, pinned by
+  tests/abi_game_asop.c): claim_timeout, shard_persisted, last_error. Capabilities
+  game.asop.claim_timeout and game.asop.shard_persisted are held OFF (evidence level
+  off_pending_probe) until an in-game run confirms them; while off every call answers
+  SCO_UNAVAILABLE without touching the game. Both functions only read rows that already exist
+  in src/game/asop_sigs.cpp and that docs/game/asop.md documents (insurance.config at
+  kInsuranceTimeout, asop.shard_persisted); no row, hook, patch or write was added.
+  src/game/services/asop_service.cpp is the portable policy behind an AsopProvider seam;
+  src/game/services/asop_engine.cpp (Windows game pack) reads the rows under SEH. The vehicle
+  list, deliver, retrieve and claim rows stay unwrapped because the repository documents no
+  plugin-callable meaning for them (docs/game/asop-service.md). Tests: tests/test_asop.cpp
+  (synthetic provider) and abi_game_asop as C11, C++20 and -fshort-enums. Catalogue records
+  (sdk/contracts/sc_asop_v1.json) and docs/contracts.md rows added; C++, C# and Lua routes
+  unsupported. Registry entry, docs/game/status.md rows and sdk/native_index.json regenerated.
+  Nothing here has run in a game session.
+
 ## sdk-v2.2.0 (2026-10-14)
 
 See the [SDK 2.2.0 release notes](docs/releases/sdk-v2.2.0.md) and the

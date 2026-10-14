@@ -318,14 +318,20 @@
       "id": "asop.on_request_open",
       "subsystem": "asop",
       "hash": "_0x016405BBFEA48E15",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.asop.shard_persisted"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
       "id": "asop.shard_persisted",
       "subsystem": "asop",
       "hash": "_0x08FC219FADDCDDFA",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.asop.shard_persisted"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
@@ -447,14 +453,20 @@
       "id": "insurance.update_pending_requests",
       "subsystem": "asop",
       "hash": "_0xA046ADB89189EE1F",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.asop.claim_timeout"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
       "id": "insurance.config",
       "subsystem": "asop",
       "hash": "_0x56416CAA4B934E1F",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.asop.claim_timeout"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
