@@ -5,6 +5,7 @@ No source files, examples, tests or unlisted docs are copied into the site.
 Source evidence is linked at the catalogue's immutable commit.
 """
 import argparse
+from collections import Counter
 import html
 import json
 from pathlib import Path, PurePosixPath
@@ -46,6 +47,67 @@ TASK_TERMS = {
     'sco-api-query-service': 'find service table',
     'sc-actors-v1-spawn-npc': 'spawn NPC',
 }
+# Four library hubs: sidebar groups, landing pages at hubs/<key>/ and the home cards.
+# Every allowlisted doc sits in exactly one hub, and generation refuses a doc that
+# has none, so a new public input cannot drop out of navigation. Grouping only
+# changes navigation; every page keeps its route.
+HUBS = (
+    ('start', 'Start & SDK profiles',
+     'Choose an SDK archive, build and check a first plugin, and learn how plugins are found and loaded.'),
+    ('sdks', 'Language SDKs & cookbooks',
+     'The C++ and C# SDK layers, worked examples and the per-language status of every contract.'),
+    ('reference', 'Native & service reference',
+     'Service tables, callable contracts, game services and the engine-native index.'),
+    ('integration', 'Host integration & AI agents',
+     'MCP discovery for agents and IDEs, the host-source kit, release notes and provenance.'),
+)
+# Editorial one-line summaries for hub cards; navigation text, not contract claims.
+HUB_DOCS = {
+    'start': (
+        ('docs/getting-started.md', 'One path from a published SDK archive to a checked C plugin deployed on Windows.'),
+        ('docs/README.md', 'Curated guides grouped by audience.'),
+        ('docs/plugins.md', 'Plugin folders, `plugin.ini`, discovery, loading and data packs.'),
+        ('docs/framework.md', 'How the runtime, plugin system, services and SDK sit under each product.'),
+    ),
+    'sdks': (
+        ('docs/sdk-cpp.md', 'Header-only C++20 layer over `sco_api.h`.'),
+        ('docs/sdk-csharp.md', '.NET 8 layer over `sco_api.h`, published with NativeAOT as one native DLL.'),
+    ),
+    'reference': (
+        ('docs/api-v1.md', 'The plain-C root plugin ABI: exports, root table, capabilities, commands, events and threads.'),
+        ('docs/contracts.md', 'How to read the per-method service contract catalogue.'),
+        ('docs/game-services.md', 'Services the Star Citizen game pack publishes under the reserved owner `game`.'),
+        ('docs/game/status.md', 'Status of every `game.*` table.'),
+        ('docs/storage.md', 'Per-plugin key-value and SQL storage over SQLite.'),
+        ('docs/ui.md', 'Renderer-neutral `sco.widgets` and the legacy `sco.ui` service.'),
+        ('docs/ipc.md', 'Local IPC through one named shared-memory mapping.'),
+        ('docs/net.md', 'Multiplayer messages over `sco.net`.'),
+        ('docs/datacore.md', 'DataCore files and packs with `sco-dcb`.'),
+        ('docs/api.md', 'Internal C++ namespace `sco`; version 0, not the plugin ABI.'),
+    ),
+    'integration': (
+        ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
+        ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),
+        ('docs/releases/sdk-v2.1.0.md', 'Release notes, scope and archives of SDK 2.1.0.'),
+        ('docs/reference-snapshots.md', 'Snapshots that bind reference content to SDK inputs.'),
+    ),
+}
+LANGUAGE_LABELS = {'c': 'C', 'cpp': 'C++', 'csharp': 'C#', 'lua': 'Lua'}
+# Navigation labels where a doc's own title would read as a duplicate of the home page.
+NAV_LABELS = {'docs/README.md': 'Guides by audience'}
+# Repository guides and examples outside docs/: pinned source links, never imported.
+SDK_SOURCES = (
+    ('sdk/docs/lua.md', 'Lua plugins', 'Lua plugin guide.'),
+    ('sdk/docs/data-packs.md', 'Data packs', 'Content-only packs without native code.'),
+    ('sdk/docs/widgets.md', 'Widgets', 'Building native UI with `sco.widgets`.'),
+    ('sdk/examples', 'Example plugins', 'Buildable examples in C, C++, C# and Lua.'),
+)
+NATIVE_INDEX = 'sdk/native_index.json'
+NATIVE_DOWNLOAD = 'native-index.json'
+NATIVE_TITLE = 'Engine-native index'
+NATIVE_KEYS = {'id', 'subsystem', 'hash', 'tier', 'capability', 'source'}
+NATIVE_TIERS = {'1', '2', '3', '4'}
+SIDEBAR = 'src/generated-sidebar.json'
 LINK = re.compile(r'(?P<image>!?)\[(?P<label>[^\]\n]*)\]\((?P<target>[^\s)]+)\)')
 BLOCKED_TREES = {'legal', 'design', 'releases'}
 # The only exception to BLOCKED_TREES: an explicitly allowlisted semantic-version
@@ -58,6 +120,22 @@ ENCODED_PATH_META = re.compile(r'%(?:2e|2f|5c)', re.I)
 
 def route(identifier):
     return BASE + '/' + (identifier.rstrip('/') + '/' if identifier != 'index' else '')
+
+
+def esc(value):
+    return html.escape(str(value), quote=True)
+
+
+def plain_title(title):
+    """Page titles and sidebar labels are plain text: drop Markdown code-span backticks."""
+    return re.sub(r'`+', '', title).strip()
+
+
+def inline_code(text):
+    """HTML-escape text, rendering `code` spans as <code>."""
+    parts = re.split(r'`([^`]+)`', text)
+    return ''.join('<code>' + esc(part) + '</code>' if index % 2 else esc(part)
+                   for index, part in enumerate(parts))
 
 
 def service_id(service):
@@ -237,15 +315,38 @@ def repo_link(target, sha, doc_routes):
     return source_link(path, sha) + ('#' + fragment if fragment else '')
 
 
-def release_portal(root, catalogue, release_tag, doc_routes):
-    """Home-page release tracks, profile cards and checksum commands, all from repository facts."""
+def profile_cards(cards, sha, doc_routes):
+    """Archive cards for each published profile: name, archive, version, purpose, guide and checksum link."""
+    out = ['<ul class="sco-profiles not-content">']
+    for card in cards:
+        relation = ('Includes ' + ', '.join(card['includes']) if card['includes']
+                    else 'Requires ' + card['requires'] if card['requires'] else 'Standalone')
+        guide, guide_label = PROFILE_GUIDES[card['profile']]
+        out += ['<li class="sco-profile" data-profile="' + esc(card['profile']) + '" data-archive="'
+                + esc(card['archive']) + '" data-version="' + esc(card['version']) + '">',
+                '<h3>' + esc(card['profile']) + '</h3>',
+                '<p class="sco-profile__archive"><code>' + esc(card['archive']) + '</code></p>',
+                '<p class="sco-profile__meta"><span class="sco-pill">' + esc(card['version']) + '</span> '
+                + esc(relation) + '</p>',
+                '<p>' + esc(card['about']) + '</p>',
+                '<p class="sco-profile__links"><a href="' + esc(repo_link(guide, sha, doc_routes)) + '">'
+                + esc(guide_label) + '</a><a href="' + esc(route('index') + '#verify-' + card['profile'])
+                + '">Verify checksum</a></p>',
+                '</li>']
+    out.append('</ul>')
+    return out
+
+
+def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
+    """Home-page release tracks, profile cards and checksum commands, all from repository facts.
+
+    libraries is Markdown placed between the release tracks and the archive cards."""
     notes = 'docs/releases/' + PUBLISHED_RELEASE + '.md'
     if notes not in doc_routes:
         raise ValueError('Published release notes must be an allowlisted input: ' + notes)
     scope = release_scope((root / notes).read_text(encoding='utf-8'), PUBLISHED_RELEASE)
     cards = published_profiles(root, scope)
     sha = catalogue['source_sha']
-    esc = lambda value: html.escape(str(value), quote=True)
     tag = quote(scope['tag'], safe='')
 
     def facts(pairs):
@@ -278,25 +379,11 @@ def release_portal(root, catalogue, release_tag, doc_routes):
         '<p class="sco-track__note">' + esc(note) + '</p>',
         '</section>']
     out = ['\n## Releases', '<div class="sco-tracks not-content">', *published, *preview, '</div>',
+           libraries,
            '\n## Choose an archive',
            'Archives published in ' + scope['tag'] + '. Profiles and versions come from its release-scope declaration.\n',
-           '<ul class="sco-profiles not-content">']
-    for card in cards:
-        relation = ('Includes ' + ', '.join(card['includes']) if card['includes']
-                    else 'Requires ' + card['requires'] if card['requires'] else 'Standalone')
-        guide, guide_label = PROFILE_GUIDES[card['profile']]
-        out += ['<li class="sco-profile" data-profile="' + esc(card['profile']) + '" data-archive="'
-                + esc(card['archive']) + '" data-version="' + esc(card['version']) + '">',
-                '<h3>' + esc(card['profile']) + '</h3>',
-                '<p class="sco-profile__archive"><code>' + esc(card['archive']) + '</code></p>',
-                '<p class="sco-profile__meta"><span class="sco-pill">' + esc(card['version']) + '</span> '
-                + esc(relation) + '</p>',
-                '<p>' + esc(card['about']) + '</p>',
-                '<p class="sco-profile__links"><a href="' + esc(repo_link(guide, sha, doc_routes)) + '">'
-                + esc(guide_label) + '</a><a href="' + esc(route('index') + '#verify-' + card['profile'])
-                + '">Verify checksum</a></p>',
-                '</li>']
-    out += ['</ul>', '\n## Verify a download',
+           *profile_cards(cards, sha, doc_routes)]
+    out += ['\n## Verify a download',
             'Each archive\'s SHA-256 digest is listed in the release\'s [SHA256SUMS](' + DOWNLOADS + tag
             + '/SHA256SUMS). Download it and the archive into one folder, then check that archive\'s line: '
             '`OK` means the bytes match the published list. This checks integrity against the '
@@ -318,10 +405,298 @@ def release_portal(root, catalogue, release_tag, doc_routes):
     return '\n'.join(out)
 
 
-def page(title, body, catalogue, release_tag):
+def page(title, body, catalogue, release_tag, toc=True):
+    title = plain_title(title)
     return ('---\ntitle: ' + json.dumps(title, ensure_ascii=False)
             + '\ndescription: ' + json.dumps('sco-core public engineering documentation: ' + title)
+            + ('' if toc else '\ntableOfContents: false')
             + '\n---\n\n' + banner(catalogue, release_tag) + body.rstrip() + '\n')
+
+
+def hub_docs(docs):
+    """Check that every allowlisted doc belongs to exactly one hub."""
+    if [key for key, _, _ in HUBS] != list(HUB_DOCS):
+        raise ValueError('Hub definitions and hub documents disagree')
+    assigned = [name for entries in HUB_DOCS.values() for name, _ in entries]
+    if len(assigned) != len(set(assigned)) or set(assigned) != set(docs):
+        raise ValueError('Every public input needs exactly one library hub: '
+                         + ', '.join(sorted(set(assigned) ^ set(docs)) or ['duplicate assignment']))
+
+
+def sidebar(doc_routes, titles, services, natives):
+    """Starlight sidebar: home, then the four library hubs in order."""
+    groups: list[dict[str, object]] = [{'label': 'Home', 'slug': 'index'}]
+    for key, label, _ in HUBS:
+        items: list[dict[str, object]] = [{'label': 'Overview', 'slug': 'hubs/' + key}]
+        if key == 'reference':
+            items.append({'label': NATIVE_TITLE, 'slug': 'natives',
+                          'badge': {'text': str(len(natives['entries'])), 'variant': 'note'}})
+        for name, _ in HUB_DOCS[key]:
+            items.append({'label': NAV_LABELS.get(name, titles[name]), 'slug': route_key(doc_routes[name])})
+        if key == 'sdks':
+            items.append({'label': 'Language mappings', 'items': [
+                {'label': LANGUAGE_LABELS[language], 'slug': 'languages/' + language} for language in LANGUAGES]})
+        if key == 'reference':
+            items.append({'label': 'Service tables', 'collapsed': True, 'items': [
+                {'label': service, 'slug': 'services/' + service_id(service)} for service in services]})
+        groups.append({'label': label, 'items': items})
+    return groups
+
+
+def count_pages(items):
+    return sum(count_pages(item['items']) if 'items' in item else 1 for item in items)
+
+
+def cards(entries, cls='sco-cards'):
+    """Link cards: (href, title, summary Markdown-ish text with `code`, optional meta HTML)."""
+    out = ['<ul class="' + cls + ' not-content">']
+    for href, title, summary, meta in entries:
+        out += ['<li class="sco-card">', '<h3><a href="' + esc(href) + '">' + inline_code(title) + '</a></h3>',
+                '<p>' + inline_code(summary) + '</p>']
+        if meta:
+            out.append('<p class="sco-card__meta">' + meta + '</p>')
+        out.append('</li>')
+    out.append('</ul>')
+    return '\n'.join(out)
+
+
+def hub_cards(groups):
+    """Home-page library cards, numbered in sidebar order."""
+    out = ['<ol class="sco-hubs not-content">']
+    for number, ((key, label, blurb), group) in enumerate(zip(HUBS, groups[1:]), 1):
+        out += ['<li class="sco-card sco-card--hub" data-hub="' + esc(key) + '">',
+                '<span class="sco-card__index" aria-hidden="true">' + '%02d' % number + '</span>',
+                '<h3><a href="' + esc(route('hubs/' + key)) + '">' + esc(label) + '</a></h3>',
+                '<p>' + esc(blurb) + '</p>',
+                '<p class="sco-card__meta">' + str(count_pages(group['items'])) + ' pages</p>',
+                '</li>']
+    out.append('</ol>')
+    return '\n'.join(out)
+
+
+def native_index(root):
+    """sdk/native_index.json, validated: symbolic names and readiness only, never patterns or addresses."""
+    text = (root / NATIVE_INDEX).read_text(encoding='utf-8')
+    data = json.loads(text)
+    entries = data.get('entries') if isinstance(data, dict) else None
+    tiers = data.get('tiers') if isinstance(data, dict) else None
+    if (data.get('schema_version') != 1 or not isinstance(entries, list) or not entries
+            or data.get('row_count') != len(entries) or not isinstance(tiers, dict) or set(tiers) != NATIVE_TIERS
+            or not all(isinstance(value, str) and ':' in value for value in tiers.values())):
+        raise ValueError('Invalid native index header')
+    hashes, ids = set(), set()
+    for entry in entries:
+        if not isinstance(entry, dict) or not NATIVE_KEYS - {'capability'} <= set(entry) <= NATIVE_KEYS:
+            raise ValueError('Native index entry has missing or unknown keys')
+        capability = entry.get('capability', [])
+        if (not isinstance(entry['hash'], str) or not re.fullmatch(r'_0x[0-9A-F]{16}', entry['hash'])
+                or not isinstance(entry['id'], str) or not re.fullmatch(r'[a-z0-9_.-]+', entry['id'])
+                or not isinstance(entry['subsystem'], str) or not re.fullmatch(r'[a-z0-9_-]+', entry['subsystem'])
+                or type(entry['tier']) is not int or str(entry['tier']) not in NATIVE_TIERS
+                or not isinstance(entry['source'], str) or not re.fullmatch(r'src/game/[a-z0-9_]+_sigs\.cpp', entry['source'])
+                or not isinstance(capability, list)
+                or not all(isinstance(c, str) and re.fullmatch(r'[a-z0-9_.-]+', c) for c in capability)):
+            raise ValueError('Malformed native index entry')
+        if entry['hash'] in hashes or entry['id'] in ids:
+            raise ValueError('Duplicate native index hash or id: ' + entry['id'])
+        hashes.add(entry['hash'])
+        ids.add(entry['id'])
+    return data, text
+
+
+def tier_name(tiers, tier):
+    return tiers[str(tier)].split(':', 1)[0].strip()
+
+
+# The only client script on the site: filters the server-rendered rows and resolves
+# /natives/?_0x<HASH> (or #_0x<HASH>) to one row. Inline, no network access.
+NATIVES_SCRIPT = r'''<script>
+(() => {
+  const root = document.querySelector('[data-sco-natives]');
+  if (!root) return;
+  const rows = Array.from(root.querySelectorAll('tbody tr'));
+  const form = root.querySelector('form');
+  const query = root.querySelector('#sco-natives-q');
+  const subsystem = root.querySelector('#sco-natives-subsystem');
+  const tier = root.querySelector('#sco-natives-tier');
+  const count = root.querySelector('#sco-natives-count');
+  const empty = root.querySelector('#sco-natives-empty');
+  const notice = root.querySelector('#sco-natives-notice');
+  const apply = () => {
+    const text = query.value.trim().toLowerCase();
+    let shown = 0;
+    for (const row of rows) {
+      const match = (!text || row.dataset.search.includes(text))
+        && (!subsystem.value || row.dataset.subsystem === subsystem.value)
+        && (!tier.value || row.dataset.tier === tier.value);
+      row.hidden = !match;
+      if (match) shown += 1;
+    }
+    count.textContent = 'Showing ' + shown + ' of ' + rows.length + ' rows';
+    empty.hidden = shown !== 0;
+  };
+  const requested = () => {
+    for (const part of (location.search.slice(1) + '&' + location.hash.slice(1)).split('&')) {
+      let value = '';
+      try { value = decodeURIComponent(part.split('=').pop()).trim(); } catch { continue; }
+      if (/^_0x[0-9a-f]{16}$/i.test(value)) return '_0x' + value.slice(3).toUpperCase();
+    }
+    return null;
+  };
+  const reveal = () => {
+    for (const row of root.querySelectorAll('tr.is-target')) {
+      row.classList.remove('is-target');
+      row.removeAttribute('aria-current');
+    }
+    notice.hidden = true;
+    const hash = requested();
+    if (!hash) return;
+    const row = document.getElementById(hash);
+    if (!row || !root.contains(row)) {
+      notice.textContent = 'No row has the hash ' + hash + '.';
+      notice.hidden = false;
+      return;
+    }
+    if (row.hidden) {
+      query.value = '';
+      subsystem.value = '';
+      tier.value = '';
+      apply();
+    }
+    row.classList.add('is-target');
+    row.setAttribute('aria-current', 'location');
+    row.scrollIntoView({ block: 'center' });
+    row.focus({ preventScroll: true });
+  };
+  form.hidden = false;
+  form.addEventListener('submit', event => event.preventDefault());
+  for (const control of [query, subsystem, tier]) {
+    control.addEventListener('input', apply);
+    control.addEventListener('change', apply);
+  }
+  root.addEventListener('click', event => {
+    const link = event.target.closest('a.sco-hash');
+    if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    history.pushState(null, '', link.href);
+    reveal();
+  });
+  addEventListener('popstate', reveal);
+  addEventListener('hashchange', reveal);
+  apply();
+  reveal();
+  if (document.readyState !== 'complete') addEventListener('load', reveal, { once: true });
+})();
+</script>'''
+
+
+def natives_body(index, sha):
+    """Server-rendered rows plus filter controls; the table works and is searchable without the script."""
+    entries, tiers = index['entries'], index['tiers']
+    by_tier = Counter(str(entry['tier']) for entry in entries)
+    by_subsystem = Counter(entry['subsystem'] for entry in entries)
+    example = entries[0]['hash']
+    out = ['Every signature row the game pack registers, listed under a stable symbolic hash with its '
+           'promotion tier. Filter by subsystem and tier, or open `' + BASE + '/natives/?' + example
+           + '` to jump to one row. [Download native-index.json](' + BASE + '/' + NATIVE_DOWNLOAD + ')\n',
+           ':::note[What an entry is]',
+           'Entries list row names and readiness only: no byte patterns, masks, offsets or addresses. '
+           'A hash is derived from the row id; it is a name, not an address. '
+           'Nothing here is verified in game unless an entry is marked so, and no entry in this index carries that mark.',
+           ':::\n',
+           '## Tier legend\n',
+           '<dl class="sco-tiers not-content">']
+    for tier in sorted(NATIVE_TIERS):
+        name, _, about = tiers[tier].partition(':')
+        out += ['<div class="sco-tiers__item">',
+                '<dt><span class="sco-tier sco-tier--' + tier + '">' + tier + ' · ' + esc(name.strip()) + '</span></dt>',
+                '<dd>' + esc(about.strip()[:1].upper() + about.strip()[1:]) + '. <span class="sco-tiers__count">'
+                + str(by_tier[tier]) + (' row' if by_tier[tier] == 1 else ' rows') + '</span></dd>',
+                '</div>']
+    out += ['</dl>\n', '## Rows\n',
+            '<div class="sco-natives not-content" data-sco-natives>',
+            '<form class="sco-natives__filters" role="search" aria-label="Filter native rows" hidden>',
+            '<label class="sco-field sco-field--grow"><span>Search</span><input type="search" id="sco-natives-q" '
+            'placeholder="Row id, hash or capability" autocomplete="off" spellcheck="false"></label>',
+            '<label class="sco-field"><span>Subsystem</span><select id="sco-natives-subsystem">'
+            '<option value="">All subsystems</option>'
+            + ''.join('<option value="' + esc(name) + '">' + esc(name) + ' (' + str(by_subsystem[name]) + ')</option>'
+                      for name in sorted(by_subsystem)) + '</select></label>',
+            '<label class="sco-field"><span>Tier</span><select id="sco-natives-tier"><option value="">All tiers</option>'
+            + ''.join('<option value="' + tier + '">' + tier + ' · ' + esc(tier_name(tiers, tier)) + ' ('
+                      + str(by_tier[tier]) + ')</option>' for tier in sorted(NATIVE_TIERS)) + '</select></label>',
+            '</form>',
+            '<p class="sco-natives__count" id="sco-natives-count" role="status" aria-live="polite">'
+            + str(len(entries)) + ' rows</p>',
+            '<p class="sco-natives__notice" id="sco-natives-notice" role="alert" hidden></p>',
+            '<table class="sco-natives__table">',
+            '<thead><tr><th scope="col">Row</th><th scope="col">Hash</th>'
+            '<th scope="col">Tier</th><th scope="col">Capability</th></tr></thead>',
+            '<tbody>']
+    for entry in entries:
+        capability = entry.get('capability', [])
+        tier = str(entry['tier'])
+        haystack = ' '.join([entry['id'], entry['hash'], entry['subsystem'], entry['source'], *capability]).lower()
+        caps = ('<span class="sco-natives__caps">' + ''.join('<code>' + esc(c) + '</code>' for c in capability) + '</span>'
+                if capability else '<span class="sco-natives__none">none</span>')
+        out.append('<tr id="' + esc(entry['hash']) + '" tabindex="-1" data-subsystem="' + esc(entry['subsystem'])
+                   + '" data-tier="' + tier + '" data-search="' + esc(haystack) + '">'
+                   + '<td data-label="Row"><div class="sco-natives__row"><code class="sco-natives__id">'
+                   + re.sub(r'([._])', r'\1<wbr>', esc(entry['id'])) + '</code>'
+                   + '<span class="sco-natives__meta">' + esc(entry['subsystem']) + ' · <a href="'
+                   + esc(source_link(entry['source'], sha)) + '">' + esc(PurePosixPath(entry['source']).name)
+                   + '</a></span></div></td>'
+                   + '<td data-label="Hash"><a class="sco-hash" href="' + esc(route('natives') + '?' + entry['hash'])
+                   + '"><code>' + esc(entry['hash']) + '</code></a></td>'
+                   + '<td data-label="Tier"><span class="sco-tier sco-tier--' + tier + '">' + tier + ' · '
+                   + esc(tier_name(tiers, tier)) + '</span></td>'
+                   + '<td data-label="Capability">' + caps + '</td></tr>')
+    out += ['</tbody>', '</table>',
+            '<p class="sco-natives__empty" id="sco-natives-empty" hidden>No row matches these filters.</p>',
+            '</div>\n', NATIVES_SCRIPT]
+    return '\n'.join(out)
+
+
+def hub_body(key, blurb, catalogue, doc_routes, titles, services, natives, profiles):
+    """A hub landing page: the hub's pages as cards, plus its generated indexes."""
+    sha = catalogue['source_sha']
+    guides = cards([(route(doc_routes[name]), NAV_LABELS.get(name, titles[name]), summary, None)
+                    for name, summary in HUB_DOCS[key]])
+    out = [blurb + '\n']
+    if key == 'start':
+        out += ['## Guides', guides, '\n## SDK profiles',
+                'Archives published in ' + PUBLISHED_RELEASE + '. Each card links to its guide and to the checksum '
+                'steps on the [home page](' + route('index') + '#verify-a-download).\n', *profiles]
+    elif key == 'sdks':
+        languages = cards([(route('languages/' + language), LANGUAGE_LABELS[language] + ' language mappings',
+                            'Catalogue status of every contract for ' + LANGUAGE_LABELS[language] + '.', None)
+                           for language in LANGUAGES])
+        sources = cards([(source_link(path, sha), label, summary, 'Source, pinned at <code>' + esc(sha[:12]) + '</code>')
+                         for path, label, summary in SDK_SOURCES])
+        out += ['## SDK guides', guides, '\n## Language mappings',
+                'Static views of the catalogue. A status is metadata, not a runtime support filter.\n', languages,
+                '\n## Lua, data packs and examples',
+                'These live with the SDK archive rather than in this site; links open the source at the catalogue commit.\n',
+                sources]
+    elif key == 'reference':
+        tiers = Counter(entry['tier'] for entry in natives['entries'])
+        native = cards([(route('natives'), NATIVE_TITLE,
+                         'Every registered signature row by symbolic hash and promotion tier, with search, '
+                         'filters and deep links. Names and readiness only; no patterns or addresses.',
+                         esc(str(len(natives['entries'])) + ' rows · ' + str(tiers[1]) + ' promoted · '
+                             + str(tiers[3]) + ' spike hold'))], 'sco-cards sco-cards--single')
+        out += ['## Engine-native index', native, '\n## Guides', guides, '\n## Service tables',
+                'One index per service, linking each callable contract record.\n',
+                '<ul class="sco-links not-content">',
+                *['<li><a href="' + esc(route('services/' + service_id(service))) + '"><code>' + esc(service)
+                  + '</code></a></li>' for service in services],
+                '</ul>']
+    else:
+        out += ['## Guides', guides, '\n## Machine-readable downloads',
+                '- [sdk-catalogue.json](' + BASE + '/sdk-catalogue.json): the contract catalogue these pages render.',
+                '- [' + NATIVE_DOWNLOAD + '](' + BASE + '/' + NATIVE_DOWNLOAD + '): the engine-native index, '
+                'names and readiness only.']
+    return '\n'.join(out)
 
 
 def cell(value):
@@ -403,7 +778,9 @@ def generate(root, catalogue, output, release_tag=None):
         if tag_sha != catalogue['source_sha']:
             raise ValueError('Release tag does not identify the catalogue source')
     docs = inputs(root)
+    hub_docs(docs)
     doc_routes = {name: guide_id(name) for name in docs}
+    natives, natives_text = native_index(root)
     records = sorted(catalogue['records'], key=lambda item: item['id'])
     ids = [r['id'] for r in records]
     if not records or len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9-]+', id_) for id_ in ids):
@@ -434,25 +811,32 @@ def generate(root, catalogue, output, release_tag=None):
                   + cell(r['service']) + ' | **' + r['language_mappings'][language]['status'] + '** |'
                   for r in records]
         pages['languages/' + language] = page(language + ' language mappings', '\n'.join(parts), catalogue, release_tag)
+    titles = {}
     for name in docs:
         text = (root / name).read_text(encoding='utf-8')
         title = re.search(r'^#\s+(.+)$', text, re.M)
-        title = title[1] if title else PurePosixPath(name).stem
+        titles[name] = plain_title(title[1] if title else PurePosixPath(name).stem)
         text = re.sub(r'^#\s+[^\n]+\n', '', text, count=1, flags=re.M)
         text = rewrite_links(text, name, catalogue['source_sha'], doc_routes)
         if doc_routes[name] in pages:
             raise ValueError('Generated route collision: ' + name)
-        pages[doc_routes[name]] = page(title, text, catalogue, release_tag)
+        pages[doc_routes[name]] = page(titles[name], text, catalogue, release_tag)
+    groups = sidebar(doc_routes, titles, services, natives)
+    notes = 'docs/releases/' + PUBLISHED_RELEASE + '.md'
+    profiles = profile_cards(published_profiles(root, release_scope((root / notes).read_text(encoding='utf-8'),
+                                                                    PUBLISHED_RELEASE)),
+                             catalogue['source_sha'], doc_routes)
+    for key, label, blurb in HUBS:
+        pages['hubs/' + key] = page(label, hub_body(key, blurb, catalogue, doc_routes, titles, services,
+                                                     natives, profiles), catalogue, release_tag)
+    # No table of contents: the row table takes the wider content column (portal.css).
+    pages['natives'] = page(NATIVE_TITLE, natives_body(natives, catalogue['source_sha']), catalogue, release_tag,
+                            toc=False)
+    libraries = '\n## Libraries\n\n' + hub_cards(groups)
     home = ['Public SDK contracts generated from a compiler-validated catalogue. '
             'Engineering guides are selected by an explicit public-input allowlist.\n',
             '[Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json)',
-            release_portal(root, catalogue, release_tag, doc_routes),
-            '\n## Services']
-    home += ['- [' + name + '](' + route('services/' + service_id(name)) + ')' for name in services]
-    home += ['\n## Language mappings']
-    home += ['- [' + language + '](' + route('languages/' + language) + ')' for language in LANGUAGES]
-    home += ['\n## Engineering guides']
-    home += ['- [' + name + '](' + route(doc_routes[name]) + ')' for name in docs]
+            release_portal(root, catalogue, release_tag, doc_routes, libraries)]
     home += ['\n## Reading rules', catalogue['contract_context']['reading_rules'],
              '\n## Remaining gaps', rewrite_links(catalogue['contract_context']['remaining_gaps'], catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes)]
     pages['index'] = page('sco-core SDK documentation', '\n'.join(home), catalogue, release_tag)
@@ -465,9 +849,12 @@ def generate(root, catalogue, output, release_tag=None):
         dest = content / (identifier + '.md')
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(text, encoding='utf-8')
+    (output / SIDEBAR).write_text(json.dumps(groups, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     public = output / 'public'
     public.mkdir(parents=True, exist_ok=True)
     (public / 'sdk-catalogue.json').write_text(json.dumps(catalogue, sort_keys=True, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+    # The validated index, byte for byte: the page and the download state the same rows.
+    (public / NATIVE_DOWNLOAD).write_text(natives_text, encoding='utf-8')
     return len(records), len(services), len(pages)
 
 

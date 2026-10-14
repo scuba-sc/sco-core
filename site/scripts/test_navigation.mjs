@@ -152,6 +152,46 @@ try {
   const reports = await evaluate(`(async()=>{ ${searchTest.replace('export async function', 'async function')};
     return await testSearch(${JSON.stringify(catalogue)}); })()`);
   reports.forEach(report => console.log(report));
+
+  const natives = JSON.parse(await fs.readFile(path.join(root, 'native-index.json')));
+  const target = natives.entries[Math.floor(natives.entries.length * 0.8)];
+  const other = natives.entries[1];
+  const visible = "[...document.querySelectorAll('[data-sco-natives] tbody tr:not([hidden])')]";
+  const targetInView = "(() => { const b = document.querySelector('tr.is-target').getBoundingClientRect(); "
+    + 'return b.top >= 0 && b.bottom <= innerHeight; })()';
+  await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+  await call('Page.navigate', { url: `${origin}/sco-core/natives/?${target.hash}` });
+  await wait(`document.readyState === 'complete' && document.querySelector('tr.is-target')?.id === ${JSON.stringify(target.hash)}`);
+  assert(await evaluate(targetInView), 'Deep-linked row is not scrolled into view');
+  assert.equal(await evaluate("document.querySelector('tr.is-target').getAttribute('aria-current')"), 'location');
+  await evaluate("(() => { const s = document.querySelector('#sco-natives-tier'); s.value = '1'; s.dispatchEvent(new Event('change')); })()");
+  assert.equal(await evaluate(`${visible}.length`), natives.entries.filter(e => e.tier === 1).length);
+  assert(await evaluate(`${visible}.every(r => r.dataset.tier === '1')`));
+  await evaluate("(() => { const s = document.querySelector('#sco-natives-tier'); s.value = ''; s.dispatchEvent(new Event('change')); })()");
+  await evaluate("document.querySelector('#sco-natives-q').focus()");
+  await call('Input.insertText', { text: target.id });
+  await wait(`${visible}.some(r => r.id === ${JSON.stringify(target.hash)})`);
+  const matching = natives.entries.filter(e => [e.id, e.hash, e.subsystem, e.source, ...(e.capability ?? [])]
+    .join(' ').toLowerCase().includes(target.id.toLowerCase()));
+  assert.equal(await evaluate(`${visible}.length`), matching.length);
+  assert.equal(await evaluate("document.querySelector('#sco-natives-count').textContent"),
+    `Showing ${matching.length} of ${natives.entries.length} rows`);
+  await evaluate("(() => { const q = document.querySelector('#sco-natives-q'); q.value = ''; q.dispatchEvent(new Event('input')); })()");
+  await evaluate(`document.getElementById(${JSON.stringify(other.hash)}).querySelector('a.sco-hash').click()`);
+  await wait(`location.search === ${JSON.stringify('?' + other.hash)} && document.querySelector('tr.is-target')?.id === ${JSON.stringify(other.hash)}`);
+  assert(await evaluate(targetInView), 'Clicked hash row is not in view');
+  for (const width of [1280, 390]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 600 });
+    await call('Page.navigate', { url: `${origin}/sco-core/natives/#${target.hash.toLowerCase()}` });
+    await wait(`document.readyState === 'complete' && document.querySelector('tr.is-target')?.id === ${JSON.stringify(target.hash)}`);
+    assert(await evaluate(targetInView), `Deep-linked row is not in view at ${width}px`);
+    assert(await evaluate('document.documentElement.scrollWidth <= innerWidth'), `natives overflow at ${width}px`);
+  }
+  await call('Page.navigate', { url: `${origin}/sco-core/natives/?_0x0000000000000000` });
+  await wait("document.readyState === 'complete' && !document.querySelector('#sco-natives-notice').hidden");
+  assert.equal(await evaluate('document.querySelectorAll("tr.is-target").length'), 0);
+  console.log('PASS native index: query and hash deep links scroll to and mark one row; tier and text filters '
+    + 'match the JSON; hash links stay on the page; unknown hash reported; no overflow at 1280px and 390px');
   assert.deepEqual(failures, []);
   console.log('PASS long reference tables/code at 1280px and 390px; zero script exceptions or nonlocal requests');
 } finally {

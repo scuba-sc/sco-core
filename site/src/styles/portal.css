@@ -1,4 +1,4 @@
-/* Home-page release header and profile cards. Contract: site/DESIGN.md. */
+/* Release header, library hubs, link cards and the engine-native index. Contract: site/DESIGN.md. */
 :root {
 	--sco-space-1: 0.25rem;
 	--sco-space-2: 0.5rem;
@@ -8,6 +8,8 @@
 	--sco-radius-sm: 0.25rem;
 	--sco-radius-md: 0.5rem;
 	--sco-surface: var(--sl-color-gray-6);
+	--sco-rule: var(--sl-color-hairline);
+	--sco-target: var(--sl-color-accent-low);
 }
 
 :root[data-theme='light'] {
@@ -15,7 +17,9 @@
 }
 
 .sco-tracks,
-.sco-profiles {
+.sco-profiles,
+.sco-hubs,
+.sco-cards {
 	display: grid;
 	grid-template-columns: 100%;
 	gap: var(--sco-space-4);
@@ -26,13 +30,20 @@
 
 @media (min-width: 50rem) {
 	.sco-tracks,
-	.sco-profiles {
+	.sco-profiles,
+	.sco-hubs,
+	.sco-cards {
 		grid-template-columns: 1fr 1fr;
+	}
+
+	.sco-cards.sco-cards--single {
+		grid-template-columns: 100%;
 	}
 }
 
 .sco-track,
-.sco-profile {
+.sco-profile,
+.sco-card {
 	display: flex;
 	flex-direction: column;
 	gap: var(--sco-space-2);
@@ -47,19 +58,47 @@
 }
 
 .sco-track > *,
-.sco-profile > * {
+.sco-profile > *,
+.sco-card > * {
 	margin: 0;
 }
 
 .sco-track h3,
-.sco-profile h3 {
+.sco-profile h3,
+.sco-card h3 {
 	color: var(--sl-color-white);
 	font-size: var(--sl-text-lg);
 	font-weight: 600;
 	line-height: var(--sl-line-height-headings);
 }
 
-.sco-status {
+.sco-card--hub {
+	border-inline-start: var(--sco-space-1) solid var(--sl-color-text-accent);
+}
+
+.sco-card__index {
+	color: var(--sl-color-text-accent);
+	font-family: var(--__sl-font-mono);
+	font-size: var(--sl-text-2xl);
+	font-weight: 600;
+	line-height: 1;
+}
+
+.sco-card__meta {
+	margin-top: auto !important;
+	color: var(--sl-color-gray-3);
+	font-size: var(--sl-text-xs);
+}
+
+.sco-card code,
+.sco-card__meta code {
+	font-family: var(--__sl-font-mono);
+	font-size: var(--sl-text-xs);
+	overflow-wrap: anywhere;
+}
+
+.sco-status,
+.sco-tier {
 	align-self: flex-start;
 	padding: 0 var(--sco-space-2);
 	border: 1px solid;
@@ -67,18 +106,33 @@
 	font-size: var(--sl-text-xs);
 	font-weight: 600;
 	line-height: 1.6;
+	white-space: nowrap;
 }
 
-.sco-status--published {
+.sco-status--published,
+.sco-tier--1 {
 	border-color: var(--sl-color-green);
 	background-color: var(--sl-color-green-low);
 	color: var(--sl-color-green-high);
 }
 
-.sco-status--preview {
+.sco-status--preview,
+.sco-tier--3 {
 	border-color: var(--sl-color-orange);
 	background-color: var(--sl-color-orange-low);
 	color: var(--sl-color-orange-high);
+}
+
+.sco-tier--2 {
+	border-color: var(--sl-color-gray-4);
+	background-color: var(--sco-surface);
+	color: var(--sl-color-gray-2);
+}
+
+.sco-tier--4 {
+	border-color: var(--sl-color-red);
+	background-color: var(--sl-color-red-low);
+	color: var(--sl-color-red-high);
 }
 
 .sco-facts {
@@ -127,15 +181,258 @@
 }
 
 .sco-track a,
-.sco-profile a {
+.sco-profile a,
+.sco-card a,
+.sco-links a,
+.sco-natives a {
 	color: var(--sl-color-text-accent);
 	text-decoration: underline;
 	text-underline-offset: 0.15em;
 }
 
 .sco-track a:focus-visible,
-.sco-profile a:focus-visible {
+.sco-profile a:focus-visible,
+.sco-card a:focus-visible,
+.sco-links a:focus-visible,
+.sco-natives a:focus-visible,
+.sco-field input:focus-visible,
+.sco-field select:focus-visible {
 	outline: 2px solid var(--sl-color-text-accent);
 	outline-offset: 2px;
 	border-radius: var(--sco-radius-sm);
+}
+
+.sco-links {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+	gap: var(--sco-space-1) var(--sco-space-4);
+	margin: var(--sco-space-4) 0 0;
+	padding: 0;
+	list-style: none;
+	font-size: var(--sl-text-sm);
+}
+
+.sco-links code {
+	font-family: var(--__sl-font-mono);
+	overflow-wrap: anywhere;
+}
+
+.sco-tiers {
+	display: grid;
+	gap: var(--sco-space-2);
+	margin: var(--sco-space-4) 0 0;
+	font-size: var(--sl-text-sm);
+}
+
+.sco-tiers__item {
+	display: grid;
+	grid-template-columns: 11rem 1fr;
+	gap: var(--sco-space-3);
+	align-items: baseline;
+}
+
+.sco-tiers dt,
+.sco-tiers dd {
+	margin: 0;
+	min-width: 0;
+}
+
+.sco-tiers__count {
+	color: var(--sl-color-gray-3);
+	font-family: var(--__sl-font-mono);
+	font-size: var(--sl-text-xs);
+	white-space: nowrap;
+}
+
+@media (max-width: 50rem) {
+	.sco-tiers__item {
+		grid-template-columns: 100%;
+		gap: var(--sco-space-1);
+	}
+}
+
+/* Starlight widens content the same way on pages without a sidebar; the index has no TOC. */
+html:not([data-has-toc]):has([data-sco-natives]) {
+	--sl-content-width: 60rem;
+}
+
+.sco-natives {
+	container-type: inline-size;
+	margin-top: var(--sco-space-4);
+	font-size: var(--sl-text-sm);
+}
+
+.sco-natives [hidden] {
+	display: none;
+}
+
+.sco-natives__filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sco-space-3);
+	padding: var(--sco-space-4);
+	border: 1px solid var(--sl-color-gray-5);
+	border-radius: var(--sco-radius-md);
+	background-color: var(--sco-surface);
+}
+
+.sco-field {
+	display: flex;
+	flex: 0 1 auto;
+	flex-direction: column;
+	gap: var(--sco-space-1);
+	min-width: 0;
+	color: var(--sl-color-gray-3);
+	font-size: var(--sl-text-xs);
+	font-weight: 600;
+}
+
+.sco-field--grow {
+	flex: 1 1 14rem;
+}
+
+.sco-field input,
+.sco-field select {
+	min-width: 0;
+	padding: var(--sco-space-2) var(--sco-space-3);
+	border: 1px solid var(--sl-color-gray-5);
+	border-radius: var(--sco-radius-sm);
+	background-color: var(--sl-color-bg);
+	color: var(--sl-color-white);
+	font: inherit;
+	font-size: var(--sl-text-sm);
+	font-weight: 400;
+}
+
+.sco-natives__count {
+	margin: var(--sco-space-3) 0 var(--sco-space-2);
+	color: var(--sl-color-gray-3);
+}
+
+.sco-natives__notice,
+.sco-natives__empty {
+	margin: 0 0 var(--sco-space-3);
+	padding: var(--sco-space-2) var(--sco-space-3);
+	border: 1px solid var(--sl-color-orange);
+	border-radius: var(--sco-radius-sm);
+	background-color: var(--sl-color-orange-low);
+	color: var(--sl-color-orange-high);
+}
+
+.sco-natives__table {
+	width: 100%;
+	border-collapse: collapse;
+	line-height: 1.4;
+}
+
+.sco-natives__table th {
+	padding: var(--sco-space-2) var(--sco-space-3);
+	border-bottom: 1px solid var(--sl-color-gray-5);
+	color: var(--sl-color-gray-3);
+	font-size: var(--sl-text-xs);
+	font-weight: 600;
+	text-align: start;
+}
+
+.sco-natives__table th:first-child {
+	width: 36%;
+}
+
+.sco-natives__table td {
+	padding: var(--sco-space-2) var(--sco-space-3);
+	border-bottom: 1px solid var(--sco-rule);
+	vertical-align: top;
+}
+
+.sco-natives__table tr {
+	scroll-margin-block: calc(var(--sl-nav-height) + var(--sco-space-5));
+}
+
+.sco-natives__table code {
+	font-family: var(--__sl-font-mono);
+	font-size: var(--sl-text-xs);
+}
+
+.sco-natives__row {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sco-space-1);
+	min-width: 0;
+}
+
+.sco-natives__id {
+	color: var(--sl-color-white);
+}
+
+.sco-natives__meta,
+.sco-natives__meta a {
+	color: var(--sl-color-gray-3);
+	font-size: var(--sl-text-xs);
+}
+
+.sco-hash code {
+	white-space: nowrap;
+}
+
+.sco-natives__caps {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sco-space-1);
+	overflow-wrap: anywhere;
+}
+
+.sco-natives__none {
+	color: var(--sl-color-gray-3);
+}
+
+.sco-natives__table tr.is-target td {
+	background-color: var(--sco-target);
+}
+
+.sco-natives__table tr.is-target {
+	outline: 2px solid var(--sl-color-text-accent);
+	outline-offset: -2px;
+}
+
+/* Narrow column: each row becomes a labelled block instead of scrolling sideways. */
+@container (max-width: 40rem) {
+	.sco-natives__table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	.sco-natives__table,
+	.sco-natives__table tbody,
+	.sco-natives__table tr {
+		display: block;
+	}
+
+	.sco-natives__table tr {
+		padding: var(--sco-space-2) 0;
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+
+	.sco-natives__table td {
+		display: grid;
+		grid-template-columns: 6rem 1fr;
+		gap: var(--sco-space-3);
+		padding: var(--sco-space-1) var(--sco-space-3);
+		border: 0;
+	}
+
+	.sco-natives__table td::before {
+		content: attr(data-label);
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-xs);
+		font-weight: 600;
+	}
+
+	.sco-natives__table td > * {
+		min-width: 0;
+		justify-self: start;
+	}
 }
