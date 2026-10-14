@@ -25,6 +25,9 @@ FORBIDDEN = ('/' + 'Users' + '/', 'task' + '-register', 'sco' + '-private',
              'sco-core-' + 'ecosystem-analysis', 'PRIVATE ENGINEERING ' + 'DOCUMENTATION',
              'version_' + 'registry.mjs', 'ghidra_' + 'checkpoint.mjs', 'sc-' + 'reconstructed')
 SENTINELS = ('PRIVATE_SENTINEL_73c61ae9', 'PRIVATE_FILENAME_93b4167a')
+DOWNLOADS = {gen.BASE + '/sdk-catalogue.json', gen.BASE + '/' + gen.NATIVE_DOWNLOAD}
+# Routes external checkers depend on; the release notifier polls the release-notes page.
+PINNED_ROUTES = ('guides/releases/sdk-v210', 'guides/getting-started', 'guides/api-v1', 'guides/readme')
 GZIP_FILE_LIMIT = 16 << 20
 GZIP_TOTAL_LIMIT = 256 << 20
 
@@ -87,10 +90,11 @@ def check_markdown_links(content, public):
                     if not re.match(re.escape(gen.SOURCE_ROOT) + r'[0-9a-f]{40}/', target):
                         raise AssertionError('Unpinned source link: ' + target)
                 continue
-            if url.path not in routes and url.path != gen.BASE + '/sdk-catalogue.json':
+            if url.path not in routes and url.path not in DOWNLOADS:
                 raise AssertionError('Unresolved generated link in ' + name + ': ' + target)
-    if not (public / 'sdk-catalogue.json').is_file():
-        raise AssertionError('Missing catalogue download')
+    for download in ('sdk-catalogue.json', gen.NATIVE_DOWNLOAD):
+        if not (public / download).is_file():
+            raise AssertionError('Missing download: ' + download)
 
 
 class Links(HTMLParser):
@@ -137,8 +141,9 @@ def check_built(root):
             if url.fragment and dest in parsed and unquote(url.fragment) not in parsed[dest].ids:
                 raise AssertionError('Missing built anchor: ' + target)
             checked += 1
-    if not (root / 'sdk-catalogue.json').is_file():
-        raise AssertionError('Missing built catalogue')
+    for download in ('sdk-catalogue.json', gen.NATIVE_DOWNLOAD):
+        if not (root / download).is_file():
+            raise AssertionError('Missing built download: ' + download)
     return len(pages), checked
 
 
@@ -230,6 +235,7 @@ class SiteTests(unittest.TestCase):
                 doc.write('\n' + SENTINELS[0] + '\n')
             (root / 'sdk').mkdir()
             shutil.copyfile(ROOT / 'sdk/components.json', root / 'sdk/components.json')
+            shutil.copyfile(ROOT / gen.NATIVE_INDEX, root / gen.NATIVE_INDEX)
             output = root / 'site'
             output.mkdir()
             for name in ('public-inputs.json', 'package.json', 'package-lock.json', 'astro.config.mjs'):
@@ -505,6 +511,7 @@ class SiteTests(unittest.TestCase):
             (built / 'pagefind').mkdir()
             (built / 'pagefind/a.pf_index').write_bytes(b'index')
             (built / 'sdk-catalogue.json').write_text('{}')
+            (built / gen.NATIVE_DOWNLOAD).write_text('{}')
             (built / 'index.html').write_text('<a href="' + gen.BASE + '/">home</a>')
             self.assertEqual(check_built(built), (1, 1))
             (built / 'index.html').write_text('<a href="' + gen.BASE + '/%2e%2e/%2e%2e/secret">x</a>')
@@ -551,9 +558,117 @@ class SiteTests(unittest.TestCase):
         if BUILT is None:
             self.skipTest('Use --built site/dist for built-output verification')
         pages, links = check_built(BUILT)
-        expected = len(self.catalogue['records']) + len({r['service'] for r in self.catalogue['records']}) + len(gen.inputs(ROOT)) + len(gen.LANGUAGES) + 1
+        expected = (len(self.catalogue['records']) + len({r['service'] for r in self.catalogue['records']})
+                    + len(gen.inputs(ROOT)) + len(gen.LANGUAGES) + len(gen.HUBS) + 1 + 1)  # hubs, natives, home
         self.assertEqual(pages, expected + 1)  # Starlight's generated 404 page.
+        for identifier in PINNED_ROUTES + tuple('hubs/' + key for key, _, _ in gen.HUBS) + ('natives',):
+            self.assertTrue((BUILT / identifier / 'index.html').is_file(), identifier)
+        index = json.loads((ROOT / gen.NATIVE_INDEX).read_text())
+        self.assertEqual((BUILT / gen.NATIVE_DOWNLOAD).read_bytes(), (ROOT / gen.NATIVE_INDEX).read_bytes())
+        natives = (BUILT / 'natives/index.html').read_text()
+        self.assertEqual(sorted(re.findall(r'<tr id="(_0x[0-9A-F]{16})"', natives)),
+                         sorted(entry['hash'] for entry in index['entries']))
+        scripts = re.findall(r'<script[^>]*>', natives)
+        self.assertTrue(all('src=' not in tag or gen.BASE + '/_astro/' in tag for tag in scripts), scripts)
         print('Built site:', pages, 'HTML pages;', links, 'internal links resolved; Pagefind present')
+
+    def test_hubs_group_every_page_without_moving_routes(self):
+        with tempfile.TemporaryDirectory(prefix='site-hubs-') as work:
+            output = Path(work)
+            self.generate(ROOT, output)
+            docs = output / 'src/content/docs'
+            groups = json.loads((output / gen.SIDEBAR).read_text())
+            self.assertEqual(groups[0], {'label': 'Home', 'slug': 'index'})
+            self.assertEqual([group['label'] for group in groups[1:]],
+                             ['Start & SDK profiles', 'Language SDKs & cookbooks', 'Native & service reference',
+                              'Host integration & AI agents'])
+
+            def items(entries):
+                for entry in entries:
+                    yield from items(entry['items']) if 'items' in entry else [entry]
+            links = list(items(groups))
+            slugs = [entry['slug'] for entry in links]
+            self.assertEqual(len(slugs), len(set(slugs)))
+            for entry in links:
+                self.assertTrue((docs / (entry['slug'] + '.md')).is_file(), entry['slug'])
+                self.assertNotIn('`', entry['label'])
+            expected = ({gen.route_key(gen.guide_id(name)) for name in gen.inputs(ROOT)}
+                        | {'services/' + gen.service_id(r['service']) for r in self.catalogue['records']}
+                        | {'languages/' + language for language in gen.LANGUAGES} | {'natives', 'index'}
+                        | {'hubs/' + key for key, _, _ in gen.HUBS})
+            self.assertEqual(set(slugs), expected)
+            for identifier in PINNED_ROUTES:
+                self.assertTrue((docs / (identifier + '.md')).is_file(), identifier)
+            for page in docs.rglob('*.md'):
+                titles = re.findall(r'^title: (.+)$', page.read_text(), re.M)
+                self.assertEqual(len(titles), 1, page)
+                self.assertNotIn('`', titles[0], page)
+            api = (docs / 'guides/api-v1.md').read_text()
+            self.assertIn('title: "Plugin API v1 reference (sco_api.h)"', api)
+            home = (docs / 'index.md').read_text()
+            self.assertEqual(re.findall(r'data-hub="([a-z]+)"', home), [key for key, _, _ in gen.HUBS])
+            self.assertLess(home.index('data-track="published"'), home.index('data-hub="start"'))
+            self.assertLess(home.index('data-hub="integration"'), home.index('data-profile='))
+            start = (docs / 'hubs/start.md').read_text()
+            self.assertEqual(len(re.findall(r'<li class="sco-profile"', start)),
+                             len(re.findall(r'<li class="sco-profile"', home)))
+            check_markdown_links(docs, output / 'public')
+        docs = gen.inputs(ROOT)
+        for bad in (docs + ['docs/unassigned.md'], docs[1:]):
+            with self.assertRaises(ValueError):
+                gen.hub_docs(bad)
+
+    def test_native_index_page_and_download(self):
+        index = json.loads((ROOT / gen.NATIVE_INDEX).read_text())
+        with tempfile.TemporaryDirectory(prefix='site-natives-') as work:
+            output = Path(work)
+            self.generate(ROOT, output)
+            text = (output / 'src/content/docs/natives.md').read_text()
+            self.assertEqual((output / 'public' / gen.NATIVE_DOWNLOAD).read_bytes(),
+                             (ROOT / gen.NATIVE_INDEX).read_bytes())
+            rows = re.findall(r'<tr id="(_0x[0-9A-F]{16})" tabindex="-1" data-subsystem="([a-z0-9_-]+)" data-tier="([1-4])"', text)
+            self.assertEqual(len(rows), index['row_count'])
+            self.assertEqual(rows, [(e['hash'], e['subsystem'], str(e['tier'])) for e in index['entries']])
+            for entry in index['entries']:
+                self.assertIn('href="' + gen.route('natives') + '?' + entry['hash'] + '"', text)
+            known = {entry['hash'] for entry in index['entries']}
+            for hexrun in re.finditer(r'0x[0-9A-Fa-f]+', text):
+                self.assertEqual(text[hexrun.start() - 1], '_')
+                self.assertIn('_0x' + hexrun.group()[2:].upper(), known)
+            self.assertIn('Entries list row names and readiness only: no byte patterns, masks, offsets or addresses.', text)
+            self.assertIn('Nothing here is verified in game unless an entry is marked so', text)
+            for tier, about in index['tiers'].items():
+                self.assertIn('sco-tier--' + tier + '">' + tier + ' · ' + about.split(':', 1)[0], text)
+            self.assertEqual(re.findall(r'<script[^>]*>', text), ['<script>'])
+            body = text[text.index('Every signature row'):]
+            self.assertNotRegex(body, r'https?://(?!github\.com/scubamount/sco-core/blob/[0-9a-f]{40}/)')
+            self.assertIn('tableOfContents: false', text)
+
+    def test_native_index_fails_closed(self):
+        good = json.loads((ROOT / gen.NATIVE_INDEX).read_text())
+
+        def mutate(change):
+            data = deepcopy(good)
+            change(data)
+            return data
+        cases = {
+            'pattern key': mutate(lambda d: d['entries'][0].update(pattern='48 8B ??')),
+            'address hash': mutate(lambda d: d['entries'][0].update(hash='0x140001000')),
+            'lowercase hash': mutate(lambda d: d['entries'][0].update(hash=d['entries'][0]['hash'].lower())),
+            'row count': mutate(lambda d: d.update(row_count=d['row_count'] + 1)),
+            'unknown tier': mutate(lambda d: d['entries'][0].update(tier=5)),
+            'duplicate row': mutate(lambda d: d['entries'].append(deepcopy(d['entries'][0])) or d.update(row_count=len(d['entries']))),
+            'source outside game': mutate(lambda d: d['entries'][0].update(source='../private/x_sigs.cpp')),
+            'markup in id': mutate(lambda d: d['entries'][0].update(id='<script>')),
+            'schema': mutate(lambda d: d.update(schema_version=2)),
+        }
+        for label, data in cases.items():
+            with self.subTest(case=label), tempfile.TemporaryDirectory(prefix='site-native-bad-') as work:
+                root = Path(work)
+                (root / 'sdk').mkdir()
+                (root / gen.NATIVE_INDEX).write_text(json.dumps(data))
+                with self.assertRaises(ValueError):
+                    gen.native_index(root)
 
 
 if __name__ == '__main__':

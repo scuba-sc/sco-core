@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+
+// Home plus the four library hubs, written by scripts/gen.py next to the pages it generates.
+const sidebar = JSON.parse(readFileSync(new URL('./src/generated-sidebar.json', import.meta.url), 'utf8'));
 
 export default defineConfig({
   site: 'https://scubamount.github.io',
@@ -9,14 +13,7 @@ export default defineConfig({
     title: 'sco-core SDK',
     description: 'Public SDK contracts and engineering guides',
     customCss: ['./src/styles/portal.css'],
-    sidebar: [
-      { label: 'Overview', slug: 'index' },
-      { label: 'Start a plugin', slug: 'guides/getting-started' },
-      { label: 'Guides by audience', slug: 'guides/readme' },
-      { label: 'Services', items: [{ autogenerate: { directory: 'services' } }] },
-      { label: 'Language mappings', items: [{ autogenerate: { directory: 'languages' } }] },
-      { label: 'Engineering guides', items: [{ autogenerate: { directory: 'guides' } }] },
-    ],
+    sidebar,
     // Starlight builds its default local Pagefind search index; no remote provider.
   })],
 });
