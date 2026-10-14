@@ -10,15 +10,16 @@ Candidate prepared 2026-10-14; no tag, signed approval, candidate run or release
 At publication the maintainer replaces this heading's parenthesis with the release date and this
 paragraph with the published identities, as for 2.1.0. See the
 [SDK 2.2.0 release notes draft](docs/releases/sdk-v2.2.0.md) and the
-[SDK 2.2.0 scope draft](docs/legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md), which still
-needs the maintainer's approval before any candidate.
+[SDK 2.2.0 scope decision](docs/legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md), recorded
+by the maintainer on 2026-10-14; it does not itself dispatch a candidate, create an approval
+record, sign, tag or publish.
 
 SDK 2.2.0 packages the entries below without changing frozen plugin ABI 1.1
 (`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.1.0). Core, legacy,
-core-source and host-source-sc use 2.2.0. Three game service tables landed on the candidate
-branch, and the [game-pack policy](docs/game-pack.md) raises the game-sc coordinate to 0.5.0 for a
-release that adds or grows a game service; `SCO_GAME_PACK_VERSION` still reads 0.4.0 until the
-maintainer decides whether the candidate includes them (scope draft, decision 2). Nothing below
+core-source and host-source-sc use 2.2.0. The maintainer kept the three new game service tables
+in the candidate, so under the [game-pack policy](docs/game-pack.md) (a release that adds or grows
+a game service raises the minor) the game pack and the optional game-sc overlay move to **0.5.0**
+(`SCO_GAME_PACK_VERSION`, was 0.4.0; `sco-sdk-game-sc-0.5.0.zip`). Nothing below
 has run in the game: evidence is macOS local builds and synthetic fixtures. Linux, native
 Windows, GPU and real-game acceptance are unproven. The new game capabilities
 (`game.hangar.lift`, `game.hangar.atc_cancel`, `game.reputation.checks`,

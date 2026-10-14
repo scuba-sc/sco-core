@@ -312,40 +312,55 @@
           ]
         },
         "cpp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.world free_camera_flag routes are unsupported."
+              "path": "include/scosdk/game/world.hpp",
+              "token": "const sco_result r = t_->free_camera_flag(&raw);"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_language_routes.cpp",
+            "tests/test_sdk.cpp",
+            "tools/test.sh"
+          ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.world free_camera_flag routes are unsupported."
+              "path": "sdk/csharp/Sco.Sdk/Game/World.cs",
+              "token": "ScoResult r = _t->free_camera_flag(&raw);"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+            "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
+          ]
         },
         "lua": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/contracts.md",
-              "token": "C++, C# and Lua game.world free_camera_flag routes are unsupported."
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = GAME_MEMBER(w, sc_world_v1, free_camera_flag) ? w->free_camera_flag(&set) : SCO_UNAVAILABLE;"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_game_world.c",
-        "tests/test_world_free_cam.cpp"
+        "tests/test_world_free_cam.cpp",
+        "tests/test_language_routes.cpp",
+        "tests/test_sdk.cpp",
+        "tools/test.sh",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs",
+        "tests/test_lua.cpp"
       ],
       "limitations": [
         "Internal allocation unspecified.",

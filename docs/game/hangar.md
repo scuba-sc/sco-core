@@ -18,3 +18,7 @@ Not wrapped, because the repository doesn't document a plugin-callable meaning f
 - **Pad tokens** (`atc.change_token_state`, `atc.clear_token`, `landing.on_reserving_entity_changed`) and the log-only probes (`asop.diagnostics`).
 
 The ASOP host composition, when the product runs it, drives the same lifts. A lift request from a plugin is not coordinated with its Store or Retrieve. [API header](../../include/sc_hangar.h), [game services](../game-services.md).
+
+## C++ wrapper
+
+[`scosdk/game/hangar.hpp`](../../include/scosdk/game/hangar.hpp) (header-only, not in `scosdk.hpp`) wraps the table as `sco::sdk::game::Hangar`: `Open(plugin)` queries `game.hangar` 1.0, then `LiftOfLandingArea(landingAreaId, lift)`, `LiftRequest(liftId, SC_HANGAR_LIFT_OPEN | SC_HANGAR_LIFT_CLOSE)`, `AtcCancelRequest(atcId)` and `LastError()`. Each call checks that the published table's `size` covers its member and that the member is set before calling it, and answers `SCO_UNAVAILABLE` otherwise; `lift` is 0 on failure. The capabilities stay OFF by default, so on a stock product every call answers `SCO_UNAVAILABLE` until the game pack turns them on. Tests: `tests/test_sdk.cpp` (`TestGameHangar`, over a stand-in table) and `tests/test_language_routes.cpp` (the size sweep for each member). Nothing here has been verified in game.

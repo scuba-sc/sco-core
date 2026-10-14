@@ -199,6 +199,8 @@ lua5.4 tools/lua-check.lua examples/greeter --invoke greeter.greet "Pilot One" t
 
 `--short-tables` hands the plugin a 1.0 host's `sco_api`: `size` 88 (`offsetof(sco_api, provide_service)`) and `minor` 0. Calling a 1.1 member (`provide_service`, `query_service`, `release_service`, `invoke_raw`, `register_raw`) without first checking `api->size >= offsetof(sco_api, member) + sizeof(api->member)` fails the check, with the size the call needed. Run it once on a plugin that should still load on an older host.
 
+The stand-in serves `sco.widgets` 1.1 by default: `update_nodes`, `remove_nodes` and `capabilities` apply the host's rules (IDs, preorder subtrees, a replaced root keeps its parent, a new root joins parent 0 or a ROW/COLUMN, no removal that empties the panel), each node is read as 1.0 or 1.1 by its own `size`, 1.1 tails (severity, tooltip, LIST/TABLE paging) are validated, panels holding a 1.1 node get `sco_widget_event_1_1` events with `row`, and `capabilities` reports the host's features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24, 1.1 node tails ignored): calling `update_nodes`, `remove_nodes` or `capabilities` without first checking `size >= offsetof(sco_widgets_v1, member) + sizeof(member)` and a non-NULL pointer fails the check. An unchecked `query_service` under `--short-tables` fails too, but still returns that 1.0 table, so later unchecked widgets calls are reported as well.
+
 The stand-in host is not the game: it has no game thread, no crash guard and no game features. A plugin that passes still needs a run in the game.
 
 ## Install a plugin

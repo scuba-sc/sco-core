@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// scosdk/menu_builder.hpp: declarative panels for the host service "sco.widgets" 1.0
+// scosdk/menu_builder.hpp: declarative panels for the host service "sco.widgets" 1.0/1.1
 // (sco_widgets.h). Header-only C++20, over scosdk/widgets.hpp.
 //
 //   static bool  g_god = false;
@@ -30,7 +30,8 @@
 // replacement/removal or unload), like any set_panel ctx. Moving a PanelTree keeps the
 // registered context valid; a callback may replace, remove or destroy the tree. Everything is
 // game-thread only; exceptions from callbacks are caught and dropped (they never cross the C
-// ABI). Target: sco.widgets 1.0 only. Reference: docs/ui.md. GPL-3.0, like sco-core.
+// ABI). Extended attributes opt into 1.1 nodes; Submit drops them on a 1.0 host.
+// Reference: docs/ui.md. GPL-3.0, like sco-core.
 #ifndef SCOSDK_MENU_BUILDER_HPP
 #define SCOSDK_MENU_BUILDER_HPP
 
@@ -86,6 +87,22 @@ inline sco_result WidgetString(const char* s, bool optional, std::size_t& length
 }
 
 inline bool WidgetContainer(uint32_t kind) noexcept { return kind == SCO_WIDGET_ROW || kind == SCO_WIDGET_COLUMN; }
+
+inline sco_result CheckWidgetTail(const sco_widget_node_1_1& n, const char*& why) noexcept {
+    auto fail = [&](sco_result r, const char* text) { why = text; return r; };
+    if (n.severity > SCO_WIDGET_SEVERITY_ERROR || n._reserved)
+        return fail(SCO_BAD_ARG, "unknown severity or nonzero reserved field");
+    const bool pageable = n.base.kind == SCO_WIDGET_LIST || n.base.kind == SCO_WIDGET_TABLE;
+    if ((!pageable && (n.first_row || n.visible_rows)) || (!n.visible_rows && n.first_row))
+        return fail(SCO_BAD_ARG, "paging on another kind or first_row without visible_rows");
+    if (n.visible_rows > SCO_WIDGETS_MAX_ITEMS) return fail(SCO_TOO_MANY, "more than 256 visible rows");
+    const uint32_t rows = n.base.kind == SCO_WIDGET_TABLE ? n.base.item_count / n.base.columns : n.base.item_count;
+    if (n.first_row && n.first_row >= rows) return fail(SCO_BAD_ARG, "first_row outside rows");
+    std::size_t length = 0;
+    if (const sco_result r = WidgetString(n.tooltip, true, length); r != SCO_OK)
+        return fail(r, r == SCO_TOO_MANY ? "tooltip longer than 255 bytes" : "tooltip is not valid UTF-8");
+    return SCO_OK;
+}
 
 // One node, in the order the host checks it, so the result codes agree.
 inline sco_result CheckWidgetNode(const sco_widget_node& n, const char*& why) noexcept {
@@ -168,6 +185,11 @@ inline sco_result CheckWidgetTree(const sco_widget_node* nodes, uint32_t count, 
         }
         depth = k + 1;
         if (const sco_result r = CheckWidgetNode(n, why); r != SCO_OK) return r;
+        if (size >= sizeof(sco_widget_node_1_1)) {
+            sco_widget_node_1_1 extended;
+            std::memcpy(&extended, p, sizeof(extended));
+            if (const sco_result r = CheckWidgetTail(extended, why); r != SCO_OK) return r;
+        }
         ids[i] = n.id;
         if (WidgetContainer(n.kind)) open[depth++] = n.id;
     }
@@ -185,7 +207,8 @@ inline void WidgetWhy(std::string* out, const char* why, uint32_t at) noexcept {
 
 struct PanelState {
     std::vector<sco_widget_node> nodes;
-    std::vector<std::string> labels, texts;
+    std::vector<sco_widget_node_1_1> extended;
+    std::vector<std::string> labels, texts, tooltips;
     std::vector<std::vector<std::string>> items;
     std::vector<std::vector<const char*>> item_ptrs;
     std::vector<std::function<void(const sco_widget_event&)>> apply;
@@ -194,12 +217,22 @@ struct PanelState {
 inline bool WidgetEventValid(const PanelState& s, const sco_widget_event& e) noexcept {
     if (e.size < sizeof(sco_widget_event) || !e.node_id || e.node_id > s.nodes.size()) return false;
     const sco_widget_node& n = s.nodes[e.node_id - 1];
-    if (n.id != e.node_id || e.kind != n.kind || !std::isfinite(e.value)) return false;
+    if (n.id != e.node_id || !std::isfinite(e.value)) return false;
     for (const sco_widget_node* cur = &n;;) {   // disabled ancestors disable the subtree
         if (cur->flags & SCO_WIDGET_DISABLED) return false;
         if (!cur->parent) break;
         cur = &s.nodes[cur->parent - 1];
     }
+    if (e.kind == SCO_WIDGET_EVENT_PAGE) {
+        if (s.extended.empty() || e.size < sizeof(sco_widget_event_1_1) ||
+            e.index || e.value != 0 || (e.text && *e.text)) return false;
+        sco_widget_event_1_1 page;
+        std::memcpy(&page, &e, sizeof(page));
+        const uint32_t rows = n.kind == SCO_WIDGET_TABLE ? n.item_count / n.columns : n.item_count;
+        return s.extended[e.node_id - 1].visible_rows && page.row >= 0 &&
+               static_cast<uint32_t>(page.row) < rows;
+    }
+    if (e.kind != n.kind) return false;
     const bool numeric = e.kind == SCO_WIDGET_TOGGLE || e.kind == SCO_WIDGET_SLIDER;
     const bool selection = e.kind == SCO_WIDGET_COMBO || e.kind == SCO_WIDGET_LIST;
     if ((!numeric && e.value != 0) || (!selection && e.index != 0) ||
@@ -221,12 +254,22 @@ inline bool DispatchWidgetEvent(PanelState* s, const sco_widget_event* e) noexce
     if (!s || !e || !WidgetEventValid(*s, *e)) return false;
     const std::size_t i = e->node_id - 1;
     try {
+        if (e->kind == SCO_WIDGET_EVENT_PAGE) {
+            sco_widget_event_1_1 page;
+            std::memcpy(&page, e, sizeof(page));
+            s->extended[i].first_row = static_cast<uint32_t>(page.row);
+            return true;
+        }
         sco_widget_node& n = s->nodes[i];
         if (n.kind == SCO_WIDGET_TOGGLE || n.kind == SCO_WIDGET_SLIDER) n.value = e->value;
         else if (n.kind == SCO_WIDGET_COMBO || n.kind == SCO_WIDGET_LIST) n.index = e->index;
         else if (n.kind == SCO_WIDGET_TEXT_INPUT) {
             s->texts[i].assign(e->text);
             n.text = s->texts[i].c_str();
+        }
+        if (!s->extended.empty()) {
+            s->extended[i].base = n;
+            s->extended[i].base.size = sizeof(sco_widget_node_1_1);
         }
         const auto apply = s->apply[i];
         if (apply) apply(*e);
@@ -271,11 +314,19 @@ public:
     sco_result Result() const noexcept { return result_; }
     const std::string& Error() const noexcept { return error_; }
 
-    const sco_widget_node* Nodes() const noexcept { return state_ ? state_->nodes.data() : nullptr; }
+    const sco_widget_node* Nodes() const noexcept {
+        if (!state_) return nullptr;
+        return state_->extended.empty() ? state_->nodes.data() : &state_->extended[0].base;
+    }
+    uint32_t Stride() const noexcept {
+        return static_cast<uint32_t>(state_ && !state_->extended.empty() ?
+            sizeof(sco_widget_node_1_1) : sizeof(sco_widget_node));
+    }
     uint32_t Count() const noexcept { return state_ ? static_cast<uint32_t>(state_->nodes.size()) : 0; }
     // The node with this id (ids are 1-based preorder positions), or nullptr.
     const sco_widget_node* Find(uint32_t id) const noexcept {
-        return state_ && id && id <= state_->nodes.size() ? &state_->nodes[id - 1] : nullptr;
+        if (!state_ || !id || id > state_->nodes.size()) return nullptr;
+        return state_->extended.empty() ? &state_->nodes[id - 1] : &state_->extended[id - 1].base;
     }
 
     // Applies one host event to its binding and callback. false: no such interactive node, it
@@ -292,7 +343,13 @@ public:
     // set_panel through an opened Widgets; returns the host's result unchanged.
     sco_result Submit(sco::sdk::Widgets& widgets, const char* id, const char* title) noexcept {
         if (!*this) return result_ != SCO_OK ? result_ : SCO_BAD_ARG;
-        return widgets.SetPanel(id, title, Nodes(), Count(), &PanelTree::OnEvent, Context());
+        const sco_widgets_v1* table = widgets.Table();
+        const bool extended = !state_->extended.empty() && table &&
+            table->size >= offsetof(sco_widgets_v1, capabilities) + sizeof(table->capabilities) &&
+            table->capabilities;
+        return widgets.SetPanel(id, title, extended ? Nodes() : state_->nodes.data(), Count(),
+                                &PanelTree::OnEvent, Context(),
+                                extended ? Stride() : static_cast<uint32_t>(sizeof(sco_widget_node)));
     }
 
 private:
@@ -304,7 +361,7 @@ private:
 
 class PanelBuilder;
 
-// The node a builder call added: chain Disabled() / Password(). Id() is its node id (0 when the
+// The node a builder call added: chain flags or 1.1 attributes. Id() is its node id (0 when the
 // call failed and the builder recorded an error).
 class WidgetRef {
 public:
@@ -312,6 +369,9 @@ public:
     WidgetRef& Disabled(bool on = true) noexcept { return Flag(SCO_WIDGET_DISABLED, on); }
     // TEXT_INPUT only (display masking, not secret storage); elsewhere Build() fails BAD_ARG.
     WidgetRef& Password(bool on = true) noexcept { return Flag(SCO_WIDGET_PASSWORD, on); }
+    WidgetRef& Tooltip(const char* text) noexcept;
+    WidgetRef& Severity(uint32_t severity) noexcept;
+    WidgetRef& Paging(uint32_t first_row, uint32_t visible_rows) noexcept;
     uint32_t Id() const noexcept { return id_; }
 
 private:
@@ -431,6 +491,10 @@ public:
             s->items.resize(count);
             s->item_ptrs.resize(count);
             s->apply.resize(count);
+            if (extended_) {
+                s->extended.resize(count);
+                s->tooltips.resize(count);
+            }
             for (std::size_t i = 0; i < count; ++i) {
                 Pending& p = nodes_[i];
                 s->nodes[i] = p.node;
@@ -438,6 +502,12 @@ public:
                 s->texts[i] = std::move(p.text);
                 s->items[i] = std::move(p.items);
                 s->apply[i] = std::move(p.apply);
+                if (extended_) {
+                    s->extended[i].severity = p.severity;
+                    s->extended[i].first_row = p.first_row;
+                    s->extended[i].visible_rows = p.visible_rows;
+                    s->tooltips[i] = std::move(p.tooltip);
+                }
                 s->item_ptrs[i].reserve(s->items[i].size());
                 for (const std::string& item : s->items[i]) s->item_ptrs[i].push_back(item.c_str());
             }
@@ -448,10 +518,16 @@ public:
                 n.text = n.kind == SCO_WIDGET_TEXT_INPUT ? s->texts[i].c_str() : nullptr;
                 n.items = s->item_ptrs[i].empty() ? nullptr : s->item_ptrs[i].data();
                 n.item_count = static_cast<uint32_t>(s->item_ptrs[i].size());
+                if (extended_) {
+                    s->extended[i].base = n;
+                    s->extended[i].base.size = sizeof(sco_widget_node_1_1);
+                    s->extended[i].tooltip = s->tooltips[i].empty() ? nullptr : s->tooltips[i].c_str();
+                }
             }
             std::string why;
-            const sco_result r = ValidateWidgetNodes(s->nodes.data(), static_cast<uint32_t>(count),
-                                                     sizeof(sco_widget_node), &why);
+            const sco_result r = ValidateWidgetNodes(extended_ ? &s->extended[0].base : s->nodes.data(),
+                static_cast<uint32_t>(count),
+                static_cast<uint32_t>(extended_ ? sizeof(sco_widget_node_1_1) : sizeof(sco_widget_node)), &why);
             Reset();
             if (r != SCO_OK) {
                 out.result_ = r;
@@ -471,6 +547,7 @@ public:
     // Drops everything recorded so far.
     void Reset() noexcept {
         nodes_.clear();
+        extended_ = false;
         result_ = SCO_OK;
         error_.clear();
     }
@@ -479,7 +556,8 @@ private:
     friend class WidgetRef;
     struct Pending {
         sco_widget_node node{};
-        std::string label, text;
+        std::string label, text, tooltip;
+        uint32_t severity = 0, first_row = 0, visible_rows = 0;
         std::vector<std::string> items;
         std::function<void(const sco_widget_event&)> apply;
     };
@@ -610,6 +688,7 @@ private:
     }
 
     std::vector<Pending> nodes_;
+    bool extended_ = false;
     uint32_t open_[SCO_WIDGETS_MAX_NODES] = {};
     uint32_t depth_ = 0;
     sco_result result_ = SCO_OK;
@@ -620,6 +699,34 @@ inline WidgetRef& WidgetRef::Flag(uint32_t flag, bool on) noexcept {
     if (b_ && id_ && id_ <= b_->nodes_.size()) {
         uint32_t& flags = b_->nodes_[id_ - 1].node.flags;
         flags = on ? (flags | flag) : (flags & ~flag);
+    }
+    return *this;
+}
+
+inline WidgetRef& WidgetRef::Tooltip(const char* text) noexcept {
+    if (b_ && id_ && id_ <= b_->nodes_.size()) {
+        b_->extended_ = true;
+        std::size_t length = 0;
+        const sco_result r = detail::WidgetString(text, true, length);
+        if (r != SCO_OK) b_->Fail(r, r == SCO_TOO_MANY ? "tooltip longer than 255 bytes" : "tooltip is not valid UTF-8", id_);
+        else b_->Text(b_->nodes_[id_ - 1].tooltip, text ? std::string_view(text, length) : std::string_view{});
+    }
+    return *this;
+}
+
+inline WidgetRef& WidgetRef::Severity(uint32_t severity) noexcept {
+    if (b_ && id_ && id_ <= b_->nodes_.size()) {
+        b_->extended_ = true;
+        b_->nodes_[id_ - 1].severity = severity;
+    }
+    return *this;
+}
+
+inline WidgetRef& WidgetRef::Paging(uint32_t first_row, uint32_t visible_rows) noexcept {
+    if (b_ && id_ && id_ <= b_->nodes_.size()) {
+        b_->extended_ = true;
+        b_->nodes_[id_ - 1].first_row = first_row;
+        b_->nodes_[id_ - 1].visible_rows = visible_rows;
     }
     return *this;
 }

@@ -1301,17 +1301,14 @@ class ValidatorTests(ServerCase):
                 self.validate(client, folder=folder, is_error=True)
 
     def test_repository_manifests_match_the_checker(self):
-        # cs_widgets opens with [plugin] and names library= instead of kind/entry; sco-plugin-check
-        # refuses it with this same message. Drop the entry once that example is fixed.
-        refused = {"cs_widgets": "plugin.ini: missing key 'id'"}
         client = self.start(extended=True)
-        manifests = sorted((ROOT / "sdk/examples").glob("*/plugin.ini"))
+        manifests = sorted((ROOT / "sdk/examples").glob("*/plugin.ini")) + sorted((ROOT / "examples").glob("*/plugin.ini"))
         self.assertTrue(manifests)
         for path in manifests:
-            with self.subTest(path=path.parent.name):
+            with self.subTest(path=str(path.relative_to(ROOT))):
                 manifest = self.validate(client, path.read_text(encoding="utf-8"), folder=path.parent.name)["manifest"]
-                expected = [{"line": None, "message": refused[path.parent.name]}] if path.parent.name in refused else []
-                self.assertEqual(manifest["findings"], expected)
+                self.assertEqual(manifest["findings"], [])
+                self.assertIs(manifest["valid"], True)
 
     def test_sdk_api_matches_the_root_header(self):
         header = (ROOT / "include/sco_api.h").read_text(encoding="utf-8")

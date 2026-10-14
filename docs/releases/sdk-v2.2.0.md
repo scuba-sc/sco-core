@@ -2,9 +2,10 @@
 
 Tag `sdk-v2.2.0`, combined zip `sco-sdk-2.2.0.zip`. **Status: unpublished candidate.** This page
 is a draft prepared on 2026-10-14 for the maintainer. No tag, signature, approval record, candidate
-run or release exists for 2.2.0, and nothing on this page authorizes one. The candidate scope still
-needs the maintainer's approval: see the
-[SDK 2.2.0 scope draft](../legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md). Until the
+run or release exists for 2.2.0, and nothing on this page authorizes one. The maintainer recorded
+the candidate scope on 2026-10-14 in the
+[SDK 2.2.0 scope decision](../legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md); that
+record does not itself dispatch a candidate, create an approval record, sign, tag or publish. Until the
 maintainer publishes 2.2.0, the newest published SDK is 2.1.0
 ([latest release](https://github.com/scubamount/sco-core/releases/latest)). The release workflow
 publishes the CHANGELOG section [`## sdk-v2.2.0`](../../CHANGELOG.md) as the release's notes;
@@ -12,7 +13,7 @@ this page is the longer reference behind it.
 
 <!-- release-scope:start -->
 ```json
-{"tag":"sdk-v2.2.0","sdk_version":"2.2.0","game_pack_version":"0.4.0","plugin_abi":"1.1","profiles":["core","game-sc","legacy","core-source","host-source-sc"]}
+{"tag":"sdk-v2.2.0","sdk_version":"2.2.0","game_pack_version":"0.5.0","plugin_abi":"1.1","profiles":["core","game-sc","legacy","core-source","host-source-sc"]}
 ```
 <!-- release-scope:end -->
 
@@ -23,7 +24,7 @@ this page is the longer reference behind it.
 | Kernel (the SDK) | 2.2.0 (was 2.1.0) | `sdk/VERSION`, tag `sdk-v2.2.0` |
 | Plugin ABI | 1.1, unchanged | `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h` (frozen; `include/sco_api.h` and `tests/abi_v1.c` byte-identical to 2.1.0) |
 | `sco.widgets` service table | 1.1 (was 1.0) | `SCO_WIDGETS_VERSION_1_1` in `sco_widgets.h`; additive, 1.0 consumers unchanged |
-| Star Citizen game pack | 0.4.0 in the header; 0.5.0 under the game-pack policy if the candidate includes the new game tables (maintainer decision) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
+| Star Citizen game pack | 0.5.0 (was 0.4.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
 | Verified game build | unchanged from 2.1.0 | no new sigcheck or in-game verification in this candidate |
 
 `VERSIONS.txt` in the zip states the same lines, generated from the headers by `sdk/package.py`.
@@ -32,19 +33,17 @@ this page is the longer reference behind it.
 
 - Core SDK, combined/legacy SDK, the neutral core-source kit and the Star Citizen
   host-source kit (`host-source-sc`): 2.2.0.
-- Optional game-sc public overlay: 0.4.0 in the header today. `game.hangar` 1.0,
-  `game.reputation` 1.0 and `game.world` 1.1 landed on the candidate branch, and the
+- Optional game-sc public overlay: 0.5.0 (was 0.4.0). The maintainer kept `game.hangar` 1.0,
+  `game.reputation` 1.0 and `game.world` 1.1 in this candidate, and the
   [game-pack policy](../game-pack.md) raises the minor for a release that adds or grows a game
-  service, so a candidate that keeps them ships the overlay as 0.5.0. Whether it keeps them is
-  decision 2 in the scope draft; the header and the scope block above change with it. The overlay's
-  compatibility descriptor binds the exact core archive SHA-256, so an overlay rebuilt over the
-  2.2.0 core has different bytes from the published 0.4.0 overlay under the same version. How to
-  name that overlay is an open maintainer decision in the scope draft.
+  service. The overlay ships as `sco-sdk-game-sc-0.5.0.zip`, so its compatibility descriptor,
+  which binds the exact 2.2.0 core archive SHA-256, never shares a file name with the published
+  0.4.0 overlay.
 - Frozen plugin ABI: 1.1, unchanged. Individual service versions remain independent.
 
 The declared profiles repeat the five profiles published with 2.1.0. Which new headers and tools
-join which profile is listed in the [scope draft](../legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md),
-which records no maintainer approval yet. These records supply no licence grant or counsel opinion.
+join which profile is listed in the [scope decision](../legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md),
+where the maintainer approved them as proposed. These records supply no licence grant or counsel opinion.
 
 ## Changes since 2.1.0
 

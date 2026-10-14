@@ -38,6 +38,13 @@ jobs:
       - name: Packaging tests (manifest, profiles, refusals)
         run: python3 sdk/test_package.py
 
+      # sco-new-plugin: C and C++ plugins generated, built against sdk/ and run through sco-plugin-check.
+      - name: Plugin scaffolder tests (sdk/test_new_plugin.py)
+        env:
+          CC: clang
+          CXX: clang++
+        run: python3 sdk/test_new_plugin.py
+
       # legacy = core + game-sc in one zip, as sdk-v1.1.0 shipped; the examples below build from it.
       # core is built and checked on its own (no game file may be needed), then with game-sc
       # unpacked over it (release hardening WP-04).

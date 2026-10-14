@@ -9,7 +9,7 @@ game-thread events. See [widget design](design/widgets.md) and
 [SDK widget guide](../sdk/docs/widgets.md). The host publishes 1.1, a strictly additive
 extension of 1.0 (next section). The C, C++20, C# and Lua routes in the SDK widget guide
 cover 1.0, and each wrapper language has a declarative panel builder that writes the
-1.0 preorder array for you: C++ in the cookbook below, C# in
+preorder array for you. The C++ builder also opts into 1.1 attributes: see the cookbook below. C# is in
 [the C# SDK guide](sdk-csharp.md) ("Panel builder"), Lua in
 [the Lua guide](../sdk/docs/lua.md) ("Nested panels").
 
@@ -56,14 +56,15 @@ events; the new tree renders next pass.
 
 **Host adapter.** The optional ImGui adapter spells severity out as text (`Warning:`) as well as
 coloring it, shows tooltips on hover, and draws only the visible rows of a paged LIST/TABLE
-with Previous/Next controls that produce `SCO_WIDGET_EVENT_PAGE`. The scosdk C++ wrapper, C#
-and Lua do not expose the 1.1 members yet; C and C++ call the table directly. Nothing here has
+with Previous/Next controls that produce `SCO_WIDGET_EVENT_PAGE`. The scosdk C++ builder
+exposes the node attributes; the wrapper's subtree/capabilities methods and the C#
+and Lua 1.1 routes are not exposed yet. C and C++ call those methods directly. Nothing here has
 run in the game.
 
 ### Cookbook: declarative C++ panels (`scosdk/menu_builder.hpp`)
 
 [`scosdk/menu_builder.hpp`](../include/scosdk/menu_builder.hpp) (C++20, header-only, include it
-explicitly) writes the flat preorder `sco_widget_node` array for you. Nest `Row` / `Column`
+explicitly) writes the flat preorder node array for you (1.0 by default, 1.1 with extended attributes). Nest `Row` / `Column`
 bodies; every other call adds one widget to the innermost open one and binds it to your variable.
 
 ```cpp
@@ -117,13 +118,22 @@ preorder position:
 Each call returns a `WidgetRef`: chain `.Disabled()` (a disabled row or column disables its
 subtree), `.Password()` on a text input (display masking only), or read `.Id()`. Callbacks and
 `items` / `cells` lists are optional where shown; every binding pointer is required.
+Chain `.Tooltip(const char*)` for copied optional UTF-8 help text,
+`.Severity(uint32_t)` using `SCO_WIDGET_SEVERITY_*`, or
+`.Paging(uint32_t first_row, uint32_t visible_rows)` on a LIST/TABLE. These apply
+to the returned control, for example:
+
+```cpp
+panel.Label("Example status").Tooltip("Synthetic help").Severity(SCO_WIDGET_SEVERITY_WARNING);
+panel.Table("Values", 2, {"Name", "Value", "Example", "1"}).Paging(1, 1);
+```
 
 What to rely on:
 
 - **Validation.** `Build()` checks the finished array against every `sco_widgets.h` rule
   `set_panel` enforces (preorder, contiguous subtrees, unique nonzero ids, kinds, unused fields,
   toggle/slider/index values, 256 nodes, 256 items, 16 columns, 255-byte UTF-8 strings,
-  nonempty interactive labels) and fails with the host's own code: `SCO_BAD_ARG` for malformed
+  nonempty interactive labels, and 1.1 tooltip/severity/paging rules) and fails with the host's own code: `SCO_BAD_ARG` for malformed
   data, `SCO_TOO_MANY` for limits. Embedded NULs, missing bindings and `Build()` inside a body
   are `SCO_BAD_ARG` too. The first problem is reported; nothing throws. Hand-written arrays can
   use `scosdk::ValidateWidgetNodes(nodes, count, stride, &why)`. The panel id, title, ownership
@@ -131,6 +141,7 @@ What to rely on:
   the validator to the real host's answers.
 - **Values.** Bound values are read when the call is made. An event writes the binding, updates
   the tree's own node (so `Submit` again re-sends what is shown) and then runs the callback.
+  A valid PAGE event updates the first visible row without invoking a selection callback.
   Malformed, disabled or unknown-node events are ignored, matching the host's event rules. Ids
   are positions, so a rebuild with a different shape renumbers; match on bindings, not ids.
 - **Lifetimes.** Keep the tree and every bound variable alive until the panel is replaced,
@@ -141,8 +152,16 @@ What to rely on:
 - **Threads and errors.** Build, submit and receive events on the game thread. An exception
   from a callback is caught and dropped; it never crosses the C ABI. `Build()` and the widget
   calls are `noexcept`; only your `Row` / `Column` bodies can throw, and the nesting unwinds.
-- **Version.** The builder targets `sco.widgets` 1.0 only. It works unchanged on a 1.1
-  host; 1.1 nodes (tooltips, severity, paging) are written by hand as in the section above.
+- **Version.** No 1.1 attribute preserves the 80-byte 1.0 output. Any `Tooltip`,
+  `Severity` or `Paging` call, including zero/NULL values, makes `Build()` emit
+  104-byte `sco_widget_node_1_1` nodes for the entire tree. `Submit` checks
+  `table->size >= offsetof(sco_widgets_v1, capabilities) + sizeof(table->capabilities)`
+  and a non-NULL `capabilities` pointer. A short/1.0 table or null pointer receives
+  80-byte nodes instead, dropping the extended attributes, not the base values
+  or callbacks. The built tree retains its 1.1 attributes. Direct submissions
+  must pair `Nodes()` and `Count()` with `Stride()` and check the host themselves;
+  `Find(id)` works for both layouts, but indexing `Nodes()` as a base array only
+  works for 1.0. Paging follows the LIST/TABLE row rules above.
 
 The sections below document the **legacy, still-supported `sco.ui` route**. Its
 opaque draw context is host-specific (sc-offline passes an ImGui context), so a

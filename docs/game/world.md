@@ -46,6 +46,8 @@ The rows in [`src/game/world_sigs.cpp`](../../src/game/world_sigs.cpp) are the s
 |---|---|---|---|
 | `game.world.free_camera_flag` | `free_camera_flag` | `build.free_cam_on`, `build.free_cam_off`, `build.free_cam_flag` (the `build.free_cam` group) | Reads the byte `build.free_cam_flag` finds, the one the `FreeCamDisable` console handler (`build.free_cam_off`) tests before it disables the free camera, and reports 1 when it is non-zero, else 0. Reads only; it calls neither handler |
 
+C++: [`scosdk/game/world.hpp`](../../include/scosdk/game/world.hpp)'s `sco::sdk::game::World::FreeCameraFlag(set)` (`bool& set`, false on failure). `World::Open` still asks for `game.world` 1.0, so the wrapper keeps working on a 1.0 game pack: `FreeCameraFlag` calls `free_camera_flag` only when the published table's `size` covers that member and it is set, and otherwise answers `SCO_UNAVAILABLE` without touching the game. Tests: `tests/test_sdk.cpp` (`TestGameWorld`: a 1.0-sized table, a null member and a 1.1 table) and `tests/test_language_routes.cpp` (the size sweep).
+
 Not wrapped:
 
 - **Turning the free camera on or off.** `build.free_cam_on` / `build.free_cam_off` find the `FreeCamEnable` / `FreeCamDisable` console handlers, but the repository documents neither how such a handler is called (its arguments) nor what state it changes beyond the flag. Mutating the camera also belongs to `game.world.control`'s reversible lease ([design](../design/world-control.md)), whose adapter stays unavailable.

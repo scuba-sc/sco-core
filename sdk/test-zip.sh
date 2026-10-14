@@ -277,9 +277,21 @@ if [ "${SCO_SDK_CSHARP:-0}" = 1 ]; then
   esac
   dotnet run -c Release --project "$ROOT/csharp/Sco.Sdk.Tests" | tee "$WORK/cs_tests.txt"
   grep -q '^Sco.Sdk.Tests: OK' "$WORK/cs_tests.txt"
-  # The game half (GamePins.cs, GameFakeHost.cs) runs exactly when the extension is unpacked.
-  if [ $GAME = 1 ]; then grep -q '^layout: 407 pins checked, 0 failed$' "$WORK/cs_tests.txt"
-  else grep -q '^layout: 206 pins checked, 0 failed$' "$WORK/cs_tests.txt"; fi || { echo "C#: the pin count doesn't match the profile"; exit 1; }
+  # Pins.Build combines core, widgets and (when unpacked) game pin entries.
+  "$PY" - "$ROOT/csharp/Sco.Sdk.Tests" "$WORK/cs_tests.txt" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+tests = Path(sys.argv[1])
+entry = re.compile(r'^\s*(?:lines\.Add\()?\("tests/[^"]+", "(?:SIZE|AT|PIN)\(', re.M)
+expected = sum(len(entry.findall(path.read_text())) for path in tests.glob("*Pins.cs"))
+actual = re.findall(r'^layout: .*$', Path(sys.argv[2]).read_text(), re.M)
+want = f"layout: {expected} pins checked, 0 failed"
+if actual != [want]:
+    sys.exit(f"C#: expected {want}; actual: {actual or 'no layout summary'}")
+print(f"C#: {want} (matches the copied pin entries)")
+PY
   dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" -o "$WORK/cs_publish"
   mkdir -p "$WORK/cs/cs_hello"
   cp "$WORK/cs_publish/$LIB" "$WORK/cs/cs_hello/cs_hello.dll"
