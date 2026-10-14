@@ -1388,7 +1388,8 @@ if(SCO_BUILD_TESTS)
 
   # sco-plugin-check's stand-in host (built as sdk/CMakeLists.txt builds it) on one plugin per
   # PROBE_MODE of tests/fixtures/plugins/native/checker_probe.c: release_service on a borrowed
-  # name, and --short-tables (sco_api at its 1.0 extent). Cases in tests/plugin_check.cmake.
+  # name, --short-tables (sco_api and sco.widgets at their 1.0 extents), and sco.widgets 1.1.
+  # Cases in tests/plugin_check.cmake.
   add_executable(sco-plugin-check sdk/tools/sco-plugin-check.c)
   target_include_directories(sco-plugin-check PRIVATE "${SCO_INCLUDE_DIR}")
   # gnu11 like sdk/CMakeLists.txt (the root sets C_EXTENSIONS OFF); the checker uses POSIX lstat.
@@ -1401,7 +1402,8 @@ if(SCO_BUILD_TESTS)
   endif()
   set(_chk "${SCO_TEST_OUT}/plugin_check")
   file(REMOVE_RECURSE "${_chk}")
-  foreach(probe IN ITEMS chk_release_own:0 chk_release_borrowed:1 chk_tail_unchecked:2 chk_tail_checked:3)
+  foreach(probe IN ITEMS chk_release_own:0 chk_release_borrowed:1 chk_tail_unchecked:2 chk_tail_checked:3
+                      chk_w11_unchecked:4 chk_w11_checked:5)
     string(REPLACE ":" ";" probe "${probe}")
     list(GET probe 0 id)
     list(GET probe 1 mode)
