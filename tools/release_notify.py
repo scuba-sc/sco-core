@@ -241,8 +241,13 @@ def pages_location(repo):
     return f"https://{owner.lower()}.github.io", "/" + name
 
 
+def notes_route(base, tag):
+    # Same slug rule as site/scripts/gen.py guide_id(): Starlight drops '.' and other punctuation.
+    return f"{base}/guides/releases/{re.sub(r'[^a-z0-9_-]', '', tag.lower())}/"
+
+
 def default_routes(base, tag):
-    return [base + "/", f"{base}/guides/releases/{tag}/"]
+    return [base + "/", notes_route(base, tag)]
 
 
 def safe_route(route, base):
@@ -277,16 +282,16 @@ def verify_pages(repo, tag, version, game_pack, source_sha, docs_sha, routes, gi
             raise Refusal("required docs commit is unknown to this checkout")
         if not is_ancestor(git_run, docs_sha, pages_sha):
             raise Refusal("deployed Pages predates the required docs commit (stale Pages)")
-    notes_route = f"{base}/guides/releases/{tag}/"
+    notes = notes_route(base, tag)
     for route in dict.fromkeys(default_routes(base, tag) + list(routes)):
         if not safe_route(route, base):
             raise Refusal("route is not an allowlisted Pages route under " + base + "/")
         status, page = web.get(origin + route)
         if status != 200 or not page or len(page) > MAX_BODY:
             raise Refusal("deployed Pages route unavailable: " + route)
-        if route == notes_route and tag.encode() not in page:
+        if route == notes and tag.encode() not in page:
             raise Refusal("deployed release notes do not name the tag: " + route)
-    return pages_sha, origin + base + "/", origin + notes_route
+    return pages_sha, origin + base + "/", origin + notes
 
 
 def verify_completion(repo, tag, docs_sha=None, routes=(), client=github, git_run=git, web=None):
