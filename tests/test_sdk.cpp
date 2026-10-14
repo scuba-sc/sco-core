@@ -453,6 +453,8 @@ int main() {
     TestGameActors(api);
     TestGameCreative(api);
     TestGameWorld(api);
+    TestGameHangar(api);
+    TestGameReputation(api);
     TestGameEvents(api);
 #endif
 

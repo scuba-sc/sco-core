@@ -5,6 +5,8 @@
 #include "scosdk/game/world.hpp"
 #include "scosdk/game/vehicles.hpp"
 #include "scosdk/game/creative.hpp"
+#include "scosdk/game/hangar.hpp"
+#include "scosdk/game/reputation.hpp"
 #include "scosdk/ui.hpp"
 #include "scosdk/storage.hpp"
 #include "scosdk/settings.hpp"
@@ -21,6 +23,8 @@ static sc_entities_v1 entities;
 static sc_world_v1 world;
 static sc_vehicles_v1 vehicles;
 static sc_creative_v1 creative;
+static sc_hangar_v1 hangar;
+static sc_reputation_v1 reputation;
 static sco_ui_v1 ui;
 static sco_storage_v1 storage;
 static sco_settings_v1 settings;
@@ -43,6 +47,8 @@ static sco_result Lookup(const char* name, uint32_t, const void** out) {
         *out = &creative;
         return SCO_OK;
     }
+    if (std::strcmp(name, SC_HANGAR_SERVICE_NAME) == 0) { *out = &hangar; return SCO_OK; }
+    if (std::strcmp(name, SC_REPUTATION_SERVICE_NAME) == 0) { *out = &reputation; return SCO_OK; }
     if (std::strcmp(name, SCO_UI_NAME) == 0) {
         *out = &ui;
         return SCO_OK;
@@ -207,6 +213,16 @@ int main() {
     CheckField(world, &sc_world_v1::raycast, [&] { (void)w.Raycast(9, rayFrom, rayDir, 1, hit); });
     CheckField(world, &sc_world_v1::camera, [&] { (void)w.Camera(pos, rot, zone); });
     CheckField(world, &sc_world_v1::last_error, [&] { (void)w.LastError(); });
+    CheckField(world, &sc_world_v1::free_camera_flag, [&] { bool set = true; (void)w.FreeCameraFlag(set); });
+    sco::sdk::game::Hangar h; sco::sdk::game::Reputation rp;
+    CHECK(h.Open(&api, self) == SCO_OK && rp.Open(&api, self) == SCO_OK);
+    hangar.size = sizeof(hangar); reputation.size = sizeof(reputation);
+    CheckField(hangar, &sc_hangar_v1::lift_of_landing_area, [&] { (void)h.LiftOfLandingArea(1, ship); });
+    CheckField(hangar, &sc_hangar_v1::lift_request, [&] { (void)h.LiftRequest(1, SC_HANGAR_LIFT_OPEN); });
+    CheckField(hangar, &sc_hangar_v1::atc_cancel_request, [&] { (void)h.AtcCancelRequest(1); });
+    CheckField(hangar, &sc_hangar_v1::last_error, [&] { (void)h.LastError(); });
+    CheckField(reputation, &sc_reputation_v1::checks, [&] { sc_reputation_checks rc; (void)rp.Checks(rc); });
+    CheckField(reputation, &sc_reputation_v1::last_error, [&] { (void)rp.LastError(); });
     CheckField(vehicles, &sc_vehicles_v1::player_ship, [&] { (void)v.PlayerShip(ship); });
     CheckField(vehicles, &sc_vehicles_v1::seat_occupant, [&] { (void)v.SeatOccupant(9, 0, actor); });
     CheckField(vehicles, &sc_vehicles_v1::seat, [&] { (void)v.Seat(5, 9, 0); });

@@ -147,8 +147,17 @@ static sco_result GwLastError(sco_plugin*, char* out, uint32_t* io) {
     return SCO_OK;
 }
 
+static int g_gwFreeCamCalls = 0;
+static sco_result GwFreeCam(uint32_t* set) {
+    ++g_gwFreeCamCalls;
+    if (!set) return SCO_BAD_ARG;
+    *set = 1;
+    return SCO_OK;
+}
+
 static void TestGameWorld(const sco_api* api) {
     sco_plugin* self = sco::host::NewPlugin("gwtest");
+    bool freeCam = true;
     sdk::game::World none;
     double pos[3], rot[4];
     uint64_t zone = 1;
@@ -167,7 +176,120 @@ static void TestGameWorld(const sco_api* api) {
     CHECK(world.Raycast(0, from, down, 5.0, hit) == SCO_BAD_ARG);
     CHECK(world.Camera(pos, rot, zone) == SCO_OK && pos[2] == 3 && rot[3] == 1 && zone == 9);
     CHECK(world.LastError() == "no hit");
+    CHECK(none.FreeCameraFlag(freeCam) == SCO_UNAVAILABLE && !freeCam);
+    freeCam = true;
+    CHECK(world.FreeCameraFlag(freeCam) == SCO_UNAVAILABLE && !freeCam);   // a null 1.1 member
     CHECK(sco::host::WithdrawGameService(SC_WORLD_NAME) == sco::Result::Ok);
+    // A 1.0 table (32 bytes): free_camera_flag is past its end, so the wrapper never calls it.
+    static const sc_world_v1 kOld = { offsetof(sc_world_v1, free_camera_flag), 0, GwRaycast, GwCamera, GwLastError, GwFreeCam };
+    CHECK(sco::host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_0, &kOld) == sco::Result::Ok);
+    sdk::game::World old;
+    g_gwFreeCamCalls = 0;
+    freeCam = true;
+    CHECK(old.Open(api, self) == SCO_OK && old.FreeCameraFlag(freeCam) == SCO_UNAVAILABLE && !freeCam && g_gwFreeCamCalls == 0);
+    CHECK(old.Camera(pos, rot, zone) == SCO_OK && zone == 9);
+    CHECK(sco::host::WithdrawGameService(SC_WORLD_NAME) == sco::Result::Ok);
+    static const sc_world_v1 kNew = { sizeof(sc_world_v1), 0, GwRaycast, GwCamera, GwLastError, GwFreeCam };
+    CHECK(sco::host::ProvideGameService(SC_WORLD_NAME, SC_WORLD_VERSION_1_1, &kNew) == sco::Result::Ok);
+    sdk::game::World current;
+    CHECK(current.Open(api, self) == SCO_OK && current.FreeCameraFlag(freeCam) == SCO_OK && freeCam && g_gwFreeCamCalls == 1);
+    CHECK(sco::host::WithdrawGameService(SC_WORLD_NAME) == sco::Result::Ok);
+}
+
+// ---- scosdk/game/hangar.hpp over a stand-in game.hangar ------------------------------------------
+
+static sco_plugin* g_ghSelf = nullptr;
+static uint32_t g_ghOp = 0;
+static uint64_t g_ghAtc = 0;
+static sco_result GhLiftOf(sco_plugin* self, uint64_t area, uint64_t* lift) {
+    if (self != g_ghSelf || area == 0 || !lift) return SCO_BAD_ARG;
+    if (area != 11) return SCO_NOT_FOUND;
+    *lift = 12;
+    return SCO_OK;
+}
+static sco_result GhLiftRequest(sco_plugin* self, uint64_t lift, uint32_t op) {
+    if (self != g_ghSelf || lift != 12 || (op != SC_HANGAR_LIFT_OPEN && op != SC_HANGAR_LIFT_CLOSE)) return SCO_BAD_ARG;
+    g_ghOp = op;
+    return SCO_OK;
+}
+static sco_result GhAtcCancel(sco_plugin* self, uint64_t atc) {
+    if (self != g_ghSelf || atc == 0) return SCO_BAD_ARG;
+    if (atc != 13) return SCO_NOT_FOUND;
+    g_ghAtc = atc;
+    return SCO_OK;
+}
+static sco_result GhLastError(sco_plugin* self, char* out, uint32_t* io) {
+    static const char kWhy[] = "no lift goes with it";
+    if (self != g_ghSelf) return SCO_BAD_ARG;
+    const uint32_t cap = *io;
+    *io = sizeof(kWhy);
+    if (cap < sizeof(kWhy)) return SCO_TOO_MANY;
+    std::memcpy(out, kWhy, sizeof(kWhy));
+    return SCO_OK;
+}
+
+static void TestGameHangar(const sco_api* api) {
+    g_ghSelf = sco::host::NewPlugin("ghtest");
+    sdk::game::Hangar none;
+    uint64_t lift = 1;
+    CHECK(none.Open(api, g_ghSelf) == SCO_NOT_FOUND && !none);
+    CHECK(none.LiftOfLandingArea(11, lift) == SCO_UNAVAILABLE && lift == 0 && none.LiftRequest(12, SC_HANGAR_LIFT_OPEN) == SCO_UNAVAILABLE &&
+          none.AtcCancelRequest(13) == SCO_UNAVAILABLE && none.LastError().empty());
+    static const sc_hangar_v1 kFake = { sizeof(sc_hangar_v1), 0, GhLiftOf, GhLiftRequest, GhAtcCancel, GhLastError };
+    CHECK(sco::host::ProvideGameService(SC_HANGAR_SERVICE_NAME, SC_HANGAR_SERVICE_VERSION, &kFake) == sco::Result::Ok);
+    sdk::game::Hangar hangar;
+    CHECK(hangar.Open(api, g_ghSelf) == SCO_OK && hangar && hangar.Table() == &kFake);
+    CHECK(hangar.LiftOfLandingArea(11, lift) == SCO_OK && lift == 12);
+    CHECK(hangar.LiftOfLandingArea(10, lift) == SCO_NOT_FOUND && lift == 0);
+    CHECK(hangar.LiftRequest(12, SC_HANGAR_LIFT_CLOSE) == SCO_OK && g_ghOp == SC_HANGAR_LIFT_CLOSE);
+    CHECK(hangar.LiftRequest(12, SC_HANGAR_LIFT_OPEN) == SCO_OK && g_ghOp == SC_HANGAR_LIFT_OPEN);
+    CHECK(hangar.AtcCancelRequest(13) == SCO_OK && g_ghAtc == 13 && hangar.AtcCancelRequest(14) == SCO_NOT_FOUND);
+    CHECK(hangar.LastError() == "no lift goes with it");
+    CHECK(sco::host::WithdrawGameService(SC_HANGAR_SERVICE_NAME) == sco::Result::Ok);
+    // A table that ends before atc_cancel_request: the wrapper never calls past its end.
+    static const sc_hangar_v1 kShort = { offsetof(sc_hangar_v1, atc_cancel_request), 0, GhLiftOf, GhLiftRequest, GhAtcCancel, GhLastError };
+    CHECK(sco::host::ProvideGameService(SC_HANGAR_SERVICE_NAME, SC_HANGAR_SERVICE_VERSION, &kShort) == sco::Result::Ok);
+    sdk::game::Hangar shortTable;
+    g_ghAtc = 0;
+    CHECK(shortTable.Open(api, g_ghSelf) == SCO_OK && shortTable.AtcCancelRequest(13) == SCO_UNAVAILABLE && g_ghAtc == 0);
+    CHECK(shortTable.LiftOfLandingArea(11, lift) == SCO_OK && lift == 12 && shortTable.LastError().empty());
+    CHECK(sco::host::WithdrawGameService(SC_HANGAR_SERVICE_NAME) == sco::Result::Ok);
+}
+
+// ---- scosdk/game/reputation.hpp over a stand-in game.reputation ----------------------------------
+
+static sco_plugin* g_grSelf = nullptr;
+static sco_result GrChecks(sco_plugin* self, sc_reputation_checks* out) {
+    if (self != g_grSelf || !out || out->size < sizeof(sc_reputation_checks)) return SCO_BAD_ARG;
+    out->sites = 10;
+    out->intact = 9;
+    out->services = 1;
+    return SCO_OK;
+}
+static sco_result GrLastError(sco_plugin* self, char* out, uint32_t* io) {
+    const std::string why(300, 'r');   // past the wrapper's first 256 bytes
+    if (self != g_grSelf) return SCO_BAD_ARG;
+    const uint32_t cap = *io;
+    *io = static_cast<uint32_t>(why.size() + 1);
+    if (cap < why.size() + 1) return SCO_TOO_MANY;
+    std::memcpy(out, why.c_str(), why.size() + 1);
+    return SCO_OK;
+}
+
+static void TestGameReputation(const sco_api* api) {
+    g_grSelf = sco::host::NewPlugin("grtest");
+    sdk::game::Reputation none;
+    sc_reputation_checks checks = {};
+    checks.sites = 7;
+    CHECK(none.Open(api, g_grSelf) == SCO_NOT_FOUND && !none);
+    CHECK(none.Checks(checks) == SCO_UNAVAILABLE && checks.size == sizeof(checks) && checks.sites == 0 && none.LastError().empty());
+    static const sc_reputation_v1 kFake = { sizeof(sc_reputation_v1), 0, GrChecks, GrLastError };
+    CHECK(sco::host::ProvideGameService(SC_REPUTATION_SERVICE_NAME, SC_REPUTATION_SERVICE_VERSION, &kFake) == sco::Result::Ok);
+    sdk::game::Reputation rep;
+    CHECK(rep.Open(api, g_grSelf) == SCO_OK && rep && rep.Table() == &kFake);
+    CHECK(rep.Checks(checks) == SCO_OK && checks.sites == 10 && checks.intact == 9 && checks.services == 1);
+    CHECK(rep.LastError() == std::string(300, 'r'));
+    CHECK(sco::host::WithdrawGameService(SC_REPUTATION_SERVICE_NAME) == sco::Result::Ok);
 }
 
 // ---- scosdk/game/events.hpp: the helpers copy the payload and refuse a short one ------------------

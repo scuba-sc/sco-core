@@ -14,8 +14,9 @@
 //
 // Game thread only, like the table. Every call answers sco_result and is noexcept. Both queries are
 // read-only, and the service is host-owned, so an open World may be kept for the plugin's life.
-// Capabilities: has("game.world.raycast"), has("game.world.camera"). There is no field of view (the
-// game doesn't pin one: sc_world.h). Reference: docs/game-services.md, docs/sdk-cpp.md.
+// Capabilities: has("game.world.raycast"), has("game.world.camera"), and on a 1.1 table
+// has("game.world.free_camera_flag") (OFF by default). There is no field of view (the game doesn't
+// pin one: sc_world.h). Reference: docs/game-services.md, docs/sdk-cpp.md, docs/game/world.md.
 // GPL-3.0, like sco-core.
 #ifndef SCOSDK_GAME_WORLD_HPP
 #define SCOSDK_GAME_WORLD_HPP
@@ -67,6 +68,19 @@ public:
         if (!t_ || t_->size < offsetof(sc_world_v1, camera) + sizeof(t_->camera) || !t_->camera)
             return SCO_UNAVAILABLE;
         return t_->camera(pos, rot, &zone);
+    }
+
+    // 1.1: set = true when the game's free-camera flag is non-zero. Only reads; false on failure.
+    // SCO_UNAVAILABLE on a 1.0 table (shorter than free_camera_flag) or while
+    // game.world.free_camera_flag is off, without touching the game.
+    sco_result FreeCameraFlag(bool& set) const noexcept {
+        set = false;
+        if (!t_ || t_->size < offsetof(sc_world_v1, free_camera_flag) + sizeof(t_->free_camera_flag) || !t_->free_camera_flag)
+            return SCO_UNAVAILABLE;
+        uint32_t raw = 0;
+        const sco_result r = t_->free_camera_flag(&raw);
+        set = r == SCO_OK && raw != 0;
+        return r;
     }
 
     // The reason for the last failed call of any plugin.

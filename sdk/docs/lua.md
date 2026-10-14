@@ -376,8 +376,11 @@ Present only when the Star Citizen game pack publishes [`game.world`](../../docs
 |---|---|
 | `sco.game.world.camera()` | `{ x, y, z, qx, qy, qz, qw, zone }`: the camera's position and rotation in the world frame, and the zone your player is in. No field of view (the game doesn't pin one) |
 | `sco.game.world.raycast(zone, fx, fy, fz, dx, dy, dz, max_dist)` | `{ x, y, z, distance }` where a ray from `f` along `d` (any length, normalised) hit, in zone `zone`'s local frame (`max_dist` is clamped to 20,000 m). The hit entity and normal aren't available |
+| `sco.game.world.free_camera_flag()` | `true` when the game's free-camera flag is set, else `false` (game.world 1.1). It only reads the flag; nothing pins what the flag shows on screen yet, so the capability `game.world.free_camera_flag` is off by default and the call answers `nil, "unavailable"` until the game pack turns it on, and on a host with only `game.world` 1.0 |
 
-On failure each returns `nil, err, message` (`"not_found"` with the message "no hit within ..." when nothing was hit; `"bad_arg"`; `"unavailable"` when the capability `game.world.raycast` / `game.world.camera` isn't ready).
+On failure each returns `nil, err, message` (`"not_found"` with the message "no hit within ..." when nothing was hit; `"bad_arg"`; `"unavailable"` when the capability `game.world.raycast` / `game.world.camera` / `game.world.free_camera_flag` isn't ready).
+
+`game.hangar` and `game.reputation` have no Lua tables. Every function in them takes your plugin's handle (`self`), and the game adapter binds no game function that takes `self` other than a state query; the hangar's lift and ATC requests also change the game. Use C, C++ or C# for them.
 
 ## `game.*` events
 

@@ -571,6 +571,18 @@ static int L_world_raycast(lua_State* L) {
     return 1;
 }
 
+/* free_camera_flag(): true when the game's free-camera flag is set, else false; or nil, err, message.
+ * "unavailable" on a game.world 1.0 table (the member is never called) or while
+ * game.world.free_camera_flag isn't ready. Only reads the flag. */
+static int L_world_free_camera_flag(lua_State* L) {
+    const sc_world_v1* w = WorldTable(L);
+    uint32_t set = 0;
+    const sco_result r = GAME_MEMBER(w, sc_world_v1, free_camera_flag) ? w->free_camera_flag(&set) : SCO_UNAVAILABLE;
+    if (r != SCO_OK) return WorldFail(L, w, r);
+    lua_pushboolean(L, set != 0);
+    return 1;
+}
+
 /* ---- the extension ---------------------------------------------------------------------------- */
 
 static void Open(lua_State* L) {
@@ -603,7 +615,9 @@ static void Open(lua_State* L) {
         lua_setfield(L, -2, "creative");
     }
     if (world) {                                      /* sco.game.world */
-        static const luaL_Reg wfns[] = { { "camera", L_world_camera }, { "raycast", L_world_raycast }, { NULL, NULL } };
+        static const luaL_Reg wfns[] = {
+            { "camera", L_world_camera }, { "raycast", L_world_raycast },
+            { "free_camera_flag", L_world_free_camera_flag }, { NULL, NULL } };
         luaL_newlib(L, wfns);
         lua_setfield(L, -2, "world");
     }
