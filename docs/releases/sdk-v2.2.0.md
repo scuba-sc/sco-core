@@ -62,7 +62,9 @@ verification limits. In short:
 | Documentation gate refuses source citations by line number; scheduled read-only check that the docs site is fresh | `tools/doc_release_gate.py`, `tools/check_live_site.py` | repository only |
 | `game.hangar` 1.0 (lift open/close request, ATC request cancel), `game.reputation` 1.0 (read-only check-site state), `game.world` 1.1 (read-only `free_camera_flag` tail member); every new capability default OFF | `include/sc_hangar.h`, `include/sc_reputation.h`, `include/sc_world.h`, [hangar](../game/hangar.md), [reputation](../game/reputation.md), [world](../game/world.md) | headers in game-sc and host-source-sc; implementation in host-source-sc |
 | `sco-new-plugin.py`: one-command native plugin scaffolder (C or C++20, optional panel and service lookups) | `sdk/tools/sco-new-plugin.py`, [SDK README](../../sdk/README.md) | core, core-source (as `tools/sco-new-plugin.py`) |
-| Engine-native index of signature rows by symbolic hash and promotion tier; docs-site `/natives/` page inside four library hubs; opt-in MCP native lookup and manifest/widget validation | `sdk/native_index.json`, `tools/native_index.py`, `tools/sco-core-mcp/` | repository, docs site and static MCP only; in no SDK zip |
+| Engine-native index of signature rows by symbolic hash and promotion tier; docs-site `/natives/` page with a download of the same JSON | `sdk/native_index.json`, `tools/native_index.py`, `site/` | repository, docs site and static MCP only; in no SDK zip |
+| Discovery MCP server, four opt-in tools behind `--extended-tools` (default six unchanged): `list_engine_natives`, `get_engine_native`, `validate_manifest_and_widgets`, `generate_plugin_scaffold` (returns files as text, writes nothing) | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | repository only |
+| Docs site grouped into four library hubs; no route moved | `site/scripts/gen.py` | docs site only |
 
 Profiles are the `sdk/components.json` classification; `legacy` includes `core`, and
 `host-source-sc` includes `core-source`. All three panel builders target `sco.widgets` 1.0. 1.1 nodes are written against the C header;
@@ -70,9 +72,11 @@ no language wrapper exposes 1.1 yet.
 
 ## Not in this candidate
 
-- The plugin scaffolder's MCP tool. The scaffolder itself landed (table above).
 - C++, C# and Lua wrappers for `game.hangar`, `game.reputation` and the `game.world` 1.1 member.
   C and C++ call the tables through their headers.
+- C++, C# and Lua wrappers for the `sco.widgets` 1.1 members, and 1.1 emulation in
+  `sco-plugin-check`, which stays a 1.0 stand-in.
+- `sdk/test_new_plugin.py` in CI. It runs locally only.
 
 The engine-native index follows the
 [2026-10-14 native-index decision](../legal/release-decisions/2026-10-14-native-index.md): the
@@ -86,7 +90,8 @@ C# builder has not been compiled locally (no .NET SDK on the preparing host); th
 `sdk/csharp-host-sim` job is its first build. Linux and native Windows builds of the merged
 branch, GPU rendering of the 1.1 adapter, and real-game, anti-cheat, official-network and
 private-LAN acceptance remain unproven. The Windows game-pack adapters for the new game tables
-have not been built locally. New game capabilities stay default-off: no production adapter turns on
+have not been built locally. The MCP `generate_plugin_scaffold` tool and the native-index page
+were exercised by unit tests and a local site build only. New game capabilities stay default-off: no production adapter turns on
 the four this candidate adds.
 
 ## Checking the zip
