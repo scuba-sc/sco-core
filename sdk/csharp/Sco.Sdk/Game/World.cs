@@ -14,6 +14,7 @@ namespace Sco.Sdk.Game
     {
         public const string WorldName = "game.world";            // SC_WORLD_NAME
         public const uint WorldVersion1_0 = 0x00010000u;        // SC_WORLD_VERSION_1_0
+        public const uint WorldVersion1_1 = 0x00010001u;        // SC_WORLD_VERSION_1_1 (+ free-camera flag)
         public const int WorldRayMaxDistance = 20000;           // SC_WORLD_RAY_MAX_DISTANCE, metres
     }
 
