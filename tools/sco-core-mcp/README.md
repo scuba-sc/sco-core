@@ -65,6 +65,51 @@ The catalogue is a source snapshot, not a live index. Rebuild it after changing
 contracts, public headers, language mappings, or their evidence, and restart the
 server before relying on the new snapshot. The server does not regenerate it.
 
+## Using an extracted SDK archive
+
+The published SDK archives do not contain a catalogue, and none will be added to
+the immutable 2.1.0 release assets. An archive user obtains one in either of two
+ways:
+
+- **Public catalogue.** Download
+  <https://scubamount.github.io/sco-core/sdk-catalogue.json> and check it before
+  use. The snapshot current for SDK 2.1.0 has sha256
+  `29bb24799dbef817a39aa0919fd456bd641f035f1768ac566cab9eec6e735a85`, with
+  `sdk_version` `2.1.0`, `game_pack_version` `0.4.0`, `source_sha`
+  `77c328fc088f85336f1241c0c054bc461fe8b64c`, 167 records and 30 tables:
+
+  ```sh
+  curl -fsSLO https://scubamount.github.io/sco-core/sdk-catalogue.json
+  shasum -a 256 sdk-catalogue.json   # Linux: sha256sum; PowerShell: Get-FileHash
+  ```
+
+  The site is redeployed from newer sources, so a later download can carry a
+  different hash and coordinates. Compare the file's `sdk_version` with your
+  archive's `VERSION`. Its `source_sha` names the commit the catalogue was built
+  from, which is not necessarily the release tag's commit; it is a supplied
+  identifier, not a signature.
+- **Source build.** Check out the matching sco-core source and run the catalogue
+  build above. This needs the same compiler environment as any other build.
+
+Then pass `--repo-root` the archive's single top-level directory (for example the
+extracted `sco-sdk-core-2.1.0`), not its parent:
+
+```sh
+python3 tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/sdk-catalogue.json \
+  --repo-root /absolute/path/to/sco-sdk-core-2.1.0
+```
+
+Catalogue example paths are repository-relative (`sdk/examples/hello/hello.c`),
+while the core and legacy archives store `examples/hello/hello.c`. `get_example`
+always tries the recorded path first. When it is absent **and** the root has no
+`sdk` entry, the leading `sdk/` is dropped and the remainder is opened under the
+same containment and no-symlink rules. A root that has an `sdk` entry (a
+checkout, or the `core-source`/`host-source` archives, which keep repository
+layout) is read only at recorded paths. A file missing there is reported as
+unavailable, never served from the other layout. Results still report the
+recorded path.
+
 ## Tools and explicit allowlist
 
 These are the complete six tool names. Enable them explicitly, not with a wildcard:
@@ -206,7 +251,8 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 - **Not arbitrary file access.** `get_example` reads only paths listed in the
   selected catalogue record's `examples`, beneath the configured repository root.
   Absolute paths, traversal outside the root, and symlinks anywhere the catalogue
-  names are refused. The configured root itself is operator-supplied and trusted,
+  names are refused, including on the extracted-archive `examples/...` fallback;
+  an `sdk` symlink in the root disables that fallback. The configured root itself is operator-supplied and trusted,
   so a symlinked root path (for example a macOS `/var` path) is followed. Files
   over **256 KiB** are refused, with at most **16 files** per example result.
   Omitting the root keeps examples paths-only. The optional language filter uses
@@ -260,3 +306,27 @@ is supported. ABI test references prove layout, not semantic or live-game covera
 An empty examples list means none is identified, not that no example could exist.
 No MCP response upgrades deferred or absent in-game verification, fills missing
 behavioral guarantees, or changes the runtime's capability gates.
+
+## Banked design: explicit capability evidence states
+
+Future design note only. Schema 1 and this server are unchanged; nothing below is
+implemented or implied by current results.
+
+- **Problem.** Schema 1 records language exposure with source evidence, but
+  capability gating, signature resolution and game-session evidence exist only
+  as prose (`absent_capability`, `limitations`, the status caveat). A client
+  cannot tell "not applicable" apart from "not yet verified".
+- **Neutral records stay neutral.** Game-independent `sco.*` contracts should not
+  gain blanket `sigcheck` or `gameplay` fields. A field that is always
+  "not applicable" there would read as missing evidence.
+- **Direction for a future schema version.** Optional, game-scoped evidence
+  entries, present only on records whose behavior depends on a game build. Each
+  entry names its evidence kind (for example capability gate, signature row,
+  in-game observation), an explicit state (`verified`, `not-verified`,
+  `failed`, `not-applicable`), the game build or pack version it applies to,
+  and a repository source for the claim. Absence of an entry means "no evidence
+  recorded", never "works".
+- **Compatibility.** The change needs a new `schema_version`. This server
+  rejects any version other than 1, so schema 1 consumers are unaffected. A
+  schema-2 server would have to keep the no-"works"-flag rule above and
+  pass the evidence through verbatim instead of summarising it.

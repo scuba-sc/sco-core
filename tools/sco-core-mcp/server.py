@@ -252,6 +252,25 @@ def read_example(root, parts):
     return raw.decode("utf-8")
 
 
+def read_recorded_example(root, parts):
+    """Read a catalogue example from a repository checkout or extracted SDK archive.
+
+    Catalogue paths are repository-relative (sdk/examples/...), while the core and
+    legacy archives store examples/... directly under their top-level directory.
+    The recorded path is always tried first. Only when it is absent and the root
+    has no sdk entry at all (not even a symlink) is the leading sdk/ component
+    dropped, and the remainder goes through the same no-follow containment. A root
+    with an sdk entry is a repository layout: a file missing there is never served
+    from a second layout.
+    """
+    try:
+        return read_example(root, parts)
+    except FileNotFoundError:
+        if len(parts) < 2 or parts[0] != "sdk" or os.path.lexists(os.path.join(root, "sdk")):
+            raise
+    return read_example(root, parts[1:])
+
+
 def aliases(record):
     # Schema 1 has no aliases field: derive searchable names from source evidence,
     # retaining the full original mapping evidence in get_symbol.
@@ -342,7 +361,7 @@ class Server:
             item = {"path": path}
             if self.repo_root is not None:
                 try:
-                    item["content"] = read_example(self.repo_root, parts)
+                    item["content"] = read_recorded_example(self.repo_root, parts)
                 except (OSError, UnicodeError):
                     # Do not leak absolute host paths from filesystem exception text.
                     raise ToolError("Example unavailable: requires a contained regular UTF-8 file without symlinks") from None
