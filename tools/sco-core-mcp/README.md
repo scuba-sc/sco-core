@@ -8,7 +8,8 @@ tooling, not an SDK runtime component.
 
 [Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
 implements the fixed runtime tool surface. This discovery executable remains
-credentials-free and catalogue-only, with its original six tools/dependencies.
+credentials-free and catalogue-only, with its original six tools/dependencies by
+default; three more read-only tools are [opt-in](#extended-tools-opt-in).
 The current task supersedes the historical same-server placement in the
 [runtime design](../../docs/design/runtime-mcp.md). No live runtime/game acceptance is claimed.
 
@@ -112,7 +113,8 @@ recorded path.
 
 ## Tools and explicit allowlist
 
-These are the complete six tool names. Enable them explicitly, not with a wildcard:
+These are the complete six default tool names (three more are
+[opt-in](#extended-tools-opt-in)). Enable them explicitly, not with a wildcard:
 
 | Tool | Purpose |
 |---|---|
@@ -185,6 +187,94 @@ Every tool advertises these MCP annotations:
 
 These annotations describe this discovery server's tools. They do not make SDK
 methods mentioned in the returned contracts read-only or safe to invoke.
+
+### Extended tools (opt-in)
+
+Start the server with `--extended-tools` to add three more read-only tools after
+the six above. Without the flag, `tools/list` is exactly the six, and calling an
+extended name is refused as an unknown tool, so existing allowlists and the
+launcher in [the integration guide](../../docs/agent-integration.md) are
+unchanged. If you enable the flag, add these names to the client allowlist
+explicitly:
+
+| Tool | Purpose |
+|---|---|
+| `list_engine_natives` | Page through `sdk/native_index.json`, filtered by `subsystem`, `tier` (1-4) or a case-insensitive `query` substring of id, hash, subsystem, source or capability. |
+| `get_engine_native` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
+| `validate_manifest_and_widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
+
+**Engine natives.** Both native tools read `sdk/native_index.json` beneath
+`--repo-root` once, at start. The file has the same no-symlink containment as
+examples and a **4 MiB** limit. Without a root, or with a missing, symlinked or
+malformed index, `state` is `unavailable` with a `reason`, and no entries are
+returned. The whole index is refused if any of these holds:
+
+- an unknown key;
+- a `row_count` that differs from the number of entries;
+- a tier outside 1-4;
+- a duplicate id or hash;
+- a hash that is not `_0x` plus the first 16 uppercase hex digits of
+  `sha256("sco-core:native:" + id)`.
+
+`list_engine_natives` takes `limit` 1-100 (default 25) and an opaque decimal
+`cursor`. Pass each result's `next_cursor` back to get the next page; it is
+`null` on the last page. The hash is a symbolic name, not an address, and the
+index records no pattern, mask, offset or address. The tier comes from the status
+registry's `sig_rows`, so tier 2 means only that no capability names the row. A
+row listed here is not evidence that it resolves on any game build, or that
+anything ran in game.
+
+**Manifest and widget validation.** `validate_manifest_and_widgets` reads and
+writes no files. It takes these arguments:
+
+| Argument | Required | Content |
+|---|---|---|
+| `plugin_ini` | yes | The manifest text. |
+| `folder` | no | A plugin folder name (no separators), checked against `id`. |
+| `widgets` | no | 1-256 node objects. |
+
+The manifest follows the reader of
+[`sco-plugin-check`](../../sdk/tools/sco-plugin-check.c), which mirrors the host:
+
+- keys `id`, `name`, `version`, `author`, `api`, `kind`, `entry` and `requires`,
+  with their formats;
+- reserved ids;
+- the SDK's api `1.1`;
+- `entry` against `kind`, and a requires cycle;
+- the `[settings]` grammar: types, bounds, enum choices, quoted label and help,
+  and defaults.
+
+The reader stops at the first failure, as the host does. So
+`manifest.findings` holds that failure, plus the folder mismatch if there is one.
+Its messages use the checker's wording. Unknown keys and sections appear in
+`notes`. The validator does not check that `entry` exists, that required
+capabilities have providers, or that the plugin loads.
+
+A widget node has these keys:
+
+- `kind`: `1`-`10` or a name such as `"slider"`;
+- `id`;
+- `parent`, `flags`, `index`, `label`, `text`, `value`, `minimum`, `maximum`,
+  `items` and `columns`.
+
+An omitted key is 0 or null. Unknown keys and wrong JSON types are refused as
+tool errors. Each violation of the
+[`sco_widgets.h`](../../include/sco_widgets.h) invariants becomes one finding,
+with the node index, its id and the host result it maps to (`BAD_ARG`, or
+`TOO_MANY` for text, item or column limits):
+
+- unique nonzero ids;
+- a parent that precedes the node, is a row or column, and whose subtree is still
+  open, so each subtree is contiguous in preorder;
+- nonempty labels on interactive nodes;
+- UTF-8 text of at most 255 bytes;
+- unused fields left zero or null;
+- toggle, slider, combo, list and table rules;
+- `PASSWORD` on `text_input` only.
+
+The host refuses the whole panel at its first violation. These checks are not
+made: the panel id and title, the stride and size fields, pointer readability, and
+renderer markup in labels.
 
 ## MCP clients
 
@@ -290,9 +380,12 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
   its output; the server does neither.
 - **Not arbitrary file access.** `get_example` reads only paths listed in the
   selected catalogue record's `examples`, beneath the configured repository root.
-  The only other files read under that root are `docs/game/status.md` (once, at
-  start) and the `sdk-v*.json`/`.json.sig` records in `docs/legal/release-decisions/`
-  (per `check_compatibility` call), using the same no-symlink containment and size limit.
+  The only other files read under that root are `sdk/status_registry.json` (at
+  most 1 MiB), or `docs/game/status.md` when there is no registry (each read once,
+  at start), the `sdk-v*.json`/`.json.sig` records in `docs/legal/release-decisions/`
+  (per `check_compatibility` call) and, with `--extended-tools` only,
+  `sdk/native_index.json` (at most 4 MiB, once at start). All use the same
+  no-symlink containment, and the default size limit applies to the rest.
   Absolute paths, traversal outside the root, and symlinks anywhere the catalogue
   names are refused, including on the extracted-archive `examples/...` fallback;
   an `sdk` symlink in the root disables that fallback. The configured root itself is operator-supplied and trusted,
@@ -354,7 +447,8 @@ behavioral guarantees, or changes the runtime's capability gates.
 
 `get_symbol` and `get_capability_status` return an `evidence_state` object for the
 selected record. The server computes it from the schema 1 catalogue and, for
-game-pack records, from `docs/game/status.md` under `--repo-root`. The catalogue
+game-pack records, from `sdk/status_registry.json` under `--repo-root`, or from
+`docs/game/status.md` when there is no registry. The catalogue
 is unchanged and still `schema_version` 1, so its consumers (including the docs
 site generator) are unaffected. Each state is reported only where a
 machine-readable or strictly parsed source exists; otherwise it is `unknown`.
@@ -370,25 +464,45 @@ machine-readable or strictly parsed source exists; otherwise it is `unknown`.
 Neutral `sco.*` records, `sco_api` and the entrypoints carry no game fields:
 sigcheck and gameplay are `not_applicable`, and there is no `service_status`.
 
-Game-pack records also carry `service_status`. It is **service-scoped**: rows of the
+Game-pack records also carry `service_status`. It is **service-scoped**. When
+`sdk/status_registry.json` exists, its rows are the capabilities of the `service`
+entry whose `service` and header file name both match the record's catalogue
+table. Otherwise they are the rows of the
 `| Table | Version | Capability | Default | Evidence |` table in
-`docs/game/status.md` whose backticked service and linked header both match the
-record's catalogue table. Each row keeps `capability`, `default` (`ON`, `OFF` or
+`docs/game/status.md` whose backticked service and linked header both match.
+`service_status.source` names the file used. Each row keeps `capability`, `default` (`ON`, `OFF` or
 `none`) and `evidence` verbatim, plus an `evidence_level`:
 `row_resolved_sigcheck` (with `game_build`), `off_pending_in_game_confirmation`,
 `blocked`, or `unclassified` for any other text, including in-game claims.
 `documented_version` and `version_matches_catalogue` compare the row's version with
-the catalogue. `state` is:
+the catalogue.
+
+Registry rows also keep these registry fields where they are set:
+
+- `registry_evidence_level`: `sigcheck_resolved`, `off_pending_probe`,
+  `synthetic_only`, `blocked` or `undocumented`. An `in_game_verified` entry is
+  reported as `unclassified`, like any other in-game claim.
+- `name`, `methods`, `sig_rows`, `spike_ref` and `evidence_source`.
+
+The `capability` cell is rendered exactly as
+[`tools/status_registry.py`](../status_registry.py) renders it.
+
+If the registry exists but is malformed, unreadable or a symlink, `state` is
+`unavailable` with a reason naming the registry. The server does **not** fall back
+to `docs/game/status.md`, so a broken registry is never hidden by the document
+generated from it.
+
+`state` is:
 
 - `rows_found`: matching rows exist. They describe capabilities of the service, not
   this method.
 - `no_rows`: the table has no row for this service. Some services are described
   only in prose.
 - `unavailable`: there is no `--repo-root`, the file is missing or a symlink, or
-  the table is malformed. Any row with the wrong cell count, an unknown default
+  the registry or table is malformed. Any row with the wrong cell count, an unknown default
   or a missing separator refuses the whole table rather than half-reading it.
 
-The status document is read from the configured root when the server starts. It
+The registry or status document is read from the configured root when the server starts. It
 is not bound to the catalogue's `source_sha`. Its sigcheck rows are dated to the
 build named in each row, and none of it is evidence that an operation worked in
 a game session.

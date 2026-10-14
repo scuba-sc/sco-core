@@ -7,11 +7,13 @@ An actual build is exercised when SCO_CORE_MCP_TEST_CATALOGUE is set, or when
 All fixture records are synthetic; none assert runtime or game compatibility.
 """
 import copy
+import hashlib
 import importlib
 import json
 import os
 from pathlib import Path
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +32,8 @@ TOOLS = {
     "search_api", "get_symbol", "list_services", "get_example",
     "get_capability_status", "check_compatibility",
 }
+ORIGINAL_ORDER = ["search_api", "get_symbol", "list_services", "get_example", "get_capability_status", "check_compatibility"]
+EXTENDED_ORDER = ORIGINAL_ORDER + ["list_engine_natives", "get_engine_native", "validate_manifest_and_widgets"]
 PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source_sha"}
 
 
@@ -79,8 +83,8 @@ def approval(tag, sha=SYNTHETIC_SHA, status="approved-for-publication"):
 class Client:
     """One real child process; bounded reads without platform-specific selectors."""
 
-    def __init__(self, catalogue=CATALOGUE, repo_root=None, use_env=False):
-        command = [sys.executable, str(SERVER)]
+    def __init__(self, catalogue=CATALOGUE, repo_root=None, use_env=False, extended=False):
+        command = [sys.executable, str(SERVER)] + (["--extended-tools"] if extended else [])
         environment = os.environ.copy()
         environment.pop("SCO_CORE_CATALOGUE", None)
         if use_env:
@@ -247,8 +251,8 @@ class ServerCase(unittest.TestCase):
         if not SERVER.is_file():
             raise unittest.SkipTest("server.py has not been written yet")
 
-    def start(self, catalogue=CATALOGUE, repo_root=None, use_env=False, ready=True):
-        client = Client(catalogue, repo_root, use_env)
+    def start(self, catalogue=CATALOGUE, repo_root=None, use_env=False, ready=True, extended=False):
+        client = Client(catalogue, repo_root, use_env, extended)
         self.addCleanup(client.close)
         if ready:
             response = client.initialize()
@@ -963,6 +967,414 @@ class EvidenceStateTests(ServerCase):
         (root / "real-status.md").write_text(GAME_STATUS, encoding="utf-8")
         (root / "docs/game/status.md").symlink_to(root / "real-status.md")
         self.assertEqual(self.evidence("game-sample-read", data, catalogue, root)["service_status"]["state"], "unavailable")
+
+
+SYNTHETIC_REGISTRY = {"schema_version": 1, "about": "Synthetic registry.", "services": [
+    {"id": "game.sample", "kind": "service", "service": "game.sample", "header": "include/sc_sample.h", "version": "1.1",
+     "capabilities": [
+         {"name": "game.sample.read", "methods": ["read"], "default": "ON", "evidence_level": "sigcheck_resolved",
+          "game_build": "1.2.3.4", "evidence": "row resolved on 1.2.3.4 (sigcheck)", "sig_rows": ["sample.row"],
+          "evidence_source": "docs/game/status.md"},
+         {"name": "game.sample.watch", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation", "spike_ref": "B1"},
+         {"name": None, "display": "sample field", "methods": [], "default": "none", "evidence_level": "blocked", "evidence": "BLOCKED"},
+         {"name": "game.sample.claim", "methods": [], "default": "ON", "evidence_level": "in_game_verified",
+          "evidence": "verified in game (2099-01-01)"},
+         {"name": "game.sample.synthetic", "methods": [], "default": "OFF", "evidence_level": "synthetic_only",
+          "evidence": "Synthetic fixtures only"}]},
+    {"id": "game.events", "kind": "event_bus", "service": "game.*", "header": "include/sc_sample.h", "version": "bus",
+     "capabilities": [{"name": "game.events.sample", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved",
+                       "evidence": "row resolved on 1.2.3.4 (sigcheck)"}]}]}
+
+
+class RegistryEvidenceTests(ServerCase):
+    def registry_root(self, registry=SYNTHETIC_REGISTRY, status=GAME_STATUS.replace("| 1.1 |", "| 1.0 |")):
+        data = game_fixture()
+        root, catalogue = self.temporary_catalogue(data)
+        (root / "docs/game").mkdir(parents=True)
+        (root / "docs/game/status.md").write_text(status, encoding="utf-8")
+        (root / "sdk").mkdir()
+        if registry is not None:
+            text = registry if isinstance(registry, str) else json.dumps(registry)
+            (root / "sdk/status_registry.json").write_text(text, encoding="utf-8")
+        return data, root, catalogue
+
+    def state(self, data, root, catalogue):
+        client = self.start(catalogue=catalogue, repo_root=root)
+        state = self.result(client.call("get_symbol", {"symbol_or_id": "game-sample-read"}), data=data)["evidence_state"]
+        capability = self.result(client.call("get_capability_status", {"symbol_or_id": "game-sample-read"}), data=data)
+        self.assertEqual(capability["evidence_state"], state)
+        return state
+
+    def test_registry_is_preferred_and_never_reports_gameplay(self):
+        state = self.state(*self.registry_root())
+        status = state["service_status"]
+        self.assertEqual((status["state"], status["source"], status["documented_version"]),
+                         ("rows_found", "sdk/status_registry.json", "1.1"))
+        self.assertIs(status["version_matches_catalogue"], True)
+        self.assertEqual([row["capability"] for row in status["rows"]],
+                         ["`game.sample.read` (`read`)", "`game.sample.watch`", "sample field", "`game.sample.claim`", "`game.sample.synthetic`"])
+        self.assertEqual([row["evidence_level"] for row in status["rows"]],
+                         ["row_resolved_sigcheck", "off_pending_in_game_confirmation", "blocked", "unclassified", "unclassified"])
+        self.assertEqual([row["registry_evidence_level"] for row in status["rows"]],
+                         ["sigcheck_resolved", "off_pending_probe", "blocked", "unclassified", "synthetic_only"])
+        self.assertEqual((status["rows"][0]["game_build"], status["rows"][0]["sig_rows"], status["rows"][1]["spike_ref"]),
+                         ("1.2.3.4", ["sample.row"], "B1"))
+        self.assertEqual(state["gameplay_receipt"]["state"], "unknown")
+        self.assertNotIn("in_game_verified", json.dumps(state))
+
+    def test_absent_registry_falls_back_to_status_document(self):
+        status = self.state(*self.registry_root(registry=None))["service_status"]
+        self.assertEqual((status["state"], status["source"], status["documented_version"]),
+                         ("rows_found", "docs/game/status.md", "1.0"))
+        self.assertNotIn("registry_evidence_level", status["rows"][0])
+
+    def test_service_without_registry_entry_has_no_rows(self):
+        registry = copy.deepcopy(SYNTHETIC_REGISTRY)
+        registry["services"][0]["service"] = "game.renamed"
+        status = self.state(*self.registry_root(registry))["service_status"]
+        self.assertEqual((status["state"], status["source"], status["rows"]), ("no_rows", "sdk/status_registry.json", []))
+
+    def test_refused_registry_is_reported_not_bypassed(self):
+        def mutate(change):
+            registry = copy.deepcopy(SYNTHETIC_REGISTRY)
+            change(registry)
+            return registry
+        cases = ["{", json.dumps({**SYNTHETIC_REGISTRY, "schema_version": 2}),
+                 mutate(lambda r: r["services"][0]["capabilities"][0].update(address="0x1")),
+                 mutate(lambda r: r["services"][0]["capabilities"][0].update(evidence_level="verified")),
+                 mutate(lambda r: r["services"][0]["capabilities"][0].update(default=["ON"])),
+                 mutate(lambda r: r["services"][0].pop("header")),
+                 mutate(lambda r: r["services"].append(copy.deepcopy(r["services"][0])))]
+        for registry in cases:
+            with self.subTest(registry=str(registry)[:60]):
+                state = self.state(*self.registry_root(registry))
+                status = state["service_status"]
+                self.assertEqual((status["state"], status["source"], status["rows"]), ("unavailable", "sdk/status_registry.json", []))
+                self.assertIn("sdk/status_registry.json", status["reason"])
+
+    def test_symlinked_registry_is_refused(self):
+        data, root, catalogue = self.registry_root(registry=None)
+        (root / "elsewhere.json").write_text(json.dumps(SYNTHETIC_REGISTRY), encoding="utf-8")
+        (root / "sdk/status_registry.json").symlink_to(root / "elsewhere.json")
+        status = self.state(data, root, catalogue)["service_status"]
+        self.assertEqual((status["state"], status["source"]), ("unavailable", "sdk/status_registry.json"))
+
+
+def native_entry(identifier, subsystem, tier, capability=None):
+    entry = {"id": identifier, "subsystem": subsystem,
+             "hash": "_0x" + hashlib.sha256(("sco-core:native:" + identifier).encode("utf-8")).hexdigest()[:16].upper(),
+             "tier": tier, "source": "src/game/%s_sigs.cpp" % subsystem}
+    if capability:
+        entry["capability"] = capability
+    return entry
+
+
+def native_index(entries):
+    return {"schema_version": 1, "about": "Synthetic index.", "row_count": len(entries), "entries": entries,
+            "tiers": {"1": "promoted", "2": "resolved-unexposed", "3": "spike hold", "4": "blocked"}}
+
+
+NATIVES = [native_entry("spawn.sample_helper", "actors", 1, ["spawn.sample"]), native_entry("spawn.sample_tag", "actors", 2),
+           native_entry("world.sample_ray", "world", 2), native_entry("event.sample_seat", "events", 3, ["game.events.sample_seat"])]
+
+
+class EngineNativeTests(ServerCase):
+    def native_root(self, index=None, text=None):
+        root, catalogue = self.temporary_catalogue(fixture())
+        (root / "sdk").mkdir()
+        (root / "sdk/native_index.json").write_text(text if text is not None else json.dumps(index or native_index(NATIVES)),
+                                                    encoding="utf-8")
+        return root, catalogue
+
+    def client(self, **kwargs):
+        root, catalogue = self.native_root(**kwargs)
+        return self.start(catalogue=catalogue, repo_root=root, extended=True)
+
+    def test_extended_tools_are_opt_in_and_read_only(self):
+        default = self.start()
+        self.assertEqual([tool["name"] for tool in default.request("tools/list")["result"]["tools"]], ORIGINAL_ORDER)
+        for name in EXTENDED_ORDER[6:]:
+            with self.subTest(name=name):
+                self.rpc_error(default.call(name, {}), -32602)
+        tools = self.start(extended=True).request("tools/list")["result"]["tools"]
+        self.assertEqual([tool["name"] for tool in tools], EXTENDED_ORDER)
+        for tool in tools:
+            self.assertEqual(tool["annotations"], {"readOnlyHint": True, "destructiveHint": False,
+                                                   "idempotentHint": True, "openWorldHint": False})
+            self.assertIs(tool["inputSchema"]["additionalProperties"], False)
+
+    def test_without_repo_root_is_unavailable(self):
+        client = self.start(extended=True)
+        listed = self.result(client.call("list_engine_natives"))
+        self.assertEqual((listed["state"], listed["entries"], listed["next_cursor"]), ("unavailable", [], None))
+        found = self.result(client.call("get_engine_native", {"id_or_hash": "spawn.sample_tag"}))
+        self.assertEqual(found["state"], "unavailable")
+        self.assertNotIn("entry", found)
+
+    def test_pages_follow_the_cursor(self):
+        client = self.client()
+        first = self.result(client.call("list_engine_natives", {"limit": 3}))
+        self.assertEqual((first["state"], first["row_count"], first["total_matches"], first["next_cursor"]), ("available", 4, 4, "3"))
+        self.assertEqual(first["entries"], NATIVES[:3])
+        second = self.result(client.call("list_engine_natives", {"limit": 3, "cursor": first["next_cursor"]}))
+        self.assertEqual((second["entries"], second["next_cursor"]), (NATIVES[3:], None))
+        self.assertEqual(self.result(client.call("list_engine_natives", {"cursor": "99"}))["entries"], [])
+
+    def test_filters(self):
+        client = self.client()
+        for arguments, expected in [({"subsystem": "actors"}, NATIVES[:2]), ({"tier": 3}, NATIVES[3:]),
+                                    ({"subsystem": "actors", "tier": 2}, NATIVES[1:2]),
+                                    ({"query": "GAME.EVENTS"}, NATIVES[3:]), ({"query": NATIVES[2]["hash"][3:10].lower()}, NATIVES[2:3]),
+                                    ({"query": "sample", "subsystem": "world"}, NATIVES[2:3]), ({"subsystem": "absent"}, [])]:
+            with self.subTest(arguments=arguments):
+                result = self.result(client.call("list_engine_natives", arguments))
+                self.assertEqual((result["entries"], result["total_matches"]), (expected, len(expected)))
+
+    def test_get_by_id_or_hash(self):
+        client = self.client()
+        for key in [NATIVES[0]["id"], NATIVES[0]["hash"], NATIVES[0]["hash"].lower()]:
+            with self.subTest(key=key):
+                found = self.result(client.call("get_engine_native", {"id_or_hash": key}))
+                self.assertEqual((found["entry"], found["tier_meaning"], found["source"]), (NATIVES[0], "promoted", "sdk/native_index.json"))
+        for key in ["spawn.unknown", "_0x0000000000000000", "0x" + NATIVES[0]["hash"][3:]]:
+            with self.subTest(key=key):
+                self.result(client.call("get_engine_native", {"id_or_hash": key}), is_error=True)
+
+    def test_refused_index_is_unavailable(self):
+        wrong_hash = copy.deepcopy(NATIVES)
+        wrong_hash[0]["hash"] = NATIVES[1]["hash"]
+        extra_key = copy.deepcopy(NATIVES)
+        extra_key[0]["pattern"] = "48 8B ?"
+        cases = [{"text": "{"}, {"index": {**native_index(NATIVES), "schema_version": 2}},
+                 {"index": {**native_index(NATIVES), "row_count": 5}}, {"index": native_index(wrong_hash)},
+                 {"index": native_index(extra_key)}, {"index": native_index(NATIVES + NATIVES[:1])},
+                 {"index": native_index([native_entry("spawn.bad_tier", "actors", 5)])}]
+        for case in cases:
+            with self.subTest(case=str(case)[:80]):
+                listed = self.result(self.client(**case).call("list_engine_natives"))
+                self.assertEqual((listed["state"], listed["entries"]), ("unavailable", []))
+                self.assertIn("sdk/native_index.json", listed["reason"])
+
+    def test_symlinked_index_is_refused(self):
+        root, catalogue = self.temporary_catalogue(fixture())
+        (root / "sdk").mkdir()
+        (root / "index.json").write_text(json.dumps(native_index(NATIVES)), encoding="utf-8")
+        (root / "sdk/native_index.json").symlink_to(root / "index.json")
+        listed = self.result(self.start(catalogue=catalogue, repo_root=root, extended=True).call("list_engine_natives"))
+        self.assertEqual(listed["state"], "unavailable")
+
+    def test_argument_refusals(self):
+        client = self.client()
+        for name, arguments in [("list_engine_natives", {"tier": 0}), ("list_engine_natives", {"tier": 5}),
+                                ("list_engine_natives", {"tier": True}), ("list_engine_natives", {"limit": 101}),
+                                ("list_engine_natives", {"cursor": "01"}), ("list_engine_natives", {"cursor": "-1"}),
+                                ("list_engine_natives", {"cursor": 3}), ("list_engine_natives", {"cursor": "1234567"}),
+                                ("list_engine_natives", {"subsystem": ""}), ("list_engine_natives", {"address": "x"}),
+                                ("get_engine_native", {}), ("get_engine_native", {"id_or_hash": "x" * 129})]:
+            with self.subTest(name=name, arguments=arguments):
+                self.result(client.call(name, arguments), is_error=True)
+
+    def test_actual_repository_index(self):
+        path = ROOT / "sdk/native_index.json"
+        if not path.is_file():
+            self.skipTest("No sdk/native_index.json in this checkout")
+        index = json.loads(path.read_text(encoding="utf-8"))
+        client = self.start(repo_root=ROOT, extended=True)
+        listed = self.result(client.call("list_engine_natives", {"limit": 100}))
+        self.assertEqual((listed["state"], listed["total_matches"], listed["row_count"]), ("available", index["row_count"], index["row_count"]))
+        self.assertEqual(listed["entries"], index["entries"][:100])
+        entry = index["entries"][-1]
+        self.assertEqual(self.result(client.call("get_engine_native", {"id_or_hash": entry["hash"]}))["entry"], entry)
+
+
+GOOD_INI = """\ufeff; synthetic manifest
+id = sample_plugin
+name = Sample Plugin  # trailing comment
+version = 1.0.0
+author = Example Author
+api = 1.1
+kind = native
+entry = sample_plugin.dll
+requires = teleport, spawn.ship
+future_key = ignored
+
+[settings]
+speed = float min 0 max 10.5 default 2.5 label "Speed; fast" help "How fast"
+mode = enum(slow, fast) default fast
+enabled = bool default true
+count = int min -3 max 3
+title = string default "a # not a comment"
+"""
+
+
+def ini(**replace):
+    text = GOOD_INI
+    for old, new in replace.items():
+        old = old.replace("__", " = ") if "__" in old else old
+        text = text.replace(old, new)
+    return text
+
+
+VALID_TREE = [
+    {"kind": "column", "id": 1},
+    {"kind": "label", "id": 2, "parent": 1, "label": "Status"},
+    {"kind": "row", "id": 3, "parent": 1},
+    {"kind": "button", "id": 4, "parent": 3, "label": "Go"},
+    {"kind": "toggle", "id": 5, "parent": 3, "label": "On", "value": 1},
+    {"kind": "slider", "id": 6, "parent": 1, "label": "Speed", "value": 2.5, "minimum": 0, "maximum": 10},
+    {"kind": "combo", "id": 7, "parent": 1, "label": "Mode", "items": ["a", "b"], "index": -1},
+    {"kind": "text_input", "id": 8, "label": "Name", "text": "", "flags": 2},
+    {"kind": 8, "id": 9, "items": ["h1", "h2", "c1", "c2"], "columns": 2, "flags": 1},
+]
+
+
+class ValidatorTests(ServerCase):
+    def validate(self, client, plugin_ini=GOOD_INI, is_error=False, **arguments):
+        return self.result(client.call("validate_manifest_and_widgets", {"plugin_ini": plugin_ini, **arguments}), is_error=is_error)
+
+    def test_valid_manifest_reports_parsed_fields_and_skipped_keys(self):
+        result = self.validate(self.start(extended=True), folder="sample_plugin")
+        manifest = result["manifest"]
+        self.assertIs(result["valid"], True)
+        self.assertEqual((manifest["findings"], manifest["folder_checked"], manifest["sdk_api"]), ([], True, "1.1"))
+        parsed = manifest["parsed"]
+        self.assertEqual((parsed["id"], parsed["name"], parsed["requires"]), ("sample_plugin", "Sample Plugin", ["teleport", "spawn.ship"]))
+        self.assertEqual([(s["name"], s["type"]) for s in parsed["settings"]],
+                         [("speed", "float"), ("mode", "enum"), ("enabled", "bool"), ("count", "int"), ("title", "string")])
+        self.assertEqual(manifest["notes"], ["plugin.ini line 10: unknown key 'future_key' ignored (a later minor's)"])
+        self.assertNotIn("widgets", result)
+
+    def test_manifest_refusals_follow_the_checker(self):
+        client = self.start(extended=True)
+        cases = [
+            (ini(id__sample_plugin="id = Sample"), 2, "id must be 1-31 of [a-z0-9_]"),
+            (ini(id__sample_plugin="id = game"), 2, "id is reserved"),
+            (ini(**{"name = Sample Plugin  # trailing comment\n": ""}), None, "missing key 'name'"),
+            (ini(**{"api = 1.1": "api = 2.0"}), None, "api 2.0, but this SDK is 1.1"),
+            (ini(**{"api = 1.1": "api = 1.2"}), None, "api 1.2, but this SDK is 1.1"),
+            (ini(**{"api = 1.1": "api = 1.x"}), 6, "api must be <major>.<minor>"),
+            (ini(**{"kind = native": "kind = python"}), 7, "kind must be native, lua or data"),
+            (ini(**{"entry = sample_plugin.dll": "entry = ../sample_plugin.dll"}), 8, "entry must be a file name"),
+            (ini(**{"version = 1.0.0": "id = other"}), 4, "duplicate key 'id'"),
+            (ini(**{"teleport, spawn.ship": "sample_plugin.service"}), None, "names the plugin itself (a requires cycle)"),
+            (ini(**{"teleport, spawn.ship": "teleport,,spawn"}), 9, "requires must be a comma list of capability names"),
+            (ini(**{"teleport, spawn.ship": "teleport, teleport"}), 9, "requires lists a capability twice"),
+            (ini(**{"kind = native": "kind = data"}), None, "a data pack has no entry"),
+            (ini(**{"entry = sample_plugin.dll\n": ""}), None, "missing key 'entry'"),
+            (ini(**{"kind = native": "kind = data", "entry = sample_plugin.dll\n": ""}), None, "a data pack has no settings"),
+            (ini(**{"default 2.5": "default 11"}), 13, "setting 'speed': default 11 is above max 10.5"),
+            (ini(**{"min 0 max 10.5": "min 11 max 10.5"}), 13, "setting 'speed': min 11 is above max 10.5"),
+            (ini(**{"enum(slow, fast) default fast": "enum(slow, slow)"}), 14, "enum lists a choice twice"),
+            (ini(**{"enum(slow, fast) default fast": "enum(slow, fast) default medium"}), 14, "default 'medium' is not one of slow, fast"),
+            (ini(**{"bool default true": "bool default yes"}), 15, "default 'yes' is not true or false"),
+            (ini(**{"bool default true": "bool min 1"}), 15, "min and max apply to int and float only"),
+            (ini(**{"int min -3": "int shade -3"}), 16, "unknown field 'shade'"),
+            (ini(**{"int min -3 max 3": "int min"}), 16, "field 'min' needs a value"),
+            (ini(**{'help "How fast"': 'help "How fast'}), 13, "a quote is not closed, or not at the start of a value"),
+            (ini(**{"count = int": "Count = int"}), 16, "setting name must be 1-31 of [a-z0-9_]"),
+            (ini(**{"count = int": "speed = int"}), 16, "setting 'speed': declared twice"),
+            (GOOD_INI + "[settings]\n", 18, "duplicate section '[settings]'"),
+            (GOOD_INI.replace("[settings]", "[settings"), 12, "a [section] line ends with ]"),
+            (GOOD_INI.replace("future_key = ignored", "just words"), 10, "expected key = value"),
+            ("; " + "x" * 16400 + "\n" + GOOD_INI, None, "plugin.ini: too big (over 16384 bytes)"),
+        ]
+        for text, line, message in cases:
+            with self.subTest(message=message):
+                manifest = self.validate(client, text)["manifest"]
+                self.assertIs(manifest["valid"], False)
+                [finding] = manifest["findings"]
+                self.assertEqual(finding["line"], line)
+                self.assertIn(message, finding["message"])
+                if line is not None:
+                    self.assertTrue(finding["message"].startswith("plugin.ini line %d: " % line), finding)
+
+    def test_folder_must_match_id(self):
+        client = self.start(extended=True)
+        manifest = self.validate(client, folder="other_folder")["manifest"]
+        self.assertEqual(manifest["findings"], [{"line": None, "message": "id 'sample_plugin' does not match folder 'other_folder'"}])
+        for folder in ["a/b", "a\\b", ""]:
+            with self.subTest(folder=folder):
+                self.validate(client, folder=folder, is_error=True)
+
+    def test_repository_manifests_match_the_checker(self):
+        # cs_widgets opens with [plugin] and names library= instead of kind/entry; sco-plugin-check
+        # refuses it with this same message. Drop the entry once that example is fixed.
+        refused = {"cs_widgets": "plugin.ini: missing key 'id'"}
+        client = self.start(extended=True)
+        manifests = sorted((ROOT / "sdk/examples").glob("*/plugin.ini"))
+        self.assertTrue(manifests)
+        for path in manifests:
+            with self.subTest(path=path.parent.name):
+                manifest = self.validate(client, path.read_text(encoding="utf-8"), folder=path.parent.name)["manifest"]
+                expected = [{"line": None, "message": refused[path.parent.name]}] if path.parent.name in refused else []
+                self.assertEqual(manifest["findings"], expected)
+
+    def test_sdk_api_matches_the_root_header(self):
+        header = (ROOT / "include/sco_api.h").read_text(encoding="utf-8")
+        version = tuple(re.search(r"#define SCO_API_%s (\d+)" % part, header)[1] for part in ("MAJOR", "MINOR"))
+        self.assertEqual(self.validate(self.start(extended=True))["manifest"]["sdk_api"], "%s.%s" % version)
+
+    def test_valid_widget_tree(self):
+        result = self.validate(self.start(extended=True), widgets=VALID_TREE)
+        self.assertEqual(result["widgets"], {"valid": True, "node_count": 9, "findings": []})
+        self.assertIs(result["valid"], True)
+
+    def test_widget_invariant_findings(self):
+        client = self.start(extended=True)
+
+        def tree(position, **changes):
+            nodes = copy.deepcopy(VALID_TREE)
+            if position == len(nodes):
+                nodes.append(changes)
+            else:
+                nodes[position].update(changes)
+                nodes[position] = {k: v for k, v in nodes[position].items() if v is not None}
+            return nodes
+        cases = [
+            (tree(3, id=2), 3, "BAD_ARG", "repeats an earlier node's id"),
+            (tree(3, id=0), 3, "BAD_ARG", "id must be nonzero"),
+            (tree(9, kind="label", id=10, parent=3), 9, "BAD_ARG", "is not an open row/column ancestor"),
+            (tree(3, parent=2), 3, "BAD_ARG", "is not an open row/column ancestor"),
+            (tree(0, parent=9), 0, "BAD_ARG", "is not an open row/column ancestor"),
+            (tree(3, label=None), 3, "BAD_ARG", "label is required"),
+            (tree(3, label=""), 3, "BAD_ARG", "label must be nonempty"),
+            (tree(4, value=2), 4, "BAD_ARG", "a toggle value is 0 or 1"),
+            (tree(5, value=11), 5, "BAD_ARG", "minimum <= value <= maximum"),
+            (tree(6, index=2), 6, "BAD_ARG", "is not -1 or an item index"),
+            (tree(8, items=["h1", "h2", "c1"]), 8, "BAD_ARG", "divisible by columns"),
+            (tree(1, text="x"), 1, "BAD_ARG", "text applies to text_input only"),
+            (tree(3, flags=2), 3, "BAD_ARG", "PASSWORD applies to text_input only"),
+            (tree(1, flags=4), 1, "BAD_ARG", "flags has bits other than"),
+            (tree(1, label="\u00e9" * 128), 1, "TOO_MANY", "label is 256 bytes; at most 255"),
+            (tree(1, label="a\u0000b"), 1, "BAD_ARG", "contains NUL"),
+            (tree(1, kind=11), 1, "BAD_ARG", "kind 11 is not 1 (label) to 10 (column)"),
+            (tree(3, items=["x"]), 3, "BAD_ARG", "items apply to combo, list and table only"),
+            (tree(1, value=1), 1, "BAD_ARG", "value applies to toggle and slider only"),
+            (tree(8, columns=17, items=["c"] * 17), 8, "TOO_MANY", "17 columns; at most 16"),
+            (tree(6, items=["i"] * 257), 6, "TOO_MANY", "257 items; at most 256"),
+        ]
+        for nodes, position, code, message in cases:
+            with self.subTest(message=message):
+                result = self.validate(client, widgets=nodes)
+                self.assertIs(result["valid"], False)
+                widgets = result["widgets"]
+                self.assertIs(widgets["valid"], False)
+                matching = [f for f in widgets["findings"] if message in f["message"]]
+                self.assertTrue(matching, widgets["findings"])
+                self.assertEqual((matching[0]["node"], matching[0]["id"], matching[0]["result"]),
+                                 (position, nodes[position]["id"], code))
+
+    def test_widget_schema_refusals(self):
+        client = self.start(extended=True)
+        node = {"kind": "label", "id": 1}
+        for widgets in [[], [node] * 257, ["label"], [{**node, "size": 96}], [{"kind": "label"}], [{**node, "id": True}],
+                        [{**node, "id": -1}], [{**node, "id": 2 ** 32}], [{**node, "kind": "slider2"}], [{**node, "label": 5}],
+                        [{**node, "items": [1]}], [{**node, "value": "1"}], [{**node, "index": 2 ** 31}], {"0": node}]:
+            with self.subTest(widgets=str(widgets)[:60]):
+                self.validate(client, widgets=widgets, is_error=True)
+        self.result(client.call("validate_manifest_and_widgets", {"widgets": [node]}), is_error=True)
+        self.result(client.call("validate_manifest_and_widgets", {"plugin_ini": GOOD_INI, "path": "plugin.ini"}), is_error=True)
 
 
 class CompatibilityReleaseTests(ServerCase):
