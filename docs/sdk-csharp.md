@@ -13,6 +13,7 @@ The C# layer of the sco plugin SDK: a .NET 8 library over [`sco_api.h`](api-v1.m
 - [Services](#services)
 - [Raw handlers](#raw-handlers)
 - [Storage, DataCore and UI](#storage-datacore-and-ui)
+- [Panel builder](#panel-builder)
 - [Lifetimes](#lifetimes)
 - [The exception boundary](#the-exception-boundary)
 - [Threads](#threads)
@@ -184,6 +185,65 @@ if (dc.Open(this) == ScoResult.Ok && dc.Begin(out DataCorePatch p) == ScoResult.
     p.Commit();
 }
 ```
+
+## Panel builder
+
+`PanelBuilder` collects a complete `sco.widgets` 1.0 preorder tree without renderer
+dependencies. Give every node an explicit nonzero `uint` ID, unique within the
+panel and stable across replacements. `Column(id, children)` and `Row(id, children)`
+run their `Action<PanelBuilder>` immediately; nested additions automatically use
+that layout's ID as their parent. Additions after a layout callback are siblings,
+and additions outside any layout have parent `0`. Labels do not supply IDs.
+
+```csharp
+var widgets = new Widgets();
+if (widgets.Open(this) == ScoResult.Ok)
+{
+    var panel = new PanelBuilder()
+        .Column(1, column => column
+            .Toggle(2, "Enabled", true, enabled => Info(enabled ? "on" : "off"))
+            .Row(3, row => row
+                .Slider(4, "Level", 5, 0, 10, level => Info($"level: {level}"))
+                .Button(5, "Apply", () => Info("apply"))));
+    ScoResult result = widgets.SetPanel("my_plugin.main", "Controls", panel.Build(), panel.Dispatch);
+    if (result != ScoResult.Ok) Warn($"panel: {result}");
+}
+```
+
+Use your plugin's ID prefix in the panel ID. `Build()` returns an independent
+`WidgetNode[]` and freezes the builder's structure and callbacks; repeated builds
+return fresh copies. Make a new builder for each replacement, and submit the nodes
+with that same builder's `Dispatch` method. Construction, submission and dispatch
+are game-thread only. Build cannot run inside a layout callback.
+
+Button callbacks are `Action`, toggles use `Action<bool>`, and sliders use
+`Action<double>`; each is optional. All five builder methods accept `disabled:
+true`. Disabled layouts suppress descendant callbacks. `Dispatch` routes validated
+events by node ID and kind; the existing `Widgets` trampoline validates payloads,
+contains callback exceptions and roots the builder until successful replacement,
+removal or owner unload. Failed submissions preserve the previous callback.
+Removal still uses `Widgets.RemovePanel(id)`; open the wrapper again after reload.
+
+The builder rejects zero/duplicate IDs, empty labels, embedded NUL, invalid UTF-16,
+labels over 255 UTF-8 bytes, nonfinite/out-of-range slider values, empty builds,
+more than 256 nodes, and additions after Build. Invalid arguments throw
+`ArgumentException` (including its null/out-of-range subclasses); invalid builder
+state or node overflow throws `InvalidOperationException`. A throwing layout
+callback rolls back its whole subtree and restores the enclosing parent.
+Panel ID/title and service-wide limits remain `Widgets.SetPanel`/host checks.
+There is no reflection, runtime code generation, renderer dependency or new
+service-table version; this remains compatible with NativeAOT and frozen `sco_api`.
+
+The existing managed stand-in tests include builder preorder/parents, typed
+dispatch, disabled descendants, invalid inputs, snapshots, replacement/removal
+and layout rollback:
+
+```sh
+dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- --widgets
+```
+
+These are headless development fixtures, not Windows NativeAOT loading, GPU or
+in-game verification.
 
 ## Lifetimes
 
