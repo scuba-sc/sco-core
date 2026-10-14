@@ -287,7 +287,7 @@ sco_result RemoveNodes(sco_plugin* self, const char* id, const uint32_t* ids, ui
             if (node == tree.end()) return Result::NotFound;
             const size_t begin = static_cast<size_t>(node - tree.begin());
             std::fill(drop.begin() + static_cast<std::ptrdiff_t>(begin),
-                      drop.begin() + static_cast<std::ptrdiff_t>(SubtreeEnd(tree, begin)), 1);
+                      drop.begin() + static_cast<std::ptrdiff_t>(SubtreeEnd(tree, begin)), char{1});
         }
         if (std::all_of(drop.begin(), drop.end(), [](char d) { return d != 0; })) return Result::BadArg;
         size_t kept = 0;

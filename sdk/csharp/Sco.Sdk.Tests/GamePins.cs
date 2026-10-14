@@ -116,6 +116,7 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_vehicles.c", "AT(sc_vehicles_v1, last_error, 56);"));
             lines.Add(("tests/abi_game_world.c", "PIN(sizeof(void*) == 8);"));
             lines.Add(("tests/abi_game_world.c", "PIN(SC_WORLD_VERSION_1_0 == 0x00010000u);"));
+            lines.Add(("tests/abi_game_world.c", "PIN(SC_WORLD_VERSION_1_1 == 0x00010001u);"));
             lines.Add(("tests/abi_game_world.c", "PIN(sizeof(SC_WORLD_NAME) == 11); /* \"game.world\" */"));
             lines.Add(("tests/abi_game_world.c", "PIN(SC_WORLD_RAY_MAX_DISTANCE == 20000);"));
             lines.Add(("tests/abi_game_world.c", "SIZE(sc_world_hit_flag, 4);"));
