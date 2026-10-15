@@ -1267,7 +1267,9 @@ static void FillSeats(const char* label, bool server, uint32_t maxPeers, uint32_
         const size_t wave = std::min<size_t>(25, admits - joined);
         for (size_t k = 0; k < wave; ++k) {
             Node& n = *nodes[++joined];
-            const std::string name = "P" + std::to_string(joined);
+            // Two steps for the GCC 12 reason given in TestSessionLimit.
+            std::string name = "P";
+            name += std::to_string(joined);
             CHECK(n.core.Join(Opts(name.c_str(), "pw", 1000 + joined), host.tr.Self(), net.now));
             live.push_back(&n);
         }
