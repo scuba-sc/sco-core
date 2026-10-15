@@ -2,10 +2,10 @@
 
 Tag `sdk-v2.3.0`, combined zip `sco-sdk-2.3.0.zip`. **Status: unpublished candidate.** This page
 is a draft prepared on 2026-10-15 for the maintainer. No tag, signature, approval record, candidate
-run or release exists for 2.3.0, and nothing on this page authorizes one. The candidate scope is
-proposed in the [SDK 2.3.0 scope record](../legal/release-decisions/2026-10-15-sdk-v2.3.0-scope.md),
-a DRAFT awaiting the maintainer; it does not itself dispatch a candidate, create an approval record,
-sign, tag or publish. Until the maintainer publishes 2.3.0, the newest published SDK is 2.2.0
+run or release exists for 2.3.0, and nothing on this page authorizes one. The maintainer recorded
+the candidate scope and game pack 0.6.0 in the
+[SDK 2.3.0 scope record](../legal/release-decisions/2026-10-15-sdk-v2.3.0-scope.md) on 2026-10-15;
+that record does not itself dispatch a candidate, create an approval record, sign, tag or publish. Until the maintainer publishes 2.3.0, the newest published SDK is 2.2.0
 ([latest release](https://github.com/scubamount/sco-core/releases/latest)). The release workflow
 publishes the CHANGELOG section [`## sdk-v2.3.0`](../../CHANGELOG.md) as the release's notes;
 this page is the longer reference behind it.
