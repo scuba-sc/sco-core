@@ -7497,6 +7497,75 @@
       "public_header": true
     },
     {
+      "id": "include.sc_inventory.h",
+      "source": "include/sc_inventory.h",
+      "destination": "include/sc_inventory.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.sdk.contracts.sc_inventory_v1.json",
+      "source": "sdk/contracts/sc_inventory_v1.json",
+      "destination": "contracts/sc_inventory_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "g7.docs.game.inventory.md",
+      "source": "docs/game/inventory.md",
+      "destination": "docs/game/inventory.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.abi_game_inventory.c",
+      "source": "tests/abi_game_inventory.c",
+      "destination": "tests/abi_game_inventory.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "host-source-sc-src-game-services-inventory.cpp",
+      "source": "src/game/services/inventory.cpp",
+      "destination": "src/game/services/inventory.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-inventory.h",
+      "source": "src/game/services/inventory.h",
+      "destination": "src/game/services/inventory.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "include.sc_game_build.h",
       "source": "include/sc_game_build.h",
       "destination": "include/sc_game_build.h",

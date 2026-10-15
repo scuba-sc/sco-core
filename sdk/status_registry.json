@@ -249,6 +249,16 @@
       ]
     },
     {
+      "id": "game.inventory",
+      "kind": "service",
+      "service": "game.inventory",
+      "header": "include/sc_inventory.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.inventory.read", "methods": ["snapshot"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only item-port snapshot of the local player; enumeration accessors grounded on the private corpus (F-4.10.196.36804-009: entity port range + port IsValid/GetItem + item type-id descriptor, cross-checked against the game's own UnequipItem node implementation); no production backend bound; ABI pinned; not run in game", "evidence_source": "docs/game/inventory.md"}
+      ]
+    },
+    {
       "id": "game.private_session",
       "kind": "service",
       "service": "game.private_session",
