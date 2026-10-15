@@ -22,6 +22,9 @@ refused. Nothing from a request is stored in settings or broker history.
   owner unload/release also leaves. No automatic reconnect or replacement.
 - `get_state(state*)`: copied scalar Idle/Hosting/Joining/Connected state, peer
   count, configured host maximum (zero for a joiner, whose maximum is unknown).
+  `peer_count` counts a server like any other peer, as `get_peers` does, and
+  `get_peer_flags` tells them apart; a state field for the number of players is
+  a follow-up for the maintainer.
 
 `consent=1` means **fresh explicit local UI Host/Join activation**. Never replay it
 from plugin load, saved settings, peers, commands without a local UI confirmation,
