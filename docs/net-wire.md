@@ -1,7 +1,8 @@
 # sco.net wire format (internal, as built)
 
-What plan PR 4a built for [design section 3.5](design/multiplayer.md#35-session-crypto-d4): the packets, the handshake, the keys and the delivery rules of `sco.net`, in `src/net/` with headers in `include/sco/net/`. Plugins see only the `sco_net_v1` table ([Multiplayer messages](net.md), plan PR 4b). The wire itself is defined once, in **[`include/sc_net.h`](../include/sc_net.h), MIT** (the [interface exception](../LICENSE), like `sc_ipc.h`): a program outside sco-core includes only that file to frame, parse and verify packets, supplying its own HMAC-SHA-256. sco-core's code takes its constants, parser, MAC input, replay window and name rules from it, and `tests/abi_sc_net.c` pins it. Change it only together with `SC_NET_PROTOCOL_VERSION`; the one exception is `SC_NET_MAX_PEERS`, the
-host's admission limit, which no packet field depends on ([Session size](#session-size)).
+What plan PR 4a built for [design section 3.5](design/multiplayer.md#35-session-crypto-d4): the packets, the handshake, the keys and the delivery rules of `sco.net`, in `src/net/` with headers in `include/sco/net/`. Plugins see only the `sco_net_v1` table ([Multiplayer messages](net.md), plan PR 4b). The wire itself is defined once, in **[`include/sc_net.h`](../include/sc_net.h), MIT** (the [interface exception](../LICENSE), like `sc_ipc.h`): a program outside sco-core includes only that file to frame, parse and verify packets, supplying its own HMAC-SHA-256. sco-core's code takes its constants, parser, MAC input, replay window and name rules from it, and `tests/abi_sc_net.c` pins it. Change it only together with `SC_NET_PROTOCOL_VERSION`; there are two exceptions, argued below:
+`SC_NET_MAX_PEERS`, the host's admission limit, which no packet field depends on ([Session size](#session-size)),
+and the HOST_ROLE control message, which a joiner that does not know it drops without harm ([Host role](#host-role)).
 
 | File | What |
 |---|---|
@@ -81,13 +82,14 @@ DATA body:
 
 - **Star topology.** Joiners talk only to the host. The host delivers what it registered and relays the rest to every other joiner that registered the channel, under its own link keys, keeping the origin id. TO_HOST messages are not relayed. The host checks that a joiner's origin is the joiner itself.
 - **Peer ids.** The host is 1; joiners get 2, 3, ... in join order, never reused in a session (a rejoin gets a new id).
-- **The channel table** maps names to indexes and is the host's. A joiner's HELLO names its channels; the rest, and any registered later, go as REGISTER on the control channel. The host assigns indexes (at most 256 entries) and sends the joiner a SYNC (the table and the peers) right after WELCOME, then a CHANNEL for every new entry. A joiner can send on a channel once it is in its table.
-- **Control channel** (index 0, `sco.net`, reliable, 64 KiB): SYNC (1), CHANNEL (2), REGISTER (3, joiner to host), PEER_JOINED (4), PEER_LEFT (5).
+- **The channel table** maps names to indexes and is the host's. A joiner's HELLO names its channels; the rest, and any registered later, go as REGISTER on the control channel. The host assigns indexes (at most 256 entries) and sends the joiner a SYNC (the table and the peers) right after WELCOME (after HOST_ROLE, when the host is a server), then a CHANNEL for every new entry. A joiner can send on a channel once it is in its table.
+- **Control channel** (index 0, `sco.net`, reliable, 64 KiB): SYNC (1), CHANNEL (2), REGISTER (3, joiner to host), PEER_JOINED (4), PEER_LEFT (5), HOST_ROLE (6, host to joiner, from a server host only, before SYNC; see [Host role](#host-role)).
 - **Receiving.** A message on a channel this endpoint didn't register is counted (`unknownChannel`) and dropped; one over the receiver's `max_len`, or on a FROM_HOST channel from anyone but the host, is counted as `refused` and dropped.
 
 ## Session size
 
-A session holds at most `SC_NET_MAX_PEERS` players, the host included: 51. The number is the host's own
+A session holds at most `SC_NET_MAX_PEERS` endpoints, the host included: 51. A player host is one of them,
+and so is a server host, which takes no player seat ([Host role](#host-role)). The number is the host's own
 admission rule, and **the protocol version stays 1** because nothing on the wire depends on it:
 
 - Only the host compares a join with the limit. When the session is full it answers the joiner's PROOF
@@ -106,6 +108,66 @@ plugin-facing header keeps `SCO_NET_MAX_PEERS` at 16 (version 1.0 of `sco.net` i
 `SCO_NET_SESSION_MAX_PEERS`, 51, for the runtime's limit; a plugin that sized a `get_peers` buffer by the old
 macro gets `SCO_TOO_MANY` (with the first 16 peers written and the true count) once more than 16 players are in
 the session ([Limits](net.md#limits)).
+
+## Host role
+
+A host can be a **server**: a headless `sco.net` host that is not a player, run by players (for example a
+standalone relay that stays up while the players come and go). It is not the game's own dedicated server
+(that model stays excluded, [design section 2](design/multiplayer.md#permanent-exclusions-never-ported)) and
+not a relay run by the project. It still is the host and peer 1, because the star topology needs one, but it
+takes no player seat and has no ghost, and a client should neither count it nor draw it as a player.
+`Options::server` turns it on. The service's own `Host` request and the private-session broker are
+unchanged: they always host a player.
+
+**The message.** HOST_ROLE is a control message on channel 0, reliable and authenticated like SYNC: `u8 type`
+(6), `u8 flags`. Bit 0 (`SC_NET_HOST_ROLE_F_SERVER`) means server; every other bit must be 0. A server host
+sends it to each joiner right after WELCOME and before SYNC, so the joiner knows what the host is before it
+hears of any peer, and the host's JOINED event already has the answer. A player host sends nothing, and a
+joiner that never gets one reads the host as a player (flags 0). A joiner accepts it once, from the host,
+before SYNC, with exactly two bytes and no undefined bit. Anything else is counted as a malformed control
+message and changes nothing, so a role is never half applied. A host counts one received from a joiner as
+malformed, like any control message but REGISTER. No other body changes: SYNC, PEER_JOINED and PEER_LEFT
+carry the same fields as before. `Core::Peers()` marks the host's entry with `kPeerServer` on the host and on
+every joiner, and the service answers `get_peer_flags` from it ([Multiplayer messages](net.md#servers-11)).
+
+**Seats and the transport bound.** Two limits are counted apart. *Player seats* are `Options::maxPeers`: a
+player host is one of them, so it admits `maxPeers - 1` joiners; a server is none, so it admits `maxPeers`.
+The *transport bound* is `SC_NET_MAX_PEERS` endpoints (51), the host's own slot counted whether it plays or
+not. A join must fit both, or the joiner gets REFUSE code 3 (full). With 50 seats a player host admits 49
+joiners and a server admits 50. With the seat budget at 51 a player host admits 50 and a server still
+admits 50, because its own slot is the 51st endpoint. The 52nd endpoint is refused in every case. Peer ids
+do not change: the host is 1, joiners get 2, 3, ..., never reused.
+
+**The protocol version stays 1.** A joiner built before this message must not be locked out of a server, and
+it is not. What such a joiner does with the message, from the code of the 2.2.0 release (`sdk-v2.2.0`,
+whose `src/net/` is byte for byte the code this change starts from):
+
+- A joiner reads a control message in `Core::Impl::OnControl`. The switch over the type has a `default:`
+  that does `++stats.malformed; return;`, and type 6 is unknown to it. Nothing on that path ends the
+  session, removes the link or stops the stream.
+- The unit that carried the message is acknowledged like any other: `RecvStream::OnUnit` sets `ackDue`
+  before the message is handed to `OnControl`, whatever it says. The reliable control stream does not
+  stall, SYNC arrives behind it in order, and `OnSync` keeps no memory of earlier control messages.
+- So a 2.2.0 joiner joins a server, reaches Joined, lists the server as a player (all it can know) and
+  counts one malformed message more than against a player host. Every other counter is the same. The cost
+  is cosmetic: an old game lists a server as one more player.
+- A joiner that knows the message joins a 2.2.0 host, which sends none, and lists it as a player.
+- Nothing else moved: framing, handshake, keys, SYNC, ids and the host's limit are as they were.
+
+The alternative is protocol version 2, which makes both sides know HOST_ROLE. A HELLO from a 2.2.0 joiner
+then gets REFUSE code 1 (protocol version mismatch), so no game built from 2.2.0 or earlier could join a
+server at all, in exchange for no joiner ever listing a server as a player. It is the maintainers' choice.
+The change is `SC_NET_PROTOCOL_VERSION` and its pin in `tests/abi_sc_net.c`; HOST_ROLE can then be required
+instead of optional.
+
+**What the tests cover** (`tests/test_net.cpp` and `tests/test_net_service.cpp`; in memory, not run in game):
+real server and player hosts with joiners (everyone agrees on the role, the joiner knows it when the host's
+JOINED event fires, no malformed message on either side, a joiner that moves to a host of the other kind
+keeps no memory of the first); the seat counts above with up to 50 joiners and the refused next one; a
+scripted host that sends the message twice, late, too short, too long and with an undefined bit, and a
+control type the joiner does not know (what a 2.2.0 joiner makes of type 6: one malformed message, and the
+SYNC behind it is accepted); and the service reading the role through `get_peer_flags`. A real 2.2.0 build
+joining a server is not part of these tests.
 
 ## The service on top (plan PR 4b)
 

@@ -293,6 +293,13 @@ typedef struct sco_net_v1 {
 - **CGNAT is not in the default LAN set.** The default is loopback, RFC 1918 and link-local only; Tailscale's `100.64.0.0/10` is one line of the product's allow-list, added when the player picks that VPN. `100.64.0.0/10` is shared carrier address space, so allowing it by default would admit a whole ISP's customers behind CGNAT.
 - **Quotas are per plugin, not per plugin and peer:** a send goes to every peer through the host's star, so one budget per plugin bounds the same traffic. Defaults 256 messages and 512 KiB per second (one second's burst), 1 MiB waiting to go out, 1,024 messages or 4 MiB waiting for a plugin's tick.
 - **The sockets are `udp_win.cpp` / `udp_posix.cpp`,** IPv4 only for now.
+- **A host can be a server (sco.net 1.1, added after 4b).** A headless host that is not a player: it still is
+  the host and peer 1, but takes no player seat, and each joiner is told so by one control message,
+  HOST_ROLE, sent before SYNC. It is a headless `sco.net` host run by players, for example a standalone relay.
+  It is neither the fork's dedicated server (section 2, which stays excluded) nor a relay run by the
+  project. The wire stays version 1 because a joiner that does not know the message counts it as malformed
+  and carries on; `get_peer_flags` (the table grows to 72 bytes) lets a plugin leave the server out of its
+  player list. [Host role](../net-wire.md#host-role) has the reasoning and the version-2 alternative.
 - **Not yet:** disconnecting a peer that keeps sending over a receive rate or on unknown channels (4b drops and counts those), the two-process `sco-host-sim` test with a `net_echo` example (the service's threaded path is tested in one process over UDP loopback against a second `Core` instead), and the C# and Lua layers. Each is a follow-up PR.
 
 ### 3.2 `sco::game::net`: a few benign engine points

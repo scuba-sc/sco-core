@@ -103,7 +103,8 @@ extern "C" {
  * a joiner built for 16 seats joins a 51-seat host, and a host built for 16 seats still refuses at
  * 16. The peer list travels in one SYNC control message on the reliable stream (fragmented, about
  * 21 KB at most against SC_NET_CONTROL_MAX), never in one datagram. See docs/net-wire.md, "Session
- * size". */
+ * size". A host that is a server (SC_NET_CTL_HOST_ROLE) takes one of these slots too, because it is an
+ * endpoint of the session, but no player seat: its session holds at most 50 players. */
 #define SC_NET_MAX_PEERS     51u              /* a session, the host included */
 #define SC_NET_MAX_UNREL     1200u            /* bytes in one unreliable message */
 #define SC_NET_MAX_RELIABLE  (256u * 1024u)   /* bytes in one reliable message */
@@ -180,6 +181,25 @@ extern "C" {
 #define SC_NET_CTL_REGISTER    3u
 #define SC_NET_CTL_PEER_JOINED 4u
 #define SC_NET_CTL_PEER_LEFT   5u
+#define SC_NET_CTL_HOST_ROLE   6u
+
+/* HOST_ROLE (host to joiner; body: u8 type 6, u8 flags) says what kind of host this is. A host that is a
+ * server, a headless host that takes no player seat, sends it once to each joiner, after WELCOME and
+ * before SYNC, so the joiner knows the role before it hears of any peer. A host that is a player sends
+ * nothing, and no message means flags 0. Bit 0 (SC_NET_HOST_ROLE_F_SERVER) marks a server; every other
+ * bit must be 0. A joiner that gets the message twice, after SYNC, with another length or with another
+ * bit set counts it as malformed and keeps the role it had. Only a host sends it: a host that receives
+ * one from a joiner counts it as malformed, like any control message but REGISTER.
+ *
+ * The protocol version stays 1. A joiner built before this message (SDK 2.2.0) drops a control type it
+ * does not know with the malformed counter and nothing else (Core::Impl::OnControl, the default case of
+ * the joiner's switch): the link, the session and the reliable control stream carry on, the unit is
+ * acknowledged like any other, and SYNC follows as before. So an old joiner joins a server, lists it as
+ * a player (all it can do) and counts one malformed message. A joiner that knows the message joins a
+ * host that sends none (every 2.2.0 host) and lists it as a player. Raising the version instead would
+ * make a server refuse every old joiner. docs/net-wire.md, "Host role", has the reasoning and the
+ * version-2 alternative. */
+#define SC_NET_HOST_ROLE_F_SERVER 0x1u
 
 /* Key labels, hashed with their NUL: use sizeof(SC_NET_LABEL_x) bytes. */
 #define SC_NET_LABEL_PROOF   "sco.net proof"

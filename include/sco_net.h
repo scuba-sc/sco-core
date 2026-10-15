@@ -1,5 +1,5 @@
 /*
- * sco_net.h: the host service "sco.net", version 1.0.
+ * sco_net.h: the host service "sco.net", versions 1.0 and 1.1.
  *
  * Typed message channels between players in a private co-presence session (design
  * docs/design/multiplayer.md section 3.1; plugin guide docs/net.md). Plain C; usable from C and
@@ -41,6 +41,11 @@
  *    stopped the service, calls answer SCO_UNAVAILABLE (is_active 0).
  *  - Plaintext. Messages are authenticated and integrity-checked but not encrypted (anyone on
  *    the path can read them); never send secrets or personal data.
+ *  - Servers (1.1). The session's host is peer 1 and get_peers lists it like any member, but a host
+ *    can be a server: a headless host that is not a player and has no ghost. get_peer_flags says so
+ *    with SCO_NET_PEER_F_SERVER, and a plugin leaves such a peer out of its player list and count. A
+ *    1.0 table has no get_peer_flags, and a host older than the flag never marks anyone: every peer
+ *    is then a player.
  *
  * Events on the bus (sco_api subscribe), dispatched on the game thread from the host tick; data
  * starts with its size:
@@ -61,6 +66,7 @@ extern "C" {
 
 #define SCO_NET_NAME "sco.net"
 #define SCO_NET_VERSION_1_0 0x00010000u
+#define SCO_NET_VERSION_1_1 0x00010001u   /* + get_peer_flags */
 
 /* The session size version 1.0 of this header promised: 16, self included. It stays 16 with the rest of
  * version 1.0 (tests/abi_net.c pins it, and existing lines never change), so it no longer bounds what a
@@ -94,6 +100,9 @@ extern "C" {
 #define SCO_NET_PEER_JOINED 1u
 #define SCO_NET_PEER_LEFT   2u
 #define SCO_NET_PEER_ENTITY 3u   /* the product set (or cleared) the peer's entity_id */
+
+/* get_peer_flags result bits (1.1). Every other bit is 0 today. */
+#define SCO_NET_PEER_F_SERVER SC_NET_HOST_ROLE_F_SERVER   /* 0x1: a host that is a server, not a player */
 
 /* A peer in the session. */
 typedef struct sco_net_peer {
@@ -157,6 +166,16 @@ typedef struct sco_net_v1 {
     sco_result (*unregister_channel)(sco_plugin* self, const char* channel_fqn);
     /* This player's peer id in the active session (the host is 1), 0 when none. */
     uint64_t (*self_peer)(void);
+
+    /* 1.1. The peer's flags: SCO_NET_PEER_F_SERVER marks a host that is a server, a headless host that
+     * is not a player and has no ghost (peer 1, still listed by get_peers because it is a member of
+     * the session); 0 is a plain player. Read it when the peer's net.peer JOINED event arrives. Like
+     * get_peers and get_peer_name it answers from the session as of the last network step, so a
+     * handler that runs just before the step has published may get SCO_NOT_FOUND: ask again on the
+     * next tick. *out_flags is 0 on every failure. SCO_NOT_FOUND: no such peer in the active
+     * session. SCO_BAD_ARG: out_flags NULL. Check size >= 72 and a non-NULL pointer before calling:
+     * a 1.0 table ends at self_peer. */
+    sco_result (*get_peer_flags)(uint64_t peer_id, uint32_t* out_flags);
 } sco_net_v1;
 
 #ifdef __cplusplus

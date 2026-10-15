@@ -30,6 +30,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace sco::net;
@@ -77,6 +78,8 @@ static void TickNet() {
 struct Events {
     std::vector<sco_net_state_event> states;
     std::vector<sco_net_peer_event>  peers;
+    // For each "net.peer" event: what get_peer_flags answered from inside the handler, as a plugin reads it.
+    std::vector<std::pair<sco_result, uint32_t>> peerFlags;
 };
 static Events g_events;
 static int    g_eventsOwner;
@@ -86,7 +89,12 @@ static void OnEvent(const char* ev, const void* data, void*) {
         if (e->size == sizeof(sco_net_state_event)) g_events.states.push_back(*e);
     } else if (std::strcmp(ev, SCO_NET_EVENT_PEER) == 0) {
         const auto* e = static_cast<const sco_net_peer_event*>(data);
-        if (e->size == sizeof(sco_net_peer_event)) g_events.peers.push_back(*e);
+        if (e->size == sizeof(sco_net_peer_event)) {
+            g_events.peers.push_back(*e);
+            uint32_t flags = 0xFFFFFFFFu;
+            const sco_result r = g_t ? g_t->get_peer_flags(e->peer.peer_id, &flags) : SCO_UNAVAILABLE;
+            g_events.peerFlags.emplace_back(r, flags);
+        }
     }
 }
 
@@ -826,6 +834,93 @@ static void TestThreadedService() {
     CHECK(sco::Release(p) == Result::Ok);
 }
 
+// ---- servers: the role of the host, read through the table ------------------------------------------------
+
+// A remote Core hosts as a server and the service joins it. The role is readable from the table, from the
+// wrapper and from inside the "net.peer" handler of the host's JOINED event (OnEvent records what the table
+// answered there). A player host marks no one, and neither does the service when it hosts.
+static void TestServerFlags() {
+    const void* table = nullptr;
+    CHECK(g_api->query_service(SCO_NET_NAME, SCO_NET_VERSION_1_1, &table) == SCO_OK && table == g_t);
+    CHECK(g_api->query_service(SCO_NET_NAME, SCO_NET_VERSION_1_0, &table) == SCO_OK && table == g_t);
+    CHECK(g_api->query_service(SCO_NET_NAME, 0x00010002u, &table) == SCO_UNAVAILABLE);
+    CHECK(g_t->size == sizeof(sco_net_v1) && g_t->size == 72);
+    uint32_t flags = 99;
+    CHECK(g_t->get_peer_flags(kHostPeer, &flags) == SCO_NOT_FOUND && flags == 0);   // no session yet
+    CHECK(g_t->get_peer_flags(kHostPeer, nullptr) == SCO_BAD_ARG);
+
+    {
+        Lab lab;
+        Options ho = RemoteOpts();
+        ho.playerName = "Relay";
+        ho.server = true;
+        CHECK(lab.remote.core.Host(ho, g_clock));
+        JoinOptions j;
+        j.transport = &lab.svc;
+        j.endpoint = lab.other.Self();
+        j.passphrase = kPass;
+        j.playerName = "Me";
+        g_events.peers.clear();
+        g_events.peerFlags.clear();
+        CHECK(Join(j) == Result::Ok);
+        CHECK(lab.Until([] { return g_t->is_active() == 1; }));
+        TickNet();
+        CHECK(g_events.peers.size() == 1 && g_events.peers[0].what == SCO_NET_PEER_JOINED &&
+              g_events.peers[0].peer.peer_id == kHostPeer);
+        CHECK(g_events.peerFlags.size() == 1 && g_events.peerFlags[0].first == SCO_OK &&
+              g_events.peerFlags[0].second == SCO_NET_PEER_F_SERVER);
+        CHECK(g_t->get_peer_flags(kHostPeer, &flags) == SCO_OK && flags == SCO_NET_PEER_F_SERVER);
+        CHECK(g_t->self_peer() == 2 && g_t->get_peer_flags(2, &flags) == SCO_OK && flags == 0);
+        flags = 99;
+        CHECK(g_t->get_peer_flags(9, &flags) == SCO_NOT_FOUND && flags == 0);
+        CHECK(PeerCount() == 2);   // get_peers still lists the server: it is a member of the session
+        sco::sdk::Net net;
+        CHECK(net.Open(g_api, g_a2) == SCO_OK);
+        CHECK(net.IsServer(kHostPeer) && !net.IsServer(net.SelfPeer()) && !net.IsServer(9));
+        CHECK(net.PeerFlags(kHostPeer) == SCO_NET_PEER_F_SERVER && net.PeerFlags(9) == 0);
+        lab.remote.core.Leave("done");
+        CHECK(lab.Until([] { return GetState() == State::Idle; }));
+        TickNet();
+        flags = 99;
+        CHECK(g_t->get_peer_flags(kHostPeer, &flags) == SCO_NOT_FOUND && flags == 0);   // the session is over
+    }
+    {
+        // A player host, as every 2.2.0 host is, marks no one.
+        Lab lab;
+        CHECK(lab.remote.core.Host(RemoteOpts(), g_clock));
+        JoinOptions j;
+        j.transport = &lab.svc;
+        j.endpoint = lab.other.Self();
+        j.passphrase = kPass;
+        j.playerName = "Me";
+        CHECK(Join(j) == Result::Ok);
+        CHECK(lab.Until([] { return g_t->is_active() == 1; }));
+        sco::sdk::Net net;
+        CHECK(net.Open(g_api, g_a2) == SCO_OK);
+        CHECK(g_t->get_peer_flags(kHostPeer, &flags) == SCO_OK && flags == 0);
+        CHECK(!net.IsServer(kHostPeer) && net.PeerFlags(kHostPeer) == 0);
+        Leave("done");
+        CHECK(GetState() == State::Idle);
+    }
+    {
+        // The service as the host is a player, and so is every joiner.
+        Lab lab;
+        HostOptions h;
+        h.transport = &lab.svc;
+        h.passphrase = kPass;
+        h.playerName = "Host";
+        CHECK(Host(h) == Result::Ok);
+        CHECK(lab.remote.core.Join(RemoteOpts(), lab.svc.Self(), g_clock));
+        CHECK(lab.Until([&] { return lab.remote.core.Active() && PeerCount() == 2; }));
+        flags = 99;
+        CHECK(g_t->get_peer_flags(kHostPeer, &flags) == SCO_OK && flags == 0);
+        flags = 99;
+        CHECK(g_t->get_peer_flags(2, &flags) == SCO_OK && flags == 0);
+        Leave("done");
+        CHECK(GetState() == State::Idle);
+    }
+}
+
 static void Run(const char* name, void (*fn)()) {
     const int before = g_fail.load();
     fn();
@@ -874,6 +969,7 @@ int main() {
         std::printf("%s TestHostSession/Quotas/ReleaseOnUnload/Leave\n", g_fail.load() == before ? "ok  " : "FAIL");
     }
     Run("TestJoinSession", TestJoinSession);
+    Run("TestServerFlags", TestServerFlags);
     Run("TestFullSession", TestFullSession);
     Run("TestScope", TestScope);
     Run("TestUdpCores", TestUdpCores);

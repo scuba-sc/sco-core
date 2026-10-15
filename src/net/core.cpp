@@ -7,6 +7,8 @@
 //                      K = PBKDF2-HMAC-SHA256(passphrase, salt, kPbkdf2Iters, 32 bytes)
 //   (H checks the proof in constant time, then asks the product: Callbacks::admit)
 //   H -> J  WELCOME    cn, peer id, HMAC(K, "sco.net welcome" || cn || hn || peer id)
+//   H -> J  HOST_ROLE  a server host only, on the reliable control channel, so the joiner knows what the
+//                      host is before it hears of any peer (docs/net-wire.md, "Host role")
 //   H -> J  SYNC       on the reliable control channel: the channel table and the peers
 // A wrong passphrase fails the PROOF check: H answers REFUSE (code Passphrase) and forgets the
 // join. J checks WELCOME's MAC, so a host without the passphrase can't admit anyone either. Each
@@ -51,6 +53,7 @@ static_assert(SC_NET_CHALLENGE_BODY == 3 * kNonceBytes && SC_NET_PROOF_BODY == 2
 enum class Ctl : uint8_t {
     Sync = SC_NET_CTL_SYNC, Channel = SC_NET_CTL_CHANNEL, Register = SC_NET_CTL_REGISTER,
     PeerJoined = SC_NET_CTL_PEER_JOINED, PeerLeft = SC_NET_CTL_PEER_LEFT,
+    HostRole = SC_NET_CTL_HOST_ROLE,
 };
 
 void Label(const uint8_t key[kKeyBytes], const char* label, const uint8_t cn[kNonceBytes],
@@ -165,6 +168,11 @@ struct Core::Impl {
     uint64_t lastTryMs = 0;
     std::set<std::string, std::less<>> announced;
 
+    // Joiner: what the host said it is (HOST_ROLE comes before SYNC). A host that sends nothing is a
+    // player, so 0.
+    uint32_t hostFlags = 0;
+    bool     roleSeen = false;
+
     bool inPump = false;
     bool leaveRequested = false;
     std::string leaveReason;
@@ -188,7 +196,8 @@ struct Core::Impl {
 
     bool ValidOptions(const Options& o, bool host) const {
         if (o.passphrase.empty() || !ValidName(o.playerName) || o.pbkdf2Iters == 0) return false;
-        if (host && (o.maxPeers < 2 || o.maxPeers > kMaxPeers)) return false;
+        // A server takes no player seat, so a session of one player is fine; a player host needs a second.
+        if (host && (o.maxPeers < (o.server ? 1u : 2u) || o.maxPeers > kMaxPeers)) return false;
         return o.retryMs && o.resendMs && o.maxResendMs >= o.resendMs && o.keepaliveMs && o.peerTimeoutMs &&
                o.joinTimeoutMs;
     }
@@ -201,6 +210,8 @@ struct Core::Impl {
         index.clear();
         announced.clear();
         synced = false;
+        hostFlags = 0;
+        roleSeen = false;
         challenged = false;
         self = 0;
         nextPeer = kHostPeer + 1;
@@ -303,6 +314,14 @@ struct Core::Impl {
         w.U64(id);
         w.U16(static_cast<uint16_t>(text.size()));
         w.Bytes(text.data(), text.size());
+        return b;
+    }
+
+    static std::vector<uint8_t> CtlHostRole(uint32_t flags) {
+        std::vector<uint8_t> b;
+        Writer w(b);
+        w.U8(static_cast<uint8_t>(Ctl::HostRole));
+        w.U8(static_cast<uint8_t>(flags));
         return b;
     }
 
@@ -543,7 +562,13 @@ struct Core::Impl {
         }
         Link* old = LinkAt(from);   // the same address joining again (a restarted game)
         const size_t others = links.size() - (old ? 1u : 0u);
-        if (others + 1 >= opts.maxPeers) {
+        // Two limits, counted apart. Player seats: the players the host promised room for
+        // (Options::maxPeers); a server holds none. Endpoints: everyone on the transport, the host's own
+        // slot included whether it plays or not, never more than kMaxPeers. A join must fit both.
+        const size_t remotes = others + 1;                          // joiners, this one counted
+        const size_t players = remotes + (opts.server ? 0u : 1u);   // and the host, unless it is a server
+        const size_t endpoints = remotes + 1;                       // and the host's transport slot
+        if (players > opts.maxPeers || endpoints > kMaxPeers) {
             SendRefuse(from, pd.cn, Refusal::Full, "session full");
             return;
         }
@@ -577,6 +602,8 @@ struct Core::Impl {
         links.emplace(id, std::move(nl));
         Link& lr = *links[id];
         SendWelcome(lr);
+        // A server says so before SYNC, so the joiner knows what the host is before it hears of any peer.
+        if (opts.server) SendControl(lr, CtlHostRole(kPeerServer));
         SendControl(lr, Sync());
         if (cb.peer) cb.peer(PeerEvent::Joined, id, name);
     }
@@ -809,6 +836,18 @@ struct Core::Impl {
             const uint16_t idx = r.U16();
             std::string fqn;
             if (!r.Str(r.U16(), &fqn) || r.Left() || !TableSet(idx, fqn)) ++stats.malformed;
+            return;
+        }
+        case Ctl::HostRole: {
+            const uint32_t flags = r.U8();
+            // Only the host sends it, once, before SYNC, and its only bit is "server". Anything else is a
+            // malformed message and changes nothing, so a role is never half applied.
+            if (!r.ok() || r.Left() || synced || roleSeen || (flags & ~kPeerServer)) {
+                ++stats.malformed;
+                return;
+            }
+            roleSeen = true;
+            hostFlags = flags;
             return;
         }
         case Ctl::PeerJoined:
@@ -1175,11 +1214,13 @@ PeerId Core::Self() const { return Active() ? d_->self : 0; }
 std::vector<PeerInfo> Core::Peers() const {
     std::vector<PeerInfo> out;
     if (!Active()) return out;
-    out.push_back(PeerInfo{ d_->self, d_->opts.playerName });
-    if (d_->state == State::Hosting) {
-        for (const auto& kv : d_->links) out.push_back(PeerInfo{ kv.first, kv.second->name });
+    const bool hosting = d_->state == State::Hosting;
+    out.push_back(PeerInfo{ d_->self, d_->opts.playerName, hosting && d_->opts.server ? kPeerServer : 0u });
+    if (hosting) {
+        for (const auto& kv : d_->links) out.push_back(PeerInfo{ kv.first, kv.second->name, 0u });
     } else {
-        for (const auto& kv : d_->names) out.push_back(PeerInfo{ kv.first, kv.second });
+        for (const auto& kv : d_->names)
+            out.push_back(PeerInfo{ kv.first, kv.second, kv.first == kHostPeer ? d_->hostFlags : 0u });
     }
     return out;
 }

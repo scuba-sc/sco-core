@@ -3,8 +3,10 @@
  *
  * Compile-only, like abi_ipc.c. A program outside sco-core frames and verifies packets with these
  * numbers, so any line failing here is a protocol change: it needs SC_NET_PROTOCOL_VERSION bumped
- * and docs/net-wire.md updated in the same change. The one exception is SC_NET_MAX_PEERS: it is the
- * host's admission limit and nothing on the wire is sized by it (docs/net-wire.md, "Session size").
+ * and docs/net-wire.md updated in the same change. There are two exceptions, each argued in
+ * docs/net-wire.md. SC_NET_MAX_PEERS is the host's admission limit, and nothing on the wire is sized by
+ * it ("Session size"). SC_NET_CTL_HOST_ROLE is a control message that a joiner built without it drops
+ * as one malformed message and carries on, so adding it changed nothing for old joiners ("Host role").
  * The service table (sco_net.h, plan PR 4b) gets its own pin, tests/abi_net.c.
  *
  * tools/test.sh compiles it as C11 and C++20 for the host, with -fshort-enums, and for
@@ -60,6 +62,7 @@ PIN(SC_NET_REFUSE_VERSION == 1u && SC_NET_REFUSE_PASSPHRASE == 2u && SC_NET_REFU
 PIN(SC_NET_REFUSE_NOT_ADMITTED == 4u && SC_NET_REFUSE_BAD_HELLO == 5u);
 PIN(SC_NET_CTL_SYNC == 1u && SC_NET_CTL_CHANNEL == 2u && SC_NET_CTL_REGISTER == 3u);
 PIN(SC_NET_CTL_PEER_JOINED == 4u && SC_NET_CTL_PEER_LEFT == 5u);
+PIN(SC_NET_CTL_HOST_ROLE == 6u && SC_NET_HOST_ROLE_F_SERVER == 1u); /* added with the version kept at 1 */
 PIN(SC_NET_OK == 0 && SC_NET_E_SHORT == 1 && SC_NET_E_OVERSIZE == 2 && SC_NET_E_BAD_MAGIC == 3);
 PIN(SC_NET_E_BAD_VERSION == 4 && SC_NET_E_BAD_KIND == 5 && SC_NET_E_TRUNCATED == 6 && SC_NET_E_TRAILING == 7);
 PIN(SC_NET_REPLAY_NEW == 0 && SC_NET_REPLAY_DUPLICATE == 1 && SC_NET_REPLAY_TOO_OLD == 2);

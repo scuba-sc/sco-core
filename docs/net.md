@@ -11,7 +11,7 @@
 
 ## What a plugin can and can't do
 
-- It **can** see whether a session is up (`is_active`), who is in it (`get_peers`, `get_peer_name`, `self_peer`), register channels under its own id, send on them, and get the other players' messages.
+- It **can** see whether a session is up (`is_active`), who is in it (`get_peers`, `get_peer_name`, `self_peer`, and from 1.1 `get_peer_flags`, which says whether the host is a server), register channels under its own id, send on them, and get the other players' messages.
 - The neutral `sco.net` data table has no Host/Join/Leave or socket authority. The game-pack `game.private_session` table can request those operations after explicit local UI consent; bind/allowlist and offline admission remain host-only.
 - With no session, `is_active()` is 0, `send_channel` answers `SCO_UNAVAILABLE`, and no callback runs. A plugin must work exactly as before offline: send only "in addition" (see the design's [announce, don't centralize](design/multiplayer.md#42-domain-features-announce-dont-centralize)).
 
@@ -69,7 +69,7 @@ if (net.Active()) pose_.Send(pose);   // a trivially copyable struct
 
 ## Peers and events
 
-`get_peers` lists the session's players, yourself first; `self_peer` is your own id (the host is 1, joiners 2, 3, ... in join order, never reused in a session). `entity_id` is the session-scoped id of the ghost the product spawned for that player, 0 when there is none. Names come from `get_peer_name` (UTF-8, cut to your buffer, never in the middle of a character); they are what each player chose to show.
+`get_peers` lists the session's members, yourself first (a server host is listed too: [Servers](#servers-11)); `self_peer` is your own id (the host is 1, joiners 2, 3, ... in join order, never reused in a session). `entity_id` is the session-scoped id of the ghost the product spawned for that player, 0 when there is none. Names come from `get_peer_name` (UTF-8, cut to your buffer, never in the middle of a character); they are what each player chose to show.
 
 Two events on the bus, on the game thread, each starting with its size:
 
@@ -78,11 +78,36 @@ Two events on the bus, on the game thread, each starting with its size:
 | `net.state` | `sco_net_state_event { size, active, reason[128] }`: the session came up, or ended (the reason: "wrong passphrase", "the host timed out", ...) |
 | `net.peer` | `sco_net_peer_event { size, what, peer }`: `SCO_NET_PEER_JOINED`, `SCO_NET_PEER_LEFT` (with the entity id it had, so you can remove its ghost) or `SCO_NET_PEER_ENTITY` (the product set its ghost) |
 
+## Servers (1.1)
+
+The host of a session is peer 1, and `get_peers` lists it because it is a member of the session. A host can
+be a **server**: a headless host run by players (a standalone relay, for example) that is not a player. It
+takes no player seat and has no ghost. `get_peer_flags(peer_id, &flags)` answers `SCO_NET_PEER_F_SERVER` for
+such a host and 0 for a player; `scosdk::Net::IsServer(peer)` and `PeerFlags(peer)` wrap it. A plugin that
+lists players, counts them or spawns a ghost per peer leaves a server out:
+
+```cpp
+for (const sco_net_peer& p : net.Peers())
+    if (!net.IsServer(p.peer_id)) AddPlayerRow(p);   // the same test when the peer's JOINED event arrives
+```
+
+- **When to read it.** The host's role is known before the host's `net.peer` JOINED event, so read it in that
+  handler. Like `get_peers` and `get_peer_name`, `get_peer_flags` answers from the session as of the last
+  network step, so a handler that runs just before the step has published may get `SCO_NOT_FOUND` for a new
+  peer: ask again on the next tick.
+- **Older tables and hosts.** A 1.0 table (64 bytes) has no `get_peer_flags`: check `size >= 72` and a
+  non-NULL pointer, or use the wrapper, which answers 0. A game built before 1.1 lists a server as a player.
+  A host built before 1.1 never marks anyone, so every peer is a player. Neither case breaks a session.
+- **Who can be a server.** Only the code that owns the session (`sco::net::Core` with `Options::server`, as
+  a standalone relay does) makes a host a server. The service's own `Host` request and the private-session
+  broker always host a player, and a plugin cannot change a role. The wire side and the version decision are
+  in [Host role](net-wire.md#host-role).
+
 ## Limits
 
 | Limit | Value |
 |---|---|
-| Players in a session | 51 at most, the host included (the host picks; default 8) |
+| Players in a session | 51 at most, the host included. A server host takes one of the 51 but no player seat, so around a server there are 50 players (the host picks; default 8) |
 | Unreliable message | 1,200 bytes |
 | Reliable message | 256 KiB |
 | Channels per plugin | 32 |

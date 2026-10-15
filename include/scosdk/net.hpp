@@ -138,6 +138,16 @@ public:
         }
     }
 
+    // The peer's flags (SCO_NET_PEER_F_*, sco.net 1.1): 0 for a plain player, an unknown peer, or a
+    // host whose table is 1.0 and has no such member.
+    uint32_t PeerFlags(uint64_t peer) const noexcept {
+        uint32_t flags = 0;
+        if (!detail::CanCall(t_, &sco_net_v1::get_peer_flags) || t_->get_peer_flags(peer, &flags) != SCO_OK) return 0;
+        return flags;
+    }
+    // True for a server: a host that takes no player seat. Leave it out of a player list and count.
+    bool IsServer(uint64_t peer) const noexcept { return (PeerFlags(peer) & SCO_NET_PEER_F_SERVER) != 0; }
+
     // Registers name ("<plugin id>.<channel>") with flags (SCO_NET_*) and max_len; fn runs on the
     // game thread for each message.
     NetChannel Channel(const char* name, uint32_t flags, uint32_t maxLen, NetChannel::Fn fn) const noexcept {

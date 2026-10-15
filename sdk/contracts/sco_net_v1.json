@@ -7,11 +7,11 @@
       "symbol": "sco_net_v1.is_active",
       "table": "sco_net_v1",
       "service": "sco.net",
-      "version_macro": "SCO_NET_VERSION_1_0",
+      "version_macro": "SCO_NET_VERSION_1_1",
       "source_header": "include/sco_net.h",
       "signature": "int (*)(void)",
       "member_extent": 16,
-      "table_size": 64,
+      "table_size": 72,
       "since": "`size >= 16`; 1.0",
       "purpose": "1 while a session is up (hosting, or joined with the channel table received), else 0.",
       "buffer_contract": "`int (*is_active)(void);`<br>1 while a session is up (hosting, or joined with the channel table received), else 0.",
@@ -86,11 +86,11 @@
       "symbol": "sco_net_v1.get_peers",
       "table": "sco_net_v1",
       "service": "sco.net",
-      "version_macro": "SCO_NET_VERSION_1_0",
+      "version_macro": "SCO_NET_VERSION_1_1",
       "source_header": "include/sco_net.h",
       "signature": "sco_result (*)(sco_net_peer *, uint32_t *)",
       "member_extent": 24,
-      "table_size": 64,
+      "table_size": 72,
       "since": "`size >= 24`; 1.0",
       "purpose": "The session's peers, self first, then by id. *inout_count holds out's capacity on entry (out may be NULL with 0) and the number of peers on return; up to the capacity are written. SCO_TOO_MANY: more peers than the capacity (the first ones were written). SCO_OK with 0 when no session is active. SCO_BAD_ARG: inout_count NULL, or out NULL with a nonzero capacity. Element-count handshake, not bytes: writes min(capacity,total) and returns total in inout_count; no session means OK/0.",
       "buffer_contract": "`sco_result (*get_peers)(sco_net_peer* out, uint32_t* inout_count);`<br>The session's peers, self first, then by id. *inout_count holds out's capacity on entry (out may be NULL with 0) and the number of peers on return; up to the capacity are written. SCO_TOO_MANY: more peers than the capacity (the first ones were written). SCO_OK with 0 when no session is active. SCO_BAD_ARG: inout_count NULL, or out NULL with a nonzero capacity. Element-count handshake, not bytes: writes min(capacity,total) and returns total in inout_count; no session means OK/0.",
@@ -165,11 +165,11 @@
       "symbol": "sco_net_v1.get_peer_name",
       "table": "sco_net_v1",
       "service": "sco.net",
-      "version_macro": "SCO_NET_VERSION_1_0",
+      "version_macro": "SCO_NET_VERSION_1_1",
       "source_header": "include/sco_net.h",
       "signature": "sco_result (*)(uint64_t, char *, uint32_t)",
       "member_extent": 32,
-      "table_size": 64,
+      "table_size": 72,
       "since": "`size >= 32`; 1.0",
       "purpose": "Copies the peer's chosen name (UTF-8) into buf, NUL-terminated, cut to cap - 1 bytes. SCO_NOT_FOUND: no such peer in the active session. SCO_BAD_ARG: buf NULL or cap 0.",
       "buffer_contract": "`sco_result (*get_peer_name)(uint64_t peer_id, char* buf, uint32_t cap);`<br>Copies the peer's chosen name (UTF-8) into buf, NUL-terminated, cut to cap - 1 bytes. SCO_NOT_FOUND: no such peer in the active session. SCO_BAD_ARG: buf NULL or cap 0.",
@@ -244,11 +244,11 @@
       "symbol": "sco_net_v1.send_channel",
       "table": "sco_net_v1",
       "service": "sco.net",
-      "version_macro": "SCO_NET_VERSION_1_0",
+      "version_macro": "SCO_NET_VERSION_1_1",
       "source_header": "include/sco_net.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, const void *, uint32_t)",
       "member_extent": 40,
-      "table_size": 64,
+      "table_size": 72,
       "since": "`size >= 40`; 1.0",
       "purpose": "Queues len bytes on channel_fqn to the other peers (only the host for SCO_NET_TO_HOST). Copies buf; never blocks. SCO_BAD_ARG: a name outside this plugin's id, len over the channel's max_len, buf NULL with len &gt; 0, or the wrong direction (a FROM_HOST channel from a joiner, a TO_HOST channel from the host). SCO_NOT_FOUND: this plugin hasn't registered the channel. SCO_UNAVAILABLE: no active session. SCO_TOO_MANY: over the send quota, or the plugin's outgoing queue is full; dropped. A message no other peer has a channel for is dropped silently.",
       "buffer_contract": "`sco_result (*send_channel)(sco_plugin* self, const char* channel_fqn, const void* buf, uint32_t len);`<br>Queues len bytes on channel_fqn to the other peers (only the host for SCO_NET_TO_HOST). Copies buf; never blocks. SCO_BAD_ARG: a name outside this plugin's id, len over the channel's max_len, buf NULL with len &gt; 0, or the wrong direction (a FROM_HOST channel from a joiner, a TO_HOST channel from the host). SCO_NOT_FOUND: this plugin hasn't registered the channel. SCO_UNAVAILABLE: no active session. SCO_TOO_MANY: over the send quota, or the plugin's outgoing queue is full; dropped. A message no other peer has a channel for is dropped silently.",
@@ -323,11 +323,11 @@
       "symbol": "sco_net_v1.register_channel",
       "table": "sco_net_v1",
       "service": "sco.net",
-      "version_macro": "SCO_NET_VERSION_1_0",
+      "version_macro": "SCO_NET_VERSION_1_1",
       "source_header": "include/sco_net.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, uint32_t, uint32_t, sco_net_on_message, void *)",
       "member_extent": 48,
-      "table_size": 64,
+      "table_size": 72,
       "since": "`size >= 48`; 1.0",
       "purpose": "Registers channel_fqn (\"&lt;this plugin id&gt;.&lt;name&gt;\") with flags (SCO_NET_*) and the largest message this side accepts or sends, max_len (1..SCO_NET_MAX_UNREL, or 1..SCO_NET_MAX_RELIABLE with SCO_NET_RELIABLE); a longer incoming message is dropped before it is reassembled. cb runs on the game thread for each message; ctx is borrowed until unregister_channel or unload. Works with or without a session. SCO_BAD_ARG: a bad name, a name outside this plugin's id, one already registered, bad flags (FROM_HOST with TO_HOST), a bad max_len or a NULL cb. SCO_TOO_MANY: SCO_NET_MAX_CHANNELS already.",
       "buffer_contract": "`sco_result (*register_channel)(sco_plugin* self, const char* channel_fqn, uint32_t flags, uint32_t max_len, sco_net_on_message cb, void* ctx);`<br>Registers channel_fqn (\"&lt;this plugin id&gt;.&lt;name&gt;\") with flags (SCO_NET_*) and the largest message this side accepts or sends, max_len (1..SCO_NET_MAX_UNREL, or 1..SCO_NET_MAX_RELIABLE with SCO_NET_RELIABLE); a longer incoming message is dropped before it is reassembled. cb runs on the game thread for each message; ctx is borrowed until unregister_channel or unload. Works with or without a session. SCO_BAD_ARG: a bad name, a name outside this plugin's id, one already registered, bad flags (FROM_HOST with TO_HOST), a bad max_len or a NULL cb. SCO_TOO_MANY: SCO_NET_MAX_CHANNELS already.",
@@ -402,11 +402,11 @@
       "symbol": "sco_net_v1.unregister_channel",
       "table": "sco_net_v1",
       "service": "sco.net",
-      "version_macro": "SCO_NET_VERSION_1_0",
+      "version_macro": "SCO_NET_VERSION_1_1",
       "source_header": "include/sco_net.h",
       "signature": "sco_result (*)(sco_plugin *, const char *)",
       "member_extent": 56,
-      "table_size": 64,
+      "table_size": 72,
       "since": "`size >= 56`; 1.0",
       "purpose": "Removes one of this plugin's channels: no callback runs for it after this returns (on the game thread; from another thread, one already running may finish). SCO_NOT_FOUND: not registered by this plugin.",
       "buffer_contract": "`sco_result (*unregister_channel)(sco_plugin* self, const char* channel_fqn);`<br>Removes one of this plugin's channels: no callback runs for it after this returns (on the game thread; from another thread, one already running may finish). SCO_NOT_FOUND: not registered by this plugin.",
@@ -482,11 +482,11 @@
       "symbol": "sco_net_v1.self_peer",
       "table": "sco_net_v1",
       "service": "sco.net",
-      "version_macro": "SCO_NET_VERSION_1_0",
+      "version_macro": "SCO_NET_VERSION_1_1",
       "source_header": "include/sco_net.h",
       "signature": "uint64_t (*)(void)",
       "member_extent": 64,
-      "table_size": 64,
+      "table_size": 72,
       "since": "`size >= 64`; 1.0",
       "purpose": "This player's peer id in the active session (the host is 1), 0 when none.",
       "buffer_contract": "`uint64_t (*self_peer)(void);`<br>This player's peer id in the active session (the host is 1), 0 when none.",
@@ -553,6 +553,86 @@
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract."
+      ]
+    },
+    {
+      "id": "sco-net-v1-get-peer-flags",
+      "kind": "table-method",
+      "symbol": "sco_net_v1.get_peer_flags",
+      "table": "sco_net_v1",
+      "service": "sco.net",
+      "version_macro": "SCO_NET_VERSION_1_1",
+      "source_header": "include/sco_net.h",
+      "signature": "sco_result (*)(uint64_t, uint32_t *)",
+      "member_extent": 72,
+      "table_size": 72,
+      "since": "`size >= 72`; 1.1",
+      "purpose": "The peer's flags: SCO_NET_PEER_F_SERVER (0x1) marks a host that is a server, a headless host that is not a player and has no ghost; 0 is a plain player. Peer 1 is the host, and get_peers still lists a server because it is a member of the session. Read it when the peer's net.peer JOINED event arrives. Like get_peers it answers from the session as of the last network step. *out_flags is 0 on every failure. SCO_NOT_FOUND: no such peer in the active session. SCO_BAD_ARG: out_flags NULL.",
+      "buffer_contract": "`sco_result (*get_peer_flags)(uint64_t peer_id, uint32_t* out_flags);`<br>The peer's flags: SCO_NET_PEER_F_SERVER (0x1) marks a host that is a server, a headless host that is not a player and has no ghost; 0 is a plain player. Peer 1 is the host, and get_peers still lists a server because it is a member of the session. Read it when the peer's net.peer JOINED event arrives. Like get_peers it answers from the session as of the last network step. *out_flags is 0 on every failure. SCO_NOT_FOUND: no such peer in the active session. SCO_BAD_ARG: out_flags NULL.",
+      "ownership": "Caller buffer written in place; nothing owned or kept. The host owns the session snapshot it reads; no allocation transfer.",
+      "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
+      "callback_context": "callbacks game thread.",
+      "reentrancy": "Callbacks may call any method in this table.",
+      "results": "Absent table: query_service NOT_FOUND. A 1.0 table (64 bytes) has no such member: query_service answers UNAVAILABLE for SCO_NET_VERSION_1_1 against a 1.0 host, and a caller that asked for 1.0 checks size and a non-NULL pointer. Stopped service: UNAVAILABLE; NULL out_flags: BAD_ARG; unknown peer or no active session: NOT_FOUND; allocation exceptions: TOO_MANY.",
+      "absent_capability": "Absent table: query_service NOT_FOUND. A 1.0 table has no get_peer_flags: query_service answers UNAVAILABLE for SCO_NET_VERSION_1_1, and a caller that queried 1.0 checks size >= 72 and a non-NULL pointer. A host older than the flag marks no one, so every peer is a player.",
+      "cleanup": "No cancellation; a synchronous read of the host's session snapshot, nothing to undo at unload.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_net.h",
+              "token": "(*get_peer_flags)"
+            }
+          ],
+          "tests": [
+            "tests/abi_net.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/net.hpp",
+              "token": "if (!detail::CanCall(t_, &sco_net_v1::get_peer_flags) || t_->get_peer_flags(peer, &flags) != SCO_OK) return 0;"
+            }
+          ],
+          "tests": [
+            "tests/abi_net.c",
+            "tests/test_net_service.cpp",
+            "tools/test.sh"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/sdk-csharp.md",
+              "token": "There are no C# wrappers for `sco.ipc` and `sco.net` yet"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/net.md",
+              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_net.c",
+        "tests/test_net_service.cpp",
+        "tools/test.sh"
+      ],
+      "limitations": [
+        "Additional failures/output state unspecified unless described in the buffer contract.",
+        "A net.peer handler that runs just before the network step has published the session may get SCO_NOT_FOUND for a new peer; ask again on the next tick."
       ]
     }
   ]

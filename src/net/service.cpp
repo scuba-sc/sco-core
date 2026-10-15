@@ -499,6 +499,30 @@ sco_result GetPeerName(uint64_t peer, char* buf, uint32_t cap) {
     });
 }
 
+sco_result GetPeerFlags(uint64_t peer, uint32_t* out) {
+    return Guard([&] {
+        if (!out) return Result::BadArg;
+        *out = 0;   // zero on every failure; written before any lock is held
+        uint32_t flags = 0;
+        bool found = false;
+        {
+            std::lock_guard<std::mutex> hold(g_lock);
+            if (!g_started) return Result::Unavailable;
+            if (g_active) {
+                for (const PeerInfo& p : g_peers)
+                    if (p.id == peer) {
+                        flags = p.flags;
+                        found = true;
+                        break;
+                    }
+            }
+        }
+        if (!found) return Result::NotFound;
+        *out = flags;
+        return Result::Ok;
+    });
+}
+
 sco_result SendChannel(sco_plugin* self, const char* fqn, const void* buf, uint32_t len) {
     return Guard([&] {
         std::string name;
@@ -603,7 +627,7 @@ uint64_t SelfPeer() {
 
 const sco_net_v1 kTable = {
     sizeof(sco_net_v1), 0,
-    IsActive, GetPeers, GetPeerName, SendChannel, RegisterChannel, UnregisterChannel, SelfPeer,
+    IsActive, GetPeers, GetPeerName, SendChannel, RegisterChannel, UnregisterChannel, SelfPeer, GetPeerFlags,
 };
 
 // ---- lifetime -----------------------------------------------------------------------------------
@@ -673,7 +697,7 @@ Result Start(const ServiceOptions& opts) {
     }
     Result r = AddReleaseHook(OnRelease);
     if (r == Result::Ok) {
-        r = host::ProvideHostService(SCO_NET_NAME, SCO_NET_VERSION_1_0, &kTable);
+        r = host::ProvideHostService(SCO_NET_NAME, SCO_NET_VERSION_1_1, &kTable);
         if (r == Result::Ok) {
             r = caps::Set(kCapability, true);
             if (r != Result::Ok) host::WithdrawHostService(SCO_NET_NAME);

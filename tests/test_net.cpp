@@ -491,6 +491,7 @@ struct Node {
     Core core;
     std::vector<Got> got;
     std::vector<std::string> events;   // "J2:Ann", "L2:left: bye"
+    int hostFlagsAtJoin = -1;          // the host's flags in Peers() at the moment its JOINED event fired
     int ups = 0, downs = 0;
     std::string lastDown;
     std::function<bool(std::string_view, const Endpoint&)> admit;
@@ -504,6 +505,9 @@ struct Node {
         };
         cb.peer = [this](PeerEvent e, PeerId id, std::string_view text) {
             events.push_back((e == PeerEvent::Joined ? "J" : "L") + std::to_string(id) + ":" + std::string(text));
+            if (e == PeerEvent::Joined && id == kHostPeer)
+                for (const PeerInfo& p : core.Peers())
+                    if (p.id == kHostPeer) hostFlagsAtJoin = static_cast<int>(p.flags);
         };
         cb.state = [this](bool active, std::string_view reason) {
             if (active) {
@@ -1183,6 +1187,334 @@ static void TestJoinBurst() {
     BurstCase(kMaxPeers + 9);   // 60 for 50: 50 get in, 10 are told the session is full
 }
 
+// ---- servers: a host that takes no player seat --------------------------------------------------------------
+
+// A real server host and a real player host, each with two joiners. The 2.2.0 host sends no HOST_ROLE, so a
+// player host here stands for it: a joiner that gets no role reads a player. Everyone must agree on who is
+// the server, the joiners must know the role by the time the host's JOINED event fires, nothing may be
+// counted malformed on either side, and a joiner that moves to a host of the other kind keeps no memory of
+// the first.
+static void TestServerHost() {
+    for (const bool server : { true, false }) {
+        MemNet net(server ? 31 : 32);
+        Node host(net, 1), ann(net, 2), bob(net, 3);
+        std::vector<Node*> all{ &host, &ann, &bob };
+        for (Node* n : all) CHECK(n->core.RegisterChannel("g.chat", kReliable, 100));
+        Options ho = Opts("Host", "pw", 1);
+        ho.server = server;
+        CHECK(host.core.Host(ho, 0));
+        CHECK(ann.core.Join(Opts("Ann", "pw", 10), host.tr.Self(), 0));
+        CHECK(bob.core.Join(Opts("Bob", "pw", 11), host.tr.Self(), 0));
+        CHECK(RunUntil(net, all, 5000, [&] {
+            return Joined(ann) && Joined(bob) && host.core.Peers().size() == 3 && ann.core.Peers().size() == 3 &&
+                   bob.core.Peers().size() == 3;
+        }));
+        const uint32_t hostFlags = server ? kPeerServer : 0u;
+        for (Node* n : all) {
+            const std::vector<PeerInfo> peers = n->core.Peers();
+            CHECK(peers.size() == 3 && peers[0].id == n->core.Self());
+            for (const PeerInfo& p : peers) CHECK(p.flags == (p.id == kHostPeer ? hostFlags : 0u));
+        }
+        CHECK(ann.hostFlagsAtJoin == static_cast<int>(hostFlags) && bob.hostFlagsAtJoin == static_cast<int>(hostFlags));
+        CHECK(host.core.Self() == kHostPeer && ann.core.Self() == 2 && bob.core.Self() == 3);
+        for (Node* n : all) CHECK(n->core.GetStats().malformed == 0);
+
+        // A server relays like any host: Bob's message reaches the host and Ann, once, from Bob.
+        const uint8_t hi[2] = { 'h', 'i' };
+        CHECK(bob.core.Send("g.chat", hi, 2) == SendResult::Ok);
+        CHECK(RunUntil(net, all, net.now + 3000, [&] { return host.Count("g.chat") == 1 && ann.Count("g.chat") == 1; }));
+        CHECK(host.got[0].from == 3 && ann.got[0].from == 3);
+
+        // Ann moves to a host of the other kind. Options::server means nothing to a joiner: it never marks
+        // her own entry.
+        Node other(net, 4);
+        Options oo = Opts("Other", "pw", 2);
+        oo.server = !server;
+        CHECK(other.core.Host(oo, net.now));
+        all.push_back(&other);
+        ann.core.Leave("moving");
+        ann.hostFlagsAtJoin = -1;
+        Options jo = Opts("Ann", "pw", 12);
+        jo.server = true;
+        CHECK(ann.core.Join(jo, other.tr.Self(), net.now));
+        CHECK(RunUntil(net, all, net.now + 5000, [&] { return Joined(ann) && ann.core.Peers().size() == 2; }));
+        const uint32_t otherFlags = server ? 0u : kPeerServer;
+        const std::vector<PeerInfo> moved = ann.core.Peers();
+        CHECK(moved.size() == 2 && moved[0].flags == 0 && moved[1].id == kHostPeer && moved[1].flags == otherFlags);
+        CHECK(ann.hostFlagsAtJoin == static_cast<int>(otherFlags));
+        CHECK(other.core.Peers().front().flags == otherFlags);
+    }
+}
+
+// Joiners fill a session until the host says it is full: `admits` must get in, and the next one must be
+// refused with "the session is full" without anyone else noticing. They join in waves of 25 because the
+// host remembers at most kMaxPending (32) half-open joins at once; players arrive one by one in real use.
+// Every roster must agree on which entry, if any, is the server.
+static void FillSeats(const char* label, bool server, uint32_t maxPeers, uint32_t admits) {
+    const int before = g_fail;
+    MemNet net(500 + maxPeers + admits + (server ? 100 : 0));
+    std::vector<std::unique_ptr<Node>> nodes;   // [0] the host, [1..admits] the joiners, [admits + 1] one too many
+    for (uint32_t i = 0; i <= admits + 1; ++i) nodes.push_back(std::make_unique<Node>(net, static_cast<uint16_t>(i + 1)));
+    Node& host = *nodes[0];
+    Options ho = Opts("Host", "pw", 1);
+    ho.maxPeers = maxPeers;
+    ho.server = server;
+    CHECK(host.core.Host(ho, 0));
+
+    std::vector<Node*> live{ &host };
+    size_t joined = 0;
+    while (joined < admits) {
+        const size_t wave = std::min<size_t>(25, admits - joined);
+        for (size_t k = 0; k < wave; ++k) {
+            Node& n = *nodes[++joined];
+            const std::string name = "P" + std::to_string(joined);
+            CHECK(n.core.Join(Opts(name.c_str(), "pw", 1000 + joined), host.tr.Self(), net.now));
+            live.push_back(&n);
+        }
+        CHECK(RunUntil(net, live, net.now + 20000, [&] {
+            for (size_t i = 1; i <= joined; ++i)
+                if (!Joined(*nodes[i])) return false;
+            return host.core.Peers().size() == joined + 1;
+        }));
+    }
+    CHECK(RunUntil(net, live, net.now + 5000, [&] {
+        for (Node* n : live)
+            if (n->core.Peers().size() != admits + 1) return false;
+        return true;
+    }));
+    for (Node* n : live) {
+        const std::vector<PeerInfo> peers = n->core.Peers();
+        CHECK(peers.size() == admits + 1);
+        for (const PeerInfo& p : peers) CHECK(p.flags == (p.id == kHostPeer && server ? kPeerServer : 0u));
+    }
+
+    Node& extra = *nodes[admits + 1];
+    const uint64_t refused0 = host.core.GetStats().joinsRefused;
+    const size_t hostEvents = host.events.size();
+    CHECK(extra.core.Join(Opts("Extra", "pw", 2000), host.tr.Self(), net.now));
+    live.push_back(&extra);
+    CHECK(RunUntil(net, live, net.now + 5000, [&] { return extra.core.GetState() == State::Idle; }));
+    CHECK(extra.lastDown == "refused: the session is full" && host.core.GetStats().joinsRefused == refused0 + 1);
+    CHECK(host.core.Peers().size() == admits + 1 && host.events.size() == hostEvents);
+    if (g_fail != before) std::printf("  seat run failed: %s\n", label);
+}
+
+// Player seats and the transport bound are two counts. With 50 seats a player host admits 49 joiners and a
+// server admits 50. With a seat budget over the transport bound (51) a server still admits 50, because its
+// own slot is the 51st endpoint of the session. Every run refuses the next join.
+static void TestSeatAccounting() {
+    FillSeats("player host, 50 seats", false, 50, 49);
+    FillSeats("server host, 50 seats", true, 50, 50);
+    FillSeats("server host, 51 seats: the transport bound holds", true, kMaxPeers, kMaxPeers - 1);
+    FillSeats("server host, one seat", true, 1, 1);
+
+    // The options: a player host needs a second seat, a server only one; nobody passes the transport bound.
+    MemNet net(41);
+    Node n(net, 1);
+    auto starts = [&](uint32_t maxPeers, bool server) {
+        Options o = Opts("Host", "pw", 1);
+        o.maxPeers = maxPeers;
+        o.server = server;
+        const bool ok = n.core.Host(o, 0);
+        n.core.Leave("test");
+        return ok;
+    };
+    CHECK(!starts(0, false) && !starts(1, false) && starts(2, false) && starts(kMaxPeers, false) &&
+          !starts(kMaxPeers + 1, false));
+    CHECK(!starts(0, true) && starts(1, true) && starts(kMaxPeers, true) && !starts(kMaxPeers + 1, true));
+}
+
+// ---- a host played by the test ---------------------------------------------------------------------------
+
+// HMAC under a handshake label: the NUL ends the string and is hashed with it (sc_net.h).
+static void LabelMac(const uint8_t key[kKeyBytes], const char* label, const uint8_t cn[kNonceBytes],
+                     const uint8_t hn[kNonceBytes], const uint8_t* extra, size_t extraLen, uint8_t out[32]) {
+    sco_hmac_sha256 c;
+    sco_hmac_sha256_init(&c, key, kKeyBytes);
+    sco_hmac_sha256_update(&c, label, std::strlen(label) + 1);
+    sco_hmac_sha256_update(&c, cn, kNonceBytes);
+    sco_hmac_sha256_update(&c, hn, kNonceBytes);
+    if (extraLen) sco_hmac_sha256_update(&c, extra, extraLen);
+    sco_hmac_sha256_final(&c, out);
+}
+
+// A real Core never sends a bad HOST_ROLE, so to see how a joiner treats one the test plays the host. It
+// answers the joiner's HELLO and PROOF with the real handshake (the joiner's own checks run on it), and
+// right after WELCOME sends a script of control messages, in order, as reliable DATA units on channel 0.
+// The network is lossless here, so it never resends and ignores the joiner's ACKs. The joiner is peer 2.
+class FakeHost {
+public:
+    MemTransport tr;
+
+    FakeHost(MemNet& net, uint16_t id, const char* pass, uint32_t iters, std::vector<std::vector<uint8_t>> script)
+        : tr(net, id), script_(std::move(script)) {
+        for (uint32_t i = 0; i < kSaltBytes; ++i) salt_[i] = static_cast<uint8_t>(0x30 + i);
+        for (uint32_t i = 0; i < kNonceBytes; ++i) hn_[i] = static_cast<uint8_t>(0x70 + i);
+        CHECK(sco_pbkdf2_hmac_sha256(pass, std::strlen(pass), salt_, kSaltBytes, iters, k_, kKeyBytes) == 1);
+    }
+
+    void Pump() {
+        Endpoint from;
+        uint8_t buf[kMaxDatagram + 1];
+        size_t len = 0;
+        while (tr.Receive(&from, buf, sizeof(buf), &len)) {
+            Packet p;
+            if (len > kMaxDatagram || Parse(buf, len, &p) != ParseError::Ok) continue;
+            if (p.h.kind == Kind::Hello && p.h.bodyLen >= kNonceBytes) {
+                peer_ = from;
+                std::memcpy(cn_, p.body, kNonceBytes);
+                std::vector<uint8_t> b;
+                Writer w(b);
+                w.Bytes(cn_, kNonceBytes);
+                w.Bytes(hn_, kNonceBytes);
+                w.Bytes(salt_, kSaltBytes);
+                SendPlain(Kind::Challenge, b);
+            } else if (p.h.kind == Kind::Proof) {
+                // The proof itself is not checked: this test is about what comes after WELCOME.
+                const uint8_t idb[8] = { 2, 0, 0, 0, 0, 0, 0, 0 };
+                uint8_t mac[32];
+                LabelMac(k_, SC_NET_LABEL_WELCOME, cn_, hn_, idb, sizeof(idb), mac);
+                std::vector<uint8_t> b;
+                Writer w(b);
+                w.Bytes(cn_, kNonceBytes);
+                w.U64(2);
+                w.Bytes(mac, sizeof(mac));
+                SendPlain(Kind::Welcome, b);
+                if (!welcomed_) {
+                    welcomed_ = true;
+                    uint8_t link[32];
+                    LabelMac(k_, SC_NET_LABEL_LINK, cn_, hn_, nullptr, 0, link);
+                    key_.Set(link);
+                    for (const std::vector<uint8_t>& m : script_) SendControl(m);
+                }
+            }
+        }
+    }
+
+private:
+    void SendPlain(Kind kind, const std::vector<uint8_t>& body) {
+        Header h;
+        h.kind = kind;
+        uint8_t out[kMaxDatagram];
+        const size_t n = Encode(h, body.data(), static_cast<uint32_t>(body.size()), nullptr, {}, out, sizeof(out));
+        tr.Send(peer_, out, n);
+    }
+
+    void SendControl(const std::vector<uint8_t>& msg) {
+        std::vector<uint8_t> b;
+        Writer w(b);
+        w.U8(static_cast<uint8_t>(SC_NET_DATA_F_RELIABLE));
+        w.U8(0);
+        w.U16(0);
+        w.U64(kHostPeer);                           // the origin: the host speaks
+        w.U64(unit_++);                             // the stream's unit number, from 0
+        w.U32(static_cast<uint32_t>(msg.size()));   // the whole message is one unit
+        w.U32(0);
+        w.Bytes(msg.data(), msg.size());
+        Header h;
+        h.kind = Kind::Data;
+        h.channel = 0;
+        h.sender = kHostPeer;
+        h.seq = ++seq_;
+        uint8_t out[kMaxDatagram];
+        const size_t n = Encode(h, b.data(), static_cast<uint32_t>(b.size()), &key_, kControlFqn, out, sizeof(out));
+        tr.Send(peer_, out, n);
+    }
+
+    Endpoint peer_;
+    uint8_t salt_[kSaltBytes] = {}, hn_[kNonceBytes] = {}, cn_[kNonceBytes] = {}, k_[kKeyBytes] = {};
+    MacKey key_;
+    bool welcomed_ = false;
+    uint64_t unit_ = 0, seq_ = 0;
+    std::vector<std::vector<uint8_t>> script_;
+};
+
+static std::vector<uint8_t> RoleMsg(uint8_t flags) {
+    return std::vector<uint8_t>{ static_cast<uint8_t>(SC_NET_CTL_HOST_ROLE), flags };
+}
+
+// SYNC with no channels and one peer, the host (the joiner's own id is left out, as a real host does).
+static std::vector<uint8_t> SyncMsg() {
+    std::vector<uint8_t> b;
+    Writer w(b);
+    w.U8(static_cast<uint8_t>(SC_NET_CTL_SYNC));
+    w.U16(0);
+    w.U16(1);
+    w.U64(kHostPeer);
+    w.U16(4);
+    w.Bytes("Fake", 4);
+    return b;
+}
+
+struct RoleRun {
+    bool active = false;
+    uint32_t hostFlags = 0;
+    int flagsAtJoin = -1;
+    uint64_t malformed = 0;
+    size_t peers = 0;
+};
+
+// A real joiner against the scripted host: what it ends up believing, and what it counted malformed.
+static RoleRun RunRoleScript(uint64_t seed, std::vector<std::vector<uint8_t>> script) {
+    MemNet net(seed);
+    FakeHost fake(net, 1, "pw", 1000, std::move(script));
+    Node ann(net, 2);
+    CHECK(ann.core.Join(Opts("Ann", "pw", seed), fake.tr.Self(), 0));
+    for (int step = 0; step < 200; ++step) {   // one second of virtual time, far more than the exchange needs
+        fake.Pump();
+        ann.core.Pump(net.now);
+        net.now += 5;
+    }
+    RoleRun r;
+    r.active = Joined(ann);
+    for (const PeerInfo& p : ann.core.Peers()) {
+        ++r.peers;
+        if (p.id == kHostPeer) r.hostFlags = p.flags;
+    }
+    r.flagsAtJoin = ann.hostFlagsAtJoin;
+    r.malformed = ann.core.GetStats().malformed;
+    return r;
+}
+
+// What a joiner does with HOST_ROLE messages a real host never sends. Every bad one is counted malformed,
+// changes nothing, and leaves the session to come up.
+static void TestHostRoleHostile() {
+    // No role: a player host, as every 2.2.0 host is.
+    RoleRun r = RunRoleScript(51, { SyncMsg() });
+    CHECK(r.active && r.peers == 2 && r.hostFlags == 0 && r.flagsAtJoin == 0 && r.malformed == 0);
+    // The role, then SYNC: known when the host's JOINED event fires.
+    r = RunRoleScript(52, { RoleMsg(1), SyncMsg() });
+    CHECK(r.active && r.peers == 2 && r.hostFlags == kPeerServer && r.flagsAtJoin == 1 && r.malformed == 0);
+    // Said to be no server: harmless.
+    r = RunRoleScript(53, { RoleMsg(0), SyncMsg() });
+    CHECK(r.active && r.hostFlags == 0 && r.flagsAtJoin == 0 && r.malformed == 0);
+    // Twice: the second is malformed, the first stands, even when the second disagrees.
+    r = RunRoleScript(54, { RoleMsg(1), RoleMsg(1), SyncMsg() });
+    CHECK(r.active && r.hostFlags == kPeerServer && r.flagsAtJoin == 1 && r.malformed == 1);
+    r = RunRoleScript(55, { RoleMsg(1), RoleMsg(0), SyncMsg() });
+    CHECK(r.active && r.hostFlags == kPeerServer && r.flagsAtJoin == 1 && r.malformed == 1);
+    // After SYNC it is too late, the roster was already told: malformed and not applied.
+    r = RunRoleScript(56, { SyncMsg(), RoleMsg(1) });
+    CHECK(r.active && r.hostFlags == 0 && r.flagsAtJoin == 0 && r.malformed == 1);
+    // A bit nobody defined, a message too short and one too long: malformed, not applied.
+    r = RunRoleScript(57, { RoleMsg(0x03), SyncMsg() });
+    CHECK(r.active && r.hostFlags == 0 && r.malformed == 1);
+    r = RunRoleScript(58, { RoleMsg(0x80), SyncMsg() });
+    CHECK(r.active && r.hostFlags == 0 && r.malformed == 1);
+    r = RunRoleScript(59, { std::vector<uint8_t>{ 6 }, SyncMsg() });
+    CHECK(r.active && r.hostFlags == 0 && r.malformed == 1);
+    r = RunRoleScript(60, { std::vector<uint8_t>{ 6, 1, 0 }, SyncMsg() });
+    CHECK(r.active && r.hostFlags == 0 && r.malformed == 1);
+    // A bad one first does not block a good one after it.
+    r = RunRoleScript(61, { RoleMsg(0x02), RoleMsg(1), SyncMsg() });
+    CHECK(r.active && r.hostFlags == kPeerServer && r.flagsAtJoin == 1 && r.malformed == 1);
+    // A control type this joiner has never heard of, before SYNC. A joiner built before HOST_ROLE takes the
+    // same branch for type 6 (the default case of its switch, see docs/net-wire.md, "Host role"): one
+    // malformed message, nothing else, and the SYNC behind it is accepted.
+    r = RunRoleScript(62, { std::vector<uint8_t>{ 200, 1 }, SyncMsg() });
+    CHECK(r.active && r.peers == 2 && r.hostFlags == 0 && r.flagsAtJoin == 0 && r.malformed == 1);
+}
+
 static void Run(const char* name, void (*fn)()) {
     const int before = g_fail;
     fn();
@@ -1210,6 +1542,9 @@ int main() {
     Run("TestPeers", TestPeers);
     Run("TestSessionLimit", TestSessionLimit);
     Run("TestJoinBurst", TestJoinBurst);
+    Run("TestServerHost", TestServerHost);
+    Run("TestSeatAccounting", TestSeatAccounting);
+    Run("TestHostRoleHostile", TestHostRoleHostile);
     std::printf("sco-core net tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

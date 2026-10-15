@@ -26,6 +26,8 @@ namespace sco::net {
 
 using PeerId = uint64_t;
 inline constexpr PeerId kHostPeer = 1;   // joiners get 2, 3, ... (never reused in a session)
+// PeerInfo::flags bits, the flags of the HOST_ROLE message (include/sc_net.h).
+inline constexpr uint32_t kPeerServer = SC_NET_HOST_ROLE_F_SERVER;   // a host that is a server, not a player
 
 enum class State : uint8_t { Idle, Hosting, Joining, Joined };
 
@@ -58,6 +60,7 @@ struct Message {
 struct PeerInfo {
     PeerId      id = 0;
     std::string name;
+    uint32_t    flags = 0;   // kPeerServer on the entry of a host that is a server; 0 for a player
 };
 
 struct Callbacks {
@@ -74,7 +77,16 @@ struct Callbacks {
 struct Options {
     std::string passphrase;            // never sent; stretched with PBKDF2
     std::string playerName;            // ValidName
-    uint32_t maxPeers = 8;             // host: session size, self included; 2..kMaxPeers
+    // Host: how many players the session holds. The host is one of them unless it is a server, so a
+    // player host admits maxPeers - 1 joiners and a server admits maxPeers. Range 2..kMaxPeers for a
+    // player host, 1..kMaxPeers for a server. Separately, a session never holds more than kMaxPeers
+    // endpoints, the host's own included (a server too), so a server admits at most kMaxPeers - 1.
+    uint32_t maxPeers = 8;
+    // Host: be a server, a headless host that is not a player. It takes no player seat, and each
+    // joiner is told so (HOST_ROLE) before it hears of any peer; Peers() marks the host's entry with
+    // kPeerServer on every side. A joiner ignores this. Off by default: the host is a player, as in
+    // SDK 2.2.0. docs/net-wire.md, "Host role".
+    bool     server = false;
     // Both sides must agree (it is a protocol constant); tests lower it to keep runs short.
     uint32_t pbkdf2Iters = kPbkdf2Iters;
     uint32_t retryMs = 500;            // joiner: HELLO / PROOF resend
@@ -136,7 +148,7 @@ public:
     State GetState() const;
     bool Active() const;           // Hosting, or Joined with the table received
     PeerId Self() const;           // 0 when not in a session
-    std::vector<PeerInfo> Peers() const;   // self first, then by id; empty when not active
+    std::vector<PeerInfo> Peers() const;   // self first, then by id; empty when not active; flags on the host's entry
     bool PeerName(PeerId id, std::string* out) const;
     const Stats& GetStats() const;
     std::string LastReason() const;

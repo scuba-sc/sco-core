@@ -27,6 +27,22 @@ What each change means for plugin authors and for products built on sco-core (sc
   burst, relay, a refused 52nd join, a freed seat taken again), bursts of 50 and of 60 joiners in `test_net`
   (all 50 seats filled, the other 10 refused as full, no handshake packet dropped), and the broker at 51 and 52
   in `test_net_control`. In-memory tests only; not run in game.
+- **`sco.net` 1.1: a host can be a server, not a player.** A headless host run by players (a standalone relay
+  is the example; it is not the game's dedicated server and not a relay run by the project) can declare
+  itself a server with `sco::net::Options::server`. It stays the host and peer 1 but takes no player seat, so
+  a session of 51 endpoints holds 50 players around it, and each joiner is told by a new control message,
+  HOST_ROLE (type 6, flags bit 0 = server), sent after WELCOME and before SYNC. The protocol version stays 1:
+  a joiner built before the message (SDK 2.2.0) counts it as one malformed control message, carries on and
+  lists the server as a player, so old and new games can share a session. [Host role](docs/net-wire.md#host-role)
+  has the evidence and the version-2 alternative. For plugins, `sco_net_v1` grows additively from 64 to 72
+  bytes with `get_peer_flags(peer_id, &flags)` (`SCO_NET_VERSION_1_1`; `SCO_NET_PEER_F_SERVER` marks the
+  server; the 1.0 members keep their offsets, and `sco_net_peer` and `sco_net_peer_event` are unchanged),
+  and `scosdk::Net` gains `PeerFlags` and `IsServer`. `Core::Peers()` marks the host's entry on every side
+  (`PeerInfo::flags`, `kPeerServer`). Player seats and the 51-endpoint transport bound are counted apart:
+  with 50 seats a player host admits 49 joiners and a server 50. The service's own Host request and the
+  private-session broker are unchanged and always host a player. In-memory tests only (real server and
+  player hosts, a scripted host, the table and the wrapper); no real SDK 2.2.0 build was run against a
+  server; not run in game.
 
 ## sdk-v2.3.0 (2026-10-15)
 
