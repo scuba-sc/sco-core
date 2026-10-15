@@ -149,7 +149,7 @@ sco_project_target(sco_engine)
 
 # Game-file overrides (sco/vfs.h): virtual files from splices, the reader arithmetic and the mount
 # table. Engine-agnostic: no engine, no Windows; the CryPak adapter comes separately.
-add_library(sco_vfs STATIC src/vfs/compose.cpp src/vfs/table.cpp)
+add_library(sco_vfs STATIC src/vfs/compose.cpp src/vfs/table.cpp src/vfs/files.cpp)
 target_include_directories(sco_vfs PUBLIC "${SCO_INCLUDE_DIR}")
 target_link_libraries(sco_vfs PUBLIC Threads::Threads)
 sco_project_target(sco_vfs)
@@ -218,8 +218,9 @@ target_link_libraries(sco_storage PUBLIC sco_host sco_sqlite)
 sco_project_target(sco_storage)
 
 # sco.ui (sco/ui.h, include/sco_ui.h): plugin tabs, overlays and badges and the hotkey table, a
-# host-owned service. No renderer: the product draws what is registered.
-add_library(sco_ui STATIC src/ui/ui.cpp)
+# host-owned service. No renderer: the product draws what is registered. sco.ui.surfaces
+# (sco/surfaces.h, include/sco_ui_surfaces.h) lives here too and shares sco.ui's release hook.
+add_library(sco_ui STATIC src/ui/ui.cpp src/ui/surfaces.cpp)
 target_link_libraries(sco_ui PUBLIC sco_host)
 sco_project_target(sco_ui)
 
@@ -341,7 +342,9 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
                                        src/game/services/loadout.cpp src/game/services/cvars.cpp
                                        src/game/services/hangar.cpp src/game/services/hangar_engine.cpp
-                                       src/game/services/reputation.cpp src/game/services/reputation_engine.cpp)
+                                       src/game/services/reputation.cpp src/game/services/reputation_engine.cpp
+                                       src/game/services/asop_service.cpp src/game/services/asop_engine.cpp
+                                       src/game/services/contracts_service.cpp src/game/services/contracts_engine.cpp)
   target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_quantum sco_offline_missions sco_mining)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
@@ -697,6 +700,28 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_widgets
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_widgets_targets})
 
+  # The sco.ui.surfaces table and payload pins (tests/abi_ui_surfaces.c), the same three ways.
+  set(_abi_ui_surfaces_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_ui_surfaces.cpp")
+  file(CONFIGURE OUTPUT "${_abi_ui_surfaces_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_ui_surfaces.c\"\n")
+  add_library(sco_abi_ui_surfaces_c OBJECT tests/abi_ui_surfaces.c)
+  add_library(sco_abi_ui_surfaces_cxx OBJECT "${_abi_ui_surfaces_cxx}")
+  set(_abi_ui_surfaces_targets sco_abi_ui_surfaces_c sco_abi_ui_surfaces_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_ui_surfaces_short_enums OBJECT tests/abi_ui_surfaces.c)
+    target_compile_options(sco_abi_ui_surfaces_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_ui_surfaces_targets sco_abi_ui_surfaces_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_ui_surfaces_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_ui_surfaces
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ui_surfaces_targets})
+
   if(SCO_GAME_SC)
   # The sco.datacore table pin (tests/abi_datacore.c), the same three ways.
   set(_abi_datacore_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_datacore.cpp")
@@ -819,7 +844,7 @@ if(SCO_BUILD_TESTS)
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events game_spatial world_control prefabs game_loadout game_hangar game_reputation)
+    list(APPEND _abi_bridge_pins game_world game_events game_spatial world_control prefabs game_loadout game_hangar game_reputation game_asop game_contracts)
     add_executable(test_prefabs tests/test_prefabs.cpp src/game/services/prefabs.cpp)
     target_include_directories(test_prefabs PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(test_prefabs)
@@ -839,6 +864,16 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_reputation PRIVATE sco_host)
     sco_project_target(test_reputation)
     add_test(NAME reputation COMMAND test_reputation)
+    add_executable(test_asop tests/test_asop.cpp src/game/services/asop_service.cpp)
+    target_include_directories(test_asop PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_asop PRIVATE sco_host)
+    sco_project_target(test_asop)
+    add_test(NAME asop COMMAND test_asop)
+    add_executable(test_contracts tests/test_contracts.cpp src/game/services/contracts_service.cpp)
+    target_include_directories(test_contracts PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_contracts PRIVATE sco_host)
+    sco_project_target(test_contracts)
+    add_test(NAME contracts COMMAND test_contracts)
     add_executable(test_world_free_cam tests/test_world_free_cam.cpp src/game/services/world_free_cam.cpp)
     target_include_directories(test_world_free_cam PRIVATE "${SCO_INCLUDE_DIR}")
     target_link_libraries(test_world_free_cam PRIVATE sco_host)
@@ -1143,6 +1178,13 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_ui)
   add_test(NAME test_ui COMMAND test_ui)
 
+  # sco.ui.surfaces over the real host table, the release hook it shares with sco.ui, and
+  # scosdk/ui_surfaces.hpp.
+  add_executable(test_surfaces tests/test_surfaces.cpp)
+  target_link_libraries(test_surfaces PRIVATE sco_ui)
+  sco_project_target(test_surfaces)
+  add_test(NAME test_surfaces COMMAND test_surfaces)
+
   if(SCO_GAME_SC)
     add_executable(test_cvars tests/test_cvars.cpp src/game/services/cvars.cpp)
     target_link_libraries(test_cvars PRIVATE sco_host sco_plugins)
@@ -1238,6 +1280,12 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_pak PRIVATE sco_pak)
   sco_project_target(test_pak)
   add_test(NAME test_pak COMMAND test_pak)
+  # Scope::AllFiles (persistent slot swaps, files/ replacement mounts) over a fake ICryPak; no
+  # loader detour, so it runs on every platform.
+  add_executable(test_pak_files tests/test_pak_files.cpp)
+  target_link_libraries(test_pak_files PRIVATE sco_pak)
+  sco_project_target(test_pak_files)
+  add_test(NAME test_pak_files COMMAND test_pak_files)
   endif()
 
   add_executable(test_vfs tests/test_vfs.cpp)

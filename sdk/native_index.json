@@ -318,14 +318,20 @@
       "id": "asop.on_request_open",
       "subsystem": "asop",
       "hash": "_0x016405BBFEA48E15",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.asop.shard_persisted"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
       "id": "asop.shard_persisted",
       "subsystem": "asop",
       "hash": "_0x08FC219FADDCDDFA",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.asop.shard_persisted"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
@@ -447,14 +453,20 @@
       "id": "insurance.update_pending_requests",
       "subsystem": "asop",
       "hash": "_0xA046ADB89189EE1F",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.asop.claim_timeout"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
       "id": "insurance.config",
       "subsystem": "asop",
       "hash": "_0x56416CAA4B934E1F",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.asop.claim_timeout"
+      ],
       "source": "src/game/asop_sigs.cpp"
     },
     {
@@ -1045,7 +1057,10 @@
       "id": "contracts.mission_settings",
       "subsystem": "contracts",
       "hash": "_0x9997946D61272F3D",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.contracts.stream_radius"
+      ],
       "source": "src/game/contracts_sigs.cpp"
     },
     {
@@ -2051,21 +2066,30 @@
       "id": "pak.datacore_loader",
       "subsystem": "pak",
       "hash": "_0xFEC952200E333875",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.pak.all_files"
+      ],
       "source": "src/game/pak_sigs.cpp"
     },
     {
       "id": "pak.crypak",
       "subsystem": "pak",
       "hash": "_0xE766B80F7B0092BA",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.pak.all_files"
+      ],
       "source": "src/game/pak_sigs.cpp"
     },
     {
       "id": "pak.slots",
       "subsystem": "pak",
       "hash": "_0xDE7C554FB55F6EE9",
-      "tier": 2,
+      "tier": 1,
+      "capability": [
+        "game.pak.all_files"
+      ],
       "source": "src/game/pak_sigs.cpp"
     },
     {

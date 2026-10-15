@@ -4,6 +4,55 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **`sco.ui.surfaces` 1.0: renderer-neutral panel placement** (`sco_api.h` unchanged), a host-owned service ([docs](docs/ui.md#surfaces), [contracts](docs/contracts.md#scouisurfaces-sco_ui_surfaces_v1)). A plugin shows one of its `sco.widgets` panels as a 2D HUD rectangle (`SCO_SURFACE_HUD_2D`), a camera-facing 3D billboard (`SCO_SURFACE_BILLBOARD_3D`) or a world-anchored 3D quad (`SCO_SURFACE_QUAD_3D`): `register_surface`, `update_surface_pose`, `unregister_surface`, `last_error` over size-prefixed `sco_surface_desc` / `sco_surface_pose` (position, normal, up, size in metres, max distance, an occlusion-raycast flag, the panel id). The host validates every field (finite numbers, unit and perpendicular vectors, bounded sizes, distances and coordinates, 32 surfaces per plugin and 256 in all, panels under the plugin's own id), stores surfaces per plugin and withdraws them on unload or crash through `sco.ui`'s release hook (no new hook slot). Products read the registry through `sco/surfaces.h` (`Surfaces()`, `Revision()`, `CheckPose`) and project it themselves; `docs/ui.md` documents the billboard and quad frames and the panel-to-pixel homography. C++ wrapper `scosdk/ui_surfaces.hpp`; C# and Lua are unsupported. Pins `tests/abi_ui_surfaces.c`, host tests `tests/test_surfaces.cpp`; both ship in core-source, the headers in core. Headless tests only: nothing has run in the game.
+- **`sco::game::pak` `Scope::AllFiles` (design plan PR 10), OFF by default:** persistent swaps of
+  the four pinned `ICryPak` slots (open 0x148, read 0x160, seek 0x1D0, close 0x1E0) serve every
+  mounted path on every thread, through a sharded map of served handles. `Enable` refuses it unless
+  the product sets the new `Options::allFilesProbed`, which no sco-core caller does. The new
+  capability `game.pak.all_files` is registered OFF pending in-game confirmation. Tell, size and
+  eof slots have no row, so they are never swapped; `QueryHandle` and `ServedHandles` report the
+  virtual position, size and eof of a served handle. `Disable` drains: open served handles keep
+  their virtual file, and the slots go back when the last one closes. The mount check is guarded
+  like `Options::onLoad` (`try`/`catch`, and SEH on MSVC). `Scope::DataCoreLoad` behaves as before.
+- **`files/` replacement mounts (`sco/vfs.h`):** `vfs::ReplaceMount` (a whole-file `Transform`,
+  refusing absolute, drive and `.`/`..` game paths, inert at open when the file is missing or over
+  `maxBytes`) and `vfs::FileMounts` (a data pack's `files/` folder, symlinks skipped). The plugin
+  content index doesn't list `files/` yet. Nothing here has run in the game: the evidence is
+  synthetic tests (`test_pak_files`) over a fake `ICryPak` vtable.
+* Game services: game.asop 1.0 (insurance claim timeout and IsShardPersisted reads), default OFF.
+  include/sc_asop.h: sc_asop_v1 (32 bytes, size-prefixed, version 1.0, pinned by
+  tests/abi_game_asop.c): claim_timeout, shard_persisted, last_error. Capabilities
+  game.asop.claim_timeout and game.asop.shard_persisted are held OFF (evidence level
+  off_pending_probe) until an in-game run confirms them; while off every call answers
+  SCO_UNAVAILABLE without touching the game. Both functions only read rows that already exist
+  in src/game/asop_sigs.cpp and that docs/game/asop.md documents (insurance.config at
+  kInsuranceTimeout, asop.shard_persisted); no row, hook, patch or write was added.
+  src/game/services/asop_service.cpp is the portable policy behind an AsopProvider seam;
+  src/game/services/asop_engine.cpp (Windows game pack) reads the rows under SEH. The vehicle
+  list, deliver, retrieve and claim rows stay unwrapped because the repository documents no
+  plugin-callable meaning for them (docs/game/asop-service.md). Tests: tests/test_asop.cpp
+  (synthetic provider) and abi_game_asop as C11, C++20 and -fshort-enums. Catalogue records
+  (sdk/contracts/sc_asop_v1.json) and docs/contracts.md rows added; C++, C# and Lua routes
+  unsupported. Registry entry, docs/game/status.md rows and sdk/native_index.json regenerated.
+  Nothing here has run in a game session.
+
+* Game services: game.contracts 1.0 (mission stream radius read), default OFF.
+  include/sc_contracts.h: sc_contracts_v1 (24 bytes, size-prefixed, version 1.0, pinned by
+  tests/abi_game_contracts.c): stream_radius, last_error. Capability
+  game.contracts.stream_radius is held OFF (evidence level off_pending_probe) until an in-game
+  run confirms it; while off the call answers SCO_UNAVAILABLE without touching the game. The
+  function only reads the contracts.mission_settings row that already exists in
+  src/game/contracts_sigs.cpp and that docs/game/contracts.md documents (the float at
+  kStreamRadius); no row, hook, patch or write was added. The service name game.contracts was
+  unused; the host-internal contracts.* capabilities and game.missions are separate.
+  src/game/services/contracts_service.cpp is the portable policy behind a ContractsProvider seam;
+  src/game/services/contracts_engine.cpp (Windows game pack) reads the row under SEH. The other
+  contracts rows stay unwrapped (docs/game/contracts-service.md). Tests: tests/test_contracts.cpp
+  (synthetic provider) and abi_game_contracts as C11, C++20 and -fshort-enums. Catalogue records
+  (sdk/contracts/sc_contracts_v1.json) and docs/contracts.md rows added; C++, C# and Lua routes
+  unsupported. Registry entry, docs/game/status.md rows and sdk/native_index.json regenerated.
+  Nothing here has run in a game session.
+
 ## sdk-v2.2.0 (2026-10-14)
 
 See the [SDK 2.2.0 release notes](docs/releases/sdk-v2.2.0.md) and the

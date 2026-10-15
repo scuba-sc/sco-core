@@ -118,6 +118,9 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.hangar` ([`sc_hangar.h`](../../include/sc_hangar.h)) | 1.0 | `game.hangar.lift` (`lift_of_landing_area`, `lift_request`) | OFF | OFF pending in-game confirmation |
 | | | `game.hangar.atc_cancel` (`atc_cancel_request`) | OFF | OFF pending in-game confirmation |
 | `game.reputation` ([`sc_reputation.h`](../../include/sc_reputation.h)) | 1.0 | `game.reputation.checks` (`checks`, read-only) | OFF | OFF pending in-game confirmation |
+| `game.asop` ([`sc_asop.h`](../../include/sc_asop.h)) | 1.0 | `game.asop.claim_timeout` (`claim_timeout`) | OFF | OFF pending in-game confirmation |
+| | | `game.asop.shard_persisted` (`shard_persisted`) | OFF | OFF pending in-game confirmation |
+| `game.contracts` ([`sc_contracts.h`](../../include/sc_contracts.h)) | 1.0 | `game.contracts.stream_radius` (`stream_radius`, read-only) | OFF | OFF pending in-game confirmation |
 | `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
 | `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
 | `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.0 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
@@ -134,6 +137,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.mining` ([`sc_mining.h`](../../include/sc_mining.h)) | 1.0 | `game.mining` (the service's mining activation) | OFF | Off by default; native adapter not verified on Windows or in game; synthetic provider tests only |
 | `game.relocation` ([`sc_relocation.h`](../../include/sc_relocation.h)) | 1.0 | `game.relocation` | OFF | Production mutation unavailable (no certified host admission, system classifier or validated transport); synthetic provider tests only |
 | `game.spatial` ([`sc_game_spatial.h`](../../include/sc_game_spatial.h)) | 1.0 | no capability of its own: full-pose conversion and copied observed zones | none | Synthetic fixtures only; not verified on Windows or in game |
+| CryPak adapter rows ([`api.md`](../api.md)) | row | `game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts) | OFF | OFF pending in-game confirmation |
 <!-- status-registry:end -->
 
 Fields a published table leaves empty, because nothing in the game's code pins them:

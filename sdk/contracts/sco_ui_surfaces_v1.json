@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-ui-surfaces-v1-register-surface",
+      "kind": "table-method",
+      "symbol": "sco_ui_surfaces_v1.register_surface",
+      "table": "sco_ui_surfaces_v1",
+      "service": "sco.ui.surfaces",
+      "version_macro": "SCO_UI_SURFACES_VERSION_1_0",
+      "source_header": "include/sco_ui_surfaces.h",
+      "signature": "sco_result (*)(sco_plugin *, const sco_surface_desc *, uint32_t *)",
+      "member_extent": 16,
+      "table_size": 40,
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Adds a HUD_2D, BILLBOARD_3D or QUAD_3D surface showing one of the caller's sco.widgets panels and writes its nonzero, never-reused id. desc and pose sizes must cover the 1.0 structs (larger tails ignored); every double finite; per-kind rules: HUD centre and size in viewport fractions with zero normal/up, billboard zero normal and unit up, quad unit normal and unit up perpendicular within 1e-3; 3D extents (0, 1000] m, max_distance [0, 1e7] m (0 = no limit), coordinates within 1e12 m; flags 0 or OCCLUDE_RAYCAST (3D only); panel_id \"<plugin id>.<name>\" at most 63 bytes. 32 surfaces per plugin, 256 in all. Failure leaves the registry and *out_id unchanged.",
+      "buffer_contract": "`sco_result (*register_surface)(sco_plugin* self, const sco_surface_desc* desc, uint32_t* out_id);`<br>Adds a HUD_2D, BILLBOARD_3D or QUAD_3D surface showing one of the caller's sco.widgets panels and writes its nonzero, never-reused id. desc and pose sizes must cover the 1.0 structs (larger tails ignored); every double finite; per-kind rules: HUD centre and size in viewport fractions with zero normal/up, billboard zero normal and unit up, quad unit normal and unit up perpendicular within 1e-3; 3D extents (0, 1000] m, max_distance [0, 1e7] m (0 = no limit), coordinates within 1e12 m; flags 0 or OCCLUDE_RAYCAST (3D only); panel_id \"<plugin id>.<name>\" at most 63 bytes. 32 surfaces per plugin, 256 in all. Failure leaves the registry and *out_id unchanged.",
+      "ownership": "Host copies the pose and panel_id on success; caller keeps desc, pose and the string. No allocation transfer.",
+      "thread_affinity": "Any thread; registry lock held only for the copy. No callbacks.",
+      "callback_context": "No callbacks; desc, pose and panel_id are read during the call only.",
+      "reentrancy": "No plugin code runs inside the service; calls from several threads are serialized by the registry lock.",
+      "results": "OK; BAD_ARG invalid/released self, NULL or short desc/pose, unknown kind, any field outside the rules, NULL out_id; TOO_MANY per-plugin or host limit, id space exhausted or allocation failure; UNAVAILABLE stopped service. last_error names the refused field.",
+      "absent_capability": "query_service NOT_FOUND when the host does not publish sco.ui.surfaces (it needs sco.ui started); UNAVAILABLE for an incompatible version. No game capability or renderer requirement.",
+      "cleanup": "No cancellation entrypoint; synchronous. Unregister, plugin unload or crash (through the sco.ui release hook) and service Stop withdraw the surface.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui_surfaces.h",
+              "token": "(*register_surface)"
+            }
+          ],
+          "tests": [
+            "tests/abi_ui_surfaces.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui_surfaces.hpp",
+              "token": "return table_->register_surface(self_, &desc, &id);"
+            }
+          ],
+          "tests": [
+            "tests/test_surfaces.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua sco.ui.surfaces routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua sco.ui.surfaces routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui_surfaces.c",
+        "tests/test_surfaces.cpp"
+      ],
+      "limitations": [
+        "Headless host tests only: no renderer projects or draws surfaces in sco-core, and nothing has run in a game.",
+        "The panel shown is a sco.widgets panel id; the host checks its form and ownership, not that the panel exists.",
+        "C# and Lua bindings are unsupported in 1.0."
+      ]
+    },
+    {
+      "id": "sco-ui-surfaces-v1-update-surface-pose",
+      "kind": "table-method",
+      "symbol": "sco_ui_surfaces_v1.update_surface_pose",
+      "table": "sco_ui_surfaces_v1",
+      "service": "sco.ui.surfaces",
+      "version_macro": "SCO_UI_SURFACES_VERSION_1_0",
+      "source_header": "include/sco_ui_surfaces.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t, const sco_surface_pose *)",
+      "member_extent": 24,
+      "table_size": 40,
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Replaces the pose and panel of one of the caller's surfaces, checked against the kind it was registered with (the register_surface rules). Failure leaves the old pose.",
+      "buffer_contract": "`sco_result (*update_surface_pose)(sco_plugin* self, uint32_t id, const sco_surface_pose* pose);`<br>Replaces the pose and panel of one of the caller's surfaces, checked against the kind it was registered with (the register_surface rules). Failure leaves the old pose.",
+      "ownership": "Host copies the pose and panel_id on success; caller keeps pose and the string. No allocation transfer.",
+      "thread_affinity": "Any thread; registry lock held only for the copy. No callbacks.",
+      "callback_context": "No callbacks; desc, pose and panel_id are read during the call only.",
+      "reentrancy": "No plugin code runs inside the service; calls from several threads are serialized by the registry lock.",
+      "results": "OK; NOT_FOUND no surface of this plugin by that id; BAD_ARG invalid/released self, NULL or short pose, any field outside the rules for the kind; TOO_MANY allocation failure; UNAVAILABLE stopped service.",
+      "absent_capability": "query_service NOT_FOUND when the host does not publish sco.ui.surfaces (it needs sco.ui started); UNAVAILABLE for an incompatible version. No game capability or renderer requirement.",
+      "cleanup": "No cancellation entrypoint; synchronous. The surface keeps its id and kind; unload, crash and Stop withdraw it.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui_surfaces.h",
+              "token": "(*update_surface_pose)"
+            }
+          ],
+          "tests": [
+            "tests/abi_ui_surfaces.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui_surfaces.hpp",
+              "token": "return table_->update_surface_pose(self_, id, &pose);"
+            }
+          ],
+          "tests": [
+            "tests/test_surfaces.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua sco.ui.surfaces routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua sco.ui.surfaces routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui_surfaces.c",
+        "tests/test_surfaces.cpp"
+      ],
+      "limitations": [
+        "Headless host tests only: no renderer projects or draws surfaces in sco-core, and nothing has run in a game.",
+        "The panel shown is a sco.widgets panel id; the host checks its form and ownership, not that the panel exists.",
+        "C# and Lua bindings are unsupported in 1.0."
+      ]
+    },
+    {
+      "id": "sco-ui-surfaces-v1-unregister-surface",
+      "kind": "table-method",
+      "symbol": "sco_ui_surfaces_v1.unregister_surface",
+      "table": "sco_ui_surfaces_v1",
+      "service": "sco.ui.surfaces",
+      "version_macro": "SCO_UI_SURFACES_VERSION_1_0",
+      "source_header": "include/sco_ui_surfaces.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t)",
+      "member_extent": 32,
+      "table_size": 40,
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Removes one of the caller's surfaces. Its id is not reused.",
+      "buffer_contract": "`sco_result (*unregister_surface)(sco_plugin* self, uint32_t id);`<br>Removes one of the caller's surfaces. Its id is not reused.",
+      "ownership": "Host releases its copy; nothing of the caller is retained. No allocation transfer.",
+      "thread_affinity": "Any thread; registry lock held only for the copy. No callbacks.",
+      "callback_context": "No callbacks; desc, pose and panel_id are read during the call only.",
+      "reentrancy": "No plugin code runs inside the service; calls from several threads are serialized by the registry lock.",
+      "results": "OK; NOT_FOUND no surface of this plugin by that id; BAD_ARG invalid/released self; UNAVAILABLE stopped service.",
+      "absent_capability": "query_service NOT_FOUND when the host does not publish sco.ui.surfaces (it needs sco.ui started); UNAVAILABLE for an incompatible version. No game capability or renderer requirement.",
+      "cleanup": "No cancellation entrypoint; synchronous and final.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui_surfaces.h",
+              "token": "(*unregister_surface)"
+            }
+          ],
+          "tests": [
+            "tests/abi_ui_surfaces.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui_surfaces.hpp",
+              "token": "return table_->unregister_surface(self_, id);"
+            }
+          ],
+          "tests": [
+            "tests/test_surfaces.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua sco.ui.surfaces routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua sco.ui.surfaces routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui_surfaces.c",
+        "tests/test_surfaces.cpp"
+      ],
+      "limitations": [
+        "Headless host tests only: no renderer projects or draws surfaces in sco-core, and nothing has run in a game.",
+        "The panel shown is a sco.widgets panel id; the host checks its form and ownership, not that the panel exists.",
+        "C# and Lua bindings are unsupported in 1.0."
+      ]
+    },
+    {
+      "id": "sco-ui-surfaces-v1-last-error",
+      "kind": "table-method",
+      "symbol": "sco_ui_surfaces_v1.last_error",
+      "table": "sco_ui_surfaces_v1",
+      "service": "sco.ui.surfaces",
+      "version_macro": "SCO_UI_SURFACES_VERSION_1_0",
+      "source_header": "include/sco_ui_surfaces.h",
+      "signature": "sco_result (*)(sco_plugin *, char *, uint32_t *)",
+      "member_extent": 40,
+      "table_size": 40,
+      "since": "`size >= 40`; 1.0",
+      "purpose": "The message of this plugin's last refused call (\"\" if none), NUL-terminated, with the raw-handler size handshake (*inout_size: capacity in; bytes written, or needed with TOO_MANY, out).",
+      "buffer_contract": "`sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The message of this plugin's last refused call (\"\" if none), NUL-terminated, with the raw-handler size handshake (*inout_size: capacity in; bytes written, or needed with TOO_MANY, out).",
+      "ownership": "Caller-owned buffer written in place. No allocation transfer.",
+      "thread_affinity": "Any thread; registry lock held only for the copy. No callbacks.",
+      "callback_context": "No callbacks; desc, pose and panel_id are read during the call only.",
+      "reentrancy": "No plugin code runs inside the service; calls from several threads are serialized by the registry lock.",
+      "results": "OK; TOO_MANY buffer too small (*inout_size = bytes needed); BAD_ARG invalid/released self, NULL inout_size or NULL out with nonzero capacity; UNAVAILABLE stopped service. Diagnostic completeness unspecified.",
+      "absent_capability": "query_service NOT_FOUND when the host does not publish sco.ui.surfaces (it needs sco.ui started); UNAVAILABLE for an incompatible version. No game capability or renderer requirement.",
+      "cleanup": "No cancellation entrypoint; synchronous read. Unload and Stop clear the message.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_ui_surfaces.h",
+              "token": "(*last_error)"
+            }
+          ],
+          "tests": [
+            "tests/abi_ui_surfaces.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/ui_surfaces.hpp",
+              "token": "sco_result r = table_->last_error(self_, out.data(), &size);"
+            }
+          ],
+          "tests": [
+            "tests/test_surfaces.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua sco.ui.surfaces routes are unsupported."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "C# and Lua sco.ui.surfaces routes are unsupported."
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_ui_surfaces.c",
+        "tests/test_surfaces.cpp"
+      ],
+      "limitations": [
+        "Headless host tests only: no renderer projects or draws surfaces in sco-core, and nothing has run in a game.",
+        "The panel shown is a sco.widgets panel id; the host checks its form and ownership, not that the panel exists.",
+        "C# and Lua bindings are unsupported in 1.0."
+      ]
+    }
+  ]
+}

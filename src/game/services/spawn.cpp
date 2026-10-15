@@ -11,6 +11,8 @@
 #include "actors.h"
 #include "entities.h"
 #include "creative.h"
+#include "asop_service.h"
+#include "contracts_service.h"
 #include "hangar.h"
 #include "reputation.h"
 #include "relocation.h"
@@ -303,6 +305,8 @@ void OnRelease(const void* owner) {
     ReleaseEntitiesOwner(owner);
     ReleaseCreativeOwner(owner);
     ReleaseHangarOwner(owner);
+    ReleaseAsopOwner(owner);
+    ReleaseContractsOwner(owner);
     ReleaseReputationOwner(owner);
     ReleaseRelocationOwner(owner);
     ReleaseQuantumOwner(owner);
