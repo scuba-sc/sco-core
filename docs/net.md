@@ -117,7 +117,8 @@ for (const sco_net_peer& p : net.Peers())
 
 `SCO_NET_MAX_PEERS` is the value version 1.0 of the header promised, 16, and it stays 16 (`tests/abi_net.c` pins
 it; version 1.0 is frozen). A runtime built from this SDK hosts up to `SCO_NET_SESSION_MAX_PEERS`, 51; a runtime
-from an SDK without that macro hosts 16. So the macro no longer bounds a session, and a `get_peers` buffer should be sized by
+from an SDK without that macro hosts 16, and a runtime that offers `sco.net` 1.1 is from this SDK or later and hosts 51. So the macro
+no longer bounds a session, and a `get_peers` buffer should be sized by
 asking first: call it with `out` NULL and `*inout_count` 0, read the count it leaves in `*inout_count`,
 allocate, and call again (`scosdk::Net::Peers()` does this). That is the 1.0 contract of `get_peers`
 (`SCO_TOO_MANY`: more peers than the capacity, the first ones written). A plugin built with a 16-entry buffer gets

@@ -251,6 +251,7 @@ int main() {
     CheckField(net, &sco_net_v1::self_peer, [&] { (void)nt.SelfPeer(); });
     CheckField(net, &sco_net_v1::get_peers, [&] { (void)nt.Peers(); });
     CheckField(net, &sco_net_v1::get_peer_name, [&] { (void)nt.PeerName(1); });
+    CheckField(net, &sco_net_v1::get_peer_flags, [&] { (void)nt.PeerFlags(1); });
     CheckField(net, &sco_net_v1::send_channel, [&] { (void)nt.Send("key", number); });
     storage.query = &Probe<decltype(storage.query)>::Call;
     storage.close = nullptr; calls = 0;

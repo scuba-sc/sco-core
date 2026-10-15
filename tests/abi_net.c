@@ -7,6 +7,9 @@
  * runtime is the added SCO_NET_SESSION_MAX_PEERS). The wire constants it reuses are pinned by
  * abi_sc_net.c.
  *
+ * The one existing line that must move when the table grows is its total size (64 in 1.0, 72 in
+ * 1.1). Every 1.0 offset and signature pin stays as it was, and what 1.1 adds is pinned at the end.
+ *
  * tools/test.sh compiles it as C11 and C++20 for the host, with -fshort-enums, and for
  * x86_64-pc-windows-msvc; the CMake test abi_net rebuilds it.
  */
@@ -28,9 +31,6 @@ PIN(sizeof(void*) == 8);
 
 /* ---- name, version, limits, flags ---- */
 PIN(SCO_NET_VERSION_1_0 == 0x00010000u);
-PIN(SCO_NET_VERSION_1_1 == 0x00010001u);   /* + get_peer_flags */
-PIN(SCO_NET_PEER_F_SERVER == 0x1u);
-PIN(SCO_NET_PEER_F_SERVER == SC_NET_HOST_ROLE_F_SERVER); /* the flag never drifts from the wire's */
 PIN(sizeof(SCO_NET_NAME) == 8); /* "sco.net" */
 PIN(SCO_NET_MAX_PEERS == 16u);
 PIN(SCO_NET_SESSION_MAX_PEERS == 51u); /* added after 1.0: the limit of a newer runtime; the line above never changes */
@@ -67,7 +67,7 @@ AT(sco_net_peer_event, what, 4);
 AT(sco_net_peer_event, peer, 8);
 
 /* ---- sco_net_v1 ---- */
-SIZE(sco_net_v1, 72); /* 64 in 1.0; 1.1 appended get_peer_flags, every 1.0 offset below is unchanged */
+SIZE(sco_net_v1, 72); /* 64 in 1.0: the one line that moves when the table grows; see "sco.net 1.1" below */
 AT(sco_net_v1, size, 0);
 AT(sco_net_v1, _pad, 4);
 AT(sco_net_v1, is_active, 8);
@@ -77,7 +77,6 @@ AT(sco_net_v1, send_channel, 32);
 AT(sco_net_v1, register_channel, 40);
 AT(sco_net_v1, unregister_channel, 48);
 AT(sco_net_v1, self_peer, 56);
-AT(sco_net_v1, get_peer_flags, 64); /* 1.1 */
 
 /* ---- signatures: a changed parameter list fails to convert ---- */
 static void pin_net_signatures(const sco_net_v1* t) {
@@ -89,12 +88,28 @@ static void pin_net_signatures(const sco_net_v1* t) {
         t->register_channel;
     sco_result (*unregister_channel)(sco_plugin*, const char*) = t->unregister_channel;
     uint64_t (*self_peer)(void) = t->self_peer;
-    sco_result (*get_peer_flags)(uint64_t, uint32_t*) = t->get_peer_flags;
     void (*on_message)(uint64_t, const void*, uint32_t, void*) = (sco_net_on_message)0;
     (void)is_active; (void)get_peers; (void)get_peer_name; (void)send_channel; (void)register_channel;
-    (void)unregister_channel; (void)self_peer; (void)get_peer_flags; (void)on_message;
+    (void)unregister_channel; (void)self_peer; (void)on_message;
 }
 
 /* Keeps the pins referenced so -Wunused does not fire. */
 void sco_abi_net_pins(void);
 void sco_abi_net_pins(void) { (void)&pin_net_signatures; }
+
+/* ---- sco.net 1.1: additions only ----
+ * Every 1.0 pin above keeps its value except the table's total size (64 -> 72, one tail member). The 1.0
+ * extent is pinned on its own, so no later member can be slipped in before it. */
+PIN(SCO_NET_VERSION_1_1 == 0x00010001u);
+PIN(SCO_NET_PEER_F_SERVER == 0x1u);
+PIN(SCO_NET_PEER_F_SERVER == SC_NET_HOST_ROLE_F_SERVER); /* the flag never drifts from the wire's */
+PIN(offsetof(sco_net_v1, self_peer) + sizeof(void (*)(void)) == 64); /* the 1.0 extent */
+AT(sco_net_v1, get_peer_flags, 64);
+
+static void pin_net_signatures_1_1(const sco_net_v1* t) {
+    sco_result (*get_peer_flags)(uint64_t, uint32_t*) = t->get_peer_flags;
+    (void)get_peer_flags;
+}
+
+void sco_abi_net_pins_1_1(void);
+void sco_abi_net_pins_1_1(void) { (void)&pin_net_signatures_1_1; }

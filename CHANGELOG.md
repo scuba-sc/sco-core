@@ -14,9 +14,11 @@ What each change means for plugin authors and for products built on sco-core (sc
   for 16 seats joins a 51-seat host ([Session size](docs/net-wire.md#session-size)). The host now remembers up
   to `2 * SC_NET_MAX_PEERS` half-open joins, not 32, so 50 players who start in the same moment all get in;
   before, the oldest joins past the 32nd were forgotten and timed out after their join timeout.
-  Version 1.0 of `sco.net` and of `game.private_session` is unchanged (plugin ABI 1.1, both table layouts and
-  both service versions stay, and `tests/abi_net.c` keeps every line), so **`SCO_NET_MAX_PEERS` stays 16**, the
-  value 1.0 promised, and `SCO_NET_SESSION_MAX_PEERS` (51) is added for the limit of a runtime from this SDK on.
+  Version 1.0 of `sco.net` and of `game.private_session` is unchanged (plugin ABI 1.1; the `game.private_session`
+  table and version stay; the `sco.net` 1.0 members keep their offsets and `tests/abi_net.c` keeps every 1.0 pin,
+  only the table's total size moves, with the 1.1 member in the next entry), so **`SCO_NET_MAX_PEERS` stays 16**,
+  the value 1.0 promised, and `SCO_NET_SESSION_MAX_PEERS` (51) is added for the limit of a runtime from this SDK
+  on. A runtime that offers `sco.net` 1.1 is from this SDK or later, so it hosts 51.
   A plugin that sized a `get_peers` buffer by `SCO_NET_MAX_PEERS` gets `SCO_TOO_MANY`, the first 16 peers and
   the true count when more than 16 players are in the session: that is the 1.0 `get_peers` contract, and
   `scosdk::Net::Peers()` copes; a plugin that treats `SCO_TOO_MANY` as a failure loses its peer list there.

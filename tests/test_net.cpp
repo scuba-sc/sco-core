@@ -1247,8 +1247,8 @@ static void TestServerHost() {
 }
 
 // Joiners fill a session until the host says it is full: `admits` must get in, and the next one must be
-// refused with "the session is full" without anyone else noticing. They join in waves of 25 because the
-// host remembers at most kMaxPending (32) half-open joins at once; players arrive one by one in real use.
+// refused with "the session is full" without anyone else noticing. They join in waves of 25, as players
+// do in real use; a burst of every joiner at once is TestJoinBurst's business.
 // Every roster must agree on which entry, if any, is the server.
 static void FillSeats(const char* label, bool server, uint32_t maxPeers, uint32_t admits) {
     const int before = g_fail;
