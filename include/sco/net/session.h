@@ -105,7 +105,7 @@ struct HostOptions {
     bool        loopbackOnly = true;   // safe default when bindAddress is empty
     std::string passphrase;            // never sent or logged; stretched with PBKDF2
     std::string playerName;            // shown to the other players; 1-64 bytes, no control chars
-    uint32_t    maxPeers = 8;          // the session's size, self included: 2..SCO_NET_MAX_PEERS
+    uint32_t    maxPeers = 8;          // the session's size, self included: 2..SCO_NET_SESSION_MAX_PEERS
     Scope       scope;                 // the LAN rule plus the product's allow-list
     // Tests: run on this transport (not owned; must outlive the session) instead of a socket.
     Transport*  transport = nullptr;

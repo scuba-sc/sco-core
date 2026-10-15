@@ -1049,7 +1049,9 @@ static void TestSessionLimit() {
 
     std::vector<Node*> live{ &host };
     for (uint32_t i = 1; i < kSeats; ++i) {
-        const std::string name = "P" + std::to_string(i);
+        // Two steps: GCC 12 at -O2 reports a false -Wrestrict for "P" + std::to_string(i).
+        std::string name = "P";
+        name += std::to_string(i);
         CHECK(nodes[i]->core.Join(Opts(name.c_str(), "pw", 1000 + i), host.tr.Self(), net.now));
         live.push_back(nodes[i].get());
     }
@@ -1148,7 +1150,9 @@ static void BurstCase(uint32_t joiners) {
 
     std::vector<Node*> live{ &host };
     for (uint32_t i = 1; i <= joiners; ++i) {
-        const std::string name = "B" + std::to_string(i);
+        // Two steps for the same GCC 12 reason as TestSessionLimit's names.
+        std::string name = "B";
+        name += std::to_string(i);
         CHECK(nodes[i]->core.Join(Opts(name.c_str(), "pw", 3000 + i), host.tr.Self(), net.now));
         live.push_back(nodes[i].get());
     }

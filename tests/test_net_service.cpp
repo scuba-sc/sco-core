@@ -539,7 +539,10 @@ static void TestFullSession() {
     CHECK(Host(h) == Result::Ok);
     for (size_t i = 0; i < remotes.size(); ++i) {
         Options o = RemoteOpts();
-        o.playerName = "R" + std::to_string(i + 1);
+        // Two steps for the GCC 12 reason given in TestSessionLimit (tests/test_net.cpp).
+        std::string name = "R";
+        name += std::to_string(i + 1);
+        o.playerName = name;
         CHECK(remotes[i]->core.Join(o, svc.Self(), g_clock));
     }
     CHECK(until([&] {
