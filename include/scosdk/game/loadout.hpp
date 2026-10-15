@@ -9,12 +9,16 @@ namespace sco::sdk::game {
 class Loadout {
 public:
     sco_result Open(const sco_api* api, sco_plugin* self) noexcept {
+        return Open(api, self, SC_LOADOUT_SERVICE_VERSION);
+    }
+    // Require at least minVersion (e.g. SC_LOADOUT_VERSION_1_1 for weapon slots 8-21).
+    sco_result Open(const sco_api* api, sco_plugin* self, uint32_t minVersion) noexcept {
         table_ = nullptr; self_ = nullptr;
         if (!api || !self) return SCO_BAD_ARG;
         if (api->size < offsetof(sco_api, query_service) + sizeof(api->query_service) || !api->query_service)
             return SCO_UNAVAILABLE;
         const void* out = nullptr;
-        const sco_result r = api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &out);
+        const sco_result r = api->query_service(SC_LOADOUT_SERVICE_NAME, minVersion, &out);
         if (r == SCO_OK && out) { table_ = static_cast<const sc_loadout_v1*>(out); self_ = self; }
         return r == SCO_OK && !out ? SCO_UNAVAILABLE : r;
     }

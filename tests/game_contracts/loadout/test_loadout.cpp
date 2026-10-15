@@ -5,6 +5,7 @@
 #include "game/services/loadout.h"
 #include <cstdio>
 #include <cstdlib>
+#include <initializer_list>
 #include <thread>
 #define CHECK(x) do { if (!(x)) { std::printf("FAIL %d: %s\n", __LINE__, #x); std::exit(1); } } while (0)
 void TestLoadoutRoutes(const sco_api*, sco_plugin*);
@@ -25,6 +26,16 @@ int main(int argc, char** argv) {
     CHECK(service->apply(self, &request, &report) == SCO_UNAVAILABLE);
     CHECK(report.count == 1 && report.applied == 0 && report.slots[0].status == SC_LOADOUT_UNAVAILABLE);
     CHECK(!api->has("game.loadout.apply"));
+    // No production backend: game.loadout.weapons is off and weapon slots are UNAVAILABLE.
+    CHECK(!api->has("game.loadout.weapons"));
+    item.slot = SC_LOADOUT_SLOT_PRIMARY;
+    CHECK(service->apply(self, &request, &report) == SCO_UNAVAILABLE && report.slots[0].status == SC_LOADOUT_UNAVAILABLE);
+    item.slot = SC_LOADOUT_SLOT_HEAD;
+    // Published as 1.1; a 1.0 query is still answered and a newer minor is not.
+    const void* table11 = nullptr;
+    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table11) == SCO_OK && table11 == table);
+    const void* table12 = nullptr;
+    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, 0x00010002u, &table12) != SCO_OK && !table12);
     sco::game::services::StopLoadout();
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
     // Synthetic engine seam; real provider and host registry, not game acceptance.
@@ -133,15 +144,102 @@ int main(int argc, char** argv) {
         CHECK(sco::game::services::StartLoadout() == sco::Result::WrongThread);
     }); worker.join();
     CHECK(calls == before);
+    // game.loadout 1.1: slots 8-21 need the backend flag AND capability game.loadout.weapons.
+    {
+        static unsigned wCalls = 0;
+        static uint32_t wSeq[32];
+        static sc_loadout_status wReply = SC_LOADOUT_APPLIED;
+        backend.equip = [](uint32_t slot, const char*) {
+            if (wCalls < 32) wSeq[wCalls] = slot;
+            ++wCalls;
+            return wReply;
+        };
+        sc_loadout_item wItems[SC_LOADOUT_MAX_ITEMS]{};
+        sc_loadout_report wReport{};
+        const auto applySlots = [&](std::initializer_list<uint32_t> slots) {
+            uint32_t n = 0;
+            for (uint32_t s : slots) { wItems[n] = {s, 0, "synthetic_item"}; ++n; }
+            sc_loadout_request req{sizeof(req), n, sizeof(sc_loadout_item), 0, wItems};
+            wReport = {}; wReport.size = sizeof(wReport);
+            wCalls = 0;
+            return service->apply(self, &req, &wReport);
+        };
+        // Unverified backend: the flag alone and a capability override both stay refused.
+        backend.verified = false; backend.weapons = true;
+        sco::game::services::StopLoadout();
+        CHECK(sco::game::services::StartLoadout(&backend) == sco::Result::Ok);
+        CHECK(!api->has("game.loadout.weapons"));
+        sco::caps::Set("game.loadout.weapons", true);
+        CHECK(applySlots({SC_LOADOUT_SLOT_PRIMARY}) == SCO_UNAVAILABLE && wCalls == 0);
+        CHECK(wReport.slots[0].status == SC_LOADOUT_UNAVAILABLE);
+        // Verified backend without the weapons attestation: 8-21 UNSUPPORTED, body slots unaffected.
+        backend.verified = true; backend.weapons = false;
+        sco::game::services::StopLoadout();
+        CHECK(sco::game::services::StartLoadout(&backend) == sco::Result::Ok);
+        CHECK(api->has("game.loadout.apply") && !api->has("game.loadout.weapons"));
+        sco::caps::Set("game.loadout.weapons", true); // cannot override a missing attestation
+        for (uint32_t s = SC_LOADOUT_SLOT_PRIMARY; s <= SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY; ++s) {
+            CHECK(applySlots({s}) == SCO_FAILED && wCalls == 0 && wReport.applied == 0);
+            CHECK(wReport.slots[0].slot == s && wReport.slots[0].status == SC_LOADOUT_UNSUPPORTED);
+        }
+        CHECK(applySlots({SC_LOADOUT_SLOT_HEAD, SC_LOADOUT_SLOT_PRIMARY}) == SCO_FAILED && wCalls == 1);
+        CHECK(wReport.applied == 1 && wReport.slots[0].status == SC_LOADOUT_APPLIED &&
+              wReport.slots[1].status == SC_LOADOUT_UNSUPPORTED);
+        // Attested backend: capability on by default for it, 0 and 22+ still UNSUPPORTED with no engine call.
+        backend.weapons = true;
+        sco::game::services::StopLoadout();
+        CHECK(sco::game::services::StartLoadout(&backend) == sco::Result::Ok);
+        CHECK(api->has("game.loadout.weapons"));
+        CHECK(applySlots({0, 22, 23, 0x7fffffffu}) == SCO_FAILED && wCalls == 0 && wReport.applied == 0);
+        for (uint32_t i = 0; i < 4; ++i) CHECK(wReport.slots[i].status == SC_LOADOUT_UNSUPPORTED);
+        // Every weapon slot 8-21 reaches the engine, in input order.
+        CHECK(applySlots({8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21}) == SCO_OK);
+        CHECK(wReport.count == 14 && wReport.applied == 14 && wCalls == 14);
+        for (uint32_t i = 0; i < 14; ++i)
+            CHECK(wSeq[i] == 8 + i && wReport.slots[i].slot == 8 + i && wReport.slots[i].status == SC_LOADOUT_APPLIED);
+        // Mixed body and weapon batch: forwarded in input order (weapon before its attachment).
+        CHECK(applySlots({SC_LOADOUT_SLOT_TORSO, SC_LOADOUT_SLOT_PRIMARY, SC_LOADOUT_SLOT_PRIMARY_OPTIC,
+                          SC_LOADOUT_SLOT_SIDEARM, SC_LOADOUT_SLOT_SIDEARM_BARREL}) == SCO_OK && wCalls == 5);
+        const uint32_t expectedOrder[5] = {2, 8, 10, 9, 14};
+        for (uint32_t i = 0; i < 5; ++i) CHECK(wSeq[i] == expectedOrder[i]);
+        CHECK(applySlots({SC_LOADOUT_SLOT_PRIMARY, SC_LOADOUT_SLOT_PRIMARY}) == SCO_BAD_ARG && wCalls == 0);
+        // Capability revoked while body apply stays on: 8-21 UNAVAILABLE with no engine call.
+        sco::caps::Set("game.loadout.weapons", false, "synthetic revocation");
+        CHECK(applySlots({SC_LOADOUT_SLOT_TORSO, SC_LOADOUT_SLOT_PRIMARY, SC_LOADOUT_SLOT_PRIMARY_OPTIC, 22}) == SCO_FAILED);
+        CHECK(wCalls == 1 && wSeq[0] == SC_LOADOUT_SLOT_TORSO && wReport.applied == 1);
+        CHECK(wReport.slots[0].status == SC_LOADOUT_APPLIED && wReport.slots[1].status == SC_LOADOUT_UNAVAILABLE &&
+              wReport.slots[2].status == SC_LOADOUT_UNAVAILABLE && wReport.slots[3].status == SC_LOADOUT_UNSUPPORTED);
+        CHECK(applySlots({SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY}) == SCO_FAILED && wCalls == 0);
+        CHECK(wReport.slots[0].status == SC_LOADOUT_UNAVAILABLE && api->has("game.loadout.apply"));
+        sco::caps::Set("game.loadout.weapons", true);
+        // Backend-reported refusals (empty parent port, class missing, engine refusal) are forwarded and non-fatal.
+        for (sc_loadout_status st : {SC_LOADOUT_UNSUPPORTED, SC_LOADOUT_ITEM_MISSING, SC_LOADOUT_FAILED}) {
+            wReply = st;
+            CHECK(applySlots({SC_LOADOUT_SLOT_PRIMARY, SC_LOADOUT_SLOT_PRIMARY_OPTIC}) == SCO_FAILED && wCalls == 2);
+            CHECK(wReport.applied == 0 && wReport.slots[0].status == st && wReport.slots[1].status == st);
+            CHECK(api->has("game.loadout.apply") && api->has("game.loadout.weapons"));
+        }
+        wReply = SC_LOADOUT_APPLIED;
+        CHECK(applySlots({SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY}) == SCO_OK && wCalls == 1);
+        // Offline admission still gates weapon slots.
+        offline = false;
+        CHECK(applySlots({SC_LOADOUT_SLOT_PRIMARY}) == SCO_UNAVAILABLE && wCalls == 0);
+        CHECK(wReport.slots[0].status == SC_LOADOUT_UNAVAILABLE);
+        offline = true;
+        sco::game::services::StopLoadout();
+        CHECK(!api->has("game.loadout.weapons"));
+    }
     backend.equip = [](uint32_t, const char*) -> sc_loadout_status { ++calls; throw 1; };
+    backend.weapons = true;
     sco::game::services::StopLoadout();
     CHECK(sco::game::services::StartLoadout(&backend) == sco::Result::Ok);
+    CHECK(api->has("game.loadout.weapons"));
     offline = false;
     CHECK(service->apply(self, &request, &report) == SCO_UNAVAILABLE && calls == before);
     offline = true;
     CHECK(service->apply(self, &request, &report) == SCO_FAILED);
     CHECK(report.applied == 0 && report.slots[0].status == SC_LOADOUT_FAILED && calls == before + 1);
-    CHECK(!api->has("game.loadout.apply"));
+    CHECK(!api->has("game.loadout.apply") && !api->has("game.loadout.weapons")); // Fault() clears both
     CHECK(service->apply(self, &request, &report) == SCO_UNAVAILABLE && calls == before + 1);
     sco::game::services::StopLoadout();
     std::puts("loadout: publication, partial slots, validation, offline and terminal fault OK");
