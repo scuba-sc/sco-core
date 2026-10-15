@@ -39,5 +39,6 @@ Two kinds of file live here:
 | [SDK2.1 host-source candidate scope](2026-10-13-sdk-v2.1.0-host-source.md) | 2026-10-13 | Five-profile candidate selected; supersedes the SDK2.1 host-source exclusion only; fresh signed bytes required |
 | [Engine-native index publication channel](2026-10-14-native-index.md) | 2026-10-14 | Decided: site and static MCP only, row name, subsystem, tier and readiness, in no SDK zip; counsel review not recorded; index landed, field question open |
 | [SDK2.2 distribution scope](2026-10-14-sdk-v2.2.0-scope.md) | 2026-10-14 | Recorded by the maintainer: five 2.1.0 profiles, game tables kept, game-sc 0.5.0; dispatches no candidate, signs, tags or publishes nothing |
+| [SDK2.3 distribution scope](2026-10-15-sdk-v2.3.0-scope.md) | 2026-10-15 | DRAFT pending the maintainer; no candidate before approval |
 
 No release is published from these records alone: `sdk-v2.0.0` also needs its signed `sdk-v2.0.0.json` approval.

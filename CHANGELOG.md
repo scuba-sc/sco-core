@@ -4,6 +4,23 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+## sdk-v2.3.0 (2026-10-15)
+
+See the [SDK 2.3.0 release notes](docs/releases/sdk-v2.3.0.md) and the
+[SDK 2.3.0 scope record](docs/legal/release-decisions/2026-10-15-sdk-v2.3.0-scope.md).
+
+SDK 2.3.0 packages the entries below without changing frozen plugin ABI 1.1
+(`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.2.0). Core, legacy,
+core-source and host-source-sc use 2.3.0. The candidate adds the game service tables
+`game.asop` 1.0 and `game.contracts` 1.0 and grows `game.loadout` to 1.1, so under the
+[game-pack policy](docs/game-pack.md) (a release that adds or grows a game service raises the
+minor) the game pack and the optional game-sc overlay move to **0.6.0**
+(`SCO_GAME_PACK_VERSION`, was 0.5.0; `sco-sdk-game-sc-0.6.0.zip`). Nothing below has run in the
+game: evidence is macOS local builds and synthetic fixtures. Linux, native Windows, GPU and
+real-game acceptance are unproven. The new game capabilities (`game.asop.claim_timeout`,
+`game.asop.shard_persisted`, `game.contracts.stream_radius`, `game.loadout.weapons`,
+`game.pak.all_files`) default OFF, and no production adapter turns them on.
+
 - **`game.loadout` 1.1: weapon and multitool slots 8-21 (vocabulary only), `game.loadout.weapons` OFF** ([docs](docs/game/loadout.md), [contracts](docs/contracts.md)). `include/sc_loadout.h` adds fourteen slot names after `SC_LOADOUT_SLOT_VISOR`: `SC_LOADOUT_SLOT_PRIMARY` (8) and `SC_LOADOUT_SLOT_SIDEARM` (9) for the weapons themselves; `SC_LOADOUT_SLOT_PRIMARY_OPTIC`, `_PRIMARY_BARREL`, `_PRIMARY_UNDERBARREL` (10-12) and `SC_LOADOUT_SLOT_SIDEARM_OPTIC`, `_SIDEARM_BARREL`, `_SIDEARM_UNDERBARREL` (13-15) for firearm attachments; `SC_LOADOUT_SLOT_PRIMARY_TOOL_MODULE`, `_PRIMARY_TOOL_CANISTER`, `_PRIMARY_TOOL_BATTERY` (16-18) and `SC_LOADOUT_SLOT_SIDEARM_TOOL_MODULE`, `_SIDEARM_TOOL_CANISTER`, `_SIDEARM_TOOL_BATTERY` (19-21) for multitool parts. The records are unchanged (`sc_loadout_item` and `sc_loadout_v1` keep their layout and sizes); a slot number just encodes its parent weapon. Like the body slots these are logical slots, not engine port names, and a batch is still processed in input order, so a consumer sends slot 8 or 9 before the attachment slots it targets. There is no removal: `item_class` stays 1 to 95 bytes. The version follows the `game.world` 1.1 precedent: `SC_LOADOUT_VERSION_1_0` and `SC_LOADOUT_VERSION_1_1` are added, `SC_LOADOUT_SERVICE_VERSION` stays 1.0 while 1.1 is published, so a 1.0 query is still answered. The new capability `game.loadout.weapons` defaults OFF (evidence level `synthetic_only`): slots 8-21 report `SC_LOADOUT_UNSUPPORTED` when the installed backend does not declare weapon support and stay `SC_LOADOUT_UNAVAILABLE` while the capability is off, with no engine call either way; a 1.0 host reports `SC_LOADOUT_UNSUPPORTED` for them. There is still no production engine backend: `src/game/services/spatial.cpp` is untouched, so the service starts without one and every slot, body or weapon, reports `SC_LOADOUT_UNAVAILABLE` in game. Pins `tests/abi_game_loadout.c`; provider tests use a synthetic backend. Headless tests only: nothing has run in the game.
 - **`sco.ui.surfaces` 1.0: renderer-neutral panel placement** (`sco_api.h` unchanged), a host-owned service ([docs](docs/ui.md#surfaces), [contracts](docs/contracts.md#scouisurfaces-sco_ui_surfaces_v1)). A plugin shows one of its `sco.widgets` panels as a 2D HUD rectangle (`SCO_SURFACE_HUD_2D`), a camera-facing 3D billboard (`SCO_SURFACE_BILLBOARD_3D`) or a world-anchored 3D quad (`SCO_SURFACE_QUAD_3D`): `register_surface`, `update_surface_pose`, `unregister_surface`, `last_error` over size-prefixed `sco_surface_desc` / `sco_surface_pose` (position, normal, up, size in metres, max distance, an occlusion-raycast flag, the panel id). The host validates every field (finite numbers, unit and perpendicular vectors, bounded sizes, distances and coordinates, 32 surfaces per plugin and 256 in all, panels under the plugin's own id), stores surfaces per plugin and withdraws them on unload or crash through `sco.ui`'s release hook (no new hook slot). Products read the registry through `sco/surfaces.h` (`Surfaces()`, `Revision()`, `CheckPose`) and project it themselves; `docs/ui.md` documents the billboard and quad frames and the panel-to-pixel homography. C++ wrapper `scosdk/ui_surfaces.hpp`; C# and Lua are unsupported. Pins `tests/abi_ui_surfaces.c`, host tests `tests/test_surfaces.cpp`; both ship in core-source, the headers in core. Headless tests only: nothing has run in the game.
 - **`sco::game::pak` `Scope::AllFiles` (design plan PR 10), OFF by default:** persistent swaps of
