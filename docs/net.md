@@ -81,7 +81,14 @@ Two events on the bus, on the game thread, each starting with its size:
 An event is dispatched only after the session it reports is visible to `is_active`, `get_peers`, `get_peer_name`
 and `get_peer_flags`: in a `net.peer` JOINED handler the new peer is found, and in a LEFT handler it no longer
 is. A peer that has left again before the handler runs is not found in its JOINED handler either, and its LEFT
-event follows. Messages keep their order among the events.
+event follows. If the whole session has ended since, the handler finds no session (`is_active` 0, no peers) and
+the final `net.state` event (`active` 0) follows. Messages keep their order among the events.
+
+That final event is the last one of its session. When it is dispatched the session is already gone from every
+table call (`is_active` 0, `get_peers` empty, `get_peer_flags` and `SetPeerEntity` answer not found), so nothing
+can be queued behind it, an ENTITY event included. If the network thread itself fails (out of memory, or an
+exception from the transport), the events of the step it was running are dropped, because that step was never
+published, and the session ends the same way, with the reason "out of memory".
 
 ## Servers (1.1)
 
@@ -101,8 +108,8 @@ for (const sco_net_peer& p : net.Peers()) {
 
 - **When to read it.** In the peer's `net.peer` JOINED handler. The host's role is known before the host's
   JOINED event, and the event is dispatched only after the session shows the peer, so `get_peer_flags` finds it.
-  `SCO_NOT_FOUND` there means the peer has left since, and its LEFT event follows: skip it, and do not count it
-  as a player.
+  `SCO_NOT_FOUND` there means the peer has left since, and its LEFT event follows (or the whole session has
+  ended and the final `net.state` event follows): skip it, and do not count it as a player.
 - **Older tables and hosts.** A 1.0 table (64 bytes) has no `get_peer_flags`: check `size >= 72` and a
   non-NULL pointer, or use the wrapper, which answers `SCO_UNAVAILABLE` (no peer is marked). A game built
   before 1.1 lists a server as a player. A host built before 1.1 never marks anyone, so every peer is a

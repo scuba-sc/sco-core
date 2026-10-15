@@ -50,7 +50,11 @@
  * Events on the bus (sco_api subscribe), dispatched on the game thread from the host tick; data
  * starts with its size. An event is dispatched only after the session it reports is visible to
  * is_active, get_peers, get_peer_name and get_peer_flags, so in a "net.peer" JOINED handler the new
- * peer is found, and in a LEFT handler it no longer is:
+ * peer is found, and in a LEFT handler it no longer is. If the whole session has ended since, a handler
+ * finds no session and the final "net.state" event (active 0) follows. That event is the last of its
+ * session: when it is dispatched every table call already sees no session (is_active 0, get_peers
+ * empty, get_peer_flags not found), so no "net.peer" event can follow it. If the network thread fails,
+ * the events of the step it was running are dropped and the session ends the same way:
  *   SCO_NET_EVENT_STATE "net.state"  sco_net_state_event: a session came up or ended
  *   SCO_NET_EVENT_PEER  "net.peer"   sco_net_peer_event: a peer joined, left or got an entity
  *
@@ -176,7 +180,8 @@ typedef struct sco_net_v1 {
      * the session); 0 is a plain player. Read it when the peer's net.peer JOINED event arrives: the
      * event is dispatched only after the session shows the peer, so it is found. *out_flags is 0 on
      * every failure. SCO_NOT_FOUND: no such peer in the active session; in a JOINED handler that means
-     * it has left since and its LEFT event follows, so do not take it for a player. SCO_BAD_ARG:
+     * it has left since and its LEFT event follows (or the session has ended and the final "net.state"
+     * event follows), so do not take it for a player. SCO_BAD_ARG:
      * out_flags NULL. Check size >= 72 and a non-NULL pointer before calling: a 1.0 table ends at
      * self_peer. */
     sco_result (*get_peer_flags)(uint64_t peer_id, uint32_t* out_flags);

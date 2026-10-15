@@ -232,6 +232,14 @@ void ReleaseHeld() {
     g_delivery.notify_all();
 }
 
+// Under g_lock: drops what the Core raised during a step that never finished, and gives back the inbox
+// quota its messages were charged. That step was not published, so its events would report a session the
+// game thread never saw.
+void DropHeld() {
+    for (const Item& it : g_held) Uncharge(it);
+    g_held.clear();
+}
+
 // Under g_lock: commands are queued only while a session runs; the next session replays the
 // registry instead.
 void QueueCmd(Cmd&& cmd) {
@@ -366,19 +374,25 @@ bool Step(Session& s, uint64_t now) {
     return s.core->GetState() != State::Idle;
 }
 
+// Under g_lock: the session is over. Nothing more goes to it, and table calls see no session: is_active is
+// 0, get_peers is empty and get_peer_flags and SetPeerEntity answer not found.
+void EndSessionLocked() {
+    g_live = false;
+    g_cmds.clear();
+    for (auto& p : g_plugins) p.queuedBytes = 0;
+    g_state = State::Idle;
+    g_active = false;
+    g_self = 0;
+    g_peers.clear();
+    g_entities.clear();
+    g_port = 0;
+}
+
 // The session is over: nothing more goes to it, and table calls see no session.
 void Finish(Session& s) {
     {
         std::lock_guard<std::mutex> hold(g_lock);
-        g_live = false;
-        g_cmds.clear();
-        for (auto& p : g_plugins) p.queuedBytes = 0;
-        g_state = State::Idle;
-        g_active = false;
-        g_self = 0;
-        g_peers.clear();
-        g_entities.clear();
-        g_port = 0;
+        EndSessionLocked();
         ReleaseHeld();   // nothing normally: the last step's Snapshot released it
         if (s.core) {
             g_stats.core = s.core->GetStats();
@@ -409,9 +423,12 @@ void Run(Session* raw, uint32_t pollMs) {
         Log("[net] network thread stopped: out of memory");
         std::lock_guard<std::mutex> hold(g_lock);
         g_reason = "out of memory";
-        // What the Core raised before it failed goes first: "inactive" must be the last event of the
-        // session, and Finish would otherwise release these after it.
-        ReleaseHeld();
+        // The session is over, and it must already be invisible when "inactive" is dispatched, with nothing
+        // after it: end it, and queue "inactive", in this one lock hold. A handler of "inactive" then finds
+        // is_active 0 and no peers, and SetPeerEntity cannot queue an ENTITY event behind it. What the Core
+        // raised in the step that failed was never published, so it is dropped, not delivered.
+        DropHeld();
+        EndSessionLocked();
         PushState(false, g_reason);
     }
     Finish(*s);

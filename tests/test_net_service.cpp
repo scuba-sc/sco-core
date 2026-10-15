@@ -7,8 +7,9 @@
 //   - Two Cores over real UDP sockets on 127.0.0.1 in one process.
 //   - The service with its network thread over UDP loopback, with a test Core as the other
 //     player, and table calls from 8 threads (run under TSan by tools/test.sh).
-//   - Failures of the service itself: the network thread throws, and an allocation fails while
-//     the events the Core raised move to the game thread's inbox.
+//   - Failures of the service itself: the network thread throws (while joining and from a session
+//     that is up), and an allocation fails while the events the Core raised move to the game thread's
+//     inbox.
 // Nothing sleeps for a fixed time: the in-memory runs advance a virtual clock, and the socket runs
 // wait for an event (a datagram, a delivery) with a bound.
 //   test_net_service             (tools/test.sh, CTest test_net_service)
@@ -106,8 +107,27 @@ void* operator new(std::size_t n) {
     if (void* p = std::malloc(n != 0 ? n : 1)) return p;
     throw std::bad_alloc();
 }
+void* operator new[](std::size_t n) { return operator new(n); }
+void* operator new(std::size_t n, const std::nothrow_t&) noexcept {
+    try {
+        return operator new(n);
+    } catch (...) {
+        return nullptr;
+    }
+}
+void* operator new[](std::size_t n, const std::nothrow_t&) noexcept {
+    try {
+        return operator new(n);
+    } catch (...) {
+        return nullptr;
+    }
+}
 void operator delete(void* p) noexcept { FreeBlock(p); }
 void operator delete(void* p, std::size_t) noexcept { FreeBlock(p); }
+void operator delete[](void* p) noexcept { FreeBlock(p); }
+void operator delete[](void* p, std::size_t) noexcept { FreeBlock(p); }
+void operator delete(void* p, const std::nothrow_t&) noexcept { FreeBlock(p); }
+void operator delete[](void* p, const std::nothrow_t&) noexcept { FreeBlock(p); }
 #endif   // !SCO_TEST_TSAN
 
 // ---- helpers ------------------------------------------------------------------------------------
@@ -150,6 +170,17 @@ struct Events {
 };
 static Events g_events;
 static int    g_eventsOwner;
+
+// What a "net.state" inactive handler found when g_probe.on is set: the table calls a plugin makes to ask whether
+// the session is still there, and SetPeerEntity, which queues an ENTITY event if the session still shows the peer.
+struct InactiveProbe {
+    bool        on = false, ran = false;
+    int         isActive = -1;
+    uint32_t    peers = 99;
+    sco_result  flags = SCO_OK;
+    Result      entity = Result::Ok;
+};
+static InactiveProbe g_probe;
 static void OnEvent(const char* ev, const void* data, void*) {
     if (std::strcmp(ev, SCO_NET_EVENT_STATE) == 0) {
         const auto* e = static_cast<const sco_net_state_event*>(data);
@@ -157,6 +188,15 @@ static void OnEvent(const char* ev, const void* data, void*) {
             g_events.states.push_back(*e);
             g_events.stateSeen.emplace_back(e->active, g_t ? g_t->is_active() : -1);
             g_events.order += e->active ? 'A' : 'I';
+            if (!e->active && g_probe.on && g_t) {
+                uint32_t n = 0, f = 0;
+                g_t->get_peers(nullptr, &n);
+                g_probe.ran = true;
+                g_probe.isActive = g_t->is_active();
+                g_probe.peers = n;
+                g_probe.flags = g_t->get_peer_flags(kHostPeer, &f);
+                g_probe.entity = SetPeerEntity(kHostPeer, 0xBEEF);
+            }
         }
     } else if (std::strcmp(ev, SCO_NET_EVENT_PEER) == 0) {
         const auto* e = static_cast<const sco_net_peer_event*>(data);
@@ -808,7 +848,9 @@ static void TestHeldTransferFailure() {
         if (!run.fired || run.escaped) continue;
         exercised = true;
         CHECK(run.dropped == 1);                              // the failure path ran once
-        CHECK(run.delivered > 0 && run.delivered < kBurst);   // part of the burst had moved, the rest did not
+        // How many moved before the failure depends on the library's deque blocks (libc++ takes one block of 16
+        // items at the first push, so none may have), so only "not all" is required.
+        CHECK(run.delivered < kBurst);
         CHECK(run.quotaFree);                                 // and the quota of the rest was given back
     }
     CHECK(exercised);
@@ -1151,6 +1193,10 @@ public:
     bool Send(const Endpoint& to, const uint8_t* data, size_t len) override { return inner_.Send(to, data, len); }
 
     bool Receive(Endpoint* from, uint8_t* buf, size_t cap, size_t* len) override {
+        if (throwNext_) {
+            throwNext_ = false;
+            throw std::bad_alloc();
+        }
         if (parkNext_) {
             parkNext_ = false;
             if (throwAtGate_) throw std::bad_alloc();   // the failure the network thread's catch is for
@@ -1161,12 +1207,21 @@ public:
         if (got && armed_.load() && *len >= SC_NET_HEADER_BYTES && buf[SC_NET_OFF_KIND] == SC_NET_DATA &&
             buf[SC_NET_OFF_CHANNEL] == 0 && buf[SC_NET_OFF_CHANNEL + 1] == 0 && ++controlSeen_ == 2)
             parkNext_ = true;
+        // A message of a plugin (kind DATA on a channel other than the control channel): the Core handles it
+        // and calls Receive again, which throws.
+        if (got && throwAfterMessage_.load() && *len >= SC_NET_HEADER_BYTES && buf[SC_NET_OFF_KIND] == SC_NET_DATA &&
+            (buf[SC_NET_OFF_CHANNEL] != 0 || buf[SC_NET_OFF_CHANNEL + 1] != 0)) {
+            throwAfterMessage_ = false;
+            throwNext_ = true;
+        }
         return got;
     }
 
     void Arm() { armed_ = true; }
     // At the gate, fail with std::bad_alloc instead of parking.
     void ThrowAtGate() { throwAtGate_ = true; }
+    // Once the next message of a plugin has been received, fail the Receive call that follows it.
+    void ThrowAfterNextMessage() { throwAfterMessage_ = true; }
     bool WaitParked(uint32_t ms) {
         std::unique_lock<std::mutex> hold(m_);
         return cv_.wait_for(hold, std::chrono::milliseconds(ms), [this] { return parked_; });
@@ -1190,6 +1245,8 @@ private:
     std::atomic<bool>       armed_{ false };
     bool                    parkNext_ = false;    // network thread only
     bool                    throwAtGate_ = false; // set before the session starts
+    std::atomic<bool>       throwAfterMessage_{ false };
+    bool                    throwNext_ = false;   // network thread only
     int                     controlSeen_ = 0;     // network thread only
     std::mutex              m_;
     std::condition_variable cv_;
@@ -1281,9 +1338,9 @@ static void TestThreadedPeerSnapshot() {
 // ---- the network thread fails: "inactive" stays the last event ---------------------------------------------
 
 // The network thread's Receive throws right after it handled SYNC (the gate of GateTransport). The Core has
-// raised the host's JOINED and "active" in that step, and the step never reaches its Snapshot, so both are
-// still held when Run's catch queues the terminal "inactive". They must reach the game thread before it, not
-// after it: a plugin that was told the session is over must not be told next that it is up.
+// raised the host's JOINED and "active" in that step, and the step never reaches its Snapshot, so the session
+// was never published and both events are still held when Run's catch ends the session. They are dropped: the
+// plugin hears only that the session is over, and is never told after that it is up.
 static void TestThreadFailure() {
     ServiceOptions so;
     so.pbkdf2Iters = kIters;
@@ -1333,12 +1390,98 @@ static void TestThreadFailure() {
     TickNet();
 
     const std::string& order = g_events.order;
-    CHECK(order.size() == 3 && order.back() == 'I');   // JOINED and "active" in the Core's order, then "inactive"
-    CHECK(order.find('I') == order.size() - 1);
-    CHECK(order.find('J') != std::string::npos && order.find('A') != std::string::npos);
+    CHECK(order == "I");   // nothing for the step that failed, and nothing after "inactive"
     CHECK(LastReason() == "out of memory");
     CHECK(g_t->is_active() == 0 && PeerCount() == 0);
 
+    host.core.Leave("done");
+    Stop();
+    CHECK(!Started());
+    CHECK(sco::Release(p) == Result::Ok);
+    g_events.order.clear();
+}
+
+// The same failure from a session that is up. The service has joined a server and the plugin has been told, so the
+// session is published. A message from the server is in the step that fails: it is dropped. When "inactive" is
+// dispatched the session is already gone, so a handler that asks finds is_active 0, no peers and no flags, and
+// its SetPeerEntity finds no peer and queues no ENTITY event behind "inactive". The game thread ticks in a tight
+// loop while the network thread dies, so a window between "inactive" and the end of the session would show.
+static void TestThreadFailureActive() {
+    ServiceOptions so;
+    so.pbkdf2Iters = kIters;
+    CHECK(Start(so) == Result::Ok && Started());
+    sco_plugin* p = sco::host::NewPlugin("late");
+    Got got;
+    CHECK(g_t->register_channel(p, "late.m", 0, 8, OnMsg, &got) == SCO_OK);
+    std::string why;
+    auto hostSock = udp::Socket::Open(0, true, &why);
+    auto joinSock = udp::Socket::Open(0, true, &why);
+    CHECK(hostSock != nullptr && joinSock != nullptr);
+    if (!hostSock || !joinSock) {
+        Stop();
+        CHECK(sco::Release(p) == Result::Ok);
+        return;
+    }
+
+    Remote host(*hostSock);
+    CHECK(host.core.RegisterChannel("late.m", 0, 8));
+    Options ho = RemoteOpts();
+    ho.playerName = "Relay";
+    ho.server = true;
+    CHECK(host.core.Host(ho, SteadyMs()));
+    Endpoint hostEp;
+    CHECK(ParseAddress("127.0.0.1", hostSock->Port(), &hostEp));
+
+    GateTransport gate(*joinSock);
+    JoinOptions j;
+    j.transport = &gate;
+    j.endpoint = hostEp;
+    j.passphrase = kPass;
+    j.playerName = "Me";
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerFlags.clear();
+    g_events.order.clear();
+    CHECK(Join(j) == Result::Ok);
+
+    const uint64_t joinDeadline = SteadyMs() + 10000;
+    while (!(g_t->is_active() == 1 && PeerCount() == 2) && SteadyMs() < joinDeadline) {
+        host.core.Pump(SteadyMs());
+        hostSock->Wait(5);
+        TickNet();
+    }
+    TickNet();
+    CHECK(g_t->is_active() == 1 && PeerCount() == 2);
+    CHECK(g_events.order.size() == 2 && g_events.order.find('J') != std::string::npos &&
+          g_events.order.find('A') != std::string::npos);   // the plugin knows the session is up
+
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerFlags.clear();
+    g_events.order.clear();
+    got.msgs.clear();
+    g_probe = InactiveProbe();
+    g_probe.on = true;
+    gate.ThrowAfterNextMessage();
+    CHECK(host.core.Send("late.m", "m", 1) == SendResult::Ok);
+    const uint64_t deadline = SteadyMs() + 10000;
+    while (GetState() != State::Idle && SteadyMs() < deadline) {
+        host.core.Pump(SteadyMs());
+        TickNet();
+    }
+    CHECK(GetState() == State::Idle);
+    TickNet();
+    TickNet();   // anything queued behind "inactive" would be dispatched by now
+
+    CHECK(g_events.order == "I");   // no event of the step that failed, and none after "inactive"
+    CHECK(got.msgs.empty());        // the message of the step that failed is dropped
+    CHECK(g_probe.ran && g_probe.isActive == 0 && g_probe.peers == 0 && g_probe.flags == SCO_NOT_FOUND &&
+          g_probe.entity == Result::NotFound);
+    CHECK(LastReason() == "out of memory");
+
+    g_probe.on = false;
     host.core.Leave("done");
     Stop();
     CHECK(!Started());
@@ -1410,6 +1553,7 @@ int main() {
     Run("TestThreadedService", TestThreadedService);
     Run("TestThreadedPeerSnapshot", TestThreadedPeerSnapshot);
     Run("TestThreadFailure", TestThreadFailure);
+    Run("TestThreadFailureActive", TestThreadFailureActive);
 
     CHECK(sco::Release(g_a2) == Result::Ok && sco::Release(g_b) == Result::Ok);
     std::printf("sco-core net service tests: %d passed, %d failed\n", g_pass.load(), g_fail.load());

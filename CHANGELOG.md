@@ -47,9 +47,12 @@ What each change means for plugin authors and for products built on sco-core (sc
   this SDK or later, so it hosts `SCO_NET_SESSION_MAX_PEERS` (51) players. `net.state` and `net.peer` events are
   now dispatched only after the session they report is visible to `is_active`, `get_peers`, `get_peer_name` and
   `get_peer_flags`; with the threaded service the game thread could deliver a JOINED event before the session
-  was published. If the network thread fails, "inactive" is now the last event of the session, and the inbox
-  quota of messages lost to an allocation failure is given back. Tests are in memory (real server and player
-  hosts, a scripted host, the table and the wrapper, a threaded service join and a failing one). Fake players
+  was published. The final `net.state` event of a session is its last: when it is dispatched the session is already
+  gone from every table call, so no ENTITY event can follow it. If the network thread fails, the events of the
+  step it was running are dropped and the session ends that way, with the reason "out of memory"; the inbox quota
+  charged to held messages that are dropped, or lost to an allocation failure while they move to the inbox, goes
+  back. Tests are in memory (real server and player hosts, a scripted host, the table and the wrapper) or over
+  loopback UDP (a threaded service join, and a failing one while joining and from a session that is up). Fake players
   built from the `sdk-v2.2.0` network library joined a flagged 51-endpoint server over loopback UDP (50 of 50 got
   in, listing the server as a player); not run in game.
 
