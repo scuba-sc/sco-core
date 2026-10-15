@@ -2,7 +2,7 @@
   "records": [
     {
       "absent_capability": "Disabled broker, absent admission/owner cleanup or failed registration leaves game.private_session false/unavailable. Enabled default is loopback-only and opens no socket before explicit Host/Join.",
-      "buffer_contract": "`sco_result (*request_host)(sco_plugin* self, const sc_private_session_host_request_v1* request);`<br>Complete 40-byte request; consent=1 only after fresh explicit local UI Host, reserved pad zero. Passphrase 12..256 bytes, player name 1..64 bytes, no embedded NUL; nonzero port and max_peers 2..51 (a runtime from SDK 2.2.0 or earlier answers BAD_ARG above 16). Strings declared UTF-8. Unknown request tail ignored. Host rechecks admission and owns numeric bind/exact peer scope.",
+      "buffer_contract": "`sco_result (*request_host)(sco_plugin* self, const sc_private_session_host_request_v1* request);`<br>Complete 40-byte request; consent=1 only after fresh explicit local UI Host, reserved pad zero. Passphrase 12..256 bytes, player name 1..64 bytes, no embedded NUL; nonzero port and max_peers 2..51 (a runtime without `SCO_NET_SESSION_MAX_PEERS` answers BAD_ARG above 16). Strings declared UTF-8. Unknown request tail ignored. Host rechecks admission and owns numeric bind/exact peer scope.",
       "callback_context": "No plugin callback; offline/EAC inspection and transport are host-owned.",
       "cleanup": "Requesting-owner unload, explicit leave, admission loss or host stop leaves session. Stop withdraws service. Credentials are volatile backend state, not plugin-controlled persistent storage.",
       "examples": [],
@@ -63,7 +63,7 @@
       ],
       "member_extent": 16,
       "ownership": "Host owns one session and its requesting owner; request strings are borrowed for the call and copied into host storage. Plugins receive no socket/bind/allowlist authority. Caller owns copied state.",
-      "purpose": "Complete 40-byte request; consent=1 only after fresh explicit local UI Host, reserved pad zero. Passphrase 12..256 bytes, player name 1..64 bytes, no embedded NUL; nonzero port and max_peers 2..51 (a runtime from SDK 2.2.0 or earlier answers BAD_ARG above 16). Strings declared UTF-8. Unknown request tail ignored. Host rechecks admission and owns numeric bind/exact peer scope.",
+      "purpose": "Complete 40-byte request; consent=1 only after fresh explicit local UI Host, reserved pad zero. Passphrase 12..256 bytes, player name 1..64 bytes, no embedded NUL; nonzero port and max_peers 2..51 (a runtime without `SCO_NET_SESSION_MAX_PEERS` answers BAD_ARG above 16). Strings declared UTF-8. Unknown request tail ignored. Host rechecks admission and owns numeric bind/exact peer scope.",
       "reentrancy": "Nested calls during broker operations are refused with UNAVAILABLE.",
       "results": "OK host operation accepted, not authenticated connection; BAD_ARG malformed/bounds/released self; FAILED absent consent or broker failure; WRONG_THREAD; UNAVAILABLE disabled/stopping/reentrant, failed admission or occupied session; TOO_MANY four-attempts-per-second host-wide limit.",
       "service": "game.private_session",

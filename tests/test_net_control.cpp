@@ -18,7 +18,7 @@ using sco::Result;
 // apart, a request the broker lets through would be refused one layer down.
 static_assert(SC_PRIVATE_SESSION_MAX_PEERS == kMaxPeers, "broker cap and session limit agree");
 static_assert(SC_PRIVATE_SESSION_MAX_PEERS == 51u, "the limit is 51 players, the host included");
-static_assert(SC_PRIVATE_SESSION_MAX_PEERS_2_2 == 16u, "the cap of a runtime from SDK 2.2.0 and earlier");
+static_assert(SC_PRIVATE_SESSION_MAX_PEERS_2_2 == 16u, "the cap of a runtime without this change");
 #endif
 static int passed = 0, failed = 0;
 static unsigned socketAttempts = 0;

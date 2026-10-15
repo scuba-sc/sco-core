@@ -21,7 +21,7 @@ What each change means for plugin authors and for products built on sco-core (sc
   the true count when more than 16 players are in the session: that is the 1.0 `get_peers` contract, and
   `scosdk::Net::Peers()` copes; a plugin that treats `SCO_TOO_MANY` as a failure loses its peer list there.
   A plugin built with this header that asks `request_host` for 17 to 51 peers gets `SCO_BAD_ARG` from a runtime
-  of SDK 2.2.0 or earlier (its cap is 16): that answer is how it can tell, and it can retry with
+  without this change (its cap is 16): that answer is how it can tell, and it can retry with
   `SC_PRIVATE_SESSION_MAX_PEERS_2_2`. The broker's allow-list of 1-16 exact peer addresses is a separate
   limit and is unchanged. New cases: a 51-peer session in `test_net` and in `test_net_service` (a 50-player
   burst, relay, a refused 52nd join, a freed seat taken again), bursts of 50 and of 60 joiners in `test_net`

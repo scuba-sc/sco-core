@@ -70,7 +70,7 @@ extern "C" {
  * SCO_TOO_MANY means more peers than the capacity, with the first ones written. */
 #define SCO_NET_MAX_PEERS     16u                  /* 1.0: a session, self included */
 /* The most players a runtime built from this SDK hosts, self included (the wire header's SC_NET_MAX_PEERS).
- * A runtime from SDK 2.2.0 or earlier hosts SCO_NET_MAX_PEERS. Added after 1.0; the service table and its
+ * A runtime from an SDK without this macro hosts SCO_NET_MAX_PEERS. Added after 1.0; the service table and its
  * version are unchanged, so the service cannot be asked which of the two it has. */
 #define SCO_NET_SESSION_MAX_PEERS SC_NET_MAX_PEERS /* 51 */
 #define SCO_NET_MAX_UNREL     SC_NET_MAX_UNREL     /* 1200: bytes in one unreliable message */

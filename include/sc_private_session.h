@@ -18,9 +18,9 @@
 #define SC_PRIVATE_SESSION_MAX_PLAYER_NAME 64u
 #define SC_PRIVATE_SESSION_MAX_ADDRESS 15u
 /* The largest max_peers a host request may name, the host included: 51, the same number as SC_NET_MAX_PEERS
- * (the session layer refuses a larger one). A runtime from SDK 2.2.0 or earlier stops at
- * SC_PRIVATE_SESSION_MAX_PEERS_2_2 and answers SCO_BAD_ARG above it, so a plugin that asks for more and gets
- * that answer retries with the smaller number. Nothing to do with the policy's allow-list of 1-16 exact
+ * (the session layer refuses a larger one). A runtime without SCO_NET_SESSION_MAX_PEERS (an SDK without
+ * this change) stops at SC_PRIVATE_SESSION_MAX_PEERS_2_2 and answers SCO_BAD_ARG above it, so a plugin that
+ * asks for more and gets that answer retries with the smaller number. Nothing to do with the policy's allow-list of 1-16 exact
  * peer addresses. */
 #define SC_PRIVATE_SESSION_MAX_PEERS 51u
 #define SC_PRIVATE_SESSION_MAX_PEERS_2_2 16u
