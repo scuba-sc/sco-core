@@ -1,6 +1,6 @@
 # Actor status and game event rows
 
-Which of these capabilities are on, and how far each has been checked: [status](status.md) (`game.actors.state` and `game.events.vehicle_seat` are off until an in-game run).
+Which of these capabilities are on, and how far each has been checked: [status](status.md) (`game.actors.state`, `game.events.vehicle_seat` and `game.events.mission_changed` are off until an in-game run).
 
 The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come from the spikes in [game world spikes](../design/game-world-spikes.md) (B4, B5, B6, B8), each locator and byte check as written there and proven unique in the .text of 4.10.196.36804. Accessor: [`sco/game/events.h`](../../include/sco/game/events.h).
 
@@ -22,3 +22,11 @@ The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come fr
 | `event.player_spawn` | `SCigEventDispatcher::QueueEvent<SPI_Player_OnSpawn>`: one unique prologue; `+0x2C` calls entity slot `0x7A8`, `+0x60` loads its label (and the label's function is the match) |
 | `event.player_death` | Function containing the inline `QueueEvent<SPI_Player_OnDeath>` label: one load at `+0x414` and its containing .pdata function; prologue, `+0x22` (`rbx = rdx; r15 = rcx`) and `+0x69` (the actor's entity handle) checked |
 | `event.seat_enter` / `event.seat_exit` | `CSCActorResultStateLinked::Enter` / `::Exit`: one label load each and .pdata; prologues checked |
+
+
+## game.mission.changed (no rows)
+
+`game.events.mission_changed` gates on no signature rows. It polls the game.missions service's accepted-mission statuses
+(offline::PollStatuses) on the tick and publishes state/phase/objective changes, so it fires only
+when a game.missions backend is bound and admitted (production adapter; offline sessions). Payload
+`sc_game_mission_changed` is pinned by `tests/abi_game_events.c`; see `sc_game_events.h` for stream semantics.${NL}
