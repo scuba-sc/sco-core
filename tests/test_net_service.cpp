@@ -7,6 +7,8 @@
 //   - Two Cores over real UDP sockets on 127.0.0.1 in one process.
 //   - The service with its network thread over UDP loopback, with a test Core as the other
 //     player, and table calls from 8 threads (run under TSan by tools/test.sh).
+//   - Failures of the service itself: the network thread throws, and an allocation fails while
+//     the events the Core raised move to the game thread's inbox.
 // Nothing sleeps for a fixed time: the in-memory runs advance a virtual clock, and the socket runs
 // wait for an event (a datagram, a delivery) with a bound.
 //   test_net_service             (tools/test.sh, CTest test_net_service)
@@ -26,10 +28,12 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <string>
 #include <thread>
 #include <utility>
@@ -49,6 +53,62 @@ static std::atomic<uint64_t> g_clock{ 1000 };
 
 constexpr const char* kPass = "correct horse";
 constexpr uint32_t kIters = 1000;   // both sides; the default is exercised by test_net
+
+// ---- allocation failure injection --------------------------------------------------------------
+// This program replaces the global allocation functions so that one allocation on one thread can be made
+// to fail with std::bad_alloc, the way the host runs out of memory. Allocations are counted only on the
+// thread that called Arm, from then until Disarm; every other allocation goes straight to malloc.
+// ThreadSanitizer's runtime defines operator new itself, and a second definition does not link, so a
+// ThreadSanitizer build leaves this out and TestHeldTransferFailure says it did not run.
+
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if defined(__SANITIZE_THREAD__) || __has_feature(thread_sanitizer)
+#define SCO_TEST_TSAN 1
+#else
+#define SCO_TEST_TSAN 0
+#endif
+
+#if !SCO_TEST_TSAN
+namespace allocfail {
+thread_local bool t_armed = false;
+thread_local long t_seen = 0;     // allocations on this thread since Arm
+thread_local long t_failAt = 0;   // the one that throws (1 is the next); 0 throws none
+thread_local bool t_fired = false;
+
+void Arm(long failAt) {
+    t_seen = 0;
+    t_failAt = failAt;
+    t_fired = false;
+    t_armed = true;
+}
+long Disarm() {
+    t_armed = false;
+    return t_seen;
+}
+}  // namespace allocfail
+
+// Out of line: GCC 12 inlines a replaced operator delete into its callers, sees free() on what it takes
+// for operator new's pointer and reports -Wmismatched-new-delete, which -Werror makes an error.
+#if defined(_MSC_VER)
+#define TEST_NOINLINE __declspec(noinline)
+#else
+#define TEST_NOINLINE __attribute__((noinline))
+#endif
+TEST_NOINLINE static void FreeBlock(void* p) noexcept { std::free(p); }
+
+void* operator new(std::size_t n) {
+    if (allocfail::t_armed && ++allocfail::t_seen == allocfail::t_failAt) {
+        allocfail::t_fired = true;
+        throw std::bad_alloc();
+    }
+    if (void* p = std::malloc(n != 0 ? n : 1)) return p;
+    throw std::bad_alloc();
+}
+void operator delete(void* p) noexcept { FreeBlock(p); }
+void operator delete(void* p, std::size_t) noexcept { FreeBlock(p); }
+#endif   // !SCO_TEST_TSAN
 
 // ---- helpers ------------------------------------------------------------------------------------
 
@@ -84,6 +144,9 @@ struct Events {
     std::vector<std::pair<sco_result, uint32_t>> peerFlags;
     // For each "net.state" event: its `active` and what is_active() said inside the handler.
     std::vector<std::pair<int, int>> stateSeen;
+    // Every event in the order it was delivered: A and I for a state event (active, inactive), J, L and E
+    // for a peer event (joined, left, entity).
+    std::string order;
 };
 static Events g_events;
 static int    g_eventsOwner;
@@ -93,11 +156,13 @@ static void OnEvent(const char* ev, const void* data, void*) {
         if (e->size == sizeof(sco_net_state_event)) {
             g_events.states.push_back(*e);
             g_events.stateSeen.emplace_back(e->active, g_t ? g_t->is_active() : -1);
+            g_events.order += e->active ? 'A' : 'I';
         }
     } else if (std::strcmp(ev, SCO_NET_EVENT_PEER) == 0) {
         const auto* e = static_cast<const sco_net_peer_event*>(data);
         if (e->size == sizeof(sco_net_peer_event)) {
             g_events.peers.push_back(*e);
+            g_events.order += e->what == SCO_NET_PEER_JOINED ? 'J' : e->what == SCO_NET_PEER_LEFT ? 'L' : 'E';
             uint32_t flags = 0xFFFFFFFFu;
             const sco_result r = g_t ? g_t->get_peer_flags(e->peer.peer_id, &flags) : SCO_UNAVAILABLE;
             g_events.peerFlags.emplace_back(r, flags);
@@ -625,6 +690,138 @@ static void TestFullSession() {
     CHECK(sco::Release(p) == Result::Ok);
 }
 
+// ---- an allocation fails while the held events move to the inbox ------------------------------------
+
+#if SCO_TEST_TSAN
+static void TestHeldTransferFailure() {
+    std::printf("  TestHeldTransferFailure: not run, ThreadSanitizer owns operator new\n");
+}
+#else
+namespace {
+constexpr size_t kBurst = 12;   // messages the remote sends in one go
+
+struct BurstRun {
+    long     allocations = 0;     // allocations the service's step made while it took the burst in
+    bool     fired = false;       // the injected failure happened
+    bool     escaped = false;     // ... and PumpNetwork let it out: it was not inside the move to the inbox
+    uint64_t dropped = 0;         // inboxDropped the step added
+    size_t   delivered = 0;       // of the burst, how many reached the plugin at the next Tick
+    bool     quotaFree = false;   // the plugin's inbox then took in a full quota of messages
+};
+
+// One run. The plugin "qt" owns an unreliable channel, a remote joins and sends kBurst messages, and the
+// service takes them in with one PumpNetwork (the held messages all move to the inbox in that step's
+// Snapshot). failAt > 0 makes the failAt-th allocation of that step throw std::bad_alloc; 0 only counts.
+// Afterwards the remote sends kMaxInboxPerPlugin more messages with no Tick in between. They all fit only if
+// nothing is still charged to the plugin's inbox quota for a message that never reached the inbox.
+BurstRun RunBurst(long failAt) {
+    BurstRun out;
+    Lab lab;
+    sco_plugin* p = sco::host::NewPlugin("qt");
+    Got got;
+    CHECK(g_t->register_channel(p, "qt.m", 0, 8, OnMsg, &got) == SCO_OK);
+    HostOptions h;
+    h.transport = &lab.svc;
+    h.passphrase = kPass;
+    h.playerName = "Host";
+    CHECK(Host(h) == Result::Ok);
+    Remote& r = lab.remote;
+    CHECK(r.core.RegisterChannel("qt.m", 0, 8));
+    CHECK(r.core.Join(RemoteOpts(), lab.svc.Self(), g_clock));
+    CHECK(lab.Until([&] { return r.core.Active() && PeerCount() == 2; }));
+    TickNet();   // an empty inbox, so the burst starts a fresh one the same way in every run
+    got.msgs.clear();
+
+    for (size_t i = 0; i < kBurst; ++i) CHECK(r.core.Send("qt.m", "m", 1) == SendResult::Ok);
+    g_clock += 10;
+    lab.net.now = g_clock;
+    r.core.Pump(g_clock);   // the remote sends the burst
+    g_clock += 10;
+    lab.net.now = g_clock;  // and it has arrived
+    const uint64_t droppedBefore = GetServiceStats().inboxDropped;
+    allocfail::Arm(failAt);
+    try {
+        PumpNetwork();
+    } catch (const std::bad_alloc&) {
+        out.escaped = true;
+    }
+    out.allocations = allocfail::Disarm();
+    out.fired = allocfail::t_fired;
+    if (out.escaped) {
+        Leave("test");
+        TickNet();
+        CHECK(sco::Release(p) == Result::Ok);
+        return out;
+    }
+    out.dropped = GetServiceStats().inboxDropped - droppedBefore;
+    TickNet();
+    out.delivered = got.msgs.size();
+
+    // The quota probe: a full quota of messages, none taken out by a Tick until all are in.
+    got.msgs.clear();
+    const uint64_t dropBase = GetServiceStats().inboxDropped;
+    size_t sent = 0;
+    uint64_t seen = 0;
+    int steady = 0;
+    CHECK(lab.Until([&] {
+        while (sent < kMaxInboxPerPlugin && r.core.Send("qt.m", "m", 1) == SendResult::Ok) ++sent;
+        const uint64_t in = GetServiceStats().core.datagramsIn;
+        steady = sent == kMaxInboxPerPlugin && in == seen ? steady + 1 : 0;
+        seen = in;
+        return steady >= 5;   // everything sent, and the service has stopped receiving
+    }));
+    out.quotaFree = GetServiceStats().inboxDropped == dropBase;
+    TickNet();
+    out.quotaFree = out.quotaFree && got.msgs.size() == kMaxInboxPerPlugin;
+
+    Leave("done");
+    TickNet();
+    CHECK(sco::Release(p) == Result::Ok);
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerFlags.clear();
+    g_events.order.clear();
+    return out;
+}
+}  // namespace
+
+// ReleaseHeld moves what the Core raised in a step to the inbox, and an allocation can fail half way. The
+// messages that did not move are lost, and the quota they were charged must be given back, or the plugin's
+// inbox shrinks for good by that much each time. The run that fails the last allocation of the step lands
+// there: the last allocations of a step that took twelve messages in are the inbox's own growth.
+static void TestHeldTransferFailure() {
+    // Two runs without a failure. The first leaves the containers as a later run finds them; the second counts
+    // the allocations of the step.
+    const BurstRun warm = RunBurst(0);
+    const BurstRun probe = RunBurst(0);
+    const int failBefore = g_fail.load();
+    CHECK(warm.delivered == kBurst && warm.dropped == 0 && warm.quotaFree);
+    CHECK(probe.delivered == kBurst && probe.dropped == 0 && probe.quotaFree && probe.allocations > 0);
+
+    // Fail one of the last allocations of the step per run, from the very last backwards, until one lands in
+    // the move to the inbox: that is the one PumpNetwork does not let out.
+    bool exercised = false;
+    BurstRun run;
+    for (long back = 0; back < 8 && !exercised; ++back) {
+        run = RunBurst(probe.allocations - back);
+        if (!run.fired || run.escaped) continue;
+        exercised = true;
+        CHECK(run.dropped == 1);                              // the failure path ran once
+        CHECK(run.delivered > 0 && run.delivered < kBurst);   // part of the burst had moved, the rest did not
+        CHECK(run.quotaFree);                                 // and the quota of the rest was given back
+    }
+    CHECK(exercised);
+    if (g_fail.load() != failBefore)
+        std::printf("  warm %zu/%llu/%d, probe %zu/%llu/%d/%ld allocations, last failing run %d/%d %zu/%llu/%d "
+                    "(delivered/dropped/quota free)\n",
+                    warm.delivered, static_cast<unsigned long long>(warm.dropped), warm.quotaFree ? 1 : 0,
+                    probe.delivered, static_cast<unsigned long long>(probe.dropped), probe.quotaFree ? 1 : 0,
+                    probe.allocations, run.fired ? 1 : 0, run.escaped ? 1 : 0, run.delivered,
+                    static_cast<unsigned long long>(run.dropped), run.quotaFree ? 1 : 0);
+}
+#endif   // SCO_TEST_TSAN
+
 // ---- the LAN rule ---------------------------------------------------------------------------------
 
 namespace {
@@ -956,6 +1153,7 @@ public:
     bool Receive(Endpoint* from, uint8_t* buf, size_t cap, size_t* len) override {
         if (parkNext_) {
             parkNext_ = false;
+            if (throwAtGate_) throw std::bad_alloc();   // the failure the network thread's catch is for
             Park();
         }
         const bool got = inner_.Receive(from, buf, cap, len);
@@ -967,6 +1165,8 @@ public:
     }
 
     void Arm() { armed_ = true; }
+    // At the gate, fail with std::bad_alloc instead of parking.
+    void ThrowAtGate() { throwAtGate_ = true; }
     bool WaitParked(uint32_t ms) {
         std::unique_lock<std::mutex> hold(m_);
         return cv_.wait_for(hold, std::chrono::milliseconds(ms), [this] { return parked_; });
@@ -989,6 +1189,7 @@ private:
     Transport&              inner_;
     std::atomic<bool>       armed_{ false };
     bool                    parkNext_ = false;    // network thread only
+    bool                    throwAtGate_ = false; // set before the session starts
     int                     controlSeen_ = 0;     // network thread only
     std::mutex              m_;
     std::condition_variable cv_;
@@ -1077,6 +1278,74 @@ static void TestThreadedPeerSnapshot() {
     CHECK(sco::Release(p) == Result::Ok);
 }
 
+// ---- the network thread fails: "inactive" stays the last event ---------------------------------------------
+
+// The network thread's Receive throws right after it handled SYNC (the gate of GateTransport). The Core has
+// raised the host's JOINED and "active" in that step, and the step never reaches its Snapshot, so both are
+// still held when Run's catch queues the terminal "inactive". They must reach the game thread before it, not
+// after it: a plugin that was told the session is over must not be told next that it is up.
+static void TestThreadFailure() {
+    ServiceOptions so;
+    so.pbkdf2Iters = kIters;
+    CHECK(Start(so) == Result::Ok && Started());
+    sco_plugin* p = sco::host::NewPlugin("boom");
+    std::string why;
+    auto hostSock = udp::Socket::Open(0, true, &why);
+    auto joinSock = udp::Socket::Open(0, true, &why);
+    CHECK(hostSock != nullptr && joinSock != nullptr);
+    if (!hostSock || !joinSock) {
+        Stop();
+        CHECK(sco::Release(p) == Result::Ok);
+        return;
+    }
+
+    Remote host(*hostSock);
+    Options ho = RemoteOpts();
+    ho.playerName = "Relay";
+    ho.server = true;
+    CHECK(host.core.Host(ho, SteadyMs()));
+    Endpoint hostEp;
+    CHECK(ParseAddress("127.0.0.1", hostSock->Port(), &hostEp));
+
+    GateTransport gate(*joinSock);
+    gate.ThrowAtGate();
+    JoinOptions j;
+    j.transport = &gate;
+    j.endpoint = hostEp;
+    j.passphrase = kPass;
+    j.playerName = "Me";
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerFlags.clear();
+    g_events.order.clear();
+    gate.Arm();
+    CHECK(Join(j) == Result::Ok);
+
+    // The remote host runs on this thread; the game thread ticks until the network thread has ended the session.
+    const uint64_t deadline = SteadyMs() + 10000;
+    while (GetState() != State::Idle && SteadyMs() < deadline) {
+        host.core.Pump(SteadyMs());
+        hostSock->Wait(5);
+        TickNet();
+    }
+    CHECK(GetState() == State::Idle);
+    TickNet();
+
+    const std::string& order = g_events.order;
+    CHECK(order.size() == 3 && order.back() == 'I');   // JOINED and "active" in the Core's order, then "inactive"
+    CHECK(order.find('I') == order.size() - 1);
+    CHECK(order.find('J') != std::string::npos && order.find('A') != std::string::npos);
+    CHECK(LastReason() == "out of memory");
+    CHECK(g_t->is_active() == 0 && PeerCount() == 0);
+
+    host.core.Leave("done");
+    Stop();
+    CHECK(!Started());
+    CHECK(sco::Release(p) == Result::Ok);
+    g_events.order.clear();
+}
+
 static void Run(const char* name, void (*fn)()) {
     const int before = g_fail.load();
     fn();
@@ -1127,6 +1396,7 @@ int main() {
     Run("TestJoinSession", TestJoinSession);
     Run("TestServerFlags", TestServerFlags);
     Run("TestFullSession", TestFullSession);
+    Run("TestHeldTransferFailure", TestHeldTransferFailure);
     Run("TestScope", TestScope);
     Run("TestUdpCores", TestUdpCores);
 
@@ -1139,6 +1409,7 @@ int main() {
 
     Run("TestThreadedService", TestThreadedService);
     Run("TestThreadedPeerSnapshot", TestThreadedPeerSnapshot);
+    Run("TestThreadFailure", TestThreadFailure);
 
     CHECK(sco::Release(g_a2) == Result::Ok && sco::Release(g_b) == Result::Ok);
     std::printf("sco-core net service tests: %d passed, %d failed\n", g_pass.load(), g_fail.load());

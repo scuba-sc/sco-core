@@ -198,14 +198,35 @@ void PushState(bool active, std::string_view reason) { Push(StateItem(active, re
 
 void PushPeer(uint32_t what, PeerId id, uint64_t entity) { Push(PeerItem(what, id, entity)); }
 
+// Under g_lock: gives back what the inbox quota charged for a message (the charge is made when the Core
+// raises it, in the message callback). Called when the game thread takes a message out of the inbox and
+// when a held message will never reach the inbox. Other kinds of item are not charged.
+void Uncharge(const Item& it) {
+    if (it.kind != ItemKind::Message) return;
+    for (auto& p : g_plugins)
+        if (p.owner == it.owner) {
+            p.inboxItems -= std::min<size_t>(p.inboxItems, 1);
+            p.inboxBytes -= std::min(p.inboxBytes, it.data.size());
+        }
+}
+
 // Under g_lock: hands everything the Core raised during this step to the game thread, in the order it
 // came. Called only together with the publication of the snapshot those events are about.
 void ReleaseHeld() {
     if (g_held.empty()) return;
+    size_t moved = 0;
     try {
-        for (Item& it : g_held) g_inbox.push_back(std::move(it));
+        for (Item& it : g_held) {
+            g_inbox.push_back(std::move(it));
+            ++moved;
+        }
     } catch (...) {
-        ++g_stats.inboxDropped;   // out of memory: the rest of this step's events are lost
+        // Out of memory: the rest of this step's events are lost. A push_back that throws has not touched
+        // its argument, so the items from `moved` on are whole. Their messages were charged to their
+        // plugin's inbox quota and no Tick will ever take them out, so the charge goes back here;
+        // otherwise each failure would shrink the plugin's inbox for good.
+        ++g_stats.inboxDropped;
+        for (size_t i = moved; i < g_held.size(); ++i) Uncharge(g_held[i]);
     }
     g_held.clear();
     g_delivery.notify_all();
@@ -388,6 +409,9 @@ void Run(Session* raw, uint32_t pollMs) {
         Log("[net] network thread stopped: out of memory");
         std::lock_guard<std::mutex> hold(g_lock);
         g_reason = "out of memory";
+        // What the Core raised before it failed goes first: "inactive" must be the last event of the
+        // session, and Finish would otherwise release these after it.
+        ReleaseHeld();
         PushState(false, g_reason);
     }
     Finish(*s);
@@ -781,14 +805,7 @@ void Tick() {
         std::lock_guard<std::mutex> hold(g_lock);
         if (!g_started) return;
         items.swap(g_inbox);
-        for (const Item& it : items) {
-            if (it.kind != ItemKind::Message) continue;
-            for (auto& p : g_plugins)
-                if (p.owner == it.owner) {
-                    p.inboxItems -= std::min<size_t>(p.inboxItems, 1);
-                    p.inboxBytes -= std::min(p.inboxBytes, it.data.size());
-                }
-        }
+        for (const Item& it : items) Uncharge(it);
     }
     for (const Item& it : items) {
         switch (it.kind) {
