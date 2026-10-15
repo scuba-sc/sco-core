@@ -9,20 +9,35 @@ extern "C" {
 #endif
 #define SC_LOADOUT_SERVICE_NAME "game.loadout"
 #define SC_LOADOUT_SERVICE_VERSION 0x00010000u
+#define SC_LOADOUT_VERSION_1_0 0x00010000u
+#define SC_LOADOUT_VERSION_1_1 0x00010001u /* + weapon and multitool slots 8-21 */
 #define SC_LOADOUT_MAX_ITEMS 16u
 #define SC_LOADOUT_ITEM_NAME_BYTES 96u
 typedef enum sc_loadout_slot {
     SC_LOADOUT_SLOT_HEAD = 1, SC_LOADOUT_SLOT_TORSO = 2,
     SC_LOADOUT_SLOT_ARMS = 3, SC_LOADOUT_SLOT_LEGS = 4,
     SC_LOADOUT_SLOT_UNDERSUIT = 5, SC_LOADOUT_SLOT_BACKPACK = 6,
-    SC_LOADOUT_SLOT_VISOR = 7, SC_LOADOUT_SLOT_FORCE32 = 0x7fffffff
+    SC_LOADOUT_SLOT_VISOR = 7,
+    /* 1.1: weapon and multitool slots. Logical slots, not engine port names.
+     * 8/9 are the weapons themselves; 10-21 target the item in the parent port
+     * when processed, so put 8/9 before 10-21 in a batch. Values 22+ unassigned. */
+    SC_LOADOUT_SLOT_PRIMARY = 8, SC_LOADOUT_SLOT_SIDEARM = 9,
+    SC_LOADOUT_SLOT_PRIMARY_OPTIC = 10, SC_LOADOUT_SLOT_PRIMARY_BARREL = 11,
+    SC_LOADOUT_SLOT_PRIMARY_UNDERBARREL = 12,
+    SC_LOADOUT_SLOT_SIDEARM_OPTIC = 13, SC_LOADOUT_SLOT_SIDEARM_BARREL = 14,
+    SC_LOADOUT_SLOT_SIDEARM_UNDERBARREL = 15,
+    SC_LOADOUT_SLOT_PRIMARY_TOOL_MODULE = 16, SC_LOADOUT_SLOT_PRIMARY_TOOL_CANISTER = 17,
+    SC_LOADOUT_SLOT_PRIMARY_TOOL_BATTERY = 18,
+    SC_LOADOUT_SLOT_SIDEARM_TOOL_MODULE = 19, SC_LOADOUT_SLOT_SIDEARM_TOOL_CANISTER = 20,
+    SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY = 21,
+    SC_LOADOUT_SLOT_FORCE32 = 0x7fffffff
 } sc_loadout_slot;
 typedef enum sc_loadout_status {
     SC_LOADOUT_APPLIED = 0, SC_LOADOUT_UNSUPPORTED = 1,
     SC_LOADOUT_ITEM_MISSING = 2, SC_LOADOUT_FAILED = 3,
     SC_LOADOUT_UNAVAILABLE = 4, SC_LOADOUT_STATUS_FORCE32 = 0x7fffffff
 } sc_loadout_status;
-/* Frozen 1.x records. item_class: NUL-terminated ASCII [A-Za-z0-9_], 1..95 bytes.
+/* Frozen 1.x records, unchanged in 1.1. item_class: NUL-terminated ASCII [A-Za-z0-9_], 1..95 bytes.
  * Unknown slot numbers are supported input: report UNSUPPORTED, do not call engine. */
 typedef struct sc_loadout_item {
     uint32_t slot; uint32_t _pad; char item_class[SC_LOADOUT_ITEM_NAME_BYTES];

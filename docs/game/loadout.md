@@ -1,9 +1,15 @@
-# Typed offline local-player loadout (`game.loadout` 1.0)
+# Typed offline local-player loadout (`game.loadout` 1.1)
 
 **Synthetic/native-boundary checked; not run in game.** Production publishes the
 table when Windows game services start, but `game.loadout.apply` stays **false**.
 The game pack has no verified typed per-slot equip implementation yet. Signature
 resolution or a successful query is not permission to mutate a player.
+
+Version 1.1 adds slot vocabulary only: weapon and multitool slots 8..21 (see
+[Slots](#slots)). Records are unchanged, `SC_LOADOUT_SERVICE_VERSION` stays 1.0 while
+1.1 is published (`SC_LOADOUT_VERSION_1_1`), and a 1.0 query is still answered. The new
+capability `game.loadout.weapons` defaults **OFF**, and production still installs no
+backend, so every slot, body or weapon, answers UNAVAILABLE in game.
 
 ## Inputs and outputs
 
@@ -14,10 +20,63 @@ unique numeric slots and NUL-terminated ASCII `[A-Za-z0-9_]` class names (1..95 
 Reserved fields are zero. No XML, file/path ingestion, raw game pointers, account
 inventory, entitlements, telemetry or network operations are exposed.
 
-HEAD, TORSO, ARMS, LEGS, UNDERSUIT, BACKPACK and VISOR identify *logical* slots,
+## Slots
+
+HEAD, TORSO, ARMS, LEGS, UNDERSUIT, BACKPACK and VISOR (1..7) identify *logical* slots,
 not verified engine port names. Unknown numeric slots are valid input, reported
 UNSUPPORTED without an equip call. Known slots can also be UNSUPPORTED by the adapter.
 List/outfit parsing, spoiler confirmation and labels remain consumer policy.
+
+Version 1.1 adds slots 8..21. The record shape is frozen, so each number encodes its
+parent weapon. The port column is the consumer-side logical meaning, not a verified
+engine port name.
+
+| Value | Name | Parent weapon / port |
+|---|---|---|
+| 8 | `SC_LOADOUT_SLOT_PRIMARY` | the primary weapon itself |
+| 9 | `SC_LOADOUT_SLOT_SIDEARM` | the sidearm itself |
+| 10 | `SC_LOADOUT_SLOT_PRIMARY_OPTIC` | primary, `optics_attach` |
+| 11 | `SC_LOADOUT_SLOT_PRIMARY_BARREL` | primary, `barrel_attach` |
+| 12 | `SC_LOADOUT_SLOT_PRIMARY_UNDERBARREL` | primary, `underbarrel_attach` |
+| 13 | `SC_LOADOUT_SLOT_SIDEARM_OPTIC` | sidearm, `optics_attach` |
+| 14 | `SC_LOADOUT_SLOT_SIDEARM_BARREL` | sidearm, `barrel_attach` |
+| 15 | `SC_LOADOUT_SLOT_SIDEARM_UNDERBARREL` | sidearm, `underbarrel_attach` |
+| 16 | `SC_LOADOUT_SLOT_PRIMARY_TOOL_MODULE` | primary multitool, `module_attach` |
+| 17 | `SC_LOADOUT_SLOT_PRIMARY_TOOL_CANISTER` | primary multitool, `canister_attach` |
+| 18 | `SC_LOADOUT_SLOT_PRIMARY_TOOL_BATTERY` | primary multitool, `magazine_attach` |
+| 19 | `SC_LOADOUT_SLOT_SIDEARM_TOOL_MODULE` | sidearm multitool, `module_attach` |
+| 20 | `SC_LOADOUT_SLOT_SIDEARM_TOOL_CANISTER` | sidearm multitool, `canister_attach` |
+| 21 | `SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY` | sidearm multitool, `magazine_attach` |
+
+Values 22 and above are unassigned and stay UNSUPPORTED. Numbers are frozen once
+published, so later slots can only be appended.
+
+Semantics:
+
+- The batch is processed in input order. An attachment or tool slot targets whatever
+  item occupies its parent port when that slot is processed, so put 8 and 9 before
+  10..21 in the same batch.
+- Replacing a weapon (8 or 9) does not carry attachments over. What the new weapon
+  spawns with is engine-defined, and the report claims nothing about it.
+- There is **no removal** in 1.x. `item_class` is 1..95 bytes, so "clear this slot" can't
+  be expressed, and unspecified slots stay unchanged. A clear or detach operation is a
+  2.x or separate-method question.
+- A multitool variant swap is consumer policy: send 8 or 9 with the multitool class plus
+  the module slot (16 or 19) in the same batch. The provider has no special rule for it.
+- The 16-item cap still fits every realistic request: 7 body slots, 2 weapons, and one
+  triple per weapon is 15.
+
+Status behaviour for 8..21:
+
+| Case | Status | Engine call |
+|---|---|---|
+| Slot 0 or above 21 | UNSUPPORTED | no |
+| Host provides 1.0 only (range ends at VISOR) | UNSUPPORTED | no |
+| Backend doesn't declare weapon support | UNSUPPORTED | no |
+| `game.loadout.weapons` OFF while body apply is ON | UNAVAILABLE | no |
+| Parent port empty, or the parent lacks that port (optic on a multitool, module on a firearm) | UNSUPPORTED | no mutation |
+| Class not found | ITEM_MISSING | lookup only |
+| Engine refuses, fit mismatch, or the confirmation read differs | FAILED | yes |
 
 Structural errors reject the whole batch before any equip: BAD_ARG (including null,
 foreign/released self, short size, bad stride/name, duplicates), or TOO_MANY above 16.
@@ -76,6 +135,8 @@ These are not Windows DLL, renderer, engine or gameplay acceptance.
 - Only then install/attest the typed backend and enable its capability. Consumer
   extraction/engine activation and charter gameplay acceptance remain blocked.
 
-**Decision pending owner:** extend logical slots only from observed consumer needs
-and verified port mappings. No arbitrary console, XML loader or account inventory
-fallback is authorized by this contract.
+**Owner decision (approved):** logical slots were extended for the sc-offline #127
+consumer need (weapon attachments and multitool slots 8..21). The port mappings in the
+slot table are still unverified, and each new slot needs its own in-game evidence
+before `game.loadout.weapons` can default ON. There is no removal in 1.x. No arbitrary
+console, XML loader or account inventory fallback is authorized by this contract.

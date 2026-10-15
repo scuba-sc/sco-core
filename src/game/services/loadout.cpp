@@ -40,6 +40,7 @@ sc_loadout_status SafeEquip(uint32_t slot, const char* name) {
 void Fault() {
     faulted = true;
     caps::Set("game.loadout.apply", false, "loadout provider fault; process restart required");
+    caps::Set("game.loadout.weapons", false, "loadout provider fault; process restart required");
 }
 sco_result Apply(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
@@ -77,9 +78,13 @@ sco_result Apply(sco_plugin* self, const sc_loadout_request* request, sc_loadout
     for (uint32_t i = 0; i < count; ++i) {
         const auto& item = items[i];
         auto& result = report->slots[i];
-        if (item.slot < SC_LOADOUT_SLOT_HEAD || item.slot > SC_LOADOUT_SLOT_VISOR) {
+        if (item.slot < SC_LOADOUT_SLOT_HEAD || item.slot > SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY) {
             result.status = SC_LOADOUT_UNSUPPORTED;
             continue;
+        }
+        if (item.slot >= SC_LOADOUT_SLOT_PRIMARY) {
+            if (!engine.weapons) { result.status = SC_LOADOUT_UNSUPPORTED; continue; }
+            if (!caps::Has("game.loadout.weapons")) continue;  // stays UNAVAILABLE, no engine call
         }
         if (i) {
             const int stillAdmitted = SafeOffline();
@@ -102,11 +107,15 @@ Result StartLoadout(const LoadoutBackend* backend) {
     if (applying) return Result::Unavailable;
     if (started) return Result::Ok;
     engine = backend ? *backend : LoadoutBackend{};
-    const Result r = host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table);
+    const Result r = host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table);
     started = r == Result::Ok;
-    caps::Set("game.loadout.apply", started && !faulted && engine.verified && engine.equip && engine.offline,
+    const bool applyOn = started && !faulted && engine.verified && engine.equip && engine.offline;
+    caps::Set("game.loadout.apply", applyOn,
               faulted ? "loadout provider fault; process restart required" :
                         "typed engine equip methods not verified; no provider installed");
+    caps::Set("game.loadout.weapons", applyOn && engine.weapons,
+              faulted ? "loadout provider fault; process restart required" :
+                        "typed weapon and multitool slot methods not verified; default off");
     if (!started) engine = {};
     return r;
 }
@@ -114,6 +123,7 @@ void StopLoadout() {
     if (!OnGameThread() || !started || applying) return;
     host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
     caps::Set("game.loadout.apply", false, "game loadout stopped");
+    caps::Set("game.loadout.weapons", false, "game loadout stopped");
     started = false;
     engine = {};
 }

@@ -27,6 +27,18 @@ void TestLoadoutRoutes(const sco_api* api, sco_plugin* self) {
     sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
     CHECK(wrapper.Open(api, self) == SCO_NOT_FOUND);
     CHECK(wrapper.Apply(std::span(&item, 1), report) == SCO_UNAVAILABLE);
+    CHECK(wrapper.Open(api, self, SC_LOADOUT_VERSION_1_1) == SCO_NOT_FOUND);
+    CHECK(sco::host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_0, &table) == sco::Result::Ok);
+    CHECK(wrapper.Open(api, self, SC_LOADOUT_VERSION_1_1) == SCO_UNAVAILABLE);
+    CHECK(wrapper.Open(api, self) == SCO_OK);
+    sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
+    table.apply = [](sco_plugin*, const sc_loadout_request*, sc_loadout_report*) { return SCO_OK; };
+    CHECK(sco::host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table) == sco::Result::Ok);
+    CHECK(wrapper.Open(api, self, SC_LOADOUT_VERSION_1_1) == SCO_OK);
+    sc_loadout_item weapon{SC_LOADOUT_SLOT_PRIMARY_OPTIC, 0, "synthetic_optic"};
+    CHECK(wrapper.Apply(std::span(&weapon, 1), report) == SCO_OK);
+    CHECK(wrapper.Open(api, self) == SCO_OK);
+    sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
     CHECK(wrapper.Open(nullptr, self) == SCO_BAD_ARG);
     sco_api host = *api;
     host.query_service = nullptr;

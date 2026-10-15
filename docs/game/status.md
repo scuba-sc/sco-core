@@ -23,10 +23,17 @@ The dated signature evidence below was recorded at sco-core `main` `2197dfb` (20
 
 ## Typed loadout extension (G6)
 
-`game.loadout` 1.0 / `game.loadout.apply`: table published by Windows game-services
+`game.loadout` 1.1 / `game.loadout.apply`: table published by Windows game-services
 composition, capability **OFF — typed engine methods unverified**. Synthetic real
 host/provider/native-module checks only; no trusted per-slot equip mapping and no
 offline admission adapter installed. See [loadout](loadout.md). Not run in game.
+
+`game.loadout.weapons` (new in 1.1, unreleased) gates the weapon and multitool slots 8-21
+of `apply` and is **OFF by default**, vocabulary only: production starts the service
+with no engine backend, so those slots answer unavailable or unsupported until a
+verified backend declares weapon support. Synthetic evidence only; no per-slot port
+mapping is verified and nothing was run in game. The service version macro
+`SC_LOADOUT_SERVICE_VERSION` stays 1.0 while 1.1 is published, as `game.world` 1.1 does.
 
 ## Quantum control activation (G8, unreleased R1)
 
@@ -123,7 +130,8 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.contracts` ([`sc_contracts.h`](../../include/sc_contracts.h)) | 1.0 | `game.contracts.stream_radius` (`stream_radius`, read-only) | OFF | OFF pending in-game confirmation |
 | `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
 | `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
-| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.0 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
+| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.1 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
+| | | `game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`) | OFF | Synthetic policy only; no verified engine backend, no in-game proof |
 | `game.quantum` ([`sc_quantum.h`](../../include/sc_quantum.h)) | 1.0 | `game.quantum.control` | OFF | Default production adapter absent (ON only with a configured private host backend); synthetic provider/host tests only; Windows/MSVC and gameplay NOT VERIFIED |
 | `game.private_session` ([`sc_private_session.h`](../../include/sc_private_session.h)) | 1.0 | `game.private_session` | ON | ON by owner approval for R1 (loopback broker, no socket until Host/Join); synthetic service and ABI checks only; Windows/MSVC, private LAN, EAC inspection and gameplay NOT VERIFIED |
 | `game.cvars` ([`sc_cvars.h`](../../include/sc_cvars.h)) | 1.0 | `game.cvars.read` (`get_bool`) | OFF | Default production adapter absent; synthetic engine callbacks only; engine types NOT VERIFIED |
