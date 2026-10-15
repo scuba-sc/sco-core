@@ -1,14 +1,6 @@
-# sco-core SDK 2.3.0 (release notes, unpublished candidate)
+# sco-core SDK 2.3.0 (release notes)
 
-Tag `sdk-v2.3.0`, combined zip `sco-sdk-2.3.0.zip`. **Status: unpublished candidate.** This page
-is a draft prepared on 2026-10-15 for the maintainer. No tag, signature, approval record, candidate
-run or release exists for 2.3.0, and nothing on this page authorizes one. The maintainer recorded
-the candidate scope and game pack 0.6.0 in the
-[SDK 2.3.0 scope record](../legal/release-decisions/2026-10-15-sdk-v2.3.0-scope.md) on 2026-10-15;
-that record does not itself dispatch a candidate, create an approval record, sign, tag or publish. Until the maintainer publishes 2.3.0, the newest published SDK is 2.2.0
-([latest release](https://github.com/scubamount/sco-core/releases/latest)). The release workflow
-publishes the CHANGELOG section [`## sdk-v2.3.0`](../../CHANGELOG.md) as the release's notes;
-this page is the longer reference behind it.
+Tag `sdk-v2.3.0`, combined zip `sco-sdk-2.3.0.zip`. **Published on 2026-10-15 at 07:11:58 UTC:** [SDK 2.3.0 release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.3.0). The tag peels to approval commit `1de4a97877f8af3742d0f1a645857db8c98bc76a`, which adds only the signed approval record (`docs/legal/release-decisions/sdk-v2.3.0.json` and `.sig`); the published archives were built from source commit `b039700dcd867da472095510bd68c74845f025f4` by candidate run `38696462512` (attempt 1, artifact `11954255975`). The two identities are distinct. The release publishes all five profiles (combined/legacy, core, core-source, the Star Citizen game-sc 0.6.0 overlay and the Star Citizen host-source kit), their SBOMs, `SHA256SUMS` and the signed `release.json`. The scope is the maintainer's [SDK 2.3.0 scope record](../legal/release-decisions/2026-10-15-sdk-v2.3.0-scope.md). The release workflow publishes the CHANGELOG section [`## sdk-v2.3.0`](../../CHANGELOG.md) as the release's notes; this page is the longer reference behind it.
 
 <!-- release-scope:start -->
 ```json
@@ -27,7 +19,7 @@ this page is the longer reference behind it.
 | `game.asop` service table | 1.0 (new) | `sc_asop.h` |
 | `game.contracts` service table | 1.0 (new) | `sc_contracts.h` |
 | Star Citizen game pack | 0.6.0 (was 0.5.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
-| Verified game build | unchanged from 2.2.0 | no new sigcheck or in-game verification in this candidate |
+| Verified game build | unchanged from 2.2.0 | no new sigcheck or in-game verification in this release |
 
 `VERSIONS.txt` in the zip states the same lines, generated from the headers by `sdk/package.py`.
 
@@ -35,19 +27,18 @@ this page is the longer reference behind it.
 
 - Core SDK, combined/legacy SDK, the neutral core-source kit and the Star Citizen
   host-source kit (`host-source-sc`): 2.3.0.
-- Optional game-sc public overlay: 0.6.0 (was 0.5.0). The candidate adds `game.asop` 1.0 and
+- Optional game-sc public overlay: 0.6.0 (was 0.5.0). The release adds `game.asop` 1.0 and
   `game.contracts` 1.0 and grows `game.loadout` to 1.1, and the
   [game-pack policy](../game-pack.md) raises the minor for a release that adds or grows a game
   service. The overlay ships as `sco-sdk-game-sc-0.6.0.zip`, so its compatibility descriptor,
   which binds the exact 2.3.0 core archive SHA-256, never shares a file name with the published
-  0.5.0 overlay. The game-pack coordinate is one of the maintainer decisions still open in the
-  scope record.
+  0.5.0 overlay.
 - Frozen plugin ABI: 1.1, unchanged. Individual service versions remain independent.
 
 The declared profiles repeat the five profiles published with 2.2.0; `sdk/components.json` and the
 candidate workflow's packaging loop list the same five. Which new headers and sources join which
 profile is listed in the [scope record](../legal/release-decisions/2026-10-15-sdk-v2.3.0-scope.md),
-for the maintainer's approval. These records supply no licence grant or counsel opinion.
+as approved for the release. These records supply no licence grant or counsel opinion.
 
 ## Changes since 2.2.0
 
@@ -67,7 +58,7 @@ verification limits. In short:
 Profiles are the `sdk/components.json` classification; `legacy` includes `core` and `game-sc`, and
 `host-source-sc` includes `core-source`.
 
-## Not in this candidate
+## Not in this release
 
 - C++, C# and Lua routes for `game.asop` and `game.contracts`. C and C++ call the tables through
   their headers.
@@ -81,22 +72,21 @@ documentation site and the static MCP server only, never an SDK zip.
 
 ## Engineering limits
 
-Nothing in this candidate has run in the game. Evidence is macOS local builds and synthetic
+Nothing in this release has run in the game. Evidence is macOS local builds and synthetic
 fixtures: the host test suite, `test_surfaces`, `test_pak_files` over a fake `ICryPak` vtable,
 `test_asop`, `test_contracts`, the loadout contract tests and the ABI pins as C11, C++20 and
 `-fshort-enums`. Linux and native Windows builds of the merged branch, the Windows game-pack
 adapters for the new game tables, GPU rendering of surfaces, and real-game, anti-cheat,
 official-network and private-LAN acceptance remain unproven. New game capabilities stay
-default-off: no production adapter turns on the five this candidate adds.
+default-off: no production adapter turns on the five this release adds.
 
 ## Checking the zip
 
-After publication, the same checks as every release apply:
+The same checks as every release apply:
 
 ```sh
 sha256sum -c SHA256SUMS
 unzip -p sco-sdk-2.3.0.zip sco-sdk-2.3.0/VERSIONS.txt
 ```
 
-Publication follows the [maintainer release procedure](../legal/release-checklist.md#releasing);
-these notes do not authorize a candidate, a tag or a release.
+Publication followed the [maintainer release procedure](../legal/release-checklist.md#releasing).
