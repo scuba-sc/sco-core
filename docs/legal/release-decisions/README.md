@@ -40,5 +40,6 @@ Two kinds of file live here:
 | [Engine-native index publication channel](2026-10-14-native-index.md) | 2026-10-14 | Decided: site and static MCP only, row name, subsystem, tier and readiness, in no SDK zip; counsel review not recorded; index landed, field question open |
 | [SDK2.2 distribution scope](2026-10-14-sdk-v2.2.0-scope.md) | 2026-10-14 | Recorded by the maintainer: five 2.1.0 profiles, game tables kept, game-sc 0.5.0; dispatches no candidate, signs, tags or publishes nothing |
 | [SDK2.3 distribution scope](2026-10-15-sdk-v2.3.0-scope.md) | 2026-10-15 | Recorded by the maintainer: five 2.2.0 profiles, game-sc 0.6.0; candidate dispatch still open; dispatches no candidate, signs, tags or publishes nothing |
+| [SDK2.4 distribution scope](2026-10-15-sdk-v2.4.0-scope.md) | 2026-10-15 | Recorded by the maintainer: five 2.3.0 profiles, game-sc 0.6.1; candidate dispatch still open; dispatches no candidate, signs, tags or publishes nothing |
 
 No release is published from these records alone: `sdk-v2.0.0` also needs its signed `sdk-v2.0.0.json` approval.

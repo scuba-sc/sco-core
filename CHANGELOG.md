@@ -4,6 +4,26 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+## sdk-v2.4.0 (2026-10-15)
+
+See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md) and the
+[SDK 2.4.0 scope record](docs/legal/release-decisions/2026-10-15-sdk-v2.4.0-scope.md).
+
+SDK 2.4.0 packages the entries below without changing frozen plugin ABI 1.1
+(`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.3.0). Core, legacy,
+core-source and host-source-sc use 2.4.0. The candidate gives the existing game service tables
+`game.relocation` 1.0 and `game.quantum` production engine backends without adding or growing a
+game service table (no public `sc_*.h` header changes), so under the
+[game-pack policy](docs/game-pack.md) (a release that adds or grows a game service raises the
+minor) the minor stays; the overlay's rows, documentation and compatibility descriptor change, so
+the game pack and the optional game-sc overlay take the patch coordinate **0.6.1**
+(`SCO_GAME_PACK_VERSION`; `sco-sdk-game-sc-0.6.1.zip`). Nothing below has run in the
+game: evidence is macOS local builds and synthetic fixtures. Linux, native Windows (the new engine
+adapters are Windows-only and were not compiled here) and real-game acceptance are unproven.
+`game.relocation` is now registered ON, but only while the host's fresh offline admission is
+positive, its rows resolve, a live player and known star system exist and the product switch is
+on; otherwise it is OFF. `game.quantum.control` stays default OFF.
+
 - **`game.relocation` 1.0 gets a fail-closed production path** ([docs](docs/game-services.md#relocation-gamerelocation-10)), `include/sc_relocation.h` and the frozen plugin ABI unchanged. The game pack now ports the v0.7.7 transport and system classifier behind a `RelocationBackend` seam (`src/game/services/relocation.h`, engine adapter `relocation_engine.cpp`, Windows only): the player and its star system come from the zone chain (the `SolarSystem*` zone; an unknown system refuses), the destination must be streamed, and the movement is the game's own teleport call. The new row `teleport.relocation` pins that call and the params stores, from the game's own `CmdTeleportToCamera`; it resolves on 4.10.196.36804 in a local `sco-sigcheck` run. The capability `game.relocation` is ON only while the host's fresh offline admission is positive, the rows resolve, a live player and known system exist and the product switch is on; otherwise OFF, with no engine read before the offline answer. `sco::game::services::SetRelocationEnabled(bool)` is the switch a product wires to a player or host setting; it can only turn relocation off. Completion needs a fresh observed pose in the target frame. Synthetic provider tests cover every input and failure reason; the Windows adapter is not compiled here and nothing has run in the game, so the evidence level stays synthetic only.
 - **`game.quantum`: default production backend under the maintainer's amended rule (2026-10-15), synthetic evidence only** ([docs](docs/quantum.md#amended-rule-2026-10-15), [cvars](docs/game/cvars.md)). The rule that forbade quantum cvar and shared drive-parameter writes now allows them under conditions: positive fresh offline admission before every write, first prior saved before the first write, every value restored on release, `apply(false,false)`, admission loss, drive loss, stop and fault, engine type verified before any access, writes only while holding control, no console execution. The Windows game pack ports the v0.7.7 engine code (`quantum_engine.cpp`, bookkeeping in `quantum_owned.cpp`): four int `v_qdrive2` cvars, the `+0xC0` parameter cell (only when it is below 1e9), charge keep-full and the effect-update guard, all only during a hold, with the `StartUse` user matched exactly to `reads::LocalPlayer` (anything else passes through). `p_enable_physical_quantum_travel` is not written (no grounded route). No frozen ABI, public header, signature row or `sco_api` table changes. `game.quantum.control` stays `synthetic_only`; nothing has run in the game or under MSVC.
 
