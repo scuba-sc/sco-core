@@ -42,13 +42,16 @@ What each change means for plugin authors and for products built on sco-core (sc
   peer that is not known is never mistaken for a player. `Core::Peers()` marks the host's entry on every side
   (`PeerInfo::flags`, `kPeerServer`). Player seats and the 51-endpoint transport bound are counted apart:
   with 50 seats a player host admits 49 joiners and a server 50. The service's own Host request and the
-  private-session broker are unchanged and always host a player. A runtime that offers `sco.net` 1.1 is from
+  private-session broker are unchanged and always host a player; the private-session state's `peer_count`
+  counts a server like `get_peers` does. A runtime that offers `sco.net` 1.1 is from
   this SDK or later, so it hosts `SCO_NET_SESSION_MAX_PEERS` (51) players. `net.state` and `net.peer` events are
   now dispatched only after the session they report is visible to `is_active`, `get_peers`, `get_peer_name` and
   `get_peer_flags`; with the threaded service the game thread could deliver a JOINED event before the session
-  was published. In-memory tests only (real server and player hosts, a scripted host, the table and the wrapper,
-  a threaded service join); no real SDK 2.2.0 build was run against a
-  server; not run in game.
+  was published. If the network thread fails, "inactive" is now the last event of the session, and the inbox
+  quota of messages lost to an allocation failure is given back. Tests are in memory (real server and player
+  hosts, a scripted host, the table and the wrapper, a threaded service join and a failing one). Fake players
+  built from the `sdk-v2.2.0` network library joined a flagged 51-endpoint server over loopback UDP (50 of 50 got
+  in, listing the server as a player); not run in game.
 
 ## sdk-v2.3.0 (2026-10-15)
 
