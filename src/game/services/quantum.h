@@ -28,6 +28,10 @@ struct QuantumBackend {
 // through stop, and through process exit after a fault. No engine call occurs here.
 Result ConfigureProductionQuantum(const QuantumBackend& backend);
 Result StartProductionQuantum(bool ownerCleanupReady);
+// Windows game pack only (quantum_engine.cpp): configures the default production backend under the
+// amended rule when every row resolves and fresh offline admission is positive right now. Otherwise
+// it leaves the empty configuration (capability OFF, no hook) and returns Unavailable.
+Result ConfigureDefaultProductionQuantum();
 // Standalone host fixtures use the same provider, but must install the owner release
 // forwarder themselves before passing ownerCleanupReady=true. No extra kernel slot.
 Result StartQuantum(const QuantumBackend& backend = {}, bool ownerCleanupReady = false);

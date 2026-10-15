@@ -43,13 +43,14 @@ shared owner-release dispatcher installed. All enable/hold calls still require
 fresh positive offline/EAC-absent admission, owned drive, game thread and bounded
 values. No additional public table/header or kernel mutation route is added.
 
-**Default production adapter absent — capability OFF.** Retained product layouts
-lack a safe owned-drive association and complete first-prior/input/charge/audio/
-effect restoration contract. Approval does not establish those facts. Private
-host-source configuration/start is explicit, with no signature-only fallback;
-see [quantum integration contract](../quantum.md). The portable configured
-provider/real host test is synthetic; **Windows/MSVC, actual drive input/charge/
-effects and gameplay are NOT VERIFIED; not run in game**.
+**Default production adapter present under the maintainer's 2026-10-15 amended rule
+(Windows game pack) — capability ON only when it configures.** It configures only
+when every row it needs resolves and fresh positive offline admission holds at start;
+otherwise the capability stays OFF. It writes four int quantum cvars and one shared
+drive parameter cell only while a hold is active, with first-prior save and restore on
+every release path; see [the amended rule](../quantum.md#amended-rule-2026-10-15).
+The tests are synthetic (a fake engine); **Windows/MSVC, actual drive input/charge/
+effects, the `StartUse` user match and gameplay are NOT VERIFIED; not run in game**.
 
 ## Private-session broker (G13, unreleased)
 
@@ -132,7 +133,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
 | `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.1 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
 | | | `game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`) | OFF | Synthetic policy only; no verified engine backend, no in-game proof |
-| `game.quantum` ([`sc_quantum.h`](../../include/sc_quantum.h)) | 1.0 | `game.quantum.control` | OFF | Default production adapter absent (ON only with a configured private host backend); synthetic provider/host tests only; Windows/MSVC and gameplay NOT VERIFIED |
+| `game.quantum` ([`sc_quantum.h`](../../include/sc_quantum.h)) | 1.0 | `game.quantum.control` | OFF | Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED |
 | `game.private_session` ([`sc_private_session.h`](../../include/sc_private_session.h)) | 1.0 | `game.private_session` | ON | ON by owner approval for R1 (loopback broker, no socket until Host/Join); synthetic service and ABI checks only; Windows/MSVC, private LAN, EAC inspection and gameplay NOT VERIFIED |
 | `game.cvars` ([`sc_cvars.h`](../../include/sc_cvars.h)) | 1.0 | `game.cvars.read` (`get_bool`) | OFF | Default production adapter absent; synthetic engine callbacks only; engine types NOT VERIFIED |
 | `game.cvars_write` ([`sc_cvars_write.h`](../../include/sc_cvars_write.h)) | 1.0 | `game.cvars.write` (`set_bool`) | OFF | Default production adapter absent; synthetic write fixtures only; engine types NOT VERIFIED |

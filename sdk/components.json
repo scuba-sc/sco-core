@@ -562,6 +562,42 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-quantum_engine.cpp",
+      "source": "src/game/services/quantum_engine.cpp",
+      "destination": "src/game/services/quantum_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-quantum_owned.cpp",
+      "source": "src/game/services/quantum_owned.cpp",
+      "destination": "src/game/services/quantum_owned.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-quantum_owned.h",
+      "source": "src/game/services/quantum_owned.h",
+      "destination": "src/game/services/quantum_owned.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-src-game-services-relocation.cpp",
       "source": "src/game/services/relocation.cpp",
       "destination": "src/game/services/relocation.cpp",
@@ -7020,6 +7056,18 @@
       "origin": "project-authored",
       "license": "GPL-3.0-only",
       "group": "host-source-sc"
+    },
+    {
+      "id": "host-source-sc-tests-test_quantum_owned.cpp",
+      "source": "tests/test_quantum_owned.cpp",
+      "destination": "tests/test_quantum_owned.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
     },
     {
       "id": "host-source-sc-third_party-tomlplusplus-LICENSE",

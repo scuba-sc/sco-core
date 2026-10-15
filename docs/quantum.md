@@ -16,14 +16,16 @@ means the bounded provider is installed, not that the current drive or session
 is admitted. Every enable/hold still checks fresh explicit offline/EAC-absent
 observations, drive availability, owner and game thread.
 
-**The default production engine adapter is still absent.** No safe adapter can
-be certified from the retained product source alone. With no configured backend,
-the table remains discoverable but capability is OFF and calls return
-`SCO_UNAVAILABLE` / `SC_QUANTUM_BLOCK_UNAVAILABLE`. This is an integration blocker,
-not a pending policy approval. No inferred offset write, product fallback or
-signature-only readiness is introduced. External plugin input/commands/UI can
-use the unchanged public table, but real boost parity is not supplied by this
-provider fixture.
+**A default production adapter exists (Windows game pack; synthetic evidence only).**
+`src/game/services/quantum_engine.cpp` ports the sc-offline v0.7.7 engine code under
+the [amended rule](#amended-rule-2026-10-15). `spatial.cpp` configures it before
+`StartProductionQuantum` only when every row it needs resolves **and** fresh positive
+offline admission holds at that moment; otherwise the empty configuration stays: the
+table remains discoverable but capability is OFF and calls return `SCO_UNAVAILABLE` /
+`SC_QUANTUM_BLOCK_UNAVAILABLE`. Every layout constant is a v0.7.7 value and every
+function and cvar storage is a sigcheck-resolved row; no offset is inferred and there
+is no signature-only readiness. It has never run in the game: real boost parity is
+**not verified**. Plugin input/commands/UI use the unchanged public table.
 
 ### Explicit host-source integration contract
 
@@ -44,10 +46,10 @@ A supplied adapter must establish all of these obligations:
   stays false. Observe supplies copied phase/block/progress within public bounds.
 - Exact-build call/layout validation and live **local-player-owned** drive
   association; identity/lifetime validation before every write and restoration.
-- Save first-prior state before each mutation; write only owned state, not shared
-  drive parameter storage. Validate every value separately: finite charge in
-  0..1, input mode/action on an exact allowlist, input value only 0/1, and bounded
-  effect operations. The provider itself passes only boolean controls and a
+- Save first-prior state before each mutation; write only owned state, plus the
+  cvars and the one shared drive parameter cell the amended rule below permits.
+  Validate every value separately: finite charge in 0..1, input mode/action on an
+  exact allowlist, input value only 0/1, and bounded effect operations. The provider itself passes only boolean controls and a
   1..1000 ms lease; it does not authorize arbitrary field/action writes.
 - `apply(false,false)` restores only this adapter's changed input/charge state
   and owned sound/effect activity, including after drive/admission loss. It must
@@ -56,15 +58,63 @@ A supplied adapter must establish all of these obligations:
   or until process exit after uncertain mutation/restoration. A false/throwing
   callback permanently latches restart; no retry or further callback is allowed.
 
-The legacy product has historical layout facts (`usable - 0x1C0`, drive charge
-at `+0xCA8`, parameters through `+0x18`, input 582), but does **not** establish
-local-owner identity, reversible shared-parameter ownership, first-prior charge
-restoration or complete audio/effect teardown. Its `disableCharge = 1e9` write
-is not a safe owned bridge. The effect handler null-skip and tag warm-up do not
-prove restoration. Existing `quantum.*` rows locate functions, not those missing
-contracts. Consequently no legacy memory write/hook is activated here. A grounded
-engine adapter and supported admission collector remain required for gameplay;
-Windows/MSVC and exact-game execution are not verified.
+The legacy product's historical layout facts (`usable - 0x1C0`, drive charge at
+`+0xCA8`, parameters through `+0x18`, input 582) are what the default adapter
+uses; its unguarded legacy behaviour (global keeper, unrestored `disableCharge =
+1e9`, uncounted charge write) is not carried over. The effect-tag warm-up, sound
+stages and the engage-key hook (`quantum.on_action`) are **not** ported: they have
+no restoration proof and the public table already carries input. Windows/MSVC and
+exact-game execution are not verified.
+
+### Amended rule (2026-10-15)
+
+**Maintainer decision (approved; scubamount (maintainer), 2026-10-15):** a quantum
+backend may (a) write the cvars the v0.7.7 keeper forced -
+`v_qdrive2.quantumTravelAllowed`, `v_qdrive2.quantumBoostAllowed`,
+`v_qdrive2.setting_ignoreBlockedBoost`, `v_qdrive2.setting_ignoreBlockedTravel` and
+`p_enable_physical_quantum_travel` (not logging or the target-lock thresholds, unless
+the boost provably needs them) - and (b) write the shared drive parameter value
+v0.7.7 set (the drive's parameter record at `+0xC0`, `1e9`), **only if all of**:
+
+1. positive fresh offline admission (`FreshAdmissionAllowed`) precedes every write;
+2. the first prior value of each cvar and field is saved before the first write;
+3. every saved value is restored on release, `apply(false, false)`, admission loss,
+   drive loss, stop and fault, and a restoration failure latches restart as above;
+4. each cvar's actual engine type is verified before any read or write (if the float
+   `GetCVarNow`/`SetCVarNow` ABI cannot be grounded, a different verified route is
+   used or the cvar is not written);
+5. writes happen only while the backend holds control.
+
+No arbitrary console execution is allowed. Ownership, the single controller,
+bounded values and the restart latch stay as written above.
+
+How the default adapter applies it:
+
+- **Holding control** means an accepted `hold` whose lease has not ended. `enable`
+  alone writes nothing; release, lease expiry, disable, owner unload, stop, admission
+  loss, drive loss and fault all restore. A value another actor changed after the
+  adapter's write is left alone on restore.
+- **Cvars.** The four `v_qdrive2` cvars are written through their sigcheck-resolved
+  int storage rows (`cvars.quantum_travel_allowed`, `cvars.quantum_boost_allowed`,
+  `cvars.ignore_blocked_boost`, `cvars.ignore_blocked_travel`). The row resolver finds
+  each storage through the cvar's int registration (vtable slot `0x40`), which is the
+  type check; a row that does not resolve, or a type other than int, refuses before
+  any read or write. Writes are read back. The console is never used.
+- **`p_enable_physical_quantum_travel` is not written.** Its registration passes
+  member storage (`lea r8, [rbx+0x4A0]`, no global), so no sigcheck row can ground it,
+  and the float console ABI (`0xC0`/`0x20`/`0x38`) is present only in v0.7.7 and
+  documented as unverified in [game cvars](game/cvars.md). It stays unowned until a
+  verified route exists.
+- **Drive parameter cell.** Written only while holding, only when the current value is
+  below `1e9` (the data pack's `quantum_drive.toml` already sets `1e9` on the pack's
+  drive, so nothing is written or restored there), with the prior saved first and
+  restored only if the cell still holds the adapter's value.
+- **Ownership.** The `StartUse` hook compares its `user` argument with
+  `reads::LocalPlayer`'s actor and entity and tracks the drive only on an exact match;
+  every other call passes through untouched. Which of the two the engine passes there
+  is not verified in game; a non-match fails closed.
+- **Charge and effects.** The v0.7.7 keep-full charge write and the effect-handler
+  null-skip run only while holding; the charge prior is saved first and restored.
 
 ## Calls and ownership
 
@@ -150,6 +200,15 @@ duplicate target refusal and restart-required invalid observation. The R1
 activation fixture also proves configured production-start routing, absent
 cleanup refusal without callbacks, capability publication only after successful
 registration, first-tick and clock-wrap expiry, and zero callbacks after latching.
+`tests/test_quantum_owned.cpp` drives the default adapter's bookkeeping
+(`quantum_owned.cpp`) with a fake engine that logs every read, write and admission
+check: first-prior saved before each write with admission immediately before it,
+restore on `apply(false,false)`, hold release, lease expiry, admission loss, drive
+loss, stop and owner unload (the last four through the real provider tick), a
+non-local `StartUse` user passing through untouched, a non-int cvar type refusing
+before any read or write, charge keep-full with its prior restored, and a failed
+restore latching restart so no later callback runs. The Windows engine access in
+`quantum_engine.cpp` is **not** exercised by any test.
 `tests/abi_game_quantum.c`, compiled independently as C11 and C++20, pins layout
 and uses physically truncated allocations and full-size null tables under ASan.
 
