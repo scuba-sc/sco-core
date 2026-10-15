@@ -140,7 +140,8 @@ do not change: the host is 1, joiners get 2, 3, ..., never reused.
 
 **The protocol version stays 1.** A joiner built before this message must not be locked out of a server, and
 it is not. What such a joiner does with the message, from the code of the 2.2.0 release (`sdk-v2.2.0`,
-whose `src/net/` is byte for byte the code this change starts from):
+where the joiner path in `src/net/` is identical to this code, and the only change under `src/` before this
+pull request is the host-side bound on half-open joins):
 
 - A joiner reads a control message in `Core::Impl::OnControl`. The switch over the type has a `default:`
   that does `++stats.malformed; return;`, and type 6 is unknown to it. Nothing on that path ends the
@@ -166,7 +167,8 @@ JOINED event fires, no malformed message on either side, a joiner that moves to 
 keeps no memory of the first); the seat counts above with up to 50 joiners and the refused next one; a
 scripted host that sends the message twice, late, too short, too long and with an undefined bit, and a
 control type the joiner does not know (what a 2.2.0 joiner makes of type 6: one malformed message, and the
-SYNC behind it is accepted); and the service reading the role through `get_peer_flags`. A real 2.2.0 build
+SYNC behind it is accepted); and the service reading the role through `get_peer_flags`, including a threaded join paused between the JOINED
+event and the snapshot. A real 2.2.0 build
 joining a server is not part of these tests.
 
 ## The service on top (plan PR 4b)

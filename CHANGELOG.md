@@ -14,11 +14,10 @@ What each change means for plugin authors and for products built on sco-core (sc
   for 16 seats joins a 51-seat host ([Session size](docs/net-wire.md#session-size)). The host now remembers up
   to `2 * SC_NET_MAX_PEERS` half-open joins, not 32, so 50 players who start in the same moment all get in;
   before, the oldest joins past the 32nd were forgotten and timed out after their join timeout.
-  Version 1.0 of `sco.net` and of `game.private_session` is unchanged (plugin ABI 1.1; the `game.private_session`
-  table and version stay; the `sco.net` 1.0 members keep their offsets and `tests/abi_net.c` keeps every 1.0 pin,
-  only the table's total size moves, with the 1.1 member in the next entry), so **`SCO_NET_MAX_PEERS` stays 16**,
-  the value 1.0 promised, and `SCO_NET_SESSION_MAX_PEERS` (51) is added for the limit of a runtime from this SDK
-  on. A runtime that offers `sco.net` 1.1 is from this SDK or later, so it hosts 51.
+  Version 1.0 of `sco.net` and of `game.private_session` is unchanged (plugin ABI 1.1, both table layouts and
+  both service versions stay in this change, and `tests/abi_net.c` keeps every 1.0 pin), so **`SCO_NET_MAX_PEERS`
+  stays 16**, the value 1.0 promised, and `SCO_NET_SESSION_MAX_PEERS` (51) is added for the limit of a runtime
+  from this SDK on.
   A plugin that sized a `get_peers` buffer by `SCO_NET_MAX_PEERS` gets `SCO_TOO_MANY`, the first 16 peers and
   the true count when more than 16 players are in the session: that is the 1.0 `get_peers` contract, and
   `scosdk::Net::Peers()` copes; a plugin that treats `SCO_TOO_MANY` as a failure loses its peer list there.
@@ -39,11 +38,16 @@ What each change means for plugin authors and for products built on sco-core (sc
   has the evidence and the version-2 alternative. For plugins, `sco_net_v1` grows additively from 64 to 72
   bytes with `get_peer_flags(peer_id, &flags)` (`SCO_NET_VERSION_1_1`; `SCO_NET_PEER_F_SERVER` marks the
   server; the 1.0 members keep their offsets, and `sco_net_peer` and `sco_net_peer_event` are unchanged),
-  and `scosdk::Net` gains `PeerFlags` and `IsServer`. `Core::Peers()` marks the host's entry on every side
+  and `scosdk::Net` gains `PeerFlags(peer, flags)` and `IsServer(peer, server)`, which return the result so that a
+  peer that is not known is never mistaken for a player. `Core::Peers()` marks the host's entry on every side
   (`PeerInfo::flags`, `kPeerServer`). Player seats and the 51-endpoint transport bound are counted apart:
   with 50 seats a player host admits 49 joiners and a server 50. The service's own Host request and the
-  private-session broker are unchanged and always host a player. In-memory tests only (real server and
-  player hosts, a scripted host, the table and the wrapper); no real SDK 2.2.0 build was run against a
+  private-session broker are unchanged and always host a player. A runtime that offers `sco.net` 1.1 is from
+  this SDK or later, so it hosts `SCO_NET_SESSION_MAX_PEERS` (51) players. `net.state` and `net.peer` events are
+  now dispatched only after the session they report is visible to `is_active`, `get_peers`, `get_peer_name` and
+  `get_peer_flags`; with the threaded service the game thread could deliver a JOINED event before the session
+  was published. In-memory tests only (real server and player hosts, a scripted host, the table and the wrapper,
+  a threaded service join); no real SDK 2.2.0 build was run against a
   server; not run in game.
 
 ## sdk-v2.3.0 (2026-10-15)

@@ -48,7 +48,9 @@
  *    is then a player.
  *
  * Events on the bus (sco_api subscribe), dispatched on the game thread from the host tick; data
- * starts with its size:
+ * starts with its size. An event is dispatched only after the session it reports is visible to
+ * is_active, get_peers, get_peer_name and get_peer_flags, so in a "net.peer" JOINED handler the new
+ * peer is found, and in a LEFT handler it no longer is:
  *   SCO_NET_EVENT_STATE "net.state"  sco_net_state_event: a session came up or ended
  *   SCO_NET_EVENT_PEER  "net.peer"   sco_net_peer_event: a peer joined, left or got an entity
  *
@@ -66,19 +68,20 @@ extern "C" {
 
 #define SCO_NET_NAME "sco.net"
 #define SCO_NET_VERSION_1_0 0x00010000u
+/* 1.1 appends get_peer_flags to the table (64 to 72 bytes). A runtime that offers it is from the SDK that
+ * added SCO_NET_SESSION_MAX_PEERS or a later one, so it hosts that many; a 1.0 table cannot tell. */
 #define SCO_NET_VERSION_1_1 0x00010001u   /* + get_peer_flags */
 
 /* The session size version 1.0 of this header promised: 16, self included. It stays 16 with the rest of
- * version 1.0 (tests/abi_net.c pins it, and existing lines never change), so it no longer bounds what a
+ * version 1.0 (tests/abi_net.c pins it, and every 1.0 pin stays), so it no longer bounds what a
  * running host may do: a runtime from the SDK that added SCO_NET_SESSION_MAX_PEERS hosts up to that many.
  * Do not size a get_peers buffer by it and stop there. Ask for the count first (out NULL, *inout_count 0)
  * or grow on SCO_TOO_MANY, as scosdk::Net::Peers() does; the 1.0 contract of get_peers already says that
  * SCO_TOO_MANY means more peers than the capacity, with the first ones written. */
 #define SCO_NET_MAX_PEERS     16u                  /* 1.0: a session, self included */
 /* The most players a runtime built from this SDK hosts, self included (the wire header's SC_NET_MAX_PEERS).
- * A runtime from an SDK without this macro hosts SCO_NET_MAX_PEERS. Added after 1.0. A 1.0 table cannot tell
- * which of the two a runtime has, but 1.1 can: a runtime that offers SCO_NET_VERSION_1_1 is from this SDK or
- * later, so it hosts this many. */
+ * A runtime from an SDK without this macro hosts SCO_NET_MAX_PEERS. Added after 1.0; the 1.0 service table and
+ * its version are unchanged, so a 1.0 table cannot be asked which of the two it has. */
 #define SCO_NET_SESSION_MAX_PEERS SC_NET_MAX_PEERS /* 51 */
 #define SCO_NET_MAX_UNREL     SC_NET_MAX_UNREL     /* 1200: bytes in one unreliable message */
 #define SCO_NET_MAX_RELIABLE  SC_NET_MAX_RELIABLE  /* 262144: bytes in one reliable message */
@@ -170,12 +173,12 @@ typedef struct sco_net_v1 {
 
     /* 1.1. The peer's flags: SCO_NET_PEER_F_SERVER marks a host that is a server, a headless host that
      * is not a player and has no ghost (peer 1, still listed by get_peers because it is a member of
-     * the session); 0 is a plain player. Read it when the peer's net.peer JOINED event arrives. Like
-     * get_peers and get_peer_name it answers from the session as of the last network step, so a
-     * handler that runs just before the step has published may get SCO_NOT_FOUND: ask again on the
-     * next tick. *out_flags is 0 on every failure. SCO_NOT_FOUND: no such peer in the active
-     * session. SCO_BAD_ARG: out_flags NULL. Check size >= 72 and a non-NULL pointer before calling:
-     * a 1.0 table ends at self_peer. */
+     * the session); 0 is a plain player. Read it when the peer's net.peer JOINED event arrives: the
+     * event is dispatched only after the session shows the peer, so it is found. *out_flags is 0 on
+     * every failure. SCO_NOT_FOUND: no such peer in the active session; in a JOINED handler that means
+     * it has left since and its LEFT event follows, so do not take it for a player. SCO_BAD_ARG:
+     * out_flags NULL. Check size >= 72 and a non-NULL pointer before calling: a 1.0 table ends at
+     * self_peer. */
     sco_result (*get_peer_flags)(uint64_t peer_id, uint32_t* out_flags);
 } sco_net_v1;
 

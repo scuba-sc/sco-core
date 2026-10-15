@@ -41,7 +41,7 @@ All objects below have static table storage and host/game-pack code lifetime. St
 | `sco.settings`; 1.0 | H; `kTable`, `src/settings/settings.cpp` | `Start` | `Stop` | Any thread reads; host setters game thread |
 | `sco.ui`; 1.0 | H; `kTable`, `src/ui/ui.cpp` | `Start` | `Stop` | Any thread registration; draw callbacks game thread |
 | `sco.ipc`; 1.0 | H; `kTable`, `src/ipc/ipc.cpp` | `Start` | `Stop` | Any thread; channel locking |
-| `sco.net`; 1.0 | H; `kTable`, `src/net/service.cpp` | `Start` | `Stop` | Any thread service calls; callbacks from game-thread Tick, never worker |
+| `sco.net`; 1.1 | H; `kTable`, `src/net/service.cpp` | `Start` | `Stop` | Any thread service calls; callbacks from game-thread Tick, never worker |
 | `sco.datacore`; 1.1 | H; `kTable`, `src/datacore/service.cpp` | `Start` | `Stop` | Any thread; service mutex |
 | `teleport.spatial`; 1.0 | G; `kSpatial`, `src/game/services/spatial.cpp` | `services::Start` | `services::Stop` | Game thread; 0 when not ready/wrong thread |
 | `spawn.entities`; 1.2 | G; `kService`, `src/game/services/spawn.cpp` | `StartSpawn` | `StopSpawn` | Game thread; 0 on refusal |

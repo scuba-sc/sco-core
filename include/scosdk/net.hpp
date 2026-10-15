@@ -138,15 +138,24 @@ public:
         }
     }
 
-    // The peer's flags (SCO_NET_PEER_F_*, sco.net 1.1): 0 for a plain player, an unknown peer, or a
-    // host whose table is 1.0 and has no such member.
-    uint32_t PeerFlags(uint64_t peer) const noexcept {
-        uint32_t flags = 0;
-        if (!detail::CanCall(t_, &sco_net_v1::get_peer_flags) || t_->get_peer_flags(peer, &flags) != SCO_OK) return 0;
-        return flags;
+    // The peer's flags (SCO_NET_PEER_F_*, sco.net 1.1) in `flags`, 0 for a plain player. The result says
+    // whether the answer is known, so "not known" is never mistaken for "a player": SCO_OK; SCO_NOT_FOUND
+    // (no such peer in the active session, `flags` 0; in a JOINED handler it means the peer has left
+    // since, and its LEFT event follows); SCO_UNAVAILABLE (no sco.net, or a 1.0 table with no such
+    // member, where no peer is marked). Read it in the peer's JOINED handler.
+    sco_result PeerFlags(uint64_t peer, uint32_t& flags) const noexcept {
+        flags = 0;
+        if (!detail::CanCall(t_, &sco_net_v1::get_peer_flags)) return SCO_UNAVAILABLE;
+        return t_->get_peer_flags(peer, &flags);
     }
-    // True for a server: a host that takes no player seat. Leave it out of a player list and count.
-    bool IsServer(uint64_t peer) const noexcept { return (PeerFlags(peer) & SCO_NET_PEER_F_SERVER) != 0; }
+    // Whether the peer is a server: a host that takes no player seat; leave it out of a player list and
+    // count. `server` is true only when the result is SCO_OK and the flag is set; the results are PeerFlags'.
+    sco_result IsServer(uint64_t peer, bool& server) const noexcept {
+        uint32_t flags = 0;
+        const sco_result r = PeerFlags(peer, flags);
+        server = r == SCO_OK && (flags & SCO_NET_PEER_F_SERVER) != 0;
+        return r;
+    }
 
     // Registers name ("<plugin id>.<channel>") with flags (SCO_NET_*) and max_len; fn runs on the
     // game thread for each message.

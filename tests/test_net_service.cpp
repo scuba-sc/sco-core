@@ -24,10 +24,12 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <utility>
@@ -80,13 +82,18 @@ struct Events {
     std::vector<sco_net_peer_event>  peers;
     // For each "net.peer" event: what get_peer_flags answered from inside the handler, as a plugin reads it.
     std::vector<std::pair<sco_result, uint32_t>> peerFlags;
+    // For each "net.state" event: its `active` and what is_active() said inside the handler.
+    std::vector<std::pair<int, int>> stateSeen;
 };
 static Events g_events;
 static int    g_eventsOwner;
 static void OnEvent(const char* ev, const void* data, void*) {
     if (std::strcmp(ev, SCO_NET_EVENT_STATE) == 0) {
         const auto* e = static_cast<const sco_net_state_event*>(data);
-        if (e->size == sizeof(sco_net_state_event)) g_events.states.push_back(*e);
+        if (e->size == sizeof(sco_net_state_event)) {
+            g_events.states.push_back(*e);
+            g_events.stateSeen.emplace_back(e->active, g_t ? g_t->is_active() : -1);
+        }
     } else if (std::strcmp(ev, SCO_NET_EVENT_PEER) == 0) {
         const auto* e = static_cast<const sco_net_peer_event*>(data);
         if (e->size == sizeof(sco_net_peer_event)) {
@@ -860,6 +867,8 @@ static void TestServerFlags() {
         j.endpoint = lab.other.Self();
         j.passphrase = kPass;
         j.playerName = "Me";
+        g_events.states.clear();
+        g_events.stateSeen.clear();
         g_events.peers.clear();
         g_events.peerFlags.clear();
         CHECK(Join(j) == Result::Ok);
@@ -869,6 +878,7 @@ static void TestServerFlags() {
               g_events.peers[0].peer.peer_id == kHostPeer);
         CHECK(g_events.peerFlags.size() == 1 && g_events.peerFlags[0].first == SCO_OK &&
               g_events.peerFlags[0].second == SCO_NET_PEER_F_SERVER);
+        CHECK(g_events.stateSeen.size() == 1 && g_events.stateSeen[0].first == 1 && g_events.stateSeen[0].second == 1);
         CHECK(g_t->get_peer_flags(kHostPeer, &flags) == SCO_OK && flags == SCO_NET_PEER_F_SERVER);
         CHECK(g_t->self_peer() == 2 && g_t->get_peer_flags(2, &flags) == SCO_OK && flags == 0);
         flags = 99;
@@ -876,8 +886,14 @@ static void TestServerFlags() {
         CHECK(PeerCount() == 2);   // get_peers still lists the server: it is a member of the session
         sco::sdk::Net net;
         CHECK(net.Open(g_api, g_a2) == SCO_OK);
-        CHECK(net.IsServer(kHostPeer) && !net.IsServer(net.SelfPeer()) && !net.IsServer(9));
-        CHECK(net.PeerFlags(kHostPeer) == SCO_NET_PEER_F_SERVER && net.PeerFlags(9) == 0);
+        uint32_t seen = 99;
+        bool isServer = false;
+        CHECK(net.PeerFlags(kHostPeer, seen) == SCO_OK && seen == SCO_NET_PEER_F_SERVER);
+        CHECK(net.IsServer(kHostPeer, isServer) == SCO_OK && isServer);
+        CHECK(net.IsServer(net.SelfPeer(), isServer) == SCO_OK && !isServer);
+        seen = 99;
+        CHECK(net.PeerFlags(9, seen) == SCO_NOT_FOUND && seen == 0);   // not known is not "a player"
+        CHECK(net.IsServer(9, isServer) == SCO_NOT_FOUND && !isServer);
         lab.remote.core.Leave("done");
         CHECK(lab.Until([] { return GetState() == State::Idle; }));
         TickNet();
@@ -898,7 +914,10 @@ static void TestServerFlags() {
         sco::sdk::Net net;
         CHECK(net.Open(g_api, g_a2) == SCO_OK);
         CHECK(g_t->get_peer_flags(kHostPeer, &flags) == SCO_OK && flags == 0);
-        CHECK(!net.IsServer(kHostPeer) && net.PeerFlags(kHostPeer) == 0);
+        uint32_t seen = 99;
+        bool isServer = true;
+        CHECK(net.PeerFlags(kHostPeer, seen) == SCO_OK && seen == 0);
+        CHECK(net.IsServer(kHostPeer, isServer) == SCO_OK && !isServer);
         Leave("done");
         CHECK(GetState() == State::Idle);
     }
@@ -919,6 +938,143 @@ static void TestServerFlags() {
         Leave("done");
         CHECK(GetState() == State::Idle);
     }
+}
+
+// ---- the threaded service: an event never outruns the session it reports -----------------------------------
+
+// Wraps the service's transport and parks the network thread at one chosen moment: on the Receive call that
+// follows the second control-channel DATA datagram the joiner gets. For a server that is HOST_ROLE and then
+// SYNC, so the Core has just raised the host's JOINED event and the step has not reached its Snapshot. That
+// is the schedule in which the game thread's Tick used to deliver the event before the session was
+// published, and get_peer_flags(1) answered SCO_NOT_FOUND in the handler.
+class GateTransport : public Transport {
+public:
+    explicit GateTransport(Transport& inner) : inner_(inner) {}
+
+    bool Send(const Endpoint& to, const uint8_t* data, size_t len) override { return inner_.Send(to, data, len); }
+
+    bool Receive(Endpoint* from, uint8_t* buf, size_t cap, size_t* len) override {
+        if (parkNext_) {
+            parkNext_ = false;
+            Park();
+        }
+        const bool got = inner_.Receive(from, buf, cap, len);
+        // Kind DATA on channel index 0, the control channel; the header is in the clear.
+        if (got && armed_.load() && *len >= SC_NET_HEADER_BYTES && buf[SC_NET_OFF_KIND] == SC_NET_DATA &&
+            buf[SC_NET_OFF_CHANNEL] == 0 && buf[SC_NET_OFF_CHANNEL + 1] == 0 && ++controlSeen_ == 2)
+            parkNext_ = true;
+        return got;
+    }
+
+    void Arm() { armed_ = true; }
+    bool WaitParked(uint32_t ms) {
+        std::unique_lock<std::mutex> hold(m_);
+        return cv_.wait_for(hold, std::chrono::milliseconds(ms), [this] { return parked_; });
+    }
+    void Release() {
+        std::lock_guard<std::mutex> hold(m_);
+        release_ = true;
+        cv_.notify_all();
+    }
+
+private:
+    void Park() {
+        std::unique_lock<std::mutex> hold(m_);
+        parked_ = true;
+        cv_.notify_all();
+        cv_.wait_for(hold, std::chrono::seconds(10), [this] { return release_; });   // bounded: a failed test must not hang
+        parked_ = false;
+    }
+
+    Transport&              inner_;
+    std::atomic<bool>       armed_{ false };
+    bool                    parkNext_ = false;    // network thread only
+    int                     controlSeen_ = 0;     // network thread only
+    std::mutex              m_;
+    std::condition_variable cv_;
+    bool                    parked_ = false, release_ = false;
+};
+
+// The service, with its network thread, joins a server over UDP loopback. The network thread is parked right
+// after it handled SYNC and before it published the session; the game thread ticks while it is parked and
+// must see nothing yet. Once the thread goes on, the JOINED handler must find the host and read the server
+// flag, and the state handler must find the session active.
+static void TestThreadedPeerSnapshot() {
+    ServiceOptions so;
+    so.pbkdf2Iters = kIters;
+    CHECK(Start(so) == Result::Ok && Started());
+    sco_plugin* p = sco::host::NewPlugin("gate");
+    std::string why;
+    auto hostSock = udp::Socket::Open(0, true, &why);
+    auto joinSock = udp::Socket::Open(0, true, &why);
+    CHECK(hostSock != nullptr && joinSock != nullptr);
+    if (!hostSock || !joinSock) {
+        Stop();
+        CHECK(sco::Release(p) == Result::Ok);
+        return;
+    }
+
+    Remote host(*hostSock);
+    Options ho = RemoteOpts();
+    ho.playerName = "Relay";
+    ho.server = true;
+    CHECK(host.core.Host(ho, SteadyMs()));
+    Endpoint hostEp;
+    CHECK(ParseAddress("127.0.0.1", hostSock->Port(), &hostEp));
+
+    GateTransport gate(*joinSock);
+    JoinOptions j;
+    j.transport = &gate;
+    j.endpoint = hostEp;
+    j.passphrase = kPass;
+    j.playerName = "Me";
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerFlags.clear();
+    gate.Arm();
+    CHECK(Join(j) == Result::Ok);
+
+    // The remote host runs on this thread, the service's network thread on its own.
+    auto pumpUntil = [&](const std::function<bool()>& done) {
+        const uint64_t deadline = SteadyMs() + 10000;
+        while (!done() && SteadyMs() < deadline) {
+            host.core.Pump(SteadyMs());
+            hostSock->Wait(5);
+        }
+        return done();
+    };
+    CHECK(pumpUntil([&] { return gate.WaitParked(0); }));
+
+    // Parked between the Core's JOINED and the snapshot: the game thread has nothing to deliver yet.
+    TickNet();
+    CHECK(g_events.peers.empty() && g_events.states.empty());
+    CHECK(g_t->is_active() == 0 && PeerCount() == 0);
+
+    gate.Release();
+    CHECK(pumpUntil([&] {
+        TickNet();
+        return !g_events.peers.empty();
+    }));
+    CHECK(g_events.states.size() == 1 && g_events.states[0].active == 1);
+    CHECK(g_events.stateSeen.size() == 1 && g_events.stateSeen[0].first == 1 && g_events.stateSeen[0].second == 1);
+    CHECK(g_events.peers.size() == 1 && g_events.peers[0].what == SCO_NET_PEER_JOINED &&
+          g_events.peers[0].peer.peer_id == kHostPeer);
+    CHECK(g_events.peerFlags.size() == 1 && g_events.peerFlags[0].first == SCO_OK &&
+          g_events.peerFlags[0].second == SCO_NET_PEER_F_SERVER);
+
+    sco::sdk::Net net;
+    CHECK(net.Open(g_api, p) == SCO_OK);
+    bool isServer = false;
+    CHECK(net.IsServer(kHostPeer, isServer) == SCO_OK && isServer);
+    CHECK(PeerCount() == 2);
+
+    Leave("done");
+    host.core.Leave("done");
+    TickNet();
+    Stop();
+    CHECK(!Started());
+    CHECK(sco::Release(p) == Result::Ok);
 }
 
 static void Run(const char* name, void (*fn)()) {
@@ -982,6 +1138,7 @@ int main() {
     Stop();   // twice: a no-op
 
     Run("TestThreadedService", TestThreadedService);
+    Run("TestThreadedPeerSnapshot", TestThreadedPeerSnapshot);
 
     CHECK(sco::Release(g_a2) == Result::Ok && sco::Release(g_b) == Result::Ok);
     std::printf("sco-core net service tests: %d passed, %d failed\n", g_pass.load(), g_fail.load());

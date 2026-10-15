@@ -220,7 +220,7 @@ The host side of [`sco.net`](net.md) (library `sco_net_service` over `sco_net`; 
 
 | Function | Does |
 |---|---|
-| `Result net::Start(const ServiceOptions& o = {})` | Publishes `sco.net` 1.0, sets the capability `sco.net` and installs a release hook (a plugin's channels and queued messages go with it). No socket, no thread. `ServiceOptions`: the per-plugin quotas (`quotaMsgs`, `quotaBytes`), `pollMs`, `thread` (false: tests step the network side with `PumpNetwork`), `clock`, `pbkdf2Iters` (tests). `BadArg`: bad options, already started |
+| `Result net::Start(const ServiceOptions& o = {})` | Publishes `sco.net` 1.1 (a 1.0 query is answered too), sets the capability `sco.net` and installs a release hook (a plugin's channels and queued messages go with it). No socket, no thread. `ServiceOptions`: the per-plugin quotas (`quotaMsgs`, `quotaBytes`), `pollMs`, `thread` (false: tests step the network side with `PumpNetwork`), `clock`, `pbkdf2Iters` (tests). `BadArg`: bad options, already started |
 | `void net::Stop()` | Leaves any session, withdraws the service, sets the capability not ready, drops every channel; the table then answers `SCO_UNAVAILABLE` |
 | `void net::Tick()` | Game thread: delivers queued messages (as guarded callouts of the channel's plugin) and the `net.state` / `net.peer` events |
 | `Result net::Host(const HostOptions&)` | Binds UDP (`port`, default 64091; `loopbackOnly`) and starts the network thread, which hosts the session. `scope` is the LAN rule plus an allow-list of CIDRs; `admit` the product's admission check. `BadArg`: bad options or a session already running. `Failed`: the port couldn't be bound |

@@ -1,6 +1,6 @@
 # Multiplayer messages: `sco.net`
 
-`sco.net` 1.0 lets a plugin exchange typed messages with the same plugin in the other players' games, when the player is in a private session. Sessions are between players who all run sc-offline, one of them hosting on their own PC; nothing here talks to Cloud Imperium Games' servers, and nothing finds or lists sessions: players share an address. Design: [multiplayer.md § 3.1](design/multiplayer.md#31-sconet-10-a-session-and-typed-channels-game-agnostic). The packets: [sco.net wire format](net-wire.md).
+`sco.net` (1.0, and 1.1 with `get_peer_flags`) lets a plugin exchange typed messages with the same plugin in the other players' games, when the player is in a private session. Sessions are between players who all run sc-offline, one of them hosting on their own PC; nothing here talks to Cloud Imperium Games' servers, and nothing finds or lists sessions: players share an address. Design: [multiplayer.md § 3.1](design/multiplayer.md#31-sconet-10-a-session-and-typed-channels-game-agnostic). The packets: [sco.net wire format](net-wire.md).
 
 | Header | For |
 |---|---|
@@ -78,26 +78,37 @@ Two events on the bus, on the game thread, each starting with its size:
 | `net.state` | `sco_net_state_event { size, active, reason[128] }`: the session came up, or ended (the reason: "wrong passphrase", "the host timed out", ...) |
 | `net.peer` | `sco_net_peer_event { size, what, peer }`: `SCO_NET_PEER_JOINED`, `SCO_NET_PEER_LEFT` (with the entity id it had, so you can remove its ghost) or `SCO_NET_PEER_ENTITY` (the product set its ghost) |
 
+An event is dispatched only after the session it reports is visible to `is_active`, `get_peers`, `get_peer_name`
+and `get_peer_flags`: in a `net.peer` JOINED handler the new peer is found, and in a LEFT handler it no longer
+is. A peer that has left again before the handler runs is not found in its JOINED handler either, and its LEFT
+event follows. Messages keep their order among the events.
+
 ## Servers (1.1)
 
 The host of a session is peer 1, and `get_peers` lists it because it is a member of the session. A host can
 be a **server**: a headless host run by players (a standalone relay, for example) that is not a player. It
 takes no player seat and has no ghost. `get_peer_flags(peer_id, &flags)` answers `SCO_NET_PEER_F_SERVER` for
-such a host and 0 for a player; `scosdk::Net::IsServer(peer)` and `PeerFlags(peer)` wrap it. A plugin that
-lists players, counts them or spawns a ghost per peer leaves a server out:
+such a host and 0 for a player; `scosdk::Net::IsServer(peer, server)` and `PeerFlags(peer, flags)` wrap it and
+return its result, so a peer that is not known is never mistaken for a player. A plugin that lists players,
+counts them or spawns a ghost per peer leaves a server out:
 
 ```cpp
-for (const sco_net_peer& p : net.Peers())
-    if (!net.IsServer(p.peer_id)) AddPlayerRow(p);   // the same test when the peer's JOINED event arrives
+for (const sco_net_peer& p : net.Peers()) {
+    bool server = false;
+    if (net.IsServer(p.peer_id, server) == SCO_OK && !server) AddPlayerRow(p);   // not found: it has left, skip it
+}
 ```
 
-- **When to read it.** The host's role is known before the host's `net.peer` JOINED event, so read it in that
-  handler. Like `get_peers` and `get_peer_name`, `get_peer_flags` answers from the session as of the last
-  network step, so a handler that runs just before the step has published may get `SCO_NOT_FOUND` for a new
-  peer: ask again on the next tick.
+- **When to read it.** In the peer's `net.peer` JOINED handler. The host's role is known before the host's
+  JOINED event, and the event is dispatched only after the session shows the peer, so `get_peer_flags` finds it.
+  `SCO_NOT_FOUND` there means the peer has left since, and its LEFT event follows: skip it, and do not count it
+  as a player.
 - **Older tables and hosts.** A 1.0 table (64 bytes) has no `get_peer_flags`: check `size >= 72` and a
-  non-NULL pointer, or use the wrapper, which answers 0. A game built before 1.1 lists a server as a player.
-  A host built before 1.1 never marks anyone, so every peer is a player. Neither case breaks a session.
+  non-NULL pointer, or use the wrapper, which answers `SCO_UNAVAILABLE` (no peer is marked). A game built
+  before 1.1 lists a server as a player. A host built before 1.1 never marks anyone, so every peer is a
+  player. Neither case breaks a session.
+- **Which limit the runtime has.** A runtime that offers `sco.net` 1.1 is from the SDK that added
+  `SCO_NET_SESSION_MAX_PEERS` or a later one, so it hosts that many (51); a 1.0 table cannot tell.
 - **Who can be a server.** Only the code that owns the session (`sco::net::Core` with `Options::server`, as
   a standalone relay does) makes a host a server. The service's own `Host` request and the private-session
   broker always host a player, and a plugin cannot change a role. The wire side and the version decision are
@@ -117,8 +128,7 @@ for (const sco_net_peer& p : net.Peers())
 
 `SCO_NET_MAX_PEERS` is the value version 1.0 of the header promised, 16, and it stays 16 (`tests/abi_net.c` pins
 it; version 1.0 is frozen). A runtime built from this SDK hosts up to `SCO_NET_SESSION_MAX_PEERS`, 51; a runtime
-from an SDK without that macro hosts 16, and a runtime that offers `sco.net` 1.1 is from this SDK or later and hosts 51. So the macro
-no longer bounds a session, and a `get_peers` buffer should be sized by
+from an SDK without that macro hosts 16. So the macro no longer bounds a session, and a `get_peers` buffer should be sized by
 asking first: call it with `out` NULL and `*inout_count` 0, read the count it leaves in `*inout_count`,
 allocate, and call again (`scosdk::Net::Peers()` does this). That is the 1.0 contract of `get_peers`
 (`SCO_TOO_MANY`: more peers than the capacity, the first ones written). A plugin built with a 16-entry buffer gets

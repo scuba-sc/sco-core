@@ -567,8 +567,8 @@
       "member_extent": 72,
       "table_size": 72,
       "since": "`size >= 72`; 1.1",
-      "purpose": "The peer's flags: SCO_NET_PEER_F_SERVER (0x1) marks a host that is a server, a headless host that is not a player and has no ghost; 0 is a plain player. Peer 1 is the host, and get_peers still lists a server because it is a member of the session. Read it when the peer's net.peer JOINED event arrives. Like get_peers it answers from the session as of the last network step. *out_flags is 0 on every failure. SCO_NOT_FOUND: no such peer in the active session. SCO_BAD_ARG: out_flags NULL.",
-      "buffer_contract": "`sco_result (*get_peer_flags)(uint64_t peer_id, uint32_t* out_flags);`<br>The peer's flags: SCO_NET_PEER_F_SERVER (0x1) marks a host that is a server, a headless host that is not a player and has no ghost; 0 is a plain player. Peer 1 is the host, and get_peers still lists a server because it is a member of the session. Read it when the peer's net.peer JOINED event arrives. Like get_peers it answers from the session as of the last network step. *out_flags is 0 on every failure. SCO_NOT_FOUND: no such peer in the active session. SCO_BAD_ARG: out_flags NULL.",
+      "purpose": "The peer's flags: SCO_NET_PEER_F_SERVER (0x1) marks a host that is a server, a headless host that is not a player and has no ghost; 0 is a plain player. Peer 1 is the host, and get_peers still lists a server because it is a member of the session. Read it when the peer's net.peer JOINED event arrives: the event is dispatched only after the session shows the peer, so it is found. *out_flags is 0 on every failure. SCO_NOT_FOUND: no such peer in the active session; in a JOINED handler it means the peer has left since, so do not take it for a player. SCO_BAD_ARG: out_flags NULL.",
+      "buffer_contract": "`sco_result (*get_peer_flags)(uint64_t peer_id, uint32_t* out_flags);`<br>The peer's flags: SCO_NET_PEER_F_SERVER (0x1) marks a host that is a server, a headless host that is not a player and has no ghost; 0 is a plain player. Peer 1 is the host, and get_peers still lists a server because it is a member of the session. Read it when the peer's net.peer JOINED event arrives: the event is dispatched only after the session shows the peer, so it is found. *out_flags is 0 on every failure. SCO_NOT_FOUND: no such peer in the active session; in a JOINED handler it means the peer has left since, so do not take it for a player. SCO_BAD_ARG: out_flags NULL.",
       "ownership": "Caller buffer written in place; nothing owned or kept. The host owns the session snapshot it reads; no allocation transfer.",
       "thread_affinity": "Any thread; callbacks game thread. Callbacks may call any method in this table.",
       "callback_context": "callbacks game thread.",
@@ -594,7 +594,7 @@
           "evidence": [
             {
               "path": "include/scosdk/net.hpp",
-              "token": "if (!detail::CanCall(t_, &sco_net_v1::get_peer_flags) || t_->get_peer_flags(peer, &flags) != SCO_OK) return 0;"
+              "token": "return t_->get_peer_flags(peer, &flags);"
             }
           ],
           "tests": [
@@ -632,7 +632,7 @@
       ],
       "limitations": [
         "Additional failures/output state unspecified unless described in the buffer contract.",
-        "A net.peer handler that runs just before the network step has published the session may get SCO_NOT_FOUND for a new peer; ask again on the next tick."
+        "A peer that has left since its JOINED event is not found when the handler runs; its LEFT event follows."
       ]
     }
   ]

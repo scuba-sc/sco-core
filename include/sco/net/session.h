@@ -6,7 +6,7 @@
 // session control. The separate game.private_session request table routes fresh
 // explicit UI consent through the host broker; plugins never own sockets/policy.
 //
-//   sco::net::Start();                       // publishes sco.net 1.0 and the capability "sco.net"
+//   sco::net::Start();                       // publishes sco.net 1.1 and the capability "sco.net"
 //   ... plugins query_service("sco.net", 0x00010000, ...) and register channels ...
 //   sco::net::HostOptions h;                 // only when the player asks for it:
 //   h.passphrase = "..."; h.playerName = "Pilot";
@@ -72,7 +72,7 @@ struct ServiceOptions {
     void (*ownerReleased)(const void*) = nullptr;
 };
 
-// Publishes "sco.net" 1.0 under the host's id, sets the capability "sco.net" and installs the
+// Publishes "sco.net" 1.1 (a 1.0 query is answered too) under the host's id, sets the capability "sco.net" and installs the
 // release hook. No socket, no thread. BadArg: already started, bad options, or the name taken.
 // TooMany: no release hook slot or out of memory. Nothing changes unless Ok.
 Result Start(const ServiceOptions& opts = ServiceOptions());

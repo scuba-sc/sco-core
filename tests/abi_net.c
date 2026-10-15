@@ -3,12 +3,12 @@
  *
  * Compile-only, like abi_v1.c: if anything here fails, the service table changed and every
  * plugin built against the old header would break. Version 1 only grows at the end of
- * sco_net_v1; existing lines never change (so SCO_NET_MAX_PEERS stays 16, and the limit of a newer
- * runtime is the added SCO_NET_SESSION_MAX_PEERS). The wire constants it reuses are pinned by
- * abi_sc_net.c.
+ * sco_net_v1; the pin of every existing member and constant stays (so SCO_NET_MAX_PEERS stays 16, and
+ * the limit of a newer runtime is the added SCO_NET_SESSION_MAX_PEERS). The wire constants it reuses
+ * are pinned by abi_sc_net.c.
  *
- * The one existing line that must move when the table grows is its total size (64 in 1.0, 72 in
- * 1.1). Every 1.0 offset and signature pin stays as it was, and what 1.1 adds is pinned at the end.
+ * The table's total size is the one pin that moves when a minor appends a member (64 in 1.0, 72 in
+ * 1.1, as with widgets 1.1). The 1.0 extent is pinned on its own, and what 1.1 adds is pinned at the end.
  *
  * tools/test.sh compiles it as C11 and C++20 for the host, with -fshort-enums, and for
  * x86_64-pc-windows-msvc; the CMake test abi_net rebuilds it.
