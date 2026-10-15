@@ -26,6 +26,23 @@ extern "C" sco_result sco_relocation_route(const sc_relocation_v1*,unsigned,sco_
 template<class T> bool Available(const sc_relocation_v1* t,size_t extent,T sc_relocation_v1::*member) {
     return t && t->size>=extent && t->*member;
 }
+struct FakeZone { uintptr_t parent; const char* name; uint64_t id; };
+static FakeZone fakeZones[8];
+static bool zonesStreamedOut=false;
+static uintptr_t FakeParent(uintptr_t z) { return fakeZones[z].parent; }
+static const char* FakeName(uintptr_t z) { return fakeZones[z].name; }
+static uint64_t FakeId(uintptr_t z) { return fakeZones[z].id; }
+static uintptr_t FakeFromId(uint64_t id) {
+    if(zonesStreamedOut) return 0;
+    for(uintptr_t i=1;i<8;++i) if(fakeZones[i].id==id) return i;
+    return 0;
+}
+static bool QuatIs(const double q[4],double x,double y,double z,double w) {
+    for(double sign:{1.0,-1.0}) {
+        if(std::abs(q[0]-sign*x)<1e-9 && std::abs(q[1]-sign*y)<1e-9 && std::abs(q[2]-sign*z)<1e-9 && std::abs(q[3]-sign*w)<1e-9) return true;
+    }
+    return false;
+}
 int main() {
     auto* owner=reinterpret_cast<sco_plugin*>(1);auto* foreign=reinterpret_cast<sco_plugin*>(2);
     sc_relocation_request r{};r.size=sizeof(r);r.zone_id=2;r.rot_xyzw[3]=2;r.timeout_ms=1000;
@@ -121,5 +138,43 @@ int main() {
     assert(sco_relocation_route(&table,0,owner)==SCO_OK);
     assert(sco_relocation_route(&table,1,owner)==SCO_NOT_FOUND);
     assert(sco_relocation_route(&table,2,owner)==SCO_NOT_FOUND);
+    {
+    const ZoneOps ops{FakeParent,FakeName,FakeId,FakeFromId};
+    fakeZones[1]={2,"Daymar",10}; fakeZones[2]={3,"OOC_Stanton_2b",11};
+    fakeZones[3]={4,"solarSYSTEM_Stanton",12}; fakeZones[4]={0,"Universe",13};
+    assert(SystemOfZone(1,ops)==12 && SystemOfZone(3,ops)==12);
+    assert(SystemOfZone(4,ops)==0 && SystemOfZone(0,ops)==0);
+    zonesStreamedOut=true;assert(SystemOfZone(1,ops)==0);zonesStreamedOut=false;
+    fakeZones[3].id=0;assert(SystemOfZone(1,ops)==0);fakeZones[3].id=12;
+    fakeZones[3].name="Solar";assert(SystemOfZone(1,ops)==0);fakeZones[3].name=nullptr;assert(SystemOfZone(1,ops)==0);
+    fakeZones[3].name="SolarSystem_Stanton";assert(SystemOfZone(1,ops)==12);
+    fakeZones[5]={6,"A",20}; fakeZones[6]={5,"B",21};
+    assert(SystemOfZone(5,ops)==0);
+    double axes[3][3]={{1,0,0},{0,1,0},{0,0,1}},q[4],w[4];
+    assert(QuatFromAxes(axes,q) && QuatIs(q,0,0,0,1));
+    const double s=std::sqrt(0.5);
+    const double quarterZ[3][3]={{0,1,0},{-1,0,0},{0,0,1}};
+    assert(QuatFromAxes(quarterZ,q) && QuatIs(q,0,0,s,s));
+    const double quarterX[3][3]={{1,0,0},{0,0,1},{0,-1,0}};
+    assert(QuatFromAxes(quarterX,q) && QuatIs(q,s,0,0,s));
+    const double halfX[3][3]={{1,0,0},{0,-1,0},{0,0,-1}};
+    const double halfY[3][3]={{-1,0,0},{0,1,0},{0,0,-1}};
+    const double halfZ[3][3]={{-1,0,0},{0,-1,0},{0,0,1}};
+    assert(QuatFromAxes(halfX,q) && QuatIs(q,1,0,0,0));
+    assert(QuatFromAxes(halfY,q) && QuatIs(q,0,1,0,0));
+    assert(QuatFromAxes(halfZ,q) && QuatIs(q,0,0,1,0));
+    const double mirrored[3][3]={{-1,0,0},{0,1,0},{0,0,1}};
+    const double stretched[3][3]={{2,0,0},{0,1,0},{0,0,1}};
+    const double skewed[3][3]={{1,0,0},{1,1,0},{0,0,1}};
+    double notNumber[3][3]={{1,0,0},{0,1,0},{0,0,1}};notNumber[1][1]=std::numeric_limits<double>::quiet_NaN();
+    assert(!QuatFromAxes(mirrored,q) && !QuatFromAxes(stretched,q) && !QuatFromAxes(skewed,q) && !QuatFromAxes(notNumber,q));
+    const double identity[4]={0,0,0,1},quarter[4]={0,0,s,s};
+    assert(WorldRotation(axes,identity,w) && QuatIs(w,0,0,0,1));
+    assert(WorldRotation(quarterZ,identity,w) && QuatIs(w,0,0,s,s));
+    assert(WorldRotation(quarterZ,quarter,w) && QuatIs(w,0,0,1,0));
+    assert(WorldRotation(axes,quarter,w) && QuatIs(w,0,0,s,s));
+    const double zero[4]={0,0,0,0};
+    assert(!WorldRotation(axes,zero,w) && !WorldRotation(mirrored,identity,w));
+    }
     puts("relocation: OK");
 }

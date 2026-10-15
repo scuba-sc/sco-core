@@ -6,6 +6,8 @@
 //   teleport.client_mgr     global pointer read at to_camera+0x24  (gGame in sdk_dumper's catalog)
 //   teleport.handle_from_id entity handle from id, called at to_camera+0x9F
 //   teleport.entity_system  global pointer read at to_camera+0x2B0 (gEnv_pEntitySystem)
+//   teleport.relocation     the game's own teleport call at to_camera+0x362 and the params stores before it
+//                           (game.relocation's transport; no accessor: the engine adapter checks the row)
 #include <cstdint>
 
 namespace sco::game {

@@ -334,6 +334,7 @@ endif()
 # game memory under SEH (__try), so Windows only; SCO_GAME_SERVICES tells sco_app they're there.
 if(SCO_GAME_SC AND WIN32)
   add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp src/game/services/relocation.cpp
+                                       src/game/services/relocation_engine.cpp
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp
@@ -345,7 +346,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/reputation.cpp src/game/services/reputation_engine.cpp
                                        src/game/services/asop_service.cpp src/game/services/asop_engine.cpp
                                        src/game/services/contracts_service.cpp src/game/services/contracts_engine.cpp)
-  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_quantum sco_offline_missions sco_mining)
+  target_link_libraries(sco_game_services PUBLIC sco_game_sc sco_host sco_engine sco_hook sco_quantum sco_offline_missions sco_mining sco_game_admission)
   target_compile_definitions(sco_game_services PUBLIC SCO_GAME_SERVICES=1)
   sco_project_target(sco_game_services)
   target_link_libraries(sco_app PUBLIC sco_game_services)
@@ -1083,6 +1084,15 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_loadout PRIVATE sco_loadout sco_plugins)
     sco_project_target(test_loadout)
     add_test(NAME test_loadout COMMAND test_loadout "${_loadout_root}")
+
+    add_library(sco_relocation_provider STATIC src/game/services/relocation.cpp)
+    target_link_libraries(sco_relocation_provider PUBLIC sco_host)
+    sco_project_target(sco_relocation_provider)
+    add_executable(test_relocation_provider tests/game_contracts/relocation/test_provider.cpp)
+    target_include_directories(test_relocation_provider PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(test_relocation_provider PRIVATE sco_relocation_provider)
+    sco_project_target(test_relocation_provider)
+    add_test(NAME test_relocation_provider COMMAND test_relocation_provider)
   endif()
 
   # The C++20 SDK layer (include/scosdk/): two SDK plugins over the real host table.

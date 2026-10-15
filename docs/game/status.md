@@ -143,7 +143,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | `game.missions.progress` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
 | | | `game.missions.scripts` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
 | `game.mining` ([`sc_mining.h`](../../include/sc_mining.h)) | 1.0 | `game.mining` (the service's mining activation) | OFF | Off by default; native adapter not verified on Windows or in game; synthetic provider tests only |
-| `game.relocation` ([`sc_relocation.h`](../../include/sc_relocation.h)) | 1.0 | `game.relocation` | OFF | Production mutation unavailable (no certified host admission, system classifier or validated transport); synthetic provider tests only |
+| `game.relocation` ([`sc_relocation.h`](../../include/sc_relocation.h)) | 1.0 | `game.relocation` | ON | ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game |
 | `game.spatial` ([`sc_game_spatial.h`](../../include/sc_game_spatial.h)) | 1.0 | no capability of its own: full-pose conversion and copied observed zones | none | Synthetic fixtures only; not verified on Windows or in game |
 | CryPak adapter rows ([`api.md`](../api.md)) | row | `game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts) | OFF | OFF pending in-game confirmation |
 <!-- status-registry:end -->

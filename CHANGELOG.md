@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **`game.relocation` 1.0 gets a fail-closed production path** ([docs](docs/game-services.md#relocation-gamerelocation-10)), `include/sc_relocation.h` and the frozen plugin ABI unchanged. The game pack now ports the v0.7.7 transport and system classifier behind a `RelocationBackend` seam (`src/game/services/relocation.h`, engine adapter `relocation_engine.cpp`, Windows only): the player and its star system come from the zone chain (the `SolarSystem*` zone; an unknown system refuses), the destination must be streamed, and the movement is the game's own teleport call. The new row `teleport.relocation` pins that call and the params stores, from the game's own `CmdTeleportToCamera`; it resolves on 4.10.196.36804 in a local `sco-sigcheck` run. The capability `game.relocation` is ON only while the host's fresh offline admission is positive, the rows resolve, a live player and known system exist and the product switch is on; otherwise OFF, with no engine read before the offline answer. `sco::game::services::SetRelocationEnabled(bool)` is the switch a product wires to a player or host setting; it can only turn relocation off. Completion needs a fresh observed pose in the target frame. Synthetic provider tests cover every input and failure reason; the Windows adapter is not compiled here and nothing has run in the game, so the evidence level stays synthetic only.
+
 ## sdk-v2.3.0 (2026-10-15)
 
 See the [SDK 2.3.0 release notes](docs/releases/sdk-v2.3.0.md) and the

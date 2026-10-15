@@ -360,7 +360,10 @@ const sc_spatial_v1 kSpatial = {
     sizeof(sc_spatial_v1), SvcPlayerPose, SvcZoneOfEntity, SvcLocalToWorld, SvcWorldToLocal, SvcZoneToZone, SvcZoneName,
 };
 
-void OnTick(const char*, const void*, void*) { RefreshZones(); }
+void OnTick(const char*, const void*, void*) {
+    RefreshZones();
+    TickRelocation();
+}
 
 }  // namespace
 
@@ -374,7 +377,7 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
-    r = StartRelocation();
+    r = StartRelocation(EngineRelocationBackend());
     if (r != Result::Ok) { WithdrawSpatial(); return r; }
     r = StartSpawn();
     if (r != Result::Ok) {
