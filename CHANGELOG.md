@@ -7,18 +7,26 @@ What each change means for plugin authors and for products built on sco-core (sc
 - **`game.relocation` 1.0 gets a fail-closed production path** ([docs](docs/game-services.md#relocation-gamerelocation-10)), `include/sc_relocation.h` and the frozen plugin ABI unchanged. The game pack now ports the v0.7.7 transport and system classifier behind a `RelocationBackend` seam (`src/game/services/relocation.h`, engine adapter `relocation_engine.cpp`, Windows only): the player and its star system come from the zone chain (the `SolarSystem*` zone; an unknown system refuses), the destination must be streamed, and the movement is the game's own teleport call. The new row `teleport.relocation` pins that call and the params stores, from the game's own `CmdTeleportToCamera`; it resolves on 4.10.196.36804 in a local `sco-sigcheck` run. The capability `game.relocation` is ON only while the host's fresh offline admission is positive, the rows resolve, a live player and known system exist and the product switch is on; otherwise OFF, with no engine read before the offline answer. `sco::game::services::SetRelocationEnabled(bool)` is the switch a product wires to a player or host setting; it can only turn relocation off. Completion needs a fresh observed pose in the target frame. Synthetic provider tests cover every input and failure reason; the Windows adapter is not compiled here and nothing has run in the game, so the evidence level stays synthetic only.
 - **`game.quantum`: default production backend under the maintainer's amended rule (2026-10-15), synthetic evidence only** ([docs](docs/quantum.md#amended-rule-2026-10-15), [cvars](docs/game/cvars.md)). The rule that forbade quantum cvar and shared drive-parameter writes now allows them under conditions: positive fresh offline admission before every write, first prior saved before the first write, every value restored on release, `apply(false,false)`, admission loss, drive loss, stop and fault, engine type verified before any access, writes only while holding control, no console execution. The Windows game pack ports the v0.7.7 engine code (`quantum_engine.cpp`, bookkeeping in `quantum_owned.cpp`): four int `v_qdrive2` cvars, the `+0xC0` parameter cell (only when it is below 1e9), charge keep-full and the effect-update guard, all only during a hold, with the `StartUse` user matched exactly to `reads::LocalPlayer` (anything else passes through). `p_enable_physical_quantum_travel` is not written (no grounded route). No frozen ABI, public header, signature row or `sco_api` table changes. `game.quantum.control` stays `synthetic_only`; nothing has run in the game or under MSVC.
 
-- **`sco.net` session limit raised from 16 to 51 players, the host included:** `SC_NET_MAX_PEERS` (and its
-  alias `SCO_NET_MAX_PEERS`) and `SC_PRIVATE_SESSION_MAX_PEERS` are now 51, so a host can run an offline
-  co-presence session for up to 50 other players. The protocol version stays 1: no packet field is sized by
-  the limit (only the host compares a join against it, and a joiner reads the SYNC peer count without one),
-  so a joiner built for 16 seats joins a 51-seat host ([Session size](docs/net-wire.md#session-size)).
-  Plugin ABI 1.1 and the `sco_net_v1` and `sc_private_session_v1` table layouts are unchanged; only the value
-  of the macros and the `max_peers` bound (now 2..51) change. A plugin that sized a `get_peers` buffer by
-  `SCO_NET_MAX_PEERS` from an older header gets `SCO_TOO_MANY` (the first 16 peers written) when more than 16
-  players are in the session; asking for the count first avoids it. The private-session broker's allow-list
-  of 1-16 exact peer addresses is a separate limit and is unchanged. New cases run a 51-peer session (relay,
-  a refused 52nd join, a freed seat) in `test_net` and `test_net_service`, and the broker at 51 and 52 in
-  `test_net_control`. In-memory tests only; not run in game.
+- **`sco.net` sessions hold up to 51 players, the host included (they held 16):** the wire header's
+  `SC_NET_MAX_PEERS` and `SC_PRIVATE_SESSION_MAX_PEERS` are now 51, so a host can run an offline co-presence
+  session for up to 50 other players. The protocol version stays 1: no packet field is sized by the limit (only
+  the host compares a join against it, and a joiner reads the SYNC peer count without one), so a joiner built
+  for 16 seats joins a 51-seat host ([Session size](docs/net-wire.md#session-size)). The host now remembers up
+  to `2 * SC_NET_MAX_PEERS` half-open joins, not 32, so 50 players who start in the same moment all get in;
+  before, the oldest joins past the 32nd were forgotten and timed out after their join timeout.
+  Version 1.0 of `sco.net` and of `game.private_session` is unchanged (plugin ABI 1.1, both table layouts and
+  both service versions stay, and `tests/abi_net.c` keeps every line), so **`SCO_NET_MAX_PEERS` stays 16**, the
+  value 1.0 promised, and `SCO_NET_SESSION_MAX_PEERS` (51) is added for the limit of a runtime from this SDK on.
+  A plugin that sized a `get_peers` buffer by `SCO_NET_MAX_PEERS` gets `SCO_TOO_MANY`, the first 16 peers and
+  the true count when more than 16 players are in the session: that is the 1.0 `get_peers` contract, and
+  `scosdk::Net::Peers()` copes; a plugin that treats `SCO_TOO_MANY` as a failure loses its peer list there.
+  A plugin built with this header that asks `request_host` for 17 to 51 peers gets `SCO_BAD_ARG` from a runtime
+  of SDK 2.2.0 or earlier (its cap is 16): that answer is how it can tell, and it can retry with
+  `SC_PRIVATE_SESSION_MAX_PEERS_2_2`. The broker's allow-list of 1-16 exact peer addresses is a separate
+  limit and is unchanged. New cases: a 51-peer session in `test_net` and in `test_net_service` (a 50-player
+  burst, relay, a refused 52nd join, a freed seat taken again), bursts of 50 and of 60 joiners in `test_net`
+  (all 50 seats filled, the other 10 refused as full, no handshake packet dropped), and the broker at 51 and 52
+  in `test_net_control`. In-memory tests only; not run in game.
 
 ## sdk-v2.3.0 (2026-10-15)
 

@@ -27,7 +27,13 @@ namespace sco::net {
 namespace {
 
 constexpr uint32_t kControlMaxLen = SC_NET_CONTROL_MAX;
-constexpr uint32_t kMaxPending = 32;        // half-open joins the host remembers
+// Half-open joins the host remembers: a HELLO answered, its PROOF not in yet. Every seat of a full session can
+// be waiting at once (50 players starting in the same moment), and as many again may be joiners that will be
+// refused as full or fail the proof; past that the oldest is forgotten. A forgotten joiner resends its PROOF into
+// the void until its join times out, so the bound has to sit above what an honest burst needs. It stays a bound
+// because a HELLO costs its sender nothing: an entry is a name and the channel names that fit in one datagram
+// (a few KB at worst), so the host holds under 2 MB for the list while it hosts.
+constexpr uint32_t kMaxPending = 2 * kMaxPeers;
 constexpr uint32_t kHelloMinBody = SC_NET_HELLO_MIN_BODY;   // so a CHALLENGE is never bigger
 constexpr uint32_t kMaxPumpDatagrams = 4096;
 constexpr uint32_t kMaxUnrelQueue = 256;    // per link

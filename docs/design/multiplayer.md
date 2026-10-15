@@ -219,7 +219,7 @@ void   SetPeerEntity(PeerId, uint64_t entityId);   // the ghost entity this prod
 /* include/sco_net.h: service "sco.net", version 1.0 */
 #define SCO_NET_NAME          "sco.net"
 #define SCO_NET_VERSION_1_0   0x00010000u
-#define SCO_NET_MAX_PEERS     51u   /* 16 when this was designed; see net-wire.md, "Session size" */
+#define SCO_NET_MAX_PEERS     16u   /* frozen with 1.0; a runtime now hosts SCO_NET_SESSION_MAX_PEERS (51): net-wire.md, "Session size" */
 #define SCO_NET_MAX_UNREL     1200u           /* bytes in one unreliable datagram (poses) */
 #define SCO_NET_MAX_RELIABLE  (256u * 1024u)  /* bytes in one reliable message (announcements) */
 

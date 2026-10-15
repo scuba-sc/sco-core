@@ -241,7 +241,7 @@ static void TestHostSession(Lab& lab) {
     bad.playerName = std::string("bad\nname");
     CHECK(Host(bad) == Result::BadArg);
     bad.playerName = "Host";
-    bad.maxPeers = SCO_NET_MAX_PEERS + 1;
+    bad.maxPeers = SCO_NET_SESSION_MAX_PEERS + 1;
     CHECK(Host(bad) == Result::BadArg);
 
     HostOptions h;
@@ -490,13 +490,13 @@ static void TestJoinSession() {
 
 // ---- a full session: 51 players through the service ----------------------------------------------
 
-// The service hosts a session at the limit, SCO_NET_MAX_PEERS (51) players with the host, and 50 Cores
-// join it over the in-memory network. They join in waves of 25 because a host remembers at most 32
-// half-open joins at once. The remotes keep the default maxPeers: a joiner never reads the limit, so
-// they stand for joiners built for the old limit of 16. A plugin that sized its get_peers buffer by that
-// old limit gets SCO_TOO_MANY with the first 16 peers written; a buffer that asks first gets all 51.
+// The service hosts a session at the limit, SCO_NET_SESSION_MAX_PEERS (51) players with the host, and 50
+// Cores join it over the in-memory network, all starting in the same moment. The remotes keep the default
+// maxPeers: a joiner never reads the limit, so they stand for joiners built for the old limit of 16. A plugin
+// that sized its get_peers buffer by SCO_NET_MAX_PEERS (still 16) gets SCO_TOO_MANY with the first 16 peers
+// written and the true count; a buffer that asks first gets all 51.
 static void TestFullSession() {
-    constexpr uint32_t kSeats = SCO_NET_MAX_PEERS;
+    constexpr uint32_t kSeats = SCO_NET_SESSION_MAX_PEERS;
     static_assert(kSeats == 51, "the session limit is 51 players");
 
     MemNet net(51);
@@ -537,32 +537,29 @@ static void TestFullSession() {
     h.playerName = "Host";
     h.maxPeers = kSeats;
     CHECK(Host(h) == Result::Ok);
-    for (size_t first = 0; first < remotes.size(); first += 25) {
-        const size_t stop = std::min(first + 25, remotes.size());
-        for (size_t i = first; i < stop; ++i) {
-            Options o = RemoteOpts();
-            o.playerName = "R" + std::to_string(i + 1);
-            CHECK(remotes[i]->core.Join(o, svc.Self(), g_clock));
-        }
-        CHECK(until([&] {
-            for (size_t i = first; i < stop; ++i)
-                if (!remotes[i]->core.Active()) return false;
-            return PeerCount() == stop + 1;
-        }));
+    for (size_t i = 0; i < remotes.size(); ++i) {
+        Options o = RemoteOpts();
+        o.playerName = "R" + std::to_string(i + 1);
+        CHECK(remotes[i]->core.Join(o, svc.Self(), g_clock));
     }
+    CHECK(until([&] {
+        for (auto& r : remotes)
+            if (!r->core.Active()) return false;
+        return PeerCount() == kSeats;
+    }));
     TickNet();
     CHECK(g_events.peers.size() == events0 + (kSeats - 1));   // one "net.peer" JOINED per remote
 
-    // get_peers: a buffer of SCO_NET_MAX_PEERS holds everyone, one of the old 16 does not.
+    // get_peers: a buffer of SCO_NET_SESSION_MAX_PEERS holds everyone, one of the 1.0 size does not.
     CHECK(PeerCount() == kSeats);
-    sco_net_peer all[SCO_NET_MAX_PEERS] = {};
-    uint32_t n = SCO_NET_MAX_PEERS;
+    sco_net_peer all[SCO_NET_SESSION_MAX_PEERS] = {};
+    uint32_t n = SCO_NET_SESSION_MAX_PEERS;
     CHECK(g_t->get_peers(all, &n) == SCO_OK && n == kSeats);
     CHECK(all[0].peer_id == kHostPeer && all[kSeats - 1].peer_id == kSeats);
-    sco_net_peer old[16] = {};
-    n = 16;
+    sco_net_peer old[SCO_NET_MAX_PEERS] = {};   // a plugin that sized its buffer by the 1.0 macro
+    n = SCO_NET_MAX_PEERS;
     CHECK(g_t->get_peers(old, &n) == SCO_TOO_MANY && n == kSeats);
-    CHECK(old[0].peer_id == kHostPeer && old[15].peer_id == 16);
+    CHECK(old[0].peer_id == kHostPeer && old[SCO_NET_MAX_PEERS - 1].peer_id == SCO_NET_MAX_PEERS);
     sco::sdk::Net wrapper;
     CHECK(wrapper.Open(g_api, p) == SCO_OK && wrapper.Peers().size() == kSeats);
     char name[16];
@@ -594,6 +591,13 @@ static void TestFullSession() {
     CHECK(until([&] { return extra.core.GetState() == State::Idle; }));
     CHECK(extra.core.LastReason() == "refused: the session is full");
     CHECK(GetServiceStats().core.joinsRefused == refused0 + 1 && PeerCount() == kSeats);
+
+    // A freed seat can be taken again. Ids are never reused, so the newcomer is id 52 in a 51-seat session.
+    remotes[9]->core.Leave("seat");
+    CHECK(until([&] { return PeerCount() == kSeats - 1; }));
+    CHECK(extra.core.Join(RemoteOpts(), svc.Self(), g_clock));
+    CHECK(until([&] { return extra.core.Active() && PeerCount() == kSeats; }));
+    CHECK(extra.core.Self() == kSeats + 1);
 
     Leave("done");
     CHECK(GetState() == State::Idle);

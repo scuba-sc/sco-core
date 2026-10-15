@@ -1033,9 +1033,8 @@ static void TestPeers() {
 
 // A session at the limit: the host and 50 joiners, 51 players in all (the limit was 16). Nothing on the
 // wire is sized by the limit (docs/net-wire.md, "Session size"), so the joiners keep the default
-// maxPeers of 8, which a joiner never reads: they stand for joiners built for the old limit. They join
-// in waves of 25 because the host remembers at most kMaxPending (32) half-open joins at once; players
-// arrive one by one in real use.
+// maxPeers of 8, which a joiner never reads: they stand for joiners built for the old limit. They all
+// start in the same moment (TestJoinBurst looks at that closely).
 static void TestSessionLimit() {
     constexpr uint32_t kSeats = 51;
     static_assert(SC_NET_MAX_PEERS == kSeats && kMaxPeers == kSeats, "the session limit is 51 players");
@@ -1049,22 +1048,16 @@ static void TestSessionLimit() {
     CHECK(host.core.Host(ho, 0));
 
     std::vector<Node*> live{ &host };
-    size_t joined = 0;
-    auto seated = [&] {
-        for (size_t i = 1; i <= joined; ++i)
-            if (!Joined(*nodes[i])) return false;
-        return host.core.Peers().size() == joined + 1;
-    };
-    while (joined < kSeats - 1) {
-        const size_t wave = std::min<size_t>(25, kSeats - 1 - joined);
-        for (size_t k = 0; k < wave; ++k) {
-            Node& n = *nodes[++joined];
-            const std::string name = "P" + std::to_string(joined);
-            CHECK(n.core.Join(Opts(name.c_str(), "pw", 1000 + joined), host.tr.Self(), net.now));
-            live.push_back(&n);
-        }
-        CHECK(RunUntil(net, live, net.now + 20000, seated));
+    for (uint32_t i = 1; i < kSeats; ++i) {
+        const std::string name = "P" + std::to_string(i);
+        CHECK(nodes[i]->core.Join(Opts(name.c_str(), "pw", 1000 + i), host.tr.Self(), net.now));
+        live.push_back(nodes[i].get());
     }
+    CHECK(RunUntil(net, live, net.now + 20000, [&] {
+        for (uint32_t i = 1; i < kSeats; ++i)
+            if (!Joined(*nodes[i])) return false;
+        return host.core.Peers().size() == kSeats;
+    }));
 
     // Every player ends up with all 51 on its list, and the ids run 1..51 in join order.
     CHECK(RunUntil(net, live, net.now + 5000, [&] {
@@ -1122,6 +1115,70 @@ static void TestSessionLimit() {
     CHECK(extra.core.Self() == kSeats + 1);
 }
 
+// Joiners that start in the same moment. Every HELLO reaches the host before any PROOF does (a joiner sends
+// its PROOF only after the CHALLENGE, which the host sends while it is still reading the HELLOs), so the host
+// has that many half-open joins at once. It used to remember 32 and forget the oldest of the rest: with 50
+// joiners, 18 never got in and gave up after their join timeout. Now every joiner that fits is seated, every
+// one that does not is refused as full (promptly, not by timing out), and no handshake packet is dropped.
+static void BurstCase(uint32_t joiners) {
+    const uint32_t seats = std::min<uint32_t>(joiners, kMaxPeers - 1);
+    const uint32_t refused = joiners - seats;
+    MemNet net(joiners);
+    std::vector<std::unique_ptr<Node>> nodes;   // [0] the host, then the joiners
+    for (uint32_t i = 0; i <= joiners; ++i) nodes.push_back(std::make_unique<Node>(net, static_cast<uint16_t>(i + 1)));
+    Node& host = *nodes[0];
+    Options ho = Opts("Host", "pw", 1);
+    ho.maxPeers = kMaxPeers;
+    CHECK(host.core.Host(ho, 0));
+
+    // The tap sees each datagram as it is sent: count the HELLOs and the CHALLENGEs, and how many CHALLENGEs
+    // had gone out when the first PROOF was sent.
+    uint32_t hellos = 0, challenges = 0, challengesAtFirstProof = 0;
+    bool sawProof = false;
+    net.tap = [&](MemNet::Datagram& d) {
+        const uint8_t kind = d.bytes.size() > SC_NET_OFF_KIND ? d.bytes[SC_NET_OFF_KIND] : 0;
+        if (kind == SC_NET_HELLO) ++hellos;
+        if (kind == SC_NET_CHALLENGE) ++challenges;
+        if (kind == SC_NET_PROOF && !sawProof) {
+            sawProof = true;
+            challengesAtFirstProof = challenges;
+        }
+        return true;
+    };
+
+    std::vector<Node*> live{ &host };
+    for (uint32_t i = 1; i <= joiners; ++i) {
+        const std::string name = "B" + std::to_string(i);
+        CHECK(nodes[i]->core.Join(Opts(name.c_str(), "pw", 3000 + i), host.tr.Self(), net.now));
+        live.push_back(nodes[i].get());
+    }
+    CHECK(RunUntil(net, live, net.now + 20000, [&] {
+        uint32_t in = 0, out = 0;
+        for (uint32_t i = 1; i <= joiners; ++i) {
+            if (Joined(*nodes[i])) ++in;
+            if (nodes[i]->core.GetState() == State::Idle) ++out;
+        }
+        return in == seats && out == refused;
+    }));
+
+    CHECK(hellos == joiners && challengesAtFirstProof == joiners);   // all the HELLOs were in before the first PROOF
+    const Stats& st = host.core.GetStats();
+    CHECK(st.handshakeDropped == 0 && st.joinsRefused == refused);
+    CHECK(host.core.Peers().size() == seats + 1);
+    uint32_t full = 0;
+    std::set<PeerId> ids;
+    for (uint32_t i = 1; i <= joiners; ++i) {
+        if (Joined(*nodes[i])) ids.insert(nodes[i]->core.Self());
+        else if (nodes[i]->lastDown == "refused: the session is full") ++full;
+    }
+    CHECK(ids.size() == seats && full == refused);
+}
+
+static void TestJoinBurst() {
+    BurstCase(kMaxPeers - 1);   // 50 joiners for 50 seats: all of them get in
+    BurstCase(kMaxPeers + 9);   // 60 for 50: 50 get in, 10 are told the session is full
+}
+
 static void Run(const char* name, void (*fn)()) {
     const int before = g_fail;
     fn();
@@ -1148,6 +1205,7 @@ int main() {
     Run("TestReliableLossy(4)", [] { TestReliableLossy(4); });
     Run("TestPeers", TestPeers);
     Run("TestSessionLimit", TestSessionLimit);
+    Run("TestJoinBurst", TestJoinBurst);
     std::printf("sco-core net tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

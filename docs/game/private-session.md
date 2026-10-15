@@ -15,7 +15,7 @@ borrowed for the call, lengths in bytes excluding terminators; embedded NUL is
 refused. Nothing from a request is stored in settings or broker history.
 
 - `request_host(self, host_request*)`: consent, nonzero port (default 64091),
-  passphrase 12–256 bytes, player name 1–64 bytes, peer limit 2–51 including self.
+  passphrase 12–256 bytes, player name 1–64 bytes, peer limit 2–51 including self (a runtime from SDK 2.2.0 or earlier stops at 16 and answers `SCO_BAD_ARG` above it).
 - `request_join(self, join_request*)`: consent, exact numeric IPv4 host address
   (1–15 bytes), nonzero port, passphrase and player name with the same bounds.
 - `leave(self)`: the requesting owner only; no consent needed to stop. Ordinary

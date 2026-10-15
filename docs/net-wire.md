@@ -54,7 +54,7 @@ Joiner J, host H. Handshake packets carry no tag; their own fields carry the pro
 - **The host checks PROOF** in constant time, then asks the product (`Callbacks::admit`), then sends WELCOME. **A wrong passphrase** fails the PROOF check: the host sends REFUSE code 2 and forgets the join; the joiner's state goes to Idle with the reason `refused: wrong passphrase`. A joiner shows its own text for each code, never the unauthenticated host's.
 - **The joiner checks WELCOME's MAC**, so a host without the passphrase can't admit anyone (mutual authentication).
 - **Link key** `L = HMAC(K, "sco.net link\0" || cn || hn)`, one per join. It authenticates every DATA, ACK, PING and BYE on that link.
-- **Robustness.** J resends HELLO, then PROOF, every 500 ms until answered and gives up after 10 s (`no answer from the host`). H answers a repeated HELLO with the same CHALLENGE and a repeated PROOF with the same WELCOME. H keeps at most 32 half-open joins (the oldest goes first) for 10 s. HELLO is padded so a CHALLENGE is never larger than the HELLO it answers. A REFUSE must echo J's `cn`, so a blind spoof can't end a join.
+- **Robustness.** J resends HELLO, then PROOF, every 500 ms until answered and gives up after 10 s (`no answer from the host`). H answers a repeated HELLO with the same CHALLENGE and a repeated PROOF with the same WELCOME. H keeps at most `2 * SC_NET_MAX_PEERS` (102) half-open joins (the oldest goes first) for 10 s: every seat of a full session can be waiting for its PROOF at once, as when 50 players start in the same moment. HELLO is padded so a CHALLENGE is never larger than the HELLO it answers. A REFUSE must echo J's `cn`, so a blind spoof can't end a join.
 - **Version.** A HELLO with another `protocol_version` gets a REFUSE (code 1, carrying the host's version); a joiner that gets a REFUSE with another version reports `refused: protocol version mismatch (host vX, this vY)`. Only the first six header bytes are relied on across versions.
 
 ## DATA, ACK, PING, BYE
@@ -101,9 +101,11 @@ admission rule, and **the protocol version stays 1** because nothing on the wire
   of up to 74 bytes make about 21 KB, against the 64 KiB `SC_NET_CONTROL_MAX`.
 
 So a joiner built for 16 seats joins a 51-seat host and reads its peer list like any other, and a host
-built for 16 seats keeps refusing at 16, with the same packets on the wire. Only a plugin can notice: one
-that sized a `get_peers` buffer by `SCO_NET_MAX_PEERS` from an older header gets `SCO_TOO_MANY` (with the
-first 16 peers written) once more than 16 players are in the session ([Limits](net.md#limits)).
+built for 16 seats keeps refusing at 16, with the same packets on the wire. Only a plugin can notice. The
+plugin-facing header keeps `SCO_NET_MAX_PEERS` at 16 (version 1.0 of `sco.net` is frozen) and adds
+`SCO_NET_SESSION_MAX_PEERS`, 51, for the runtime's limit; a plugin that sized a `get_peers` buffer by the old
+macro gets `SCO_TOO_MANY` (with the first 16 peers written and the true count) once more than 16 players are in
+the session ([Limits](net.md#limits)).
 
 ## The service on top (plan PR 4b)
 

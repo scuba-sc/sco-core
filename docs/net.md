@@ -90,11 +90,14 @@ Two events on the bus, on the game thread, each starting with its size:
 | Waiting to go out | 1 MiB per plugin (then `SCO_TOO_MANY`) |
 | Waiting for your next tick | 1,024 messages or 4 MiB per plugin (more are dropped) |
 
-Size a `get_peers` buffer by asking first, not by `SCO_NET_MAX_PEERS`: call it with `out` NULL and
-`*inout_count` 0, read the count it leaves in `*inout_count`, allocate, and call again (`scosdk::Net::Peers()`
-does this). A plugin built against a header from before the limit was 51 (it was 16) and sized its buffer
-by `SCO_NET_MAX_PEERS` gets `SCO_TOO_MANY`, with the first 16 peers written, once more than 16 players are
-in the session.
+`SCO_NET_MAX_PEERS` is the value version 1.0 of the header promised, 16, and it stays 16 (`tests/abi_net.c` pins
+it; version 1.0 is frozen). A runtime built from this SDK hosts up to `SCO_NET_SESSION_MAX_PEERS`, 51; an SDK
+2.2.0 runtime hosts 16. So the macro no longer bounds a session, and a `get_peers` buffer should be sized by
+asking first: call it with `out` NULL and `*inout_count` 0, read the count it leaves in `*inout_count`,
+allocate, and call again (`scosdk::Net::Peers()` does this). That is the 1.0 contract of `get_peers`
+(`SCO_TOO_MANY`: more peers than the capacity, the first ones written). A plugin built with a 16-entry buffer gets
+`SCO_TOO_MANY`, the first 16 peers and the true count once more than 16 players are in the session; one that
+treats `SCO_TOO_MANY` as a failure loses its peer list from then on.
 
 On ordinary owner release (including unload or non-retained `crashed` cleanup), the network release hook removes the plugin's channels and messages still queued for it or by it. Restart-required retained-provider faults skip this resource hook: host callbacks are suppressed, but channels and queued network state are not removed by quarantine alone. Terminal network shutdown clears remaining state.
 

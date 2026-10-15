@@ -3,7 +3,8 @@
  *
  * Compile-only, like abi_v1.c: if anything here fails, the service table changed and every
  * plugin built against the old header would break. Version 1 only grows at the end of
- * sco_net_v1; existing lines never change. The wire constants it reuses are pinned by
+ * sco_net_v1; existing lines never change (so SCO_NET_MAX_PEERS stays 16, and the limit of a newer
+ * runtime is the added SCO_NET_SESSION_MAX_PEERS). The wire constants it reuses are pinned by
  * abi_sc_net.c.
  *
  * tools/test.sh compiles it as C11 and C++20 for the host, with -fshort-enums, and for
@@ -28,8 +29,9 @@ PIN(sizeof(void*) == 8);
 /* ---- name, version, limits, flags ---- */
 PIN(SCO_NET_VERSION_1_0 == 0x00010000u);
 PIN(sizeof(SCO_NET_NAME) == 8); /* "sco.net" */
-PIN(SCO_NET_MAX_PEERS == 51u);
-PIN(SCO_NET_MAX_PEERS == SC_NET_MAX_PEERS); /* the alias never drifts from the wire header's constant */
+PIN(SCO_NET_MAX_PEERS == 16u);
+PIN(SCO_NET_SESSION_MAX_PEERS == 51u); /* added after 1.0: the limit of a newer runtime; the line above never changes */
+PIN(SCO_NET_SESSION_MAX_PEERS == SC_NET_MAX_PEERS);
 PIN(SCO_NET_MAX_UNREL == 1200u);
 PIN(SCO_NET_MAX_RELIABLE == 262144u);
 PIN(SCO_NET_MAX_FQN == 64u);

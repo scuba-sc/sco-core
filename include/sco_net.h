@@ -62,11 +62,17 @@ extern "C" {
 #define SCO_NET_NAME "sco.net"
 #define SCO_NET_VERSION_1_0 0x00010000u
 
-/* The session limit of the headers a plugin was built with: 51 here, 16 in SDK 2.2.0 and earlier.
- * Do not size a get_peers buffer by it and stop there: a session can hold more players than an older
- * header allowed. Ask for the count first (out NULL, *inout_count 0) or grow on SCO_TOO_MANY, as
- * scosdk::Net::Peers() does. */
-#define SCO_NET_MAX_PEERS     SC_NET_MAX_PEERS     /* 51: a session, self included */
+/* The session size version 1.0 of this header promised: 16, self included. It stays 16 with the rest of
+ * version 1.0 (tests/abi_net.c pins it, and existing lines never change), so it no longer bounds what a
+ * running host may do: a runtime from the SDK that added SCO_NET_SESSION_MAX_PEERS hosts up to that many.
+ * Do not size a get_peers buffer by it and stop there. Ask for the count first (out NULL, *inout_count 0)
+ * or grow on SCO_TOO_MANY, as scosdk::Net::Peers() does; the 1.0 contract of get_peers already says that
+ * SCO_TOO_MANY means more peers than the capacity, with the first ones written. */
+#define SCO_NET_MAX_PEERS     16u                  /* 1.0: a session, self included */
+/* The most players a runtime built from this SDK hosts, self included (the wire header's SC_NET_MAX_PEERS).
+ * A runtime from SDK 2.2.0 or earlier hosts SCO_NET_MAX_PEERS. Added after 1.0; the service table and its
+ * version are unchanged, so the service cannot be asked which of the two it has. */
+#define SCO_NET_SESSION_MAX_PEERS SC_NET_MAX_PEERS /* 51 */
 #define SCO_NET_MAX_UNREL     SC_NET_MAX_UNREL     /* 1200: bytes in one unreliable message */
 #define SCO_NET_MAX_RELIABLE  SC_NET_MAX_RELIABLE  /* 262144: bytes in one reliable message */
 #define SCO_NET_MAX_FQN       SC_NET_MAX_FQN       /* 64: bytes in a channel name, NUL excluded */
