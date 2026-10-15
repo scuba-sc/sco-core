@@ -233,7 +233,7 @@ class CatalogueTests(unittest.TestCase):
         result = json.loads(outputs[0].read_bytes())
         self.assertEqual(result['source_sha'], SHA)
         self.assertEqual(result['sdk_version'], (self.root / 'sdk/VERSION').read_text().strip())
-        self.assertEqual(result['game_pack_version'], '0.5.0')
+        self.assertEqual(result['game_pack_version'], '0.6.0')
         self.assertNotIn(str(self.root), outputs[0].read_text())
         self.assertEqual(set(result), {'schema_version', 'sdk_version', 'game_pack_version',
                                        'source_sha', 'contract_context', 'tables', 'records'})
