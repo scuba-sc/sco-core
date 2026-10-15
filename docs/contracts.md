@@ -217,6 +217,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_contracts_v1` | 2 | 24 | 1.0 |
 | `sc_loadout_v1` | 1 | 16 | 1.1 |
 | `sc_quantum_v1` | 4 | 40 | 1.0 |
+| `sc_gamerules_v1` | 1 | 16 | 1.0 |
 | `sc_mining_v1` | 2 | 24 | 1.0 |
 | `sc_private_session_v1` | 4 | 40 | 1.0 |
 | `sc_actor_stats_v1` | 1 | 16 | 1.0 |
@@ -871,6 +872,14 @@ C/C++ supported; C# and Lua unsupported.
 | `sc_actor_stats_write_v1.set` | `size >= 24`; 1.0 | `sco_result (*set)(sco_plugin* self, uint64_t id, uint32_t stat, float value, float* out_after);`<br>Move one named stat of your own player to value: read the current value and adjust by the difference, so the game's clamping and consequences still apply. *out_after (may be NULL) is the stat read back right after the write. | Copied scalar inputs; one float or uint32 copied out when the out pointer is set; no allocation, no engine pointer transfer, nothing retained. No lease: a write is a one-shot game adjust. | Game thread only; WRONG_THREAD elsewhere before any game access. | OK applied and read back; BAD_ARG null or released self, id 0 or not your player, stat not a 1.0 stat, a non-finite input or a step past SC_ACTOR_STATS_WRITE_MAX_STEP; NOT_FOUND not spawned or no record of that stat; UNAVAILABLE game.actor_stats.write off, no fresh offline admission, or mode DISCARDED (the game would ignore the change); FAILED game fault or no read-back; WRONG_THREAD off the game thread. | Nothing is restored on unload: the stats are gameplay state the game changes every tick. game.actors' stop withdraws the table and clears the capability. |
 
 ## `sc_cvars_v1` — `game.cvars` 1.0
+## `sc_gamerules_v1` — game.gamerules 1.0
+
+Read-only server GameRules parameters. See [game.gamerules](game/gamerules.md). Backend-unbound default publishes UNAVAILABLE; synthetic evidence only, nothing run in game.
+
+| Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
+|---|---|---|---|---|---|---|
+| `sc_gamerules_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(sco_plugin* self, sc_gamerules_state* out);`<br>Copy the client's current server GameRules parameter snapshot into out (caller sets out->size). Read-only: values are what the server sent and the client applied for the current session; they cannot be written through this ABI. generation changes when a new parameter set is applied. | Provider owns the snapshot storage; a plain copy crosses to the caller. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null or out->size too small, BAD_ARG invalid self. | StopGameRules withdraws the service and clears the bound backend; no engine state to restore (read-only). |
+
 
 Source: [`sc_cvars.h`](../include/sc_cvars.h), [semantics and exact allowlist](game/cvars.md).
 Read-only, verified offline game-pack port; production capability OFF until engine ABI/type verification.

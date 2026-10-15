@@ -9,7 +9,16 @@
       "header": "include/sc_spatial.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "teleport", "display": "the four `teleport.*` rows (the product's capability `teleport`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"}
+        {
+          "name": "teleport",
+          "display": "the four `teleport.*` rows (the product's capability `teleport`)",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -19,7 +28,19 @@
       "header": "include/sc_spawn.h",
       "version": "1.2",
       "capabilities": [
-        {"name": "spawn.ship", "display": "the `spawn.helpers` rows (the product's capability `spawn.ship`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["spawn.helpers"], "evidence_source": "docs/game/status.md"}
+        {
+          "name": "spawn.ship",
+          "display": "the `spawn.helpers` rows (the product's capability `spawn.ship`)",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "spawn.helpers"
+          ],
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -29,11 +50,61 @@
       "header": "include/sc_actors.h",
       "version": "1.1",
       "capabilities": [
-        {"name": "game.actors.local_player", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.actors.spawn_npc", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.actors.despawn", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.actors.health", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["actor.health_site", "actor.status_accessor", "actor.get_stat"], "evidence_source": "docs/game/status.md"},
-        {"name": "game.actors.state", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["actor.state_site", "actor.status_accessor", "actor.is_dead_confirmed"], "spike_ref": "B4", "evidence_source": "docs/game/status.md"}
+        {
+          "name": "game.actors.local_player",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.actors.spawn_npc",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.actors.despawn",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.actors.health",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "actor.health_site",
+            "actor.status_accessor",
+            "actor.get_stat"
+          ],
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.actors.state",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "actor.state_site",
+            "actor.status_accessor",
+            "actor.is_dead_confirmed"
+          ],
+          "spike_ref": "B4",
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -63,9 +134,33 @@
       "header": "include/sc_vehicles.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.vehicles.seats", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.vehicles.seat", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.vehicles.flight_ready", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"}
+        {
+          "name": "game.vehicles.seats",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.vehicles.seat",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.vehicles.flight_ready",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -75,8 +170,26 @@
       "header": "include/sc_world_control.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.world.raycast_filtered", "methods": ["raycast_filtered"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified offline engine adapter, no Windows/game proof", "evidence_source": "docs/design/world-control.md"},
-        {"name": "game.world.free_camera", "methods": ["camera_acquire"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified offline engine adapter, no Windows/game proof", "evidence_source": "docs/design/world-control.md"}
+        {
+          "name": "game.world.raycast_filtered",
+          "methods": [
+            "raycast_filtered"
+          ],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Synthetic policy only; no verified offline engine adapter, no Windows/game proof",
+          "evidence_source": "docs/design/world-control.md"
+        },
+        {
+          "name": "game.world.free_camera",
+          "methods": [
+            "camera_acquire"
+          ],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Synthetic policy only; no verified offline engine adapter, no Windows/game proof",
+          "evidence_source": "docs/design/world-control.md"
+        }
       ]
     },
     {
@@ -86,10 +199,55 @@
       "header": "include/sc_world.h",
       "version": "1.1",
       "capabilities": [
-        {"name": "game.world.raycast", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.world.camera", "display": "`game.world.camera` (position, rotation, zone)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.to_camera", "build.camera_fields"], "evidence_source": "docs/game/status.md"},
-        {"name": "game.world.free_camera_flag", "display": "`game.world.free_camera_flag` (`free_camera_flag`, read-only)", "methods": ["free_camera_flag"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["build.free_cam_on", "build.free_cam_off", "build.free_cam_flag"], "evidence_source": "docs/game/world.md"},
-        {"name": null, "display": "camera field of view", "methods": [], "default": "none", "evidence_level": "blocked", "evidence": "BLOCKED", "spike_ref": "B2", "evidence_source": "docs/game/status.md"}
+        {
+          "name": "game.world.raycast",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.world.camera",
+          "display": "`game.world.camera` (position, rotation, zone)",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "teleport.to_camera",
+            "build.camera_fields"
+          ],
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.world.free_camera_flag",
+          "display": "`game.world.free_camera_flag` (`free_camera_flag`, read-only)",
+          "methods": [
+            "free_camera_flag"
+          ],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "build.free_cam_on",
+            "build.free_cam_off",
+            "build.free_cam_flag"
+          ],
+          "evidence_source": "docs/game/world.md"
+        },
+        {
+          "name": null,
+          "display": "camera field of view",
+          "methods": [],
+          "default": "none",
+          "evidence_level": "blocked",
+          "evidence": "BLOCKED",
+          "spike_ref": "B2",
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -99,11 +257,77 @@
       "header": "include/sc_entities.h",
       "version": "1.1",
       "capabilities": [
-        {"name": "game.entities.transform", "methods": ["alive", "get_transform", "set_transform"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.entities.spawn", "methods": ["spawn", "despawn", "keep"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.entities.class_of", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["entities.dump", "entities.class_site"], "evidence_source": "docs/game/status.md"},
-        {"name": "game.entities.query_radius", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["entities.dump", "entities.index", "entities.for_each", "entities.class_site"], "spike_ref": "B3", "evidence_source": "docs/game/status.md"},
-        {"name": "game.entities.watch", "methods": ["watch", "unwatch"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["entities.spawn_sinks", "entities.delete_entity", "entities.class_site"], "spike_ref": "B9", "evidence_source": "docs/game/status.md"}
+        {
+          "name": "game.entities.transform",
+          "methods": [
+            "alive",
+            "get_transform",
+            "set_transform"
+          ],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.entities.spawn",
+          "methods": [
+            "spawn",
+            "despawn",
+            "keep"
+          ],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.entities.class_of",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "entities.dump",
+            "entities.class_site"
+          ],
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.entities.query_radius",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "entities.dump",
+            "entities.index",
+            "entities.for_each",
+            "entities.class_site"
+          ],
+          "spike_ref": "B3",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.entities.watch",
+          "methods": [
+            "watch",
+            "unwatch"
+          ],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "entities.spawn_sinks",
+            "entities.delete_entity",
+            "entities.class_site"
+          ],
+          "spike_ref": "B9",
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -113,11 +337,69 @@
       "header": "include/sc_game_events.h",
       "version": "bus",
       "capabilities": [
-        {"name": "game.events.player_spawned", "display": "`game.events.player_spawned` (`game.player.spawned`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["event.player_spawn"], "evidence_source": "docs/game/status.md"},
-        {"name": "game.events.player_died", "display": "`game.events.player_died` (`game.player.died`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["event.player_death"], "evidence_source": "docs/game/status.md"},
-        {"name": "game.events.actor_died", "display": "`game.events.actor_died` (`game.actors.died`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck); the same row as player_died, one hook two events", "sig_rows": ["event.player_death"], "evidence_source": "docs/game/status.md"},
-        {"name": "game.events.zone_changed", "display": "`game.events.zone_changed` (`game.zone.changed`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.events.vehicle_seat", "display": "`game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`)", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["event.seat_enter", "event.seat_exit"], "spike_ref": "B8", "evidence_source": "docs/game/status.md"}
+        {
+          "name": "game.events.player_spawned",
+          "display": "`game.events.player_spawned` (`game.player.spawned`)",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "event.player_spawn"
+          ],
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.events.player_died",
+          "display": "`game.events.player_died` (`game.player.died`)",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "event.player_death"
+          ],
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.events.actor_died",
+          "display": "`game.events.actor_died` (`game.actors.died`)",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck); the same row as player_died, one hook two events",
+          "sig_rows": [
+            "event.player_death"
+          ],
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.events.zone_changed",
+          "display": "`game.events.zone_changed` (`game.zone.changed`)",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "evidence_source": "docs/game/status.md"
+        },
+        {
+          "name": "game.events.vehicle_seat",
+          "display": "`game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`)",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "event.seat_enter",
+            "event.seat_exit"
+          ],
+          "spike_ref": "B8",
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -128,7 +410,19 @@
       "doc": "docs/game/mining.md",
       "version": "row",
       "capabilities": [
-        {"name": "mining.cell", "display": "`mining.cell` (legacy host row)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["mining.cell"], "evidence_source": "docs/game/status.md"}
+        {
+          "name": "mining.cell",
+          "display": "`mining.cell` (legacy host row)",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "mining.cell"
+          ],
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -138,10 +432,77 @@
       "header": "include/sc_creative.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.creative.god_mode", "methods": ["set_god_mode"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.landing_helper", "spawn.god_mode_call", "spawn.set_god_mode"], "evidence_source": "docs/game/creative.md"},
-        {"name": "game.creative.fly", "methods": ["set_fly_mode", "set_fly_speed"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.landing_helper", "spawn.request_fly_mode", "spawn.actor_link", "spawn.game_cvars", "spawn.fly_speed_scaler"], "evidence_source": "docs/game/creative.md"},
-        {"name": "game.creative.ammo", "methods": ["set_infinite_ammo"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.handle_to_id", "ammo.set_ammo"], "evidence_source": "docs/game/creative.md"},
-        {"name": "game.creative.ship_ammo", "display": "`game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard)", "methods": ["set_infinite_ship_ammo"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.handle_to_id", "ammo.set_ammo", "spawn.landing_helper"], "evidence_source": "docs/game/creative.md"}
+        {
+          "name": "game.creative.god_mode",
+          "methods": [
+            "set_god_mode"
+          ],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "teleport.entity_system",
+            "spawn.landing_helper",
+            "spawn.god_mode_call",
+            "spawn.set_god_mode"
+          ],
+          "evidence_source": "docs/game/creative.md"
+        },
+        {
+          "name": "game.creative.fly",
+          "methods": [
+            "set_fly_mode",
+            "set_fly_speed"
+          ],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "teleport.entity_system",
+            "spawn.landing_helper",
+            "spawn.request_fly_mode",
+            "spawn.actor_link",
+            "spawn.game_cvars",
+            "spawn.fly_speed_scaler"
+          ],
+          "evidence_source": "docs/game/creative.md"
+        },
+        {
+          "name": "game.creative.ammo",
+          "methods": [
+            "set_infinite_ammo"
+          ],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "teleport.entity_system",
+            "spawn.handle_to_id",
+            "ammo.set_ammo"
+          ],
+          "evidence_source": "docs/game/creative.md"
+        },
+        {
+          "name": "game.creative.ship_ammo",
+          "display": "`game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard)",
+          "methods": [
+            "set_infinite_ship_ammo"
+          ],
+          "default": "ON",
+          "evidence_level": "sigcheck_resolved",
+          "game_build": "4.10.196.36804",
+          "evidence": "row resolved on 4.10.196.36804 (sigcheck)",
+          "sig_rows": [
+            "teleport.entity_system",
+            "spawn.handle_to_id",
+            "ammo.set_ammo",
+            "spawn.landing_helper"
+          ],
+          "evidence_source": "docs/game/creative.md"
+        }
       ]
     },
     {
@@ -151,8 +512,39 @@
       "header": "include/sc_hangar.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.hangar.lift", "methods": ["lift_of_landing_area", "lift_request"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["lift.open_request", "lift.close_request", "teleport.entity_system", "spawn.find_entity_by_name", "spawn.handle_to_id"], "evidence_source": "docs/game/hangar.md"},
-        {"name": "game.hangar.atc_cancel", "methods": ["atc_cancel_request"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["atc.get_component", "atc.request_cancel", "spawn.handle_to_id"], "evidence_source": "docs/game/hangar.md"}
+        {
+          "name": "game.hangar.lift",
+          "methods": [
+            "lift_of_landing_area",
+            "lift_request"
+          ],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "lift.open_request",
+            "lift.close_request",
+            "teleport.entity_system",
+            "spawn.find_entity_by_name",
+            "spawn.handle_to_id"
+          ],
+          "evidence_source": "docs/game/hangar.md"
+        },
+        {
+          "name": "game.hangar.atc_cancel",
+          "methods": [
+            "atc_cancel_request"
+          ],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "atc.get_component",
+            "atc.request_cancel",
+            "spawn.handle_to_id"
+          ],
+          "evidence_source": "docs/game/hangar.md"
+        }
       ]
     },
     {
@@ -162,7 +554,20 @@
       "header": "include/sc_reputation.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.reputation.checks", "display": "`game.reputation.checks` (`checks`, read-only)", "methods": ["checks"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["contracts.reputation_services"], "evidence_source": "docs/game/reputation.md"}
+        {
+          "name": "game.reputation.checks",
+          "display": "`game.reputation.checks` (`checks`, read-only)",
+          "methods": [
+            "checks"
+          ],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "contracts.reputation_services"
+          ],
+          "evidence_source": "docs/game/reputation.md"
+        }
       ]
     },
     {
@@ -172,8 +577,34 @@
       "header": "include/sc_asop.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.asop.claim_timeout", "methods": ["claim_timeout"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["insurance.update_pending_requests", "insurance.config"], "evidence_source": "docs/game/asop-service.md"},
-        {"name": "game.asop.shard_persisted", "methods": ["shard_persisted"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["asop.on_request_open", "asop.shard_persisted"], "evidence_source": "docs/game/asop-service.md"}
+        {
+          "name": "game.asop.claim_timeout",
+          "methods": [
+            "claim_timeout"
+          ],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "insurance.update_pending_requests",
+            "insurance.config"
+          ],
+          "evidence_source": "docs/game/asop-service.md"
+        },
+        {
+          "name": "game.asop.shard_persisted",
+          "methods": [
+            "shard_persisted"
+          ],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "asop.on_request_open",
+            "asop.shard_persisted"
+          ],
+          "evidence_source": "docs/game/asop-service.md"
+        }
       ]
     },
     {
@@ -183,7 +614,20 @@
       "header": "include/sc_contracts.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.contracts.stream_radius", "display": "`game.contracts.stream_radius` (`stream_radius`, read-only)", "methods": ["stream_radius"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["contracts.mission_settings"], "evidence_source": "docs/game/contracts-service.md"}
+        {
+          "name": "game.contracts.stream_radius",
+          "display": "`game.contracts.stream_radius` (`stream_radius`, read-only)",
+          "methods": [
+            "stream_radius"
+          ],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "contracts.mission_settings"
+          ],
+          "evidence_source": "docs/game/contracts-service.md"
+        }
       ]
     },
     {
@@ -193,7 +637,19 @@
       "header": "include/sc_prefabs.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.entities.prefabs", "methods": ["spawn"], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED", "sig_rows": ["spawn.prefabs"], "evidence_source": "docs/design/prefabs.md"}
+        {
+          "name": "game.entities.prefabs",
+          "methods": [
+            "spawn"
+          ],
+          "default": "ON",
+          "evidence_level": "synthetic_only",
+          "evidence": "ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED",
+          "sig_rows": [
+            "spawn.prefabs"
+          ],
+          "evidence_source": "docs/design/prefabs.md"
+        }
       ]
     },
     {
@@ -203,7 +659,15 @@
       "header": "include/sc_owned.h",
       "version": "1.0",
       "capabilities": [
-        {"name": null, "display": "no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads", "methods": [], "default": "none", "evidence_level": "synthetic_only", "evidence": "Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime", "evidence_source": "docs/game/status.md"}
+        {
+          "name": null,
+          "display": "no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads",
+          "methods": [],
+          "default": "none",
+          "evidence_level": "synthetic_only",
+          "evidence": "Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime",
+          "evidence_source": "docs/game/status.md"
+        }
       ]
     },
     {
@@ -213,8 +677,27 @@
       "header": "include/sc_loadout.h",
       "version": "1.1",
       "capabilities": [
-        {"name": "game.loadout.apply", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic/native-boundary checks only; typed engine methods unverified; not run in game", "evidence_source": "docs/game/loadout.md"},
-        {"name": "game.loadout.weapons", "display": "`game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`)", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified engine backend, no in-game proof", "evidence_source": "docs/game/loadout.md"}
+        {
+          "name": "game.loadout.apply",
+          "methods": [
+            "apply"
+          ],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Synthetic/native-boundary checks only; typed engine methods unverified; not run in game",
+          "evidence_source": "docs/game/loadout.md"
+        },
+        {
+          "name": "game.loadout.weapons",
+          "display": "`game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`)",
+          "methods": [
+            "apply"
+          ],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Synthetic policy only; no verified engine backend, no in-game proof",
+          "evidence_source": "docs/game/loadout.md"
+        }
       ]
     },
     {
@@ -224,7 +707,31 @@
       "header": "include/sc_quantum.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.quantum.control", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED", "evidence_source": "docs/quantum.md"}
+        {
+          "name": "game.quantum.control",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED",
+          "evidence_source": "docs/quantum.md"
+        }
+      ]
+    },
+    {
+      "id": "game.gamerules",
+      "kind": "service",
+      "service": "game.gamerules",
+      "header": "include/sc_gamerules.h",
+      "version": "1.0",
+      "capabilities": [
+        {
+          "name": "game.gamerules.read",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED",
+          "evidence_source": "docs/game/gamerules.md"
+        }
       ]
     },
     {
@@ -234,7 +741,14 @@
       "header": "include/sc_private_session.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.private_session", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON by owner approval for R1 (loopback broker, no socket until Host/Join); synthetic service and ABI checks only; Windows/MSVC, private LAN, EAC inspection and gameplay NOT VERIFIED", "evidence_source": "docs/game/private-session.md"}
+        {
+          "name": "game.private_session",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "synthetic_only",
+          "evidence": "ON by owner approval for R1 (loopback broker, no socket until Host/Join); synthetic service and ABI checks only; Windows/MSVC, private LAN, EAC inspection and gameplay NOT VERIFIED",
+          "evidence_source": "docs/game/private-session.md"
+        }
       ]
     },
     {
@@ -244,7 +758,16 @@
       "header": "include/sc_cvars.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.cvars.read", "methods": ["get_bool"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter absent; synthetic engine callbacks only; engine types NOT VERIFIED", "evidence_source": "docs/game/cvars.md"}
+        {
+          "name": "game.cvars.read",
+          "methods": [
+            "get_bool"
+          ],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default production adapter absent; synthetic engine callbacks only; engine types NOT VERIFIED",
+          "evidence_source": "docs/game/cvars.md"
+        }
       ]
     },
     {
@@ -254,7 +777,16 @@
       "header": "include/sc_cvars_write.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.cvars.write", "methods": ["set_bool"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter absent; synthetic write fixtures only; engine types NOT VERIFIED", "evidence_source": "docs/game/cvars.md"}
+        {
+          "name": "game.cvars.write",
+          "methods": [
+            "set_bool"
+          ],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default production adapter absent; synthetic write fixtures only; engine types NOT VERIFIED",
+          "evidence_source": "docs/game/cvars.md"
+        }
       ]
     },
     {
@@ -264,8 +796,22 @@
       "header": "include/sc_economy.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.economy.read", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"},
-        {"name": "game.economy.apply", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"}
+        {
+          "name": "game.economy.read",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only",
+          "evidence_source": "docs/design/offline-missions.md"
+        },
+        {
+          "name": "game.economy.apply",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only",
+          "evidence_source": "docs/design/offline-missions.md"
+        }
       ]
     },
     {
@@ -275,10 +821,38 @@
       "header": "include/sc_missions.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.missions.read", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"},
-        {"name": "game.missions.accept", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"},
-        {"name": "game.missions.progress", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"},
-        {"name": "game.missions.scripts", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"}
+        {
+          "name": "game.missions.read",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only",
+          "evidence_source": "docs/design/offline-missions.md"
+        },
+        {
+          "name": "game.missions.accept",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only",
+          "evidence_source": "docs/design/offline-missions.md"
+        },
+        {
+          "name": "game.missions.progress",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only",
+          "evidence_source": "docs/design/offline-missions.md"
+        },
+        {
+          "name": "game.missions.scripts",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only",
+          "evidence_source": "docs/design/offline-missions.md"
+        }
       ]
     },
     {
@@ -288,7 +862,15 @@
       "header": "include/sc_mining.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.mining", "display": "`game.mining` (the service's mining activation)", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Off by default; native adapter not verified on Windows or in game; synthetic provider tests only", "evidence_source": "docs/game/mining-service.md"}
+        {
+          "name": "game.mining",
+          "display": "`game.mining` (the service's mining activation)",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Off by default; native adapter not verified on Windows or in game; synthetic provider tests only",
+          "evidence_source": "docs/game/mining-service.md"
+        }
       ]
     },
     {
@@ -298,7 +880,18 @@
       "header": "include/sc_relocation.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.relocation", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game", "sig_rows": ["teleport.to_camera", "teleport.relocation"], "evidence_source": "docs/game-services.md"}
+        {
+          "name": "game.relocation",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "synthetic_only",
+          "evidence": "ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game",
+          "sig_rows": [
+            "teleport.to_camera",
+            "teleport.relocation"
+          ],
+          "evidence_source": "docs/game-services.md"
+        }
       ]
     },
     {
@@ -308,7 +901,15 @@
       "header": "include/sc_game_spatial.h",
       "version": "1.0",
       "capabilities": [
-        {"name": null, "display": "no capability of its own: full-pose conversion and copied observed zones", "methods": [], "default": "none", "evidence_level": "synthetic_only", "evidence": "Synthetic fixtures only; not verified on Windows or in game", "evidence_source": "docs/game-services.md"}
+        {
+          "name": null,
+          "display": "no capability of its own: full-pose conversion and copied observed zones",
+          "methods": [],
+          "default": "none",
+          "evidence_level": "synthetic_only",
+          "evidence": "Synthetic fixtures only; not verified on Windows or in game",
+          "evidence_source": "docs/game-services.md"
+        }
       ]
     },
     {
@@ -319,7 +920,20 @@
       "doc": "docs/api.md",
       "version": "row",
       "capabilities": [
-        {"name": "game.pak.all_files", "display": "`game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts)", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["pak.datacore_loader", "pak.crypak", "pak.slots"], "evidence_source": "docs/api.md"}
+        {
+          "name": "game.pak.all_files",
+          "display": "`game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts)",
+          "methods": [],
+          "default": "OFF",
+          "evidence_level": "off_pending_probe",
+          "evidence": "OFF pending in-game confirmation",
+          "sig_rows": [
+            "pak.datacore_loader",
+            "pak.crypak",
+            "pak.slots"
+          ],
+          "evidence_source": "docs/api.md"
+        }
       ]
     }
   ]
