@@ -7,6 +7,7 @@
 // every tick; a zone queried that isn't in it yet is read on the spot.
 #include "sco/game/services.h"
 #include "spawn.h"
+#include "build.h"
 #include "relocation.h"
 #include "spatial_model.h"
 #include "actors.h"
@@ -370,6 +371,7 @@ void OnTick(const char*, const void*, void*) {
 Result Start() {
     if (g_started) return Result::Ok;
     if (!reads::Init()) Log("[game] teleport.* rows not OK: teleport.spatial answers 0 (see the [core] lines)");
+    if (StartGameBuild() != Result::Ok) Log("[game] game.build did not publish (image header unreadable)");
     Result r = host::ProvideGameService(SC_SPATIAL_SERVICE_NAME, SC_SPATIAL_SERVICE_VERSION, &kSpatial);
     if (r != Result::Ok) return r;
     r = host::ProvideGameService(SC_GAME_SPATIAL_NAME, SC_GAME_SPATIAL_VERSION, &kGameSpatial);
@@ -515,6 +517,7 @@ Result Start() {
 }
 
 void Stop() {
+    StopGameBuild();
     if (!g_started) return;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     StopContracts();

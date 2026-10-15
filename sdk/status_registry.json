@@ -228,6 +228,16 @@
       ]
     },
     {
+      "id": "game.build",
+      "kind": "service",
+      "service": "game.build",
+      "header": "include/sc_game_build.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.build.info", "methods": ["read"], "default": "ON", "evidence_level": "synthetic_only", "evidence": "No rows: reads TimeDateStamp/SizeOfImage from the running module header and the pack's own verified-build pin; starts only when the numeric mirrors agree with the strings; host-side compile and layout pins verified, not run in game", "evidence_source": "docs/game/build.md"}
+      ]
+    },
+    {
       "id": "game.gamerules",
       "kind": "service",
       "service": "game.gamerules",

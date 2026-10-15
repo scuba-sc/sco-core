@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_game_build_v1.read",
+      "table": "sc_game_build_v1",
+      "source_header": "include/sc_game_build.h",
+      "signature": "sco_result (*)(sco_plugin *, sc_game_build_info *)",
+      "version_macro": "SC_GAME_BUILD_SERVICE_VERSION",
+      "member_extent": 16,
+      "table_size": 16,
+      "service": "game.build",
+      "id": "sc-game-build-v1-read",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Copy the running game build identity into out (caller sets out->size): the exe's PE TimeDateStamp and SizeOfImage, the game pack version triple, the four-part build the pack verified, that build's PE timestamp, and pin_matches (1 when the running timestamp equals the verified one). Constant for the process lifetime; no engine state is read beyond the module header.",
+      "buffer_contract": "`sco_result (*read)(sco_plugin* self, sc_game_build_info* out);`<br>Copy the running game build identity into out (caller sets out->size): the exe's PE TimeDateStamp and SizeOfImage, the game pack version triple, the four-part build the pack verified, that build's PE timestamp, and pin_matches (1 when the running timestamp equals the verified one). Constant for the process lifetime; no engine state is read beyond the module header.",
+      "ownership": "All values copied from constants and the module header; provider retains nothing, allocates nothing.",
+      "thread_affinity": "Game thread only (published with the game pack).",
+      "callback_context": "No plugin callback.",
+      "reentrancy": "Pure read; no engine re-entry.",
+      "results": "OK identity copied, UNAVAILABLE out null or out->size too small, BAD_ARG invalid self.",
+      "absent_capability": "game.build.info publishes with the game pack; if the module header is unreadable the service does not publish at all.",
+      "cleanup": "StopGameBuild withdraws the service; no state to restore.",
+      "limitations": [
+        "String form of the verified build lives in sc_game_pack.h; the service exposes the numeric mirrors and refuses to start when the mirrors disagree.",
+        "No game manifest fields (branch, changelist) cross the ABI in 1.0.",
+        "No C# or Lua game.build routes are supported."
+      ],
+      "tests": [
+        "tests/abi_game_build.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_build.h",
+              "token": "(*read)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_build.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_game_build.h",
+              "token": "(*read)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_build.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/build.md",
+              "token": "C# and Lua game.build routes are"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/build.md",
+              "token": "C# and Lua game.build routes are"
+            }
+          ],
+          "tests": []
+        }
+      }
+    }
+  ]
+}
