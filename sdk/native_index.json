@@ -7,7 +7,7 @@
     "3": "spike hold: backs a capability with a spike_ref and default OFF",
     "4": "blocked: backs a capability whose evidence_level is blocked"
   },
-  "row_count": 316,
+  "row_count": 317,
   "entries": [
     {
       "id": "spawn.landing_helper",
@@ -2105,6 +2105,7 @@
       "hash": "_0x0E32C1C83311C8F2",
       "tier": 1,
       "capability": [
+        "game.relocation",
         "game.world.camera"
       ],
       "source": "src/game/teleport_sigs.cpp"
@@ -2135,6 +2136,16 @@
         "game.creative.ship_ammo",
         "game.hangar.lift",
         "spawn.ship"
+      ],
+      "source": "src/game/teleport_sigs.cpp"
+    },
+    {
+      "id": "teleport.relocation",
+      "subsystem": "teleport",
+      "hash": "_0x39866D2CA467AC7F",
+      "tier": 1,
+      "capability": [
+        "game.relocation"
       ],
       "source": "src/game/teleport_sigs.cpp"
     },

@@ -36,7 +36,7 @@ That is build 4.10.193.11644 (CL 12660092). The rows, by table:
 
 | Table | Rows | Used by |
 |---|---|---|
-| teleport | `teleport.to_camera`, `teleport.client_mgr`, `teleport.handle_from_id`, `teleport.entity_system` | sc-offline's teleport |
+| teleport | `teleport.to_camera`, `teleport.client_mgr`, `teleport.handle_from_id`, `teleport.entity_system`, `teleport.relocation` | sc-offline's teleport; `game.relocation`'s transport |
 | system | `system.quit` | the host kit's shutdown hook |
 | pak | `pak.datacore_loader` (the DataCore loader), `pak.crypak` (the `ICryPak*` global), `pak.slots` (the loader's read/seek/close calls) | `sco::game::pak`, the CryPak adapter for game-file overrides ([API](api.md#scogamepakh-the-crypak-adapter)) |
 | asop, atc, hangar | 62 rows: `asop.*`, `insurance.*`, `atc.*`, `hangar.*`, `lift.*`, `landing.*`, `respawn.*` | sc-offline's ship terminal, hangar and ATC module, grouped into 11 capabilities ([rows](game/asop.md)) |

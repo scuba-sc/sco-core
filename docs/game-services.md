@@ -6,7 +6,7 @@ The Star Citizen game pack publishes its services under the reserved owner `game
 
 | Service | Version | Header | Since game pack | What |
 |---|---|---|---|---|
-| `game.relocation` | 1.0 | [`sc_relocation.h`](../include/sc_relocation.h) | Unreleased | Owner-scoped request/cancel/status foundation; production mutation unavailable pending safety/session admission, system classifier and transport. Synthetic only. |
+| `game.relocation` | 1.0 | [`sc_relocation.h`](../include/sc_relocation.h) | Unreleased | Owner-scoped request/cancel/status over a fail-closed game-pack path: on only while the host certifies offline admission, the engine rows resolve, a live player and known star system exist and the product switch is on. Synthetic only; not run in game. [Relocation](#relocation-gamerelocation-10) |
 | `teleport.spatial` | 1.0 | [`sc_spatial.h`](../include/sc_spatial.h) | 0.1.0 | Where you are, and positions between the game's zones |
 | `game.spatial` | 1.0 | [`sc_game_spatial.h`](../include/sc_game_spatial.h) | Unreleased | Full-pose conversion and bounded copied observed ancestry/name pages; system identity explicitly unknown. Native C/raw C++ only. Synthetic fixtures; not verified on Windows or in game. [Contract](contracts.md#gamespatial-sc_game_spatial_v1) |
 | `spawn.entities` | 1.2 | [`sc_spawn.h`](../include/sc_spawn.h) | 0.2.0 | Spawn entities near you, your entity and ship ids, and move what you spawned |
@@ -20,6 +20,55 @@ Not a table: the capability `game.mining` (the row `mining.cell`, [mining](game/
 | `game.creative` | 1.0 | [`sc_creative.h`](../include/sc_creative.h) | 0.2.0 | The local player's god mode, fly (noclip) and its speed, infinite ammo for carried weapons and for the ship you're aboard: `set_god_mode(self, on)`, `set_fly_mode`, `set_fly_speed`, `set_infinite_ammo`, `set_infinite_ship_ammo`, `state`, `last_error`. A toggle belongs to the plugin that switched it on and goes off on ordinary owner release (including unload or non-retained `crashed` cleanup). Restart-required retained-provider faults skip this resource hook and do not switch it off. Capabilities `game.creative.god_mode`, `.fly`, `.ammo`, `.ship_ammo` ([API](api-v1.md#gamecreative-10-game-pack), [rows](game/creative.md)). Wrappers: `scosdk/game/creative.hpp`, C# `Sco.Sdk.Game.Creative`, Lua `sco.game.creative.state` (read-only) |
 
 `teleport.spatial` and `spawn.entities` keep their names and tables for all of 1.x: sc-offline's `teleport` and `spawn` built-ins published them before the game pack did, and a plugin can't tell the difference. New game services are named `game.<name>`.
+
+## Relocation (`game.relocation` 1.0)
+
+`game.relocation` 1.0 ([`sc_relocation.h`](../include/sc_relocation.h), frozen) moves the local player to a position
+and rotation in a streamed zone of the star system the player is already in. Native C and raw C++ only. The header
+owns the request, tick and status behaviour; this section is what the game pack supplies behind it, and every part of
+it fails closed.
+
+**When the capability is on.** `game.relocation` is ON only while all of these hold. The provider re-checks them
+every game tick and on every request, and any one failing turns it OFF and refuses requests (`SCO_UNAVAILABLE`):
+
+- The host's fresh offline admission is positive: `sco::game::host::FreshAdmissionAllowed()` (offline session, no
+  anti-cheat, official network blocked, correct target; Unknown never passes). The engine is not read at all before
+  that answer, and a switch can only turn the feature off further, never bypass it.
+- An engine backend is installed and verified. The game pack installs one at start (`EngineRelocationBackend()`,
+  `src/game/services/relocation_engine.cpp`, Windows only); it is verified only when the `teleport.*` rows and
+  `teleport.relocation` resolved.
+- A live local player exists and its star system is known.
+- The product switch is on.
+
+So it is on by default in a product that runs the host composition with positive admission, and off everywhere else.
+
+**The switch.** `sco::game::services::SetRelocationEnabled(bool)` (`sco/game/services.h`, any thread, default on)
+is for the product to wire to a player or host setting; plugins read the capability `game.relocation`. Off: the
+capability is off, requests are refused, a pending request fails with reason `SC_RELOCATION_REASON_SAFETY`, and
+neither the offline check nor any engine read runs.
+
+**Where each Evidence input comes from** (`RelocationBackend` in `relocation.h`, a game-pack seam copied at start):
+
+| Input | Source |
+|---|---|
+| offline | `host::FreshAdmissionAllowed()` |
+| player, player id | `reads::LocalPlayer` (the v0.7.7 `GetLocalPlayer`): the live actor and the id the game's player record names it by |
+| session | One uninterrupted observation of one player entity (a provider counter). Losing the player, offline admission or the switch, or a different player id or entity, starts a new session; a pending request then fails with reason `SESSION` |
+| current and target system | The id of the `SolarSystem*` zone found by walking the zone parents (case-insensitive prefix, as v0.7.7's `SystemZoneOf`), counted only when that zone's id leads back to it. No such zone, or a parent cycle, is unknown and refuses. v0.7.7 accepted an unknown current system; this does not |
+| streamed | The target zone id resolves to a zone whose id leads back to the id |
+| transport | The game's own teleport call, as `CmdTeleportToCamera` makes it: the actor's teleport component (actor slot `0x9D8`) is called through its slot `0x158` with a 0x80-byte params block. The row `teleport.relocation` pins that call and the stores that fill the block. The rotation goes in twice, as the zone-frame quaternion and as the world-frame quaternion composed from the zone's axes; a zone frame that is mirrored or not orthonormal refuses |
+| arrived | A fresh read of the player's pose in the target zone (`EntityLocalPos`, `EntityRotation`) within 0.05 m and a quaternion dot of at least 0.999999. A player in any other zone has not arrived |
+
+One request moves once. Admission is not completion: the movement is initiated on a later tick, and Completed is
+reported only when the fresh pose matches. A stream loss after admission waits until the request times out; a change
+of session, player or system, a lost offline admission, the switch going off or a fault fails it. A transport that
+returns false fails it with `TRANSPORT`. A callback that throws or faults (SEH on Windows) latches the provider off
+until the process restarts.
+
+**Not verified.** The synthetic tests (`test_relocation`, `test_relocation_provider`) exercise every input and reason
+through the real provider over a fake backend. The Windows adapter has not been compiled or run here, and nothing has
+run in the game: whether the engine honours the rotation fields, and how the player ends up oriented, is for an in-game
+run. The evidence level in the [status page](game/status.md) stays synthetic only.
 
 ## Owned prefab extension (G4)
 

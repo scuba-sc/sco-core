@@ -598,6 +598,18 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-relocation_engine.cpp",
+      "source": "src/game/services/relocation_engine.cpp",
+      "destination": "src/game/services/relocation_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-src-game-services-spatial_model.h",
       "source": "src/game/services/spatial_model.h",
       "destination": "src/game/services/spatial_model.h",
@@ -7643,6 +7655,18 @@
       "id": "host-source-sc-tests-game_contracts-loadout-test_metadata.py",
       "source": "tests/game_contracts/loadout/test_metadata.py",
       "destination": "tests/game_contracts/loadout/test_metadata.py",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-game_contracts-relocation-test_provider.cpp",
+      "source": "tests/game_contracts/relocation/test_provider.cpp",
+      "destination": "tests/game_contracts/relocation/test_provider.cpp",
       "profiles": [
         "host-source-sc"
       ],

@@ -278,7 +278,7 @@
       "header": "include/sc_relocation.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.relocation", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Production mutation unavailable (no certified host admission, system classifier or validated transport); synthetic provider tests only", "evidence_source": "docs/game-services.md"}
+        {"name": "game.relocation", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game", "sig_rows": ["teleport.to_camera", "teleport.relocation"], "evidence_source": "docs/game-services.md"}
       ]
     },
     {

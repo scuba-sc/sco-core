@@ -26,6 +26,13 @@ Result Start();
 void   Stop();
 bool   Started();
 
+// The switch for game.relocation 1.0 (sc_relocation.h), settable by the product from a player or host
+// setting. Any thread. Default on. Off stops new requests, fails a pending one and turns the
+// capability game.relocation off; on never bypasses anything: the capability still needs the host's
+// certified offline admission, a verified engine backend, a live player and a known star system.
+void SetRelocationEnabled(bool enabled);
+bool RelocationEnabled();
+
 // For the game pack's own code (spawn.entities' mover): the same frames as teleport.spatial.
 // Game thread. 0 / false when the entity or a zone isn't streamed in.
 uint64_t ZoneOfEntity(uint64_t entityId);

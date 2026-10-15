@@ -6,8 +6,9 @@
 observed-zone metadata, exact unique observed-name lookup and epoch-pinned pages
 ([contract](contracts.md)). System identity remains unknown; observed root is not
 a system. `game.relocation` 1.0 defines owner-scoped request/cancel/status and
-streaming-aware completion machinery, but production mutation is **unavailable**
-until host admission, system classification and validated transport are grounded.
+streaming-aware completion machinery, and the game pack's provider is fail-closed: on only
+while the host certifies offline admission and the engine rows resolve
+([details](game-services.md#relocation-gamerelocation-10)).
 Both are game-pack tables, native C/raw C++ only, size/full-pointer/null guarded.
 Synthetic tests passed; Windows and gameplay not verified. The frozen base ABI
 and `teleport.spatial` 1.0 remain unchanged.

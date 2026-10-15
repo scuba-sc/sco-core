@@ -75,6 +75,30 @@ SigResult ResolveClientMgr(const Image&)    { return SigOk(RipTarget(Sig("telepo
 SigResult ResolveHandleFromId(const Image&) { return SigOk(RipTarget(Sig("teleport.to_camera") + 0x09F, 1, 5)); }
 SigResult ResolveEntitySystem(const Image&) { return SigOk(RipTarget(Sig("teleport.to_camera") + 0x2B0, 3, 7)); }
 
+// The game's own teleport call inside CmdTeleportToCamera (4.10.196, bytes read from the image): the actor's
+// teleport component (actor vtable slot 0x9D8) is called through its vtable slot 0x158 with this = component and
+// rdx = a params block on the stack. The stores pin the block's layout as game.relocation fills it: zone id at
+// +0x00, the rotation as doubles x y z w at +0x08..+0x27, the local position at +0x28..+0x3F. A different
+// build fails the row, which keeps capability game.relocation off.
+SigResult ResolveRelocation(const Image&) {
+    uint8_t* f = Sig("teleport.to_camera");
+    if (!f) return SigFail("source row missing");
+    static const struct { size_t off; const char* bytes; const char* why; } kChecks[] = {
+        { 0x211, "48 8B 10 48 89 54 24 40", "relocation params zone id store changed at +0x211" },
+        { 0x24F, "C5 FB 11 74 24 60",       "relocation params rotation w store changed at +0x24f" },
+        { 0x25E, "C5 FB 11 7C 24 48",       "relocation params rotation x store changed at +0x25e" },
+        { 0x26D, "C5 7B 11 44 24 50",       "relocation params rotation y store changed at +0x26d" },
+        { 0x27C, "C5 7B 11 4C 24 58",       "relocation params rotation z store changed at +0x27c" },
+        { 0x29F, "C5 78 11 54 24 68",       "relocation params local position xy store changed at +0x29f" },
+        { 0x2A5, "C5 7B 11 5C 24 78",       "relocation params local position z store changed at +0x2a5" },
+        { 0x362, "48 8B 03 48 8B CB FF 90 D8 09 00 00 48 8D 54 24 40 48 8B 08 4C 8B 81 58 01 00 00 48 8B C8 41 FF D0",
+                 "teleport component call changed at +0x362" },
+    };
+    for (const auto& c : kChecks)
+        if (!BytesMatch(f + c.off, c.bytes)) return SigFail(c.why);
+    return SigOk(f + 0x362);
+}
+
 }  // namespace
 
 extern const SigDef kTeleportSignatures[] = {
@@ -82,6 +106,7 @@ extern const SigDef kTeleportSignatures[] = {
     { "teleport.client_mgr",     nullptr, 0, 0, ResolveClientMgr,    { "teleport.to_camera" } },
     { "teleport.handle_from_id", nullptr, 0, 0, ResolveHandleFromId, { "teleport.to_camera" } },
     { "teleport.entity_system",  nullptr, 0, 0, ResolveEntitySystem, { "teleport.to_camera" } },
+    { "teleport.relocation",     nullptr, 0, 0, ResolveRelocation,   { "teleport.to_camera" } },
 };
 extern const size_t kTeleportSignatureCount = sizeof(kTeleportSignatures) / sizeof(kTeleportSignatures[0]);
 

@@ -703,7 +703,7 @@
       "status": "reviewed",
       "reviewer": "agent draft; maintainer approval pending",
       "date": "2026-10-12",
-      "note": "G2 copied relocation contract and synthetic shared-logic fixtures. Production mutation unavailable pending grounded admission/system/transport; no arbitrary memory write surface."
+      "note": "G2 relocation provider and engine adapter: the v0.7.7 teleport transport and system classifier, ported over the game pack's existing reads, behind host-certified offline admission, with synthetic provider fixtures. Not run on Windows or in game; no arbitrary memory write surface."
     },
     {
       "path": "src/game/services/spatial_model.h",

@@ -89,9 +89,11 @@ Game-service behavior has not been verified in a game session; see
 
 ## game.relocation 1.0 (`sc_relocation_v1`)
 
-Local-player request/cancel/status contract; game pack only. Production mutation is
-**unavailable**, pending grounded host admission, system classifier and transport.
-Portable fixtures test shared machinery, not gameplay. Native C/raw C++ supported;
+Local-player request/cancel/status contract; game pack only. The game pack's provider is
+fail-closed: the capability `game.relocation` is on only while the host certifies offline
+admission and the engine rows resolve, a live player and known star system exist and the
+product switch is on ([details](game-services.md#relocation-gamerelocation-10)). Fixtures
+test the machinery and provider, not gameplay. Native C/raw C++ supported;
 C# and Lua unsupported. Frozen sco_api and legacy teleport.spatial unchanged.
 
 | Member | Since | Buffer contract | Ownership | Thread | Results | Cleanup |
