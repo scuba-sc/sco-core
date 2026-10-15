@@ -72,6 +72,18 @@ normalize arbitrary nonzero values. No guessed vtable calls were ported.
 
 No arbitrary console execution, networking/anti-cheat cvars, quantum keeper
 values, optional bridge values, game extracts or `USER.cfg` writes are included.
+`game.cvars` still carries none of the quantum cvars.
+
+**Maintainer decision (approved; scubamount (maintainer), 2026-10-15):** the
+`game.quantum` backend, and only it, may write `v_qdrive2.quantumTravelAllowed`,
+`v_qdrive2.quantumBoostAllowed`, `v_qdrive2.setting_ignoreBlockedBoost`,
+`v_qdrive2.setting_ignoreBlockedTravel` and `p_enable_physical_quantum_travel`, and the
+shared drive parameter cell v0.7.7 set to `1e9`, under the conditions in
+[the amended rule](../quantum.md#amended-rule-2026-10-15): fresh positive offline
+admission before every write, first prior saved first, every value restored on every
+release path, engine type verified before any access, writes only while it holds
+control, no console execution. The default adapter owns four of the five (int storage
+rows); `p_enable_physical_quantum_travel` has no grounded route and is not written.
 C and C++ are supported (C++ `scosdk::game::Cvars` checks complete member extent,
 null callbacks and clears stale state on failed reopen). C# and Lua routes are
 explicitly unsupported; no blanket binding parity is claimed.

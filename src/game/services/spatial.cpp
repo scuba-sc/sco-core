@@ -442,6 +442,7 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    (void)ConfigureDefaultProductionQuantum(); // unresolved rows or unknown admission keep the empty, OFF configuration
     r = StartProductionQuantum(SpawnReleaseHooked()); // approved G8; absent adapter still fails closed
     if (r != Result::Ok) {
         StopLoadout(); StopCreative(); StopEntities(); StopEvents(); StopWorld();

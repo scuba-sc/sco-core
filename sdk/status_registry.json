@@ -204,7 +204,7 @@
       "header": "include/sc_quantum.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.quantum.control", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter absent (ON only with a configured private host backend); synthetic provider/host tests only; Windows/MSVC and gameplay NOT VERIFIED", "evidence_source": "docs/quantum.md"}
+        {"name": "game.quantum.control", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED", "evidence_source": "docs/quantum.md"}
       ]
     },
     {
