@@ -68,6 +68,28 @@ def walk(node):
         yield from walk(child)
 
 
+def find_clang():
+    explicit = os.environ.get('CLANG')
+    if explicit:
+        return explicit
+    which = shutil.which('clang') or shutil.which('clang.exe')
+    if which:
+        return which
+    if sys.platform == 'win32':
+        candidates = [
+            Path('C:/Program Files/LLVM/bin/clang.exe'),
+            Path('C:/Program Files (x86)/LLVM/bin/clang.exe'),
+        ]
+        local_app = os.environ.get('LOCALAPPDATA')
+        if local_app:
+            winget_root = Path(local_app) / 'Microsoft/WinGet/Packages'
+            if winget_root.is_dir():
+                candidates.extend(winget_root.glob('*LLVM*/*/bin/clang.exe'))
+        for c in candidates:
+            if c.is_file():
+                return str(c)
+    return None
+
 def header_inventory(root, clang=None):
     """AST membership/types, compiled extents/versions, and reused root ABI probe.
 
@@ -75,7 +97,7 @@ def header_inventory(root, clang=None):
     signature or layout. Callback-bearing command descriptors are not tables.
     Top-level C headers are the documented public boundary, not include/sco/.
     """
-    clang = clang or os.environ.get('CLANG') or shutil.which('clang')
+    clang = clang or find_clang()
     require(clang is not None, 'Clang is required for compiler-backed extraction')
     include = root / 'include'
     methods = {}
@@ -302,7 +324,7 @@ def documentation_signatures(root, records, clang=None):
     """Compile the C declarations printed in row cells, not merely their text.
     This catches a header/record edit which leaves the human declaration stale.
     """
-    clang = clang or os.environ.get('CLANG') or shutil.which('clang')
+    clang = clang or find_clang()
     lines = ['#include "' + p.name + '"' for p in sorted((root / 'include').glob('*.h'))]
     for index, record in enumerate(records):
         declaration = re.match(r'^`([^`]+)`', record['buffer_contract'])
