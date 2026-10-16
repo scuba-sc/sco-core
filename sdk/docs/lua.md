@@ -357,6 +357,16 @@ Present only when the Star Citizen game pack publishes [`game.creative`](../../d
 
 On failure it returns `nil, err, message` (`err` as for `sco.store`: `"unavailable"`, ...; `message` from the game pack's `last_error`).
 
+## `sco.game.gamerules`
+
+Present only when the Star Citizen game pack publishes [`game.gamerules`](../../docs/game/gamerules.md) (check `if sco.game and sco.game.gamerules then`); `lua-check.lua` has no stand-in for it. Read-only: scripts see the server GameRules parameters the client received, and cannot change them. The capability `game.gamerules.read` is OFF by default, so on a stock product `read()` answers `nil, "unavailable"`.
+
+| Function | Returns |
+|---|---|
+| `sco.game.gamerules.read()` | A table `{ valid, generation, enforce_group_qt, quantum_travel_allowed, quantum_boost_allowed, travel_target_threshold_angle, target_lock_angular_player, target_lock_angular_ai, target_lock_linear_player, target_lock_linear_ai, boost_group_distance_threshold }`: the first, third, fourth and fifth are booleans, `generation` an integer (an opaque counter, not a session id) and the rest numbers. `valid` is `false` until the client has received a parameter set; every other field is then zero |
+
+On failure it returns `nil, err` (`err` as for `sco.store`: `"unavailable"`, ...). There is no message: the table has no `last_error`.
+
 ## `sco.game.entities`
 
 Present only when the Star Citizen game pack publishes [`game.entities`](../../docs/api-v1.md#gameentities-11-game-pack) (check `if sco.game and sco.game.entities then`); `lua-check.lua` has no stand-in for it. Read-only: a Lua plugin owns no entities, so there is no spawn, despawn, move or watch.

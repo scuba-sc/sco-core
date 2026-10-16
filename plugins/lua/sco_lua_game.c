@@ -14,6 +14,7 @@
 #include "sc_creative.h"
 #include "sc_entities.h"
 #include "sc_game_events.h"
+#include "sc_gamerules.h"
 #include "sc_vehicles.h"
 #include "sc_world.h"
 #include "sco_datacore.h"
@@ -508,6 +509,48 @@ static int L_creative_state(lua_State* L) {
     return 1;
 }
 
+/* ---- sco.game.gamerules: the game pack's game.gamerules, read-only (only read(); the table has no write) -- */
+
+static const sc_gamerules_v1* GameRules(lua_State* L) {
+    const sco_api* api = sco_lua_api(L);
+    const void* t = NULL;
+    if (!GAME_MEMBER(api, sco_api, query_service)) return NULL;
+    if (api->query_service(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_SERVICE_VERSION, &t) != SCO_OK) return NULL;
+    return (const sc_gamerules_v1*)t;
+}
+
+/* read(): { valid, generation, enforce_group_qt, quantum_travel_allowed, quantum_boost_allowed (booleans),
+ * travel_target_threshold_angle, target_lock_angular_player, target_lock_angular_ai,
+ * target_lock_linear_player, target_lock_linear_ai, boost_group_distance_threshold (numbers) }, or
+ * nil, err. The table has no last_error, so there is no message. valid is false until the client has
+ * received a parameter set. generation is an opaque counter (a Lua integer). */
+static int L_gamerules_read(lua_State* L) {
+    sco_plugin* self = sco_lua_self(L);
+    const sc_gamerules_v1* g = GameRules(L);
+    sc_gamerules_state s;
+    memset(&s, 0, sizeof(s));
+    s.size = sizeof(s);
+    const sco_result r = GAME_MEMBER(g, sc_gamerules_v1, read) ? g->read(self, &s) : SCO_UNAVAILABLE;
+    if (r != SCO_OK) {
+        lua_pushnil(L);
+        lua_pushstring(L, sco_lua_result_name(r));
+        return 2;
+    }
+    lua_createtable(L, 0, 11);
+    lua_pushboolean(L, s.valid != 0);                       lua_setfield(L, -2, "valid");
+    lua_pushinteger(L, (lua_Integer)s.generation);          lua_setfield(L, -2, "generation");
+    lua_pushboolean(L, s.enforce_group_qt != 0);            lua_setfield(L, -2, "enforce_group_qt");
+    lua_pushboolean(L, s.quantum_travel_allowed != 0);      lua_setfield(L, -2, "quantum_travel_allowed");
+    lua_pushboolean(L, s.quantum_boost_allowed != 0);       lua_setfield(L, -2, "quantum_boost_allowed");
+    lua_pushnumber(L, (lua_Number)s.travel_target_threshold_angle);   lua_setfield(L, -2, "travel_target_threshold_angle");
+    lua_pushnumber(L, (lua_Number)s.target_lock_angular_player);      lua_setfield(L, -2, "target_lock_angular_player");
+    lua_pushnumber(L, (lua_Number)s.target_lock_angular_ai);          lua_setfield(L, -2, "target_lock_angular_ai");
+    lua_pushnumber(L, (lua_Number)s.target_lock_linear_player);       lua_setfield(L, -2, "target_lock_linear_player");
+    lua_pushnumber(L, (lua_Number)s.target_lock_linear_ai);           lua_setfield(L, -2, "target_lock_linear_ai");
+    lua_pushnumber(L, (lua_Number)s.boost_group_distance_threshold);  lua_setfield(L, -2, "boost_group_distance_threshold");
+    return 1;
+}
+
 /* ---- sco.game.world: the game pack's game.world, read-only queries (no self) ---------------------- */
 
 static const sc_world_v1* WorldTable(lua_State* L) {
@@ -594,8 +637,8 @@ static void Open(lua_State* L) {
     }
     /* sco.game: the game pack's services, read-only, each only when published */
     const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;
-    const int entities = Entities(L) != NULL, creative = Creative(L) != NULL;
-    if (!(actors || vehicles || world || entities || creative)) return;
+    const int entities = Entities(L) != NULL, creative = Creative(L) != NULL, gamerules = GameRules(L) != NULL;
+    if (!(actors || vehicles || world || entities || creative || gamerules)) return;
     lua_newtable(L);
     if (actors) {                                     /* sco.game.actors */
         static const luaL_Reg gafns[] = { { "local_player", L_actors_local_player }, { "health", L_actors_health }, { NULL, NULL } };
@@ -613,6 +656,11 @@ static void Open(lua_State* L) {
         static const luaL_Reg crfns[] = { { "state", L_creative_state }, { NULL, NULL } };
         luaL_newlib(L, crfns);
         lua_setfield(L, -2, "creative");
+    }
+    if (gamerules) {                                  /* sco.game.gamerules */
+        static const luaL_Reg grfns[] = { { "read", L_gamerules_read }, { NULL, NULL } };
+        luaL_newlib(L, grfns);
+        lua_setfield(L, -2, "gamerules");
     }
     if (world) {                                      /* sco.game.world */
         static const luaL_Reg wfns[] = {

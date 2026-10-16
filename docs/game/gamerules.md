@@ -42,5 +42,21 @@ Read-only by contract (rule 11: interoperability, not enforcement): the service 
 explain *why* travel features are unavailable — for example, `game.quantum`'s physical
 travel cvar is written by the game itself exactly when this module reports
 quantum-travel-allowed (F-4.10.196.36804-007). A plugin that wants travel is looking at
-the server's answer, not a lock to work around. The C# and Lua game.gamerules routes are
-unsupported in 1.0.
+the server's answer, not a lock to work around.
+
+## Language routes
+
+Read-only in every language; nothing writes a value, and no route is a way around a server gate.
+
+| Language | Route | Notes |
+|---|---|---|
+| C | `sc_gamerules_read(table, self, &state)` in `sc_gamerules.h` | direct; checks the table extent and the member |
+| C++20 | [`scosdk/game/gamerules.hpp`](../../include/scosdk/game/gamerules.hpp): `sco::sdk::game::GameRules`, `Open(plugin)` then `Read(state)` | header-only, not in `scosdk.hpp`; `Read` zeroes `state` and sets its `size` first, so a failure leaves it zero apart from `size`; answers `SCO_UNAVAILABLE` for a short table or a null member |
+| C# | `Sco.Sdk.Game.GameRules`: `Open(plugin)`, `Read(out ScGamerulesState)` | same zero-and-size rule; `Unavailable` for a short table, a null member or a table that is not open |
+| Lua | `sco.game.gamerules.read()` | present only when the host publishes `game.gamerules`; returns a table of `valid`, `generation`, the three server gates as booleans and the six thresholds as numbers, or `nil, "<result name>"` |
+
+Check `valid` (`state.valid`, `s.valid`) first: a result of OK with `valid == 0` means the client has not received a
+parameter set yet, and every other field is zero. The table has no `last_error` member, so the wrappers
+carry a result and no message. Tests: `tests/test_sdk.cpp` and `tests/test_language_routes.cpp` (C++, including the
+extent sweep), the fake-host test of `sdk/csharp/Sco.Sdk.Tests` (C#, including the layout and extent checks) and
+`tests/test_lua.cpp` (Lua). None of them runs in game: not run in game.

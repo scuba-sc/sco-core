@@ -1,5 +1,5 @@
 // GameFakeHost.cs: the Star Citizen extension's part of the fake-host test: stand-ins for game.actors,
-// game.entities, game.world, game.creative, game.hangar and game.reputation, and the tests of their C# wrappers and of the game.*
+// game.entities, game.world, game.creative, game.hangar, game.reputation and game.gamerules, and the tests of their C# wrappers and of the game.*
 // events. Part of sco-sdk-game-sc; FakeHost.cs runs without it.
 //
 // Part of the sco SDK. GPL-3.0, like sco-core.
@@ -23,6 +23,8 @@ namespace Sco.Sdk.Tests
         private static ScHangarV1* _hangar;      // a stand-in game.hangar
         private static uint _hangarLastOp;       // the last op a lift request handed over
         private static ScReputationV1* _reputation;  // a stand-in game.reputation
+        private static ScGamerulesV1* _gamerules;    // a stand-in game.gamerules
+        private static uint _gamerulesValid = 1;     // what the stand-in snapshot reports
         private static uint _freeCamValue = 1;   // what the stand-in free-camera flag reads
         private static int _freeCamCalls;
 
@@ -35,6 +37,7 @@ namespace Sco.Sdk.Tests
             if (name == GameAbi.CreativeName) { *o = _creative; found = true; return; }
             if (name == GameAbi.HangarName) { *o = _hangar; found = true; return; }
             if (name == GameAbi.ReputationName) { *o = _reputation; found = true; return; }
+            if (name == GameAbi.GameRulesName) { *o = _gamerules; found = true; return; }
         }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -72,6 +75,20 @@ namespace Sco.Sdk.Tests
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult RepLastError(void* self, byte* o, uint* io) => Bytes(self == _self ? "rep-why" : "rep-other", o, io);
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult GrRead(void* self, ScGamerulesState* o)
+        {
+            if (self != _self || o == null || o->size < (uint)sizeof(ScGamerulesState)) return ScoResult.BadArg;
+            o->valid = _gamerulesValid;
+            o->generation = 7;
+            o->enforce_group_qt = 1;
+            o->quantum_travel_allowed = 0;
+            o->quantum_boost_allowed = 1;
+            o->travel_target_threshold_angle = 45f;
+            o->boost_group_distance_threshold = 2500f;
+            return ScoResult.Ok;
+        }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult WorldFreeCam(uint* set)
@@ -326,6 +343,9 @@ namespace Sco.Sdk.Tests
             _reputation->size = (uint)sizeof(ScReputationV1);
             _reputation->checks = &RepChecks;
             _reputation->last_error = &RepLastError;
+            _gamerules = (ScGamerulesV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScGamerulesV1));
+            _gamerules->size = (uint)sizeof(ScGamerulesV1);
+            _gamerules->read = &GrRead;
             _creative = (ScCreativeV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScCreativeV1));
             _creative->size = (uint)sizeof(ScCreativeV1);
             _creative->set_god_mode = &CrGod;
@@ -563,6 +583,33 @@ namespace Sco.Sdk.Tests
             Expect(hangar.AtcCancelRequest(41) == ScoResult.Unavailable, "a failed hangar reopen disables its calls");
             Expect(hangar.Open(p) == ScoResult.Ok, "hangar recovers after a failed reopen");
 
+            var gr = new GameRules();
+            Expect(sizeof(ScGamerulesV1) == 16 && sizeof(ScGamerulesState) == 56 &&
+                   Marshal.OffsetOf<ScGamerulesV1>(nameof(ScGamerulesV1.read)).ToInt32() == 8 &&
+                   Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.generation)).ToInt32() == 8 &&
+                   Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.enforce_group_qt)).ToInt32() == 16 &&
+                   Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.quantum_travel_allowed)).ToInt32() == 20 &&
+                   Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.quantum_boost_allowed)).ToInt32() == 24 &&
+                   Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.travel_target_threshold_angle)).ToInt32() == 28 &&
+                   Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.boost_group_distance_threshold)).ToInt32() == 48 &&
+                   GameAbi.GameRulesVersion1_0 == 0x00010000u && GameAbi.GameRulesName == "game.gamerules",
+                   "game.gamerules layout matches tests/abi_game_gamerules.c");
+            Expect(new GameRules().Read(out ScGamerulesState g) == ScoResult.Unavailable && g.valid == 0 && g.size == (uint)sizeof(ScGamerulesState),
+                   "a GameRules that isn't open answers Unavailable with a zeroed, sized struct");
+            Expect(gr.Open(p) == ScoResult.Ok && gr.IsOpen, "game.gamerules opens");
+            Expect(gr.Read(out g) == ScoResult.Ok && g.valid == 1 && g.generation == 7 && g.enforce_group_qt == 1 &&
+                   g.quantum_travel_allowed == 0 && g.quantum_boost_allowed == 1 &&
+                   g.travel_target_threshold_angle == 45f && g.boost_group_distance_threshold == 2500f,
+                   "GameRules.Read passes this plugin's handle and returns the snapshot");
+            _gamerulesValid = 0;
+            Expect(gr.Read(out g) == ScoResult.Ok && g.valid == 0, "GameRules.Read reports valid == 0 before a parameter set arrives");
+            _gamerulesValid = 1;
+            uint grSize = _gamerules->size;
+            _gamerules->size = 15;   // shorter than the 1.0 table
+            Expect(gr.Open(p) == ScoResult.Unavailable && !gr.IsOpen, "gamerules rejects a short table and closes");
+            _gamerules->size = grSize;
+            Expect(gr.Read(out g) == ScoResult.Unavailable && g.valid == 0, "a failed gamerules reopen disables Read");
+            Expect(gr.Open(p) == ScoResult.Ok, "gamerules recovers after a failed reopen");
             var rep = new Reputation();
             Expect(new Reputation().Checks(out ScReputationChecks rc) == ScoResult.Unavailable && rc.size == (uint)sizeof(ScReputationChecks) && rc.sites == 0,
                    "a Reputation that isn't open answers Unavailable with a zeroed, sized struct");
@@ -642,6 +689,12 @@ namespace Sco.Sdk.Tests
                     () => rep.Checks(out ScReputationChecks c0) == ScoResult.Unavailable && c0.sites == 0,
                     () => rep.Checks(out ScReputationChecks c1) == ScoResult.Ok && c1.sites == 3),
                 (nameof(ScReputationV1.last_error), () => rep.LastError() == "", () => rep.LastError() == "rep-why"),
+            });
+            CheckGameFields(_gamerules, new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
+            {
+                (nameof(ScGamerulesV1.read),
+                    () => gr.Read(out ScGamerulesState g0) == ScoResult.Unavailable && g0.valid == 0 && g0.size == (uint)sizeof(ScGamerulesState),
+                    () => gr.Read(out ScGamerulesState g1) == ScoResult.Ok && g1.valid == 1 && g1.generation == 7),
             });
             CheckGameFields(_creative, new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
             {
