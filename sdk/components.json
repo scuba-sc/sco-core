@@ -2907,6 +2907,46 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "examples.actor_stats_probe.CMakeLists.txt",
+      "source": "sdk/examples/actor_stats_probe/CMakeLists.txt",
+      "destination": "examples/actor_stats_probe/CMakeLists.txt",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.actor_stats_probe.actor_stats_probe.c",
+      "source": "sdk/examples/actor_stats_probe/actor_stats_probe.c",
+      "destination": "examples/actor_stats_probe/actor_stats_probe.c",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.actor_stats_probe.plugin.ini",
+      "source": "sdk/examples/actor_stats_probe/plugin.ini",
+      "destination": "examples/actor_stats_probe/plugin.ini",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.actor_stats_probe.CHECKLIST.md",
+      "source": "sdk/examples/actor_stats_probe/CHECKLIST.md",
+      "destination": "examples/actor_stats_probe/CHECKLIST.md",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "examples.quantum_pack.CMakeLists.txt",
       "source": "sdk/examples/quantum_pack/CMakeLists.txt",
       "destination": "examples/quantum_pack/CMakeLists.txt",

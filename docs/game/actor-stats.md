@@ -70,7 +70,8 @@ player each tick (the draft test plugin does this) while:
 5. being hit by a distortion weapon (distortion);
 6. standing in a radiation area (body and suit radiation).
 
-That run records units, range and direction per stat. Until then
+The test plugin and the step-by-step checklist are in `sdk/examples/actor_stats_probe/`
+(`CHECKLIST.md`). That run records units, range and direction per stat. Until then
 `game.actor_stats.read` is evidence level "rows resolved", not "verified in game".
 
 ## Writes: game.actor_stats_write

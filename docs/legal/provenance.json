@@ -702,6 +702,14 @@
       "note": "per-file MIT interface grant (CONTRIBUTING.md § License)"
     },
     {
+      "path": "sdk/examples/actor_stats_probe/**",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "needs-review",
+      "note": "Project-authored in-game test plugin and checklist for game.actor_stats / game.actor_stats_write (F-4.10.197.2878-006/-010), scaffolded with sco-new-plugin. No game material. Draft, not reviewed; not run in game."
+    },
+    {
       "path": "sdk/examples/quantum_pack/**",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
