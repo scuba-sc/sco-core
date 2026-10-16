@@ -68,37 +68,47 @@ server before relying on the new snapshot. The server does not regenerate it.
 
 ## Using an extracted SDK archive
 
-The published SDK archives do not contain a catalogue, and none will be added to
-the immutable 2.1.0 release assets. An archive user obtains one in either of two
-ways:
+The published SDK archives do not contain a catalogue, and none is added to a
+release after publication: release assets are immutable. An archive user obtains
+one in either of two ways:
 
 - **Public catalogue.** Download
   <https://scubamount.github.io/sco-core/sdk-catalogue.json> and check it before
-  use. The snapshot current for SDK 2.1.0 has sha256
-  `29bb24799dbef817a39aa0919fd456bd641f035f1768ac566cab9eec6e735a85`, with
-  `sdk_version` `2.1.0`, `game_pack_version` `0.4.0`, `source_sha`
-  `77c328fc088f85336f1241c0c054bc461fe8b64c`, 167 records and 30 tables:
+  use. The site is redeployed from `main`, so the file's hash and coordinates
+  change with it, and this README deliberately pins neither. Record the sha256 of
+  the file you download, then read its coordinates:
 
   ```sh
   curl -fsSLO https://scubamount.github.io/sco-core/sdk-catalogue.json
-  shasum -a 256 sdk-catalogue.json   # Linux: sha256sum; PowerShell: Get-FileHash
+  sha256sum sdk-catalogue.json   # macOS: shasum -a 256
+  python3 -c 'import json; c = json.load(open("sdk-catalogue.json", encoding="utf-8")); print(c["sdk_version"], c["game_pack_version"], c["source_sha"], len(c["records"]), "records", len(c["tables"]), "tables")'
   ```
 
-  The site is redeployed from newer sources, so a later download can carry a
-  different hash and coordinates. Compare the file's `sdk_version` with your
-  archive's `VERSION`. Its `source_sha` names the commit the catalogue was built
+  In PowerShell:
+
+  ```powershell
+  Invoke-WebRequest https://scubamount.github.io/sco-core/sdk-catalogue.json -OutFile sdk-catalogue.json
+  (Get-FileHash sdk-catalogue.json -Algorithm SHA256).Hash
+  py -3 -c "import json; c = json.load(open('sdk-catalogue.json', encoding='utf-8')); print(c['sdk_version'], c['game_pack_version'], c['source_sha'])"
+  ```
+
+  Pass `encoding="utf-8"`: the catalogue is UTF-8, and Python on Windows
+  otherwise decodes with the locale code page and fails. Use the file only when
+  its `sdk_version` equals your archive's `VERSION`; otherwise build the matching
+  catalogue from source. Its `source_sha` names the commit the catalogue was built
   from, which is not necessarily the release tag's commit; it is a supplied
-  identifier, not a signature.
+  identifier, not a signature. Every server result repeats these coordinates as
+  `provenance`, so keep the hash you recorded beside any result you quote.
 - **Source build.** Check out the matching sco-core source and run the catalogue
   build above. This needs the same compiler environment as any other build.
 
 Then pass `--repo-root` the archive's single top-level directory (for example the
-extracted `sco-sdk-core-2.1.0`), not its parent:
+extracted `sco-sdk-core-<version>`), not its parent:
 
 ```sh
 python3 tools/sco-core-mcp/server.py \
   --catalogue /absolute/path/to/sdk-catalogue.json \
-  --repo-root /absolute/path/to/sco-sdk-core-2.1.0
+  --repo-root /absolute/path/to/sco-sdk-core-<version>
 ```
 
 Catalogue example paths are repository-relative (`sdk/examples/hello/hello.c`),
@@ -114,22 +124,28 @@ recorded path.
 ## Tools and explicit allowlist
 
 These are the complete six default tool names (four more are
-[opt-in](#extended-tools-opt-in)). Enable them explicitly, not with a wildcard:
+[opt-in](#extended-tools-opt-in)). Enable them explicitly, not with a wildcard.
+The Arguments column gives the exact `inputSchema` property names, required ones
+first; any other argument name is refused:
 
-| Tool | Purpose |
-|---|---|
-| `search_api` | Search catalogue contracts, with optional service and language filtering. |
-| `get_symbol` | Retrieve a symbol's contract and its source-backed language mappings. |
-| `list_services` | Discover public service tables, versions, sizes and member counts. |
-| `get_example` | Return a selected record's listed example paths, and optionally their bounded contents. |
-| `get_capability_status` | Read documented capability evidence, limitations and the record's [evidence state](#evidence-state); not a live availability probe. |
-| `check_compatibility` | Compare requested coordinates with catalogue metadata, read a [release approval record](#release-approval-records) and check a service's minimum version and member extent; not a runtime compatibility test. |
+| Tool | Arguments | Purpose |
+|---|---|---|
+| `search_api` | `query`; optional: `language`, `service`, `limit` | Search catalogue contracts, with optional service and language filtering. |
+| `get_symbol` | `symbol_or_id` | Retrieve a symbol's contract and its source-backed language mappings. |
+| `list_services` | none | Discover public service tables, versions, sizes and member counts. |
+| `get_example` | `symbol_or_id`; optional: `language` | Return a selected record's listed example paths, and optionally their bounded contents. |
+| `get_capability_status` | `symbol_or_id` | Read documented capability evidence, limitations and the record's [evidence state](#evidence-state); not a live availability probe. |
+| `check_compatibility` | optional: `sdk_version`, `game_pack_version`, `tag`, `source_sha`, `service`, `min_version`, `member_extent` | Compare requested coordinates with catalogue metadata, read a [release approval record](#release-approval-records) and check a service's minimum version and member extent; not a runtime compatibility test. |
 
-Inspect `tools/list` for each tool's input schema. Language values are `c`, `cpp`,
-`csharp`, and `lua`; use those tokens rather than display names. `search_api` accepts
-at most 512 characters in `query`, a `limit` from 1 to 50 (default 10), and an
-optional `service`. `check_compatibility` accepts `sdk_version` as a string and
-`game_pack_version` as a string matching the catalogue (for example, `"0.3.0"`).
+`symbol_or_id` takes a table-qualified symbol such as `sc_actors_v1.spawn_npc` or
+the record's stable id such as `sc-actors-v1-spawn-npc`; `search_api` results
+carry both. Inspect `tools/list` for each tool's full input schema. Language values
+are `c`, `cpp`, `csharp`, and `lua`; use those tokens rather than display names.
+`search_api` accepts at most 512 characters in `query`, a `limit` from 1 to 50
+(default 10), and an optional `service`. `check_compatibility` accepts
+`sdk_version` and `game_pack_version` as strings to compare with the catalogue's
+own `sdk_version` and `game_pack_version` (copy them from any result's
+`provenance`).
 These are exact coordinate comparisons, not version-ordering claims. Service-table
 versions are packed major/minor integers; SDK and game-pack coordinates are
 separate strings. Do not substitute one for another.
@@ -197,12 +213,12 @@ launcher in [the integration guide](../../docs/agent-integration.md) are
 unchanged. If you enable the flag, add these names to the client allowlist
 explicitly:
 
-| Tool | Purpose |
-|---|---|
-| `list_engine_natives` | Page through `sdk/native_index.json`, filtered by `subsystem`, `tier` (1-4) or a case-insensitive `query` substring of id, hash, subsystem, source or capability. |
-| `get_engine_native` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
-| `validate_manifest_and_widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
-| `generate_plugin_scaffold` | Return the files [`sco-new-plugin`](../../sdk/tools/sco-new-plugin.py) would generate for a plugin spec, without writing them. |
+| Tool | Arguments | Purpose |
+|---|---|---|
+| `list_engine_natives` | optional: `subsystem`, `tier`, `query`, `limit`, `cursor` | Page through `sdk/native_index.json`, filtered by `subsystem`, `tier` (1-4) or a case-insensitive `query` substring of id, hash, subsystem, source or capability. |
+| `get_engine_native` | `id_or_hash` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
+| `validate_manifest_and_widgets` | `plugin_ini`; optional: `folder`, `widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
+| `generate_plugin_scaffold` | `id`, `lang`; optional: `with_menu`, `services` | Return the files [`sco-new-plugin`](../../sdk/tools/sco-new-plugin.py) would generate for a plugin spec, without writing them. |
 
 **Engine natives.** Both native tools read `sdk/native_index.json` beneath
 `--repo-root` once, at start. The file has the same no-symlink containment as
@@ -331,6 +347,46 @@ Replace `/absolute/path/to/sco-core` with the checkout's actual absolute path on
     }
   }
 }
+```
+
+### Windows
+
+A standard Windows Python install puts the `py` launcher (and usually `python`)
+on `PATH`, but not `python3`, so a copied `"command": "python3"` fails to start.
+Use `py` with `-3`, or the absolute path to `python.exe`. Write paths with
+forward slashes, which Python accepts and JSON needs no escaping for:
+
+```json
+{
+  "mcpServers": {
+    "sco-core-sdk": {
+      "command": "py",
+      "args": [
+        "-3",
+        "C:/absolute/path/to/sco-core/tools/sco-core-mcp/server.py",
+        "--catalogue",
+        "C:/absolute/path/to/sco-core/dist/sdk-catalogue.json",
+        "--repo-root",
+        "C:/absolute/path/to/sco-core"
+      ]
+    }
+  }
+}
+```
+
+Claude Code registers the same launcher from PowerShell, at user scope, with the
+opt-in tools enabled:
+
+```powershell
+claude mcp add --scope user sco-core-sdk -- py -3 C:/absolute/path/to/sco-core/tools/sco-core-mcp/server.py --catalogue C:/absolute/path/to/sco-core/dist/sdk-catalogue.json --repo-root C:/absolute/path/to/sco-core --extended-tools
+```
+
+Build the catalogue first in the same checkout. In PowerShell, with a Clang on
+`PATH` that targets x64 (a MinGW-w64 or LLVM distribution works; set `CLANG` or
+pass `--clang` otherwise):
+
+```powershell
+py -3 tools/sdk_catalogue.py build --out dist/sdk-catalogue.json --source-sha (git rev-parse HEAD)
 ```
 
 Configuration location and tool-permission controls vary by client. Where the

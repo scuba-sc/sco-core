@@ -302,6 +302,24 @@ sco_result Ingest(sco_plugin* self, const sc_mission_script* input) {
 }
 const sc_missions_v1 table{sizeof(table), 0, Offer, Status, Accept, Objective, Advance, Abandon, Ingest};
 }
+uint32_t PollStatuses(sc_mission_status* out, uint32_t cap) {
+    if (!out || !cap || !OnGameThread()) return 0;
+    if (!started || faulted || busy || notifying) return 0;
+    if (!backend.admission || !backend.status) return 0;
+    const Admission a = backend.admission(backend.ctx);
+    if (!a.session || !a.offline || !a.eac_absent || a.shutting_down) return 0;
+    CallScope scope;
+    uint32_t n = 0;
+    for (const Ticket& t : tickets) {
+        if (!t.owner || t.revoked || n >= cap) continue;
+        sc_mission_status v{}; v.size = sizeof(v);
+        if (Call([&] { return backend.status(backend.ctx, t.mission, &v); }) != SCO_OK) continue;
+        if (!ValidStatus(v, t.mission, a.session)) continue;
+        out[n++] = v;
+    }
+    return n;
+}
+
 void ReleaseOwner(const void* owner) {
     if (!OnGameThread() || !started || !owner) return;
     if (busy) { faulted = true; return; } // cannot safely free/cancel an effect's callback context

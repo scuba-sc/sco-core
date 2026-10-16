@@ -68,6 +68,16 @@ AT(sc_game_vehicle_seat, size, 0);
 AT(sc_game_vehicle_seat, seat_index, 4);
 AT(sc_game_vehicle_seat, vehicle_entity_id, 8);
 
+/* ---- sc_game_mission_changed (game.mission.changed; polled, backend-gated) ---- */
+SIZE(sc_game_mission_changed, 40);
+AT(sc_game_mission_changed, size, 0);
+AT(sc_game_mission_changed, mission_id, 8);
+AT(sc_game_mission_changed, old_state, 16);
+AT(sc_game_mission_changed, new_state, 20);
+AT(sc_game_mission_changed, new_phase, 24);
+AT(sc_game_mission_changed, new_objective, 28);
+AT(sc_game_mission_changed, session, 32);
+
 /* Keeps the pins referenced so -Wunused does not fire. */
 void sco_abi_game_events_pins(void);
 void sco_abi_game_events_pins(void) {}

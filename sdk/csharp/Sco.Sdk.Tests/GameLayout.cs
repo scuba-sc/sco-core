@@ -30,6 +30,7 @@ namespace Sco.Sdk.Tests
             types.Add("sc_game_actor_died", typeof(ScGameActorDied));
             types.Add("sc_game_zone_changed", typeof(ScGameZoneChanged));
             types.Add("sc_game_vehicle_seat", typeof(ScGameVehicleSeat));
+            types.Add("sc_game_mission_changed", typeof(ScGameMissionChanged));
             types.Add("sc_entities_v1", typeof(ScEntitiesV1));
             types.Add("sc_vehicle_seat_flag", typeof(ScVehicleSeatFlag));
             types.Add("sc_vehicle_seat", typeof(ScVehicleSeat));
@@ -133,6 +134,7 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScGameActorDied)) size = Unsafe.SizeOf<ScGameActorDied>();
             if (t == typeof(ScGameZoneChanged)) size = Unsafe.SizeOf<ScGameZoneChanged>();
             if (t == typeof(ScGameVehicleSeat)) size = Unsafe.SizeOf<ScGameVehicleSeat>();
+            if (t == typeof(ScGameMissionChanged)) size = Unsafe.SizeOf<ScGameMissionChanged>();
             if (t == typeof(ScEntitiesV1)) size = Unsafe.SizeOf<ScEntitiesV1>();
             if (t == typeof(ScVehicleSeat)) size = Unsafe.SizeOf<ScVehicleSeat>();
             if (t == typeof(ScVehiclesV1)) size = Unsafe.SizeOf<ScVehiclesV1>();

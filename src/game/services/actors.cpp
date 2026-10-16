@@ -351,6 +351,29 @@ const char* ReadHealth(uint64_t id, float& cur) {
     }
 }
 
+// nullptr, or why the status couldn't be found; *notFound when the id isn't an actor (yet).
+const char* ReadStatus(uint64_t id, uintptr_t& status, bool& notFound) {
+    __try {
+        const char* why = nullptr;
+        const uintptr_t actor = ActorOfEntityId(id, why);
+        if (!actor) { notFound = true; return why; }
+        status = g_game.statusOf(actor);
+        return status ? nullptr : "the actor has no status object";
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return "fault while finding the actor's status";
+    }
+}
+
+bool ReadIsLocal(uint64_t id) {
+    __try {
+        const uintptr_t entity = reads::EntityFromId(id);
+        uintptr_t me, myEntity;
+        return entity && reads::LocalPlayer(me, myEntity) && myEntity == entity;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 struct Probe { int p1; int p2; float health; };
 
 bool ReadProbe(uintptr_t actor, Probe& out) {
@@ -591,11 +614,13 @@ Result StartActors() {
     LogCap(kCapHealth, g_canHealth, g_whyHealth);
     Log("[game] game.actors.state is off: %s%s", g_whyState, g_stateProbe ? "; the state probe logs P1 and P2 for your player" : "");
     g_started = true;
+    if (StartActorStats() != Result::Ok) Log("[game] game.actor_stats not published");
     return Result::Ok;
 }
 
 void StopActors() {
     if (!g_started) return;
+    StopActorStats();
     // Every plugin has unloaded (Stop runs after UnloadAll), so anything still owned belongs to a
     // plugin whose release failed: ask the game to remove it now. Removals in flight end here;
     // RemoveEntity was asked for each one already, the checks after it don't run.
@@ -616,6 +641,25 @@ void StopActors() {
     g_canLocal = g_canSpawn = g_canDespawn = g_canHealth = g_stateProbe = false;
     g_started = false;
 }
+
+bool ActorStatusReady(const char*& why) {
+    if (!g_started) { why = "game.actors isn't started"; return false; }
+    if (!g_canHealth) { why = g_whyHealth[0] ? g_whyHealth : "game.actors.health isn't ready"; return false; }
+    why = nullptr;
+    return true;
+}
+
+Result ActorStatusOf(uint64_t id, uintptr_t& status, const char*& why) {
+    status = 0;
+    const char* ready = nullptr;
+    if (!ActorStatusReady(ready)) { why = ready; return Result::Unavailable; }
+    bool notFound = false;
+    why = ReadStatus(id, status, notFound);
+    if (!why) return Result::Ok;
+    return notFound ? Result::NotFound : Result::Failed;
+}
+
+bool IsLocalPlayerEntity(uint64_t id) { return g_started && id && ReadIsLocal(id); }
 
 bool EntityRemovalReady() { return g_started && g_canDespawn; }
 

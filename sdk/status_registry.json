@@ -37,6 +37,26 @@
       ]
     },
     {
+      "id": "game.actor_stats",
+      "kind": "service",
+      "service": "game.actor_stats",
+      "header": "include/sc_actor_stats.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.actor_stats.read", "methods": ["read"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.197.2878", "evidence": "row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game", "sig_rows": ["actor.stat_names", "actor.stat_array", "actor.health_site", "actor.status_accessor", "actor.get_stat"], "evidence_source": "docs/game/actor-stats.md"}
+      ]
+    },
+    {
+      "id": "game.actor_stats_write",
+      "kind": "service",
+      "service": "game.actor_stats_write",
+      "header": "include/sc_actor_stats_write.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.actor_stats.write", "methods": ["adjust", "set", "mode"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["actor.adjust_stat", "actor.stat_authority", "actor.stat_names", "actor.stat_array"], "evidence_source": "docs/game/actor-stats.md"}
+      ]
+    },
+    {
       "id": "game.vehicles",
       "kind": "service",
       "service": "game.vehicles",
@@ -97,7 +117,8 @@
         {"name": "game.events.player_died", "display": "`game.events.player_died` (`game.player.died`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["event.player_death"], "evidence_source": "docs/game/status.md"},
         {"name": "game.events.actor_died", "display": "`game.events.actor_died` (`game.actors.died`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck); the same row as player_died, one hook two events", "sig_rows": ["event.player_death"], "evidence_source": "docs/game/status.md"},
         {"name": "game.events.zone_changed", "display": "`game.events.zone_changed` (`game.zone.changed`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
-        {"name": "game.events.vehicle_seat", "display": "`game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`)", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["event.seat_enter", "event.seat_exit"], "spike_ref": "B8", "evidence_source": "docs/game/status.md"}
+        {"name": "game.events.vehicle_seat", "display": "`game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`)", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["event.seat_enter", "event.seat_exit"], "spike_ref": "B8", "evidence_source": "docs/game/status.md"},
+        {"name": "game.events.mission_changed", "display": "`game.events.mission_changed` (`game.mission.changed`)", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON by owner ruling (2026-10-16): a product default, not a verified claim. No rows; published once a bound, admitted game.missions backend reports active missions. Synthetic only: backend adapters are synthetic today, so it does not fire; not run in game", "evidence_source": "docs/game/events.md"}
       ]
     },
     {
@@ -205,6 +226,26 @@
       "version": "1.0",
       "capabilities": [
         {"name": "game.quantum.control", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED", "evidence_source": "docs/quantum.md"}
+      ]
+    },
+    {
+      "id": "game.build",
+      "kind": "service",
+      "service": "game.build",
+      "header": "include/sc_game_build.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.build.info", "methods": ["read"], "default": "ON", "evidence_level": "synthetic_only", "evidence": "No rows: reads TimeDateStamp/SizeOfImage from the running module header and the pack's own verified-build pin; starts only when the numeric mirrors agree with the strings; host-side compile and layout pins verified, not run in game", "evidence_source": "docs/game/build.md"}
+      ]
+    },
+    {
+      "id": "game.gamerules",
+      "kind": "service",
+      "service": "game.gamerules",
+      "header": "include/sc_gamerules.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.gamerules.read", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED", "evidence_source": "docs/game/gamerules.md"}
       ]
     },
     {

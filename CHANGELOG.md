@@ -3,6 +3,54 @@
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
 ## Unreleased
+- **New game bus event: `game.mission.changed`** (`include/sc_game_events.h`,
+  [docs](docs/game/events.md)). Publishes state/phase/objective changes of the missions
+  `game.missions` accepted, from the tick, closing the last gap of the events audit
+  (spawn/zone/death events shipped earlier). No rows: it polls the missions provider's
+  backend (`offline::PollStatuses`, game-thread, admission-guarded) and fires only once
+  a bound backend reports active missions; `game.events.mission_changed` defaults ON (owner
+  ruling, 2026-10-16; a product default, not a verified claim). Layout pinned in `tests/abi_game_events.c` (C11/C++20).
+  Not run in game; backend adapters are synthetic today, so the poll returns zero.
+  Design: F-S-003.
+
+- **New SDK example: `actor_stats_probe`** (`sdk/examples/actor_stats_probe/`, Star Citizen extension). The in-game test for `game.actor_stats` and `game.actor_stats_write`: it logs all nine named stats of your player once a second (changed values marked), and with writes armed in its own panel or by command it adjusts or sets one stat and logs the value read back. `CHECKLIST.md` is the maintainer's step list (eat/drink, cold/hot surfaces, helmet off, stun, distortion, radiation, and the write persistence checks). Checked with `sco-plugin-check` against the stand-in host (full and 1.0 short tables) and the MCP manifest/widget validator; not run in game.
+- **New game service table: `game.actor_stats_write` 1.0** (`include/sc_actor_stats_write.h`, [docs](docs/game/actor-stats.md#writes-gameactor_stats_write)). `adjust` and `set` change one named stat of your own player through the game's own stat-adjust function, so the game's clamping, per-stat enable switches and consequences apply, and hand back the value read right after the write; `mode` says whether the game would apply a change (authoritative, local only, or discarded) without writing. The game applies a change only where the entity has authority or the stat's definition allows a local change; the new row `actor.stat_authority` pins that gate inside the adjust function, and a write the game would discard answers UNAVAILABLE instead of a silent OK. The capability `game.actor_stats.write` is OFF by default: it needs the new product switch `sco::game::services::SetActorStatWritesEnabled(true)` (or `SCO_ACTOR_STATS_WRITE=1` for a maintainer test; a switch flipped off the game thread is picked up on the next call), its rows and `game.actor_stats.read`, and every write asks for fresh offline admission first. Your own player only; steps bounded by `SC_ACTOR_STATS_WRITE_MAX_STEP`; nothing restored on unload (gameplay state, not settings). Rows `actor.adjust_stat` and `actor.stat_authority` resolve on 4.10.197.2878 in a local `sco-sigcheck` run (321/321). Grounded on F-4.10.197.2878-010. ABI pinned by `tests/abi_game_actor_stats_write.c` (C, C++, -fshort-enums). No frozen ABI change. Which mode your player has offline, and whether a local-only write persists, is not known: not run in game.
+- **New game service table: `game.actor_stats` 1.0** (`include/sc_actor_stats.h`, [docs](docs/game/actor-stats.md)). Reads an actor's status stats by name: hunger, thirst, body and suit temperature, oxygen, stun, distortion, body and suit radiation (`sc_actor_stat`), for your player or a streamed-in NPC. Game thread only, read-only, one float copied out; an actor without a record of a stat answers NOT_FOUND, never a silent 0. It reuses the `actor.status_accessor` and `actor.get_stat` rows behind `game.actors.health` and adds two: `actor.stat_names` follows the game's own stat-name function and checks every index the game pack uses still carries its name (a reordered enum fails the row and turns the capability off instead of reading the wrong stat), and `actor.stat_array` checks GetStat's record-array read. Grounded on F-4.10.197.2878-006. Both rows resolve on 4.10.197.2878 in a local `sco-sigcheck` run (319/319). The capability `game.actor_stats.read` is ON when its rows resolve (evidence level: rows resolved). ABI pinned by `tests/abi_game_actor_stats.c` (C, C++, -fshort-enums). No frozen ABI change. Units, range and direction of each stat are not pinned: not run in game.
+- **New game service table: `game.build` 1.0** (`include/sc_game_build.h`,
+  [docs](docs/game/build.md)). The running exe's PE `TimeDateStamp`/`SizeOfImage`, the
+  game pack's version triple, the four-part verified build and its PE timestamp, and
+  `pin_matches` - the game pack's own "is this a build we verified?" answer, as data a
+  plugin can gate on. Pure metadata: no rows, no engine pointers, no capability gate
+  (`game.build.info` publishes with the pack); the service refuses to start when the new
+  numeric mirrors in `sc_game_pack.h` (`..._VERSION_MAJOR/MINOR/PATCH`,
+  `..._VERIFIED_BUILD_PARTS_*`) disagree with the existing strings. ABI pinned by
+  `tests/abi_game_build.c` (C11/C++20, tail refusal). No frozen ABI change; not run in
+  game - host-side compile and layout pins only. F-4.10.196.36804-004.
+- **New game service table: `game.gamerules` 1.0** (`include/sc_gamerules.h`,
+  [docs](docs/game/gamerules.md)). Read-only view of the server's GameRules parameters
+  the client already received (quantum travel/boost allowed, group-QT enforcement, travel
+  and target-lock thresholds). Service behind `query_service`, table lifetime game session,
+  game thread only; no pointer, write or action crosses the ABI; the capability
+  `game.gamerules.read` defaults OFF and the default production backend binds nothing
+  (`read` returns unavailable). Two new rows (`gamerules.params_label`,
+  `gamerules.params_sync`, label-anchored with prologue filtering) resolve on
+  4.10.196.36804 and 4.10.197.2878 in a local `sco-sigcheck` run; the parameter blob
+  offsets are documented from the private corpus (F-4.10.196.36804-007/-008) and enter
+  only the host-side adapter. ABI pinned by `tests/abi_game_gamerules.c` (C, C++,
+  -fshort-enums). No frozen ABI change; nothing has run in the game — synthetic evidence
+  only. Grounds the physical-quantum-travel behavior noted in `game.quantum`
+  (docs/quantum.md), which the game gates on these same parameters.
+
+- **Game pack verified build bumped to 4.10.197.2878 (LIVE hotfix, P4 CL 12913470).** The
+  hotfix moves no signature row: a native `sco-sigcheck` run on the hotfixed
+  `StarCitizen.exe` (PE timestamp `0x6accbae3`) reports every row OK (317/317 at this
+  branch's base, including `teleport.relocation`; a 316/316 run on the pre-#163 table was
+  recorded the same day — both all-OK), and the
+  launcher and CrashHandler are byte-identical to 4.10.196.36804. `sc_game_pack.h`
+  `SCO_GAME_PACK_VERIFIED_BUILD`/`..._PE_TIMESTAMP` are bumped accordingly and
+  `docs/game-pack.md` records the run. No table, header layout, ABI, catalogue version
+  or capability changes; a game-pack patch release is not triggered because no rows moved
+  (docs/game-pack.md policy). Not run in game — rows verified by sigcheck only.
 
 - **`sco.net`: a `net.peer` event is dispatched only after the peer it reports is visible** ([docs](docs/net.md#peers-and-events)), no ABI or wire change (`include/sco_net.h` changes in a comment only; `sco.net` stays 1.0). With the network thread (the default), the service queued each event the moment the Core raised it but published the session that `get_peers`, `get_peer_name` and `is_active` read only at the end of the network step, so a game-thread tick in between could run a JOINED handler that did not find the new peer. The service now holds what the Core raises during a step and releases it in the same lock hold in which it publishes the session. The service's failure paths (a failing network thread, an allocation failure while held events move to the inbox) are tightened and tested as well; that is internal behaviour, not part of the contract. Tests in `test_net_service`. Contributed by zarilo88-ui (split from #169). Loopback and in-memory tests only: nothing has run in the game.
 - **`game.relocation` 1.0 gets a fail-closed production path** ([docs](docs/game-services.md#relocation-gamerelocation-10)), `include/sc_relocation.h` and the frozen plugin ABI unchanged. The game pack now ports the v0.7.7 transport and system classifier behind a `RelocationBackend` seam (`src/game/services/relocation.h`, engine adapter `relocation_engine.cpp`, Windows only): the player and its star system come from the zone chain (the `SolarSystem*` zone; an unknown system refuses), the destination must be streamed, and the movement is the game's own teleport call. The new row `teleport.relocation` pins that call and the params stores, from the game's own `CmdTeleportToCamera`; it resolves on 4.10.196.36804 in a local `sco-sigcheck` run. The capability `game.relocation` is ON only while the host's fresh offline admission is positive, the rows resolve, a live player and known system exist and the product switch is on; otherwise OFF, with no engine read before the offline answer. `sco::game::services::SetRelocationEnabled(bool)` is the switch a product wires to a player or host setting; it can only turn relocation off. Completion needs a fresh observed pose in the target frame. Synthetic provider tests cover every input and failure reason; the Windows adapter is not compiled here and nothing has run in the game, so the evidence level stays synthetic only.

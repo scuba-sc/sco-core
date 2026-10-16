@@ -33,6 +33,14 @@ bool   Started();
 void SetRelocationEnabled(bool enabled);
 bool RelocationEnabled();
 
+// The switch for game.actor_stats_write 1.0 (sc_actor_stats_write.h): a product sets it from a
+// player or host setting. Any thread. Default OFF; the environment variable
+// SCO_ACTOR_STATS_WRITE=1, read once when game.actors starts, turns it on for a maintainer's
+// in-game test without a product change. On never bypasses anything: the capability still needs
+// its rows, game.actor_stats.read, and every write still needs fresh offline admission.
+void SetActorStatWritesEnabled(bool enabled);
+bool ActorStatWritesEnabled();
+
 // For the game pack's own code (spawn.entities' mover): the same frames as teleport.spatial.
 // Game thread. 0 / false when the entity or a zone isn't streamed in.
 uint64_t ZoneOfEntity(uint64_t entityId);

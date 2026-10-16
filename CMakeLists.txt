@@ -336,12 +336,12 @@ if(SCO_GAME_SC AND WIN32)
   add_library(sco_game_services STATIC src/game/services/reads.cpp src/game/services/spatial.cpp src/game/services/relocation.cpp
                                        src/game/services/relocation_engine.cpp
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
-                                       src/game/services/actors.cpp src/game/services/vehicles.cpp
-                                       src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp
+                                       src/game/services/actors.cpp src/game/services/actor_stats.cpp src/game/services/vehicles.cpp
+                                       src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp src/game/services/gamerules.cpp
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
-                                       src/game/services/loadout.cpp src/game/services/cvars.cpp
+                                       src/game/services/loadout.cpp src/game/services/cvars.cpp src/game/services/build.cpp
                                        src/game/services/hangar.cpp src/game/services/hangar_engine.cpp
                                        src/game/services/reputation.cpp src/game/services/reputation_engine.cpp
                                        src/game/services/asop_service.cpp src/game/services/asop_engine.cpp
@@ -638,6 +638,86 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_game_entities
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ge_targets})
+
+  # The game.actor_stats table pin (tests/abi_game_actor_stats.c, sc_actor_stats.h), the same three ways. Game-pack only.
+  set(_abi_gas_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actor_stats.cpp")
+  file(CONFIGURE OUTPUT "${_abi_gas_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_actor_stats.c\"\n")
+  add_library(sco_abi_game_actor_stats_c OBJECT tests/abi_game_actor_stats.c)
+  add_library(sco_abi_game_actor_stats_cxx OBJECT "${_abi_gas_cxx}")
+  set(_abi_gas_targets sco_abi_game_actor_stats_c sco_abi_game_actor_stats_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_game_actor_stats_short_enums OBJECT tests/abi_game_actor_stats.c)
+    target_compile_options(sco_abi_game_actor_stats_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_gas_targets sco_abi_game_actor_stats_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_gas_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_game_actor_stats
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_gas_targets})
+
+  # The game.actor_stats_write table pin (tests/abi_game_actor_stats_write.c, sc_actor_stats_write.h), the same three ways. Game-pack only.
+  set(_abi_gasw_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actor_stats_write.cpp")
+  file(CONFIGURE OUTPUT "${_abi_gasw_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_actor_stats_write.c\"\n")
+  add_library(sco_abi_game_actor_stats_write_c OBJECT tests/abi_game_actor_stats_write.c)
+  add_library(sco_abi_game_actor_stats_write_cxx OBJECT "${_abi_gasw_cxx}")
+  set(_abi_gasw_targets sco_abi_game_actor_stats_write_c sco_abi_game_actor_stats_write_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_game_actor_stats_write_short_enums OBJECT tests/abi_game_actor_stats_write.c)
+    target_compile_options(sco_abi_game_actor_stats_write_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_gasw_targets sco_abi_game_actor_stats_write_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_gasw_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_game_actor_stats_write
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_gasw_targets})
+
+  # The game.gamerules table pin (tests/abi_game_gamerules.c, sc_gamerules.h), the same three ways. Game-pack only.
+  set(_abi_ggr_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_gamerules.cpp")
+  file(CONFIGURE OUTPUT "${_abi_ggr_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_gamerules.c\"\n")
+  add_library(sco_abi_game_gamerules_c OBJECT tests/abi_game_gamerules.c)
+  add_library(sco_abi_game_gamerules_cxx OBJECT "${_abi_ggr_cxx}")
+  set(_abi_ggr_targets sco_abi_game_gamerules_c sco_abi_game_gamerules_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_game_gamerules_short_enums OBJECT tests/abi_game_gamerules.c)
+    target_compile_options(sco_abi_game_gamerules_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_ggr_targets sco_abi_game_gamerules_short_enums)
+  endif()
+  foreach(_t IN LISTS _abi_ggr_targets)
+    target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
+  endforeach()
+  add_test(NAME abi_game_gamerules
+           COMMAND ${CMAKE_COMMAND} -E echo "layout pinned by object-library compile")
+
+  # The game.build table pin (tests/abi_game_build.c, sc_game_build.h), the same three ways. Game-pack only.
+  set(_abi_gb_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_build.cpp")
+  file(CONFIGURE OUTPUT "${_abi_gb_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_build.c\"\n")
+  add_library(sco_abi_game_build_c OBJECT tests/abi_game_build.c)
+  add_library(sco_abi_game_build_cxx OBJECT "${_abi_gb_cxx}")
+  set(_abi_gb_targets sco_abi_game_build_c sco_abi_game_build_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_game_build_short_enums OBJECT tests/abi_game_build.c)
+    target_compile_options(sco_abi_game_build_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_gb_targets sco_abi_game_build_short_enums)
+  endif()
+  foreach(_t IN LISTS _abi_gb_targets)
+    target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
+  endforeach()
+  add_test(NAME abi_game_build
+           COMMAND ${CMAKE_COMMAND} -E echo "layout pinned by object-library compile")
 
   # The game.creative table pin (tests/abi_game_creative.c, sc_creative.h), the same three ways. Game-pack only.
   set(_abi_gc_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_creative.cpp")

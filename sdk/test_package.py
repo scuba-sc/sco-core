@@ -384,7 +384,7 @@ class RealManifest(unittest.TestCase):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
                 root = self.installed_fixture(profile, tmp)
                 proof = pkg.check_installed_example_headers(self.m, profile, root, Path(tmp, "proof"))
-                self.assertEqual(proof["translation_units"], 6)  # template, hello, cpp_hello, widgets, diagnostics C/C++
+                self.assertEqual(proof["translation_units"], 7 if profile in ("game-sc", "legacy") else 6)  # template, hello, cpp_hello, widgets, diagnostics C/C++; + actor_stats_probe with the SC extension
                 self.assertEqual(set(proof["languages"]), {"C", "CXX"})
                 self.assertIn("include/sco_api.h", proof["public_headers"])
                 self.assertIn("include/scosdk/scosdk.hpp", proof["public_headers"])
@@ -453,7 +453,7 @@ class RealManifest(unittest.TestCase):
             example.write_text('#define HIDDEN_HEADER "' + Path(pkg.ROOT, "include/sco_api.h").as_posix() +
                                '"\n#include HIDDEN_HEADER\n' + example.read_text())
             with self.assertRaisesRegex(pkg.ManifestError, "resolved dependency.*" +
-                                        re.escape(str(Path(pkg.ROOT, "include/sco_api.h"))) +
+                                        re.escape(Path(pkg.ROOT, "include/sco_api.h").as_posix()) +
                                         " outside approved installed files"):
                 pkg.check_installed_example_headers(self.m, "core", root, Path(tmp, "proof"))
 
