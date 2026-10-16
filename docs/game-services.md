@@ -182,7 +182,7 @@ F-S-005 (loadout readback) at the read-surface layer.
   - `entity_id`: 32-bit session-scoped entity ID (joins with `game.entities`)
 - `generation`: 64-bit monotonically increasing change counter for cache validation
 
-**Accessors:** grounded over an 8-session campaign (D055-D064) on the game's own runtime accessors: entity
+**Accessors:** grounded (findings F-4.10.196.36804-007..-009) on the game's own runtime accessors: entity
 vtable `+0x898` port-range accessor, port `+0x60` `IsValid` / `+0x40` `GetItem`, item `+0x6e8` `GetTypeDesc`.
 Server authority is untouched: nothing writes or equips items through this surface.
 Capability `game.inventory.read` defaults OFF; unbound answers `SCO_UNAVAILABLE`. Layout pinned by
