@@ -1,4 +1,5 @@
-/* Independently compiled C11/C++20 inventory layout and tail refusal fixture. */
+/* Independently compiled C11/C++20 inventory layout and tail refusal fixture. 1.1 only appends
+ * flags and total_seen after ports[]: every 1.0 offset below is unchanged (rule 2, ABI only grows). */
 #include <sc_inventory.h>
 #include <stddef.h>
 #ifdef NDEBUG
@@ -15,7 +16,12 @@
 PIN(sizeof(sc_inventory_port) == 24, "port size");
 PIN(offsetof(sc_inventory_port, item_class_id) == 8, "class id offset");
 PIN(offsetof(sc_inventory_port, entity_id) == 16, "entity id offset");
-PIN(sizeof(sc_inventory_snapshot) == 3088, "snapshot size");
+PIN(sizeof(sc_inventory_snapshot) == 3096, "snapshot size (1.1)");
+PIN(SC_INVENTORY_SNAPSHOT_SIZE_1_0 == 3088, "1.0 snapshot size");
+PIN(offsetof(sc_inventory_snapshot, flags) == SC_INVENTORY_SNAPSHOT_SIZE_1_0, "tail starts at the 1.0 size");
+PIN(offsetof(sc_inventory_snapshot, total_seen) == 3092, "total_seen offset");
+PIN(SC_INVENTORY_FLAG_TRUNCATED == 1 && SC_INVENTORY_FLAG_LIMITED == 2, "flag bits");
+PIN(SC_INVENTORY_SERVICE_VERSION_1_0 == 0x00010000u && SC_INVENTORY_SERVICE_VERSION_1_1 == 0x00010001u, "versions");
 PIN(offsetof(sc_inventory_snapshot, count) == 4, "count offset");
 PIN(offsetof(sc_inventory_snapshot, generation) == 8, "generation offset");
 PIN(offsetof(sc_inventory_snapshot, ports) == 16, "ports offset");

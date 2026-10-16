@@ -218,7 +218,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_loadout_v1` | 1 | 16 | 1.1 |
 | `sc_quantum_v1` | 4 | 40 | 1.0 |
 | `sc_gamerules_v1` | 1 | 16 | 1.0 |
-| `sc_inventory_v1` | 1 | 16 | 1.0 |
+| `sc_inventory_v1` | 1 | 16 | 1.1 |
 | `sc_game_build_v1` | 1 | 16 | 1.0 |
 | `sc_mining_v1` | 2 | 24 | 1.0 |
 | `sc_private_session_v1` | 4 | 40 | 1.0 |
@@ -880,13 +880,13 @@ Running exe identity + the game pack's verified-build pin. See [game.build](game
 |---|---|---|---|---|---|---|
 | `sc_game_build_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(sco_plugin* self, sc_game_build_info* out);`<br>Copy the running game build identity into out (caller sets out->size): the exe's PE TimeDateStamp and SizeOfImage, the game pack version triple, the four-part build the pack verified, that build's PE timestamp, and pin_matches (1 when the running timestamp equals the verified one). Constant for the process lifetime; no engine state is read beyond the module header. | All values copied from constants and the module header; provider retains nothing, allocates nothing. | Game thread only (published with the game pack). | OK identity copied, UNAVAILABLE out null or out->size too small, BAD_ARG invalid self. | StopGameBuild withdraws the service; no state to restore. |
 
-## `sc_inventory_v1` — game.inventory 1.0
+## `sc_inventory_v1` — game.inventory 1.1
 
-Read-only local-player item-port snapshot. See [game.inventory](game/inventory.md). Backend-unbound default publishes UNAVAILABLE; synthetic evidence only, nothing run in game.
+Read-only local-player item-port snapshot. See [game.inventory](game/inventory.md). Default OFF and answers UNAVAILABLE unless the product switch is on and every signature row is OK; synthetic evidence only, nothing run in game. 1.1 appends `flags` and `total_seen` to the snapshot (size-gated; the 1.0 size is still accepted).
 
 | Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
 |---|---|---|---|---|---|---|
-| `sc_inventory_v1.snapshot` | `size >= 16`; 1.0 | `sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI. | Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size too small, or no local player; BAD_ARG invalid self. | StopGameInventory withdraws the service; read-only, no engine state to restore. |
+| `sc_inventory_v1.snapshot` | `size >= 16`; 1.0; flags and total_seen 1.1 | `sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). The ports are the whole attached tree, depth first: each port, then the ports of the container attached to it, empty ports included. Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. With out->size >= sizeof(sc_inventory_snapshot) (1.1) it also sets flags (TRUNCATED: ports beyond the cap exist; LIMITED: the walk's own limits cut the tree) and total_seen; a 1.0 caller passing the 1.0 size never sees them. Values are the client's view of server state at snapshot time; nothing can be written through this ABI. | Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size below the 1.0 snapshot size, no local player, no item-port container on the player, or the adapter's guards failed; BAD_ARG invalid self. | StopGameInventory withdraws the service; read-only, no engine state to restore. |
 
 ## `sc_gamerules_v1` — game.gamerules 1.0
 

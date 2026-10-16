@@ -338,6 +338,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/actor_stats.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp src/game/services/gamerules.cpp src/game/services/inventory.cpp
+                                       src/game/services/inventory_walk.cpp src/game/services/inventory_engine.cpp src/game/services/inventory_host.cpp
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
@@ -969,6 +970,18 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_reputation PRIVATE sco_host)
     sco_project_target(test_reputation)
     add_test(NAME reputation COMMAND test_reputation)
+    add_executable(test_inventory tests/test_inventory.cpp src/game/services/inventory.cpp src/game/services/inventory_walk.cpp)
+    target_include_directories(test_inventory PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_inventory PRIVATE sco_host)
+    sco_project_target(test_inventory)
+    add_test(NAME inventory COMMAND test_inventory)
+    if(WIN32)
+      add_executable(test_inventory_engine tests/test_inventory_engine.cpp src/game/services/inventory_engine.cpp
+                                           src/game/services/inventory_walk.cpp)
+      target_include_directories(test_inventory_engine PRIVATE "${SCO_INCLUDE_DIR}")
+      sco_project_target(test_inventory_engine)
+      add_test(NAME inventory_engine COMMAND test_inventory_engine)
+    endif()
     add_executable(test_asop tests/test_asop.cpp src/game/services/asop_service.cpp)
     target_include_directories(test_asop PRIVATE "${SCO_INCLUDE_DIR}")
     target_link_libraries(test_asop PRIVATE sco_host)
