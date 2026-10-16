@@ -68,6 +68,33 @@ def walk(node):
         yield from walk(child)
 
 
+def find_clang():
+    """CLANG, then PATH, then (Windows only) the standard LLVM and WinGet LLVM-MinGW installs.
+
+    Non-Windows hosts behave exactly as before: CLANG, then `clang` on PATH, else None.
+    """
+    explicit = os.environ.get('CLANG')
+    if explicit:
+        return explicit
+    found = shutil.which('clang')
+    if found or sys.platform != 'win32':
+        return found
+    candidates = []
+    for var in ('ProgramFiles', 'ProgramFiles(x86)'):
+        base = os.environ.get(var)
+        if base:
+            candidates.append(Path(base) / 'LLVM/bin/clang.exe')
+    local_app = os.environ.get('LOCALAPPDATA')
+    if local_app:
+        packages = Path(local_app) / 'Microsoft/WinGet/Packages'
+        if packages.is_dir():
+            candidates.extend(sorted(packages.glob('*LLVM*/*/bin/clang.exe'), reverse=True))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
 def header_inventory(root, clang=None):
     """AST membership/types, compiled extents/versions, and reused root ABI probe.
 
@@ -75,7 +102,7 @@ def header_inventory(root, clang=None):
     signature or layout. Callback-bearing command descriptors are not tables.
     Top-level C headers are the documented public boundary, not include/sco/.
     """
-    clang = clang or os.environ.get('CLANG') or shutil.which('clang')
+    clang = clang or find_clang()
     require(clang is not None, 'Clang is required for compiler-backed extraction')
     include = root / 'include'
     methods = {}
@@ -302,7 +329,7 @@ def documentation_signatures(root, records, clang=None):
     """Compile the C declarations printed in row cells, not merely their text.
     This catches a header/record edit which leaves the human declaration stale.
     """
-    clang = clang or os.environ.get('CLANG') or shutil.which('clang')
+    clang = clang or find_clang()
     lines = ['#include "' + p.name + '"' for p in sorted((root / 'include').glob('*.h'))]
     for index, record in enumerate(records):
         declaration = re.match(r'^`([^`]+)`', record['buffer_contract'])
