@@ -18,6 +18,15 @@ pre-release scope denials ("not published", "publication is excluded") in the ac
 the release notes and of docs/host-source-sc.md. Sections under a historical heading (for example
 "Previous release") and older release-notes files are not read.
 
+The MCP documents (MCP_DOCS: the discovery and runtime server READMEs, docs/agent-integration.md
+and docs/sdk-mcp-tutorial.md) are held to the same coordinates in their active sections: each
+release tag, SDK archive name, `SDK x.y.z`, `game-pack x.y.z`, `sdk_version` and
+`game_pack_version` they quote must name the declared versions. They must not quote a catalogue
+snapshot's identity at all (a 64-hex digest, a 40-hex source SHA, or a count of records, tables,
+services or natives): the public catalogue is redeployed from main, so such a value goes stale
+with the next deploy. The tool and argument names they document are checked against the
+server's tools/list by tools/sco-core-mcp/test_server.py (DocumentationTests).
+
 The public documentation set (the docs listed in site/public-inputs.json, the release notes,
 README.md and sdk/README.md) must not cite source by line number (`src/x.cpp:120`): those numbers
 move with every edit. Name the function, table or test instead.
@@ -64,6 +73,23 @@ DENIALS = (
 TAG_COORDINATE = re.compile(r"\bsdk-v(" + SEMVER + r")\b")
 ARCHIVE_COORDINATE = re.compile(
     r"\bsco-sdk-(?:(game-sc|core-source|host-source-sc|core)-)?(" + SEMVER + r")\b")
+MCP_DOCS = ("tools/sco-core-mcp/README.md", "tools/sco-core-mcp-runtime/README.md",
+            "docs/agent-integration.md", "docs/sdk-mcp-tutorial.md")
+# Prose and JSON-key spellings of the two release coordinates, each mapped to its scope key.
+MCP_COORDINATES = (
+    (re.compile(r"\bSDK\s+`?v?(" + SEMVER + r")\b"), "sdk_version"),
+    (re.compile(r"\bsdk_version\b[`\"']?\s*[:=]?\s*[`\"']?(" + SEMVER + r")\b"), "sdk_version"),
+    (re.compile(r"\bgame[- ]pack\s+`?(" + SEMVER + r")\b", re.IGNORECASE), "game_pack_version"),
+    (re.compile(r"\bgame_pack_version\b[`\"']?\s*[:=]?\s*[`\"']?(" + SEMVER + r")\b"),
+     "game_pack_version"),
+)
+# A catalogue snapshot's identity changes with every site deploy, so these docs never quote one.
+SNAPSHOT_IDENTITIES = (
+    (re.compile(r"(?<![0-9A-Fa-f])[0-9a-f]{64}(?![0-9A-Fa-f])"), "a sha256 digest"),
+    (re.compile(r"(?<![0-9A-Fa-f])[0-9a-f]{40}(?![0-9A-Fa-f])"), "a source SHA"),
+    (re.compile(r"\b\d+\s+(?:records|tables|services|(?:engine\s+)?natives)\b"),
+     "a catalogue count"),
+)
 
 
 class Refusal(Exception):
@@ -125,11 +151,14 @@ def parse_scope(notes, label):
 
 
 def active_text(text):
-    """Text outside the scope block and outside historical sections; headings in fences ignored."""
+    """Text outside the scope block and outside historical sections; headings in fences ignored.
+
+    Dropped lines become empty lines, so line numbers in the result match the source file.
+    """
     if text.count(SCOPE_START) == 1 and text.count(SCOPE_END) == 1:
         start, end = text.index(SCOPE_START), text.index(SCOPE_END) + len(SCOPE_END)
         if start < end:
-            text = text[:start] + text[end:]
+            text = text[:start] + "\n" * text.count("\n", start, end) + text[end:]
     kept, skip_level, fenced = [], None, False
     for line in text.splitlines():
         if line.lstrip().startswith("```"):
@@ -142,8 +171,7 @@ def active_text(text):
                 skip_level = None
             if skip_level is None and title.startswith(HISTORICAL_HEADINGS):
                 skip_level = level
-        if skip_level is None:
-            kept.append(line)
+        kept.append(line if skip_level is None else "")
     return "\n".join(kept)
 
 
@@ -169,6 +197,28 @@ def coordinate_refusals(text, scope):
             refusals.append(f"{GETTING_STARTED} names {match.group(0)}, not version {expected}")
     if not tags or not archives:
         refusals.append(f"{GETTING_STARTED} has no active download tag and archive coordinate")
+    return refusals
+
+
+def mcp_doc_refusals(root, scope):
+    refusals = []
+    for relative in MCP_DOCS:
+        try:
+            text = active_text(read_text(root, relative))
+        except Refusal as exc:
+            refusals.append(str(exc))
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            quoted = [(m.group(1), scope["sdk_version"]) for m in TAG_COORDINATE.finditer(line)]
+            quoted += [(m.group(2), scope["game_pack_version"] if m.group(1) == "game-sc"
+                        else scope["sdk_version"]) for m in ARCHIVE_COORDINATE.finditer(line)]
+            quoted += [(m.group(1), scope[key]) for pattern, key in MCP_COORDINATES
+                       for m in pattern.finditer(line)]
+            refusals += [f"{relative} line {number} quotes version {found}, not the "
+                         f"declared {expected}" for found, expected in quoted if found != expected]
+            refusals += [f"{relative} line {number} pins {what} {m.group(0)!r} of a "
+                         "catalogue snapshot; tell the reader to check the file they download"
+                         for pattern, what in SNAPSHOT_IDENTITIES for m in pattern.finditer(line)]
     return refusals
 
 
@@ -288,6 +338,7 @@ def run_gate(root, tag, approval=None):
     except Refusal as exc:
         refusals.append(str(exc))
 
+    refusals += mcp_doc_refusals(root, scope)
     refusals += denial_refusals(active_text(notes), notes_path)
     refusals += citation_refusals(root, notes_path)
     if "host-source-sc" in scope["profiles"]:
