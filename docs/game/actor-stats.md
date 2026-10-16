@@ -80,13 +80,16 @@ capability `game.actor_stats.write` (default **OFF**).
 
 A separate table, so a plugin that only reads never sees a write route.
 
-- `adjust(self, id, stat, delta)` adds `delta` to one stat.
-- `set(self, id, stat, value)` reads the current value and adjusts by the difference.
+- `adjust(self, id, stat, delta, &after)` adds `delta` to one stat.
+- `set(self, id, stat, value, &after)` reads the current value and adjusts by the difference.
+- `mode(self, id, stat, &mode)` says what the game would do with a change, without writing.
+
+`after` is the value read back right after the write, so a plugin sees what took effect.
 
 Both go through the game's own stat-adjust function (row **`actor.adjust_stat`**,
 F-4.10.197.2878-010). The game clamps the value and runs its own consequences: a stat change can
 incapacitate. The game also ignores hunger, thirst and blood-drug changes while their
-`pl_status.enable*` switch is off, so read the stat back to see what took effect.
+`pl_status.enable*` switch is off. In that case the write answers OK and `after` shows the value didn't move.
 
 What must hold before anything is written:
 
@@ -100,19 +103,26 @@ What must hold before anything is written:
    it the answer is `SCO_UNAVAILABLE` and nothing is written (rule 11).
 4. **It is your own player.** In 1.0, `id` must be your player's entity id. NPC writes are not
    offered.
-5. **The step is bounded.** `|delta|`, and for `set` `|value - current|`, is at most
-   `SC_ACTOR_STATS_WRITE_MAX_STEP`, and every input is finite.
+5. **The game would apply it.** Inside the adjust function, the game changes a stat only when the
+   actor's entity has authority (its HasAuthority) or, without authority, when that stat's definition
+   allows a local change. Otherwise it returns without changing anything. Row
+   **`actor.stat_authority`** pins that gate inside the function, and the service asks the same
+   two questions first: `mode` answers `SC_ACTOR_STAT_WRITE_AUTHORITATIVE`, `..._LOCAL_ONLY` or
+   `..._DISCARDED`, and a write the game would discard answers `SCO_UNAVAILABLE`, never a silent OK.
+6. **The step is bounded.** `|delta|`, and for `set` `|value - current|`, is at most
+   `SC_ACTOR_STATS_WRITE_MAX_STEP`, and every input is finite. A step smaller than FLT_EPSILON is not
+   passed on: the game would log it as an invalid adjustment and change nothing.
 
 Nothing is restored when a plugin unloads. These stats are gameplay state that the game itself
 changes every tick (eating, breathing, weather, damage), not settings with a prior value to put
 back.
 
-The adjust function logs whether the caller is the authority or only predicting. **Whether a write
-persists in an offline session or is overwritten by the game's own simulation is not known
-statically.** That is the first thing the in-game run must confirm for each stat. Until then
+The adjust function logs whether the caller is the authority or only predicting. **Which `mode`
+your player has in an offline session, and whether a `LOCAL_ONLY` write persists or is overwritten,
+is not known statically.** That is the first thing the in-game run must confirm for each stat. Until then
 `game.actor_stats.write` stays OFF in the status registry.
 
 ## Language routes
 
-C and C++ call the tables directly (`sc_actor_stats_read`, `sc_actor_stats_adjust` and `sc_actor_stats_set` check the table's size first).
+C and C++ call the tables directly (`sc_actor_stats_read`, `sc_actor_stats_adjust`, `sc_actor_stats_set` and `sc_actor_stats_write_mode` check the table's size first).
 The C# and Lua game.actor_stats routes are unsupported in 1.0, for reads and writes.

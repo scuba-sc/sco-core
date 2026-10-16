@@ -16,6 +16,13 @@
 //   CSCActorStatus::AdjustStatValue: every lea of that label resolves (through .pdata) to it.
 //   It runs the per-stat enable switches, clamping, prediction and incapacitation the game itself
 //   applies, which is why game.actor_stats_write calls it rather than writing a record.
+// actor.stat_authority (F-4.10.197.2878-010): the gate inside AdjustStatValue that decides whether
+//   a change is applied at all: status->entity (status+0x1F8, then +8 masked), the entity's
+//   HasAuthority (vtable slot 0x7A8, named by the game's own entity dump 'HasAuthority: %s'), and,
+//   when that is false, the stat definition's local-change byte (record+0x90 -> +0x2A): zero means
+//   the game returns without changing anything. The pattern is unique in .text and must sit inside
+//   actor.adjust_stat, so game.actor_stats_write can refuse a write the game would discard instead
+//   of answering OK for it.
 #include "actor_stats_map.h"
 #include "sig_rows.h"
 #include "sco/scan.h"
@@ -96,12 +103,28 @@ SigResult ResolveAdjustStat(const Image& img) {
     return r;
 }
 
+constexpr const char* kAuthorityGate =
+    "49 8B 86 F8 01 00 00 49 BD FF FF FF FF FF FF 00 00 48 8B 48 08 49 23 CD 48 8B 01 FF 90 A8 07 00 00 84 C0 75 ?? "
+    "48 8B 87 90 00 00 00 80 78 2A 00 0F 84";
+static_assert(actor_stats::kStatusEntity == 0x1F8 && actor_stats::kEntityHasAuthority == 0x7A8, "kAuthorityGate pins these");
+static_assert(actor_stats::kRecordDef == 0x90 && actor_stats::kDefLocalChange == 0x2A, "kAuthorityGate pins these");
+
+SigResult ResolveStatAuthority(const Image& img) {
+    SigResult r = SigPattern(img.text, kAuthorityGate);
+    if (r.state != SigState::Ok) return r;
+    const uint8_t* adjust = Sig("actor.adjust_stat");
+    if (!adjust) return SigFail("actor.adjust_stat missing");
+    if (FunctionStart(img, r.at) != adjust) return SigFail("the authority gate isn't inside AdjustStatValue");
+    return r;
+}
+
 }  // namespace
 
 extern const SigDef kActorStatsSignatures[] = {
     { "actor.stat_names", nullptr, 0, 0, ResolveStatNames, {} },
     { "actor.stat_array", nullptr, 0, 0, ResolveStatArray, { "actor.get_stat" } },
     { "actor.adjust_stat", nullptr, 0, 0, ResolveAdjustStat, {} },
+    { "actor.stat_authority", nullptr, 0, 0, ResolveStatAuthority, { "actor.adjust_stat" } },
 };
 extern const size_t kActorStatsSignatureCount = std::size(kActorStatsSignatures);
 

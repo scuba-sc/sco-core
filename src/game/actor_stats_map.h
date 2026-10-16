@@ -22,6 +22,12 @@ struct Entry {
 
 constexpr int kNameCount = 0x1D;   // the name function's bound: cmp edx,1Ch; ja <undefined>
 
+// The write gate inside AdjustStatValue (actor.stat_authority checks every one of these bytes).
+constexpr size_t kStatusEntity       = 0x1F8;   // CSCActorStatus -> owner (its +8 is the entity, masked)
+constexpr size_t kEntityHasAuthority = 0x7A8;   // entity vtable slot: bool HasAuthority()
+constexpr size_t kRecordDef          = 0x90;    // stat record -> its definition
+constexpr size_t kDefLocalChange     = 0x2A;    // definition byte: nonzero = applied without authority
+
 constexpr Entry kEntries[] = {
     { SC_ACTOR_STAT_HUNGER,           0x00, "Hunger" },
     { SC_ACTOR_STAT_THIRST,           0x01, "Thirst" },

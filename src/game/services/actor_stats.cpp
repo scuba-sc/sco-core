@@ -22,6 +22,7 @@
 #include <sc_actor_stats.h>
 #include <sc_actor_stats_write.h>
 #include <atomic>
+#include <cfloat>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -38,12 +39,13 @@ using AdjustFn  = void(__fastcall*)(uintptr_t status, int stat, float delta, con
 constexpr const char* kCapRead  = "game.actor_stats.read";
 constexpr const char* kCapWrite = "game.actor_stats.write";
 constexpr const char* kRows[] = { "actor.stat_names", "actor.stat_array", "actor.get_stat" };
-constexpr const char* kWriteRows[] = { "actor.adjust_stat" };
-constexpr uint16_t kNoHit = 0xFFFF;   // the hit id the game's own non-hit callers pass
+constexpr const char* kWriteRows[] = { "actor.adjust_stat", "actor.stat_authority" };
+constexpr uint16_t kNoHit = 0xFFFF;
+constexpr uintptr_t kPtrMask = 0xFFFFFFFFFFFFull;   // handle -> pointer, as the game masks it   // the hit id the game's own non-hit callers pass
 
 bool      g_started = false;
 bool      g_canRead = false;
-bool      g_writeRows = false;   // actor.adjust_stat OK
+bool      g_writeRows = false;   // actor.adjust_stat and actor.stat_authority OK
 GetStatFn g_getStat = nullptr;
 AdjustFn  g_adjust = nullptr;
 int32_t   g_arrayOff = 0;   // the record array's offset in CSCActorStatus, from actor.stat_array
@@ -106,58 +108,109 @@ bool WriteReady() { return g_started && g_canRead && g_writeRows && g_adjust && 
 void UpdateWriteCap() {
     if (!g_started) return;
     const char* why = !g_canRead ? "needs game.actor_stats.read"
-                    : !g_writeRows ? "needs actor.adjust_stat"
+                    : !g_writeRows ? "needs actor.adjust_stat and actor.stat_authority"
                     : !g_writesEnabled.load() ? "stat writes are switched off (product setting or SCO_ACTOR_STATS_WRITE=1)"
                     : nullptr;
     caps::Set(kCapWrite, why == nullptr && WriteReady(), why);
 }
 
-// The checks adjust and set share. On SCO_OK: *status is your player's, *index the game index and
-// *current the stat's value before the write.
-sco_result EnterWrite(sco_plugin* self, uint64_t id, uint32_t stat, uintptr_t& status, int& index, float& current) {
+// What AdjustStatValue's own gate (actor.stat_authority) would decide for index, under SEH: the
+// entity's HasAuthority, else the stat definition's local-change byte. false on a fault.
+bool ReadWriteMode(uintptr_t status, int index, uint32_t& mode) {
+    using HasAuthorityFn = bool(__fastcall*)(uintptr_t entity);
+    __try {
+        const uintptr_t owner = *reinterpret_cast<const uintptr_t*>(status + actor_stats::kStatusEntity);
+        const uintptr_t entity = *reinterpret_cast<const uintptr_t*>(owner + 8) & kPtrMask;
+        const uintptr_t vtable = *reinterpret_cast<const uintptr_t*>(entity);
+        const auto hasAuthority = *reinterpret_cast<const HasAuthorityFn*>(vtable + actor_stats::kEntityHasAuthority);
+        if (hasAuthority(entity)) { mode = SC_ACTOR_STAT_WRITE_AUTHORITATIVE; return true; }
+        const uintptr_t record = *reinterpret_cast<const uintptr_t*>(status + g_arrayOff + 8 * static_cast<intptr_t>(index));
+        const uintptr_t def = *reinterpret_cast<const uintptr_t*>(record + actor_stats::kRecordDef);
+        mode = *reinterpret_cast<const uint8_t*>(def + actor_stats::kDefLocalChange) ? SC_ACTOR_STAT_WRITE_LOCAL_ONLY
+                                                                                     : SC_ACTOR_STAT_WRITE_DISCARDED;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+// The checks adjust, set and mode share. On SCO_OK: *status is your player's, *index the game
+// index, *current the stat's value and *mode what the game would do with a change. admission:
+// ask for fresh offline admission (writes); mode() only reads.
+sco_result EnterWrite(sco_plugin* self, uint64_t id, uint32_t stat, bool admission, uintptr_t& status, int& index,
+                      float& current, uint32_t& mode) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
     if (!self || !sco::host::PluginId(self) || sco::detail::Released(self)) return SCO_BAD_ARG;
     index = actor_stats::IndexOf(stat);
     if (!id || index < 0) return SCO_BAD_ARG;
+    UpdateWriteCap();   // picks up a switch flipped off the game thread
     const char* why = nullptr;
     if (!WriteReady() || !ActorStatusReady(why) || !caps::Has(kCapWrite)) return SCO_UNAVAILABLE;
-    if (!sco::game::host::FreshAdmissionAllowed()) return SCO_UNAVAILABLE;   // offline only, asked before every write
-    if (!IsLocalPlayerEntity(id)) return SCO_BAD_ARG;           // 1.0: your own player only
+    if (admission && !sco::game::host::FreshAdmissionAllowed()) return SCO_UNAVAILABLE;   // offline only, before every write
+    if (!IsLocalPlayerEntity(id)) return SCO_BAD_ARG;                                     // 1.0: your own player only
     const Result found = ActorStatusOf(id, status, why);
     if (found != Result::Ok) return static_cast<sco_result>(found);
     bool hasRecord = false;
     if (!ReadStat(status, index, hasRecord, current)) { Note("fault while reading a stat before a write", id, stat); return SCO_FAILED; }
     if (!hasRecord) return SCO_NOT_FOUND;
-    if (!std::isfinite(current)) { Note("a stat isn't finite before a write", id, stat); return SCO_FAILED; }
+    if (!std::isfinite(current)) { Note("a stat is not finite before a write", id, stat); return SCO_FAILED; }
+    if (!ReadWriteMode(status, index, mode)) { Note("fault while reading the stat write gate", id, stat); return SCO_FAILED; }
     return SCO_OK;
 }
 
-sco_result Apply(uintptr_t status, int index, float delta, uint64_t id, uint32_t stat) {
+sco_result Apply(uintptr_t status, int index, float delta, uint32_t mode, uint64_t id, uint32_t stat, float* outAfter) {
     if (!std::isfinite(delta) || std::fabs(delta) > SC_ACTOR_STATS_WRITE_MAX_STEP) return SCO_BAD_ARG;
-    if (delta == 0.0f) return SCO_OK;
-    if (!CallAdjust(status, index, delta)) { Note("fault in the game's stat adjust", id, stat); return SCO_FAILED; }
+    if (mode == SC_ACTOR_STAT_WRITE_DISCARDED) {
+        Note("refused: no authority and the stat allows no local change, so the game would discard it", id, stat);
+        return SCO_UNAVAILABLE;
+    }
+    // The game logs |delta| < FLT_EPSILON as an invalid adjustment and changes nothing: skip the call.
+    if (std::fabs(delta) >= FLT_EPSILON && !CallAdjust(status, index, delta)) { Note("fault in the game stat adjust", id, stat); return SCO_FAILED; }
+    bool hasRecord = false;
+    float after = 0;
+    if (!ReadStat(status, index, hasRecord, after) || !hasRecord || !std::isfinite(after)) {
+        Note("the stat could not be read back after a write", id, stat);
+        return SCO_FAILED;
+    }
+    if (outAfter) *outAfter = after;
     return SCO_OK;
 }
 
-sco_result SvcAdjust(sco_plugin* self, uint64_t id, uint32_t stat, float delta) {
+sco_result SvcAdjust(sco_plugin* self, uint64_t id, uint32_t stat, float delta, float* outAfter) {
+    if (outAfter) *outAfter = 0;
     if (!std::isfinite(delta) || std::fabs(delta) > SC_ACTOR_STATS_WRITE_MAX_STEP) return OnGameThread() ? SCO_BAD_ARG : SCO_WRONG_THREAD;
     uintptr_t status = 0;
     int index = -1;
     float current = 0;
-    const sco_result r = EnterWrite(self, id, stat, status, index, current);
-    return r == SCO_OK ? Apply(status, index, delta, id, stat) : r;
+    uint32_t mode = SC_ACTOR_STAT_WRITE_DISCARDED;
+    const sco_result r = EnterWrite(self, id, stat, true, status, index, current, mode);
+    return r == SCO_OK ? Apply(status, index, delta, mode, id, stat, outAfter) : r;
 }
 
-sco_result SvcSet(sco_plugin* self, uint64_t id, uint32_t stat, float value) {
+sco_result SvcSet(sco_plugin* self, uint64_t id, uint32_t stat, float value, float* outAfter) {
+    if (outAfter) *outAfter = 0;
     if (!std::isfinite(value)) return OnGameThread() ? SCO_BAD_ARG : SCO_WRONG_THREAD;
     uintptr_t status = 0;
     int index = -1;
     float current = 0;
-    const sco_result r = EnterWrite(self, id, stat, status, index, current);
-    return r == SCO_OK ? Apply(status, index, value - current, id, stat) : r;
+    uint32_t mode = SC_ACTOR_STAT_WRITE_DISCARDED;
+    const sco_result r = EnterWrite(self, id, stat, true, status, index, current, mode);
+    return r == SCO_OK ? Apply(status, index, value - current, mode, id, stat, outAfter) : r;
 }
 
-const sc_actor_stats_write_v1 kWriteTable = { sizeof(sc_actor_stats_write_v1), 0, SvcAdjust, SvcSet };
+sco_result SvcMode(sco_plugin* self, uint64_t id, uint32_t stat, uint32_t* outMode) {
+    if (outMode) *outMode = SC_ACTOR_STAT_WRITE_DISCARDED;
+    if (!outMode) return OnGameThread() ? SCO_BAD_ARG : SCO_WRONG_THREAD;
+    uintptr_t status = 0;
+    int index = -1;
+    float current = 0;
+    uint32_t mode = SC_ACTOR_STAT_WRITE_DISCARDED;
+    const sco_result r = EnterWrite(self, id, stat, false, status, index, current, mode);
+    if (r == SCO_OK) *outMode = mode;
+    return r;
+}
+
+const sc_actor_stats_write_v1 kWriteTable = { sizeof(sc_actor_stats_write_v1), 0, SvcAdjust, SvcSet, SvcMode };
 
 void Clear() {
     g_canRead = false;
@@ -191,7 +244,7 @@ Result StartActorStats() {
     if (!g_why[0] && !ActorStatusReady(actorsWhy)) snprintf(g_why, sizeof(g_why), "%s", actorsWhy ? actorsWhy : "game.actors isn't ready");
     g_canRead = !g_why[0] && caps::Has(kCapRead);
     if (!g_canRead) caps::Set(kCapRead, false, g_why[0] ? g_why : "rows not ready");
-    g_writeRows = RowOk("actor.adjust_stat");
+    g_writeRows = RowOk("actor.adjust_stat") && RowOk("actor.stat_authority");
     if (g_writeRows) g_adjust = reinterpret_cast<AdjustFn>(Sig("actor.adjust_stat"));
     caps::SetFromSignatures(kCapWrite, kWriteRows, std::size(kWriteRows));
     caps::Set(kCapWrite, false, "game.actor_stats_write not published yet");
