@@ -168,6 +168,14 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_vehicle_seat, size, 0);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_vehicle_seat, seat_index, 4);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_vehicle_seat, vehicle_entity_id, 8);"));
+            lines.Add(("tests/abi_game_events.c", "SIZE(sc_game_mission_changed, 40);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, size, 0);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, mission_id, 8);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, old_state, 16);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, new_state, 20);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, new_phase, 24);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, new_objective, 28);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, session, 32);"));
             lines.Add(("tests/abi_game_entities.c", "PIN(sizeof(void*) == 8);"));
             lines.Add(("tests/abi_game_entities.c", "PIN(SC_ENTITIES_VERSION_1_0 == 0x00010000u);"));
             lines.Add(("tests/abi_game_entities.c", "PIN(SC_ENTITIES_VERSION_1_1 == 0x00010001u);"));

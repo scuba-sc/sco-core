@@ -67,6 +67,20 @@ namespace Sco.Sdk.Game
         public ulong vehicle_entity_id;
     }
 
+    /// <summary>sc_game_mission_changed: 40 bytes; game.mission.changed (polled; OFF until a game.missions backend reports active missions).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ScGameMissionChanged
+    {
+        public uint size;
+        public uint _pad;
+        public ulong mission_id;
+        public uint old_state;           // equals new_state on first sight
+        public uint new_state;
+        public uint new_phase;
+        public uint new_objective;       // completed objectives in new_phase
+        public ulong session;            // the game.missions session, not a plugin id
+    }
+
     /// <summary>
     /// Subscribe helpers for the game pack's low-volume events. The handler runs on the game
     /// thread, a frame or two after the game did it, and gets a copy of the payload; a payload whose
