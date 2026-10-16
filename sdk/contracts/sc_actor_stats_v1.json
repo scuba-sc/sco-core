@@ -62,7 +62,7 @@
           "evidence": [
             {
               "path": "docs/game/actor-stats.md",
-              "token": "The C# and Lua game.actor_stats routes are unsupported in 1.0."
+              "token": "The C# and Lua game.actor_stats routes are unsupported in 1.0, for reads and writes."
             }
           ],
           "tests": []
@@ -72,7 +72,7 @@
           "evidence": [
             {
               "path": "docs/game/actor-stats.md",
-              "token": "The C# and Lua game.actor_stats routes are unsupported in 1.0."
+              "token": "The C# and Lua game.actor_stats routes are unsupported in 1.0, for reads and writes."
             }
           ],
           "tests": []

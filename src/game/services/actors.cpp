@@ -364,6 +364,16 @@ const char* ReadStatus(uint64_t id, uintptr_t& status, bool& notFound) {
     }
 }
 
+bool ReadIsLocal(uint64_t id) {
+    __try {
+        const uintptr_t entity = reads::EntityFromId(id);
+        uintptr_t me, myEntity;
+        return entity && reads::LocalPlayer(me, myEntity) && myEntity == entity;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 struct Probe { int p1; int p2; float health; };
 
 bool ReadProbe(uintptr_t actor, Probe& out) {
@@ -648,6 +658,8 @@ Result ActorStatusOf(uint64_t id, uintptr_t& status, const char*& why) {
     if (!why) return Result::Ok;
     return notFound ? Result::NotFound : Result::Failed;
 }
+
+bool IsLocalPlayerEntity(uint64_t id) { return g_started && id && ReadIsLocal(id); }
 
 bool EntityRemovalReady() { return g_started && g_canDespawn; }
 

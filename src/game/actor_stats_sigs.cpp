@@ -10,6 +10,12 @@
 //   movsxd rax,edx; mov rdx,[rcx+rax*8+disp32]; test rdx,rdx; je; vmovss xmm0,[rdx]; ret.
 //   The row's address is the disp32 (the record array's offset in CSCActorStatus), so the service
 //   can tell "no record of this stat" from a real 0.0 without a hard-coded offset.
+// actor.adjust_stat (F-4.10.197.2878-010): the game's stat-adjust function,
+//   void AdjustStatValue(status, int index, float delta, const char* source, uint16_t hitId).
+//   Its prologue is unique in .text, and the function must be the one that labels itself
+//   CSCActorStatus::AdjustStatValue: every lea of that label resolves (through .pdata) to it.
+//   It runs the per-stat enable switches, clamping, prediction and incapacitation the game itself
+//   applies, which is why game.actor_stats_write calls it rather than writing a record.
 #include "actor_stats_map.h"
 #include "sig_rows.h"
 #include "sco/scan.h"
@@ -68,11 +74,34 @@ SigResult ResolveStatArray(const Image& img) {
     return SigOk(fn + kArrayDisp);
 }
 
+constexpr const char* kAdjustLabel = "CSCActorStatus::AdjustStatValue";
+constexpr const char* kAdjustPrologue =
+    "4C 89 4C 24 20 55 41 54 41 56 48 8D AC 24 ?? ?? ?? ?? B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 2B E0 4C 63 E2 4C 8B F1";
+
+SigResult ResolveAdjustStat(const Image& img) {
+    SigResult r = SigPattern(img.text, kAdjustPrologue);
+    if (r.state != SigState::Ok) return r;
+    const uint8_t* label = FindCString(img.rdata, kAdjustLabel);
+    if (!label) return SigFail("the AdjustStatValue label isn't in .rdata");
+    if (!img.text.base || img.text.size < 8) return SigFail("no .text");
+    int leas = 0;
+    for (const uint8_t* p = img.text.base, *end = img.text.base + img.text.size - 7; p < end; ++p) {
+        if ((p[0] != 0x48 && p[0] != 0x4C) || p[1] != 0x8D || (p[2] & 0xC7) != 0x05) continue;
+        if (p + 7 + Rel32(p + 3) != label) continue;
+        if (FunctionStart(img, p) != r.at) return SigFail("an AdjustStatValue label lea is outside the matched function");
+        ++leas;
+        p += 6;
+    }
+    if (!leas) return SigFail("the matched function doesn't load the AdjustStatValue label");
+    return r;
+}
+
 }  // namespace
 
 extern const SigDef kActorStatsSignatures[] = {
     { "actor.stat_names", nullptr, 0, 0, ResolveStatNames, {} },
     { "actor.stat_array", nullptr, 0, 0, ResolveStatArray, { "actor.get_stat" } },
+    { "actor.adjust_stat", nullptr, 0, 0, ResolveAdjustStat, {} },
 };
 extern const size_t kActorStatsSignatureCount = std::size(kActorStatsSignatures);
 

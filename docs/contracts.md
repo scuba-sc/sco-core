@@ -220,6 +220,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_mining_v1` | 2 | 24 | 1.0 |
 | `sc_private_session_v1` | 4 | 40 | 1.0 |
 | `sc_actor_stats_v1` | 1 | 16 | 1.0 |
+| `sc_actor_stats_write_v1` | 2 | 24 | 1.0 |
 | `sc_cvars_v1` | 1 | 16 | 1.0 |
 | `sc_cvars_write_v1` | 2 | 24 | 1.0 |
 | `sc_world_v1` | 4 | 40 | 1.1 |
@@ -856,6 +857,17 @@ C/C++ supported; C# and Lua unsupported.
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
 | `sc_actor_stats_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(uint64_t id, uint32_t stat, float* out_value);`<br>Read one named stat (sc_actor_stat) of the actor whose entity id is id: your player or a streamed-in NPC. *out_value is the game's own float in the game's own units; 0 on failure. An actor without a record of that stat answers NOT_FOUND, never a silent 0. | Copied scalar inputs; one float copied to the caller. No allocation, no engine pointer transfer, nothing retained. | Game thread only; WRONG_THREAD elsewhere before any game access. | OK value copied; BAD_ARG id 0, out_value NULL or stat not a 1.0 stat; NOT_FOUND id not streamed in, not an actor, or no record of that stat; UNAVAILABLE game.actor_stats.read not ready; FAILED game fault or non-finite value; WRONG_THREAD off the game thread. | Read-only: nothing to restore. game.actors' stop withdraws the table and clears the capability. |
+
+## `sc_actor_stats_write_v1` — `game.actor_stats_write` 1.0
+
+Source: [`sc_actor_stats_write.h`](../include/sc_actor_stats_write.h), [writes: switch, offline admission and scope](game/actor-stats.md#writes-gameactor_stats_write).
+Separate write table; capability `game.actor_stats.write` OFF by default. Your own player only; fresh offline admission before every write. Not run in game.
+C/C++ supported; C# and Lua unsupported.
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_actor_stats_write_v1.adjust` | `size >= 16`; 1.0 | `sco_result (*adjust)(sco_plugin* self, uint64_t id, uint32_t stat, float delta);`<br>Add delta to one named stat of your own player through the game's stat-adjust function; the game clamps it and applies its own consequences. Read the stat back to see what took effect. | Copied scalar inputs; nothing copied out, no allocation, no engine pointer transfer, nothing retained. No lease: the write is a one-shot game adjust. | Game thread only; WRONG_THREAD elsewhere before any game access. | OK adjusted; BAD_ARG null or released self, id 0 or not your player, stat not a 1.0 stat, a non-finite input or a step past SC_ACTOR_STATS_WRITE_MAX_STEP; NOT_FOUND not spawned or no record of that stat; UNAVAILABLE game.actor_stats.write off or no fresh offline admission; FAILED game fault; WRONG_THREAD off the game thread. | Nothing is restored on unload: the stats are gameplay state the game changes every tick. game.actors' stop withdraws the table and clears the capability. |
+| `sc_actor_stats_write_v1.set` | `size >= 24`; 1.0 | `sco_result (*set)(sco_plugin* self, uint64_t id, uint32_t stat, float value);`<br>Move one named stat of your own player to value: read the current value and adjust by the difference, so the game's clamping and consequences still apply. | Copied scalar inputs; nothing copied out, no allocation, no engine pointer transfer, nothing retained. No lease: the write is a one-shot game adjust. | Game thread only; WRONG_THREAD elsewhere before any game access. | OK adjusted; BAD_ARG null or released self, id 0 or not your player, stat not a 1.0 stat, a non-finite input or a step past SC_ACTOR_STATS_WRITE_MAX_STEP; NOT_FOUND not spawned or no record of that stat; UNAVAILABLE game.actor_stats.write off or no fresh offline admission; FAILED game fault; WRONG_THREAD off the game thread. | Nothing is restored on unload: the stats are gameplay state the game changes every tick. game.actors' stop withdraws the table and clears the capability. |
 
 ## `sc_cvars_v1` — `game.cvars` 1.0
 
