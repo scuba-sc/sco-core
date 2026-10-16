@@ -146,7 +146,7 @@ static void TestPbkdf2() {
     CHECK(sco_pbkdf2_hmac_sha256("p", 1, "s", 1, 0, out, 32) == 0);
     CHECK(sco_pbkdf2_hmac_sha256("p", 1, "s", 1, 1, out, 0) == 0);
     CHECK(sco_pbkdf2_hmac_sha256("p", 1, "s", 1, 1, nullptr, 32) == 0);
-    CHECK(kPbkdf2Iters == 200000u);
+    static_assert(kPbkdf2Iters == 200000u, "PBKDF2 iteration count is part of the wire contract");
 }
 
 static void TestCtEqual() {
