@@ -624,24 +624,6 @@ if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &
 
 Rows are in [entities rows](game/entities.md). Wrappers: C++ [`scosdk/game/entities.hpp`](../include/scosdk/game/entities.hpp), C# `Sco.Sdk.Game.Entities`, Lua `sco.game.entities` (read-only: `alive`, `class_of`, `get_transform`).
 
-### `game.gamerules` 1.0 (game pack)
-
-[`sc_gamerules.h`](../include/sc_gamerules.h), pinned by [`tests/abi_game_gamerules.c`](../tests/abi_game_gamerules.c) (16 bytes):
-read-only server GameRules parameters (`sc_gamerules_snapshot`). Capability `game.gamerules.read`.
-Provides zone/mode quantum travel and boost permission flags.
-
-### `game.build` 1.0 (game pack)
-
-[`sc_game_build.h`](../include/sc_game_build.h), pinned by [`tests/abi_game_build.c`](../tests/abi_game_build.c) (16 bytes):
-running client executable identity, PE timestamp, verified build compatibility, and drift detection.
-Capability `game.build.read`. Refuses with `SCO_BUILD_DRIFT` if client version diverges.
-
-### `game.inventory` 1.0 (game pack)
-
-[`sc_inventory.h`](../include/sc_inventory.h), pinned by [`tests/abi_game_inventory.c`](../tests/abi_game_inventory.c) (16 bytes table, 3088 bytes snapshot):
-read-only item-port snapshot of the local player entity (up to 128 ports). Capability `game.inventory.read`.
-Reports valid flag, item class type ID, entity ID, and generation counter.
-
 ## Raw handlers (1.1)
 
 A raw handler is a call that takes and returns bytes: for data that doesn't fit a command's typed arguments and 256-byte reply (a list of entities, a transform, a buffer). The bytes' layout is the handler's contract, as a service table's is; put a size or version field first.
