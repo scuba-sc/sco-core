@@ -113,9 +113,11 @@ What must hold before anything is written:
    `SC_ACTOR_STATS_WRITE_MAX_STEP`, and every input is finite. A step smaller than FLT_EPSILON is not
    passed on: the game would log it as an invalid adjustment and change nothing.
 
-Nothing is restored when a plugin unloads. These stats are gameplay state that the game itself
-changes every tick (eating, breathing, weather, damage), not settings with a prior value to put
-back.
+**Nothing is restored when a plugin unloads** (maintainer decision, 2026-10-16). These stats are
+gameplay state that the game itself changes every tick (eating, breathing, weather, damage), not
+settings with a prior value to put back. This is a documented exception to the restore-on-release
+clause of the [quantum amended rule](../quantum.md#amended-rule-2026-10-15), which covers cvars
+and shared parameters.
 
 The adjust function logs whether the caller is the authority or only predicting. **Which `mode`
 your player has in an offline session, and whether a `LOCAL_ONLY` write persists or is overwritten,
