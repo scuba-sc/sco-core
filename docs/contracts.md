@@ -75,8 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **164 table methods across 30 tables,
-plus 3 plugin entrypoints: 167 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **190 table methods across 40 tables,
+plus 3 plugin entrypoints: 193 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
