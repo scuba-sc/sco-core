@@ -67,6 +67,13 @@ workstation's path. Build the catalogue there first.
 }
 ```
 
+On Windows, `python3` is usually not on `PATH`: use `"command": "py"` with `"-3"`
+as the first argument, and `C:/...` paths. The
+[server README](../tools/sco-core-mcp/README.md#windows) has the full Windows
+launcher, a Claude Code registration command and the PowerShell catalogue build.
+Its tool tables list every tool's exact argument names (for example
+`symbol_or_id`, not `symbol`).
+
 A session-specific file can be passed to Copilot CLI with
 `--additional-mcp-config @/absolute/path/to/mcp.json`; a repository
 `.github/mcp.json` is an **optional maintainer choice**, not installed here.

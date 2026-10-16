@@ -212,6 +212,65 @@ static sco_result FakeFreeCam(uint32_t* out) {
     return g_freeCamResult;
 }
 
+// ---- sco.game.gamerules (read-only: read() only; a stand-in table) --------------------------------
+
+static sco_result g_gamerulesResult = SCO_OK;
+static uint32_t g_gamerulesValid = 1;
+static sco_result FakeGrRead(sco_plugin* self, sc_gamerules_state* out) {
+    if (!self || !out || out->size < sizeof(*out)) return SCO_BAD_ARG;
+    if (g_gamerulesResult != SCO_OK) return g_gamerulesResult;
+    out->valid = g_gamerulesValid;
+    out->generation = 7;
+    out->enforce_group_qt = 1;
+    out->quantum_travel_allowed = 0;
+    out->quantum_boost_allowed = 1;
+    out->travel_target_threshold_angle = 45.0f;
+    out->boost_group_distance_threshold = 2500.0f;
+    return SCO_OK;
+}
+
+static void TestGameRules() {
+    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, FakeGrRead };
+    CHECK(sco::host::ProvideGameService(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_SERVICE_VERSION, &kFake) == Result::Ok);
+    Write("gagr", R"(
+local g = assert(sco.game and sco.game.gamerules, "sco.game.gamerules")
+local n = 0
+for _ in pairs(g) do n = n + 1 end
+assert(n == 1 and g.read, "read-only: read() is the only function")
+sco.register_command{ name = "gagr.read", title = "Read", fn = function()
+  local s, err = g.read()
+  if not s then return err end
+  return string.format("%s %d %s %s %s %.1f %.1f %.1f", tostring(s.valid), s.generation, tostring(s.enforce_group_qt),
+    tostring(s.quantum_travel_allowed), tostring(s.quantum_boost_allowed), s.travel_target_threshold_angle,
+    s.target_lock_angular_ai, s.boost_group_distance_threshold)
+end }
+)");
+    Loaded l = Load("gagr");
+    CHECK(l.p && l.p->state == State::Loaded);
+    if (l.p && l.p->state != State::Loaded) std::printf("  gagr: %s\n", l.p->reason.c_str());
+    Reply r = Invoke(g_caller, "gagr.read");
+    CHECK(r.r == SCO_OK && r.text == "true 7 true false true 45.0 0.0 2500.0");
+    if (r.text != "true 7 true false true 45.0 0.0 2500.0") std::printf("  gagr.read -> %s\n", r.text.c_str());
+    g_gamerulesValid = 0;
+    r = Invoke(g_caller, "gagr.read");
+    CHECK(r.r == SCO_OK && r.text.rfind("false 7", 0) == 0);
+    g_gamerulesValid = 1;
+    g_gamerulesResult = SCO_UNAVAILABLE;
+    r = Invoke(g_caller, "gagr.read");
+    CHECK(r.r == SCO_OK && r.text == "unavailable");
+    g_gamerulesResult = SCO_OK;
+    kFake.size = offsetof(sc_gamerules_v1, read) + sizeof(kFake.read) - 1;   // a partial pointer is not the member
+    r = Invoke(g_caller, "gagr.read");
+    CHECK(r.r == SCO_OK && r.text == "unavailable");
+    kFake.size = sizeof(kFake);
+    kFake.read = nullptr;
+    r = Invoke(g_caller, "gagr.read");
+    CHECK(r.r == SCO_OK && r.text == "unavailable");
+    kFake.read = FakeGrRead;
+    Unload(l);
+    CHECK(sco::host::WithdrawGameService(SC_GAMERULES_SERVICE_NAME) == Result::Ok);
+}
+
 // ---- sco.game.creative (read-only: state() only; a stand-in table) -------------------------------
 
 static uint32_t g_creativeFlags = 0;

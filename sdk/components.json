@@ -2201,6 +2201,18 @@
       "public_header": true
     },
     {
+      "id": "include.scosdk.game.gamerules.hpp",
+      "source": "include/scosdk/game/gamerules.hpp",
+      "destination": "include/scosdk/game/gamerules.hpp",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
       "id": "include.scosdk.game.reputation.hpp",
       "source": "include/scosdk/game/reputation.hpp",
       "destination": "include/scosdk/game/reputation.hpp",
@@ -2574,6 +2586,17 @@
       "id": "csharp.Sco.Sdk.Game.Hangar.cs",
       "source": "sdk/csharp/Sco.Sdk/Game/Hangar.cs",
       "destination": "csharp/Sco.Sdk/Game/Hangar.cs",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "csharp.Sco.Sdk.Game.GameRules.cs",
+      "source": "sdk/csharp/Sco.Sdk/Game/GameRules.cs",
+      "destination": "csharp/Sco.Sdk/Game/GameRules.cs",
       "profiles": [
         "game-sc",
         "host-source-sc"

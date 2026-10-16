@@ -74,7 +74,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
             }
           ],
           "tests": []
@@ -165,7 +165,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
             }
           ],
           "tests": []
@@ -256,7 +256,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
             }
           ],
           "tests": []
@@ -347,7 +347,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
             }
           ],
           "tests": []
@@ -438,7 +438,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
             }
           ],
           "tests": []
@@ -529,7 +529,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
             }
           ],
           "tests": []
@@ -619,7 +619,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative)) return;"
+              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
             }
           ],
           "tests": []

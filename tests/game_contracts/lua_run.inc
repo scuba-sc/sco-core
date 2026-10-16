@@ -5,5 +5,6 @@
     TestDataCore();
     TestGameActors();
     TestGameCreative();
+    TestGameRules();
     TestGameWorld();
     TestGameEntities();
