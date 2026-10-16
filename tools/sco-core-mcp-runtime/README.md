@@ -1,7 +1,8 @@
 # Local runtime MCP (development-only)
 
 Separate from credentials-free `../sco-core-mcp/server.py`. Discovery is unchanged:
-exactly its original six catalogue tools, no runtime imports/credentials/attachment.
+its six default catalogue tools (four more read-only ones only with `--extended-tools`),
+no runtime imports/credentials/attachment.
 This launcher uses stdio only and never starts a game, socket, scanner or subprocess.
 No tunnel, SSH forwarding, hosted/remote runtime client, LAN or online use is supported.
 

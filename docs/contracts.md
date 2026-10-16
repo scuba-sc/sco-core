@@ -75,8 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **164 table methods across 30 tables,
-plus 3 plugin entrypoints: 167 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **190 table methods across 40 tables,
+plus 3 plugin entrypoints: 193 method rows**. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -886,7 +886,7 @@ Read-only local-player item-port snapshot. See [game.inventory](game/inventory.m
 
 | Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
 |---|---|---|---|---|---|---|
-| `sc_inventory_v1.snapshot` | `size >= 16`; 1.0 | `sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's opaque class type id and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI. | Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size too small, or no local player; BAD_ARG invalid self. | StopGameInventory withdraws the service; read-only, no engine state to restore. |
+| `sc_inventory_v1.snapshot` | `size >= 16`; 1.0 | `sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI. | Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size too small, or no local player; BAD_ARG invalid self. | StopGameInventory withdraws the service; read-only, no engine state to restore. |
 
 ## `sc_gamerules_v1` — game.gamerules 1.0
 

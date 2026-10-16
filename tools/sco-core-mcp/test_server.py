@@ -1663,5 +1663,89 @@ class BuildIntegrationTests(ServerCase):
                                  "present" if record_path.with_name(record_path.name + ".sig").is_file() else "absent")
 
 
+README = HERE / "README.md"
+AGENT_GUIDE = ROOT / "docs" / "agent-integration.md"
+TOOL_TABLE = "| Tool | Arguments | Purpose |"
+TOOL_ROW = re.compile(r"^\|\s*`([a-z_]+)`\s*\|([^|]*)\|[^|]*\|\s*$")
+
+
+def documented_tools(text):
+    """{tool: (required, optional)} from the rows of README tables headed TOOL_TABLE.
+
+    The Arguments cell lists required names, then `optional:` and the optional names, or `none`.
+    """
+    tools, problems, in_table = {}, [], False
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.strip() == TOOL_TABLE:
+            in_table = True
+            continue
+        in_table = in_table and line.startswith("|")
+        match = TOOL_ROW.match(line) if in_table else None
+        if not match:
+            if in_table and not re.match(r"^\|[-| ]+\|\s*$", line):
+                problems.append(f"README line {number}: unreadable tool table row")
+            continue
+        name, cell = match.groups()
+        required, _, optional = cell.partition("optional:")
+        names = [re.findall(r"`([^`]+)`", part) for part in (required, optional)]
+        if not any(names) and cell.strip() != "none":
+            problems.append(f"README line {number}: {name} has no argument names and is not `none`")
+        if name in tools:
+            problems.append(f"README line {number}: {name} is documented twice")
+        tools[name] = (names[0], names[1])
+    return tools, problems
+
+
+def documentation_refusals(text, listed):
+    """Each difference between the README tool tables and a tools/list result, as one line."""
+    documented, refusals = documented_tools(text)
+    order = [tool["name"] for tool in listed]
+    if list(documented) != order:
+        refusals.append(f"README tool tables list {list(documented)}, tools/list returns {order}")
+    for tool in listed:
+        if tool["name"] not in documented:
+            continue
+        schema = tool["inputSchema"]
+        required = list(schema.get("required", []))
+        optional = [key for key in schema.get("properties", {}) if key not in required]
+        doc_required, doc_optional = documented[tool["name"]]
+        if (sorted(doc_required), sorted(doc_optional)) != (sorted(required), sorted(optional)):
+            refusals.append(f"README documents {tool['name']} arguments {doc_required} optional "
+                            f"{doc_optional}; tools/list has {required} optional {optional}")
+    return refusals
+
+
+class DocumentationTests(ServerCase):
+    """The README's tool tables and argument names are the server's actual tools/list."""
+
+    def listed(self):
+        return self.start(extended=True).request("tools/list")["result"]["tools"]
+
+    def test_readme_tool_tables_match_tools_list(self):
+        self.assertEqual(documentation_refusals(README.read_text(encoding="utf-8"), self.listed()), [])
+
+    def test_agent_guide_names_every_tool(self):
+        guide = AGENT_GUIDE.read_text(encoding="utf-8")
+        for name in EXTENDED_ORDER:
+            with self.subTest(name=name):
+                self.assertIn(f"`{name}`" if name not in ORIGINAL_ORDER else f'"{name}"', guide)
+
+    def test_stale_or_missing_documentation_is_refused(self):
+        listed, readme = self.listed(), README.read_text(encoding="utf-8")
+        stale = readme.replace("| `get_symbol` | `symbol_or_id` |", "| `get_symbol` | `symbol` |")
+        self.assertNotEqual(stale, readme)
+        for text, token in (
+                (stale, "README documents get_symbol arguments ['symbol']"),
+                (readme.replace("`id`, `lang`; optional: `with_menu`, `services`", "`id`; optional: `lang`"),
+                 "generate_plugin_scaffold"),
+                (readme.replace("| `get_engine_native` | `id_or_hash` |", "| `get_engine_native` | none |"),
+                 "get_engine_native arguments []"),
+                ("\n".join(line for line in readme.splitlines() if "| `list_services` |" not in line),
+                 "README tool tables list")):
+            with self.subTest(token=token):
+                refusals = documentation_refusals(text, listed)
+                self.assertTrue(any(token in line for line in refusals), refusals)
+
+
 if __name__ == "__main__":
     unittest.main()

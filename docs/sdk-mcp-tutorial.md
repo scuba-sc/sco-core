@@ -5,12 +5,13 @@ This command-first tutorial creates **your own** `tutorial_npc` and
 not replace the shipped `npc`/`inspector`, add production built-ins, or alter the
 13 baseline feature units (plus two separately counted optional bridges).
 
-**Evidence ledger:** the two tutorial-owned native modules compile on macOS from
-an isolated, checksum-verified **local development SDK** based on `integ/r1`.
-The local archive is not published `sdk-v2.0.0`; that published pin is unchanged.
-Checker, dynamic fixtures, static MCP transcript, stale/session negatives and
-Windows/MSVC/in-game install/reload are **NOT RUN** for this tutorial revision.
-The commands below are reproducible acceptance steps, not claimed results.
+**Evidence ledger:** an earlier revision compiled the two tutorial-owned native
+modules on macOS from an isolated, checksum-verified **local development SDK**
+that was never a published release. Building them from the published archive that
+sc-offline's proofs pin, the checker, dynamic fixtures, static MCP transcript,
+stale/session negatives and Windows/MSVC/in-game install/reload are **NOT RUN**
+for this tutorial revision. The commands below are reproducible acceptance steps,
+not claimed results.
 
 Prerequisites: Python 3, CMake 3.20+, C/C++20 compiler; Clang and an x64 C11
 compilation environment for catalogue generation. Windows x64/MSVC builds the
@@ -34,6 +35,13 @@ python3 tools/sco-core-mcp/tutorial.py --catalogue dist/sdk-catalogue.json \
 The transcript contains real requests/responses to the existing `server.py`
 launcher over stdio, using protocol `2025-11-25`, without a runtime flag or
 repository-content sharing. Pass condition: `static MCP tutorial: PASS`.
+`check_compatibility` compares the catalogue with the checkout's own `sdk/VERSION`
+and `SCO_GAME_PACK_VERSION` by default. To check the catalogue against the archive
+you will build with (section 2), pass that archive's `VERSION` as `--sdk-version`
+and its game-pack version as `--game-pack-version`; a mismatch means you should
+build the catalogue from the checkout at the archive's release tag instead.
+On Windows run the same two commands with `py -3` in place of `python3` and
+`(git rev-parse HEAD)` in place of `"$SHA"`.
 The supplied SHA must describe the catalogue's actual source, not unrelated
 modified contracts. Rebuild the catalogue and restart your MCP client after
 contract/header changes; the catalogue never tracks a running host.
@@ -51,22 +59,29 @@ Read the returned **signature, version macro, complete member extent, ownership,
 thread affinity, result/absence rules, cleanup and language routes** before
 writing a call. C++ route support does not imply unrestricted Lua mutation.
 `get_example` lists shipped record-backed examples; it does not execute them.
-SDK `2.0.0`, plugin ABI `1.1`, game-pack `0.3.0` and packed service versions are
-separate coordinates. Matching strings, resolved signatures and ON capabilities
+The SDK version, plugin ABI, game-pack version and packed service versions are
+separate coordinates; every result's `provenance` names the catalogue's SDK and
+game-pack versions. Matching strings, resolved signatures and ON capabilities
 are not game-session proof. See [contracts](contracts.md) and
 [game-service status](game/status.md).
 
 ## 2. Obtain SDK and build your own copies in isolation
 
-Download `sco-sdk-2.0.0.zip` and its adjacent `SHA256SUMS` from the human-published
-[`sdk-v2.0.0` release](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.0.0).
+The archive proofs accept exactly one published SDK: the `SDK_ROOT` pinned in
+sc-offline's `tools/check_inspector_sdk.py`, with its sha256. That pin can lag
+the newest sco-core release, so read it from your sc-offline checkout rather than
+from this page, then download that archive and its adjacent `SHA256SUMS` from the
+matching human-published release on the
+[releases page](https://github.com/scubamount/sco-core/releases).
 Set absolute paths to the product source, downloaded archive/checksums and a new
 work root **outside either checkout**. Do not use host/submodule include trees.
 
 ```sh
 set -eu
 PRODUCT_SOURCE=/absolute/path/to/sc-offline
-ARCHIVE=/absolute/path/to/sco-sdk-2.0.0.zip
+SDK_NAME=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import check_inspector_sdk as c; print(c.SDK_ROOT)' "$PRODUCT_SOURCE/tools")
+echo "download $SDK_NAME.zip from release sdk-v${SDK_NAME#sco-sdk-}"
+ARCHIVE=/absolute/path/to/$SDK_NAME.zip
 SUMS=/absolute/path/to/SHA256SUMS
 WORK=/absolute/new/path/tutorial-dev
 python3 "$PRODUCT_SOURCE/tools/check_sdk_tutorial.py" --archive "$ARCHIVE" \
@@ -74,7 +89,7 @@ python3 "$PRODUCT_SOURCE/tools/check_sdk_tutorial.py" --archive "$ARCHIVE" \
 # Verify archive and extracted inventory using the existing SDK proof helper.
 python3 -c 'import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); from check_inspector_sdk import verify_extract; verify_extract(Path(sys.argv[2]),Path(sys.argv[3]),Path(sys.argv[4]))' \
   "$PRODUCT_SOURCE/tools" "$ARCHIVE" "$SUMS" "$WORK/sdk"
-SDK="$WORK/sdk/sco-sdk-2.0.0"
+SDK="$WORK/sdk/$SDK_NAME"
 cmake -S "$WORK/owned-source/plugins" -B "$WORK/plugin-build" \
   -DSCO_SDK_INCLUDE_DIR="$SDK/include" -DSCO_ADDITIONAL_FEATURES=OFF \
   -DSCO_WORKFLOW_TESTS=ON
