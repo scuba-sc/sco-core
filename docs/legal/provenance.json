@@ -59,6 +59,30 @@
       "status": "needs-review",
       "note": "Project-authored game.actor_stats contract (F-4.10.197.2878-006): stat names and indices are interoperability facts; no game material copied. Draft, not reviewed; not run in game."
     },
+    {
+      "path": "include/sc_actor_stats_write.h",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "needs-review",
+      "note": "Project-authored game.actor_stats_write contract (F-4.10.197.2878-010): the write route's names and scope are interoperability facts; no game material copied. Draft, not reviewed; not run in game."
+    },
+    {
+      "path": "sdk/contracts/sc_actor_stats_write_v1.json",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "needs-review",
+      "note": "Project-authored game.actor_stats_write contract (F-4.10.197.2878-010): the write route's names and scope are interoperability facts; no game material copied. Draft, not reviewed; not run in game."
+    },
+    {
+      "path": "tests/abi_game_actor_stats_write.c",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "needs-review",
+      "note": "Project-authored game.actor_stats_write contract (F-4.10.197.2878-010): the write route's names and scope are interoperability facts; no game material copied. Draft, not reviewed; not run in game."
+    },
     {"path": "docs/quantum.md", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "reviewed", "reviewer": "scubamount (maintainer)", "date": "2026-10-12", "note": " SDK2.1 selected four-profile scope reviewed by maintainer (release-decisions/2026-10-12-sdk-v2.1.0-scope.md); exact final bytes require signed schema-v2 approval. Scope review is not engine/Windows/gameplay acceptance; excluded implementation export remains held."},
     {"path": "docs/sdk-cpp.md", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "reviewed", "reviewer": "scubamount (maintainer)", "date": "2026-10-12", "note": " SDK2.1 selected four-profile scope reviewed by maintainer (release-decisions/2026-10-12-sdk-v2.1.0-scope.md); exact final bytes require signed schema-v2 approval. Scope review is not engine/Windows/gameplay acceptance; excluded implementation export remains held."},
     {"path": "docs/sdk-csharp.md", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "reviewed", "reviewer": "scubamount (maintainer)", "date": "2026-10-12", "note": " SDK2.1 selected four-profile scope reviewed by maintainer (release-decisions/2026-10-12-sdk-v2.1.0-scope.md); exact final bytes require signed schema-v2 approval. Scope review is not engine/Windows/gameplay acceptance; excluded implementation export remains held."},

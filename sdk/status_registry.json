@@ -47,6 +47,16 @@
       ]
     },
     {
+      "id": "game.actor_stats_write",
+      "kind": "service",
+      "service": "game.actor_stats_write",
+      "header": "include/sc_actor_stats_write.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.actor_stats.write", "methods": ["adjust", "set", "mode"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["actor.adjust_stat", "actor.stat_authority", "actor.stat_names", "actor.stat_array"], "evidence_source": "docs/game/actor-stats.md"}
+      ]
+    },
+    {
       "id": "game.vehicles",
       "kind": "service",
       "service": "game.vehicles",

@@ -661,6 +661,28 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_game_actor_stats
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_gas_targets})
 
+  # The game.actor_stats_write table pin (tests/abi_game_actor_stats_write.c, sc_actor_stats_write.h), the same three ways. Game-pack only.
+  set(_abi_gasw_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actor_stats_write.cpp")
+  file(CONFIGURE OUTPUT "${_abi_gasw_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_actor_stats_write.c\"\n")
+  add_library(sco_abi_game_actor_stats_write_c OBJECT tests/abi_game_actor_stats_write.c)
+  add_library(sco_abi_game_actor_stats_write_cxx OBJECT "${_abi_gasw_cxx}")
+  set(_abi_gasw_targets sco_abi_game_actor_stats_write_c sco_abi_game_actor_stats_write_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_game_actor_stats_write_short_enums OBJECT tests/abi_game_actor_stats_write.c)
+    target_compile_options(sco_abi_game_actor_stats_write_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_gasw_targets sco_abi_game_actor_stats_write_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_gasw_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_game_actor_stats_write
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_gasw_targets})
+
   # The game.creative table pin (tests/abi_game_creative.c, sc_creative.h), the same three ways. Game-pack only.
   set(_abi_gc_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_creative.cpp")
   file(CONFIGURE OUTPUT "${_abi_gc_cxx}"

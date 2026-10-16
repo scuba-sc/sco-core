@@ -7513,6 +7513,40 @@
       "group": "host-source-sc"
     },
     {
+      "id": "include.sc_actor_stats_write.h",
+      "source": "include/sc_actor_stats_write.h",
+      "destination": "include/sc_actor_stats_write.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.sdk.contracts.sc_actor_stats_write_v1.json",
+      "source": "sdk/contracts/sc_actor_stats_write_v1.json",
+      "destination": "contracts/sc_actor_stats_write_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.abi_game_actor_stats_write.c",
+      "source": "tests/abi_game_actor_stats_write.c",
+      "destination": "tests/abi_game_actor_stats_write.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
       "id": "source.tests.abi_game_quantum.c",
       "source": "tests/abi_game_quantum.c",
       "destination": "tests/abi_game_quantum.c",

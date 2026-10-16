@@ -10,6 +10,19 @@
 //   movsxd rax,edx; mov rdx,[rcx+rax*8+disp32]; test rdx,rdx; je; vmovss xmm0,[rdx]; ret.
 //   The row's address is the disp32 (the record array's offset in CSCActorStatus), so the service
 //   can tell "no record of this stat" from a real 0.0 without a hard-coded offset.
+// actor.adjust_stat (F-4.10.197.2878-010): the game's stat-adjust function,
+//   void AdjustStatValue(status, int index, float delta, const char* source, uint16_t hitId).
+//   Its prologue is unique in .text, and the function must be the one that labels itself
+//   CSCActorStatus::AdjustStatValue: every lea of that label resolves (through .pdata) to it.
+//   It runs the per-stat enable switches, clamping, prediction and incapacitation the game itself
+//   applies, which is why game.actor_stats_write calls it rather than writing a record.
+// actor.stat_authority (F-4.10.197.2878-010): the gate inside AdjustStatValue that decides whether
+//   a change is applied at all: status->entity (status+0x1F8, then +8 masked), the entity's
+//   HasAuthority (vtable slot 0x7A8, named by the game's own entity dump 'HasAuthority: %s'), and,
+//   when that is false, the stat definition's local-change byte (record+0x90 -> +0x2A): zero means
+//   the game returns without changing anything. The pattern is unique in .text and must sit inside
+//   actor.adjust_stat, so game.actor_stats_write can refuse a write the game would discard instead
+//   of answering OK for it.
 #include "actor_stats_map.h"
 #include "sig_rows.h"
 #include "sco/scan.h"
@@ -68,11 +81,50 @@ SigResult ResolveStatArray(const Image& img) {
     return SigOk(fn + kArrayDisp);
 }
 
+constexpr const char* kAdjustLabel = "CSCActorStatus::AdjustStatValue";
+constexpr const char* kAdjustPrologue =
+    "4C 89 4C 24 20 55 41 54 41 56 48 8D AC 24 ?? ?? ?? ?? B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 2B E0 4C 63 E2 4C 8B F1";
+
+SigResult ResolveAdjustStat(const Image& img) {
+    SigResult r = SigPattern(img.text, kAdjustPrologue);
+    if (r.state != SigState::Ok) return r;
+    const uint8_t* label = FindCString(img.rdata, kAdjustLabel);
+    if (!label) return SigFail("the AdjustStatValue label isn't in .rdata");
+    if (!img.text.base || img.text.size < 8) return SigFail("no .text");
+    int leas = 0;
+    for (const uint8_t* p = img.text.base, *end = img.text.base + img.text.size - 7; p < end; ++p) {
+        if ((p[0] != 0x48 && p[0] != 0x4C) || p[1] != 0x8D || (p[2] & 0xC7) != 0x05) continue;
+        if (p + 7 + Rel32(p + 3) != label) continue;
+        if (FunctionStart(img, p) != r.at) return SigFail("an AdjustStatValue label lea is outside the matched function");
+        ++leas;
+        p += 6;
+    }
+    if (!leas) return SigFail("the matched function doesn't load the AdjustStatValue label");
+    return r;
+}
+
+constexpr const char* kAuthorityGate =
+    "49 8B 86 F8 01 00 00 49 BD FF FF FF FF FF FF 00 00 48 8B 48 08 49 23 CD 48 8B 01 FF 90 A8 07 00 00 84 C0 75 ?? "
+    "48 8B 87 90 00 00 00 80 78 2A 00 0F 84";
+static_assert(actor_stats::kStatusEntity == 0x1F8 && actor_stats::kEntityHasAuthority == 0x7A8, "kAuthorityGate pins these");
+static_assert(actor_stats::kRecordDef == 0x90 && actor_stats::kDefLocalChange == 0x2A, "kAuthorityGate pins these");
+
+SigResult ResolveStatAuthority(const Image& img) {
+    SigResult r = SigPattern(img.text, kAuthorityGate);
+    if (r.state != SigState::Ok) return r;
+    const uint8_t* adjust = Sig("actor.adjust_stat");
+    if (!adjust) return SigFail("actor.adjust_stat missing");
+    if (FunctionStart(img, r.at) != adjust) return SigFail("the authority gate isn't inside AdjustStatValue");
+    return r;
+}
+
 }  // namespace
 
 extern const SigDef kActorStatsSignatures[] = {
     { "actor.stat_names", nullptr, 0, 0, ResolveStatNames, {} },
     { "actor.stat_array", nullptr, 0, 0, ResolveStatArray, { "actor.get_stat" } },
+    { "actor.adjust_stat", nullptr, 0, 0, ResolveAdjustStat, {} },
+    { "actor.stat_authority", nullptr, 0, 0, ResolveStatAuthority, { "actor.adjust_stat" } },
 };
 extern const size_t kActorStatsSignatureCount = std::size(kActorStatsSignatures);
 

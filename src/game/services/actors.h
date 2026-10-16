@@ -42,6 +42,8 @@ void ProbeActorState(uintptr_t actor, const char* why);
 // a static reason. Game thread.
 bool   ActorStatusReady(const char*& why);
 Result ActorStatusOf(uint64_t id, uintptr_t& status, const char*& why);
+// True when id is your player's entity id (game.actor_stats_write's 1.0 scope). Game thread.
+bool   IsLocalPlayerEntity(uint64_t id);
 
 // Started at the end of StartActors and stopped at the start of StopActors (actor_stats.cpp).
 Result StartActorStats();
