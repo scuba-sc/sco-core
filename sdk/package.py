@@ -410,7 +410,7 @@ def check_installed_example_headers(m, profile, root, work):
                     and beneath(path, p) for p in system):
                 continue
             else:
-                raise ManifestError(f"{profile}: {c['source']} resolved dependency {dep} "
+                raise ManifestError(f"{profile}: {c['source']} resolved dependency {path.as_posix()} "
                                     "outside approved installed files")
     return {'translation_units': len(units), 'languages': sorted(languages),
             'public_headers': sorted(seen_public)}

@@ -106,7 +106,9 @@ bool Private(HANDLE h, SE_OBJECT_TYPE type, PSID user) {
 bool ExactSection(HANDLE h) {
     // VirtualQuery reports a view region, not the section's maximum extent.
     struct SectionBasic { void* base; ULONG attributes; LARGE_INTEGER bytes; };
-    using Query = LONG (NTAPI*)(HANDLE, ULONG, void*, ULONG, ULONG*);
+    // NtQuerySection takes SIZE_T Length and PSIZE_T ResultLength: a ULONG
+    // out-parameter is overrun by 4 bytes on x64 (caught by /RTC1 in Debug).
+    using Query = LONG (NTAPI*)(HANDLE, ULONG, void*, SIZE_T, SIZE_T*);
     HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
     FARPROC address = ntdll ? GetProcAddress(ntdll, "NtQuerySection") : nullptr;
     Query query = nullptr;
@@ -114,7 +116,7 @@ bool ExactSection(HANDLE h) {
     std::memcpy(&query, &address, sizeof(query));
     if (!query) return false;
     SectionBasic info{};
-    ULONG returned = 0;
+    SIZE_T returned = 0;
     return query(h, 0 /* SectionBasicInformation */, &info, sizeof(info), &returned) >= 0 &&
            returned == sizeof(info) && info.bytes.QuadPart == kMappingBytes;
 }
