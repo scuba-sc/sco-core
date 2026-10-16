@@ -26,6 +26,11 @@ The maintainer (GitHub `scubamount`) holds the copyright in sco-core's own code.
 [docs/legal/provenance.json](docs/legal/provenance.json). Git author names alone are never taken
 as proof of authorship.
 
+Outside contributors keep the copyright in the lines they contribute, licensed under GPL-3.0-only (MIT
+for the four interface headers) by [CONTRIBUTING.md § License](CONTRIBUTING.md#license). They are listed,
+with the paths their lines are in, under `contributors` in
+[docs/legal/provenance.json](docs/legal/provenance.json).
+
 ## Where code may come from
 
 | Origin | Allowed | Record |
