@@ -7,6 +7,9 @@
 //   - Two Cores over real UDP sockets on 127.0.0.1 in one process.
 //   - The service with its network thread over UDP loopback, with a test Core as the other
 //     player, and table calls from 8 threads (run under TSan by tools/test.sh).
+//   - Failures of the service itself: the network thread throws (while joining and from a session
+//     that is up), and an allocation fails while the events the Core raised move to the game thread's
+//     inbox.
 // Nothing sleeps for a fixed time: the in-memory runs advance a virtual clock, and the socket runs
 // wait for an event (a datagram, a delivery) with a bound.
 //   test_net_service             (tools/test.sh, CTest test_net_service)
@@ -23,9 +26,13 @@
 #include "net_mem.h"
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <mutex>
+#include <new>
 #include <string>
 #include <thread>
 #include <vector>
@@ -44,6 +51,81 @@ static std::atomic<uint64_t> g_clock{ 1000 };
 
 constexpr const char* kPass = "correct horse";
 constexpr uint32_t kIters = 1000;   // both sides; the default is exercised by test_net
+
+// ---- allocation failure injection --------------------------------------------------------------
+// This program replaces the global allocation functions so that one allocation on one thread can be made
+// to fail with std::bad_alloc, the way the host runs out of memory. Allocations are counted only on the
+// thread that called Arm, from then until Disarm; every other allocation goes straight to malloc.
+// ThreadSanitizer's runtime defines operator new itself, and a second definition does not link, so a
+// ThreadSanitizer build leaves this out and TestHeldTransferFailure says it did not run.
+
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if defined(__SANITIZE_THREAD__) || __has_feature(thread_sanitizer)
+#define SCO_TEST_TSAN 1
+#else
+#define SCO_TEST_TSAN 0
+#endif
+
+#if !SCO_TEST_TSAN
+namespace allocfail {
+thread_local bool t_armed = false;
+thread_local long t_seen = 0;     // allocations on this thread since Arm
+thread_local long t_failAt = 0;   // the one that throws (1 is the next); 0 throws none
+thread_local bool t_fired = false;
+
+void Arm(long failAt) {
+    t_seen = 0;
+    t_failAt = failAt;
+    t_fired = false;
+    t_armed = true;
+}
+long Disarm() {
+    t_armed = false;
+    return t_seen;
+}
+}  // namespace allocfail
+
+// Out of line: GCC 12 inlines a replaced operator delete into its callers, sees free() on what it takes
+// for operator new's pointer and reports -Wmismatched-new-delete, which -Werror makes an error.
+#if defined(_MSC_VER)
+#define TEST_NOINLINE __declspec(noinline)
+#else
+#define TEST_NOINLINE __attribute__((noinline))
+#endif
+TEST_NOINLINE static void FreeBlock(void* p) noexcept { std::free(p); }
+
+void* operator new(std::size_t n) {
+    if (allocfail::t_armed && ++allocfail::t_seen == allocfail::t_failAt) {
+        allocfail::t_fired = true;
+        throw std::bad_alloc();
+    }
+    if (void* p = std::malloc(n != 0 ? n : 1)) return p;
+    throw std::bad_alloc();
+}
+void* operator new[](std::size_t n) { return operator new(n); }
+void* operator new(std::size_t n, const std::nothrow_t&) noexcept {
+    try {
+        return operator new(n);
+    } catch (...) {
+        return nullptr;
+    }
+}
+void* operator new[](std::size_t n, const std::nothrow_t&) noexcept {
+    try {
+        return operator new(n);
+    } catch (...) {
+        return nullptr;
+    }
+}
+void operator delete(void* p) noexcept { FreeBlock(p); }
+void operator delete(void* p, std::size_t) noexcept { FreeBlock(p); }
+void operator delete[](void* p) noexcept { FreeBlock(p); }
+void operator delete[](void* p, std::size_t) noexcept { FreeBlock(p); }
+void operator delete(void* p, const std::nothrow_t&) noexcept { FreeBlock(p); }
+void operator delete[](void* p, const std::nothrow_t&) noexcept { FreeBlock(p); }
+#endif   // !SCO_TEST_TSAN
 
 // ---- helpers ------------------------------------------------------------------------------------
 
@@ -75,16 +157,69 @@ static void TickNet() {
 struct Events {
     std::vector<sco_net_state_event> states;
     std::vector<sco_net_peer_event>  peers;
+    // For each "net.peer" event: what the session showed from inside the handler, as a plugin reads it.
+    struct PeerSeen {
+        uint32_t    peers = 0;          // get_peers count
+        bool        listed = false;     // the event's peer is in get_peers
+        sco_result  name = SCO_OK;      // get_peer_name for the event's peer
+        std::string nameText;
+    };
+    std::vector<PeerSeen> peerSeen;
+    // For each "net.state" event: its `active` and what is_active() said inside the handler.
+    std::vector<std::pair<int, int>> stateSeen;
+    // Every event in the order it was delivered: A and I for a state event (active, inactive), J, L and E
+    // for a peer event (joined, left, entity).
+    std::string order;
 };
 static Events g_events;
 static int    g_eventsOwner;
+
+// What a "net.state" inactive handler found when g_probe.on is set: the table calls a plugin makes to ask whether
+// the session is still there, and SetPeerEntity, which queues an ENTITY event if the session still shows the peer.
+struct InactiveProbe {
+    bool        on = false, ran = false;
+    int         isActive = -1;
+    uint32_t    peers = 99;
+    sco_result  name = SCO_OK;
+    Result      entity = Result::Ok;
+};
+static InactiveProbe g_probe;
 static void OnEvent(const char* ev, const void* data, void*) {
     if (std::strcmp(ev, SCO_NET_EVENT_STATE) == 0) {
         const auto* e = static_cast<const sco_net_state_event*>(data);
-        if (e->size == sizeof(sco_net_state_event)) g_events.states.push_back(*e);
+        if (e->size == sizeof(sco_net_state_event)) {
+            g_events.states.push_back(*e);
+            g_events.stateSeen.emplace_back(e->active, g_t ? g_t->is_active() : -1);
+            g_events.order += e->active ? 'A' : 'I';
+            if (!e->active && g_probe.on && g_t) {
+                uint32_t n = 0;
+                char name[16];
+                g_t->get_peers(nullptr, &n);
+                g_probe.ran = true;
+                g_probe.isActive = g_t->is_active();
+                g_probe.peers = n;
+                g_probe.name = g_t->get_peer_name(kHostPeer, name, sizeof name);
+                g_probe.entity = SetPeerEntity(kHostPeer, 0xBEEF);
+            }
+        }
     } else if (std::strcmp(ev, SCO_NET_EVENT_PEER) == 0) {
         const auto* e = static_cast<const sco_net_peer_event*>(data);
-        if (e->size == sizeof(sco_net_peer_event)) g_events.peers.push_back(*e);
+        if (e->size == sizeof(sco_net_peer_event)) {
+            g_events.peers.push_back(*e);
+            g_events.order += e->what == SCO_NET_PEER_JOINED ? 'J' : e->what == SCO_NET_PEER_LEFT ? 'L' : 'E';
+            Events::PeerSeen seen;
+            if (g_t) {
+                sco_net_peer list[SCO_NET_MAX_PEERS];
+                uint32_t n = SCO_NET_MAX_PEERS;
+                if (g_t->get_peers(list, &n) == SCO_OK)
+                    for (uint32_t i = 0; i < n; ++i) seen.listed = seen.listed || list[i].peer_id == e->peer.peer_id;
+                seen.peers = n;
+                char name[32] = {};
+                seen.name = g_t->get_peer_name(e->peer.peer_id, name, sizeof name);
+                seen.nameText = name;
+            }
+            g_events.peerSeen.push_back(seen);
+        }
     }
 }
 
@@ -486,6 +621,140 @@ static void TestJoinSession() {
     CHECK(g_t->unregister_channel(g_a2, "alpha.cmd") == SCO_OK);
 }
 
+// ---- an allocation fails while the held events move to the inbox ------------------------------------
+
+#if SCO_TEST_TSAN
+static void TestHeldTransferFailure() {
+    std::printf("  TestHeldTransferFailure: not run, ThreadSanitizer owns operator new\n");
+}
+#else
+namespace {
+constexpr size_t kBurst = 12;   // messages the remote sends in one go
+
+struct BurstRun {
+    long     allocations = 0;     // allocations the service's step made while it took the burst in
+    bool     fired = false;       // the injected failure happened
+    bool     escaped = false;     // ... and PumpNetwork let it out: it was not inside the move to the inbox
+    uint64_t dropped = 0;         // inboxDropped the step added
+    size_t   delivered = 0;       // of the burst, how many reached the plugin at the next Tick
+    bool     quotaFree = false;   // the plugin's inbox then took in a full quota of messages
+};
+
+// One run. The plugin "qt" owns an unreliable channel, a remote joins and sends kBurst messages, and the
+// service takes them in with one PumpNetwork (the held messages all move to the inbox in that step's
+// Snapshot). failAt > 0 makes the failAt-th allocation of that step throw std::bad_alloc; 0 only counts.
+// Afterwards the remote sends kMaxInboxPerPlugin more messages with no Tick in between. They all fit only if
+// nothing is still charged to the plugin's inbox quota for a message that never reached the inbox.
+BurstRun RunBurst(long failAt) {
+    BurstRun out;
+    Lab lab;
+    sco_plugin* p = sco::host::NewPlugin("qt");
+    Got got;
+    CHECK(g_t->register_channel(p, "qt.m", 0, 8, OnMsg, &got) == SCO_OK);
+    HostOptions h;
+    h.transport = &lab.svc;
+    h.passphrase = kPass;
+    h.playerName = "Host";
+    CHECK(Host(h) == Result::Ok);
+    Remote& r = lab.remote;
+    CHECK(r.core.RegisterChannel("qt.m", 0, 8));
+    CHECK(r.core.Join(RemoteOpts(), lab.svc.Self(), g_clock));
+    CHECK(lab.Until([&] { return r.core.Active() && PeerCount() == 2; }));
+    TickNet();   // an empty inbox, so the burst starts a fresh one the same way in every run
+    got.msgs.clear();
+
+    for (size_t i = 0; i < kBurst; ++i) CHECK(r.core.Send("qt.m", "m", 1) == SendResult::Ok);
+    g_clock += 10;
+    lab.net.now = g_clock;
+    r.core.Pump(g_clock);   // the remote sends the burst
+    g_clock += 10;
+    lab.net.now = g_clock;  // and it has arrived
+    const uint64_t droppedBefore = GetServiceStats().inboxDropped;
+    allocfail::Arm(failAt);
+    try {
+        PumpNetwork();
+    } catch (const std::bad_alloc&) {
+        out.escaped = true;
+    }
+    out.allocations = allocfail::Disarm();
+    out.fired = allocfail::t_fired;
+    if (out.escaped) {
+        Leave("test");
+        TickNet();
+        CHECK(sco::Release(p) == Result::Ok);
+        return out;
+    }
+    out.dropped = GetServiceStats().inboxDropped - droppedBefore;
+    TickNet();
+    out.delivered = got.msgs.size();
+
+    // The quota probe: a full quota of messages, none taken out by a Tick until all are in.
+    got.msgs.clear();
+    const uint64_t dropBase = GetServiceStats().inboxDropped;
+    size_t sent = 0;
+    uint64_t seen = 0;
+    int steady = 0;
+    CHECK(lab.Until([&] {
+        while (sent < kMaxInboxPerPlugin && r.core.Send("qt.m", "m", 1) == SendResult::Ok) ++sent;
+        const uint64_t in = GetServiceStats().core.datagramsIn;
+        steady = sent == kMaxInboxPerPlugin && in == seen ? steady + 1 : 0;
+        seen = in;
+        return steady >= 5;   // everything sent, and the service has stopped receiving
+    }));
+    out.quotaFree = GetServiceStats().inboxDropped == dropBase;
+    TickNet();
+    out.quotaFree = out.quotaFree && got.msgs.size() == kMaxInboxPerPlugin;
+
+    Leave("done");
+    TickNet();
+    CHECK(sco::Release(p) == Result::Ok);
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerSeen.clear();
+    g_events.order.clear();
+    return out;
+}
+}  // namespace
+
+// ReleaseHeld moves what the Core raised in a step to the inbox, and an allocation can fail half way. The
+// messages that did not move are lost, and the quota they were charged must be given back, or the plugin's
+// inbox shrinks for good by that much each time. The run that fails the last allocation of the step lands
+// there: the last allocations of a step that took twelve messages in are the inbox's own growth.
+static void TestHeldTransferFailure() {
+    // Two runs without a failure. The first leaves the containers as a later run finds them; the second counts
+    // the allocations of the step.
+    const BurstRun warm = RunBurst(0);
+    const BurstRun probe = RunBurst(0);
+    const int failBefore = g_fail.load();
+    CHECK(warm.delivered == kBurst && warm.dropped == 0 && warm.quotaFree);
+    CHECK(probe.delivered == kBurst && probe.dropped == 0 && probe.quotaFree && probe.allocations > 0);
+
+    // Fail one of the last allocations of the step per run, from the very last backwards, until one lands in
+    // the move to the inbox: that is the one PumpNetwork does not let out.
+    bool exercised = false;
+    BurstRun run;
+    for (long back = 0; back < 8 && !exercised; ++back) {
+        run = RunBurst(probe.allocations - back);
+        if (!run.fired || run.escaped) continue;
+        exercised = true;
+        CHECK(run.dropped == 1);                              // the failure path ran once
+        // How many moved before the failure depends on the library's deque blocks (libc++ takes one block of 16
+        // items at the first push, so none may have), so only "not all" is required.
+        CHECK(run.delivered < kBurst);
+        CHECK(run.quotaFree);                                 // and the quota of the rest was given back
+    }
+    CHECK(exercised);
+    if (g_fail.load() != failBefore)
+        std::printf("  warm %zu/%llu/%d, probe %zu/%llu/%d/%ld allocations, last failing run %d/%d %zu/%llu/%d "
+                    "(delivered/dropped/quota free)\n",
+                    warm.delivered, static_cast<unsigned long long>(warm.dropped), warm.quotaFree ? 1 : 0,
+                    probe.delivered, static_cast<unsigned long long>(probe.dropped), probe.quotaFree ? 1 : 0,
+                    probe.allocations, run.fired ? 1 : 0, run.escaped ? 1 : 0, run.delivered,
+                    static_cast<unsigned long long>(run.dropped), run.quotaFree ? 1 : 0);
+}
+#endif   // SCO_TEST_TSAN
+
 // ---- the LAN rule ---------------------------------------------------------------------------------
 
 namespace {
@@ -702,6 +971,308 @@ static void TestThreadedService() {
     CHECK(sco::Release(p) == Result::Ok);
 }
 
+// ---- the threaded service: an event never outruns the session it reports -----------------------------------
+
+// Wraps the service's transport and parks the network thread at one chosen moment: on the Receive call that
+// follows the first control-channel DATA datagram the joiner gets. That is SYNC (WELCOME is a kind of its own),
+// so the Core has just raised the host's JOINED event and the step has not reached its Snapshot. That is the
+// schedule in which the game thread's Tick used to deliver the event before the session was published, and
+// get_peers and get_peer_name in the handler did not know the host yet.
+class GateTransport : public Transport {
+public:
+    explicit GateTransport(Transport& inner) : inner_(inner) {}
+
+    bool Send(const Endpoint& to, const uint8_t* data, size_t len) override { return inner_.Send(to, data, len); }
+
+    bool Receive(Endpoint* from, uint8_t* buf, size_t cap, size_t* len) override {
+        if (throwNext_) {
+            throwNext_ = false;
+            throw std::bad_alloc();
+        }
+        if (parkNext_) {
+            parkNext_ = false;
+            if (throwAtGate_) throw std::bad_alloc();   // the failure the network thread's catch is for
+            Park();
+        }
+        const bool got = inner_.Receive(from, buf, cap, len);
+        // Kind DATA on channel index 0, the control channel; the header is in the clear.
+        if (got && armed_.load() && *len >= SC_NET_HEADER_BYTES && buf[SC_NET_OFF_KIND] == SC_NET_DATA &&
+            buf[SC_NET_OFF_CHANNEL] == 0 && buf[SC_NET_OFF_CHANNEL + 1] == 0 && ++controlSeen_ == 1)
+            parkNext_ = true;
+        // A message of a plugin (kind DATA on a channel other than the control channel): the Core handles it
+        // and calls Receive again, which throws.
+        if (got && throwAfterMessage_.load() && *len >= SC_NET_HEADER_BYTES && buf[SC_NET_OFF_KIND] == SC_NET_DATA &&
+            (buf[SC_NET_OFF_CHANNEL] != 0 || buf[SC_NET_OFF_CHANNEL + 1] != 0)) {
+            throwAfterMessage_ = false;
+            throwNext_ = true;
+        }
+        return got;
+    }
+
+    void Arm() { armed_ = true; }
+    // At the gate, fail with std::bad_alloc instead of parking.
+    void ThrowAtGate() { throwAtGate_ = true; }
+    // Once the next message of a plugin has been received, fail the Receive call that follows it.
+    void ThrowAfterNextMessage() { throwAfterMessage_ = true; }
+    bool WaitParked(uint32_t ms) {
+        std::unique_lock<std::mutex> hold(m_);
+        return cv_.wait_for(hold, std::chrono::milliseconds(ms), [this] { return parked_; });
+    }
+    void Release() {
+        std::lock_guard<std::mutex> hold(m_);
+        release_ = true;
+        cv_.notify_all();
+    }
+
+private:
+    void Park() {
+        std::unique_lock<std::mutex> hold(m_);
+        parked_ = true;
+        cv_.notify_all();
+        cv_.wait_for(hold, std::chrono::seconds(10), [this] { return release_; });   // bounded: a failed test must not hang
+        parked_ = false;
+    }
+
+    Transport&              inner_;
+    std::atomic<bool>       armed_{ false };
+    bool                    parkNext_ = false;    // network thread only
+    bool                    throwAtGate_ = false; // set before the session starts
+    std::atomic<bool>       throwAfterMessage_{ false };
+    bool                    throwNext_ = false;   // network thread only
+    int                     controlSeen_ = 0;     // network thread only
+    std::mutex              m_;
+    std::condition_variable cv_;
+    bool                    parked_ = false, release_ = false;
+};
+
+// The service, with its network thread, joins a host over UDP loopback. The network thread is parked right
+// after it handled SYNC and before it published the session; the game thread ticks while it is parked and
+// must see nothing yet. Once the thread goes on, the JOINED handler must find the host in get_peers and
+// get_peer_name, and the state handler must find the session active.
+static void TestThreadedPeerSnapshot() {
+    ServiceOptions so;
+    so.pbkdf2Iters = kIters;
+    CHECK(Start(so) == Result::Ok && Started());
+    sco_plugin* p = sco::host::NewPlugin("gate");
+    std::string why;
+    auto hostSock = udp::Socket::Open(0, true, &why);
+    auto joinSock = udp::Socket::Open(0, true, &why);
+    CHECK(hostSock != nullptr && joinSock != nullptr);
+    if (!hostSock || !joinSock) {
+        Stop();
+        CHECK(sco::Release(p) == Result::Ok);
+        return;
+    }
+
+    Remote host(*hostSock);
+    Options ho = RemoteOpts();
+    ho.playerName = "Relay";
+    CHECK(host.core.Host(ho, SteadyMs()));
+    Endpoint hostEp;
+    CHECK(ParseAddress("127.0.0.1", hostSock->Port(), &hostEp));
+
+    GateTransport gate(*joinSock);
+    JoinOptions j;
+    j.transport = &gate;
+    j.endpoint = hostEp;
+    j.passphrase = kPass;
+    j.playerName = "Me";
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerSeen.clear();
+    gate.Arm();
+    CHECK(Join(j) == Result::Ok);
+
+    // The remote host runs on this thread, the service's network thread on its own.
+    auto pumpUntil = [&](const std::function<bool()>& done) {
+        const uint64_t deadline = SteadyMs() + 10000;
+        while (!done() && SteadyMs() < deadline) {
+            host.core.Pump(SteadyMs());
+            hostSock->Wait(5);
+        }
+        return done();
+    };
+    CHECK(pumpUntil([&] { return gate.WaitParked(0); }));
+
+    // Parked between the Core's JOINED and the snapshot: the game thread has nothing to deliver yet.
+    TickNet();
+    CHECK(g_events.peers.empty() && g_events.states.empty());
+    CHECK(g_t->is_active() == 0 && PeerCount() == 0);
+
+    gate.Release();
+    CHECK(pumpUntil([&] {
+        TickNet();
+        return !g_events.peers.empty();
+    }));
+    CHECK(g_events.states.size() == 1 && g_events.states[0].active == 1);
+    CHECK(g_events.stateSeen.size() == 1 && g_events.stateSeen[0].first == 1 && g_events.stateSeen[0].second == 1);
+    CHECK(g_events.peers.size() == 1 && g_events.peers[0].what == SCO_NET_PEER_JOINED &&
+          g_events.peers[0].peer.peer_id == kHostPeer);
+    CHECK(g_events.peerSeen.size() == 1 && g_events.peerSeen[0].name == SCO_OK && g_events.peerSeen[0].peers == 2 &&
+          g_events.peerSeen[0].listed && g_events.peerSeen[0].nameText == "Relay");
+    CHECK(PeerCount() == 2);
+
+    Leave("done");
+    host.core.Leave("done");
+    TickNet();
+    Stop();
+    CHECK(!Started());
+    CHECK(sco::Release(p) == Result::Ok);
+}
+
+// ---- the network thread fails: "inactive" stays the last event ---------------------------------------------
+
+// The network thread's Receive throws right after it handled SYNC (the gate of GateTransport). The Core has
+// raised the host's JOINED and "active" in that step, and the step never reaches its Snapshot, so the session
+// was never published and both events are still held when Run's catch ends the session. They are dropped: the
+// plugin hears only that the session is over, and is never told after that it is up.
+static void TestThreadFailure() {
+    ServiceOptions so;
+    so.pbkdf2Iters = kIters;
+    CHECK(Start(so) == Result::Ok && Started());
+    sco_plugin* p = sco::host::NewPlugin("boom");
+    std::string why;
+    auto hostSock = udp::Socket::Open(0, true, &why);
+    auto joinSock = udp::Socket::Open(0, true, &why);
+    CHECK(hostSock != nullptr && joinSock != nullptr);
+    if (!hostSock || !joinSock) {
+        Stop();
+        CHECK(sco::Release(p) == Result::Ok);
+        return;
+    }
+
+    Remote host(*hostSock);
+    Options ho = RemoteOpts();
+    ho.playerName = "Relay";
+    CHECK(host.core.Host(ho, SteadyMs()));
+    Endpoint hostEp;
+    CHECK(ParseAddress("127.0.0.1", hostSock->Port(), &hostEp));
+
+    GateTransport gate(*joinSock);
+    gate.ThrowAtGate();
+    JoinOptions j;
+    j.transport = &gate;
+    j.endpoint = hostEp;
+    j.passphrase = kPass;
+    j.playerName = "Me";
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerSeen.clear();
+    g_events.order.clear();
+    gate.Arm();
+    CHECK(Join(j) == Result::Ok);
+
+    // The remote host runs on this thread; the game thread ticks until the network thread has ended the session.
+    const uint64_t deadline = SteadyMs() + 10000;
+    while (GetState() != State::Idle && SteadyMs() < deadline) {
+        host.core.Pump(SteadyMs());
+        hostSock->Wait(5);
+        TickNet();
+    }
+    CHECK(GetState() == State::Idle);
+    TickNet();
+
+    const std::string& order = g_events.order;
+    CHECK(order == "I");   // nothing for the step that failed, and nothing after "inactive"
+    CHECK(LastReason() == "out of memory");
+    CHECK(g_t->is_active() == 0 && PeerCount() == 0);
+
+    host.core.Leave("done");
+    Stop();
+    CHECK(!Started());
+    CHECK(sco::Release(p) == Result::Ok);
+    g_events.order.clear();
+}
+
+// The same failure from a session that is up. The service has joined a host and the plugin has been told, so the
+// session is published. A message from the host is in the step that fails: it is dropped. When "inactive" is
+// dispatched the session is already gone, so a handler that asks finds is_active 0, no peers and no name, and
+// its SetPeerEntity finds no peer and queues no ENTITY event behind "inactive". The game thread ticks in a tight
+// loop while the network thread dies, so a window between "inactive" and the end of the session would show.
+static void TestThreadFailureActive() {
+    ServiceOptions so;
+    so.pbkdf2Iters = kIters;
+    CHECK(Start(so) == Result::Ok && Started());
+    sco_plugin* p = sco::host::NewPlugin("late");
+    Got got;
+    CHECK(g_t->register_channel(p, "late.m", 0, 8, OnMsg, &got) == SCO_OK);
+    std::string why;
+    auto hostSock = udp::Socket::Open(0, true, &why);
+    auto joinSock = udp::Socket::Open(0, true, &why);
+    CHECK(hostSock != nullptr && joinSock != nullptr);
+    if (!hostSock || !joinSock) {
+        Stop();
+        CHECK(sco::Release(p) == Result::Ok);
+        return;
+    }
+
+    Remote host(*hostSock);
+    CHECK(host.core.RegisterChannel("late.m", 0, 8));
+    Options ho = RemoteOpts();
+    ho.playerName = "Relay";
+    CHECK(host.core.Host(ho, SteadyMs()));
+    Endpoint hostEp;
+    CHECK(ParseAddress("127.0.0.1", hostSock->Port(), &hostEp));
+
+    GateTransport gate(*joinSock);
+    JoinOptions j;
+    j.transport = &gate;
+    j.endpoint = hostEp;
+    j.passphrase = kPass;
+    j.playerName = "Me";
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerSeen.clear();
+    g_events.order.clear();
+    CHECK(Join(j) == Result::Ok);
+
+    const uint64_t joinDeadline = SteadyMs() + 10000;
+    while (!(g_t->is_active() == 1 && PeerCount() == 2) && SteadyMs() < joinDeadline) {
+        host.core.Pump(SteadyMs());
+        hostSock->Wait(5);
+        TickNet();
+    }
+    TickNet();
+    CHECK(g_t->is_active() == 1 && PeerCount() == 2);
+    CHECK(g_events.order.size() == 2 && g_events.order.find('J') != std::string::npos &&
+          g_events.order.find('A') != std::string::npos);   // the plugin knows the session is up
+
+    g_events.states.clear();
+    g_events.stateSeen.clear();
+    g_events.peers.clear();
+    g_events.peerSeen.clear();
+    g_events.order.clear();
+    got.msgs.clear();
+    g_probe = InactiveProbe();
+    g_probe.on = true;
+    gate.ThrowAfterNextMessage();
+    CHECK(host.core.Send("late.m", "m", 1) == SendResult::Ok);
+    const uint64_t deadline = SteadyMs() + 10000;
+    while (GetState() != State::Idle && SteadyMs() < deadline) {
+        host.core.Pump(SteadyMs());
+        TickNet();
+    }
+    CHECK(GetState() == State::Idle);
+    TickNet();
+    TickNet();   // anything queued behind "inactive" would be dispatched by now
+
+    CHECK(g_events.order == "I");   // no event of the step that failed, and none after "inactive"
+    CHECK(got.msgs.empty());        // the message of the step that failed is dropped
+    CHECK(g_probe.ran && g_probe.isActive == 0 && g_probe.peers == 0 && g_probe.name == SCO_NOT_FOUND &&
+          g_probe.entity == Result::NotFound);
+    CHECK(LastReason() == "out of memory");
+
+    g_probe.on = false;
+    host.core.Leave("done");
+    Stop();
+    CHECK(!Started());
+    CHECK(sco::Release(p) == Result::Ok);
+    g_events.order.clear();
+}
+
 static void Run(const char* name, void (*fn)()) {
     const int before = g_fail.load();
     fn();
@@ -750,6 +1321,7 @@ int main() {
         std::printf("%s TestHostSession/Quotas/ReleaseOnUnload/Leave\n", g_fail.load() == before ? "ok  " : "FAIL");
     }
     Run("TestJoinSession", TestJoinSession);
+    Run("TestHeldTransferFailure", TestHeldTransferFailure);
     Run("TestScope", TestScope);
     Run("TestUdpCores", TestUdpCores);
 
@@ -761,6 +1333,9 @@ int main() {
     Stop();   // twice: a no-op
 
     Run("TestThreadedService", TestThreadedService);
+    Run("TestThreadedPeerSnapshot", TestThreadedPeerSnapshot);
+    Run("TestThreadFailure", TestThreadFailure);
+    Run("TestThreadFailureActive", TestThreadFailureActive);
 
     CHECK(sco::Release(g_a2) == Result::Ok && sco::Release(g_b) == Result::Ok);
     std::printf("sco-core net service tests: %d passed, %d failed\n", g_pass.load(), g_fail.load());

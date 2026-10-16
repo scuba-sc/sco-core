@@ -5,11 +5,16 @@
 //
 // Locks: g_control serializes Host / Join / Leave / Stop / PumpNetwork (it is never taken by a
 // table call or by the network thread). g_lock guards everything else below: the registry, the
-// per-plugin state, the command queue for the network thread, the inbox for the game thread and
-// the snapshot of the session that table calls read. Order: g_control, then g_lock, then the
-// runtime's owner lock (detail::Released). The network thread never holds g_lock while it calls
-// into the Core, so the Core's callbacks (which run inside Pump and take g_lock) can't deadlock;
-// the game thread never holds it while it calls a plugin.
+// per-plugin state, the command queue for the network thread, the inbox for the game thread, the
+// events held back until the snapshot and the snapshot of the session that table calls read. Order:
+// g_control, then g_lock, then the runtime's owner lock (detail::Released). The network thread never
+// holds g_lock while it calls into the Core, so the Core's callbacks (which run inside Pump and take
+// g_lock) can't deadlock; the game thread never holds it while it calls a plugin.
+//
+// Events and the snapshot: what the Core raises during a step (messages, peer and state events) is
+// held in g_held, and Snapshot moves it to g_inbox in the same lock hold in which it publishes the
+// session. So the game thread never sees an event before the session it reports: in a "net.peer"
+// handler get_peers, get_peer_name and is_active already show the peer.
 //
 // Plugin memory (names, data, output buffers) is read and written only while no lock is held:
 // inputs are copied first, outputs after the lock is released, so a bad pointer faults with
@@ -108,6 +113,7 @@ std::vector<Channel>        g_channels;
 uint64_t                    g_nextChannel = 1;
 std::vector<PluginState>    g_plugins;
 std::deque<Item>            g_inbox;
+std::vector<Item>           g_held;       // raised by the Core in this step, released by Snapshot
 std::deque<Cmd>             g_cmds;
 bool                        g_live = false;   // a session runs: register/unregister/send go to it
 // The session as the network thread last saw it.
@@ -167,24 +173,71 @@ void Push(Item&& item) {
     g_delivery.notify_all();
 }
 
-void PushState(bool active, std::string_view reason) {
+Item StateItem(bool active, std::string_view reason) {
     Item it;
     it.kind = ItemKind::State;
     it.state.size = sizeof(sco_net_state_event);
     it.state.active = active ? 1 : 0;
     const size_t n = std::min(reason.size(), sizeof(it.state.reason) - 1);
     if (n != 0) std::memcpy(it.state.reason, reason.data(), n);
-    Push(std::move(it));
+    return it;
 }
 
-void PushPeer(uint32_t what, PeerId id, uint64_t entity) {
+Item PeerItem(uint32_t what, PeerId id, uint64_t entity) {
     Item it;
     it.kind = ItemKind::Peer;
     it.peer.size = sizeof(sco_net_peer_event);
     it.peer.what = what;
     it.peer.peer.peer_id = id;
     it.peer.peer.entity_id = entity;
-    Push(std::move(it));
+    return it;
+}
+
+// Under g_lock: for what does not come from the Core's callbacks, or needs no snapshot first.
+void PushState(bool active, std::string_view reason) { Push(StateItem(active, reason)); }
+
+void PushPeer(uint32_t what, PeerId id, uint64_t entity) { Push(PeerItem(what, id, entity)); }
+
+// Under g_lock: gives back what the inbox quota charged for a message (the charge is made when the Core
+// raises it, in the message callback). Called when the game thread takes a message out of the inbox and
+// when a held message will never reach the inbox. Other kinds of item are not charged.
+void Uncharge(const Item& it) {
+    if (it.kind != ItemKind::Message) return;
+    for (auto& p : g_plugins)
+        if (p.owner == it.owner) {
+            p.inboxItems -= std::min<size_t>(p.inboxItems, 1);
+            p.inboxBytes -= std::min(p.inboxBytes, it.data.size());
+        }
+}
+
+// Under g_lock: hands everything the Core raised during this step to the game thread, in the order it
+// came. Called only together with the publication of the snapshot those events are about.
+void ReleaseHeld() {
+    if (g_held.empty()) return;
+    size_t moved = 0;
+    try {
+        for (Item& it : g_held) {
+            g_inbox.push_back(std::move(it));
+            ++moved;
+        }
+    } catch (...) {
+        // Out of memory: the rest of this step's events are lost. A push_back that throws has not touched
+        // its argument, so the items from `moved` on are whole. Their messages were charged to their
+        // plugin's inbox quota and no Tick will ever take them out, so the charge goes back here;
+        // otherwise each failure would shrink the plugin's inbox for good.
+        ++g_stats.inboxDropped;
+        for (size_t i = moved; i < g_held.size(); ++i) Uncharge(g_held[i]);
+    }
+    g_held.clear();
+    g_delivery.notify_all();
+}
+
+// Under g_lock: drops what the Core raised during a step that never finished, and gives back the inbox
+// quota its messages were charged. That step was not published, so its events would report a session the
+// game thread never saw.
+void DropHeld() {
+    for (const Item& it : g_held) Uncharge(it);
+    g_held.clear();
 }
 
 // Under g_lock: commands are queued only while a session runs; the next session replays the
@@ -220,7 +273,7 @@ Callbacks MakeCallbacks(Session& s) {
             it.data.assign(m.data, m.data + m.len);
             ++p.inboxItems;
             p.inboxBytes += m.len;
-            Push(std::move(it));
+            g_held.push_back(std::move(it));
         } catch (...) {
             std::lock_guard<std::mutex> hold(g_lock);
             ++g_stats.inboxDropped;
@@ -237,7 +290,7 @@ Callbacks MakeCallbacks(Session& s) {
                     g_entities.erase(it);
                 }
             }
-            PushPeer(ev == PeerEvent::Joined ? SCO_NET_PEER_JOINED : SCO_NET_PEER_LEFT, id, entity);
+            g_held.push_back(PeerItem(ev == PeerEvent::Joined ? SCO_NET_PEER_JOINED : SCO_NET_PEER_LEFT, id, entity));
         } catch (...) {
         }
         Log("[net] peer %llu %s", static_cast<unsigned long long>(id), ev == PeerEvent::Joined ? "joined" : "left");
@@ -246,7 +299,7 @@ Callbacks MakeCallbacks(Session& s) {
         try {
             std::lock_guard<std::mutex> hold(g_lock);
             if (!active) g_reason = std::string(reason);
-            PushState(active, reason);
+            g_held.push_back(StateItem(active, reason));
         } catch (...) {
         }
         if (active) Log("[net] session up");
@@ -259,6 +312,11 @@ Callbacks MakeCallbacks(Session& s) {
     return cb;
 }
 
+// Publishes the session as the Core has it now and, in the same lock hold, releases the events the Core
+// raised on the way to it. A handler that runs for an event therefore finds the session at least as new
+// as the event. Before this the events were queued the moment the Core raised them, while the session
+// was published only at the end of the step, so the game thread's Tick could deliver "peer joined"
+// before get_peers or get_peer_name knew the peer.
 void Snapshot(Session& s) {
     std::vector<PeerInfo> peers = s.core->Peers();
     std::lock_guard<std::mutex> hold(g_lock);
@@ -269,6 +327,7 @@ void Snapshot(Session& s) {
     g_stats.core = s.core->GetStats();
     g_stats.outOfScope = s.scoped->Dropped();
     g_stats.sendDropped = s.sendDropped;
+    ReleaseHeld();
 }
 
 // Creates the Core, registers the channels the registry had when the session began, and hosts or
@@ -315,19 +374,26 @@ bool Step(Session& s, uint64_t now) {
     return s.core->GetState() != State::Idle;
 }
 
+// Under g_lock: the session is over. Nothing more goes to it, and table calls see no session: is_active is
+// 0, get_peers is empty and get_peer_name and SetPeerEntity answer not found.
+void EndSessionLocked() {
+    g_live = false;
+    g_cmds.clear();
+    for (auto& p : g_plugins) p.queuedBytes = 0;
+    g_state = State::Idle;
+    g_active = false;
+    g_self = 0;
+    g_peers.clear();
+    g_entities.clear();
+    g_port = 0;
+}
+
 // The session is over: nothing more goes to it, and table calls see no session.
 void Finish(Session& s) {
     {
         std::lock_guard<std::mutex> hold(g_lock);
-        g_live = false;
-        g_cmds.clear();
-        for (auto& p : g_plugins) p.queuedBytes = 0;
-        g_state = State::Idle;
-        g_active = false;
-        g_self = 0;
-        g_peers.clear();
-        g_entities.clear();
-        g_port = 0;
+        EndSessionLocked();
+        ReleaseHeld();   // nothing normally: the last step's Snapshot released it
         if (s.core) {
             g_stats.core = s.core->GetStats();
             if (g_reason.empty()) g_reason = s.core->LastReason();
@@ -357,6 +423,12 @@ void Run(Session* raw, uint32_t pollMs) {
         Log("[net] network thread stopped: out of memory");
         std::lock_guard<std::mutex> hold(g_lock);
         g_reason = "out of memory";
+        // The session is over, and it must already be invisible when "inactive" is dispatched, with nothing
+        // after it: end it, and queue "inactive", in this one lock hold. A handler of "inactive" then finds
+        // is_active 0 and no peers, and SetPeerEntity cannot queue an ENTITY event behind it. What the Core
+        // raised in the step that failed was never published, so it is dropped, not delivered.
+        DropHeld();
+        EndSessionLocked();
         PushState(false, g_reason);
     }
     Finish(*s);
@@ -633,6 +705,8 @@ void OnRelease(const void* owner) {
                  g_cmds.end());
     g_inbox.erase(std::remove_if(g_inbox.begin(), g_inbox.end(), [owner](const Item& it) { return it.owner == owner; }),
                   g_inbox.end());
+    g_held.erase(std::remove_if(g_held.begin(), g_held.end(), [owner](const Item& it) { return it.owner == owner; }),
+                 g_held.end());
     g_plugins.erase(std::remove_if(g_plugins.begin(), g_plugins.end(),
                                    [owner](const PluginState& p) { return p.owner == owner; }),
                     g_plugins.end());
@@ -699,6 +773,7 @@ void Stop() {
         g_started = false;
         g_channels.clear();
         g_inbox.clear();
+        g_held.clear();
         g_plugins.clear();
     }
     host::WithdrawHostService(SCO_NET_NAME);
@@ -723,14 +798,7 @@ void Tick() {
         std::lock_guard<std::mutex> hold(g_lock);
         if (!g_started) return;
         items.swap(g_inbox);
-        for (const Item& it : items) {
-            if (it.kind != ItemKind::Message) continue;
-            for (auto& p : g_plugins)
-                if (p.owner == it.owner) {
-                    p.inboxItems -= std::min<size_t>(p.inboxItems, 1);
-                    p.inboxBytes -= std::min(p.inboxBytes, it.data.size());
-                }
-        }
+        for (const Item& it : items) Uncharge(it);
     }
     for (const Item& it : items) {
         switch (it.kind) {
