@@ -13,8 +13,8 @@
       "service": "game.inventory",
       "id": "sc-inventory-v1-snapshot",
       "since": "`size >= 16`; 1.0",
-      "purpose": "Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's opaque class type id and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI.",
-      "buffer_contract": "`sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's opaque class type id and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI.",
+      "purpose": "Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI.",
+      "buffer_contract": "`sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI.",
       "ownership": "Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out.",
       "thread_affinity": "Game thread only.",
       "callback_context": "No plugin callback.",
@@ -24,7 +24,7 @@
       "cleanup": "StopGameInventory withdraws the service; read-only, no engine state to restore.",
       "limitations": [
         "Local player ports only in 1.0 (ships/mounts are follow-ups).",
-        "Item class names are not exposed: type ids ship opaque, build-scoped; a name map is a documented follow-up.",
+        "Per-class item names are not yet established; an item-type-id name map exists but is not exposed in 1.0.",
         "No stack counts in 1.0 (layout unattested).",
         "Snapshot semantics: 128 ports max; generation detects change; per-frame streams are out of contract.",
         "No C# or Lua game.inventory routes are supported."

@@ -4,7 +4,8 @@
 namespace sco::game::services {
 // game.inventory 1.0: read-only item-port snapshot of the local player
 // (docs/game/inventory.md; corpus F-4.10.196.36804-009). A host binds this backend only
-// after grounding the port accessors (entity vtable enumeration, port GetItem/IsValid,
+// after grounding the port accessors (ports read from the entity's item-port container
+// component, port GetItem/IsValid,
 // item type-id descriptor) on its exact build; the unbound default publishes UNAVAILABLE.
 struct InventoryBackend {
     void* ctx = nullptr;

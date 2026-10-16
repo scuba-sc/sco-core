@@ -9,12 +9,13 @@
 #define SC_INVENTORY_SERVICE_VERSION 0x00010000u
 #define SC_INVENTORY_MAX_PORTS 128u
 /* One item attached to one port of the queried entity, as of the snapshot. Names are not
- * exposed in 1.0: class_id is the game's item class type id (opaque, build-scoped); a
- * type-id -> name map is a documented follow-up (docs/game/inventory.md). */
+ * exposed in 1.0: item_class_id holds the item type id, an ordinal of the game's item-type
+ * enumeration (a coarse category, build-scoped). Per-class item names are not yet established;
+ * an item-type-id name map exists but is not exposed in 1.0 (docs/game/inventory.md). */
 typedef struct sc_inventory_port {
     uint32_t size;
     uint32_t valid;            /* 1 = port exists and holds an item; else fields below are 0 */
-    uint64_t item_class_id;    /* game item class type id, opaque per build */
+    uint64_t item_class_id;    /* item type id: ordinal of the game's item-type enumeration */
     uint64_t entity_id;        /* the item's entity id, session-scoped (game.entities keys) */
 } sc_inventory_port;
 typedef struct sc_inventory_snapshot {
