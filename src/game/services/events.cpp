@@ -358,8 +358,6 @@ void SeatProbe(const Record& r) {
         !ok ? "(your player couldn't be read)" : s.n ? chain : "(none)");
 }
 
-void OnTick(const char*, const void* data, void*) {
-
 // game.mission.changed: poll the service's accepted missions and publish state/phase/objective
 // changes. No rows: the gate is the first poll that sees active missions (a bound, admitted
 // game.missions backend). First sighting seeds and reports old_state == new_state; missions that
@@ -396,9 +394,10 @@ void TickMissions() {
     g_nmis = kept;
 }
 
+void OnTick(const char*, const void* data, void*) {
     const uint32_t now = data ? *static_cast<const uint32_t*>(data) : 0;
+    TickMissions();
 
-        TickMissions();
     Record batch[kRing];
     size_t n = 0;
     uint32_t dropped = 0;
@@ -406,8 +405,6 @@ void TickMissions() {
         std::lock_guard<std::mutex> hold(g_ringLock);
         for (; n < g_count; ++n) batch[n] = g_ring[(g_head + n) % kRing];
         g_head = g_count = 0;
-        g_nmis = 0;
-        g_capMission = false;
         dropped = g_dropped;
         g_dropped = 0;
     }
@@ -539,7 +536,7 @@ void StopEvents() {
     g_active.store(false, std::memory_order_release);
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     RemoveHooks();
-    for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat }) caps::Set(cap, false, "stopped");
+    for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat, kCapMission }) caps::Set(cap, false, "stopped");
     {
         std::lock_guard<std::mutex> hold(g_ringLock);
         g_head = g_count = 0;
@@ -551,6 +548,8 @@ void StopEvents() {
     g_haveCache = false;
     g_zone = 0;
     g_lastPoll = 0;
+    g_nmis = 0;
+    g_capMission = false;
     g_nwait = 0;
     g_seatLogged = 0;
     g_started = false;
