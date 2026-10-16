@@ -228,6 +228,16 @@
       ]
     },
     {
+      "id": "game.gamerules",
+      "kind": "service",
+      "service": "game.gamerules",
+      "header": "include/sc_gamerules.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.gamerules.read", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED", "evidence_source": "docs/game/gamerules.md"}
+      ]
+    },
+    {
       "id": "game.private_session",
       "kind": "service",
       "service": "game.private_session",

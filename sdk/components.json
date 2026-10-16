@@ -6049,6 +6049,17 @@
       "group": "host-source-sc"
     },
     {
+      "id": "host-source-sc-src-game-gamerules_sigs.cpp",
+      "source": "src/game/gamerules_sigs.cpp",
+      "destination": "src/game/gamerules_sigs.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
       "id": "host-source-sc-src-game-hangar_sigs.cpp",
       "source": "src/game/hangar_sigs.cpp",
       "destination": "src/game/hangar_sigs.cpp",
@@ -7472,6 +7483,75 @@
       "origin": "project-authored",
       "license": "GPL-3.0-only",
       "public_header": true
+    },
+    {
+      "id": "include.sc_gamerules.h",
+      "source": "include/sc_gamerules.h",
+      "destination": "include/sc_gamerules.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.sdk.contracts.sc_gamerules_v1.json",
+      "source": "sdk/contracts/sc_gamerules_v1.json",
+      "destination": "contracts/sc_gamerules_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "g7.docs.game.gamerules.md",
+      "source": "docs/game/gamerules.md",
+      "destination": "docs/game/gamerules.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.abi_game_gamerules.c",
+      "source": "tests/abi_game_gamerules.c",
+      "destination": "tests/abi_game_gamerules.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "host-source-sc-src-game-services-gamerules.cpp",
+      "source": "src/game/services/gamerules.cpp",
+      "destination": "src/game/services/gamerules.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-gamerules.h",
+      "source": "src/game/services/gamerules.h",
+      "destination": "src/game/services/gamerules.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
     },
     {
       "id": "include.sc_actor_stats.h",

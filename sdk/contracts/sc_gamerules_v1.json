@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_gamerules_v1.read",
+      "table": "sc_gamerules_v1",
+      "source_header": "include/sc_gamerules.h",
+      "signature": "sco_result (*)(sco_plugin *, sc_gamerules_state *)",
+      "version_macro": "SC_GAMERULES_SERVICE_VERSION",
+      "member_extent": 16,
+      "table_size": 16,
+      "service": "game.gamerules",
+      "id": "sc-gamerules-v1-read",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Copy the client's current server GameRules parameter snapshot into out (caller sets out->size). Read-only: values are what the server sent and the client applied for the current session; they cannot be written through this ABI. generation changes when a new parameter set is applied.",
+      "buffer_contract": "`sco_result (*read)(sco_plugin* self, sc_gamerules_state* out);`<br>Copy the client's current server GameRules parameter snapshot into out (caller sets out->size). Read-only: values are what the server sent and the client applied for the current session; they cannot be written through this ABI. generation changes when a new parameter set is applied.",
+      "ownership": "Provider owns the snapshot storage; a plain copy crosses to the caller. No allocation, no engine pointer transfer, nothing retained from out.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callback.",
+      "reentrancy": "Read-only snapshot copy; no engine re-entry.",
+      "results": "OK snapshot copied, UNAVAILABLE service off, no backend bound, out null or out->size too small, BAD_ARG invalid self.",
+      "absent_capability": "game.gamerules.read defaults false; the table publishes UNAVAILABLE until a host binds a backend grounded on the build's gamerules.params_sync row.",
+      "cleanup": "StopGameRules withdraws the service and clears the bound backend; no engine state to restore (read-only).",
+      "limitations": [
+        "No backend bound in the default production configuration; nothing has run in game.",
+        "Snapshot freshness follows provider binding; no push notification of parameter changes in 1.0.",
+        "Parameter set covers the quantum-travel gate fields observed in the corpus (F-4.10.196.36804-007/-008); the wider GameRules schema is not exposed in 1.0.",
+        "No C# or Lua route."
+      ],
+      "tests": [
+        "tests/abi_game_gamerules.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_gamerules.h",
+              "token": "(*read)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_gamerules.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_gamerules.h",
+              "token": "(*read)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_gamerules.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/gamerules.md",
+              "token": "C# and Lua game.gamerules routes are"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/gamerules.md",
+              "token": "C# and Lua game.gamerules routes are"
+            }
+          ],
+          "tests": []
+        }
+      }
+    }
+  ]
+}
