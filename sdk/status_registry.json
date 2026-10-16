@@ -37,6 +37,16 @@
       ]
     },
     {
+      "id": "game.actor_stats",
+      "kind": "service",
+      "service": "game.actor_stats",
+      "header": "include/sc_actor_stats.h",
+      "version": "1.0",
+      "capabilities": [
+        {"name": "game.actor_stats.read", "methods": ["read"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.197.2878", "evidence": "row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game", "sig_rows": ["actor.stat_names", "actor.stat_array", "actor.health_site", "actor.status_accessor", "actor.get_stat"], "evidence_source": "docs/game/actor-stats.md"}
+      ]
+    },
+    {
       "id": "game.vehicles",
       "kind": "service",
       "service": "game.vehicles",
