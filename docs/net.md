@@ -78,8 +78,9 @@ Two events on the bus, on the game thread, each starting with its size:
 | `net.state` | `sco_net_state_event { size, active, reason[128] }`: the session came up, or ended (the reason: "wrong passphrase", "the host timed out", ...) |
 | `net.peer` | `sco_net_peer_event { size, what, peer }`: `SCO_NET_PEER_JOINED`, `SCO_NET_PEER_LEFT` (with the entity id it had, so you can remove its ghost) or `SCO_NET_PEER_ENTITY` (the product set its ghost) |
 
-When a `net.peer` event is dispatched, the peer it reports is already visible through `is_active`, `get_peers`
-and `get_peer_name`: found on JOINED, gone on LEFT.
+The session you read from a `net.peer` handler is at least as recent as the event: it never lags it. A peer
+that joined and then left since the event may already be gone, so treat `get_peers` and `get_peer_name` as the
+current state, not the state at the event.
 
 ## Limits
 

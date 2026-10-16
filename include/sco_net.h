@@ -43,8 +43,9 @@
  *    the path can read them); never send secrets or personal data.
  *
  * Events on the bus (sco_api subscribe), dispatched on the game thread from the host tick; data
- * starts with its size. When a "net.peer" event is dispatched, the peer it reports is already
- * visible through is_active, get_peers and get_peer_name: found on JOINED, gone on LEFT.
+ * starts with its size. The session you read from a "net.peer" handler is at least as recent as
+ * the event: it never lags it. A peer that joined and then left since the event may already be gone,
+ * so treat get_peers and get_peer_name as the current state, not the state at the event.
  *   SCO_NET_EVENT_STATE "net.state"  sco_net_state_event: a session came up or ended
  *   SCO_NET_EVENT_PEER  "net.peer"   sco_net_peer_event: a peer joined, left or got an entity
  *
