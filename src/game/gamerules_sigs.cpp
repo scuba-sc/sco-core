@@ -51,16 +51,12 @@ SigResult ResolveParamsSync(const Image& img) {
     return SigOk(found);
 }
 
-const SigDef kRows[] = {
+}  // namespace
+
+extern const SigDef kGameRulesSignatures[] = {
     {"gamerules.params_label", nullptr, 0, 0, ResolveParamsLabel, {nullptr}},
     {"gamerules.params_sync", nullptr, 0, 0, ResolveParamsSync, {"gamerules.params_label", nullptr}},
 };
-
-}  // namespace
-
-extern const SigDef kGameRulesSignatures[];
-extern const size_t kGameRulesSignatureCount;
-const SigDef kGameRulesSignatures[] = {kRows[0], kRows[1]};
-const size_t kGameRulesSignatureCount = std::size(kRows);
+extern const size_t kGameRulesSignatureCount = std::size(kGameRulesSignatures);
 
 }  // namespace sco::game
