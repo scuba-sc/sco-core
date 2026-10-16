@@ -62,7 +62,7 @@ class CatalogueTests(unittest.TestCase):
             'sc_private_session_v1': (['request_host', 'request_join', 'leave', 'get_state'],
                                       'tests/abi_private_session.c', 'tests/test_net_control.cpp'),
         }
-        clang = catalogue.find_clang()
+        clang = shutil.which('clang')
         assert clang is not None, 'Clang is required for catalogue C layout evidence'
         for table, (members, c_test, cpp_test) in wave3.items():
             self.assertEqual(extracted['tables'][table]['members'], members)
