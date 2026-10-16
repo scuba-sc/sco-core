@@ -120,6 +120,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | `game.events.actor_died` (`game.actors.died`) | ON | row resolved on 4.10.196.36804 (sigcheck); the same row as player_died, one hook two events |
 | | | `game.events.zone_changed` (`game.zone.changed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`) | OFF | OFF pending in-game confirmation |
+| | | `game.events.mission_changed` (`game.mission.changed`) | ON | ON by owner ruling (2026-10-16): a product default, not a verified claim. No rows; published once a bound, admitted game.missions backend reports active missions. Synthetic only: backend adapters are synthetic today, so it does not fire; not run in game |
 | mining rows ([`mining.md`](mining.md)) | row | `mining.cell` (legacy host row) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | `game.creative` ([`sc_creative.h`](../../include/sc_creative.h)) | 1.0 | `game.creative.god_mode` (`set_god_mode`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.creative.fly` (`set_fly_mode`, `set_fly_speed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |

@@ -22,7 +22,8 @@
  *  - Ids are the game's 64-bit entity and zone ids: session handles, never keys to store.
  *  - Each event has a capability (sco_api has()); an event whose capability isn't ready never
  *    fires, so subscribing is harmless: "game.events.player_spawned", "game.events.player_died",
- *    "game.events.actor_died", "game.events.zone_changed", "game.events.vehicle_seat".
+ *    "game.events.actor_died", "game.events.zone_changed", "game.events.vehicle_seat",
+ *    "game.events.mission_changed".
  *    Both views use one death detour. game.actors.died fires for every captured death and
  *    game.player.died only for yours; a view whose capability is off never fires.
  */
@@ -41,6 +42,7 @@ extern "C" {
 #define SC_GAME_EVENT_ZONE_CHANGED    "game.zone.changed"
 #define SC_GAME_EVENT_VEHICLE_BOARDED "game.vehicle.boarded"
 #define SC_GAME_EVENT_VEHICLE_EXITED  "game.vehicle.exited"
+#define SC_GAME_EVENT_MISSION_CHANGED "game.mission.changed"
 
 /* game.player.spawned: your player has spawned (after a load or a respawn). */
 typedef struct sc_game_player_spawned {
@@ -91,6 +93,27 @@ typedef struct sc_game_vehicle_seat {
     int32_t  seat_index;        /* game.vehicles' seat index, -1 when unknown */
     uint64_t vehicle_entity_id; /* the vehicle (the ship's entity id) */
 } sc_game_vehicle_seat;
+
+/* game.mission.changed: a mission the game.missions service can see changed state, phase or
+ * completed-objective count since the last tick. Like game.zone.changed it has no rows of its
+ * own: it polls the game.missions status reads and publishes on a change, so it fires only where
+ * a game.missions backend is bound (a production adapter, gated on offline admission) and the
+ * mission set is non-empty. It is a notification, not a stream: a mission that changes state
+ * between two publishes reports only the newest state, and a mission that appears, changes and
+ * vanishes between two publishes can be missed. mission_id is the game.missions id (opaque, not a
+ * key to store across sessions). old_state is the state the game pack last published for this
+ * id; on a mission's first sighting there is no old state and the event reports the change to the
+ * current state. */
+typedef struct sc_game_mission_changed {
+    uint32_t size;
+    uint32_t _pad;
+    uint64_t mission_id;
+    uint32_t old_state;      /* sc_mission_status.state, prior; equals new_state on first sight */
+    uint32_t new_state;
+    uint32_t new_phase;
+    uint32_t new_objective;  /* completed objectives in new_phase */
+    uint64_t session;        /* the game.missions session, not a plugin id */
+} sc_game_mission_changed;
 
 #ifdef __cplusplus
 }

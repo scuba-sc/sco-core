@@ -25,6 +25,7 @@
 #include "events.h"
 #include "actors.h"
 #include "death_events.h"
+#include "offline_missions.h"
 #include "sco/caps.h"
 #include "sco/game/actors.h"
 #include "sco/game/events.h"
@@ -63,6 +64,7 @@ constexpr const char* kCapDied    = "game.events.player_died";
 constexpr const char* kCapActorDied = "game.events.actor_died";
 constexpr const char* kCapZone    = "game.events.zone_changed";
 constexpr const char* kCapSeat    = "game.events.vehicle_seat";
+constexpr const char* kCapMission = "game.events.mission_changed";
 constexpr const char* kTeleportRows[] = {   // the reads (sco/game/teleport.h)
     "teleport.to_camera", "teleport.client_mgr", "teleport.handle_from_id", "teleport.entity_system",
 };
@@ -90,6 +92,10 @@ Local        g_cache = {};            // your player as of the last poll
 bool         g_haveCache = false;
 uint64_t     g_zone = 0;              // your zone as of the last poll with a zone
 uint32_t     g_lastPoll = 0;
+bool         g_capMission = false;
+struct MisPrev { uint64_t id; uint32_t state, phase, objective; uint64_t session; };
+MisPrev      g_mis[SC_MISSIONS_MAX_ACTIVE];
+size_t       g_nmis = 0;
 struct Wait { uintptr_t actor; uint32_t since; };
 Wait         g_wait[kWaitMax];
 size_t       g_nwait = 0;
@@ -352,8 +358,45 @@ void SeatProbe(const Record& r) {
         !ok ? "(your player couldn't be read)" : s.n ? chain : "(none)");
 }
 
+// game.mission.changed: poll the service's accepted missions and publish state/phase/objective
+// changes. No rows: the gate is the first poll that sees active missions (a bound, admitted
+// game.missions backend). First sighting seeds and reports old_state == new_state; missions that
+// leave the watch list drop silently (their terminal transition was already published).
+void TickMissions() {
+    sc_mission_status cur[SC_MISSIONS_MAX_ACTIVE];
+    const uint32_t n = offline::PollStatuses(cur, SC_MISSIONS_MAX_ACTIVE);
+    if (n == 0) return;
+    if (!g_capMission) { g_capMission = true; caps::Set(kCapMission, true, ""); }
+    struct { uint64_t id; uint32_t state, phase, objective; uint64_t session; } next[SC_MISSIONS_MAX_ACTIVE];
+    size_t nn = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        const sc_mission_status& c = cur[i];
+        MisPrev* prev = nullptr;
+        for (size_t j = 0; j < g_nmis; ++j) if (g_mis[j].id == c.mission_id) { prev = &g_mis[j]; break; }
+        const bool changed = !prev || prev->state != c.state || prev->phase != c.phase ||
+                             prev->objective != c.objective;
+        if (changed) {
+            sc_game_mission_changed pc = { sizeof(pc), 0, c.mission_id,
+                prev ? prev->state : c.state, c.state, c.phase, c.objective, c.session };
+            Publish(SC_GAME_EVENT_MISSION_CHANGED, &pc);
+        }
+        if (prev) { prev->state = c.state; prev->phase = c.phase; prev->objective = c.objective; prev->session = c.session; }
+        else if (nn < SC_MISSIONS_MAX_ACTIVE) next[nn++] = { c.mission_id, c.state, c.phase, c.objective, c.session };
+    }
+    size_t kept = 0;
+    for (size_t j = 0; j < g_nmis; ++j) {
+        bool alive = false;
+        for (uint32_t i = 0; i < n; ++i) if (cur[i].mission_id == g_mis[j].id) { alive = true; break; }
+        if (alive) g_mis[kept++] = g_mis[j];
+    }
+    for (size_t j = 0; j < nn && kept < SC_MISSIONS_MAX_ACTIVE; ++j, ++kept)
+        g_mis[kept] = { next[j].id, next[j].state, next[j].phase, next[j].objective, next[j].session };
+    g_nmis = kept;
+}
+
 void OnTick(const char*, const void* data, void*) {
     const uint32_t now = data ? *static_cast<const uint32_t*>(data) : 0;
+    TickMissions();
 
     Record batch[kRing];
     size_t n = 0;
@@ -469,7 +512,7 @@ Result StartEvents() {
     if (r != Result::Ok) {
         g_active.store(false, std::memory_order_release);
         RemoveHooks();
-        for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat }) caps::Set(cap, false, "game events not started");
+        for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat, kCapMission }) caps::Set(cap, false, "game events not started");
         g_capSpawned = g_capDied = g_capActorDied = g_capZone = false;
         return r;
     }
@@ -493,7 +536,7 @@ void StopEvents() {
     g_active.store(false, std::memory_order_release);
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     RemoveHooks();
-    for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat }) caps::Set(cap, false, "stopped");
+    for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat, kCapMission }) caps::Set(cap, false, "stopped");
     {
         std::lock_guard<std::mutex> hold(g_ringLock);
         g_head = g_count = 0;
@@ -505,6 +548,8 @@ void StopEvents() {
     g_haveCache = false;
     g_zone = 0;
     g_lastPoll = 0;
+    g_nmis = 0;
+    g_capMission = false;
     g_nwait = 0;
     g_seatLogged = 0;
     g_started = false;
