@@ -2,7 +2,7 @@
 // GameRules params module, label-anchored like features_sigs. The label string is unique in
 // .rdata; the .text lea sites to it are counted and filtered by the sync function's prologue,
 // so a patch that moves, adds or loses a site shows up as a failed row, not a silent pick.
-// Anchored on the corpus receipts evidence/findings/findings-4.10.196.36804.md rows 007/008,
+// Anchored on findings F-4.10.196.36804-007 and F-4.10.196.36804-008,
 // cross-build verified at 4.10.196.36804 and the 4.10.197.2878 hotfix.
 #include "sco/game/signatures.h"
 #include "sco/scan.h"
