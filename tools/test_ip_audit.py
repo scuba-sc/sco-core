@@ -124,6 +124,7 @@ class Real(unittest.TestCase):
             sbom = os.path.join(self.out, prof + ".spdx.json")
             code, out = run("zip", z, "--profile", prof, "--sbom", sbom)
             self.assertEqual(code, 0, out)
+            self.assertNotIn(self.out, out, "the report names the SBOM, never a local path")
             d = json.loads(read(sbom, "r"))
             zsha = hashlib.sha256(read(z)).hexdigest()
             self.assertEqual(d["packages"][0]["checksums"][0]["checksumValue"], zsha)
