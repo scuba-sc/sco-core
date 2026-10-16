@@ -43,13 +43,8 @@
  *    the path can read them); never send secrets or personal data.
  *
  * Events on the bus (sco_api subscribe), dispatched on the game thread from the host tick; data
- * starts with its size. An event is dispatched only after the session it reports is visible to
- * is_active, get_peers and get_peer_name, so in a "net.peer" JOINED handler the new peer is found,
- * and in a LEFT handler it no longer is. If the whole session has ended since, a handler finds no
- * session and the final "net.state" event (active 0) follows. That event is the last of its session:
- * when it is dispatched every table call already sees no session (is_active 0, get_peers empty,
- * get_peer_name not found), so no "net.peer" event can follow it. If the network thread fails, the
- * events of the step it was running are dropped and the session ends the same way:
+ * starts with its size. When a "net.peer" event is dispatched, the peer it reports is already
+ * visible through is_active, get_peers and get_peer_name: found on JOINED, gone on LEFT.
  *   SCO_NET_EVENT_STATE "net.state"  sco_net_state_event: a session came up or ended
  *   SCO_NET_EVENT_PEER  "net.peer"   sco_net_peer_event: a peer joined, left or got an entity
  *

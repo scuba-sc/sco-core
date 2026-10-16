@@ -78,17 +78,8 @@ Two events on the bus, on the game thread, each starting with its size:
 | `net.state` | `sco_net_state_event { size, active, reason[128] }`: the session came up, or ended (the reason: "wrong passphrase", "the host timed out", ...) |
 | `net.peer` | `sco_net_peer_event { size, what, peer }`: `SCO_NET_PEER_JOINED`, `SCO_NET_PEER_LEFT` (with the entity id it had, so you can remove its ghost) or `SCO_NET_PEER_ENTITY` (the product set its ghost) |
 
-An event is dispatched only after the session it reports is visible to `is_active`, `get_peers` and
-`get_peer_name`: in a `net.peer` JOINED handler the new peer is found, and in a LEFT handler it no longer is. A
-peer that has left again before the handler runs is not found in its JOINED handler either, and its LEFT event
-follows. If the whole session has ended since, the handler finds no session (`is_active` 0, no peers) and the
-final `net.state` event (`active` 0) follows. Messages keep their order among the events.
-
-That final event is the last one of its session. When it is dispatched the session is already gone from every
-table call (`is_active` 0, `get_peers` empty, `get_peer_name` and `SetPeerEntity` answer not found), so nothing
-can be queued behind it, an ENTITY event included. If the network thread itself fails (out of memory, or an
-exception from the transport), the events of the step it was running are dropped, because that step was never
-published, and the session ends the same way, with the reason "out of memory".
+When a `net.peer` event is dispatched, the peer it reports is already visible through `is_active`, `get_peers`
+and `get_peer_name`: found on JOINED, gone on LEFT.
 
 ## Limits
 
