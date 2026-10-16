@@ -208,7 +208,7 @@ def validate_capability(cap, where, root, rows):
 def table_cell(entry):
     if entry["kind"] == "signature_rows":
         doc = PurePosixPath(entry["doc"])
-        link = PurePosixPath(os.path.relpath(doc, STATUS.parent)).as_posix()
+        link = Path(os.path.relpath(doc, STATUS.parent)).as_posix()
         return "%s ([`%s`](%s))" % (entry["title"], doc.name, link)
     header = PurePosixPath(entry["header"])
     suffix = " events" if entry["kind"] == "event_bus" else ""

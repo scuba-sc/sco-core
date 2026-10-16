@@ -1,0 +1,9 @@
+# Files whose bytes are pinned by sha256 (docs/legal/provenance.json, tools/abi_snapshot.py).
+# Check them out exactly as committed, with no CRLF conversion, so the pins hold on Windows
+# checkouts (core.autocrlf=true) as well as on Linux.
+third_party/** -text
+sdk/third_party/** -text
+plugins/lua/third_party/** -text
+LICENSES/** -text
+tests/abi/released/sco_api.h -text
+tests/fixtures/plugins/tree/hello/hello.dll -text

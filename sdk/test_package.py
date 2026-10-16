@@ -453,7 +453,7 @@ class RealManifest(unittest.TestCase):
             example.write_text('#define HIDDEN_HEADER "' + Path(pkg.ROOT, "include/sco_api.h").as_posix() +
                                '"\n#include HIDDEN_HEADER\n' + example.read_text())
             with self.assertRaisesRegex(pkg.ManifestError, "resolved dependency.*" +
-                                        re.escape(str(Path(pkg.ROOT, "include/sco_api.h"))) +
+                                        re.escape(Path(pkg.ROOT, "include/sco_api.h").as_posix()) +
                                         " outside approved installed files"):
                 pkg.check_installed_example_headers(self.m, "core", root, Path(tmp, "proof"))
 

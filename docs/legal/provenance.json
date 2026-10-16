@@ -929,6 +929,15 @@
       "date": "2026-10-11"
     },
     {
+      "path": ".gitattributes",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-15"
+    },
+    {
       "path": "tests/game_host.cpp",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
