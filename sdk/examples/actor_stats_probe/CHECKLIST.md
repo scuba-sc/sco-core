@@ -37,8 +37,14 @@ For each step, note the value before, the value during and after, and which way 
 
 ## Writes: only with step 2, and only offline
 
+First run `actor_stats_probe.modes` (or the panel's **Log write modes**). For each stat it logs
+what the game would do with a change: `authoritative` (your entity has authority), `local_only`
+(no authority, but the stat allows a local change) or `discarded` (the game would ignore it, and
+the write is refused with result 1). **Record this line first. It answers the authority question
+for the offline session directly.**
+
 Arm the probe first: toggle **Arm writes** in its panel, or run `actor_stats_probe.arm 1`. Each
-write logs `adjust|set <stat> <n> -> result <r>; read back <stat>=<v>`. Then watch the next
+write logs `adjust|set <stat> <n> -> result <r> (mode <m>, ...); read back <stat>=<v>`. Then watch the next
 5-10 per-second lines to see whether the value **stays** or snaps back.
 
 | # | Do | Pass when |

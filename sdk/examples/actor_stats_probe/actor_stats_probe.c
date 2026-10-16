@@ -7,8 +7,9 @@
  *   failed. A value that changed since the last line is marked with '*'.
  * - Writes are off twice over: the game pack's capability game.actor_stats.write (product switch
  *   or SCO_ACTOR_STATS_WRITE=1, plus offline admission) and this plugin's own "Arm writes" toggle.
- *   With both on, the panel's buttons or the commands below change one stat and log the result
- *   and the value read back on the same tick.
+ *   With both on, the panel's buttons or the commands below change one stat and log the result,
+ *   the write mode (authoritative / local_only / discarded) and the value the game pack read back
+ *   right after the write.
  *
  * Commands (game thread):
  *   actor_stats_probe.dump                       log every stat now
@@ -16,6 +17,7 @@
  *   actor_stats_probe.adjust stat delta          e.g. "hunger 10"
  *   actor_stats_probe.set stat value             e.g. "body_temp 37"
  *   actor_stats_probe.interval ms                logging interval, 100..60000
+ *   actor_stats_probe.modes                      log what the game would do with a write, per stat
  * stat names: hunger thirst body_temp suit_temp stun distortion oxygen body_rad suit_rad
  *
  * Nothing here has been run in game. License: GPL-3.0 (built against sco_api.h).
@@ -122,24 +124,52 @@ static int stat_index(const char* name) {
     return -1;
 }
 
-/* One write, then the value read back on the same tick. is_set: value is a target, else a delta. */
+static const char* mode_name(uint32_t mode) {
+    return mode == SC_ACTOR_STAT_WRITE_AUTHORITATIVE ? "authoritative"
+         : mode == SC_ACTOR_STAT_WRITE_LOCAL_ONLY ? "local_only"
+         : mode == SC_ACTOR_STAT_WRITE_DISCARDED ? "discarded" : "?";
+}
+
+/* One write; the game pack reads the stat back right after it. is_set: number is a target, else a delta. */
 static sco_result do_write(int index, double number, int is_set, char* reply, uint32_t reply_size) {
-    char       line[200];
+    char       line[240];
     float      after = 0;
-    sco_result r, rb;
+    uint32_t   mode = SC_ACTOR_STAT_WRITE_DISCARDED;
+    sco_result r, rm;
     uint64_t   id = player_id();
     if (!armed) { snprintf(reply, reply_size, "writes are not armed (actor_stats_probe.arm 1)"); return SCO_UNAVAILABLE; }
     if (index < 0 || !isfinite(number)) return SCO_BAD_ARG;
     if (!writer) { snprintf(reply, reply_size, "game.actor_stats_write is not available"); return SCO_UNAVAILABLE; }
     if (!id) { snprintf(reply, reply_size, "not spawned yet"); return SCO_NOT_FOUND; }
-    r = is_set ? sc_actor_stats_set(writer, me, id, stat_ids[index], (float)number)
-               : sc_actor_stats_adjust(writer, me, id, stat_ids[index], (float)number);
-    rb = sc_actor_stats_read(stats, id, stat_ids[index], &after);
-    snprintf(line, sizeof line, "%s %s %.4f -> result %u; read back %s=%.4f (result %u)", is_set ? "set" : "adjust",
-             stat_names[index], number, (unsigned)r, stat_names[index], (double)after, (unsigned)rb);
+    rm = sc_actor_stats_write_mode(writer, me, id, stat_ids[index], &mode);
+    r = is_set ? sc_actor_stats_set(writer, me, id, stat_ids[index], (float)number, &after)
+               : sc_actor_stats_adjust(writer, me, id, stat_ids[index], (float)number, &after);
+    snprintf(line, sizeof line, "%s %s %.4f -> result %u (mode %s, result %u); read back %s=%.4f", is_set ? "set" : "adjust",
+             stat_names[index], number, (unsigned)r, rm == SCO_OK ? mode_name(mode) : "n/a", (unsigned)rm, stat_names[index],
+             (double)after);
     logs(r == SCO_OK ? SCO_LOG_INFO : SCO_LOG_WARN, line);
     if (reply && reply_size) snprintf(reply, reply_size, "%s", line);
     return r;
+}
+
+/* Logs, per stat, what the game would do with a change right now. Writes nothing. */
+static void log_modes(void) {
+    char     line[400];
+    size_t   n;
+    uint32_t i;
+    uint64_t id = player_id();
+    if (!writer) { logs(SCO_LOG_WARN, "game.actor_stats_write is not available"); return; }
+    if (!id) { logs(SCO_LOG_INFO, "not spawned yet: no write modes"); return; }
+    n = (size_t)snprintf(line, sizeof line, "write modes id=%llu", (unsigned long long)id);
+    for (i = 0; i < STAT_COUNT && n < sizeof line; ++i) {
+        uint32_t   mode = SC_ACTOR_STAT_WRITE_DISCARDED;
+        sco_result r = sc_actor_stats_write_mode(writer, me, id, stat_ids[i], &mode);
+        if (r == SCO_OK)
+            n += (size_t)snprintf(line + n, sizeof line - n, " %s=%s", stat_names[i], mode_name(mode));
+        else
+            n += (size_t)snprintf(line + n, sizeof line - n, " %s=n/a(%u)", stat_names[i], (unsigned)r);
+    }
+    logs(SCO_LOG_INFO, line);
 }
 
 static void on_ready(const char* event, const void* data, void* ctx) {
@@ -215,12 +245,19 @@ static const sco_arg_def set_args[] = {
     { "value", SCO_ARG_FLOAT, 0, "the target value" },
 };
 static const sco_arg_def interval_args[] = { { "ms", SCO_ARG_INT, 0, "100..60000" } };
+
+static sco_result cmd_modes(const sco_arg* args, uint32_t nargs, void* ctx, char* reply, uint32_t reply_size) {
+    (void)args; (void)nargs; (void)ctx;
+    log_modes();
+    if (reply && reply_size) snprintf(reply, reply_size, "logged");
+    return SCO_OK;
+}
 static int set_marker;   /* its address marks cmd_write's ctx as "set" */
 
 /* ---- panel ------------------------------------------------------------------------------------- */
 
 #define PANEL_ID "actor_stats_probe.main"
-enum { N_ROOT = 1, N_ARM, N_STAT, N_AMOUNT, N_MINUS, N_PLUS, N_SET, N_DUMP, N_COUNT = N_DUMP };
+enum { N_ROOT = 1, N_ARM, N_STAT, N_AMOUNT, N_MINUS, N_PLUS, N_SET, N_DUMP, N_MODES, N_COUNT = N_MODES };
 static const sco_widgets_v1* widgets;
 static void show_panel(void);
 
@@ -236,6 +273,7 @@ static void on_widget(const char* panel, const sco_widget_event* event, void* ct
     case N_PLUS: do_write(selected, amount, 0, reply, sizeof reply); break;
     case N_SET: do_write(selected, amount, 1, reply, sizeof reply); break;
     case N_DUMP: log_stats(1); break;
+    case N_MODES: log_modes(); break;
     default: break;
     }
 }
@@ -262,6 +300,7 @@ static void show_panel(void) {
     nodes[N_PLUS - 1].kind = SCO_WIDGET_BUTTON; nodes[N_PLUS - 1].label = "Adjust +amount";
     nodes[N_SET - 1].kind = SCO_WIDGET_BUTTON; nodes[N_SET - 1].label = "Set to amount";
     nodes[N_DUMP - 1].kind = SCO_WIDGET_BUTTON; nodes[N_DUMP - 1].label = "Log stats now";
+    nodes[N_MODES - 1].kind = SCO_WIDGET_BUTTON; nodes[N_MODES - 1].label = "Log write modes";
     if (widgets->set_panel(me, PANEL_ID, "Actor stats probe", nodes, N_COUNT, sizeof(nodes[0]), on_widget, NULL) != SCO_OK) {
         logs(SCO_LOG_WARN, "set_panel refused: commands only");
         widgets = NULL;
@@ -280,6 +319,7 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* a, sco_plugin* self) {
     if ((r = add_command("actor_stats_probe.arm", "Arm writes", "Arms or disarms this plugin's writes", arm_args, 1, cmd_arm, NULL)) != SCO_OK) return r;
     if ((r = add_command("actor_stats_probe.adjust", "Adjust a stat", "Adds delta to one stat of your player", adjust_args, 2, cmd_write, NULL)) != SCO_OK) return r;
     if ((r = add_command("actor_stats_probe.set", "Set a stat", "Moves one stat of your player to value", set_args, 2, cmd_write, &set_marker)) != SCO_OK) return r;
+    if ((r = add_command("actor_stats_probe.modes", "Log write modes", "Logs what the game would do with a write, per stat", NULL, 0, cmd_modes, NULL)) != SCO_OK) return r;
     if ((r = add_command("actor_stats_probe.interval", "Log interval", "Logging interval in ms", interval_args, 1, cmd_interval, NULL)) != SCO_OK) return r;
     if ((r = api->subscribe(me, "game.ready", on_ready, NULL)) != SCO_OK) return r;
     if ((r = api->subscribe(me, "tick", on_tick, NULL)) != SCO_OK) return r;
