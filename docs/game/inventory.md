@@ -9,13 +9,12 @@ item's `entity_id` (session-scoped, joins to `game.entities`). Read-only by cont
 the server owns items; this explains what is attached where, for UIs, gear presets,
 and the `game.loadout` readback (#7).
 
-## Grounding (private corpus)
+## Grounding
 
-Enumeration recipe mapped over 8 campaign sessions (F-4.10.196.36804-007..-009 +
-evidence/analysis/item-readmodel-p3-recon.md): local player entity -> port range
+Enumeration recipe (findings F-4.10.196.36804-007..-009): local player entity -> port range
 (entity vtable +0x898, begin/end), per-port IsValid(+0x60)/GetItem(+0x40), item
 type-id via GetTypeDesc(+0x6e8)+[8]. Cross-checked against the game's own UnequipItem
-flow-node implementation (D064) — the adapter calls the SAME accessors the game calls
+flow-node implementation — the adapter calls the SAME accessors the game calls
 on the player, never the authoring-time command layer.
 
 ## Backend binding
