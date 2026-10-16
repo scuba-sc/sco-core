@@ -1,6 +1,7 @@
 # Actor status and game event rows
 
-Which of these capabilities are on, and how far each has been checked: [status](status.md) (`game.actors.state`, `game.events.vehicle_seat` and `game.events.mission_changed` are off until an in-game run).
+Which of these capabilities are on, and how far each has been checked: [status](status.md) (`game.actors.state` and `game.events.vehicle_seat` are off until an in-game run; `game.events.mission_changed` is on
+by default, by owner ruling, and fires only where a game.missions backend reports active missions).
 
 The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come from the spikes in [game world spikes](../design/game-world-spikes.md) (B4, B5, B6, B8), each locator and byte check as written there and proven unique in the .text of 4.10.196.36804. Accessor: [`sco/game/events.h`](../../include/sco/game/events.h).
 
@@ -29,4 +30,4 @@ The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come fr
 `game.events.mission_changed` gates on no signature rows. It polls the game.missions service's accepted-mission statuses
 (offline::PollStatuses) on the tick and publishes state/phase/objective changes, so it fires only
 when a game.missions backend is bound and admitted (production adapter; offline sessions). Payload
-`sc_game_mission_changed` is pinned by `tests/abi_game_events.c`; see `sc_game_events.h` for stream semantics.${NL}
+`sc_game_mission_changed` is pinned by `tests/abi_game_events.c`; see `sc_game_events.h` for stream semantics.
