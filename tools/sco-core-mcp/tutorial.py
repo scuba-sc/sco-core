@@ -9,10 +9,12 @@ import argparse
 import copy
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
 ALLOWLIST = ('search_api', 'get_symbol', 'list_services', 'get_example',
              'get_capability_status', 'check_compatibility')
 
@@ -20,6 +22,15 @@ ALLOWLIST = ('search_api', 'get_symbol', 'list_services', 'get_example',
 def require(condition, reason):
     if not condition:
         raise RuntimeError(reason)
+
+
+def checkout_coordinates():
+    """The SDK and game-pack versions this checkout declares, so the tutorial never pins them."""
+    sdk = (ROOT / 'sdk' / 'VERSION').read_text(encoding='utf-8').strip()
+    header = (ROOT / 'include' / 'sc_game_pack.h').read_text(encoding='utf-8')
+    game_pack = re.search(r'^#define\s+SCO_GAME_PACK_VERSION\s+"([^"]+)"', header, re.MULTILINE)
+    require(game_pack is not None, 'SCO_GAME_PACK_VERSION not found')
+    return sdk, game_pack.group(1)
 
 
 def require_current_observation(result, session_id, epoch):
@@ -65,6 +76,11 @@ def main():
     parser.add_argument('--catalogue', required=True, type=Path)
     parser.add_argument('--source-sha', required=True)
     parser.add_argument('--transcript', type=Path, help='New JSON file for actual stdio requests/responses')
+    sdk_version, game_pack_version = checkout_coordinates()
+    parser.add_argument('--sdk-version', default=sdk_version,
+                        help="Expected catalogue sdk_version (default: this checkout's sdk/VERSION)")
+    parser.add_argument('--game-pack-version', default=game_pack_version,
+                        help="Expected catalogue game_pack_version (default: this checkout's SCO_GAME_PACK_VERSION)")
     args = parser.parse_args()
     require(args.transcript is None or not args.transcript.exists(), 'Transcript path already exists')
     messages = []
@@ -87,7 +103,8 @@ def main():
         discovered.append((symbol, call('get_symbol', {'symbol_or_id': symbol})))
         call('get_example', {'symbol_or_id': symbol, 'language': 'cpp'})
         call('get_capability_status', {'symbol_or_id': symbol})
-    compatibility = call('check_compatibility', {'sdk_version': '2.0.0', 'game_pack_version': '0.3.0'})
+    compatibility = call('check_compatibility', {'sdk_version': args.sdk_version,
+                                                 'game_pack_version': args.game_pack_version})
     # No runtime flag or adapter. Runtime and mutating names must stay unavailable.
     refused = [call(name, {}) for name in ('runtime_get_host_info', 'invoke_command', 'sco.reload')]
     completed = subprocess.run([sys.executable, str(HERE / 'server.py'), '--catalogue', str(args.catalogue)],
