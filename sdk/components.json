@@ -7497,6 +7497,75 @@
       "public_header": true
     },
     {
+      "id": "include.sc_game_build.h",
+      "source": "include/sc_game_build.h",
+      "destination": "include/sc_game_build.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.sdk.contracts.sc_game_build_v1.json",
+      "source": "sdk/contracts/sc_game_build_v1.json",
+      "destination": "contracts/sc_game_build_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "g7.docs.game.build.md",
+      "source": "docs/game/build.md",
+      "destination": "docs/game/build.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.abi_game_build.c",
+      "source": "tests/abi_game_build.c",
+      "destination": "tests/abi_game_build.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "host-source-sc-src-game-services-build.cpp",
+      "source": "src/game/services/build.cpp",
+      "destination": "src/game/services/build.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-build.h",
+      "source": "src/game/services/build.h",
+      "destination": "src/game/services/build.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "g7.sdk.contracts.sc_gamerules_v1.json",
       "source": "sdk/contracts/sc_gamerules_v1.json",
       "destination": "contracts/sc_gamerules_v1.json",

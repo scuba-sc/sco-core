@@ -341,7 +341,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
-                                       src/game/services/loadout.cpp src/game/services/cvars.cpp
+                                       src/game/services/loadout.cpp src/game/services/cvars.cpp src/game/services/build.cpp
                                        src/game/services/hangar.cpp src/game/services/hangar_engine.cpp
                                        src/game/services/reputation.cpp src/game/services/reputation_engine.cpp
                                        src/game/services/asop_service.cpp src/game/services/asop_engine.cpp
@@ -699,6 +699,24 @@ if(SCO_BUILD_TESTS)
     target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
   endforeach()
   add_test(NAME abi_game_gamerules
+           COMMAND ${CMAKE_COMMAND} -E echo "layout pinned by object-library compile")
+
+  # The game.build table pin (tests/abi_game_build.c, sc_game_build.h), the same three ways. Game-pack only.
+  set(_abi_gb_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_build.cpp")
+  file(CONFIGURE OUTPUT "${_abi_gb_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_build.c\"\n")
+  add_library(sco_abi_game_build_c OBJECT tests/abi_game_build.c)
+  add_library(sco_abi_game_build_cxx OBJECT "${_abi_gb_cxx}")
+  set(_abi_gb_targets sco_abi_game_build_c sco_abi_game_build_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_game_build_short_enums OBJECT tests/abi_game_build.c)
+    target_compile_options(sco_abi_game_build_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_gb_targets sco_abi_game_build_short_enums)
+  endif()
+  foreach(_t IN LISTS _abi_gb_targets)
+    target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
+  endforeach()
+  add_test(NAME abi_game_build
            COMMAND ${CMAKE_COMMAND} -E echo "layout pinned by object-library compile")
 
   # The game.creative table pin (tests/abi_game_creative.c, sc_creative.h), the same three ways. Game-pack only.

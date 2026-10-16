@@ -8,9 +8,18 @@
 #define SC_GAME_PACK_H
 
 #define SCO_GAME_PACK_VERSION "0.6.0"
+/* Numeric mirrors of the strings below; keep the pairs in step (game.build refuses to
+ * start when they disagree). */
+#define SCO_GAME_PACK_VERSION_MAJOR 0
+#define SCO_GAME_PACK_VERSION_MINOR 6
+#define SCO_GAME_PACK_VERSION_PATCH 0
 
 /* The newest game build every row was checked on with sco-sigcheck (all rows OK). */
 #define SCO_GAME_PACK_VERIFIED_BUILD "4.10.197.2878"
+#define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_0 4
+#define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_1 10
+#define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_2 197
+#define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_3 2878
 /* That build's StarCitizen.exe PE timestamp (the file's identity: sco-sigcheck prints it). */
 #define SCO_GAME_PACK_VERIFIED_PE_TIMESTAMP "0x6accbae3"
 /* What "verified" means for this release. Rows are checked by sco-sigcheck against the exe file; the
