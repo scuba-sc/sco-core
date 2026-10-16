@@ -7,8 +7,28 @@
     "3": "spike hold: backs a capability with a spike_ref and default OFF",
     "4": "blocked: backs a capability whose evidence_level is blocked"
   },
-  "row_count": 317,
+  "row_count": 319,
   "entries": [
+    {
+      "id": "actor.stat_names",
+      "subsystem": "actor_stats",
+      "hash": "_0x4F245A183BFC70DA",
+      "tier": 1,
+      "capability": [
+        "game.actor_stats.read"
+      ],
+      "source": "src/game/actor_stats_sigs.cpp"
+    },
+    {
+      "id": "actor.stat_array",
+      "subsystem": "actor_stats",
+      "hash": "_0xDFFBB580CDEEFD16",
+      "tier": 1,
+      "capability": [
+        "game.actor_stats.read"
+      ],
+      "source": "src/game/actor_stats_sigs.cpp"
+    },
     {
       "id": "spawn.landing_helper",
       "subsystem": "actors",
@@ -1255,6 +1275,7 @@
       "hash": "_0x5EEA2581547BAFC2",
       "tier": 1,
       "capability": [
+        "game.actor_stats.read",
         "game.actors.health"
       ],
       "source": "src/game/events_sigs.cpp"
@@ -1265,6 +1286,7 @@
       "hash": "_0x1706EBD3D76DB807",
       "tier": 1,
       "capability": [
+        "game.actor_stats.read",
         "game.actors.health"
       ],
       "source": "src/game/events_sigs.cpp"
@@ -1275,6 +1297,7 @@
       "hash": "_0xA7DF7479D10A852E",
       "tier": 1,
       "capability": [
+        "game.actor_stats.read",
         "game.actors.health"
       ],
       "source": "src/game/events_sigs.cpp"

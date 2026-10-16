@@ -7434,6 +7434,85 @@
       "public_header": true
     },
     {
+      "id": "include.sc_actor_stats.h",
+      "source": "include/sc_actor_stats.h",
+      "destination": "include/sc_actor_stats.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "g7.sdk.contracts.sc_actor_stats_v1.json",
+      "source": "sdk/contracts/sc_actor_stats_v1.json",
+      "destination": "contracts/sc_actor_stats_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "g7.docs.game.actor-stats.md",
+      "source": "docs/game/actor-stats.md",
+      "destination": "docs/game/actor-stats.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.abi_game_actor_stats.c",
+      "source": "tests/abi_game_actor_stats.c",
+      "destination": "tests/abi_game_actor_stats.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
+      "id": "host-source-sc-src-game-services-actor_stats.cpp",
+      "source": "src/game/services/actor_stats.cpp",
+      "destination": "src/game/services/actor_stats.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-actor_stats_sigs.cpp",
+      "source": "src/game/actor_stats_sigs.cpp",
+      "destination": "src/game/actor_stats_sigs.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
+      "id": "host-source-sc-src-game-actor_stats_map.h",
+      "source": "src/game/actor_stats_map.h",
+      "destination": "src/game/actor_stats_map.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
       "id": "source.tests.abi_game_quantum.c",
       "source": "tests/abi_game_quantum.c",
       "destination": "tests/abi_game_quantum.c",

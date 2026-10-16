@@ -35,4 +35,16 @@ bool NpcOwnedBy(const void* owner, uint64_t id);
 // incapacitated. Game thread; safe with any pointer.
 void ProbeActorState(uintptr_t actor, const char* why);
 
+// For game.actor_stats (actor_stats.cpp): the CSCActorStatus of the actor whose entity id is id,
+// found the way health finds it. ActorStatusReady: game.actors is started and game.actors.health
+// is ready (the same rows); why gets the reason when it isn't. ActorStatusOf: Ok with *status set,
+// NotFound (id not streamed in, not an actor), or Failed (no status object, or a fault); why gets
+// a static reason. Game thread.
+bool   ActorStatusReady(const char*& why);
+Result ActorStatusOf(uint64_t id, uintptr_t& status, const char*& why);
+
+// Started at the end of StartActors and stopped at the start of StopActors (actor_stats.cpp).
+Result StartActorStats();
+void   StopActorStats();
+
 }  // namespace sco::game::services

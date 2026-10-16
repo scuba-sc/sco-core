@@ -99,6 +99,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | `game.actors.despawn` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.actors.health` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.actors.state` | OFF | OFF pending in-game confirmation |
+| `game.actor_stats` ([`sc_actor_stats.h`](../../include/sc_actor_stats.h)) | 1.0 | `game.actor_stats.read` (`read`) | ON | row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game |
 | `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |

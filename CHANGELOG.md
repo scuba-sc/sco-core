@@ -4,6 +4,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **New game service table: `game.actor_stats` 1.0** (`include/sc_actor_stats.h`, [docs](docs/game/actor-stats.md)). Reads an actor's status stats by name: hunger, thirst, body and suit temperature, oxygen, stun, distortion, body and suit radiation (`sc_actor_stat`), for your player or a streamed-in NPC. Game thread only, read-only, one float copied out; an actor without a record of a stat answers NOT_FOUND, never a silent 0. It reuses the `actor.status_accessor` and `actor.get_stat` rows behind `game.actors.health` and adds two: `actor.stat_names` follows the game's own stat-name function and checks every index the game pack uses still carries its name (a reordered enum fails the row and turns the capability off instead of reading the wrong stat), and `actor.stat_array` checks GetStat's record-array read. Grounded on F-4.10.197.2878-006. Both rows resolve on 4.10.197.2878 in a local `sco-sigcheck` run (319/319). The capability `game.actor_stats.read` is ON when its rows resolve (evidence level: rows resolved). ABI pinned by `tests/abi_game_actor_stats.c` (C, C++, -fshort-enums). No frozen ABI change. Units, range and direction of each stat are not pinned: not run in game.
 - **Game pack verified build bumped to 4.10.197.2878 (LIVE hotfix, P4 CL 12913470).** The
   hotfix moves no signature row: a native `sco-sigcheck` run on the hotfixed
   `StarCitizen.exe` (PE timestamp `0x6accbae3`) reports every row OK (317/317 at this
