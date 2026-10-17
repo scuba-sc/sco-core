@@ -39,13 +39,17 @@ void __fastcall CellHook(uintptr_t builder, uintptr_t cell, uintptr_t component,
     original(builder, cell, component, lod, forwarded, page, option);
 }
 bool Install() {
-    if (!kNativeVerified || !FreshAdmission()) return false;
-    if (original) return true;
-    auto* target = Sig("mining.cell");
-    if (!target || hook::IsHooked(target)) return false; // one address owner
-    // First five bytes: mov [rsp+0x20], r9d, row-pinned whole non-relative instruction.
-    return hook::InstallDetour(target, 5, reinterpret_cast<void*>(&CellHook),
-                              reinterpret_cast<void**>(&original)) == hook::Error::None;
+    if constexpr (!kNativeVerified) {
+        return false;
+    } else {
+        if (!FreshAdmission()) return false;
+        if (original) return true;
+        auto* target = Sig("mining.cell");
+        if (!target || hook::IsHooked(target)) return false; // one address owner
+        // First five bytes: mov [rsp+0x20], r9d, row-pinned whole non-relative instruction.
+        return hook::InstallDetour(target, 5, reinterpret_cast<void*>(&CellHook),
+                                  reinterpret_cast<void**>(&original)) == hook::Error::None;
+    }
 }
 }
 MiningBackend NativeMiningBackend(bool cleanupReady) {

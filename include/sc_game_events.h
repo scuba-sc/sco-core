@@ -23,7 +23,7 @@
  *  - Each event has a capability (sco_api has()); an event whose capability isn't ready never
  *    fires, so subscribing is harmless: "game.events.player_spawned", "game.events.player_died",
  *    "game.events.actor_died", "game.events.zone_changed", "game.events.vehicle_seat",
- *    "game.events.mission_changed".
+ *    "game.events.mission_changed", "game.events.loadout_respawn_completed".
  *    Both views use one death detour. game.actors.died fires for every captured death and
  *    game.player.died only for yours; a view whose capability is off never fires.
  */
@@ -43,6 +43,10 @@ extern "C" {
 #define SC_GAME_EVENT_VEHICLE_BOARDED "game.vehicle.boarded"
 #define SC_GAME_EVENT_VEHICLE_EXITED  "game.vehicle.exited"
 #define SC_GAME_EVENT_MISSION_CHANGED "game.mission.changed"
+/* Also defined by sc_loadout.h (identical text) so that header works on its own. */
+#ifndef SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED
+#define SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED "game.loadout.respawn_completed"
+#endif
 
 /* game.player.spawned: your player has spawned (after a load or a respawn). */
 typedef struct sc_game_player_spawned {
@@ -114,6 +118,21 @@ typedef struct sc_game_mission_changed {
     uint32_t new_objective;  /* completed objectives in new_phase */
     uint64_t session;        /* the game.missions session, not a plugin id */
 } sc_game_mission_changed;
+
+/* game.loadout.respawn_completed: the game finished applying a respawn loadout to your player.
+ * OCCURRENCE ONLY: the payload is just the size prefix. It names no entity, zone, slot or item, and
+ * says nothing about what was equipped; it is not a per-slot confirmation and not a substitute for
+ * game.loadout apply results. The only evidence for the native event is a type name whose
+ * declaration is an empty marker struct (F-INTAKE-004); its dispatch site and calling convention
+ * are unverified (T-3), so this is not run in game. The capability
+ * "game.events.loadout_respawn_completed" is OFF in production and turns on only when a verified,
+ * offline-admitted host adapter attests the producer (src/game/services/loadout.h). Occurrences
+ * recorded within one tick coalesce into one event; it is a notification, not a counter. A later
+ * minor may append fields after _pad: check size. */
+typedef struct sc_game_loadout_respawn_completed {
+    uint32_t size;
+    uint32_t _pad;
+} sc_game_loadout_respawn_completed;
 
 #ifdef __cplusplus
 }

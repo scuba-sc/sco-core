@@ -798,6 +798,82 @@ struct Patch::Impl {
         return {};
     }
 
+    // Recursively duplicates array elements and nested struct arrays for deep cloning
+    Status DuplicateArrays(uint32_t st, Loc loc, uint32_t depth = 0) {
+        if (depth > 16) return {}; // prevent cycle / overflow
+        if (st >= s.structs.size() || s.structInfo[st].opaque) return {};
+        uint64_t off = 0;
+        for (uint32_t k : s.Properties(st)) {
+            const PropertyDef& d = s.properties[k];
+            const Loc at = At(loc, off);
+            if (d.conversion != 0) {
+                // It is an array (conversion != 0)
+                uint32_t count = 0, first = 0;
+                Node arrNode{ Node::Array, 0, kNoIndex, at, d.dataType, d.typeIndex };
+                if (Status stRange = ArrayRange(arrNode, count, first, "deep-clone"); stRange && count > 0) {
+                    if (d.dataType == type::kClass) {
+                        const uint32_t elemSt = d.typeIndex;
+                        if (elemSt < s.structs.size() && !s.structInfo[elemSt].opaque) {
+                            if (Status c = CanAddInstances(elemSt, count); c) {
+                                const uint64_t elemSize = s.structInfo[elemSt].size;
+                                Bytes bytes(SatMul(count, elemSize));
+                                Loc srcLoc;
+                                bool readOk = true;
+                                for (uint64_t i = 0; i < count; ++i) {
+                                    if (!InstanceLoc(elemSt, first + i, srcLoc) || !Read(srcLoc, bytes.data() + i * elemSize, elemSize)) {
+                                        readOk = false; break;
+                                    }
+                                }
+                                if (readOk) {
+                                    const uint64_t newFirst = PushInstances(elemSt, bytes, count);
+                                    WriteU32x2(at, count, static_cast<uint32_t>(newFirst));
+                                    for (uint64_t i = 0; i < count; ++i) {
+                                        Loc elemLoc;
+                                        if (InstanceLoc(elemSt, static_cast<uint32_t>(newFirst + i), elemLoc)) {
+                                            DuplicateArrays(elemSt, elemLoc, depth + 1);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        PoolType p;
+                        if (PoolOf(d.dataType, p)) {
+                            const uint64_t total = PoolCount(p.kind);
+                            if (SatAdd(total, count) <= kU32) {
+                                Bytes bytes(SatMul(count, p.entry));
+                                Loc srcLoc;
+                                bool readOk = true;
+                                for (uint64_t i = 0; i < count; ++i) {
+                                    if (!PoolLoc(p.kind, p.entry, first + i, srcLoc) || !Read(srcLoc, bytes.data() + i * p.entry, p.entry)) {
+                                        readOk = false; break;
+                                    }
+                                }
+                                if (readOk) {
+                                    const size_t ki = static_cast<size_t>(p.kind);
+                                    Region& r = Grow(poolRank[ki], poolEnd[ki]);
+                                    r.bytes.insert(r.bytes.end(), bytes.begin(), bytes.end());
+                                    r.count += count;
+                                    WriteU32x2(at, count, static_cast<uint32_t>(total));
+                                }
+                            }
+                        }
+                    }
+                }
+                off = SatAdd(off, 8);
+            } else if (d.dataType == type::kClass) {
+                // Inline nested struct
+                if (d.typeIndex < s.structInfo.size()) {
+                    DuplicateArrays(d.typeIndex, at, depth + 1);
+                    off = SatAdd(off, s.structInfo[d.typeIndex].size);
+                }
+            } else {
+                off = SatAdd(off, FieldSize(d.dataType));
+            }
+        }
+        return {};
+    }
+
     Status AddInstance(std::string_view type, const InstanceSource& src, InstanceId& out) {
         const int64_t found = s.FindStruct(type);
         if (found < 0) return Refuse(Refusal::StructNotFound, "no struct " + Q(type));
@@ -814,6 +890,12 @@ struct Patch::Impl {
             return Refuse(Refusal::BadArgument, "clone source has a field but no record");
         }
         out = { st, static_cast<uint32_t>(PushInstances(st, bytes, 1)) };
+        if (src.deep) {
+            Loc outLoc;
+            if (InstanceLoc(st, out.index, outLoc)) {
+                if (Status stDupl = DuplicateArrays(st, outLoc); !stDupl) return stDupl;
+            }
+        }
         return {};
     }
 
@@ -921,6 +1003,12 @@ struct Patch::Impl {
         // Commit: root instance, name, file path, then the entry (a copy of the clone's, so any
         // field this layout doesn't name is kept).
         const uint64_t index = PushInstances(st, root, 1);
+        if (nr.clone.deep) {
+            Loc outLoc;
+            if (InstanceLoc(st, static_cast<uint32_t>(index), outLoc)) {
+                if (Status stDupl = DuplicateArrays(st, outLoc); !stDupl) return stDupl;
+            }
+        }
         Region& names = Grow(namesRank, namesEnd);
         const auto nameOff = static_cast<uint32_t>(nameLen);
         names.bytes.insert(names.bytes.end(), nr.name.begin(), nr.name.end());

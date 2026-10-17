@@ -11,6 +11,17 @@ extern "C" {
 #define SC_LOADOUT_SERVICE_VERSION 0x00010000u
 #define SC_LOADOUT_VERSION_1_0 0x00010000u
 #define SC_LOADOUT_VERSION_1_1 0x00010001u /* + weapon and multitool slots 8-21 */
+/* Respawn-completed notification (additive; sc_loadout_v1 is unchanged, no table member). Bus event
+ * name only: this header is deliberately usable on its own, so a plugin that includes just
+ * sc_loadout.h can subscribe with sco_api's subscribe. The payload struct and the same name live in
+ * sc_game_events.h (sc_game_loadout_respawn_completed, size-prefixed, occurrence only; both headers
+ * guard the macro, so include order does not matter). Gated by capability
+ * "game.events.loadout_respawn_completed", which is OFF in production: the native event's
+ * provenance and calling convention are unverified (F-INTAKE-004, T-3), not run in game. An event
+ * whose capability is off never fires, so subscribing is harmless. See docs/game/loadout.md. */
+#ifndef SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED
+#define SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED "game.loadout.respawn_completed"
+#endif
 #define SC_LOADOUT_MAX_ITEMS 16u
 #define SC_LOADOUT_ITEM_NAME_BYTES 96u
 typedef enum sc_loadout_slot {

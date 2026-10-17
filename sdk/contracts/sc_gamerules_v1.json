@@ -7,9 +7,9 @@
       "table": "sc_gamerules_v1",
       "source_header": "include/sc_gamerules.h",
       "signature": "sco_result (*)(sco_plugin *, sc_gamerules_state *)",
-      "version_macro": "SC_GAMERULES_SERVICE_VERSION",
+      "version_macro": "SC_GAMERULES_VERSION_1_1",
       "member_extent": 16,
-      "table_size": 16,
+      "table_size": 24,
       "service": "game.gamerules",
       "id": "sc-gamerules-v1-read",
       "since": "`size >= 16`; 1.0",
@@ -86,6 +86,82 @@
           "tests": [
             "tests/test_lua.cpp"
           ]
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_gamerules_v1.list_params",
+      "table": "sc_gamerules_v1",
+      "source_header": "include/sc_gamerules.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t, sc_gamerules_param_info *, uint32_t, uint32_t, uint32_t *, uint32_t *)",
+      "version_macro": "SC_GAMERULES_VERSION_1_1",
+      "member_extent": 24,
+      "table_size": 24,
+      "service": "game.gamerules",
+      "id": "sc-gamerules-v1-list-params",
+      "since": "`size >= 24`; 1.1",
+      "purpose": "Enumerate copied static GameRules parameter definitions by offset; records carry names, groups and types but no values or engine offsets.",
+      "buffer_contract": "`sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate copied static GameRules parameter definitions by offset; records carry names, groups and types but no values or engine offsets.",
+      "ownership": "Caller owns all output slots; size and unknown tails remain untouched. No pointers retained.",
+      "thread_affinity": "Game thread only; live self required.",
+      "callback_context": "No plugin callbacks.",
+      "reentrancy": "No engine calls or callbacks; read-only metadata lookup.",
+      "results": "OK page copied or count-only query; BAD_ARG invalid slot size, pointers, offset, cap or stride; WRONG_THREAD; UNAVAILABLE after stop.",
+      "absent_capability": "Static metadata does not require game.gamerules.read or a live backend.",
+      "cleanup": "StopGameRules withdraws the table and disables cached list_params pointers.",
+      "limitations": [
+        "Source build unresolved; metadata is not proof of a live parameter layout.",
+        "Not run in game.",
+        "C++/C#/Lua list_params wrappers are unsupported; existing read wrappers unchanged."
+      ],
+      "tests": [
+        "tests/test_gamerules_params.cpp",
+        "tests/abi_game_gamerules.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_gamerules.h",
+              "token": "(*list_params)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_gamerules.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/gamerules.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/gamerules.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/gamerules.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
         }
       }
     }

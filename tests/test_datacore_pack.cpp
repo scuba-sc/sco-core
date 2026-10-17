@@ -547,6 +547,47 @@ static void TestSamplePack() {
     CHECK(fs::file_size(g_out / "example_fixture_record.dcb") == fr.size());
 }
 
+
+static void TestBestEffortPolicyAndDeepClone() {
+    // 1. Test BestEffort policy parsing and receipt
+    const std::string text = R"(
+format = 1
+policy = "best_effort"
+
+[[set]]
+record = "ShipA"
+field = "speed"
+value = 150.0
+)";
+    Pack p;
+    std::string err;
+    CHECK(ParsePack(text, p, err));
+    CHECK(!p.atomic);
+    CHECK(p.policy == PackApplyPolicy::BestEffort);
+
+    // 2. Test deep clone parsing
+    const std::string textDeep = R"(
+format = 1
+
+[[record]]
+struct = "Ship"
+name = "ShipDeep"
+clone = { record = "ShipA", mode = "deep" }
+)";
+    Pack pDeep;
+    CHECK(ParsePack(textDeep, pDeep, err));
+    CHECK(pDeep.ops.size() == 1);
+    CHECK(pDeep.ops[0].clone.deep);
+
+    // Roundtrip test via WritePack
+    const std::string written = WritePack(pDeep);
+    CHECK(written.find("mode = \"deep\"") != std::string::npos);
+    Pack pRound;
+    CHECK(ParsePack(written, pRound, err));
+    CHECK(pRound.ops.size() == 1);
+    CHECK(pRound.ops[0].clone.deep);
+}
+
 int main(int argc, char** argv) {
     if (argc != 3) {
         std::fprintf(stderr, "usage: test_datacore_pack <repo root> <out dir>\n");
@@ -562,6 +603,7 @@ int main(int argc, char** argv) {
     TestRefusals();
     TestRecords();
     TestSamplePack();
+    TestBestEffortPolicyAndDeepClone();
     std::printf("sco-core datacore pack tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

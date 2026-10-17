@@ -208,6 +208,15 @@ HOST_IMPL=("$ROOT/src/api/sco_caps.cpp" "$ROOT/src/host/sco_host.cpp"
            "$ROOT/src/host/sco_diagnostics.cpp" "$ROOT/src/host/sco_diagnostics_publisher.cpp")
 HOST=("$ROOT/tests/test_host.cpp" "${HOST_IMPL[@]}" "${RUNTIME[@]}"
       "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp")
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_input.cpp" \
+  "$ROOT/src/game/services/input.cpp" "${HOST[@]:1}" -o "$OUT/test_input"
+"$OUT/test_input"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_gamerules_params.cpp" \
+  "$ROOT/src/game/services/gamerules.cpp" "${HOST[@]:1}" -o "$OUT/test_gamerules_params"
+"$OUT/test_gamerules_params"
+"$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_game_input.c"
+"$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_game_input.c"
+"$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_game_input.c"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "${HOST[@]}" -o "$OUT/test_host"
 "$OUT/test_host"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "${HOST[@]}" -o "$OUT/test_host_tsan"

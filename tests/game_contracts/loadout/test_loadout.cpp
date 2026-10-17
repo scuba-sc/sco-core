@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "sco/host.h"
 #include "sco/caps.h"
+#include "sco/runtime.h"
 #include "sc_loadout.h"
+#include "sc_game_events.h"
 #include "game/services/loadout.h"
+#include "game/admission.h"
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <initializer_list>
 #include <thread>
@@ -38,6 +42,62 @@ int main(int argc, char** argv) {
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, 0x00010002u, &table12) != SCO_OK && !table12);
     sco::game::services::StopLoadout();
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
+    sc_loadout_item socketBatch[] = {{SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"}};
+    sc_loadout_request socketRequest{sizeof(socketRequest), 1, sizeof(sc_loadout_item), 0, socketBatch};
+    sc_loadout_report socketReport{}; socketReport.size = sizeof(socketReport);
+    // Host socket sco_game_set_loadout_backend: real provider, admission is host::FreshAdmissionAllowed.
+    namespace gh = sco::game::host;
+    static unsigned socketEquips = 0;
+    static gh::Admission evidence;
+    sco_loadout_backend socket{sizeof(socket), 0, [](uint32_t, const char*) { ++socketEquips; return SC_LOADOUT_APPLIED; }};
+    const auto socketApply = [&]() {
+        const void* t = nullptr;
+        CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &t) == SCO_OK);
+        return static_cast<const sc_loadout_v1*>(t)->apply(self, &socketRequest, &socketReport);
+    };
+        // Null and malformed providers are refused before anything is published.
+    sco_loadout_backend bad = socket;
+    CHECK(sco_game_set_loadout_backend(nullptr) == SCO_BAD_ARG);
+    bad.size = sizeof(bad) - 1; CHECK(sco_game_set_loadout_backend(&bad) == SCO_BAD_ARG);
+    bad = socket; bad.equip = nullptr; CHECK(sco_game_set_loadout_backend(&bad) == SCO_BAD_ARG);
+    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
+    CHECK(!api->has("game.loadout.apply") && !api->has("game.loadout.weapons"));
+    // Off the game thread nothing is installed.
+    sco_result viaThread = SCO_OK;
+    std::thread([&] { viaThread = sco_game_set_loadout_backend(&socket); }).join();
+    CHECK(viaThread == SCO_WRONG_THREAD && api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
+    // Default admission (host never composed one): the socket installs but every equip is refused.
+    CHECK(sco_game_set_loadout_backend(&socket) == SCO_OK && api->has("game.loadout.apply"));
+    CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 0 && socketReport.slots[0].status == SC_LOADOUT_UNAVAILABLE);
+    sco::game::services::StopLoadout();
+    // Enabled admission with unknown evidence still refuses; positive evidence admits; revocation is live.
+    gh::detail::SetFreshInspector([]() { return evidence; });
+    gh::detail::SetFreshAdmissionEnabled(true);
+    CHECK(sco_game_set_loadout_backend(&socket) == SCO_OK);
+    CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 0);
+    evidence = {gh::Session::Offline, gh::Check::Clear, gh::Check::Clear, gh::Check::Clear};
+    CHECK(socketApply() == SCO_OK && socketEquips == 1 && socketReport.applied == 1);
+    CHECK(!api->has("game.loadout.weapons"));
+    evidence.session = gh::Session::Online;
+    CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 1 && socketReport.slots[0].status == SC_LOADOUT_UNAVAILABLE);
+    evidence.session = gh::Session::Offline;
+    // A repeated install is refused and the first provider stays: no second callback, same state.
+    static unsigned secondEquips = 0;
+    sco_loadout_backend second{sizeof(second), 1, [](uint32_t, const char*) { ++secondEquips; return SC_LOADOUT_APPLIED; }};
+    CHECK(sco_game_set_loadout_backend(&second) == SCO_UNAVAILABLE);
+    CHECK(socketApply() == SCO_OK && socketEquips == 2 && secondEquips == 0 && !api->has("game.loadout.weapons"));
+    sco::game::services::StopLoadout();
+    // A late install after the production start (no backend) is refused, not reported as success.
+    CHECK(sco::game::services::StartLoadout() == sco::Result::Ok);
+    CHECK(sco_game_set_loadout_backend(&socket) == SCO_UNAVAILABLE);
+    CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 2 && !api->has("game.loadout.apply"));
+    sco::game::services::StopLoadout();
+    // The weapons attestation is carried through.
+    CHECK(sco_game_set_loadout_backend(&second) == SCO_OK && api->has("game.loadout.weapons"));
+    socketBatch[0] = {SC_LOADOUT_SLOT_PRIMARY, 0, "synthetic_rifle"};
+    CHECK(socketApply() == SCO_OK && secondEquips == 1);
+    sco::game::services::StopLoadout();
+    gh::detail::SetFreshAdmissionEnabled(false);
     // Synthetic engine seam; real provider and host registry, not game acceptance.
     static unsigned calls = 0;
     sco::game::services::LoadoutBackend backend{};
@@ -69,6 +129,93 @@ int main(int argc, char** argv) {
     CHECK(report.slots[0].status == SC_LOADOUT_APPLIED);
     CHECK(report.slots[1].status == SC_LOADOUT_UNSUPPORTED);
     CHECK(report.slots[2].status == SC_LOADOUT_ITEM_MISSING);
+    // game.loadout.respawn_completed: host producer seam, deferred dispatch on the real event bus.
+    // Runs before the native loader test: its callout containment is torn down with that test.
+    // Synthetic producer only; the native event is unverified (F-INTAKE-004, T-3), not run in game.
+    {
+        static const char* const kCap = "game.events.loadout_respawn_completed";
+        static unsigned fired = 0;
+        static uint32_t lastSize = 0, lastPad = 1;
+        static bool admitted = true;
+        const auto onEvent = [](const char* name, const void* data, void*) {
+            CHECK(std::strcmp(name, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED) == 0);
+            const auto* e = static_cast<const sc_game_loadout_respawn_completed*>(data);
+            lastSize = e->size; lastPad = e->_pad; ++fired;
+        };
+        const auto tick = [] {
+            uint32_t now = 0;
+            CHECK(sco::Dispatch("tick", &now) == sco::Result::Ok);
+        };
+        CHECK(api->subscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, onEvent, nullptr) == SCO_OK);
+        sco::game::services::LoadoutBackend ev{};
+        ev.verified = true; ev.respawnCompleted = true;
+        ev.offline = []() { return admitted; };
+        ev.equip = [](uint32_t, const char*) { return SC_LOADOUT_APPLIED; };
+        // Fail closed: nothing attested means no capability, no recording and no event.
+        const auto expectOff = [&](const sco::game::services::LoadoutBackend* b) {
+            sco::game::services::StopLoadout();
+            CHECK(sco::game::services::StartLoadout(b) == sco::Result::Ok);
+            CHECK(!api->has(kCap));
+            sco::caps::Set(kCap, true); // cannot override a missing attestation
+            CHECK(!sco::game::services::RecordRespawnLoadoutCompleted());
+            tick();
+            CHECK(fired == 0);
+        };
+        expectOff(nullptr);                                        // production composition
+        auto variant = ev; variant.respawnCompleted = false; expectOff(&variant);  // verified, not attested
+        variant = ev; variant.verified = false;              expectOff(&variant);  // attested, not verified
+        variant = ev; variant.offline = nullptr;             expectOff(&variant);  // no admission check
+        sco::game::services::StopLoadout();
+        CHECK(api->unsubscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, onEvent) == SCO_OK);
+        const size_t baseline = sco::SubscriptionCount();
+        CHECK(api->subscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, onEvent, nullptr) == SCO_OK);
+        CHECK(sco::game::services::StartLoadout(&ev) == sco::Result::Ok);
+        CHECK(sco::SubscriptionCount() == baseline + 2 && api->has(kCap));
+        // Recording defers: nothing runs until the tick, then exactly one sized, occurrence-only event.
+        CHECK(sco::game::services::RecordRespawnLoadoutCompleted() && fired == 0);
+        tick();
+        CHECK(fired == 1 && lastSize == sizeof(sc_game_loadout_respawn_completed) && lastPad == 0);
+        tick(); CHECK(fired == 1);                  // consumed, not replayed
+        CHECK(sco::game::services::RecordRespawnLoadoutCompleted());
+        CHECK(sco::game::services::RecordRespawnLoadoutCompleted());
+        tick(); CHECK(fired == 2);                  // coalesced within one tick
+        // The producer may be a native hook on another thread; dispatch is still the game thread's.
+        std::thread hook([] { CHECK(sco::game::services::RecordRespawnLoadoutCompleted()); });
+        hook.join();
+        CHECK(fired == 2);
+        tick(); CHECK(fired == 3);
+        // Live admission is re-checked at dispatch; a refused occurrence is dropped, never replayed.
+        CHECK(sco::game::services::RecordRespawnLoadoutCompleted());
+        admitted = false; tick(); admitted = true; tick();
+        CHECK(fired == 3);
+        // A revoked capability stops recording and dispatch; re-enabling does not replay.
+        sco::caps::Set(kCap, false, "synthetic revocation");
+        CHECK(!sco::game::services::RecordRespawnLoadoutCompleted());
+        tick(); CHECK(fired == 3);
+        sco::caps::Set(kCap, true);
+        CHECK(sco::game::services::RecordRespawnLoadoutCompleted());
+        tick(); CHECK(fired == 4);
+        // Unsubscribe is honoured at once; the host stays quiet for that plugin.
+        CHECK(api->unsubscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, onEvent) == SCO_OK);
+        CHECK(api->unsubscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, onEvent) != SCO_OK);
+        CHECK(sco::game::services::RecordRespawnLoadoutCompleted());
+        tick(); CHECK(fired == 4);
+        CHECK(api->subscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, onEvent, nullptr) == SCO_OK);
+        // Stop drops a pending occurrence, withdraws the tick subscription and turns the capability off.
+        CHECK(sco::game::services::RecordRespawnLoadoutCompleted());
+        sco::game::services::StopLoadout();
+        CHECK(!api->has(kCap) && !sco::game::services::RecordRespawnLoadoutCompleted());
+        CHECK(sco::SubscriptionCount() == baseline + 1);
+        CHECK(sco::game::services::StartLoadout(&ev) == sco::Result::Ok);
+        tick(); CHECK(fired == 4);                  // no stale replay after restart
+        sco::game::services::StopLoadout();
+        CHECK(sco::SubscriptionCount() == baseline + 1 && !api->has(kCap));
+        CHECK(api->unsubscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, onEvent) == SCO_OK);
+        CHECK(sco::SubscriptionCount() == baseline);
+    }
+    // Back to the verified body backend the native test expects.
+    sco::game::services::StopLoadout();
+    CHECK(sco::game::services::StartLoadout(&backend) == sco::Result::Ok);
     TestLoadoutNative(api, argv[1]);
     static bool offline = true;
     backend.offline = []() { return offline; };
@@ -242,5 +389,6 @@ int main(int argc, char** argv) {
     CHECK(!api->has("game.loadout.apply") && !api->has("game.loadout.weapons")); // Fault() clears both
     CHECK(service->apply(self, &request, &report) == SCO_UNAVAILABLE && calls == before + 1);
     sco::game::services::StopLoadout();
+
     std::puts("loadout: publication, partial slots, validation, offline and terminal fault OK");
 }

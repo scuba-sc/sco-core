@@ -36,6 +36,8 @@ extern const SigDef kEventsSignatures[];
 extern const size_t kEventsSignatureCount;
 extern const SigDef kActorStatsSignatures[];
 extern const size_t kActorStatsSignatureCount;
+extern const SigDef kInventorySignatures[];
+extern const size_t kInventorySignatureCount;
 
 bool RegisterGameSignatures() {
     static int done = 0;   // 1 = registered, -1 = failed
@@ -55,6 +57,7 @@ bool RegisterGameSignatures() {
                  && RegisterSignatures(kEntitiesSignatures, kEntitiesSignatureCount)
                  && RegisterSignatures(kEventsSignatures, kEventsSignatureCount)
                  && RegisterSignatures(kActorStatsSignatures, kActorStatsSignatureCount)
+                 && RegisterSignatures(kInventorySignatures, kInventorySignatureCount)
                  && RegisterSignatures(kGameRulesSignatures, kGameRulesSignatureCount);
     done = ok ? 1 : -1;
     return ok;

@@ -17,8 +17,11 @@
 #include "asop_service.h"
 #include "contracts_service.h"
 #include "hangar.h"
+#include "inventory_host.h"
 #include "reputation.h"
 #include "loadout.h"
+#include "input.h"
+#include "gamerules.h"
 #include "quantum.h"
 #include "cvars.h"
 #include "offline_missions.h"
@@ -508,7 +511,12 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    (void)StartInventory(); // game.inventory.read held OFF; a failed publish leaves the pack up
     g_started = true;
+    r = StartInput();
+    if (r != Result::Ok) { Stop(); return r; }
+    r = StartGameRules(); // metadata available; live reads still require a verified backend
+    if (r != Result::Ok) { Stop(); return r; }
     Log("[game] game.spatial 1.0 published: observed chains only; system identity unknown");
     Log("[game] game services published: %s 1.0, %s 1.2, %s 1.1, %s 1.0, %s 1.0, %s 1.0, %s 1.0 (+ the game.* events)", SC_SPATIAL_SERVICE_NAME,
         SC_SPAWN_SERVICE_NAME, SC_ACTORS_NAME, SC_VEHICLES_SERVICE_NAME, SC_WORLD_NAME, SC_ENTITIES_NAME,
@@ -519,7 +527,10 @@ Result Start() {
 void Stop() {
     StopGameBuild();
     if (!g_started) return;
+    StopInventory();
     Unsubscribe(host::GameOwner(), "tick", OnTick);
+    StopGameRules();
+    StopInput();
     StopContracts();
     StopAsop();
     StopReputation();

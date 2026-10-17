@@ -395,8 +395,14 @@ static void TestLifetimeAndThreads(const sco_api* api) {
     CHECK(W::Start() == Result::Ok);
     W::Stop();
     static const sco::ReleaseHook hooks[]{
-        [](const void*) {}, [](const void*) {}, [](const void*) {}, [](const void*) {},
-        [](const void*) {}, [](const void*) {}, [](const void*) {}, [](const void*) {}
+        [](const void*) { static volatile int id = 0; (void)id; },
+        [](const void*) { static volatile int id = 1; (void)id; },
+        [](const void*) { static volatile int id = 2; (void)id; },
+        [](const void*) { static volatile int id = 3; (void)id; },
+        [](const void*) { static volatile int id = 4; (void)id; },
+        [](const void*) { static volatile int id = 5; (void)id; },
+        [](const void*) { static volatile int id = 6; (void)id; },
+        [](const void*) { static volatile int id = 7; (void)id; }
     };
     for (auto hook : hooks) CHECK(sco::AddReleaseHook(hook) == Result::Ok);
     CHECK(W::Start() == Result::TooMany && !W::Started());

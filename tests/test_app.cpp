@@ -919,7 +919,7 @@ static void TestReloadCascade(const fs::path& out) {
     pf.scripts = &kLua;
     pf.moduleOps = P::ModuleOps{ RlOpen, RlSymbol, RlClose };
     CHECK(sco::app::Start(pf));
-    static const int providerTable = 42;
+    static int providerTable = 42;
     auto publishProvider = [&] {
         CHECK(sco::ProvideService(Find("m11")->self, "m11", "m11.svc", 1u << 16, &providerTable) == sco::Result::Ok);
     };

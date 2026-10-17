@@ -2,6 +2,7 @@
 #include "sco/host.h"
 #include "sco/plugins.h"
 #include "sco/caps.h"
+#include "sco/runtime.h"
 #include "sc_loadout.h"
 #include "game/services/loadout.h"
 #include <initializer_list>
@@ -89,6 +90,24 @@ void TestLoadoutNative(const sco_api* api, const char* root) {
         CHECK(out.calls == 1 && out.result == expected);
     };
     WeaponSlotRows(api, p.self);
+    {
+        // A module built from sc_loadout.h alone receives the host-dispatched respawn event.
+        namespace S = sco::game::services;
+        S::LoadoutBackend b{};
+        b.verified = true; b.offline = NativeOffline; b.equip = NativeEquip; b.respawnCompleted = true;
+        S::StopLoadout();
+        CHECK(S::StartLoadout(&b) == sco::Result::Ok);
+        CHECK(api->has("game.events.loadout_respawn_completed") && S::RecordRespawnLoadoutCompleted());
+        uint32_t now = 0;
+        CHECK(sco::Dispatch("tick", &now) == sco::Result::Ok);
+        out = {};
+        CHECK(api->invoke(p.self, "loadout_native.respawn_count", nullptr, 0, done, &out) == SCO_OK);
+        CHECK(out.calls == 1 && std::strcmp(out.text, "respawns=1") == 0);
+        // Leave the weapon-attested body backend running, as WeaponSlotRows did.
+        b.respawnCompleted = false; b.weapons = true;
+        S::StopLoadout();
+        CHECK(S::StartLoadout(&b) == sco::Result::Ok);
+    }
     sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
     invoke(SCO_NOT_FOUND);
     for (uint32_t extent : {uint32_t(offsetof(sc_loadout_v1, apply) + 1), uint32_t(sizeof(sc_loadout_v1) - 1)}) {

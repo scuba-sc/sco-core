@@ -338,10 +338,11 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/actor_stats.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp src/game/services/gamerules.cpp src/game/services/inventory.cpp
+                                       src/game/services/inventory_walk.cpp src/game/services/inventory_engine.cpp src/game/services/inventory_host.cpp
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
-                                       src/game/services/loadout.cpp src/game/services/cvars.cpp src/game/services/build.cpp
+                                       src/game/services/loadout.cpp src/game/services/cvars.cpp src/game/services/build.cpp src/game/services/input.cpp
                                        src/game/services/hangar.cpp src/game/services/hangar_engine.cpp
                                        src/game/services/reputation.cpp src/game/services/reputation_engine.cpp
                                        src/game/services/asop_service.cpp src/game/services/asop_engine.cpp
@@ -493,6 +494,33 @@ endif()
 
 if(SCO_BUILD_TESTS)
   enable_testing()
+  if(SCO_GAME_SC)
+    add_executable(test_input tests/test_input.cpp src/game/services/input.cpp)
+    target_link_libraries(test_input PRIVATE sco_host)
+    sco_project_target(test_input)
+    add_test(NAME input_registry COMMAND test_input)
+    add_executable(test_gamerules_params tests/test_gamerules_params.cpp src/game/services/gamerules.cpp)
+    target_link_libraries(test_gamerules_params PRIVATE sco_host)
+    sco_project_target(test_gamerules_params)
+    add_test(NAME gamerules_params COMMAND test_gamerules_params)
+    add_executable(abi_input_c tests/abi_game_input.c)
+    target_include_directories(abi_input_c PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(abi_input_c)
+    add_test(NAME abi_input_c COMMAND abi_input_c)
+    file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/abi_game_input.cpp"
+         CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_input.c\"\n")
+    add_executable(abi_input_cpp "${CMAKE_CURRENT_BINARY_DIR}/abi_game_input.cpp")
+    target_include_directories(abi_input_cpp PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(abi_input_cpp)
+    add_test(NAME abi_input_cpp COMMAND abi_input_cpp)
+    if(NOT MSVC)
+      add_executable(abi_input_short_enums tests/abi_game_input.c)
+      target_include_directories(abi_input_short_enums PRIVATE "${SCO_INCLUDE_DIR}")
+      target_compile_options(abi_input_short_enums PRIVATE -fshort-enums)
+      sco_project_target(abi_input_short_enums)
+      add_test(NAME abi_input_short_enums COMMAND abi_input_short_enums)
+    endif()
+  endif()
   set(SCO_TEST_OUT "${CMAKE_CURRENT_BINARY_DIR}/tests/out")
   file(MAKE_DIRECTORY "${SCO_TEST_OUT}")
 
@@ -698,8 +726,13 @@ if(SCO_BUILD_TESTS)
   foreach(_t IN LISTS _abi_ggr_targets)
     target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
   endforeach()
-  add_test(NAME abi_game_gamerules
-           COMMAND ${CMAKE_COMMAND} -E echo "layout pinned by object-library compile")
+  add_executable(abi_gamerules_c tests/abi_game_gamerules.c)
+  add_executable(abi_gamerules_cpp "${_abi_ggr_cxx}")
+  foreach(_t abi_gamerules_c abi_gamerules_cpp)
+    target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(${_t})
+    add_test(NAME ${_t} COMMAND ${_t})
+  endforeach()
 
   # The game.build table pin (tests/abi_game_build.c, sc_game_build.h), the same three ways. Game-pack only.
   set(_abi_gb_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_build.cpp")
@@ -969,6 +1002,18 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_reputation PRIVATE sco_host)
     sco_project_target(test_reputation)
     add_test(NAME reputation COMMAND test_reputation)
+    add_executable(test_inventory tests/test_inventory.cpp src/game/services/inventory.cpp src/game/services/inventory_walk.cpp)
+    target_include_directories(test_inventory PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_inventory PRIVATE sco_host)
+    sco_project_target(test_inventory)
+    add_test(NAME inventory COMMAND test_inventory)
+    if(WIN32)
+      add_executable(test_inventory_engine tests/test_inventory_engine.cpp src/game/services/inventory_engine.cpp
+                                           src/game/services/inventory_walk.cpp)
+      target_include_directories(test_inventory_engine PRIVATE "${SCO_INCLUDE_DIR}")
+      sco_project_target(test_inventory_engine)
+      add_test(NAME inventory_engine COMMAND test_inventory_engine)
+    endif()
     add_executable(test_asop tests/test_asop.cpp src/game/services/asop_service.cpp)
     target_include_directories(test_asop PRIVATE "${SCO_INCLUDE_DIR}")
     target_link_libraries(test_asop PRIVATE sco_host)
@@ -1158,7 +1203,7 @@ if(SCO_BUILD_TESTS)
 
   if(SCO_GAME_SC)
     add_library(sco_loadout STATIC src/game/services/loadout.cpp)
-    target_link_libraries(sco_loadout PUBLIC sco_host)
+    target_link_libraries(sco_loadout PUBLIC sco_host sco_game_admission)
     sco_project_target(sco_loadout)
     set(_loadout_inc "${SCO_TEST_OUT}/loadout/include")
     file(MAKE_DIRECTORY "${_loadout_inc}")
@@ -1190,7 +1235,7 @@ if(SCO_BUILD_TESTS)
     add_test(NAME test_loadout COMMAND test_loadout "${_loadout_root}")
 
     add_library(sco_relocation_provider STATIC src/game/services/relocation.cpp)
-    target_link_libraries(sco_relocation_provider PUBLIC sco_host)
+    target_link_libraries(sco_relocation_provider PUBLIC sco_host sco_game_admission)
     sco_project_target(sco_relocation_provider)
     add_executable(test_relocation_provider tests/game_contracts/relocation/test_provider.cpp)
     target_include_directories(test_relocation_provider PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")

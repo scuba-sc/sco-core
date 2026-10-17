@@ -54,7 +54,7 @@ set(REC "${ROOT}/tests/fixtures/datacore/new_record")
 set(NEW "ExampleItem.Drive_Test")
 run(0 "OK [^\n]*record.toml: 1 operation\n" lint "${REC}")
 run(1 "FAIL [^\n]*bad_record_file.toml:9: \\[\\[record\\]\\]: bad file path" lint "${G}/bad_record_file.toml")
-run(0 "APPLIED 1/1\n  line 5: OK   AddRecord record \"${NEW}\" \\(ExampleItem\\).*emit: OK" check "${DIR}/example_fixture.dcb" "${REC}")
+run(0 "APPLIED 1/1 \\[receipt: 1 applied, 0 skipped, 1 total\\]\n  line 5: OK   AddRecord record \"${NEW}\" \\(ExampleItem\\).*emit: OK" check "${DIR}/example_fixture.dcb" "${REC}")
 run(0 "record \"${NEW}\" guid [0-9a-f-]+ struct ExampleItem file libs/foundry/records/sco/new_record/${NEW}\\.xml\n.*Components\\[1\\]\\.params\\.spoolUpTime = 5\\.0"
     show "${DIR}/example_fixture_record.dcb" "${NEW}")
 execute_process(COMMAND "${DCB}" diff "${DIR}/example_fixture.dcb" "${DIR}/example_fixture_record.dcb"
@@ -65,5 +65,5 @@ if(NOT rc STREQUAL "0" OR NOT diff MATCHES "\\[\\[record\\]\\]\nid = \"new1\"\ns
   message("dcb_pack: FAIL (diff of an added record)")
   message(FATAL_ERROR "diff")
 endif()
-run(0 "APPLIED 1/1\n  line [0-9]+: OK   AddRecord record \"${NEW}\".*emit: OK" check "${DIR}/example_fixture.dcb" "${DIR}/record_diff.toml")
+run(0 "APPLIED 1/1 \\[receipt: 1 applied, 0 skipped, 1 total\\]\n  line [0-9]+: OK   AddRecord record \"${NEW}\".*emit: OK" check "${DIR}/example_fixture.dcb" "${DIR}/record_diff.toml")
 message("dcb_pack: OK")

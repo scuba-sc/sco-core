@@ -6,6 +6,14 @@
 #define MEMBER(t, type, m) ((t) && (t)->size >= offsetof(type, m) + sizeof((t)->m) && (t)->m)
 static const sco_api* api;
 static sco_plugin* self;
+static unsigned respawns;
+/* Only sc_loadout.h is copied for this module: the event name comes from it, payload is unused. */
+static void OnRespawn(const char* event, const void* data, void* ctx) { (void)event; (void)data; (void)ctx; ++respawns; }
+static sco_result RespawnCount(const sco_arg* a, uint32_t n, void* ctx, char* reply, uint32_t size) {
+    (void)a; (void)n; (void)ctx;
+    snprintf(reply, size, "respawns=%u", respawns);
+    return SCO_OK;
+}
 static sco_result Apply(const sco_arg* a, uint32_t n, void* ctx, char* reply, uint32_t size) {
     const void* out = NULL;
     const sc_loadout_v1* table;
@@ -36,6 +44,20 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* host, sco_plugin* owner) {
     api = host; self = owner;
     command.size = sizeof(command); command.name = "loadout_native.apply";
     command.title = "Synthetic loadout"; command.fn = Apply;
-    return api->register_command(self, &command);
+    {
+        const sco_result r = api->register_command(self, &command);
+        if (r != SCO_OK) return r;
+    }
+    command.name = "loadout_native.respawn_count"; command.title = "Synthetic respawn count"; command.fn = RespawnCount;
+    {
+        const sco_result r = api->register_command(self, &command);
+        if (r != SCO_OK) return r;
+    }
+    return MEMBER(host, sco_api, subscribe) ?
+        api->subscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, OnRespawn, NULL) : SCO_UNAVAILABLE;
 }
-SCO_EXPORT void sco_plugin_unload(void) { api = NULL; self = NULL; }
+SCO_EXPORT void sco_plugin_unload(void) {
+    if (api && self && MEMBER(api, sco_api, unsubscribe))
+        api->unsubscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, OnRespawn);
+    api = NULL; self = NULL;
+}

@@ -112,6 +112,40 @@ apply for the rest of the process; restart is required even after Stop/Start.
 This does not guarantee native memory corruption recovery or callback attribution
 outside the host loader guard.
 
+## Respawn-completed event (`game.loadout.respawn_completed`)
+
+Additive notification on the kernel event bus; `sc_loadout_v1` keeps its layout and
+version (no table member). **OFF in production, not run in game.** Capability
+`game.events.loadout_respawn_completed` is false until a verified host adapter attests
+the producer; an event whose capability is off never fires, so subscribing is harmless.
+
+- Name: `SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED`, defined (identically, guarded) in both
+  `sc_loadout.h` and `sc_game_events.h`. A plugin that copies only `sc_loadout.h` can
+  subscribe by name with `sco_api` `subscribe`; the independent native fixture does.
+- Payload `sc_game_loadout_respawn_completed` (`sc_game_events.h`, 8 bytes): `size` and
+  `_pad` only. **Occurrence only.** It names no entity, zone, slot or item and is not a
+  per-slot confirmation; use `apply` reports for those. Check `size` before reading any
+  field a later minor appends.
+- Callbacks run on the game thread from the host tick, a frame or so after the occurrence.
+  Occurrences recorded within one tick coalesce into one event. The pointer is valid only
+  during the callback.
+- Why no fields: the only evidence is the type name `SPI_Player_OnRespawnLoadoutCompleted`,
+  whose declaration in the intake type export is an empty marker struct (finding
+  F-INTAKE-004; the export's provenance and build identity are unverified). Where the game
+  raises it, its calling convention and what "completed" means for a given player are
+  unverified (T-3). No native hook exists in this change.
+- Host seam (`src/game/services/loadout.h`, never exposed to plugins):
+  `LoadoutBackend::respawnCompleted` is an attestation by a verified adapter and needs
+  `verified` and a live `offline` admission check. `RecordRespawnLoadoutCompleted()` records
+  one occurrence from the adapter's hook, from any thread, running no plugin code; it
+  returns false and records nothing unless the attested backend is started and the
+  capability is on. The host dispatches from its `tick` subscription on the game thread
+  after re-checking admission; a refused occurrence is dropped, not replayed. A callback
+  fault disables the event with `apply` until process restart; Stop clears a pending
+  occurrence, withdraws the tick subscription and turns the capability off.
+- Production calls `StartLoadout()` with no backend, so the capability stays off and the
+  event never fires.
+
 ## Language and package routes
 
 C calls the full-extent, non-null `apply` member directly. C++20 uses
@@ -132,6 +166,9 @@ These are not Windows DLL, renderer, engine or gameplay acceptance.
   no-player and missing-item behavior on an owner-approved offline Windows build.
 - Supply current session offline/EAC admission from game-pack composition (unknown
   refuses), and verify calling conventions/SEH with MSVC.
+- Verify where the game raises the respawn-completed occurrence (F-INTAKE-004, T-3), its
+  calling convention and timing relative to the equip being visible, before any adapter
+  sets `respawnCompleted`.
 - Only then install/attest the typed backend and enable its capability. Consumer
   extraction/engine activation and charter gameplay acceptance remain blocked.
 

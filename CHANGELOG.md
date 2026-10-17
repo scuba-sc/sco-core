@@ -9,8 +9,10 @@ See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).
 SDK 2.4.0 packages the entries below without changing frozen plugin ABI 1.1
 (`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.3.0). Core, legacy,
 core-source and host-source-sc use 2.4.0. The candidate adds the game service tables
-`game.actor_stats` 1.0, `game.actor_stats_write` 1.0, `game.gamerules` 1.0, `game.build` 1.0 and
-`game.inventory` 1.0 (a preview with no backend), a new bus event `game.mission.changed`, and
+`game.actor_stats` 1.0, `game.actor_stats_write` 1.0, `game.gamerules` 1.1 (with the 17-entry `list_params` tail), `game.build` 1.0, `game.input` 1.0
+(a 1,267-name action registry whose ids above 186 are build-unresolved metadata) and `game.inventory` 1.1
+(an item-port adapter with the 192-member item category enumeration, `game.inventory.read` held OFF),
+new bus events `game.mission.changed` and `game.loadout.respawn_completed` (default OFF), and
 production engine backends behind `game.relocation` and `game.quantum`, so under the
 [game-pack policy](docs/game-pack.md) (a release that adds or grows a game service raises the
 minor) the game pack and the optional game-sc overlay move to **0.7.0**
@@ -21,17 +23,55 @@ fixtures and static signature checks. The Windows-only engine code is built by h
 locally. `game.actor_stats.read`, `game.build.info`, `game.events.mission_changed` and
 `game.relocation` (under its conditions) default ON; every other new capability defaults OFF.
 
-Not on `main` yet: three contracts a consumer needs are in open draft pull requests and are not part
-of the entries below. #185: `game.inventory` 1.1 with the 192-member item category enumeration.
-#197: `game.input` 1.0 (1,267 named actions; ids above 186 are build-unresolved metadata) and
-`game.gamerules` 1.1 `list_params`. All three are read-only, `game.inventory.read` and
-`game.gamerules.read` stay OFF, and none has run in the game. This section is rewritten when they
-merge; see the [release notes](docs/releases/sdk-v2.4.0.md#landed-versus-pending).
-
-- **`game.inventory` 1.0 (preview, `game.inventory.read` OFF, no backend)** (`include/sc_inventory.h`, [docs](docs/game/inventory.md)). A read-only snapshot of the local player's item ports (per port: valid, item type id, entity id). The default production backend binds nothing, so every call answers unavailable. It is published as a contract preview: the layout may still change before a backend is bound and this table's compatibility is not promised until then. Layout pinned in `tests/abi_game_inventory.c`. Not run in game. Grounded on F-4.10.197.2878-011..-016.
 - **Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths** (`src/ipc/diagnostics_platform_win.cpp`). Fixes a length type mismatch in the Windows diagnostics transport. Built by hosted CI only.
 - **MCP documentation at the current release, with drift gates.** `tools/sco-core-mcp/README.md` and `docs/sdk-mcp-tutorial.md` follow the release coordinates, and `tools/doc_release_gate.py` fails when either lags.
 - **Tooling:** `tools/ip_audit.py` names the SBOM instead of a local path; Windows gate checks compare pinned files byte-exactly and print POSIX paths; `sdk_catalogue` and `sigcheck` find LLVM/Clang on Windows when it is not on PATH; `docs/net-wire.md` documents unknown control types and headless hosts.
+- **Loadout completion bus event**: additive occurrence-only payload and
+  subscription name `game.loadout.respawn_completed` (F-INTAKE-004 / T-3).
+  Deferred to the game-thread tick, gated by verified offline provider attestation;
+  native hook unresolved and production capability OFF. Not run in game.
+- **`game.gamerules` 1.1 parameter definitions**: additive `list_params` tail,
+  17 copied names/groups/types (F-INTAKE-005), paged and count-only enumeration.
+  No live values or parameter offsets; the read prefix and wrappers stay intact.
+  Source build unresolved; default read backend remains unavailable. Not run in game.
+- **`game.input` 1.0 action registry** (`sc_input.h`): 1,267 named members,
+  O(1) id lookup and binary-search name lookup. LAST/INVALID share an id; tail
+  members above 186 are build-unresolved metadata. No input injection or engine
+  calls. F-4.10.197.2878-033 / F-INTAKE-010. Not run in game.
+- **`game.inventory` 1.1: the item-port adapter** (`include/sc_inventory.h`, [docs](docs/game/inventory.md)).
+  The service now has a production backend: it reads the local player's item-port container in place
+  (no allocation, no call into the container), walks the whole attached tree depth first, and
+  fails closed behind signature-row checks (nine new `inventory.*` rows) and bounds checks. Additive
+  ABI: `sc_inventory_snapshot` gains `flags` and `total_seen` after `ports[]` (`SC_INVENTORY_FLAG_TRUNCATED`,
+  `SC_INVENTORY_FLAG_LIMITED`), written only when `out->size` covers them; a 1.0 caller passing
+  `SC_INVENTORY_SNAPSHOT_SIZE_1_0` is accepted unchanged. `generation` is computed by comparing
+  snapshots. In addition, 192 item categories are published as the `sc_item_type` enumeration (#190 [G19],
+  K-34) with `sc_inventory_item_type_name` and `sc_inventory_port_item_type` helpers.
+  `game.inventory.read` stays default OFF (`SCO_INVENTORY_READ=1` or the product switch,
+  and every row must be OK); evidence `synthetic_only`. Not run in game. F-4.10.197.2878-011..-016.
+
+- **DataCore pack `BestEffort` partial-apply policy & pre-flight validator (`K-27`, `#192 [G21]`)**:
+  `datacore.pack` keeps `Atomic` as default and introduces an explicit opt-in `PackApplyPolicy::BestEffort`
+  (`policy = "best_effort"`) returning structured per-record receipts (`PackApplyReceipt`).
+  The CLI tool `sco-dcb check <pack.toml>` performs offline pre-flight validation of pack syntax and semantics.
+
+- **DataCore pack deep-clone directive (`K-28`, `#191 [G20]`)**:
+  Adds `mode = "deep"` to pack clone definitions (`clone = { record = "...", mode = "deep" }`) to duplicate
+  referenced arrays and nested struct instances in DataCore packs, preventing shared-pointer mutation bugs.
+
+- **Host provider sockets for relocation & loadout (`K-29`)**:
+  Adds the host-only C-linkage sockets `sco_game_set_relocation_backend` (`src/game/services/relocation.h`) and
+  `sco_game_set_loadout_backend` (`src/game/services/loadout.h`) allowing host shells to supply custom simulation
+  and equipment backends. They are host-source seams, not plugin-facing tables, so the public headers
+  `sc_relocation.h` and `sc_loadout.h` and the SDK contract catalogue are unchanged. Admission is
+  `host::FreshAdmissionAllowed()` (refused until the host composition enables it, re-checked live), a
+  setter on an already started service returns `SCO_UNAVAILABLE` and installs nothing, and the relocation
+  socket takes the provider's `player`, `target`, `apply` and `pose` callbacks (`now` optional).
+
+- **Read-only Windows Firewall admission inspection (`K-30`)**:
+  Adds `InspectWindowsFirewallRule` (`include/sco/game/host.h`) via `INetFwPolicy2` COM API to query active
+  outbound block rules as an official G1 offline admission signal without elevation.
+
 - **New game bus event: `game.mission.changed`** (`include/sc_game_events.h`,
   [docs](docs/game/events.md)). Publishes state/phase/objective changes of the missions
   `game.missions` accepted, from the tick, closing the last gap of the events audit

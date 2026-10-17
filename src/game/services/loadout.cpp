@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "loadout.h"
 #include "sc_loadout.h"
+#include "sc_game_events.h"
+#include <atomic>
+#include "sco/game/host.h"
 #include "sco/host.h"
 #include "sco/caps.h"
 #include "../../api/internal.h"
@@ -13,6 +16,16 @@ bool started = false;
 LoadoutBackend engine{};
 bool faulted = false;
 bool applying = false;
+constexpr const char* kCapRespawn = "game.events.loadout_respawn_completed";
+// One state word makes recording atomic with Stop/restart. Low bits: enabled/pending;
+// the generation changes whenever admission is configured, so old producers cannot replay.
+std::atomic<uint64_t> respawnState{0};
+bool respawnSubscribed = false;
+void SetRespawn(bool on, const char* why) {
+    const uint64_t generation = (respawnState.load() & ~uint64_t{3}) + 4;
+    respawnState.store(generation | (on ? 1u : 0u));
+    caps::Set(kCapRespawn, on, why);
+}
 struct ApplyScope {
     ApplyScope() { applying = true; }
     ~ApplyScope() { applying = false; }
@@ -41,10 +54,11 @@ void Fault() {
     faulted = true;
     caps::Set("game.loadout.apply", false, "loadout provider fault; process restart required");
     caps::Set("game.loadout.weapons", false, "loadout provider fault; process restart required");
+    SetRespawn(false, "loadout provider fault; process restart required");
 }
 sco_result Apply(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
-    if (!host::PluginId(self) || detail::Released(self) || !request || !report ||
+    if (!sco::host::PluginId(self) || detail::Released(self) || !request || !report ||
         request->size < sizeof(*request) || report->size < sizeof(*report) ||
         !request->count || !request->items || request->item_stride != sizeof(sc_loadout_item) || request->_pad)
         return SCO_BAD_ARG;
@@ -101,13 +115,24 @@ sco_result Apply(sco_plugin* self, const sc_loadout_request* request, sc_loadout
     return report->applied == report->count ? SCO_OK : SCO_FAILED;
 }
 const sc_loadout_v1 table = {sizeof(sc_loadout_v1), 0, Apply};
+// Game-thread tick: turn a recorded occurrence into one bus event, after a live admission check.
+void OnRespawnTick(const char*, const void*, void*) {
+    const uint64_t state = respawnState.fetch_and(~uint64_t{2});
+    if ((state & 3u) != 3u) return;
+    if (!started || faulted || !caps::Has(kCapRespawn) || !engine.offline) return;
+    const int admitted = SafeOffline();
+    if (admitted < 0) { Fault(); return; }
+    if (!admitted) return;
+    const sc_game_loadout_respawn_completed event = {sizeof(event), 0};
+    Dispatch(SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, &event);
+}
 }
 Result StartLoadout(const LoadoutBackend* backend) {
     if (!OnGameThread()) return Result::WrongThread;
     if (applying) return Result::Unavailable;
     if (started) return Result::Ok;
     engine = backend ? *backend : LoadoutBackend{};
-    const Result r = host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table);
+    const Result r = sco::host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table);
     started = r == Result::Ok;
     const bool applyOn = started && !faulted && engine.verified && engine.equip && engine.offline;
     caps::Set("game.loadout.apply", applyOn,
@@ -116,15 +141,49 @@ Result StartLoadout(const LoadoutBackend* backend) {
     caps::Set("game.loadout.weapons", applyOn && engine.weapons,
               faulted ? "loadout provider fault; process restart required" :
                         "typed weapon and multitool slot methods not verified; default off");
+    const bool respawnWanted = started && !faulted && engine.verified && engine.respawnCompleted && engine.offline;
+    respawnSubscribed = respawnWanted && Subscribe(sco::host::GameOwner(), "tick", OnRespawnTick, nullptr) == Result::Ok;
+    SetRespawn(respawnSubscribed,
+               faulted ? "loadout provider fault; process restart required" :
+                         "native respawn-loadout-completed occurrence not verified (F-INTAKE-004, T-3); default off");
     if (!started) engine = {};
     return r;
 }
+bool RecordRespawnLoadoutCompleted() {
+    uint64_t state = respawnState.load();
+    if (!(state & 1u) || !caps::Has(kCapRespawn)) return false;
+    const uint64_t generation = state & ~uint64_t{3};
+    do {
+        if (!(state & 1u) || (state & ~uint64_t{3}) != generation) return false;
+    } while (!respawnState.compare_exchange_weak(state, state | 2u));
+    return true;
+}
+sco_result SetLoadoutBackend(const sco_loadout_backend* backend) {
+    if (!backend || backend->size < sizeof(sco_loadout_backend) || !backend->equip) return SCO_BAD_ARG;
+    if (!OnGameThread()) return SCO_WRONG_THREAD;
+    // StartLoadout answers Ok for an already started service without installing anything.
+    if (started) return SCO_UNAVAILABLE;
+    LoadoutBackend be{};
+    be.verified = true;
+    be.offline = &host::FreshAdmissionAllowed;
+    be.equip = backend->equip;
+    be.weapons = backend->weapons != 0;
+    return static_cast<sco_result>(StartLoadout(&be));
+}
 void StopLoadout() {
     if (!OnGameThread() || !started || applying) return;
-    host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
+    sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
     caps::Set("game.loadout.apply", false, "game loadout stopped");
     caps::Set("game.loadout.weapons", false, "game loadout stopped");
+    if (respawnSubscribed) Unsubscribe(sco::host::GameOwner(), "tick", OnRespawnTick);
+    respawnSubscribed = false;
+    SetRespawn(false, "game loadout stopped");
     started = false;
     engine = {};
 }
 }
+
+extern "C" sco_result sco_game_set_loadout_backend(const sco_loadout_backend* backend) {
+    return sco::game::services::SetLoadoutBackend(backend);
+}
+
