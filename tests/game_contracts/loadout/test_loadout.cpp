@@ -46,7 +46,6 @@ int main(int argc, char** argv) {
     namespace gh = sco::game::host;
     static unsigned socketEquips = 0;
     static gh::Admission evidence;
-    static unsigned inspections = 0;
     sco_loadout_backend socket{sizeof(socket), 0, [](uint32_t, const char*) { ++socketEquips; return SC_LOADOUT_APPLIED; }};
     const auto socketApply = [&]() {
         const void* t = nullptr;
@@ -69,7 +68,7 @@ int main(int argc, char** argv) {
     CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 0 && socketReport.slots[0].status == SC_LOADOUT_UNAVAILABLE);
     sco::game::services::StopLoadout();
     // Enabled admission with unknown evidence still refuses; positive evidence admits; revocation is live.
-    gh::detail::SetFreshInspector([]() { ++inspections; return evidence; });
+    gh::detail::SetFreshInspector([]() { return evidence; });
     gh::detail::SetFreshAdmissionEnabled(true);
     CHECK(sco_game_set_loadout_backend(&socket) == SCO_OK);
     CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 0);
