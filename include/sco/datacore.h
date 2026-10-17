@@ -203,6 +203,7 @@ struct RecordRef {
 struct InstanceSource {
     std::optional<RecordRef> record;
     std::string              field;
+    bool                     deep = false;
 };
 
 // A new top-level record (design section 4, "AddRecord"). Appended at the end of the record table;
