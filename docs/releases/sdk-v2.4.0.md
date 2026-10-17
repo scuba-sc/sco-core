@@ -2,7 +2,9 @@
 
 Tag `sdk-v2.4.0`, combined zip `sco-sdk-2.4.0.zip`. **Status: unpublished candidate, draft for the maintainer.**
 No tag, signature, approval record, candidate run or release exists for 2.4.0, and nothing on this
-page authorizes one. The scope below is a proposal the maintainer edits or rejects. Until the
+page authorizes one. The scope below is a proposal the maintainer edits or rejects. It is written
+against `main` at `cce4895`. Three required consumer contracts are still in open pull requests
+([Landed versus pending](#landed-versus-pending)), so this branch is not candidate-ready. Until the
 maintainer publishes 2.4.0, the newest published SDK is 2.3.0
 ([latest release](https://github.com/scubamount/sco-core/releases/latest)). The release workflow
 publishes the CHANGELOG section [`## sdk-v2.4.0`](../../CHANGELOG.md) as the release's notes; this
@@ -51,6 +53,40 @@ disk, not that a feature has been seen working.
 | Verified game build | 4.10.197.2878 (was 4.10.196.36804 in 2.3.0) | `SCO_GAME_PACK_VERIFIED_BUILD`; rows verified by sigcheck, in-game verification pending |
 
 `VERSIONS.txt` in the zip states the same lines, generated from the headers by `sdk/package.py`.
+
+## Landed versus pending
+
+Base: `main` at `cce4895`, inspected 2026-10-17. Everything in the Versions table above is on
+`main`. The table below lists the contracts a first product consumer needs. The last three rows
+are **not on `main`**: each sits in an open draft pull request, and this branch merges none of them.
+
+| Contract | On `main` | Pending in an open draft PR | Default | Evidence |
+|---|---|---|---|---|
+| `game.build` | 1.0, landed | none | ON, pure metadata | `synthetic_only`; not run in game |
+| `game.actor_stats` | 1.0, landed (with `game.actor_stats_write` 1.0) | none | read ON when its rows resolve; write OFF | `sigcheck_resolved` (read), `off_pending_probe` (write); not run in game |
+| `game.inventory` category lookup | 1.0 snapshot preview only: no category enumeration, no backend | #185 (head `f4eff3e`, based on an older `main`): 1.1 adds `flags` and `total_seen` after `ports[]` (a 1.0-sized caller is unchanged), the 192-member `sc_item_type` enumeration with `sc_inventory_item_type_name` and `sc_inventory_port_item_type`, and a production adapter with nine new signature rows. Its author holds it until an in-game run | `game.inventory.read` OFF | `synthetic_only`; not run in game; F-4.10.197.2878-011..-016 |
+| `game.input` | absent: `sc_input.h` does not exist | #197 (head `a60d313`): 1.0 read-only action registry, 1,267 named members, lookup by id and by name; no input injection | `game.input.registry` ON, which advertises metadata availability only | `synthetic_only`; ids above 186 are build-unresolved metadata (`SC_INPUT_ACTION_BUILD_UNRESOLVED`); `LAST` and `INVALID` share one id; not run in game; F-4.10.197.2878-033, F-INTAKE-010 |
+| `game.gamerules` `list_params` | 1.0, read only | #197: 1.1 appends `list_params`, 17 copied name, group and type definitions; no live values, no backend needed; `read` is unchanged | `game.gamerules.read` OFF | `synthetic_only`; source build unresolved; not run in game; F-INTAKE-005 |
+
+#197 also carries the bus event `game.loadout.respawn_completed`: production capability OFF, native
+hook unresolved, not run in game (F-INTAKE-004).
+
+### Prerequisites before this page can declare the candidate
+
+1. #197 and #185 are merged into `main` by the maintainer; #185 is rebased onto current `main`
+   first. This branch merges neither. #196 (DataCore and host work) carries none of the contracts
+   above and is outside this scope; if it merges first, its entries need a place in the CHANGELOG
+   section.
+2. After those merges this page and the CHANGELOG section are refreshed: the Versions table
+   (inventory 1.1, gamerules 1.1, input 1.0), the capabilities table, the
+   [game-pack row](../game-pack.md#verified-game-builds) (a new signature run, because #185 adds nine
+   rows to the table), and the record and table counts `tools/test_sdk_catalogue.py` expects. #197
+   edits that file too, so whoever merges second resolves it. This section is then removed.
+3. The nine required jobs succeed on that exact `main` commit, then the maintainer dispatches
+   `release-candidate.yml`. No candidate or archive has been built from this branch, because the
+   unmerged contracts are not in it.
+4. Human acts, none of them done here: the scope decision record, the signed approval, counsel
+   review, the tag and publication.
 
 ## Coordinates and distribution
 
@@ -112,6 +148,8 @@ evidence. Every row is "not run in game".
 ## Not in this candidate
 
 - `game.inventory` has no backend and no stable layout promise; it is a preview.
+- Anything listed as pending under [Landed versus pending](#landed-versus-pending): `game.input`,
+  `game.gamerules` `list_params` and the inventory category lookup are absent from `main`.
 - `p_enable_physical_quantum_travel` writes: there is no grounded route, so the quantum backend
   does not write it. Console command execution for quantum control is not offered.
 - sco.net server-host and the larger session limit are not part of the kernel.

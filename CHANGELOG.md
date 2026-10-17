@@ -21,6 +21,13 @@ fixtures and static signature checks. The Windows-only engine code is built by h
 locally. `game.actor_stats.read`, `game.build.info`, `game.events.mission_changed` and
 `game.relocation` (under its conditions) default ON; every other new capability defaults OFF.
 
+Not on `main` yet: three contracts a consumer needs are in open draft pull requests and are not part
+of the entries below. #185: `game.inventory` 1.1 with the 192-member item category enumeration.
+#197: `game.input` 1.0 (1,267 named actions; ids above 186 are build-unresolved metadata) and
+`game.gamerules` 1.1 `list_params`. All three are read-only, `game.inventory.read` and
+`game.gamerules.read` stay OFF, and none has run in the game. This section is rewritten when they
+merge; see the [release notes](docs/releases/sdk-v2.4.0.md#landed-versus-pending).
+
 - **`game.inventory` 1.0 (preview, `game.inventory.read` OFF, no backend)** (`include/sc_inventory.h`, [docs](docs/game/inventory.md)). A read-only snapshot of the local player's item ports (per port: valid, item type id, entity id). The default production backend binds nothing, so every call answers unavailable. It is published as a contract preview: the layout may still change before a backend is bound and this table's compatibility is not promised until then. Layout pinned in `tests/abi_game_inventory.c`. Not run in game. Grounded on F-4.10.197.2878-011..-016.
 - **Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths** (`src/ipc/diagnostics_platform_win.cpp`). Fixes a length type mismatch in the Windows diagnostics transport. Built by hosted CI only.
 - **MCP documentation at the current release, with drift gates.** `tools/sco-core-mcp/README.md` and `docs/sdk-mcp-tutorial.md` follow the release coordinates, and `tools/doc_release_gate.py` fails when either lags.
