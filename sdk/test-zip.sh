@@ -292,7 +292,11 @@ if actual != [want]:
     sys.exit(f"C#: expected {want}; actual: {actual or 'no layout summary'}")
 print(f"C#: {want} (matches the copied pin entries)")
 PY
-  dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" -o "$WORK/cs_publish"
+  AOT_FLAGS=()
+  if [ "${SCO_FAST_AOT:-0}" = "1" ]; then
+    AOT_FLAGS=(-p:SCO_FAST_AOT=1)
+  fi
+  dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]}" -o "$WORK/cs_publish"
   mkdir -p "$WORK/cs/cs_hello"
   cp "$WORK/cs_publish/$LIB" "$WORK/cs/cs_hello/cs_hello.dll"
   cp "$ROOT/examples/cs_hello/plugin.ini" "$WORK/cs/cs_hello/"

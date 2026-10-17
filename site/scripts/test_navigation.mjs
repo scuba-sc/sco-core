@@ -104,9 +104,20 @@ try {
   const deferSearchIdle = process.argv.includes('--defer-search-idle');
   if (deferSearchIdle) {
     await call('Page.addScriptToEvaluateOnNewDocument', { source: `
+      const requestIdle = window.requestIdleCallback.bind(window);
+      const cancelIdle = window.cancelIdleCallback.bind(window);
+      const callbacks = new Map();
+      let nextId = 0;
       window.requestIdleCallback = callback => {
-        window.__releaseSearchIdle = callback;
-        return 1;
+        callbacks.set(++nextId, callback);
+        return nextId;
+      };
+      window.cancelIdleCallback = id => callbacks.delete(id);
+      window.__releaseSearchIdle = () => {
+        window.requestIdleCallback = requestIdle;
+        window.cancelIdleCallback = cancelIdle;
+        for (const callback of callbacks.values()) requestIdle(callback);
+        callbacks.clear();
       };
     ` });
   }
