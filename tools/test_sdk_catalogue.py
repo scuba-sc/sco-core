@@ -1,17 +1,56 @@
 #!/usr/bin/env python3
 """Synthetic refusal tests for the compiler-backed SDK catalogue gate."""
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import sdk_catalogue as catalogue
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA = '0123456789abcdef0123456789abcdef01234567'
+
+
+class FindClangTests(unittest.TestCase):
+    def test_clang_env_wins(self):
+        with mock.patch.dict(os.environ, {'CLANG': 'custom-clang'}):
+            self.assertEqual(catalogue.find_clang(), 'custom-clang')
+
+    def test_path_beats_install_locations(self):
+        with mock.patch.dict(os.environ, {}, clear=False), mock.patch.object(
+                catalogue.shutil, 'which', return_value='/on/path/clang'):
+            os.environ.pop('CLANG', None)
+            self.assertEqual(catalogue.find_clang(), '/on/path/clang')
+
+    def test_non_windows_does_not_search_install_locations(self):
+        with tempfile.TemporaryDirectory() as local:
+            exe = Path(local) / 'Microsoft/WinGet/Packages/X.LLVM-MinGW/p/bin/clang.exe'
+            exe.parent.mkdir(parents=True)
+            exe.write_text('')
+            env = {'LOCALAPPDATA': local}
+            with mock.patch.dict(os.environ, env), mock.patch.object(
+                    catalogue.shutil, 'which', return_value=None), mock.patch.object(
+                    catalogue.sys, 'platform', 'linux'):
+                os.environ.pop('CLANG', None)
+                self.assertIsNone(catalogue.find_clang())
+
+    def test_windows_falls_back_to_winget_llvm(self):
+        with tempfile.TemporaryDirectory() as local:
+            exe = Path(local) / 'Microsoft/WinGet/Packages/X.LLVM-MinGW/p/bin/clang.exe'
+            exe.parent.mkdir(parents=True)
+            exe.write_text('')
+            env = {'LOCALAPPDATA': local, 'ProgramFiles': str(Path(local) / 'none'),
+                   'ProgramFiles(x86)': str(Path(local) / 'none')}
+            with mock.patch.dict(os.environ, env), mock.patch.object(
+                    catalogue.shutil, 'which', return_value=None), mock.patch.object(
+                    catalogue.sys, 'platform', 'win32'):
+                os.environ.pop('CLANG', None)
+                self.assertEqual(Path(catalogue.find_clang()), exe)
 
 
 class CatalogueTests(unittest.TestCase):
@@ -62,7 +101,7 @@ class CatalogueTests(unittest.TestCase):
             'sc_private_session_v1': (['request_host', 'request_join', 'leave', 'get_state'],
                                       'tests/abi_private_session.c', 'tests/test_net_control.cpp'),
         }
-        clang = shutil.which('clang')
+        clang = catalogue.find_clang()
         assert clang is not None, 'Clang is required for catalogue C layout evidence'
         for table, (members, c_test, cpp_test) in wave3.items():
             self.assertEqual(extracted['tables'][table]['members'], members)
