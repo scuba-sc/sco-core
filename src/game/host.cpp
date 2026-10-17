@@ -213,9 +213,6 @@ vfs::Result TransformDataCore(vfs::BaseIo& base, uint64_t size, std::vector<vfs:
 }
 }
 Snapshot Status() { return {phase.load(), resolved.load(), quitInstalled.load(), dataActive.load()}; }
-bool FreshAdmissionAllowed() noexcept {
-    return phase.load() == Phase::Running && Admitted();
-}
 
 #if defined(_WIN32)
 Check InspectWindowsFirewallRule(const wchar_t* ruleName, const wchar_t* imagePath) noexcept {

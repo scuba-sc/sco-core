@@ -20,3 +20,15 @@ struct LoadoutBackend {
 Result StartLoadout(const LoadoutBackend* backend = nullptr);
 void StopLoadout();
 }
+
+// Host provider socket for game.loadout (2.4.0, K-29): the host shell binds a custom simulation/equip
+// backend. Host-source seam only, like LoadoutBackend above; not a plugin-facing table, so it is
+// not declared in the public header sc_loadout.h.
+extern "C" {
+struct sco_loadout_backend {
+    uint32_t size;
+    uint32_t weapons; /* 1 = backend supports weapon slots 8-21 */
+    sc_loadout_status (*equip)(uint32_t slot, const char* item_class);
+};
+sco_result sco_game_set_loadout_backend(const sco_loadout_backend* backend);
+}

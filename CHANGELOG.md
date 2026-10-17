@@ -13,8 +13,10 @@ What each change means for plugin authors and for products built on sco-core (sc
   referenced arrays and nested struct instances in DataCore packs, preventing shared-pointer mutation bugs.
 
 - **Host provider sockets for relocation & loadout (`K-29`)**:
-  Adds `sco_game_set_relocation_backend` (`include/sc_relocation.h`) and `sco_game_set_loadout_backend`
-  (`include/sc_loadout.h`) allowing host shells to supply custom simulation and equipment backends.
+  Adds the host-only C-linkage sockets `sco_game_set_relocation_backend` (`src/game/services/relocation.h`) and
+  `sco_game_set_loadout_backend` (`src/game/services/loadout.h`) allowing host shells to supply custom simulation
+  and equipment backends. They are host-source seams, not plugin-facing tables, so the public headers
+  `sc_relocation.h` and `sc_loadout.h` and the SDK contract catalogue are unchanged.
 
 - **Read-only Windows Firewall admission inspection (`K-30`)**:
   Adds `InspectWindowsFirewallRule` (`include/sco/game/host.h`) via `INetFwPolicy2` COM API to query active

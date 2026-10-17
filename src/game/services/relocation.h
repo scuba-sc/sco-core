@@ -41,3 +41,16 @@ void ReleaseRelocationOwner(const void* owner);
 // The Windows engine adapter's backend (relocation_engine.cpp); verified only when its rows resolved.
 const RelocationBackend* EngineRelocationBackend();
 }
+
+// Host provider socket for game.relocation (2.4.0, K-29): the host shell binds a custom simulation/
+// relocation backend. Host-source seam only, like RelocationBackend above; not a plugin-facing table,
+// so it is not declared in the public header sc_relocation.h.
+extern "C" {
+struct sco_relocation_backend {
+    uint32_t size;
+    uint32_t _pad;
+    int (*evidence)(uint64_t target_zone, const sc_relocation_request* pending, void* out_evidence);
+    int (*apply)(const sc_relocation_request* request);
+};
+sco_result sco_game_set_relocation_backend(const sco_relocation_backend* backend);
+}
