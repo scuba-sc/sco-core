@@ -15,6 +15,29 @@ What each change means for plugin authors and for products built on sco-core (sc
   O(1) id lookup and binary-search name lookup. LAST/INVALID share an id; tail
   members above 186 are build-unresolved metadata. No input injection or engine
   calls. F-4.10.197.2878-033 / F-INTAKE-010. Not run in game.
+
+- **DataCore pack `BestEffort` partial-apply policy & pre-flight validator (`K-27`, `#192 [G21]`)**:
+  `datacore.pack` keeps `Atomic` as default and introduces an explicit opt-in `PackApplyPolicy::BestEffort`
+  (`policy = "best_effort"`) returning structured per-record receipts (`PackApplyReceipt`).
+  The CLI tool `sco-dcb check <pack.toml>` performs offline pre-flight validation of pack syntax and semantics.
+
+- **DataCore pack deep-clone directive (`K-28`, `#191 [G20]`)**:
+  Adds `mode = "deep"` to pack clone definitions (`clone = { record = "...", mode = "deep" }`) to duplicate
+  referenced arrays and nested struct instances in DataCore packs, preventing shared-pointer mutation bugs.
+
+- **Host provider sockets for relocation & loadout (`K-29`)**:
+  Adds the host-only C-linkage sockets `sco_game_set_relocation_backend` (`src/game/services/relocation.h`) and
+  `sco_game_set_loadout_backend` (`src/game/services/loadout.h`) allowing host shells to supply custom simulation
+  and equipment backends. They are host-source seams, not plugin-facing tables, so the public headers
+  `sc_relocation.h` and `sc_loadout.h` and the SDK contract catalogue are unchanged. Admission is
+  `host::FreshAdmissionAllowed()` (refused until the host composition enables it, re-checked live), a
+  setter on an already started service returns `SCO_UNAVAILABLE` and installs nothing, and the relocation
+  socket takes the provider's `player`, `target`, `apply` and `pose` callbacks (`now` optional).
+
+- **Read-only Windows Firewall admission inspection (`K-30`)**:
+  Adds `InspectWindowsFirewallRule` (`include/sco/game/host.h`) via `INetFwPolicy2` COM API to query active
+  outbound block rules as an official G1 offline admission signal without elevation.
+
 - **New game bus event: `game.mission.changed`** (`include/sc_game_events.h`,
   [docs](docs/game/events.md)). Publishes state/phase/objective changes of the missions
   `game.missions` accepted, from the tick, closing the last gap of the events audit

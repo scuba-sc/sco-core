@@ -41,3 +41,27 @@ void ReleaseRelocationOwner(const void* owner);
 // The Windows engine adapter's backend (relocation_engine.cpp); verified only when its rows resolved.
 const RelocationBackend* EngineRelocationBackend();
 }
+struct sco_relocation_backend;
+namespace sco::game::services { sco_result SetRelocationBackend(const sco_relocation_backend* backend); }
+
+// Host provider socket for game.relocation (2.4.0, K-29): the host shell binds a custom simulation/
+// relocation backend. Host-source seam only, like RelocationBackend above; not a plugin-facing table,
+// so it is not declared in the public header sc_relocation.h. The callbacks are RelocationBackend's:
+// player, target, apply (its move) and pose are all required, now is optional (null = steady clock).
+// Game thread, once, before services::Start (which otherwise starts the service with the engine
+// backend): SCO_BAD_ARG for a null/short/incomplete struct, SCO_UNAVAILABLE when the service is already
+// started (nothing is replaced), else StartRelocation's result. Admission is host::FreshAdmissionAllowed():
+// refused until the host composition has enabled it, and re-checked live on every request and tick.
+// Installing the struct is the host's attestation that its callbacks are verified.
+extern "C" {
+struct sco_relocation_backend {
+    uint32_t size;
+    uint32_t _pad;
+    bool (*player)(sco::game::services::RelocationPlayer* out);
+    bool (*target)(uint64_t zone_id, sco::game::services::RelocationTarget* out);
+    bool (*apply)(const sc_relocation_request* request);
+    bool (*pose)(uint64_t zone_id, double pos[3], double rot[4]);
+    uint64_t (*now)();
+};
+sco_result sco_game_set_relocation_backend(const sco_relocation_backend* backend);
+}
