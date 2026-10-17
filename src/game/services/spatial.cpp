@@ -17,6 +17,7 @@
 #include "asop_service.h"
 #include "contracts_service.h"
 #include "hangar.h"
+#include "inventory_host.h"
 #include "reputation.h"
 #include "loadout.h"
 #include "input.h"
@@ -510,6 +511,7 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    (void)StartInventory(); // game.inventory.read held OFF; a failed publish leaves the pack up
     g_started = true;
     r = StartInput();
     if (r != Result::Ok) { Stop(); return r; }
@@ -525,6 +527,7 @@ Result Start() {
 void Stop() {
     StopGameBuild();
     if (!g_started) return;
+    StopInventory();
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     StopGameRules();
     StopInput();

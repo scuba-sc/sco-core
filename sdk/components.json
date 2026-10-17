@@ -8316,6 +8316,124 @@
       "license": "GPL-3.0-only",
       "group": "host-source-sc",
       "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-inventory_map.h",
+      "source": "src/game/inventory_map.h",
+      "destination": "src/game/inventory_map.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
+      "id": "host-source-sc-src-game-inventory_sigs.cpp",
+      "source": "src/game/inventory_sigs.cpp",
+      "destination": "src/game/inventory_sigs.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
+      "id": "host-source-sc-src-game-services-inventory_engine.h",
+      "source": "src/game/services/inventory_engine.h",
+      "destination": "src/game/services/inventory_engine.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-inventory_engine.cpp",
+      "source": "src/game/services/inventory_engine.cpp",
+      "destination": "src/game/services/inventory_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-inventory_walk.h",
+      "source": "src/game/services/inventory_walk.h",
+      "destination": "src/game/services/inventory_walk.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-inventory_walk.cpp",
+      "source": "src/game/services/inventory_walk.cpp",
+      "destination": "src/game/services/inventory_walk.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-inventory_host.h",
+      "source": "src/game/services/inventory_host.h",
+      "destination": "src/game/services/inventory_host.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-inventory_host.cpp",
+      "source": "src/game/services/inventory_host.cpp",
+      "destination": "src/game/services/inventory_host.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_inventory.cpp",
+      "source": "tests/test_inventory.cpp",
+      "destination": "tests/test_inventory.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_inventory_engine.cpp",
+      "source": "tests/test_inventory_engine.cpp",
+      "destination": "tests/test_inventory_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
     }
   ]
 }

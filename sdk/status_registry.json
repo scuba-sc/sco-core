@@ -246,9 +246,9 @@
       "kind": "service",
       "service": "game.inventory",
       "header": "include/sc_inventory.h",
-      "version": "1.0",
+      "version": "1.1",
       "capabilities": [
-        {"name": "game.inventory.read", "methods": ["snapshot"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only item-port snapshot of the local player; enumeration accessors grounded on the private corpus (F-4.10.196.36804-009: entity port range + port IsValid/GetItem + item type-id descriptor, cross-checked against the game's own UnequipItem node implementation); no production backend bound; ABI pinned; not run in game", "evidence_source": "docs/game/inventory.md"}
+        {"name": "game.inventory.read", "methods": ["snapshot"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only item-port snapshot of the local player (whole attached tree, depth first, 128 ports max with TRUNCATED and total_seen); adapter grounded on the private corpus (F-4.10.197.2878-011..-016, static analysis only) and bound in production behind fail-closed guards; the signature rows resolve against the 4.10.197.2878 executable on disk, and the adapter is exercised against synthetic game objects only; switched off by default; not run in game", "sig_rows": ["inventory.get_item_ports", "inventory.port_is_valid", "inventory.port_item_handle", "inventory.handle_valid", "inventory.unequip_item", "inventory.port_get_item", "inventory.port_get_container", "inventory.container_type_id", "inventory.item_type_names"], "evidence_source": "docs/game/inventory.md"}
       ]
     },
     {
