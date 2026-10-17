@@ -75,8 +75,8 @@ The bus event `game.loadout.respawn_completed` is also on `main`: production cap
 ### Prerequisites before a candidate
 
 1. The nine required jobs succeed on the exact `main` commit that will be built.
-2. The game-pack row's signature run is refreshed on that source (see the [game-pack row](../game-pack.md#verified-game-builds)).
-3. The maintainer dispatches `release-candidate.yml`; no candidate or archive exists yet.
+2. The game-pack row's static 332/332 signature run (2026-10-17, source `965ae4d`; see the [game-pack row](../game-pack.md#verified-game-builds)) stays bound to that commit's signature code; it is refreshed only if the final `main` changes signature code.
+3. The designated owner or operator dispatches `release-candidate.yml` on that exact, fully green `main` commit; no candidate or archive exists yet.
 4. Human acts, none of them done here: the scope decision record, the signed approval, counsel review, the tag and publication.
 
 
