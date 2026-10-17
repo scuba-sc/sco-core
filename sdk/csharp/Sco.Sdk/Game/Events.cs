@@ -16,6 +16,7 @@ namespace Sco.Sdk.Game
         public const string EventZoneChanged = "game.zone.changed";         // SC_GAME_EVENT_ZONE_CHANGED
         public const string EventVehicleBoarded = "game.vehicle.boarded";   // SC_GAME_EVENT_VEHICLE_BOARDED (reserved)
         public const string EventVehicleExited = "game.vehicle.exited";     // SC_GAME_EVENT_VEHICLE_EXITED (reserved)
+        public const string EventLoadoutRespawnCompleted = "game.loadout.respawn_completed";
     }
 
     /// <summary>sc_game_player_spawned: 24 bytes.</summary>
@@ -79,6 +80,14 @@ namespace Sco.Sdk.Game
         public uint new_phase;
         public uint new_objective;       // completed objectives in new_phase
         public ulong session;            // the game.missions session, not a plugin id
+    }
+
+    /// <summary>Occurrence-only loadout completion; native adapter is OFF pending verification.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ScGameLoadoutRespawnCompleted
+    {
+        public uint size;
+        public uint _pad;
     }
 
     /// <summary>

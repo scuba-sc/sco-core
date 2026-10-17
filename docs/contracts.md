@@ -217,7 +217,8 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_contracts_v1` | 2 | 24 | 1.0 |
 | `sc_loadout_v1` | 1 | 16 | 1.1 |
 | `sc_quantum_v1` | 4 | 40 | 1.0 |
-| `sc_gamerules_v1` | 1 | 16 | 1.0 |
+| `sc_gamerules_v1` | 2 | 24 | 1.1 |
+| `sc_input_v1` | 3 | 32 | 1.0 |
 | `sc_inventory_v1` | 1 | 16 | 1.0 |
 | `sc_game_build_v1` | 1 | 16 | 1.0 |
 | `sc_mining_v1` | 2 | 24 | 1.0 |
@@ -888,13 +889,26 @@ Read-only local-player item-port snapshot. See [game.inventory](game/inventory.m
 |---|---|---|---|---|---|---|
 | `sc_inventory_v1.snapshot` | `size >= 16`; 1.0 | `sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI. | Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size too small, or no local player; BAD_ARG invalid self. | StopGameInventory withdraws the service; read-only, no engine state to restore. |
 
-## `sc_gamerules_v1` — game.gamerules 1.0
+## `sc_input_v1` — game.input 1.0
+
+Static action vocabulary only; the build-unresolved tail is marked per record.
+No engine calls, input injection or key binding access. See [input](game/input.md).
+
+| Method | Since | Buffer / purpose | Ownership | Thread / callbacks | Results / absent capability | Cleanup / limitations |
+|---|---|---|---|---|---|---|
+| `sc_input_v1.count` | `size >= 16`; 1.0 | `sco_result (*count)(sco_plugin* self, uint32_t* out);`<br>Copy the number of named action members, including the FIRST, LAST and INVALID sentinels. | Caller owns outputs; metadata is copied, and no engine pointer is returned or retained. | Game thread only; self must be live. | OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name. | StopInput withdraws the service and rejects calls through a retained table. |
+| `sc_input_v1.by_id` | `size >= 24`; 1.0 | `sco_result (*by_id)(sco_plugin* self, uint32_t id, sc_input_action_info* out);`<br>Copy action metadata for a numeric id; the LAST alias is selected for id 1265. | Caller owns outputs; metadata is copied, and no engine pointer is returned or retained. | Game thread only; self must be live. | OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name. | StopInput withdraws the service and rejects calls through a retained table. |
+| `sc_input_v1.by_name` | `size >= 32`; 1.0 | `sco_result (*by_name)(sco_plugin* self, const char* name, sc_input_action_info* out);`<br>Copy action metadata for an exact case-sensitive action name, including aliases. | Caller owns outputs; metadata is copied, and no engine pointer is returned or retained. | Game thread only; self must be live. | OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name. | StopInput withdraws the service and rejects calls through a retained table. |
+
+## `sc_gamerules_v1` — game.gamerules 1.1
 
 Read-only server GameRules parameters. See [game.gamerules](game/gamerules.md). Backend-unbound default publishes UNAVAILABLE; synthetic evidence only, nothing run in game.
 
 | Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
 |---|---|---|---|---|---|---|
 | `sc_gamerules_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(sco_plugin* self, sc_gamerules_state* out);`<br>Copy the client's current server GameRules parameter snapshot into out (caller sets out->size). Read-only: values are what the server sent and the client applied for the current session; they cannot be written through this ABI. generation changes when a new parameter set is applied. | Provider owns the snapshot storage; a plain copy crosses to the caller. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null or out->size too small, BAD_ARG invalid self. | StopGameRules withdraws the service and clears the bound backend; no engine state to restore (read-only). |
+
+| `sc_gamerules_v1.list_params` | `size >= 24`; 1.1 | `sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate copied static GameRules parameter definitions by offset; records carry names, groups and types but no values or engine offsets. | Caller owns all output slots; size and unknown tails remain untouched. No pointers retained. | Game thread only; live self required. | OK page copied or count-only query; BAD_ARG invalid slot size, pointers, offset, cap or stride; WRONG_THREAD; UNAVAILABLE after stop. | StopGameRules withdraws the table and disables cached list_params pointers. |
 
 ## `sc_cvars_v1` — `game.cvars` 1.0
 

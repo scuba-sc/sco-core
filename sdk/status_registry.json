@@ -2,6 +2,7 @@
   "schema_version": 1,
   "about": "Source of truth for the status of every game service table, capability and its evidence. tools/status_registry.py validates this file and renders the service table of docs/game/status.md from it (between the status-registry markers); edit this file, never the rendered table. Every value restates what the repository already documents (evidence_source names where); nothing here has been run in game. evidence_level: sigcheck_resolved = every row the capability reads is OK in a sco-sigcheck report of game_build, nothing executed; in_game_verified = run in a game session on a recorded date (no entry has it); off_pending_probe = rows resolve, an in-game probe must settle an open question first; synthetic_only = synthetic/native-boundary tests only; blocked = no trustworthy locator, nothing published; undocumented = the repository records no evidence.",
   "services": [
+    {"id":"game.input","kind":"service","service":"game.input","header":"include/sc_input.h","version":"1.0","capabilities":[{"name":"game.input.registry","methods":["count","by_id","by_name"],"default":"ON","evidence_level":"synthetic_only","evidence":"Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game.","evidence_source":"docs/game/input.md"}]},
     {
       "id": "teleport.spatial",
       "kind": "service",
@@ -118,7 +119,8 @@
         {"name": "game.events.actor_died", "display": "`game.events.actor_died` (`game.actors.died`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck); the same row as player_died, one hook two events", "sig_rows": ["event.player_death"], "evidence_source": "docs/game/status.md"},
         {"name": "game.events.zone_changed", "display": "`game.events.zone_changed` (`game.zone.changed`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
         {"name": "game.events.vehicle_seat", "display": "`game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`)", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["event.seat_enter", "event.seat_exit"], "spike_ref": "B8", "evidence_source": "docs/game/status.md"},
-        {"name": "game.events.mission_changed", "display": "`game.events.mission_changed` (`game.mission.changed`)", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON by owner ruling (2026-10-16): a product default, not a verified claim. No rows; published once a bound, admitted game.missions backend reports active missions. Synthetic only: backend adapters are synthetic today, so it does not fire; not run in game", "evidence_source": "docs/game/events.md"}
+        {"name": "game.events.mission_changed", "display": "`game.events.mission_changed` (`game.mission.changed`)", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON by owner ruling (2026-10-16): a product default, not a verified claim. No rows; published once a bound, admitted game.missions backend reports active missions. Synthetic only: backend adapters are synthetic today, so it does not fire; not run in game", "evidence_source": "docs/game/events.md"},
+        {"name":"game.events.loadout_respawn_completed","display":"`game.events.loadout_respawn_completed` (`game.loadout.respawn_completed`)","methods":[],"default":"OFF","evidence_level":"synthetic_only","evidence":"Verified offline host producer seam only; native hook signature/site unresolved (F-INTAKE-004, T-3); not run in game.","evidence_source":"docs/game/loadout.md"}
       ]
     },
     {
@@ -238,16 +240,7 @@
         {"name": "game.build.info", "methods": ["read"], "default": "ON", "evidence_level": "synthetic_only", "evidence": "No rows: reads TimeDateStamp/SizeOfImage from the running module header and the pack's own verified-build pin; starts only when the numeric mirrors agree with the strings; host-side compile and layout pins verified, not run in game", "evidence_source": "docs/game/build.md"}
       ]
     },
-    {
-      "id": "game.gamerules",
-      "kind": "service",
-      "service": "game.gamerules",
-      "header": "include/sc_gamerules.h",
-      "version": "1.0",
-      "capabilities": [
-        {"name": "game.gamerules.read", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED", "evidence_source": "docs/game/gamerules.md"}
-      ]
-    },
+    {"id":"game.gamerules","kind":"service","service":"game.gamerules","header":"include/sc_gamerules.h","version":"1.1","capabilities":[{"name":"game.gamerules.read","methods":[],"default":"OFF","evidence_level":"synthetic_only","evidence":"Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED","evidence_source":"docs/game/gamerules.md"},{"name":"game.gamerules.params","methods":["list_params"],"default":"ON","evidence_level":"synthetic_only","evidence":"Static definition metadata from F-INTAKE-005; source build unresolved; not run in game.","evidence_source":"docs/game/gamerules.md"}]},
     {
       "id": "game.inventory",
       "kind": "service",

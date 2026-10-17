@@ -144,6 +144,7 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_ZONE_CHANGED) == 18);    /* \"game.zone.changed\" */"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_VEHICLE_BOARDED) == 21); /* \"game.vehicle.boarded\" */"));
             lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_VEHICLE_EXITED) == 20);  /* \"game.vehicle.exited\" */"));
+            lines.Add(("tests/abi_game_events.c", "PIN(sizeof(SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED) == 31); /* \"game.loadout.respawn_completed\" */"));
             lines.Add(("tests/abi_game_events.c", "SIZE(sc_game_player_spawned, 24);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_player_spawned, size, 0);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_player_spawned, _pad, 4);"));
@@ -176,6 +177,9 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, new_phase, 24);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, new_objective, 28);"));
             lines.Add(("tests/abi_game_events.c", "AT(sc_game_mission_changed, session, 32);"));
+            lines.Add(("tests/abi_game_events.c", "SIZE(sc_game_loadout_respawn_completed, 8);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_loadout_respawn_completed, size, 0);"));
+            lines.Add(("tests/abi_game_events.c", "AT(sc_game_loadout_respawn_completed, _pad, 4);"));
             lines.Add(("tests/abi_game_entities.c", "PIN(sizeof(void*) == 8);"));
             lines.Add(("tests/abi_game_entities.c", "PIN(SC_ENTITIES_VERSION_1_0 == 0x00010000u);"));
             lines.Add(("tests/abi_game_entities.c", "PIN(SC_ENTITIES_VERSION_1_1 == 0x00010001u);"));

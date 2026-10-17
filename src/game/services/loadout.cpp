@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "loadout.h"
 #include "sc_loadout.h"
+#include "sc_game_events.h"
+#include <atomic>
 #include "sco/host.h"
 #include "sco/caps.h"
 #include "../../api/internal.h"
@@ -13,6 +15,16 @@ bool started = false;
 LoadoutBackend engine{};
 bool faulted = false;
 bool applying = false;
+constexpr const char* kCapRespawn = "game.events.loadout_respawn_completed";
+// One state word makes recording atomic with Stop/restart. Low bits: enabled/pending;
+// the generation changes whenever admission is configured, so old producers cannot replay.
+std::atomic<uint64_t> respawnState{0};
+bool respawnSubscribed = false;
+void SetRespawn(bool on, const char* why) {
+    const uint64_t generation = (respawnState.load() & ~uint64_t{3}) + 4;
+    respawnState.store(generation | (on ? 1u : 0u));
+    caps::Set(kCapRespawn, on, why);
+}
 struct ApplyScope {
     ApplyScope() { applying = true; }
     ~ApplyScope() { applying = false; }
@@ -41,6 +53,7 @@ void Fault() {
     faulted = true;
     caps::Set("game.loadout.apply", false, "loadout provider fault; process restart required");
     caps::Set("game.loadout.weapons", false, "loadout provider fault; process restart required");
+    SetRespawn(false, "loadout provider fault; process restart required");
 }
 sco_result Apply(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
@@ -101,6 +114,17 @@ sco_result Apply(sco_plugin* self, const sc_loadout_request* request, sc_loadout
     return report->applied == report->count ? SCO_OK : SCO_FAILED;
 }
 const sc_loadout_v1 table = {sizeof(sc_loadout_v1), 0, Apply};
+// Game-thread tick: turn a recorded occurrence into one bus event, after a live admission check.
+void OnRespawnTick(const char*, const void*, void*) {
+    const uint64_t state = respawnState.fetch_and(~uint64_t{2});
+    if ((state & 3u) != 3u) return;
+    if (!started || faulted || !caps::Has(kCapRespawn) || !engine.offline) return;
+    const int admitted = SafeOffline();
+    if (admitted < 0) { Fault(); return; }
+    if (!admitted) return;
+    const sc_game_loadout_respawn_completed event = {sizeof(event), 0};
+    Dispatch(SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, &event);
+}
 }
 Result StartLoadout(const LoadoutBackend* backend) {
     if (!OnGameThread()) return Result::WrongThread;
@@ -116,14 +140,31 @@ Result StartLoadout(const LoadoutBackend* backend) {
     caps::Set("game.loadout.weapons", applyOn && engine.weapons,
               faulted ? "loadout provider fault; process restart required" :
                         "typed weapon and multitool slot methods not verified; default off");
+    const bool respawnWanted = started && !faulted && engine.verified && engine.respawnCompleted && engine.offline;
+    respawnSubscribed = respawnWanted && Subscribe(host::GameOwner(), "tick", OnRespawnTick, nullptr) == Result::Ok;
+    SetRespawn(respawnSubscribed,
+               faulted ? "loadout provider fault; process restart required" :
+                         "native respawn-loadout-completed occurrence not verified (F-INTAKE-004, T-3); default off");
     if (!started) engine = {};
     return r;
+}
+bool RecordRespawnLoadoutCompleted() {
+    uint64_t state = respawnState.load();
+    if (!(state & 1u) || !caps::Has(kCapRespawn)) return false;
+    const uint64_t generation = state & ~uint64_t{3};
+    do {
+        if (!(state & 1u) || (state & ~uint64_t{3}) != generation) return false;
+    } while (!respawnState.compare_exchange_weak(state, state | 2u));
+    return true;
 }
 void StopLoadout() {
     if (!OnGameThread() || !started || applying) return;
     host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
     caps::Set("game.loadout.apply", false, "game loadout stopped");
     caps::Set("game.loadout.weapons", false, "game loadout stopped");
+    if (respawnSubscribed) Unsubscribe(host::GameOwner(), "tick", OnRespawnTick);
+    respawnSubscribed = false;
+    SetRespawn(false, "game loadout stopped");
     started = false;
     engine = {};
 }

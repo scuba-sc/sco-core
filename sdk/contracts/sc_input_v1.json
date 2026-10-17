@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_input_v1.count",
+      "table": "sc_input_v1",
+      "source_header": "include/sc_input.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t *)",
+      "version_macro": "SC_INPUT_SERVICE_VERSION",
+      "member_extent": 16,
+      "table_size": 32,
+      "service": "game.input",
+      "id": "sc-input-v1-count",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Copy the number of named action members, including the FIRST, LAST and INVALID sentinels.",
+      "buffer_contract": "`sco_result (*count)(sco_plugin* self, uint32_t* out);`<br>Copy the number of named action members, including the FIRST, LAST and INVALID sentinels.",
+      "ownership": "Caller owns outputs; metadata is copied, and no engine pointer is returned or retained.",
+      "thread_affinity": "Game thread only; self must be live.",
+      "callback_context": "No plugin callbacks.",
+      "reentrancy": "No engine calls or callbacks; read-only metadata lookup.",
+      "results": "OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name.",
+      "absent_capability": "game.input.registry is ON while the static registry is published; this does not attest live dispatch.",
+      "cleanup": "StopInput withdraws the service and rejects calls through a retained table.",
+      "limitations": [
+        "Tail members above 186 are corroborated by a build-unresolved census; no live binding or input injection.",
+        "The 1267 named members include LAST and INVALID at the same numeric id.",
+        "Not run in game.",
+        "C++/C#/Lua typed wrappers are unsupported for this addition; C function-table access is the supported surface."
+      ],
+      "tests": [
+        "tests/test_input.cpp",
+        "tests/abi_game_input.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_input.h",
+              "token": "(*count)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_input.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_input_v1.by_id",
+      "table": "sc_input_v1",
+      "source_header": "include/sc_input.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t, sc_input_action_info *)",
+      "version_macro": "SC_INPUT_SERVICE_VERSION",
+      "member_extent": 24,
+      "table_size": 32,
+      "service": "game.input",
+      "id": "sc-input-v1-by-id",
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Copy action metadata for a numeric id; the LAST alias is selected for id 1265.",
+      "buffer_contract": "`sco_result (*by_id)(sco_plugin* self, uint32_t id, sc_input_action_info* out);`<br>Copy action metadata for a numeric id; the LAST alias is selected for id 1265.",
+      "ownership": "Caller owns outputs; metadata is copied, and no engine pointer is returned or retained.",
+      "thread_affinity": "Game thread only; self must be live.",
+      "callback_context": "No plugin callbacks.",
+      "reentrancy": "No engine calls or callbacks; read-only metadata lookup.",
+      "results": "OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name.",
+      "absent_capability": "game.input.registry is ON while the static registry is published; this does not attest live dispatch.",
+      "cleanup": "StopInput withdraws the service and rejects calls through a retained table.",
+      "limitations": [
+        "Tail members above 186 are corroborated by a build-unresolved census; no live binding or input injection.",
+        "The 1267 named members include LAST and INVALID at the same numeric id.",
+        "Not run in game.",
+        "C++/C#/Lua typed wrappers are unsupported for this addition; C function-table access is the supported surface."
+      ],
+      "tests": [
+        "tests/test_input.cpp",
+        "tests/abi_game_input.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_input.h",
+              "token": "(*by_id)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_input.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_input_v1.by_name",
+      "table": "sc_input_v1",
+      "source_header": "include/sc_input.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, sc_input_action_info *)",
+      "version_macro": "SC_INPUT_SERVICE_VERSION",
+      "member_extent": 32,
+      "table_size": 32,
+      "service": "game.input",
+      "id": "sc-input-v1-by-name",
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Copy action metadata for an exact case-sensitive action name, including aliases.",
+      "buffer_contract": "`sco_result (*by_name)(sco_plugin* self, const char* name, sc_input_action_info* out);`<br>Copy action metadata for an exact case-sensitive action name, including aliases.",
+      "ownership": "Caller owns outputs; metadata is copied, and no engine pointer is returned or retained.",
+      "thread_affinity": "Game thread only; self must be live.",
+      "callback_context": "No plugin callbacks.",
+      "reentrancy": "No engine calls or callbacks; read-only metadata lookup.",
+      "results": "OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name.",
+      "absent_capability": "game.input.registry is ON while the static registry is published; this does not attest live dispatch.",
+      "cleanup": "StopInput withdraws the service and rejects calls through a retained table.",
+      "limitations": [
+        "Tail members above 186 are corroborated by a build-unresolved census; no live binding or input injection.",
+        "The 1267 named members include LAST and INVALID at the same numeric id.",
+        "Not run in game.",
+        "C++/C#/Lua typed wrappers are unsupported for this addition; C function-table access is the supported surface."
+      ],
+      "tests": [
+        "tests/test_input.cpp",
+        "tests/abi_game_input.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_input.h",
+              "token": "(*by_name)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_input.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/input.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    }
+  ]
+}
