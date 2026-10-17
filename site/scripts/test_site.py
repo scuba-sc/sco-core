@@ -253,9 +253,10 @@ class SiteTests(unittest.TestCase):
             if shutil.which('node') and (ROOT / 'site/node_modules/.bin/astro').is_file():
                 # A real installation keeps Astro virtual-module identities local
                 # to this fixture. Symlinked node_modules mixes cache roots on Linux.
-                installed = subprocess.run(['npm', 'ci', '--offline'], cwd=output, capture_output=True, text=True)
+                npm_cmd = shutil.which('npm') or 'npm'
+                installed = subprocess.run([npm_cmd, 'ci', '--offline'], cwd=output, capture_output=True, text=True)
                 self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
-                result = subprocess.run(['npm', 'run', 'build'], cwd=output, capture_output=True, text=True,
+                result = subprocess.run([npm_cmd, 'run', 'build'], cwd=output, capture_output=True, text=True,
                                         env={**os.environ, 'ASTRO_TELEMETRY_DISABLED': '1'})
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 for token in SENTINELS:

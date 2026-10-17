@@ -20,3 +20,21 @@ struct LoadoutBackend {
 Result StartLoadout(const LoadoutBackend* backend = nullptr);
 void StopLoadout();
 }
+struct sco_loadout_backend;
+namespace sco::game::services { sco_result SetLoadoutBackend(const sco_loadout_backend* backend); }
+
+// Host provider socket for game.loadout (2.4.0, K-29): the host shell binds a custom simulation/equip
+// backend. Host-source seam only, like LoadoutBackend above; not a plugin-facing table, so it is
+// not declared in the public header sc_loadout.h. Game thread, once, before services::Start (which
+// otherwise starts the service without a backend): SCO_BAD_ARG for a null/short/incomplete struct,
+// SCO_UNAVAILABLE when the service is already started (nothing is replaced), else StartLoadout's result.
+// Admission is host::FreshAdmissionAllowed(): refused until the host composition has enabled it, and
+// re-checked live before every equip. Installing the struct is the host's attestation of its equip.
+extern "C" {
+struct sco_loadout_backend {
+    uint32_t size;
+    uint32_t weapons; /* 1 = backend supports weapon slots 8-21 */
+    sc_loadout_status (*equip)(uint32_t slot, const char* item_class);
+};
+sco_result sco_game_set_loadout_backend(const sco_loadout_backend* backend);
+}

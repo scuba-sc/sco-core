@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "loadout.h"
 #include "sc_loadout.h"
+#include "sco/game/host.h"
 #include "sco/host.h"
 #include "sco/caps.h"
 #include "../../api/internal.h"
@@ -44,7 +45,7 @@ void Fault() {
 }
 sco_result Apply(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
-    if (!host::PluginId(self) || detail::Released(self) || !request || !report ||
+    if (!sco::host::PluginId(self) || detail::Released(self) || !request || !report ||
         request->size < sizeof(*request) || report->size < sizeof(*report) ||
         !request->count || !request->items || request->item_stride != sizeof(sc_loadout_item) || request->_pad)
         return SCO_BAD_ARG;
@@ -107,7 +108,7 @@ Result StartLoadout(const LoadoutBackend* backend) {
     if (applying) return Result::Unavailable;
     if (started) return Result::Ok;
     engine = backend ? *backend : LoadoutBackend{};
-    const Result r = host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table);
+    const Result r = sco::host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table);
     started = r == Result::Ok;
     const bool applyOn = started && !faulted && engine.verified && engine.equip && engine.offline;
     caps::Set("game.loadout.apply", applyOn,
@@ -119,12 +120,29 @@ Result StartLoadout(const LoadoutBackend* backend) {
     if (!started) engine = {};
     return r;
 }
+sco_result SetLoadoutBackend(const sco_loadout_backend* backend) {
+    if (!backend || backend->size < sizeof(sco_loadout_backend) || !backend->equip) return SCO_BAD_ARG;
+    if (!OnGameThread()) return SCO_WRONG_THREAD;
+    // StartLoadout answers Ok for an already started service without installing anything.
+    if (started) return SCO_UNAVAILABLE;
+    LoadoutBackend be{};
+    be.verified = true;
+    be.offline = &host::FreshAdmissionAllowed;
+    be.equip = backend->equip;
+    be.weapons = backend->weapons != 0;
+    return static_cast<sco_result>(StartLoadout(&be));
+}
 void StopLoadout() {
     if (!OnGameThread() || !started || applying) return;
-    host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
+    sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
     caps::Set("game.loadout.apply", false, "game loadout stopped");
     caps::Set("game.loadout.weapons", false, "game loadout stopped");
     started = false;
     engine = {};
 }
 }
+
+extern "C" sco_result sco_game_set_loadout_backend(const sco_loadout_backend* backend) {
+    return sco::game::services::SetLoadoutBackend(backend);
+}
+
