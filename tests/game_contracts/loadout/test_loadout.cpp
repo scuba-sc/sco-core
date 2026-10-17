@@ -3,6 +3,7 @@
 #include "sco/caps.h"
 #include "sc_loadout.h"
 #include "game/services/loadout.h"
+#include "game/admission.h"
 #include <cstdio>
 #include <cstdlib>
 #include <initializer_list>
@@ -38,6 +39,63 @@ int main(int argc, char** argv) {
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, 0x00010002u, &table12) != SCO_OK && !table12);
     sco::game::services::StopLoadout();
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
+    sc_loadout_item socketBatch[] = {{SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"}};
+    sc_loadout_request socketRequest{sizeof(socketRequest), 1, sizeof(sc_loadout_item), 0, socketBatch};
+    sc_loadout_report socketReport{}; socketReport.size = sizeof(socketReport);
+    // Host socket sco_game_set_loadout_backend: real provider, admission is host::FreshAdmissionAllowed.
+    namespace gh = sco::game::host;
+    static unsigned socketEquips = 0;
+    static gh::Admission evidence;
+    static unsigned inspections = 0;
+    sco_loadout_backend socket{sizeof(socket), 0, [](uint32_t, const char*) { ++socketEquips; return SC_LOADOUT_APPLIED; }};
+    const auto socketApply = [&]() {
+        const void* t = nullptr;
+        CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &t) == SCO_OK);
+        return static_cast<const sc_loadout_v1*>(t)->apply(self, &socketRequest, &socketReport);
+    };
+        // Null and malformed providers are refused before anything is published.
+    sco_loadout_backend bad = socket;
+    CHECK(sco_game_set_loadout_backend(nullptr) == SCO_BAD_ARG);
+    bad.size = sizeof(bad) - 1; CHECK(sco_game_set_loadout_backend(&bad) == SCO_BAD_ARG);
+    bad = socket; bad.equip = nullptr; CHECK(sco_game_set_loadout_backend(&bad) == SCO_BAD_ARG);
+    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
+    CHECK(!api->has("game.loadout.apply") && !api->has("game.loadout.weapons"));
+    // Off the game thread nothing is installed.
+    sco_result viaThread = SCO_OK;
+    std::thread([&] { viaThread = sco_game_set_loadout_backend(&socket); }).join();
+    CHECK(viaThread == SCO_WRONG_THREAD && api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
+    // Default admission (host never composed one): the socket installs but every equip is refused.
+    CHECK(sco_game_set_loadout_backend(&socket) == SCO_OK && api->has("game.loadout.apply"));
+    CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 0 && socketReport.slots[0].status == SC_LOADOUT_UNAVAILABLE);
+    sco::game::services::StopLoadout();
+    // Enabled admission with unknown evidence still refuses; positive evidence admits; revocation is live.
+    gh::detail::SetFreshInspector([]() { ++inspections; return evidence; });
+    gh::detail::SetFreshAdmissionEnabled(true);
+    CHECK(sco_game_set_loadout_backend(&socket) == SCO_OK);
+    CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 0);
+    evidence = {gh::Session::Offline, gh::Check::Clear, gh::Check::Clear, gh::Check::Clear};
+    CHECK(socketApply() == SCO_OK && socketEquips == 1 && socketReport.applied == 1);
+    CHECK(!api->has("game.loadout.weapons"));
+    evidence.session = gh::Session::Online;
+    CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 1 && socketReport.slots[0].status == SC_LOADOUT_UNAVAILABLE);
+    evidence.session = gh::Session::Offline;
+    // A repeated install is refused and the first provider stays: no second callback, same state.
+    static unsigned secondEquips = 0;
+    sco_loadout_backend second{sizeof(second), 1, [](uint32_t, const char*) { ++secondEquips; return SC_LOADOUT_APPLIED; }};
+    CHECK(sco_game_set_loadout_backend(&second) == SCO_UNAVAILABLE);
+    CHECK(socketApply() == SCO_OK && socketEquips == 2 && secondEquips == 0 && !api->has("game.loadout.weapons"));
+    sco::game::services::StopLoadout();
+    // A late install after the production start (no backend) is refused, not reported as success.
+    CHECK(sco::game::services::StartLoadout() == sco::Result::Ok);
+    CHECK(sco_game_set_loadout_backend(&socket) == SCO_UNAVAILABLE);
+    CHECK(socketApply() == SCO_UNAVAILABLE && socketEquips == 2 && !api->has("game.loadout.apply"));
+    sco::game::services::StopLoadout();
+    // The weapons attestation is carried through.
+    CHECK(sco_game_set_loadout_backend(&second) == SCO_OK && api->has("game.loadout.weapons"));
+    socketBatch[0] = {SC_LOADOUT_SLOT_PRIMARY, 0, "synthetic_rifle"};
+    CHECK(socketApply() == SCO_OK && secondEquips == 1);
+    sco::game::services::StopLoadout();
+    gh::detail::SetFreshAdmissionEnabled(false);
     // Synthetic engine seam; real provider and host registry, not game acceptance.
     static unsigned calls = 0;
     sco::game::services::LoadoutBackend backend{};
@@ -242,5 +300,6 @@ int main(int argc, char** argv) {
     CHECK(!api->has("game.loadout.apply") && !api->has("game.loadout.weapons")); // Fault() clears both
     CHECK(service->apply(self, &request, &report) == SCO_UNAVAILABLE && calls == before + 1);
     sco::game::services::StopLoadout();
+
     std::puts("loadout: publication, partial slots, validation, offline and terminal fault OK");
 }

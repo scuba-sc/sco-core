@@ -3,6 +3,7 @@
 #include "relocation.h"
 #include "relocation_model.h"
 #include "sco/game/services.h"
+#include "sco/game/host.h"
 #include "sco/host.h"
 #include "sco/caps.h"
 #include <atomic>
@@ -109,7 +110,7 @@ void UpdateCapability(const Evidence& e) {
 }
 sco_result Enter(sco_plugin* self) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
-    if (!self || !host::PluginId(self)) return SCO_BAD_ARG;
+    if (!self || !sco::host::PluginId(self)) return SCO_BAD_ARG;
     if (g_inBackend) return SCO_UNAVAILABLE;
     return g_started ? SCO_OK : SCO_UNAVAILABLE;
 }
@@ -134,11 +135,27 @@ Result StartRelocation(const RelocationBackend* backend) {
     if (!OnGameThread()) return Result::WrongThread;
     if (g_started) return Result::Ok;
     g_backend=backend ? *backend : RelocationBackend{};
-    const auto result=host::ProvideGameService(SC_RELOCATION_NAME,SC_RELOCATION_VERSION,&kRelocation);
+    const auto result=sco::host::ProvideGameService(SC_RELOCATION_NAME,SC_RELOCATION_VERSION,&kRelocation);
     if (result!=Result::Ok) { g_backend={}; return result; }
     g_started=true; g_capSet=false;
     UpdateCapability(Gather(nullptr,false));
     return Result::Ok;
+}
+sco_result SetRelocationBackend(const sco_relocation_backend* backend) {
+    if (!backend || backend->size < sizeof(sco_relocation_backend) ||
+        !backend->player || !backend->target || !backend->apply || !backend->pose) return SCO_BAD_ARG;
+    if (!OnGameThread()) return SCO_WRONG_THREAD;
+    // StartRelocation answers Ok for an already started service without installing anything.
+    if (g_started) return SCO_UNAVAILABLE;
+    RelocationBackend be{};
+    be.verified = true;
+    be.offline = &host::FreshAdmissionAllowed;
+    be.player = backend->player;
+    be.target = backend->target;
+    be.move = backend->apply;
+    be.pose = backend->pose;
+    be.now = backend->now;
+    return static_cast<sco_result>(StartRelocation(&be));
 }
 void TickRelocation() {
     if (!g_started || g_inBackend) return;
@@ -155,7 +172,7 @@ void TickRelocation() {
 void StopRelocation() {
     g_requests.Stop();
     if (g_started) {
-        host::WithdrawGameService(SC_RELOCATION_NAME);
+        sco::host::WithdrawGameService(SC_RELOCATION_NAME);
         caps::Set(SC_RELOCATION_NAME,false,"game.relocation stopped");
     }
     g_started=false; g_seen=false; g_capSet=false; g_backend={};
@@ -163,30 +180,6 @@ void StopRelocation() {
 void ReleaseRelocationOwner(const void* owner) { g_requests.Release(owner); }
 }
 
-#if defined(_MSC_VER)
-__declspec(selectany) bool (*g_sco_relocation_admission_hook)(void) = nullptr;
-#else
-__attribute__((weak)) bool (*g_sco_relocation_admission_hook)(void) = nullptr;
-#endif
-
-static bool FreshHostAdmission() {
-    if (g_sco_relocation_admission_hook) return g_sco_relocation_admission_hook();
-    return true;
-}
-
-static int (*g_cApply)(const sc_relocation_request*) = nullptr;
-
-static bool AdaptRelocationApply(const sc_relocation_request* req) {
-    return g_cApply ? (g_cApply(req) != 0) : false;
-}
-
 extern "C" sco_result sco_game_set_relocation_backend(const sco_relocation_backend* backend) {
-    if (!backend || backend->size < sizeof(sco_relocation_backend)) return SCO_BAD_ARG;
-    if (!backend->apply) return SCO_BAD_ARG;
-    g_cApply = backend->apply;
-    sco::game::services::RelocationBackend be{};
-    be.verified = true;
-    be.offline = FreshHostAdmission;
-    be.move = AdaptRelocationApply;
-    return sco::game::services::StartRelocation(&be) == sco::Result::Ok ? SCO_OK : SCO_FAILED;
+    return sco::game::services::SetRelocationBackend(backend);
 }

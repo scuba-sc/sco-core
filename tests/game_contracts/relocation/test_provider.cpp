@@ -5,6 +5,7 @@
 #include "sc_relocation.h"
 #include "sco/game/services.h"
 #include "game/services/relocation.h"
+#include "game/admission.h"
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
@@ -111,6 +112,93 @@ int main() {
     api = sco::host::BuildApi({"synthetic relocation host"});
     self = sco::host::NewPlugin("relocation_test");
 
+    // Host socket sco_game_set_relocation_backend: admission is host::FreshAdmissionAllowed, the
+    // callbacks are the provider's own (player/target/apply/pose/now), so the provider is usable.
+    namespace gh = sco::game::host;
+    static gh::Admission evidence;
+    static int socketMoves = 0;
+    const auto queryTable = [&]() {
+        const void* t = nullptr;
+        CHECK(api->query_service(SC_RELOCATION_NAME, SC_RELOCATION_VERSION, &t) == SCO_OK);
+        return static_cast<const sc_relocation_v1*>(t);
+    };
+    const auto notInstalled = [&]() {
+        const void* t = nullptr;
+        return api->query_service(SC_RELOCATION_NAME, SC_RELOCATION_VERSION, &t) == SCO_NOT_FOUND && !t && !Cap();
+    };
+    w = World{};
+    sco_relocation_backend socket{sizeof(socket), 0, Player, Target,
+                                  [](const sc_relocation_request*) { ++socketMoves; return true; }, Pose, Clock};
+    // Null and malformed providers are refused before anything is published.
+    CHECK(sco_game_set_relocation_backend(nullptr) == SCO_BAD_ARG);
+    {
+        sco_relocation_backend bad = socket;
+        bad.size = sizeof(bad) - 1; CHECK(sco_game_set_relocation_backend(&bad) == SCO_BAD_ARG);
+        bad = socket; bad.player = nullptr; CHECK(sco_game_set_relocation_backend(&bad) == SCO_BAD_ARG);
+        bad = socket; bad.target = nullptr; CHECK(sco_game_set_relocation_backend(&bad) == SCO_BAD_ARG);
+        bad = socket; bad.apply = nullptr; CHECK(sco_game_set_relocation_backend(&bad) == SCO_BAD_ARG);
+        bad = socket; bad.pose = nullptr; CHECK(sco_game_set_relocation_backend(&bad) == SCO_BAD_ARG);
+    }
+    CHECK(notInstalled());
+    {
+        sco_result viaThread = SCO_OK;
+        std::thread([&] { viaThread = sco_game_set_relocation_backend(&socket); }).join();
+        CHECK(viaThread == SCO_WRONG_THREAD && notInstalled());
+    }
+    // Default admission (host never composed one): installed, but the capability is off and requests refuse.
+    CHECK(sco_game_set_relocation_backend(&socket) == SCO_OK);
+    table = queryTable();
+    S::TickRelocation();
+    CHECK(!Cap());
+    Refused();
+    CHECK(w.engineReads == 0 && socketMoves == 0);
+    S::StopRelocation();
+    // Enabled admission: unknown evidence refuses, positive evidence admits and the move is observed.
+    gh::detail::SetFreshInspector([]() { return evidence; });
+    gh::detail::SetFreshAdmissionEnabled(true);
+    CHECK(sco_game_set_relocation_backend(&socket) == SCO_OK);
+    table = queryTable();
+    S::TickRelocation();
+    CHECK(!Cap());
+    Refused();
+    evidence = {gh::Session::Offline, gh::Check::Clear, gh::Check::Clear, gh::Check::Clear};
+    S::TickRelocation();
+    CHECK(Cap());
+    uint64_t sockTicket = Admit();
+    w.now = 1100;
+    S::TickRelocation();
+    CHECK(socketMoves == 1 && State(sockTicket).applied == 1 && State(sockTicket).state == SC_RELOCATION_PENDING);
+    w.poseValid = true;
+    w.pos[0] = 1.0; w.rot[2] = 0;
+    S::TickRelocation();
+    CHECK(State(sockTicket).state == SC_RELOCATION_COMPLETE && socketMoves == 1);
+    // A repeated install is refused and the first provider (and its ticket) stay untouched.
+    static int secondMoves = 0;
+    sco_relocation_backend rival = socket;
+    rival.apply = [](const sc_relocation_request*) { ++secondMoves; return true; };
+    CHECK(sco_game_set_relocation_backend(&rival) == SCO_UNAVAILABLE);
+    CHECK(Cap() && State(sockTicket).state == SC_RELOCATION_COMPLETE);
+    w.poseValid = false;
+    sockTicket = Admit();
+    w.now = 1200;
+    S::TickRelocation();
+    CHECK(socketMoves == 2 && secondMoves == 0);
+    // Live revocation: the in-flight request fails on safety before any further move and requests refuse.
+    evidence.session = gh::Session::Online;
+    w.now = 1300;
+    S::TickRelocation();
+    CHECK(!Cap());
+    Failed(sockTicket, SC_RELOCATION_REASON_SAFETY, 1);
+    Refused();
+    CHECK(socketMoves == 2);
+    S::StopRelocation();
+    // A late install after the production start (engine backend, unverified here) is refused, not a no-op OK.
+    CHECK(S::StartRelocation() == sco::Result::Ok);
+    CHECK(sco_game_set_relocation_backend(&socket) == SCO_UNAVAILABLE);
+    S::TickRelocation();
+    CHECK(!Cap() && socketMoves == 2);
+    S::StopRelocation();
+    gh::detail::SetFreshAdmissionEnabled(false);
     S::RelocationBackend good = Good();
 
     Begin(nullptr);
@@ -370,6 +458,7 @@ int main() {
     CHECK(w.moves == 0);
 
     S::StopRelocation();
+
     std::puts("relocation provider: OK");
     return 0;
 }

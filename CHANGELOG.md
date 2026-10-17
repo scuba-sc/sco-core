@@ -16,7 +16,10 @@ What each change means for plugin authors and for products built on sco-core (sc
   Adds the host-only C-linkage sockets `sco_game_set_relocation_backend` (`src/game/services/relocation.h`) and
   `sco_game_set_loadout_backend` (`src/game/services/loadout.h`) allowing host shells to supply custom simulation
   and equipment backends. They are host-source seams, not plugin-facing tables, so the public headers
-  `sc_relocation.h` and `sc_loadout.h` and the SDK contract catalogue are unchanged.
+  `sc_relocation.h` and `sc_loadout.h` and the SDK contract catalogue are unchanged. Admission is
+  `host::FreshAdmissionAllowed()` (refused until the host composition enables it, re-checked live), a
+  setter on an already started service returns `SCO_UNAVAILABLE` and installs nothing, and the relocation
+  socket takes the provider's `player`, `target`, `apply` and `pose` callbacks (`now` optional).
 
 - **Read-only Windows Firewall admission inspection (`K-30`)**:
   Adds `InspectWindowsFirewallRule` (`include/sco/game/host.h`) via `INetFwPolicy2` COM API to query active
