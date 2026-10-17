@@ -2,7 +2,29 @@
 
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
-## Unreleased
+## sdk-v2.4.0 (2026-10-16)
+
+See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).
+
+SDK 2.4.0 packages the entries below without changing frozen plugin ABI 1.1
+(`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.3.0). Core, legacy,
+core-source and host-source-sc use 2.4.0. The candidate adds the game service tables
+`game.actor_stats` 1.0, `game.actor_stats_write` 1.0, `game.gamerules` 1.0, `game.build` 1.0 and
+`game.inventory` 1.0 (a preview with no backend), a new bus event `game.mission.changed`, and
+production engine backends behind `game.relocation` and `game.quantum`, so under the
+[game-pack policy](docs/game-pack.md) (a release that adds or grows a game service raises the
+minor) the game pack and the optional game-sc overlay move to **0.7.0**
+(`SCO_GAME_PACK_VERSION`, was 0.6.0; `sco-sdk-game-sc-0.7.0.zip`). The game pack's verified build is
+4.10.197.2878: every signature row resolves in a static `sco-sigcheck` run on that build's
+`StarCitizen.exe`. **Nothing below has run in the game.** Evidence is host-side builds, synthetic
+fixtures and static signature checks. The Windows-only engine code is built by hosted CI, not
+locally. `game.actor_stats.read`, `game.build.info`, `game.events.mission_changed` and
+`game.relocation` (under its conditions) default ON; every other new capability defaults OFF.
+
+- **`game.inventory` 1.0 (preview, `game.inventory.read` OFF, no backend)** (`include/sc_inventory.h`, [docs](docs/game/inventory.md)). A read-only snapshot of the local player's item ports (per port: valid, item type id, entity id). The default production backend binds nothing, so every call answers unavailable. It is published as a contract preview: the layout may still change before a backend is bound and this table's compatibility is not promised until then. Layout pinned in `tests/abi_game_inventory.c`. Not run in game. Grounded on F-4.10.197.2878-011..-016.
+- **Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths** (`src/ipc/diagnostics_platform_win.cpp`). Fixes a length type mismatch in the Windows diagnostics transport. Built by hosted CI only.
+- **MCP documentation at the current release, with drift gates.** `tools/sco-core-mcp/README.md` and `docs/sdk-mcp-tutorial.md` follow the release coordinates, and `tools/doc_release_gate.py` fails when either lags.
+- **Tooling:** `tools/ip_audit.py` names the SBOM instead of a local path; Windows gate checks compare pinned files byte-exactly and print POSIX paths; `sdk_catalogue` and `sigcheck` find LLVM/Clang on Windows when it is not on PATH; `docs/net-wire.md` documents unknown control types and headless hosts.
 - **New game bus event: `game.mission.changed`** (`include/sc_game_events.h`,
   [docs](docs/game/events.md)). Publishes state/phase/objective changes of the missions
   `game.missions` accepted, from the tick, closing the last gap of the events audit
