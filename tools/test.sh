@@ -186,7 +186,7 @@ echo "sdk: template, hello, cpp_hello, include/scosdk and sco-plugin-check compi
   if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet; else shasum -a 256 -c --quiet; fi )
 echo "toml++: 3.4.0, sha256 of toml.hpp and LICENSE match third_party/tomlplusplus/README.md"
 
-FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -Wno-tsan -Wno-format-truncation -pthread -I "$ROOT/include" -isystem "$ROOT/third_party/sqlite"
+FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -I "$ROOT/include" -isystem "$ROOT/third_party/sqlite"
        -isystem "$ROOT/third_party/tomlplusplus")
 
 # Shared object cache for ASan and TSan compilations to eliminate repeated translation-unit compiles.
