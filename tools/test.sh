@@ -596,8 +596,8 @@ APP_ASAN=($(obj asan "${APP_SRC[@]}"))
 APP_FIXTURE_ASAN=()
 for obj_path in "${APP_ASAN[@]}"; do
   case "$obj_path" in
-    *src__api__sco_services_cpp.o) APP_FIXTURE_ASAN+=("$OBJ_SERVICES_FIXTURE") ;;
-    *src__ipc__diagnostics_ipc_cpp.o) APP_FIXTURE_ASAN+=("$OBJ_DIAG_IPC_FIXTURE") ;;
+    *sco_services_cpp.o) APP_FIXTURE_ASAN+=("$OBJ_SERVICES_FIXTURE") ;;
+    *diagnostics_ipc_cpp.o) APP_FIXTURE_ASAN+=("$OBJ_DIAG_IPC_FIXTURE") ;;
     *) APP_FIXTURE_ASAN+=("$obj_path") ;;
   esac
 done
