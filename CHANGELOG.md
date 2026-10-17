@@ -3,6 +3,18 @@
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
 ## Unreleased
+- **`game.inventory` 1.1: the item-port adapter** (`include/sc_inventory.h`, [docs](docs/game/inventory.md)).
+  The service now has a production backend: it reads the local player's item-port container in place
+  (no allocation, no call into the container), walks the whole attached tree depth first, and
+  fails closed behind signature-row checks (nine new `inventory.*` rows) and bounds checks. Additive
+  ABI: `sc_inventory_snapshot` gains `flags` and `total_seen` after `ports[]` (`SC_INVENTORY_FLAG_TRUNCATED`,
+  `SC_INVENTORY_FLAG_LIMITED`), written only when `out->size` covers them; a 1.0 caller passing
+  `SC_INVENTORY_SNAPSHOT_SIZE_1_0` is accepted unchanged. `generation` is computed by comparing
+  snapshots. In addition, 192 item categories are published as the `sc_item_type` enumeration (#190 [G19],
+  K-34) with `sc_inventory_item_type_name` and `sc_inventory_port_item_type` helpers.
+  `game.inventory.read` stays default OFF (`SCO_INVENTORY_READ=1` or the product switch,
+  and every row must be OK); evidence `synthetic_only`. Not run in game. F-4.10.197.2878-011..-016.
+
 - **DataCore pack `BestEffort` partial-apply policy & pre-flight validator (`K-27`, `#192 [G21]`)**:
   `datacore.pack` keeps `Atomic` as default and introduces an explicit opt-in `PackApplyPolicy::BestEffort`
   (`policy = "best_effort"`) returning structured per-record receipts (`PackApplyReceipt`).

@@ -7,7 +7,7 @@
     "3": "spike hold: backs a capability with a spike_ref and default OFF",
     "4": "blocked: backs a capability whose evidence_level is blocked"
   },
-  "row_count": 323,
+  "row_count": 332,
   "entries": [
     {
       "id": "actor.stat_names",
@@ -1690,6 +1690,96 @@
       "hash": "_0xF8E5917C24156F35",
       "tier": 2,
       "source": "src/game/hangar_sigs.cpp"
+    },
+    {
+      "id": "inventory.get_item_ports",
+      "subsystem": "inventory",
+      "hash": "_0x6E3E17DE77325162",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
+    },
+    {
+      "id": "inventory.port_is_valid",
+      "subsystem": "inventory",
+      "hash": "_0x6AE70F70DC2E6981",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
+    },
+    {
+      "id": "inventory.port_item_handle",
+      "subsystem": "inventory",
+      "hash": "_0x4D061F8C031D8556",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
+    },
+    {
+      "id": "inventory.handle_valid",
+      "subsystem": "inventory",
+      "hash": "_0x9B66264E249E73AA",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
+    },
+    {
+      "id": "inventory.unequip_item",
+      "subsystem": "inventory",
+      "hash": "_0x4EB38987BF64BD47",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
+    },
+    {
+      "id": "inventory.port_get_item",
+      "subsystem": "inventory",
+      "hash": "_0xE8AA63289FFCE612",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
+    },
+    {
+      "id": "inventory.port_get_container",
+      "subsystem": "inventory",
+      "hash": "_0x07CBB9428563E80C",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
+    },
+    {
+      "id": "inventory.container_type_id",
+      "subsystem": "inventory",
+      "hash": "_0x88A32130F78F6F72",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
+    },
+    {
+      "id": "inventory.item_type_names",
+      "subsystem": "inventory",
+      "hash": "_0x165DA1EC66C53374",
+      "tier": 1,
+      "capability": [
+        "game.inventory.read"
+      ],
+      "source": "src/game/inventory_sigs.cpp"
     },
     {
       "id": "mining.cell",
