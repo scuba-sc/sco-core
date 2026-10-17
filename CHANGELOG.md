@@ -2,6 +2,10 @@
 
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
+## Unreleased
+
+- **Tooling:** once merged, `release-candidate.yml` gets a readiness path. When all nine main jobs are green on the same commit for an unreleased SDK version, it starts the existing candidate build. Each build also gets an unsigned `release-review` bundle for human review, but the `release-candidate` artifact stays the only promotion input. Approval, signing, tagging and publication remain manual, and manual dispatch is unchanged.
+
 ## sdk-v2.4.0 (2026-10-16)
 
 See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).

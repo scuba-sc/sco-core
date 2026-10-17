@@ -34,9 +34,9 @@ CI creates a tag. Candidate generation and public promotion are separate operati
 ## Needs a person
 
 - [ ] **F:** the CHANGELOG section and the README describe what ships (core vs. extension) and claim no more than the checks show.
-- [ ] **B:** every `needs-review` entry the release ships has a decision in `docs/legal/release-decisions/`, or the release leaves that component out. Since the synthetic example data (2026-10-11), no SDK zip ships one; the game pack's entries ship in none. Since 2026-10-12 the ledger has no `needs-review` entry ([decisions](release-decisions/README.md)).
+- [ ] **B:** every `needs-review` source that a shipped SDK archive contains needs a human decision in `docs/legal/release-decisions/`, or the release leaves that component out. The set changes from one candidate to the next, so check the provenance entries for the archives actually being released. A missing decision is never read as approval ([decisions](release-decisions/README.md)).
 - [ ] **D:** counsel has reviewed the plugin-licence wording ([option A, chosen 2026-10-11](release-decisions/2026-10-11-plugin-licence.md)), or the release states nothing stronger than it.
-- [ ] **G:** the maintainer checks the source commit, candidate run, artifact IDs and every file hash, and qualified counsel reviews any open material legal question.
+- [ ] **G:** the maintainer checks the source commit, candidate run, artifact IDs and every file hash, and qualified counsel reviews any open material legal question. Once the readiness change merges, the `release-review` bundle is an unsigned reading aid. Scope and provenance decisions stay with the maintainer, and approval, signing, tagging and publication stay manual.
 - [ ] **G:** the maintainer signs and commits the approval record, then tags. Publishing is a separate act from CI going green.
 - [ ] **H:** before dispatching the candidate, the release notes describe the declared profiles in prose as well as in the scope block, and `docs/getting-started.md` walks through the new archives. The gate compares coordinates and refuses scope denials; it does not judge whether the prose is accurate.
 - [ ] **I:** after publication, the documentation deployed to GitHub Pages is from the published commit, and the public release-notes and getting-started routes show the published versions and profiles. Gate H checks the source, not the deployed site.
@@ -246,17 +246,21 @@ No candidate job can create or modify a release. Configuration is a maintainer a
    into `main`. Wait for **cmake/linux, cmake/kernel-only, cmake/windows, sdk/package,
    sdk/windows, sdk/csharp-host-sim, test/test, ip-compliance/audit and docs-site/docs-site**
    to succeed on that exact main commit.
-2. Manually dispatch **`release-candidate.yml` on that main commit**, with input
+2. Once the readiness change has merged, the automatic path prepares the candidate for that main commit. Manual dispatch remains the fallback and the deliberate alternative: run **`release-candidate.yml` on that main commit**, with input
    `tag: sdk-v<version>`. It runs the documentation gate, checks those prerequisites, builds
    `core`, `game-sc`, `legacy`, `core-source` and `host-source-sc`, audits each archive, writes its SBOM, and exercises each zip (the extension
    overlays core). It writes `SHA256SUMS`, attests every payload file and uploads one immutable
    artifact named **`release-candidate`**. Do not push a tag yet.
+   The readiness path is not live yet. It starts only after its change merges under separate authorization.
+   Once that change merges, a `workflow_run` completion from `cmake`, `sdk`, `test`, `ip-compliance` or `docs-site` is only a hint. The check re-reads the run data from GitHub. It dispatches this same candidate workflow only when all nine jobs in step 1 are green on the same `main` commit, `sdk/VERSION` is an unreleased `X.Y.Z`, no tag or release exists for it yet, and the documentation gate passes. The dispatch carries that commit's SHA, and the candidate's first step stops if `main` has moved. Manual dispatch with `tag` keeps working as before.
+   Dispatch can happen more than once in rare cases, because the duplicate check only sees what GitHub shows at that moment. Each build keeps its own run and artifact IDs, and nothing promotes from either. If a candidate fails or is cancelled, the automatic path refuses to retry it. Retry by rerunning the failed candidate workflow run or by dispatching manually. Rerunning only the readiness run is refused, because it sees the failed candidate and refuses again.
 3. Download and review that candidate. Copy the summary's **`builder.run_id`**, artifact ID,
    **every filename, byte size and SHA-256** into the approval manifest, including the SBOMs and
    `SHA256SUMS` itself. Every `artifacts[]` entry names its `artifact_id`; all files in the single
    candidate bundle use the same ID. Save this `release.json` at
    `docs/legal/release-decisions/sdk-v<version>.json`. Complete the other required approval
    fields; a hash inventory alone is not publication approval. Never select a later run by name.
+   Once the readiness change merges, the candidate run also uploads a separate **`release-review`** artifact. It holds unsigned copies of the payload files, `candidate-review.json` and `CANDIDATE-REVIEW.md`, and it is a reading aid for this review. It is not an input to `release.yml` and is not attested. The original **`release-candidate`** artifact stays immutable, remains the only promotion input, and keeps its attestations.
 4. Review the complete approval and sign its exact bytes with the trusted maintainer key:
    ```sh
    ssh-keygen -Y sign -f <maintainer-key> -n sco-release-v1 docs/legal/release-decisions/sdk-v<version>.json

@@ -8,18 +8,51 @@ name: release-candidate
 # Repository access is read-only; only candidate can mint provenance attestations, not releases.
 
 on:
+  workflow_run:
+    workflows: [cmake, sdk, test, ip-compliance, docs-site]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
         description: Prospective SDK tag matching sdk/VERSION (sdk-v<version>)
         required: true
         type: string
+      expected_source_sha:
+        description: Expected main SHA for an automatic candidate dispatch
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
 
 jobs:
+  readiness:
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: candidate-readiness-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    permissions:
+      actions: write
+      checks: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Validate readiness and dispatch an eligible candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/release_promote.py auto-candidate
+
   prerequisites:
+    if: github.event_name == 'workflow_dispatch'
+    outputs:
+      readiness-artifact-id: ${{ steps.readiness-evidence.outputs.artifact-id }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     # Read check runs and their owning workflow runs, never just an ambiguous job name.
@@ -28,6 +61,22 @@ jobs:
       checks: read
       actions: read
     steps:
+      - name: Guard expected source SHA before checkout
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo 'release candidates must be dispatched from main'
+            exit 1
+          fi
+          if [[ -n "$EXPECTED_SOURCE_SHA" ]] && \
+            { [[ ! "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || \
+              [[ "$EXPECTED_SOURCE_SHA" != "$GITHUB_SHA" ]]; }; then
+            echo 'expected source SHA does not match this main dispatch'
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -42,15 +91,30 @@ jobs:
       - name: Require successful mandatory workflows on the exact source SHA
         env:
           GH_TOKEN: ${{ github.token }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
         run: |
-          python3 tools/release_promote.py prerequisites
+          python3 tools/release_promote.py --evidence-out readiness-evidence.json prerequisites
+
+      - name: Upload this run's validated readiness evidence
+        id: readiness-evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: readiness-evidence
+          path: readiness-evidence.json
+          if-no-files-found: error
+          retention-days: 30
 
   candidate:
     needs: prerequisites
+    if: github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: release-candidate-${{ inputs.expected_source_sha || github.sha }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: read
+      actions: read
       id-token: write
       attestations: write
     steps:
@@ -132,3 +196,39 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           python3 tools/release_promote.py summary
+
+      - name: Download readiness evidence from this candidate workflow run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.prerequisites.outputs.readiness-artifact-id }}
+          path: readiness-evidence
+
+      - name: Prepare the separate unsigned review bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          READINESS_ARTIFACT_ID: ${{ needs.prerequisites.outputs.readiness-artifact-id }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          REVIEW_OUTPUT: ${{ runner.temp }}/release-review
+        run: python3 tools/release_promote.py review-bundle
+
+      - name: Upload the separate review bundle
+        id: review-upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-review
+          path: ${{ runner.temp }}/release-review/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Record candidate evidence artifact identities
+        env:
+          CANDIDATE_ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          READINESS_ARTIFACT_ID: ${{ needs.prerequisites.outputs.readiness-artifact-id }}
+          RELEASE_REVIEW_ARTIFACT_ID: ${{ steps.review-upload.outputs.artifact-id }}
+        run: |
+          {
+            printf "Candidate artifact ID: %s (immutable release-candidate; sole promotion input).\n" "$CANDIDATE_ARTIFACT_ID"
+            printf "Readiness artifact ID: %s (validated nine-job evidence from this candidate workflow run).\n" "$READINESS_ARTIFACT_ID"
+            printf "Review artifact ID: %s (separate unsigned review copy; not a promotion input).\n" "$RELEASE_REVIEW_ARTIFACT_ID"
+          } >> "$GITHUB_STEP_SUMMARY"
