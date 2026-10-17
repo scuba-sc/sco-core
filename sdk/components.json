@@ -201,6 +201,14 @@
     }
   ],
   "components": [
+    {"id":"wave2.tests.test_gamerules_params.cpp","source":"tests/test_gamerules_params.cpp","destination":"tests/test_gamerules_params.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+    {"id":"wave2.include.sc_input.h","source":"include/sc_input.h","destination":"include/sc_input.h","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
+    {"id":"wave2.src.game.services.input.cpp","source":"src/game/services/input.cpp","destination":"src/game/services/input.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+    {"id":"wave2.src.game.services.input.h","source":"src/game/services/input.h","destination":"src/game/services/input.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+    {"id":"wave2.tests.test_input.cpp","source":"tests/test_input.cpp","destination":"tests/test_input.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+    {"id":"wave2.tests.abi_game_input.c","source":"tests/abi_game_input.c","destination":"tests/abi_game_input.c","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+    {"id":"wave2.docs.game.input.md","source":"docs/game/input.md","destination":"docs/game/input.md","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"wave2.sdk.contracts.sc_input_v1.json","source":"sdk/contracts/sc_input_v1.json","destination":"contracts/sc_input_v1.json","profiles":["game-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
     {
       "id": "host-source-sc-include-sco-game-asop_host.h",
       "source": "include/sco/game/asop_host.h",

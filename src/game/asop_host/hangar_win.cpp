@@ -125,7 +125,8 @@ static uintptr_t FakeCall(int s, int n, const void* caller, uintptr_t out = 0) {
         for (const auto& o : kObjectSlots) object |= o.slot == n && !strcmp(o.service, g_fakeNames[s]);
         if (object) {
             AcquireSRWLockExclusive(&g_fakeLock);
-            if (!(child = g_fakeChild[s][n]) && g_fakeCount < kFakeServices) {
+            child = g_fakeChild[s][n];
+            if (!child && g_fakeCount < kFakeServices) {
                 const LONG c = g_fakeCount++;
                 sprintf_s(g_fakeNames[c], "%s.%d", g_fakeNames[s], n);
                 g_fakeChild[s][n] = child = c + 1;

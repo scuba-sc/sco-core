@@ -31,6 +31,7 @@ namespace Sco.Sdk.Tests
             types.Add("sc_game_zone_changed", typeof(ScGameZoneChanged));
             types.Add("sc_game_vehicle_seat", typeof(ScGameVehicleSeat));
             types.Add("sc_game_mission_changed", typeof(ScGameMissionChanged));
+            types.Add("sc_game_loadout_respawn_completed", typeof(ScGameLoadoutRespawnCompleted));
             types.Add("sc_entities_v1", typeof(ScEntitiesV1));
             types.Add("sc_vehicle_seat_flag", typeof(ScVehicleSeatFlag));
             types.Add("sc_vehicle_seat", typeof(ScVehicleSeat));
@@ -114,6 +115,7 @@ namespace Sco.Sdk.Tests
             strings.Add("SC_GAME_EVENT_VEHICLE_BOARDED", GameAbi.EventVehicleBoarded);
             strings.Add("SC_GAME_EVENT_VEHICLE_EXITED", GameAbi.EventVehicleExited);
             strings.Add("SC_ENTITIES_NAME", GameAbi.EntitiesName);
+            strings.Add("SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED", GameAbi.EventLoadoutRespawnCompleted);
             strings.Add("SC_VEHICLES_SERVICE_NAME", GameAbi.VehiclesName);
             strings.Add("SC_CREATIVE_SERVICE_NAME", GameAbi.CreativeName);
             strings.Add("SC_HANGAR_SERVICE_NAME", GameAbi.HangarName);
@@ -135,6 +137,7 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScGameZoneChanged)) size = Unsafe.SizeOf<ScGameZoneChanged>();
             if (t == typeof(ScGameVehicleSeat)) size = Unsafe.SizeOf<ScGameVehicleSeat>();
             if (t == typeof(ScGameMissionChanged)) size = Unsafe.SizeOf<ScGameMissionChanged>();
+            if (t == typeof(ScGameLoadoutRespawnCompleted)) size = Unsafe.SizeOf<ScGameLoadoutRespawnCompleted>();
             if (t == typeof(ScEntitiesV1)) size = Unsafe.SizeOf<ScEntitiesV1>();
             if (t == typeof(ScVehicleSeat)) size = Unsafe.SizeOf<ScVehicleSeat>();
             if (t == typeof(ScVehiclesV1)) size = Unsafe.SizeOf<ScVehiclesV1>();

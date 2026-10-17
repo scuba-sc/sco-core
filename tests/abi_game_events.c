@@ -33,6 +33,7 @@ PIN(sizeof(SC_GAME_EVENT_ACTOR_DIED) == 17);      /* "game.actors.died" */
 PIN(sizeof(SC_GAME_EVENT_ZONE_CHANGED) == 18);    /* "game.zone.changed" */
 PIN(sizeof(SC_GAME_EVENT_VEHICLE_BOARDED) == 21); /* "game.vehicle.boarded" */
 PIN(sizeof(SC_GAME_EVENT_VEHICLE_EXITED) == 20);  /* "game.vehicle.exited" */
+PIN(sizeof(SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED) == 31); /* "game.loadout.respawn_completed" */
 
 /* ---- sc_game_player_spawned ---- */
 SIZE(sc_game_player_spawned, 24);
@@ -77,6 +78,11 @@ AT(sc_game_mission_changed, new_state, 20);
 AT(sc_game_mission_changed, new_phase, 24);
 AT(sc_game_mission_changed, new_objective, 28);
 AT(sc_game_mission_changed, session, 32);
+
+/* ---- sc_game_loadout_respawn_completed (game.loadout.respawn_completed; occurrence only, host-gated off) ---- */
+SIZE(sc_game_loadout_respawn_completed, 8);
+AT(sc_game_loadout_respawn_completed, size, 0);
+AT(sc_game_loadout_respawn_completed, _pad, 4);
 
 /* Keeps the pins referenced so -Wunused does not fire. */
 void sco_abi_game_events_pins(void);

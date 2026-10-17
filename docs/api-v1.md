@@ -626,8 +626,15 @@ Rows are in [entities rows](game/entities.md). Wrappers: C++ [`scosdk/game/entit
 
 ### `game.gamerules` 1.0 (game pack)
 
-[`sc_gamerules.h`](../include/sc_gamerules.h), pinned by [`tests/abi_game_gamerules.c`](../tests/abi_game_gamerules.c) (table 16 bytes, `sc_gamerules_state` 56 bytes):
+[`sc_gamerules.h`](../include/sc_gamerules.h), pinned by [`tests/abi_game_gamerules.c`](../tests/abi_game_gamerules.c) (1.1 table 24 bytes, frozen read prefix 16 bytes, `sc_gamerules_state` 56 bytes):
 `read` copies the server GameRules parameters the client received: quantum travel and boost allowed, group-QT enforcement, travel-target and target-lock thresholds, `generation`, and `valid` (check it first). Read-only. Capability `game.gamerules.read` defaults OFF; with no backend bound `read` answers `SCO_UNAVAILABLE`. Language routes and evidence: [game.gamerules](game/gamerules.md). Not run in game.
+
+The additive 1.1 `list_params` tail copies static parameter definitions (name,
+group, type), not values. It remains available without a live-read backend.
+`game.input` 1.0 ([`sc_input.h`](../include/sc_input.h)) similarly publishes static
+action metadata through count/id/name lookups; the tail vocabulary has unresolved
+build attribution. See [input](game/input.md). Neither registry dispatches input
+or writes game state. Not run in game.
 
 ### `game.build` 1.0 (game pack)
 

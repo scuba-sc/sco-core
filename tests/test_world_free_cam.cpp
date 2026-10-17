@@ -130,9 +130,10 @@ void TestNotStarted() {
 
 // The 1.1 tail: 1.0's members keep their offsets, the new member sits after last_error.
 void TestTableTail() {
-    CHECK(SC_WORLD_VERSION_1_1 == ((1u << 16) | 1u));
-    CHECK(offsetof(sc_world_v1, last_error) == 24);
-    CHECK(offsetof(sc_world_v1, free_camera_flag) == 32 && sizeof(sc_world_v1) == 40);
+    static_assert(SC_WORLD_VERSION_1_1 == ((1u << 16) | 1u), "world version");
+    static_assert(offsetof(sc_world_v1, last_error) == 24, "frozen error member");
+    static_assert(offsetof(sc_world_v1, free_camera_flag) == 32 && sizeof(sc_world_v1) == 40,
+                  "free-camera table tail");
 }
 
 }  // namespace

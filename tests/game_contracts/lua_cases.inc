@@ -230,7 +230,7 @@ static sco_result FakeGrRead(sco_plugin* self, sc_gamerules_state* out) {
 }
 
 static void TestGameRules() {
-    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, FakeGrRead };
+    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, FakeGrRead, nullptr };
     CHECK(sco::host::ProvideGameService(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_SERVICE_VERSION, &kFake) == Result::Ok);
     Write("gagr", R"(
 local g = assert(sco.game and sco.game.gamerules, "sco.game.gamerules")

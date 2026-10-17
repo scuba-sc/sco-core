@@ -1,7 +1,8 @@
 # game.gamerules — read-only server GameRules parameters
 
-`sc_gamerules.h` · service `game.gamerules` · version 1.0 · game thread only ·
-capability `game.gamerules.read` (default **OFF**).
+`sc_gamerules.h` · service `game.gamerules` · version 1.1 (`read` is the frozen 1.0 prefix;
+1.1 adds `list_params`) · game thread only · capability `game.gamerules.read` (default **OFF**,
+gates `read` only).
 
 The server tells the client which game rules apply: whether quantum travel and quantum
 boost are allowed, whether group QT is enforced, and the travel/target-lock thresholds the
@@ -36,6 +37,56 @@ sigcheck rows OK on that build). Values are a snapshot of what the client receiv
 `generation` changes when a new parameter set is applied, so a plugin can detect updates
 without polling intervals.
 
+## Parameter registry (`list_params`, 1.1)
+
+`list_params` is a static list of parameter *definitions*: a name, a group and a type per
+entry. It never reports a value, reads no game memory, calls no backend and needs neither the
+`game.gamerules.read` capability nor a bound backend, so it answers the same on every build.
+`read` is unchanged: without a backend it stays `SCO_UNAVAILABLE`, and listing a definition is
+not evidence that its value can be read.
+
+The entries are the members of the client's `SGameRulesCvars` type (F-INTAKE-005), flattened in
+declaration order. The type comes from a type inventory whose source build is unresolved, so the
+registry claims the names and types of that inventory and nothing about a specific build. These
+are the members of that struct, not the fields of `sc_gamerules_state`. Each record is
+`sc_gamerules_param_info`: `size`, `type` (`SC_GAMERULES_PARAM_INT` or `_FLOAT`), `name[48]`
+and `group[32]`, both NUL-terminated copies; `group` is the name of the nested member that holds
+the entry (`control`, `state`, `scoring`, `damagehandling`, `accessibility`) and is empty for
+a top-level member. No offset or engine pointer is exposed.
+
+Table layout: `read` stays at offset 8 and the 1.0 extent is 16 bytes, so a 1.0 caller and its
+old 16-byte record keep working; `list_params` is appended at offset 16 and the 1.1 table is 24
+bytes. The service is published as 1.1; a query for 1.0 (`SC_GAMERULES_SERVICE_VERSION`) still
+returns the same table. Check `table->size >= offsetof(list_params) + sizeof(list_params)` and
+a non-null member first, as `sc_gamerules_list_params` does.
+
+```c
+sco_result list_params(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out,
+                       uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);
+```
+
+Enumeration is deterministic, the registry order is fixed, and `offset` is an element index:
+
+* `out_total` is the registry size and `out_count` the records copied; the list is complete when
+  `offset + out_count == out_total`. A short last page is normal. `offset == total` is valid and
+  copies nothing.
+* `cap == 0` is a count-only call: `out` must be NULL, `stride` is ignored, `out_count` is 0 and
+  `out_total` is set. Otherwise `cap` is at most `SC_GAMERULES_PARAM_MAX_PAGE` (64), `out` is
+  non-NULL and `stride` is in `[sizeof(sc_gamerules_param_info), SC_GAMERULES_PARAM_MAX_STRIDE]`
+  (4096); slot `i` is at `(char*)out + i * stride`.
+* Every slot that will be written must advertise `size >= sizeof(sc_gamerules_param_info)`.
+  Only `type`, `name` and `group` are written: the caller's `size` and any bytes past the known
+  fields are preserved.
+* Order of checks: wrong thread is `SCO_WRONG_THREAD`; a NULL, unknown or released `self` is
+  `SCO_BAD_ARG`; then `SCO_BAD_ARG` for a NULL or aliased `out_count`/`out_total`, `offset > total`,
+  a bad `cap`, `out` or `stride`, or a slot size that is too small; then `SCO_UNAVAILABLE` once the
+  service is stopped or the runtime is stopping.
+* Every failure leaves the buffer and both counters unchanged, including the valid slots before a
+  short one. The call allocates nothing and costs O(count).
+
+Tests: `tests/abi_game_gamerules.c` (layout, frozen 1.0 prefix and the helper's extent checks) and
+`tests/test_gamerules_params.cpp` (the real host API with service start and stop). Not run in game.
+
 ## Boundaries
 
 Read-only by contract (rule 11: interoperability, not enforcement): the service exists to
@@ -45,6 +96,9 @@ quantum-travel-allowed (F-4.10.196.36804-007). A plugin that wants travel is loo
 the server's answer, not a lock to work around.
 
 ## Language routes
+
+The new `list_params` method is supported through the C table; typed C++/C#/Lua
+wrappers for enumeration are unsupported. Existing read wrappers are unchanged.
 
 Read-only in every language; nothing writes a value, and no route is a way around a server gate.
 

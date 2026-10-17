@@ -3,6 +3,18 @@
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
 ## Unreleased
+- **Loadout completion bus event**: additive occurrence-only payload and
+  subscription name `game.loadout.respawn_completed` (F-INTAKE-004 / T-3).
+  Deferred to the game-thread tick, gated by verified offline provider attestation;
+  native hook unresolved and production capability OFF. Not run in game.
+- **`game.gamerules` 1.1 parameter definitions**: additive `list_params` tail,
+  17 copied names/groups/types (F-INTAKE-005), paged and count-only enumeration.
+  No live values or parameter offsets; the read prefix and wrappers stay intact.
+  Source build unresolved; default read backend remains unavailable. Not run in game.
+- **`game.input` 1.0 action registry** (`sc_input.h`): 1,267 named members,
+  O(1) id lookup and binary-search name lookup. LAST/INVALID share an id; tail
+  members above 186 are build-unresolved metadata. No input injection or engine
+  calls. F-4.10.197.2878-033 / F-INTAKE-010. Not run in game.
 - **`game.inventory` 1.1: the item-port adapter** (`include/sc_inventory.h`, [docs](docs/game/inventory.md)).
   The service now has a production backend: it reads the local player's item-port container in place
   (no allocation, no call into the container), walks the whole attached tree depth first, and
