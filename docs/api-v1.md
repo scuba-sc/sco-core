@@ -624,6 +624,21 @@ if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &
 
 Rows are in [entities rows](game/entities.md). Wrappers: C++ [`scosdk/game/entities.hpp`](../include/scosdk/game/entities.hpp), C# `Sco.Sdk.Game.Entities`, Lua `sco.game.entities` (read-only: `alive`, `class_of`, `get_transform`).
 
+### `game.gamerules` 1.0 (game pack)
+
+[`sc_gamerules.h`](../include/sc_gamerules.h), pinned by [`tests/abi_game_gamerules.c`](../tests/abi_game_gamerules.c) (table 16 bytes, `sc_gamerules_state` 56 bytes):
+`read` copies the server GameRules parameters the client received: quantum travel and boost allowed, group-QT enforcement, travel-target and target-lock thresholds, `generation`, and `valid` (check it first). Read-only. Capability `game.gamerules.read` defaults OFF; with no backend bound `read` answers `SCO_UNAVAILABLE`. Language routes and evidence: [game.gamerules](game/gamerules.md). Not run in game.
+
+### `game.build` 1.0 (game pack)
+
+[`sc_game_build.h`](../include/sc_game_build.h), pinned by [`tests/abi_game_build.c`](../tests/abi_game_build.c) (table 16 bytes, `sc_game_build_info` 48 bytes):
+`read` copies the running exe's PE timestamp and size of image, the game pack's version triple, the build the pack verified and its PE timestamp, and `pin_matches`. Capability `game.build.info` is on whenever the pack publishes the service. No drift error: gate on `pin_matches`. C# and Lua routes are unsupported in 1.0 ([game.build](game/build.md)). Not run in game.
+
+### `game.inventory` 1.0 (game pack)
+
+[`sc_inventory.h`](../include/sc_inventory.h), pinned by [`tests/abi_game_inventory.c`](../tests/abi_game_inventory.c) (table 16 bytes, `sc_inventory_port` 24 bytes, `sc_inventory_snapshot` 3088 bytes):
+`snapshot` copies the local player's item ports (up to 128) with `valid`, `item_class_id` (the item type id, a coarse category) and `entity_id` per port, and a `generation` counter. Read-only. Capability `game.inventory.read` defaults OFF; unbound answers `SCO_UNAVAILABLE`. This is the 1.0 contract; C# and Lua routes are unsupported ([game.inventory](game/inventory.md)). Not run in game.
+
 ## Raw handlers (1.1)
 
 A raw handler is a call that takes and returns bytes: for data that doesn't fit a command's typed arguments and 256-byte reply (a list of entities, a transform, a buffer). The bytes' layout is the handler's contract, as a service table's is; put a size or version field first.
