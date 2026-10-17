@@ -3,8 +3,17 @@
 This is one complete path from a published SDK archive to a checked, renamed C
 plugin, then Windows game deployment. You do not need a sco-core checkout.
 The newest published SDK is **2.3.0**, with Star Citizen game pack **0.6.0**;
-the plugin ABI remains **1.1**. Get other published versions from
+the plugin ABI remains **1.1**. The archive names and commands below use 2.3.0.
+They sit under "Previous release" subheadings because this documentation build
+describes the next version. Get other published versions from
 [releases](https://github.com/scubamount/sco-core/releases/latest).
+
+**Development preview:** this documentation build describes SDK **2.4.0**, an
+unpublished candidate with Star Citizen game pack **0.7.0**. Its tag
+`sdk-v2.4.0` and archives such as `sco-sdk-core-2.4.0.zip` and
+`sco-sdk-game-sc-0.7.0.zip` are not on the release page yet, so
+do not try to download them; they exist only after the maintainer publishes
+2.4.0. This page switches its commands to 2.4.0 at that point.
 
 ## 1. Choose a language and archive
 
@@ -20,6 +29,8 @@ For C++, C#, Lua or data, follow that route's canonical guide after downloading
 and verifying the archive; return here for deployment and diagnostics. The
 copy/build/check commands below deliberately choose **C**, not a universal
 recipe for every language.
+
+### Previous release: published SDK 2.3.0 assets
 
 | Published SDK 2.3.0 asset | Choose it when |
 | --- | --- |
@@ -61,6 +72,8 @@ macOS against the **published** SDK 2.3.0 core archive and its release
 blocks, or perform the download/extraction in the UI and use the linked Windows
 CMake recipe.
 
+### Previous release: published SDK 2.3.0 download
+
 ```sh
 env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.3.0 -R scubamount/sco-core -p 'sco-sdk-core-2.3.0.zip' -p SHA256SUMS
 python3 - <<'PY'
@@ -91,6 +104,8 @@ Only extract archives from the trusted project release.
 ## 4. Build the checker, copy and rename the template
 
 From the same working directory:
+
+### Previous release: published SDK 2.3.0 build
 
 ```sh
 cmake -S sco-sdk-core-2.3.0 -B sdk-build -DCMAKE_BUILD_TYPE=Release
