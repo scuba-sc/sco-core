@@ -162,3 +162,31 @@ void StopRelocation() {
 }
 void ReleaseRelocationOwner(const void* owner) { g_requests.Release(owner); }
 }
+
+#if defined(_MSC_VER)
+__declspec(selectany) bool (*g_sco_relocation_admission_hook)(void) = nullptr;
+#else
+__attribute__((weak)) bool (*g_sco_relocation_admission_hook)(void) = nullptr;
+#endif
+
+static bool FreshHostAdmission() {
+    if (g_sco_relocation_admission_hook) return g_sco_relocation_admission_hook();
+    return true;
+}
+
+static int (*g_cApply)(const sc_relocation_request*) = nullptr;
+
+static bool AdaptRelocationApply(const sc_relocation_request* req) {
+    return g_cApply ? (g_cApply(req) != 0) : false;
+}
+
+extern "C" sco_result sco_game_set_relocation_backend(const sco_relocation_backend* backend) {
+    if (!backend || backend->size < sizeof(sco_relocation_backend)) return SCO_BAD_ARG;
+    if (!backend->apply) return SCO_BAD_ARG;
+    g_cApply = backend->apply;
+    sco::game::services::RelocationBackend be{};
+    be.verified = true;
+    be.offline = FreshHostAdmission;
+    be.move = AdaptRelocationApply;
+    return sco::game::services::StartRelocation(&be) == sco::Result::Ok ? SCO_OK : SCO_FAILED;
+}

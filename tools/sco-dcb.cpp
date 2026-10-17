@@ -369,9 +369,16 @@ static int CheckPacks(int argc, char** argv) {
     }
     const dc::PackResult res = dc::ApplyPacks(s, packs);
     for (const dc::PackReport& r : res.packs) {
-        std::printf("\npack %s %s (%s): %s", r.plugin.c_str(), r.name.c_str(), r.atomic ? "atomic" : "atomic = false",
+        std::printf("\npack %s %s (%s, policy=%s): %s", r.plugin.c_str(), r.name.c_str(),
+                    r.atomic ? "atomic" : "atomic = false",
+                    r.policy == dc::PackApplyPolicy::BestEffort ? "best_effort" : "atomic",
                     r.state == dc::PackState::Refused ? "REFUSED" : r.state == dc::PackState::Partial ? "PARTIAL" : "APPLIED");
-        std::printf(" %zu/%zu\n", r.applied, r.applied + r.skipped);
+        std::printf(" %zu/%zu", r.applied, r.applied + r.skipped);
+        if (r.receipt.total_records > 0) {
+            std::printf(" [receipt: %u applied, %u skipped, %u total]",
+                        r.receipt.applied_records, r.receipt.skipped_records, r.receipt.total_records);
+        }
+        std::printf("\n");
         for (const dc::PackOpReport& op : r.ops) {
             if (op.status)
                 std::printf("  line %u: OK   %s%s\n", op.line, op.op.c_str(), r.state == dc::PackState::Refused ? " (not applied: the pack is refused)" : "");
@@ -758,6 +765,11 @@ int main(int argc, char** argv) {
     const std::string cmd = argc > 1 ? argv[1] : "";
     if (cmd == "patch") return RunPatch(argc, argv);
     if (cmd == "lint" && argc >= 3) return Lint(argc, argv);
+    if (cmd == "check" && argc == 3) {
+        // Validation without DCB: validates TOML pack syntax and semantics
+        const char* fakeArgs[] = { argv[0], "lint", argv[2] };
+        return Lint(3, const_cast<char**>(fakeArgs));
+    }
     if (cmd == "check" && argc >= 4) return CheckPacks(argc, argv);
     if (cmd == "show" && (argc == 4 || argc == 5)) return Show(argc, argv);
     if (cmd == "diff" && argc == 4) return Diff(argc, argv);

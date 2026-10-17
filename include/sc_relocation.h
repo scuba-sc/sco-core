@@ -20,6 +20,7 @@
 #ifndef SC_RELOCATION_H
 #define SC_RELOCATION_H
 #include "sco_api.h"
+#include <stdbool.h>
 #define SC_RELOCATION_NAME "game.relocation"
 #define SC_RELOCATION_VERSION 0x00010000u
 #define SC_RELOCATION_PENDING 1u
@@ -54,4 +55,21 @@ typedef struct sc_relocation_v1 {
     sco_result (*cancel)(sco_plugin* self, uint64_t ticket);
     sco_result (*status)(sco_plugin* self, uint64_t ticket, sc_relocation_status* out);
 } sc_relocation_v1;
+
+/* Host provider socket for game.relocation (2.4.0, K-29): allows the host shell to bind
+ * a custom simulation/relocation backend. */
+typedef struct sco_relocation_backend {
+    uint32_t size;
+    uint32_t _pad;
+    int (*evidence)(uint64_t target_zone, const sc_relocation_request* pending, void* out_evidence);
+    int (*apply)(const sc_relocation_request* request);
+} sco_relocation_backend;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+sco_result sco_game_set_relocation_backend(const sco_relocation_backend* backend);
+#ifdef __cplusplus
+}
+#endif
 #endif

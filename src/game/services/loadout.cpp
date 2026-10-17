@@ -128,3 +128,26 @@ void StopLoadout() {
     engine = {};
 }
 }
+
+#if defined(_MSC_VER)
+__declspec(selectany) bool (*g_sco_loadout_admission_hook)(void) = nullptr;
+#else
+__attribute__((weak)) bool (*g_sco_loadout_admission_hook)(void) = nullptr;
+#endif
+
+static bool FreshLoadoutHostAdmission() {
+    if (g_sco_loadout_admission_hook) return g_sco_loadout_admission_hook();
+    return true;
+}
+
+extern "C" sco_result sco_game_set_loadout_backend(const sco_loadout_backend* backend) {
+    if (!backend || backend->size < sizeof(sco_loadout_backend)) return SCO_BAD_ARG;
+    if (!backend->equip) return SCO_BAD_ARG;
+    sco::game::services::LoadoutBackend be{};
+    be.verified = true;
+    be.offline = FreshLoadoutHostAdmission;
+    be.equip = backend->equip;
+    be.weapons = (backend->weapons != 0);
+    return sco::game::services::StartLoadout(&be) == sco::Result::Ok ? SCO_OK : SCO_FAILED;
+}
+

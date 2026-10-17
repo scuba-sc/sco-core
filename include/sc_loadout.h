@@ -65,6 +65,16 @@ typedef struct sc_loadout_v1 {
      * apply returns UNAVAILABLE; a backend fault disables apply until process restart. */
     sco_result (*apply)(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report);
 } sc_loadout_v1;
+
+/* Host provider socket for game.loadout (2.4.0, K-29): allows the host shell to bind
+ * a custom simulation/equip backend. */
+typedef struct sco_loadout_backend {
+    uint32_t size;
+    uint32_t weapons; /* 1 = backend supports weapon slots 8-21 */
+    sc_loadout_status (*equip)(uint32_t slot, const char* item_class);
+} sco_loadout_backend;
+
+sco_result sco_game_set_loadout_backend(const sco_loadout_backend* backend);
 #ifdef __cplusplus
 }
 #endif

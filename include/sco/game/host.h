@@ -61,4 +61,12 @@ Snapshot Status();
 // True only during Start/Running and fresh inspect() positively clears every G1
 // condition. Inspector/backing state must remain process-retained; no plugin code.
 bool FreshAdmissionAllowed() noexcept;
+
+#if defined(_WIN32)
+// Read-only inspection of Windows Firewall policy (INetFwPolicy2 COM API).
+// Verifies whether an active outbound block rule with ruleName exists for the current or specified image.
+// Never modifies firewall rules, never requires elevation, fails closed (returns Check::Unknown on any COM/policy failure).
+Check InspectWindowsFirewallRule(const wchar_t* ruleName, const wchar_t* imagePath = nullptr) noexcept;
+#endif
+
 } // namespace sco::game::host

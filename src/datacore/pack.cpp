@@ -191,12 +191,19 @@ struct Parser {
     bool Source(const toml::node& n, InstanceSource& src, const std::string& where) {
         const toml::table* t = n.as_table();
         if (!t) return Fail(LineOf(n), where + " must be { record = \"...\", field = \"...\" } (or guid = \"...\")");
-        if (!Keys(*t, { "record", "guid", "field" }, where)) return false;
+        if (!Keys(*t, { "record", "guid", "field", "mode" }, where)) return false;
         if (!Record(*t, src.record, where)) return false;
         if (!src.record) return Fail(LineOf(n), where + ": needs record or guid");
         if (const toml::node* f = t->get("field")) {
             if (!String(*t, "field", src.field, where, true)) return false;
             if (Status st = CheckFieldPath(src.field); !st) return Fail(LineOf(*f), where + ": field " + Q(src.field) + ": " + st.message);
+        }
+        if (const toml::node* m = t->get("mode")) {
+            std::string modeStr;
+            if (!String(*t, "mode", modeStr, where, true)) return false;
+            if (modeStr == "deep") src.deep = true;
+            else if (modeStr == "shallow") src.deep = false;
+            else return Fail(LineOf(*m), where + ": unknown mode " + Q(modeStr) + " (\"shallow\" or \"deep\")");
         }
         return true;
     }
@@ -402,6 +409,19 @@ struct Parser {
                 const auto* b = v.as_boolean();
                 if (!b) return Fail(line, "atomic must be true or false");
                 out.atomic = b->get();
+                out.policy = out.atomic ? PackApplyPolicy::Atomic : PackApplyPolicy::BestEffort;
+            } else if (key == "policy") {
+                const auto* s = v.as_string();
+                if (!s) return Fail(line, "policy must be a string (\"atomic\" or \"best_effort\")");
+                if (s->get() == "atomic") {
+                    out.policy = PackApplyPolicy::Atomic;
+                    out.atomic = true;
+                } else if (s->get() == "best_effort") {
+                    out.policy = PackApplyPolicy::BestEffort;
+                    out.atomic = false;
+                } else {
+                    return Fail(line, "unknown policy " + Q(s->get()) + " (\"atomic\" or \"best_effort\")");
+                }
             } else if (key == "set" || key == "instance" || key == "append" || key == "record") {
                 const int kind = key == "set" ? 0 : key == "instance" ? 1 : key == "append" ? 2 : 3;
                 const toml::array* a = v.as_array();
@@ -412,7 +432,7 @@ struct Parser {
                     items.push_back({ LineOf(e), kind, et });
                 }
             } else {
-                return Fail(line, "unknown key " + Q(key) + " (format, atomic, [[set]], [[instance]], [[append]], [[record]])");
+                return Fail(line, "unknown key " + Q(key) + " (format, atomic, policy, [[set]], [[instance]], [[append]], [[record]])");
             }
         }
         if (!haveFormat) return Fail(1, Fmt("missing format = %d", kPackFormat));
@@ -499,6 +519,7 @@ std::string RefText(const RecordRef& r) {
 std::string SourceText(const InstanceSource& src) {
     std::string s = "{ " + (src.record ? RefText(*src.record) : std::string());
     if (!src.field.empty()) s += ", field = " + Q(src.field);
+    if (src.deep) s += ", mode = \"deep\"";
     return s + " }";
 }
 std::string SetsText(const std::vector<std::pair<std::string, Value>>& sets) {
@@ -709,6 +730,7 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
         rep.plugin = pack.plugin;
         rep.name = pack.name;
         rep.atomic = pack.atomic;
+        rep.policy = pack.policy;
         std::map<std::string, InstanceId> ids;
         std::map<SlotKey, size_t> mine;                    // slots this pack wrote -> report index
         std::vector<std::pair<SlotKey, size_t>> accepted;  // slots of operations kept
@@ -764,10 +786,14 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
             if (r.status) ++rep.applied;
             else {
                 ++rep.skipped;
+                rep.receipt.errors.push_back((r.line ? Fmt("line %u: ", r.line) : Fmt("operation %zu: ", k + 1)) + r.status.message);
                 // A file's operations have lines; a patch built in code (sco.datacore) has none.
                 if (rep.reason.empty()) rep.reason = (r.line ? Fmt("line %u: ", r.line) : Fmt("operation %zu: ", k + 1)) + r.status.message;
             }
         }
+        rep.receipt.applied_records = static_cast<uint32_t>(rep.applied);
+        rep.receipt.skipped_records = static_cast<uint32_t>(rep.skipped);
+        rep.receipt.total_records = static_cast<uint32_t>(rep.applied + rep.skipped);
         if (pack.atomic && rep.skipped) {
             rep.state = PackState::Refused;
             rep.applied = 0;

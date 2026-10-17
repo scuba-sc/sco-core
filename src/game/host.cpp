@@ -13,6 +13,19 @@
 #include <atomic>
 #include <mutex>
 #include <limits>
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <netfw.h>
+#include <oleauto.h>
+#undef min
+#undef max
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "oleaut32.lib")
+#endif
 
 namespace sco::game::host {
 namespace {
@@ -200,4 +213,78 @@ vfs::Result TransformDataCore(vfs::BaseIo& base, uint64_t size, std::vector<vfs:
 }
 }
 Snapshot Status() { return {phase.load(), resolved.load(), quitInstalled.load(), dataActive.load()}; }
+bool FreshAdmissionAllowed() noexcept {
+    return phase.load() == Phase::Running && Admitted();
+}
+
+#if defined(_WIN32)
+Check InspectWindowsFirewallRule(const wchar_t* ruleName, const wchar_t* imagePath) noexcept {
+    if (!ruleName || !ruleName[0]) return Check::Unknown;
+    // INetFwPolicy2 query requires COM initialization
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    const bool needUninit = SUCCEEDED(hr);
+
+    INetFwPolicy2* pPolicy = nullptr;
+    hr = CoCreateInstance(__uuidof(NetFwPolicy2), nullptr, CLSCTX_INPROC_SERVER,
+                            __uuidof(INetFwPolicy2), reinterpret_cast<void**>(&pPolicy));
+    if (FAILED(hr) || !pPolicy) {
+        if (needUninit) CoUninitialize();
+        return Check::Unknown;
+    }
+
+    INetFwRules* pRules = nullptr;
+    hr = pPolicy->get_Rules(&pRules);
+    if (FAILED(hr) || !pRules) {
+        pPolicy->Release();
+        if (needUninit) CoUninitialize();
+        return Check::Unknown;
+    }
+
+    BSTR bstrName = SysAllocString(ruleName);
+    INetFwRule* pRule = nullptr;
+    hr = pRules->Item(bstrName, &pRule);
+    SysFreeString(bstrName);
+
+    Check result = Check::Unknown;
+    if (SUCCEEDED(hr) && pRule) {
+        VARIANT_BOOL vbEnabled = VARIANT_FALSE;
+        NET_FW_ACTION action = NET_FW_ACTION_ALLOW;
+        NET_FW_RULE_DIRECTION dir = NET_FW_RULE_DIR_IN;
+
+        if (SUCCEEDED(pRule->get_Enabled(&vbEnabled)) &&
+            SUCCEEDED(pRule->get_Action(&action)) &&
+            SUCCEEDED(pRule->get_Direction(&dir))) {
+            if (vbEnabled == VARIANT_TRUE && action == NET_FW_ACTION_BLOCK && dir == NET_FW_RULE_DIR_OUT) {
+                // If an image path was specified, confirm it matches the rule's application
+                if (imagePath && imagePath[0]) {
+                    BSTR bstrApp = nullptr;
+                    if (SUCCEEDED(pRule->get_ApplicationName(&bstrApp)) && bstrApp) {
+                        if (_wcsicmp(bstrApp, imagePath) == 0) {
+                            result = Check::Clear;
+                        } else {
+                            result = Check::Present; // Rule exists for different image
+                        }
+                        SysFreeString(bstrApp);
+                    } else {
+                        result = Check::Clear; // Rule without image restriction blocks all
+                    }
+                } else {
+                    result = Check::Clear;
+                }
+            } else {
+                result = Check::Present; // Rule exists but is not an active outbound block
+            }
+        }
+        pRule->Release();
+    } else {
+        result = Check::Unknown; // Rule not found
+    }
+
+    pRules->Release();
+    pPolicy->Release();
+    if (needUninit) CoUninitialize();
+    return result;
+}
+#endif
+
 } // namespace sco::game::host
