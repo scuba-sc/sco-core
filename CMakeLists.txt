@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
 project(sco_core C CXX)
 
+# CMP0141: Controls MSVC debug information format via CMAKE_MSVC_DEBUG_INFORMATION_FORMAT.
+# Embedded debug info (/Z7) avoids vc140.pdb locking and enables compiler caching.
+if(POLICY CMP0141)
+  cmake_policy(SET CMP0141 NEW)
+endif()
+if(MSVC)
+  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+endif()
+
 # sco-core libraries, sco-sigcheck and the unit tests. tools/test.sh and tools/test-win.sh stay the
 # reference scripts (they add the TSan runs and the x86_64-pc-windows-msvc ABI pin); this is the
 # same build for any CMake toolchain, MSVC included.
