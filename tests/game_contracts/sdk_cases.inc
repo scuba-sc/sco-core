@@ -314,7 +314,7 @@ static void TestGameRules(const sco_api* api) {
     state.valid = 1;
     CHECK(none.Open(api, g_gruleSelf) == SCO_NOT_FOUND && !none);
     CHECK(none.Read(state) == SCO_UNAVAILABLE && state.size == sizeof(state) && state.valid == 0);
-    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, GruleRead };
+    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, GruleRead, nullptr };
     CHECK(sco::host::ProvideGameService(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_SERVICE_VERSION, &kFake) == sco::Result::Ok);
     sdk::game::GameRules rules;
     CHECK(rules.Open(api, g_gruleSelf) == SCO_OK && rules && rules.Table() == &kFake);
