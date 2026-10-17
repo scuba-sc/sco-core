@@ -192,6 +192,9 @@ FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -I "$ROOT/include" -isys
 # Shared object cache for ASan and TSan compilations to eliminate repeated translation-unit compiles.
 OBJ_ASAN=$OUT/obj_asan
 OBJ_TSAN=$OUT/obj_tsan
+# Objects are shared only within one invocation of this script: start empty so an edited source or
+# header can never reuse an object built by an earlier run (no stale-cache reuse).
+rm -rf "$OBJ_ASAN" "$OBJ_TSAN"
 mkdir -p "$OBJ_ASAN" "$OBJ_TSAN"
 
 obj() {
@@ -217,13 +220,9 @@ obj() {
 compile_obj() {
   local mode="$1"; shift
   local src="$1"; shift
+  # Any extra argument (macro variant) gets its own object name, so variants never share an object.
   local suffix=""
-  for arg in "$@"; do
-    case "$arg" in
-      -DSCO_RUNTIME_DIAGNOSTICS_FIXTURE=1) suffix="_fixture" ;;
-      -DSCO_TEST_IMGUI_ADAPTER) suffix="_imgui" ;;
-    esac
-  done
+  if [ "$#" -gt 0 ]; then suffix="_$(printf '%s' "$*" | tr -c 'A-Za-z0-9\n' '_')"; fi
   local base="$(echo "${src#"$ROOT/"}" | tr '/.' '__')${suffix}"
   local out
   local san
@@ -235,7 +234,15 @@ compile_obj() {
     san=(-fsanitize=thread)
   fi
   if [ ! -f "$out" ]; then
-    "$CXX" "${FLAGS[@]}" "${san[@]}" "$@" -c "$src" -o "$out"
+    # Compile to a temporary name and rename only on success: a failed compile leaves no object.
+    local tmp
+    tmp="$(mktemp "$out.XXXXXX")" || return 1
+    if "$CXX" "${FLAGS[@]}" "${san[@]}" "$@" -c "$src" -o "$tmp"; then
+      mv -f "$tmp" "$out"
+    else
+      rm -f "$tmp"
+      return 1
+    fi
   fi
   echo "$out"
 }
@@ -244,16 +251,17 @@ NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 parallel_compile() {
   local mode="$1"; shift
-  local running=0
+  local pids=() fail=0 p
   for f in "$@"; do
-    compile_obj "$mode" "$f" &
-    running=$((running + 1))
-    if [ "$running" -ge "$NPROC" ]; then
-      wait -n 2>/dev/null || wait
-      running=$((running - 1))
+    compile_obj "$mode" "$f" >/dev/null &
+    pids+=("$!")
+    if [ "${#pids[@]}" -ge "$NPROC" ]; then
+      wait "${pids[0]}" || fail=1
+      pids=(${pids[@]+"${pids[@]:1}"})
     fi
   done
-  wait
+  for p in ${pids[@]+"${pids[@]}"}; do wait "$p" || fail=1; done
+  if [ "$fail" != 0 ]; then echo "parallel_compile: at least one compile failed ($mode)" >&2; exit 1; fi
 }
 
 # Signature registration and tables only (the same closure as CMake's sco_game_sc).
