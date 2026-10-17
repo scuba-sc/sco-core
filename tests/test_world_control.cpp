@@ -49,7 +49,8 @@ sco_result query(const char* name, uint32_t version, const void** out) {
 }
 }
 int main() {
-    CHECK(SC_WORLD_CONTROL_STEP_METRES == 10.0 && SC_WORLD_CONTROL_STEP_RADIANS == 0.25);
+    static_assert(SC_WORLD_CONTROL_STEP_METRES == 10.0 && SC_WORLD_CONTROL_STEP_RADIANS == 0.25,
+                  "world control step bounds");
     WorldControl c(provider(), true); ctrl = &c;
     sco_api api{}; api.size=sizeof(api); api.query_service=query;
     sco::sdk::game::WorldControl w;

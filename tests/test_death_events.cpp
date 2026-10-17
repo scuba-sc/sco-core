@@ -118,8 +118,8 @@ int main() {
     // out exactly like the one it sits beside, so a consumer that already checks `size` handles both.
     CHECK(std::strcmp(SC_GAME_EVENT_ACTOR_DIED, "game.actors.died") == 0);
     CHECK(std::strcmp(SC_GAME_EVENT_PLAYER_DIED, "game.player.died") == 0);
-    CHECK(sizeof(sc_game_actor_died) == sizeof(sc_game_player_died));
-    CHECK(sizeof(sc_game_player_died) == 24);
+    static_assert(sizeof(sc_game_actor_died) == sizeof(sc_game_player_died), "death payload prefix");
+    static_assert(sizeof(sc_game_player_died) == 24, "death payload size");
 
     CHECK(sco::Unsubscribe(sco::host::HostOwner(), SC_GAME_EVENT_ACTOR_DIED, OnActorDied) == sco::Result::Ok);
     CHECK(sco::Unsubscribe(sco::host::HostOwner(), SC_GAME_EVENT_PLAYER_DIED, OnPlayerDied) == sco::Result::Ok);
