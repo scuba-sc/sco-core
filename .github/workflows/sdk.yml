@@ -29,7 +29,7 @@ jobs:
       - name: Install Lua 5.4
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lua5.4
 
-      - uses: actions/setup-dotnet@d1e67274641b31fb525a278b7b25e79ff2031174 # v4.4.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 8.0.x
           cache: true
@@ -176,7 +176,7 @@ jobs:
           SCO_HOST_SOURCE_ARCHIVE="$(find dist-host -name '*.zip')" \
             python sdk/test_host_source.py HostSourceArchive.test_standalone_game_source_archive -v
 
-      - uses: actions/setup-dotnet@d1e67274641b31fb525a278b7b25e79ff2031174 # v4.4.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 8.0.x
           cache: true
@@ -208,7 +208,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@d1e67274641b31fb525a278b7b25e79ff2031174 # v4.4.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 8.0.x
           cache: true
