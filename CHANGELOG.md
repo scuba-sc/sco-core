@@ -10,7 +10,9 @@ What each change means for plugin authors and for products built on sco-core (sc
   ABI: `sc_inventory_snapshot` gains `flags` and `total_seen` after `ports[]` (`SC_INVENTORY_FLAG_TRUNCATED`,
   `SC_INVENTORY_FLAG_LIMITED`), written only when `out->size` covers them; a 1.0 caller passing
   `SC_INVENTORY_SNAPSHOT_SIZE_1_0` is accepted unchanged. `generation` is computed by comparing
-  snapshots. `game.inventory.read` stays default OFF (`SCO_INVENTORY_READ=1` or the product switch,
+  snapshots. In addition, 192 item categories are published as the `sc_item_type` enumeration (#190 [G19],
+  K-34) with `sc_inventory_item_type_name` and `sc_inventory_port_item_type` helpers.
+  `game.inventory.read` stays default OFF (`SCO_INVENTORY_READ=1` or the product switch,
   and every row must be OK); evidence `synthetic_only`. Not run in game. F-4.10.197.2878-011..-016.
 - **New game bus event: `game.mission.changed`** (`include/sc_game_events.h`,
   [docs](docs/game/events.md)). Publishes state/phase/objective changes of the missions

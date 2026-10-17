@@ -36,6 +36,14 @@ not a per-class id: two items of one category (two different pistols) share a va
 field keeps its ABI name; the docs call it the item type id. A name map for the item-type
 values exists (192 values on 4.10.197.2878). Per-class item names are not yet established.
 
+In 1.1, the 192 categories are exposed as the C/C++ enum `sc_item_type` (e.g. `SC_ITEM_TYPE_CHAR_ARMOR_HELMET` = 22,
+`SC_ITEM_TYPE_FPS_WEAPON_SIDEARM` = 95, `SC_ITEM_TYPE_INVENTORY_CONTAINER` = 110, `SC_ITEM_TYPE_SHIP` = 167)
+along with helper functions:
+- `sc_inventory_port_item_type(const sc_inventory_port* port)`: maps a valid port's `item_class_id` to `sc_item_type`,
+  returning `SC_ITEM_TYPE_UNKNOWN` (0xFFFFFFFF) if invalid or unmapped.
+- `sc_inventory_item_type_name(uint32_t type)`: returns the canonical category name string (e.g. `"Char_Armor_Helmet"`),
+  or `"UNDEFINED"` for unknown values.
+
 ## What a snapshot covers
 
 The whole attached tree, in one documented, deterministic order: **depth first**. The player's
@@ -102,7 +110,6 @@ differs. It resets when the service restarts.
 
 - Containers beyond the player (ships/mounts) via the same accessor on a known entity id.
 - A parent or depth field per port, if consumers need nesting (a further additive change).
-- Item type id → name map exposure.
 
 ## In-game checks (before the capability is turned on)
 
