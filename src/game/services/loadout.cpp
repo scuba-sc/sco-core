@@ -1,5 +1,3 @@
-
-
 // SPDX-License-Identifier: GPL-3.0-only
 #include "loadout.h"
 #include "sc_loadout.h"
@@ -11,18 +9,6 @@
 #endif
 namespace sco::game::services {
 namespace {
-
-// Production G6 engine path grounded in F-4.10.197.2878-038..040.
-// Slot mutation: CSCItemSuitLoadoutComponent::EquipItem (0x142981240)
-// Batch apply: CLoadoutComponent vtable 0x1483dc100, slot 14 (+0x70)
-struct ProductionLoadoutEngine {
-    static sc_loadout_status EquipSlot(uint32_t slot, const char* item_class) {
-        if (!item_class || !*item_class) return SC_LOADOUT_FAILED;
-        if (slot > 21) return SC_LOADOUT_UNSUPPORTED;
-        return SC_LOADOUT_APPLIED;
-    }
-};
-
 bool started = false;
 LoadoutBackend engine{};
 bool faulted = false;
