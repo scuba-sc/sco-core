@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -59,7 +60,7 @@ class SnapshotTests(unittest.TestCase):
         self.tool.verify(ROOT, first, self.archives, digest)
 
     def test_cli_available(self):
-        result = subprocess.run(['python3', str(SCRIPT), '--help'], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, str(SCRIPT), '--help'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('verify', result.stdout)
 
@@ -95,6 +96,17 @@ class SnapshotTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Git blob mismatch'):
                 with self.tool.source_tree(ROOT, self.sha):
                     pass
+
+    def test_git_export_ignores_checkout_line_ending_configuration(self):
+        from unittest import mock
+        configured = dict(os.environ, GIT_CONFIG_COUNT='2',
+                          GIT_CONFIG_KEY_0='core.autocrlf', GIT_CONFIG_VALUE_0='true',
+                          GIT_CONFIG_KEY_1='core.eol', GIT_CONFIG_VALUE_1='crlf')
+        expected = subprocess.check_output(['git', '-C', str(ROOT), 'show',
+                                            self.sha + ':.claude/skills/sco-community-extractor/SKILL.md'])
+        with mock.patch.dict(os.environ, configured):
+            with self.tool.source_tree(ROOT, self.sha) as source:
+                self.assertEqual((source / '.claude/skills/sco-community-extractor/SKILL.md').read_bytes(), expected)
 
     def test_reject_floating_source(self):
         with self.assertRaisesRegex(ValueError, 'full lowercase'):
