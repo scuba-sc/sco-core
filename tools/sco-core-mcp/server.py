@@ -359,7 +359,7 @@ def read_example(root, parts, limit=MAX_EXAMPLE):
         raw = stream.read(limit + 1)
     if len(raw) > limit:
         raise ToolError("Example exceeds %d KiB" % (limit // 1024))
-    return raw.decode("utf-8")
+    return raw.decode("utf-8").replace("\r\n", "\n")
 
 
 def read_recorded_example(root, parts):
