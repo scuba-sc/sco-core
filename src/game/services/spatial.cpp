@@ -435,7 +435,7 @@ Result Start() {
         WithdrawSpatial();
         return r;
     }
-    r = StartLoadout(); // no verified engine backend at production start
+    r = StartLoadout(nullptr, ProductionLoadoutBackend()); // synchronous 1.1 stays unavailable
     if (r != Result::Ok) {
         StopCreative(); StopEntities(); StopEvents(); StopWorld();
         StopVehicles(); StopActors(); StopSpawn();

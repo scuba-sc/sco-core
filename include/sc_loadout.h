@@ -11,6 +11,9 @@ extern "C" {
 #define SC_LOADOUT_SERVICE_VERSION 0x00010000u
 #define SC_LOADOUT_VERSION_1_0 0x00010000u
 #define SC_LOADOUT_VERSION_1_1 0x00010001u /* + weapon and multitool slots 8-21 */
+#define SC_LOADOUT_VERSION_1_2 0x00010002u /* + bounded asynchronous jobs */
+#define SC_LOADOUT_MAX_JOBS 8u
+#define SC_LOADOUT_TIMEOUT_MS 120000u
 #define SC_LOADOUT_MAX_ITEMS 16u
 #define SC_LOADOUT_ITEM_NAME_BYTES 96u
 typedef enum sc_loadout_slot {
@@ -65,6 +68,33 @@ typedef struct sc_loadout_v1 {
      * apply returns UNAVAILABLE; a backend fault disables apply until process restart. */
     sco_result (*apply)(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report);
 } sc_loadout_v1;
+typedef enum sc_loadout_job_state {
+    SC_LOADOUT_JOB_PENDING = 0, SC_LOADOUT_JOB_COMPLETE = 1,
+    SC_LOADOUT_JOB_FAILED = 2, SC_LOADOUT_JOB_STATE_FORCE32 = 0x7fffffff
+} sc_loadout_job_state;
+typedef struct sc_loadout_job_report {
+    uint32_t size; sc_loadout_job_state state;
+    uint32_t completed; uint32_t _pad;
+    sc_loadout_report report;
+} sc_loadout_job_report;
+/* The v1 prefix is unchanged. Query 1.2, check size through each complete tail
+ * pointer, then cast to this table. 1.0/1.1 apply remains synchronous.
+ * submit copies the whole validated batch before returning an owner-scoped id.
+ * One retained job per plugin, at most 8 total. Game-thread ticks process slots
+ * in order. No APPLIED until backend readback confirms the attachment.
+ * status is observational; completed is an input-ordered prefix, and later
+ * slots stay UNAVAILABLE. COMPLETE means every slot was processed, not that all
+ * succeeded. FAILED means admission/session loss, timeout or backend fault.
+ * cancel forgets any owned job, cancelling unfinished work without rollback;
+ * completed equipment stays. An id is never reused in the process. Unload and
+ * host stop cancel jobs; no caller pointer is retained. No automatic retries. */
+typedef struct sc_loadout_v1_2 {
+    uint32_t size; uint32_t _pad;
+    sco_result (*apply)(sco_plugin*, const sc_loadout_request*, sc_loadout_report*);
+    sco_result (*submit)(sco_plugin*, const sc_loadout_request*, uint64_t* out_job);
+    sco_result (*status)(sco_plugin*, uint64_t job, sc_loadout_job_report*);
+    sco_result (*cancel)(sco_plugin*, uint64_t job);
+} sc_loadout_v1_2;
 #ifdef __cplusplus
 }
 #endif

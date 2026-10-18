@@ -341,7 +341,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
-                                       src/game/services/loadout.cpp src/game/services/cvars.cpp
+                                       src/game/services/loadout.cpp src/game/services/loadout_engine.cpp src/game/services/cvars.cpp
                                        src/game/services/hangar.cpp src/game/services/hangar_engine.cpp
                                        src/game/services/reputation.cpp src/game/services/reputation_engine.cpp
                                        src/game/services/asop_service.cpp src/game/services/asop_engine.cpp
@@ -1090,6 +1090,13 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_loadout PRIVATE sco_loadout sco_plugins)
     sco_project_target(test_loadout)
     add_test(NAME test_loadout COMMAND test_loadout "${_loadout_root}")
+    if(WIN32)
+      add_executable(test_loadout_engine tests/game_contracts/loadout/test_engine.cpp src/game/services/loadout_engine.cpp)
+      target_include_directories(test_loadout_engine PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+      target_link_libraries(test_loadout_engine PRIVATE sco_loadout)
+      sco_project_target(test_loadout_engine)
+      add_test(NAME test_loadout_engine COMMAND test_loadout_engine)
+    endif()
 
     add_library(sco_relocation_provider STATIC src/game/services/relocation.cpp)
     target_link_libraries(sco_relocation_provider PUBLIC sco_host)

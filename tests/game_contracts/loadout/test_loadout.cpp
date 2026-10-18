@@ -35,7 +35,8 @@ int main(int argc, char** argv) {
     const void* table11 = nullptr;
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table11) == SCO_OK && table11 == table);
     const void* table12 = nullptr;
-    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, 0x00010002u, &table12) != SCO_OK && !table12);
+    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_2, &table12) == SCO_OK && table12 == table);
+    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, 0x00010003u, &table12) != SCO_OK && !table12);
     sco::game::services::StopLoadout();
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
     // Synthetic engine seam; real provider and host registry, not game acceptance.
@@ -228,6 +229,92 @@ int main(int argc, char** argv) {
         offline = true;
         sco::game::services::StopLoadout();
         CHECK(!api->has("game.loadout.weapons"));
+    }
+    {
+        using namespace sco::game::services;
+        static uint64_t session = 42;
+        static bool admitted = true, complete = false;
+        static unsigned begins = 0, polls = 0, discards = 0;
+        static char copied[SC_LOADOUT_ITEM_NAME_BYTES]{};
+        LoadoutAsyncBackend async{};
+        async.verified = true;
+        async.admit = [](uint64_t* out) { *out = session; return admitted; };
+        async.begin = [](uint32_t, const char* name, uint64_t* token, sc_loadout_status*) {
+            ++begins;
+            for (unsigned i = 0; i < SC_LOADOUT_ITEM_NAME_BYTES; ++i) copied[i] = name[i];
+            *token = 7; return true;
+        };
+        async.poll = [](uint64_t token, bool* done, sc_loadout_status* result) {
+            CHECK(token == 7); ++polls; *done = complete; *result = SC_LOADOUT_APPLIED; return true;
+        };
+        async.discard = [](uint64_t token) { CHECK(token == 7); ++discards; };
+        CHECK(StartLoadout(nullptr, &async) == sco::Result::Ok);
+        const void* out = nullptr;
+        CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_2, &out) == SCO_OK);
+        const auto* jobs = static_cast<const sc_loadout_v1_2*>(out);
+        sc_loadout_item queued[]{ {SC_LOADOUT_SLOT_PRIMARY, 0, "synthetic_async"}, {999, 0, "synthetic_unknown"} };
+        sc_loadout_request req{sizeof(req), 2, sizeof(sc_loadout_item), 0, queued};
+        uint64_t job = 0, otherId = 0;
+        CHECK(jobs->submit(self, &req, &job) == SCO_OK && job && begins == 0);
+        CHECK(jobs->submit(self, &req, &otherId) == SCO_TOO_MANY);
+        queued[0].item_class[0] = 'x'; // only the provider's copied request may reach begin
+        TickLoadout(100);
+        CHECK(begins == 1 && copied[0] == 's');
+        sc_loadout_job_report state{}; state.size = sizeof(state);
+        CHECK(jobs->status(self, job, &state) == SCO_OK && state.state == SC_LOADOUT_JOB_PENDING && !state.completed);
+        sco_plugin* other = sco::host::NewPlugin("async_other");
+        CHECK(jobs->status(other, job, &state) == SCO_NOT_FOUND);
+        CHECK(jobs->cancel(other, job) == SCO_NOT_FOUND);
+        TickLoadout(101);
+        CHECK(polls == 1 && discards == 0);
+        complete = true;
+        TickLoadout(102);
+        CHECK(discards == 1);
+        TickLoadout(103);
+        CHECK(jobs->status(self, job, &state) == SCO_OK && state.state == SC_LOADOUT_JOB_COMPLETE);
+        CHECK(state.completed == 2 && state.report.applied == 1 && state.report.slots[1].status == SC_LOADOUT_UNSUPPORTED);
+        CHECK(jobs->cancel(self, job) == SCO_OK && jobs->status(self, job, &state) == SCO_NOT_FOUND);
+        CHECK(jobs->submit(self, &req, &job) == SCO_OK);
+        complete = false;
+        TickLoadout(104);
+        ++session;
+        TickLoadout(105);
+        CHECK(jobs->status(self, job, &state) == SCO_OK && state.state == SC_LOADOUT_JOB_FAILED && !state.report.applied);
+        CHECK(discards == 2 && jobs->cancel(self, job) == SCO_OK);
+        CHECK(jobs->submit(self, &req, &job) == SCO_OK);
+        TickLoadout(106);
+        TickLoadout(105 + SC_LOADOUT_TIMEOUT_MS);
+        CHECK(jobs->status(self, job, &state) == SCO_OK && state.state == SC_LOADOUT_JOB_FAILED);
+        CHECK(jobs->cancel(self, job) == SCO_OK);
+        CHECK(jobs->submit(self, &req, &job) == SCO_OK);
+        TickLoadout(106 + SC_LOADOUT_TIMEOUT_MS);
+        ReleaseLoadoutOwner(self);
+        CHECK(jobs->status(self, job, &state) == SCO_NOT_FOUND);
+        admitted = false;
+        CHECK(jobs->submit(self, &req, &job) == SCO_UNAVAILABLE);
+        admitted = true;
+        // Every retained job consumes capacity, including terminal reports.
+        sco_plugin* owners[SC_LOADOUT_MAX_JOBS]{};
+        uint64_t ids[SC_LOADOUT_MAX_JOBS]{};
+        for (uint32_t i = 0; i < SC_LOADOUT_MAX_JOBS; ++i) {
+            char pluginId[32]{};
+            std::snprintf(pluginId, sizeof(pluginId), "capacity_loadout_%u", i);
+            owners[i] = sco::host::NewPlugin(pluginId);
+            CHECK(jobs->submit(owners[i], &req, &ids[i]) == SCO_OK && ids[i]);
+        }
+        CHECK(jobs->submit(other, &req, &otherId) == SCO_TOO_MANY);
+        for (uint32_t i = 0; i < SC_LOADOUT_MAX_JOBS; ++i)
+            CHECK(jobs->cancel(owners[i], ids[i]) == SCO_OK);
+        state.size = sizeof(state) - 1;
+        CHECK(jobs->status(self, 1, &state) == SCO_BAD_ARG);
+        std::thread asyncWorker([&] {
+            CHECK(jobs->submit(self, &req, &job) == SCO_WRONG_THREAD);
+            CHECK(jobs->cancel(self, 1) == SCO_WRONG_THREAD);
+            CHECK(jobs->status(self, 1, &state) == SCO_WRONG_THREAD);
+        });
+        asyncWorker.join();
+        StopLoadout();
+        CHECK(!api->has("game.loadout.async"));
     }
     backend.equip = [](uint32_t, const char*) -> sc_loadout_status { ++calls; throw 1; };
     backend.weapons = true;

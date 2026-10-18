@@ -466,6 +466,26 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-loadout_engine.cpp",
+      "source": "src/game/services/loadout_engine.cpp",
+      "destination": "src/game/services/loadout_engine.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-game_contracts-loadout-test_engine.cpp",
+      "source": "tests/game_contracts/loadout/test_engine.cpp",
+      "destination": "tests/game_contracts/loadout/test_engine.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-src-game-services-offline_missions.cpp",
       "source": "src/game/services/offline_missions.cpp",
       "destination": "src/game/services/offline_missions.cpp",

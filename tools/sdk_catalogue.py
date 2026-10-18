@@ -121,7 +121,7 @@ def header_inventory(root, clang=None):
                     versions = [m for m in own_macros if re.search(r'_VERSION(?:_\d+_\d+)?$', m)]
                     require(versions, 'no version macro for ' + name)
                     version_macro = sorted(versions, key=lambda m: [int(x) for x in re.findall(r'\d+', m)] or [0])[-1]
-                    prefix = re.sub(r'_v\d+$', '', name).upper()
+                    prefix = re.sub(r'_v\d+(?:_\d+)?$', '', name).upper()
                     names = [m for m in own_macros if m in {prefix + '_NAME', prefix + '_SERVICE_NAME'}]
                     require(len(names) == 1, 'ambiguous service name macro for ' + name)
                     name_macro = names[0]

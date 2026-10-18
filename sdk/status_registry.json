@@ -191,10 +191,11 @@
       "kind": "service",
       "service": "game.loadout",
       "header": "include/sc_loadout.h",
-      "version": "1.1",
+      "version": "1.2",
       "capabilities": [
         {"name": "game.loadout.apply", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic/native-boundary checks only; typed engine methods unverified; not run in game", "evidence_source": "docs/game/loadout.md"},
-        {"name": "game.loadout.weapons", "display": "`game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`)", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified engine backend, no in-game proof", "evidence_source": "docs/game/loadout.md"}
+        {"name": "game.loadout.weapons", "display": "`game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`)", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified engine backend, no in-game proof", "evidence_source": "docs/game/loadout.md"},
+        {"name": "game.loadout.async", "methods": ["submit", "status", "cancel"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Opt-in native spawn/attach/readback adapter, Windows synthetic-object fixture and current-build locator checks; not run in game", "sig_rows": ["loadout.attach_entity", "loadout.port_by_name", "loadout.port_handle", "loadout.port_container"], "evidence_source": "docs/game/loadout.md"}
       ]
     },
     {

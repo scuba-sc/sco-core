@@ -17,6 +17,21 @@ struct LoadoutBackend {
     sc_loadout_status (*equip)(uint32_t slot, const char* item_class) = nullptr;
     bool weapons = false;
 };
-Result StartLoadout(const LoadoutBackend* backend = nullptr);
+// Async native boundary. Session must identify one uninterrupted local player.
+// begin starts one slot once; terminal may be an immediate refusal. Otherwise
+// token is nonzero and poll observes the same operation; never starts it again.
+// discard releases pending native resources, never removes confirmed equipment.
+struct LoadoutAsyncBackend {
+    bool verified = false;
+    bool (*admit)(uint64_t* session) = nullptr;
+    bool (*begin)(uint32_t slot, const char* name, uint64_t* token,
+                  sc_loadout_status* terminal) = nullptr;
+    bool (*poll)(uint64_t token, bool* complete, sc_loadout_status* result) = nullptr;
+    void (*discard)(uint64_t token) = nullptr;
+};
+Result StartLoadout(const LoadoutBackend* backend = nullptr, const LoadoutAsyncBackend* async = nullptr);
+void TickLoadout(uint32_t now);
+void ReleaseLoadoutOwner(const void* owner);
+const LoadoutAsyncBackend* ProductionLoadoutBackend(); // Windows game pack
 void StopLoadout();
 }
