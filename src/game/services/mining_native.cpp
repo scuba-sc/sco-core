@@ -39,7 +39,8 @@ void __fastcall CellHook(uintptr_t builder, uintptr_t cell, uintptr_t component,
     original(builder, cell, component, lod, forwarded, page, option);
 }
 bool Install() {
-    if (!kNativeVerified || !FreshAdmission()) return false;
+    if (!kNativeVerified) return false;
+    if (!FreshAdmission()) return false;
     if (original) return true;
     auto* target = Sig("mining.cell");
     if (!target || hook::IsHooked(target)) return false; // one address owner
