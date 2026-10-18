@@ -7,6 +7,9 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#ifdef _MSC_VER
+#pragma warning(disable: 4127)
+#endif
 using sco::game::services::WorldControl;
 using sco::game::services::WorldControlProvider;
 namespace {
