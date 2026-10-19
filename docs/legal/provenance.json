@@ -14,6 +14,7 @@
     "note": "The project's copyright notices say 'the sco-core contributors' (as sc_ipc.h does). The maintainer, scubamount, is the only contributor so far; the commit identities 'yerts' and 'scubamount' are both the maintainer."
   },
   "entries": [
+    {"path":"docs/roadmap-2.4.0.md","origin":"project-authored","license":"GPL-3.0-only","copyright":"2026 the sco-core contributors","status":"needs-review","note":"Maintainer-supplied public target roadmap, reconciled against SDK contract layouts. Planning only; no release, runtime or provenance approval implied."},
     {"path":"tools/test_sdk_mvp_host.mjs","origin":"project-authored","license":"GPL-3.0-only","copyright":"2026 the sco-core contributors","status":"needs-review","note":"Native host and agent MCP execution proof for a generated SDK-only plugin; synthetic host only."},
     {"path":"docs/sdk-developer-mvp.md","origin":"project-authored","license":"GPL-3.0-only","copyright":"2026 the sco-core contributors","status":"needs-review","note":"Archive-only developer and agent MCP workflow with explicit synthetic/native limitations."},
     {"path":"tools/test_sdk_mvp.py","origin":"project-authored","license":"GPL-3.0-only","copyright":"2026 the sco-core contributors","status":"needs-review","note":"Repository acceptance entrypoint for actual archive MCP scaffold and compile/check proof."},
