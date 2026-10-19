@@ -122,7 +122,6 @@ if(SCO_GAME_SC)
   if(SCO_BUILD_TESTS)
   add_executable(abi_datacore_live tests/abi_datacore_live.c)
   target_include_directories(abi_datacore_live PRIVATE include)
-  target_link_libraries(abi_datacore_live PRIVATE sco_core)
   add_test(NAME abi_datacore_live COMMAND abi_datacore_live)
   set(_abi_live_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_datacore_live.cpp")
   file(CONFIGURE OUTPUT "${_abi_live_cxx}"
