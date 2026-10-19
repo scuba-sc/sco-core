@@ -4,6 +4,22 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (2026-10-16)
 
+- sco.widgets gains additive 1.2 stable node tags (`sco_widget_node_1_2`, 128
+  bytes): a per-panel-unique `[A-Za-z0-9._-]{1..63}` identifier visible in
+  panel snapshots for renderers, bridges and automation to target nodes
+  without numeric-id coupling. Duplicate/oversized/malformed tags are
+  `BAD_ARG`; hosts report `SCO_WIDGETS_FEATURE_STABLE_TAGS` and the tag byte
+  limit, and 1.0/1.1 consumers are byte-for-byte unaffected. Native synthetic
+  tests only (abi pins, host behaviour, C++ validation, C# layout); not run
+  in game.
+- Local candidate integration preserves asynchronous loadout jobs alongside host
+  injection and respawn events, refuses released DataCore owners, and contains
+  GameRules backend faults and invalid owner/thread calls. Native synthetic
+  regression fixtures only; not run in game. Publication remains held.
+
+- DataCore pack receipts now report final committed counts after atomic rollback
+  or emission failure, rather than successful operations in a discarded trial.
+
 See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).
 
 SDK 2.4.0 packages the entries below without changing frozen plugin ABI 1.1

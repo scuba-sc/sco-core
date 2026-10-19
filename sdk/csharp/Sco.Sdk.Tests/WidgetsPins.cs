@@ -58,6 +58,14 @@ namespace Sco.Sdk.Tests
             ("tests/abi_widgets.c", "AT(sco_widgets_v1, _pad, 4);"),
             ("tests/abi_widgets.c", "AT(sco_widgets_v1, set_panel, 8);"),
             ("tests/abi_widgets.c", "AT(sco_widgets_v1, remove_panel, 16);"),
+            ("tests/abi_widgets.c", "PIN(SCO_WIDGETS_VERSION_1_2 == 0x00010002u);"),
+            ("tests/abi_widgets.c", "PIN(SCO_WIDGETS_FEATURE_STABLE_TAGS == 0x80u);"),
+            ("tests/abi_widgets.c", "PIN(SCO_WIDGETS_CAP_MAX_TAG == 9u);"),
+            ("tests/abi_widgets.c", "PIN(SCO_WIDGETS_CAPS_1_2 == 10u);"),
+            ("tests/abi_widgets.c", "PIN(SCO_WIDGETS_MAX_TAG == 63u);"),
+            ("tests/abi_widgets.c", "PIN(sizeof(sco_widget_node_1_2) == 128);"),
+            ("tests/abi_widgets.c", "AT(sco_widget_node_1_2, tag, 104);"),
+            ("tests/abi_widgets.c", "AT(sco_widget_node_1_2, _reserved, 112);"),
         };
     }
 }

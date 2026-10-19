@@ -32,6 +32,23 @@ namespace Sco.Sdk.Interop
         public byte** items;
         public uint item_count, columns;
     }
+    /// <summary>sco_widget_node_1_1: 104 bytes; tooltip UTF-8 &lt;=255, severity/paging per the header.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct ScoWidgetNode11
+    {
+        public ScoWidgetNode base_node;
+        public byte* tooltip;
+        public uint severity, first_row, visible_rows, _reserved;
+    }
+    /// <summary>sco_widget_node_1_2: 128 bytes; tag is a stable [A-Za-z0-9._-]{1..63}
+    /// automation identifier, unique per panel, never rendered.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct ScoWidgetNode12
+    {
+        public ScoWidgetNode11 base_node;
+        public byte* tag;
+        public uint _reserved0, _reserved1, _reserved2;
+    }
     /// <summary>sco_widget_event: 32 bytes; pointed-to text is borrowed only during callback.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct ScoWidgetEvent
