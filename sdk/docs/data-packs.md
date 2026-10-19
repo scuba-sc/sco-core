@@ -86,6 +86,12 @@ name   = "ExampleItem.Drive_MyMod"
 clone  = { record = "ExampleItem.Drive_Alpha" }
 ```
 
+For recursive array cloning use
+`clone = { record = "ExampleItem.Drive_Alpha", mode = "deep" }`; `clone_mode`
+is not a pack key. Atomic application remains the default.
+`policy = "best_effort"` explicitly permits partial application; inspect the
+per-record receipts rather than treating attempted operations as committed work.
+
 Without a `guid`, it gets one derived from your plugin id and the record name, the same at every launch; without a `file`, it lives at `libs/foundry/records/sco/<plugin id>/<name>.xml`.
 
 The whole format (`[[set]]`, `[[instance]]`, `[[append]]`, `[[record]]`, value forms, `atomic`) is in sco-core's [DataCore packs reference](../../docs/datacore.md#pack-format). The rules that matter most:

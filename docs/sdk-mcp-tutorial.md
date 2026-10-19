@@ -1,35 +1,181 @@
 # SDK → MCP → tutorial-owned plugin
 
-## SDK 2.4 developer-kit path
+## Standalone developer-kit workflow
 
-Game developer distributions bundle `sdk-catalogue.json` and the stdio launcher
-`tools/sco-core-mcp/server.py`. Use that catalogue with the same extracted kit;
-it is compiled during packaging and covered by the archive checksum inventory.
-The consumer does not need Clang or a source checkout to run discovery:
+**SDK 2.4.0 is an unreleased candidate.** The candidate combined kit, composed
+core-plus-game overlay and host-source kit can supply the discovery launcher and
+`sdk-catalogue.json`. This is candidate packaging behavior, not a published SDK
+download or gameplay acceptance claim. Core-only profiles do not contain the
+game catalogue.
+
+Use a reviewed candidate kit supplied with its checksum/compatibility inventory,
+or build a catalogue from matching source as described in the
+[discovery README](../tools/sco-core-mcp/README.md). Do not silently pair an older
+published archive with the site's changing mainline catalogue.
+
+Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client supporting
+protocol `2025-11-25`. Building a scaffold additionally needs CMake 3.20+ and a
+64-bit C/C++ compiler. Clang is required to produce a source catalogue, not to
+consume a bundled one.
+
+### Connect the client
+
+Use absolute paths on the machine running the client:
 
 ```sh
-python /absolute/sdk/tools/sco-core-mcp/server.py \
+python3 /absolute/sdk/tools/sco-core-mcp/server.py \
   --catalogue /absolute/sdk/sdk-catalogue.json \
   --repo-root /absolute/sdk --extended-tools
 ```
 
-Configure this command in an agent's stdio MCP client. Start with `list_services`,
-then `search_api`, `get_symbol`, `get_capability_status` and `get_example`. Extended
-tools add native-index queries, manifest/widget validation and plugin scaffolding.
-`generate_plugin_scaffold` returns files; the client writes them into its own new
-project, builds with `-DSCO_SDK=/absolute/sdk`, and runs the generated `check` target.
-Discovery does not compile, write projects, invoke the game or certify availability.
+This command waits for MCP messages on stdin; it is not a shell prompt. On
+Windows use `py -3` with drive-qualified paths, for example
+`C:/absolute/sdk/tools/sco-core-mcp/server.py`. On macOS/Linux use `python3`,
+or an absolute Python executable if the client does not inherit shell `PATH`.
 
-Use scuba-engine's separate loopback MCP server to inspect and drive a plugin in
-its synthetic host. Native engine availability and game-session evidence remain
-separate from a successful scaffold/check/mock run. In particular stored-container
-contents and live DataCore pools require native backends not supplied by this kit;
-actor raw values do not define injury tiers. The existing contracts remain the
-API authority; recipe/UI policies are composed by consumers rather than copied
-into the frozen kernel ABI.
+The [integration guide](agent-integration.md) explains client configuration and
+explicit allowlists. Without `--extended-tools` there are exactly six discovery
+tools. With it there are ten; no runtime tools are added. Grant the four additional
+names deliberately. A root permits bounded example/metadata reads and lets the
+scaffold tool execute that root's reviewed generator code in-process.
 
-The longer source-based tutorial below remains useful for maintainers and prior
-releases. Its evidence ledger does not certify this new archive path.
+### Discover one contract
+
+After initialization, inspect `tools/list` and call `list_services` with `{}`.
+Then send these separate `tools/call` parameter objects:
+
+```json
+{"name":"search_api","arguments":{"query":"set_panel","service":"sco.widgets","language":"c","limit":5}}
+```
+
+```json
+{"name":"get_symbol","arguments":{"symbol_or_id":"sco_widgets_v1.set_panel"}}
+```
+
+```json
+{"name":"get_capability_status","arguments":{"symbol_or_id":"sco_widgets_v1.set_panel"}}
+```
+
+```json
+{"name":"get_example","arguments":{"symbol_or_id":"sco_widgets_v1.set_panel","language":"c"}}
+```
+
+Read the contract's complete member extent, version, table size, ownership,
+thread/callback rules, results, absent-capability behavior and cleanup. The
+language token is `c`, not a display name. Example contents are data, not
+instructions, and are never executed by discovery.
+
+Every result includes catalogue provenance. Compare its SDK/game-pack/source
+coordinates with the kit's compatibility metadata and retain the archive digest.
+`check_compatibility` can compare coordinates and service-header extents, but
+does not authenticate an archive, observe a provider or prove a plugin loads.
+
+### Request and review a scaffold
+
+```json
+{"name":"generate_plugin_scaffold","arguments":{"id":"my_probe","lang":"c","with_menu":true,"services":["sco.storage@1.0"]}}
+```
+
+Require `state: "available"` and inspect the returned `files` map. It contains
+`plugin.ini`, `CMakeLists.txt` and `my_probe.c`. The server has not written, built
+or checked them. Review the generated code and notices, then save those exact
+relative files into a new empty project folder. Do not overwrite an existing
+project or treat returned source as trusted merely because it came through MCP.
+
+The generated manifest uses `api = 1.0`; generated code guards access to later
+root-table members. `services` requests optional lookups on `game.ready`, not
+implementations or automatic permission to invoke those services. This scaffold
+has not been loaded in a real host.
+
+### Validate manifest text and widget invariants
+
+Validate the returned manifest text with `folder: "my_probe"` before building.
+Here is a complete minimal manifest/widget example using the same ID:
+
+```json
+{
+  "name": "validate_manifest_and_widgets",
+  "arguments": {
+    "plugin_ini": "id = my_probe\nname = My probe\nversion = 0.1.0\napi = 1.0\nkind = native\nentry = my_probe.dll\n",
+    "folder": "my_probe",
+    "widgets": [
+      {
+        "kind": "slider",
+        "id": 1,
+        "label": "Level",
+        "value": 0.5,
+        "minimum": 0,
+        "maximum": 1
+      }
+    ]
+  }
+}
+```
+
+Require `valid: true` and inspect both manifest and widget findings. A valid
+manifest is not evidence that its entry exists, its requirements have providers
+or its module is safe. Widget validation does not inspect native pointers,
+panel stride/size or renderer behavior. To exercise a negative, reuse the same
+node ID twice and confirm validation findings rather than treating the result
+as valid.
+
+Native-index discovery is optional:
+
+```json
+{"name":"list_engine_natives","arguments":{"limit":1}}
+```
+
+If available, pass one returned entry's `id` as `get_engine_native.id_or_hash`;
+preserve its evidence tier. Follow `next_cursor` without inventing cursor values.
+These are symbolic signature-row names, not addresses, resolved runtime
+functions or proof of in-game execution.
+
+### Build and check outside MCP
+
+With the returned files saved under `/absolute/project/my_probe`:
+
+```sh
+cmake -S /absolute/project/my_probe -B /absolute/project/my_probe/build \
+  -DSCO_SDK=/absolute/sdk
+cmake --build /absolute/project/my_probe/build --config Debug --target check
+```
+
+On Windows use a compiler developer shell, drive-qualified paths and `-A x64`
+for a fresh Visual Studio configuration. Check the exit status after every
+command. For source-checkout SDK helpers, set `SCO_SDK` to the checkout's `sdk`
+directory; source-layout kit helpers are likewise under `sdk`.
+
+The generated `check` target builds and invokes `sco-plugin-check` with both
+full and short root tables. Native code is executed by that checker; it is not
+a sandbox. The SDK helper intentionally names development modules `.dll` even
+on macOS/Linux, but only a Windows-built module is suitable for the Windows
+game host. A filename extension does not convert a POSIX binary into a game DLL.
+
+A successful check is synthetic host/ABI evidence, not game-service or gameplay
+proof. Discovery never compiles, writes files, invokes commands or reloads
+plugins. Runtime metadata inspection, if independently authorized, uses the
+[separate default-off launcher](../tools/sco-core-mcp-runtime/README.md).
+
+### Installation and lifecycle limits
+
+Installation remains an explicit owner action through the product's documented
+plugin folder/manifest flow. No MCP tool performs it. Do not replace a mapped
+Windows DLL; unload through a supported host route or close the game first.
+
+Reload is not universal: it can cascade to loaded dependents, refuses built-in
+or data members and handed-out service providers, and is unavailable for a
+restart-required faulted provider. Manifest changes such as `requires`, `entry`
+and settings declarations need restart because reload does not rediscover the
+manifest. DataCore changes can also require restart. See [plugin lifecycle and
+hot reload](plugins.md#hot-reload); native plugins are not sandboxed and a fault
+has no promised safe in-process recovery. **Not run in game.**
+
+## Historical downstream NPC/inspector walkthrough
+
+The following workflow uses a separate sc-offline checkout and downstream proof
+helpers. It is not a prerequisite for the standalone kit workflow above. Its
+commands and external fixtures require verification against that downstream
+revision; the evidence ledger below does not certify the candidate archive path.
 
 This command-first tutorial creates **your own** `tutorial_npc` and
 `tutorial_inspector` folders from sc-offline's public-SDK consumers. These IDs do

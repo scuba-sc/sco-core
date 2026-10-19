@@ -34,7 +34,7 @@ These are permanent:
 
 ## What a plugin should do
 
-- Use only `sco_api.h` (native) or the `sco` table (Lua). The C++ headers in sco-core's `include/sco/` are internal and change without notice.
+- Use the frozen root ABI, public service headers and public `scosdk/` or C# wrappers, or Lua's sandboxed `sco` table. The C++ headers in `include/sco/` are host/source-kit APIs, not public plugin APIs.
 - Check `has()` before offering a feature, and say why it is off, instead of failing.
 - Keep callbacks short. `tick` runs about 10 times a second on the game's main thread; slow work there stalls the game.
 - Name everything with its id: commands are `<id>.<action>`, and the host prefixes log lines and status messages with it.
@@ -70,7 +70,7 @@ current administrative, fault and shutdown distinctions.
 
 ## What the host guarantees
 
-- Nothing loads unless the player sets `plugins = on`. Each plugin can be switched off on its own.
+- The product controls plugin enablement and its default; the neutral kernel requires no particular default. Disabled folders are not loaded, and each plugin can be switched off independently.
 - Every plugin is listed in `mod.log` and `sc-offline.exe status` with its state.
 - Host-entered native callbacks have fault attribution and scheduling suppression, not a recovery guarantee. An attributed provider fault revokes new lookup and host work; an exposed provider enters a degraded, restart-required state with backing state retained. Other fault paths disable/quarantine the owner. Cached raw calls, arbitrary workers and corrupted process state cannot be made safe by that guard; continued execution may be unsafe or require a controlled stop. Native plugins have the host's full rights (see [supported usage](#native-trust-and-supported-usage)).
 - A native plugin is session-lifetime once anything has queried one of its services: the host refuses to reload or unload it while the game runs (`sco.reload` answers `provides a service in use; restart the game to reload it`), because a caller may still hold the service table. Restart the game to pick up a new build of such a plugin; a provider nobody ever asked a service of reloads while the game runs.

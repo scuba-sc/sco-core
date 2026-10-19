@@ -2,7 +2,7 @@
 
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
-## sdk-v2.4.0 (2026-10-16)
+## sdk-v2.4.0 (unreleased)
 
 - `sco.widgets` 1.2 adds copied, per-panel unique automation tags through a
   pointer-sized node tail; 80-byte and 104-byte nodes remain supported.
@@ -37,7 +37,8 @@ core-source and host-source-sc use 2.4.0. The candidate adds the game service ta
 `game.actor_stats` 1.1, `game.actor_stats_write` 1.0, `game.gamerules` 1.1 (with the 17-entry `list_params` tail), `game.build` 1.0, `game.input` 1.0
 (a 1,267-name action registry whose ids above 186 are build-unresolved metadata) and `game.inventory` 1.1
 (an item-port adapter with the 192-member item category enumeration, `game.inventory.read` held OFF),
-new bus events `game.mission.changed` and `game.loadout.respawn_completed` (default OFF), and
+new bus events `game.mission.changed` (capability default ON; no active production
+missions backend) and `game.loadout.respawn_completed` (capability default OFF), and
 production engine backends behind `game.relocation` and `game.quantum`, so under the
 [game-pack policy](docs/game-pack.md) (a release that adds or grows a game service raises the
 minor) the game pack and the optional game-sc overlay move to **0.8.0**
@@ -46,7 +47,9 @@ minor) the game pack and the optional game-sc overlay move to **0.8.0**
 `StarCitizen.exe`. **Nothing below has run in the game.** Evidence is host-side builds, synthetic
 fixtures and static signature checks. The Windows-only engine code is built by hosted CI, not
 locally. `game.actor_stats.read`, `game.build.info`, `game.events.mission_changed` and
-`game.relocation` (under its conditions) default ON; every other new capability defaults OFF.
+`game.relocation` (under its conditions) default ON. `game.input.registry` and
+`game.gamerules.params` also default ON for static metadata, not native gameplay
+readiness. Other additions retain their registry-recorded OFF or conditional gates.
 
 - **Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths** (`src/ipc/diagnostics_platform_win.cpp`). Fixes a length type mismatch in the Windows diagnostics transport. Built by hosted CI only.
 - **MCP documentation at the current release, with drift gates.** `tools/sco-core-mcp/README.md` and `docs/sdk-mcp-tutorial.md` follow the release coordinates, and `tools/doc_release_gate.py` fails when either lags.
@@ -78,7 +81,9 @@ locally. `game.actor_stats.read`, `game.build.info`, `game.events.mission_change
 - **DataCore pack `BestEffort` partial-apply policy & pre-flight validator (`K-27`, `#192 [G21]`)**:
   `datacore.pack` keeps `Atomic` as default and introduces an explicit opt-in `PackApplyPolicy::BestEffort`
   (`policy = "best_effort"`) returning structured per-record receipts (`PackApplyReceipt`).
-  The CLI tool `sco-dcb check <pack.toml>` performs offline pre-flight validation of pack syntax and semantics.
+  `sco-dcb lint <pack.toml>` checks syntax without game data;
+  `sco-dcb check Game2.dcb <pack.toml>` validates operations against a database.
+  These are offline file checks, not live-game evidence.
 
 - **DataCore pack deep-clone directive (`K-28`, `#191 [G20]`)**:
   Adds `mode = "deep"` to pack clone definitions (`clone = { record = "...", mode = "deep" }`) to duplicate

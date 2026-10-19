@@ -35,6 +35,21 @@ accept that version. Consult the server README for protocol and bounded-file lim
 
 ## Copilot CLI and compatible stdio clients
 
+For a reviewed SDK 2.4.0 candidate kit, use its bundled root
+`sdk-catalogue.json`, `tools/sco-core-mcp/server.py` and resulting SDK root in
+the configuration below. No Clang installation is needed merely to consume that
+catalogue. Compose a game overlay with its exact required core archive first;
+verify checksums and SDK/game-pack/source compatibility coordinates. The candidate
+is unreleased, and the site's changing mainline catalogue is not automatically
+a match for an older published archive. See the
+[standalone walkthrough](sdk-mcp-tutorial.md) for discovery, scaffolding,
+manifest/widget validation and native checking outside MCP.
+
+On macOS/Linux use `python3`, or an absolute Python executable when a GUI client
+has a different `PATH`. On Windows use `py` with `-3` first or an absolute
+`python.exe`. JSON paths are literal arguments, not shell commands: do not rely
+on working directories, shell expansion or embedded quoting.
+
 Copilot CLI supports `/mcp add` and a persistent `~/.copilot/mcp-config.json`
 (or the configured `COPILOT_HOME`). See [GitHub's CLI MCP guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).
 Merge this `mcpServers` object with existing configuration. Replace the absolute

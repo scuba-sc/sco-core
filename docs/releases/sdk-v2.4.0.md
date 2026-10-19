@@ -1,9 +1,10 @@
 # sco-core SDK 2.4.0 (release notes, unpublished candidate)
 
-Tag `sdk-v2.4.0`, combined zip `sco-sdk-2.4.0.zip`. **Status: unpublished candidate, draft for the maintainer.**
-No tag, signature, approval record, candidate run or release exists for 2.4.0, and nothing on this
-page authorizes one. The scope below is a proposal the maintainer edits or rejects. It is written
-against `main` at `c27aa8a`, which contains #196, #185 and #197 ([Landed contracts](#landed-contracts)).
+Prospective tag `sdk-v2.4.0`, combined archive `sco-sdk-2.4.0.zip`.
+**Status: unreleased development candidate.** This page describes development
+contracts, not a verified merge into main or an approved release. Local archives
+are separate from an official attested candidate. Nothing here authorizes
+approval, signing, tagging or publication.
 Until the maintainer publishes 2.4.0, the newest published SDK is 2.3.0
 ([latest release](https://github.com/scubamount/sco-core/releases/latest)). The release workflow
 publishes the CHANGELOG section [`## sdk-v2.4.0`](../../CHANGELOG.md) as the release's notes; this
@@ -23,8 +24,9 @@ game.** "Checked against build 4.10.197.2878" means the game's data is found in 
 disk, not that a feature has been seen working.
 
 - Plugins built for 2.3.0 keep working: the plugin interface (ABI 1.1) is byte-identical to 2.3.0.
-- Plugins built for 2.4.0 load on a 2.3.0 host, but the new services answer "not found" there, so a
-  plugin checks before using them.
+- ABI 1.1 plugins can run on older hosts when their required services and manifest
+  requirements are satisfied. Optional lookups must handle NOT_FOUND or UNAVAILABLE;
+  new widget/storage features need their own version and complete-member checks.
 - New: read an actor's hunger, thirst, temperature, oxygen, stun, distortion and radiation
   (`game.actor_stats`); change one stat of your own player, off by default (`game.actor_stats_write`);
   read the server's quantum-travel settings and list the 17 parameter definitions
@@ -44,6 +46,8 @@ disk, not that a feature has been seen working.
 |---|---|---|
 | Kernel (the SDK) | 2.4.0 (was 2.3.0) | `sdk/VERSION`, tag `sdk-v2.4.0` |
 | Plugin ABI | 1.1, unchanged | `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h` (frozen; `include/sco_api.h` and `tests/abi_v1.c` byte-identical to 2.3.0) |
+| `sco.widgets` | 1.2 | Stable tags in a 128-byte node; copied `const char* tag` at offset 104; typed language support is operation-specific |
+| `sco.storage` | 1.1 | 144-byte table with bounded table/view and column enumeration |
 | `game.actor_stats` service table | 1.1 (29 raw read IDs; original write scope unchanged) | `sc_actor_stats.h` |
 | `game.inventory.contents` service table | 1.0 (copied snapshots; native adapter unavailable) | `sc_container_contents.h` |
 | `game.datacore_live` service table | 1.0 (explicit verified host backend required) | `sc_datacore_live.h` |
@@ -60,12 +64,12 @@ disk, not that a feature has been seen working.
 
 `VERSIONS.txt` in the zip states the same lines, generated from the headers by `sdk/package.py`.
 
-## Landed contracts
+## Development contracts
 
-Base: `main` at `c27aa8a` (#196, #185 and #197 merged). Everything in the Versions table above is on `main`.
-The table lists the contracts a first product consumer needs.
+These contracts are present in the development tree. This table does not attest
+a main-branch merge, final-source CI, native availability or game acceptance.
 
-| Contract | Version on `main` | Default | Evidence |
+| Contract | Development version | Default | Evidence |
 |---|---|---|---|
 | `game.build` | 1.0 | ON, pure metadata | `synthetic_only`; not run in game |
 | `game.actor_stats` | 1.1 (with `game.actor_stats_write` 1.0) | read ON when its rows resolve; write OFF; appended read IDs are not writable | `sigcheck_resolved` (read), `off_pending_probe` (write); not run in game |
@@ -78,8 +82,8 @@ The bus event `game.loadout.respawn_completed` is also on `main`: production cap
 ### Prerequisites before a candidate
 
 1. The nine required jobs succeed on the exact `main` commit that will be built.
-2. The game-pack row's static 332/332 signature run (2026-10-17, source `965ae4d`; see the [game-pack row](../game-pack.md#verified-game-builds)) stays bound to that commit's signature code; it is refreshed only if the final `main` changes signature code.
-3. The designated owner or operator dispatches `release-candidate.yml` on that exact, fully green `main` commit; no candidate or archive exists yet.
+2. Obtain static signature evidence for the final signature implementation. The recorded 332/332 run is historical and source-bound; the current index inventory includes additional async-loadout rows. Inventory is not proof of resolution against the executable.
+3. The designated human owner/operator dispatches `release-candidate.yml` on the exact fully green main commit. Local ZIP generation is separate from that candidate and its attestations.
 4. Human acts, none of them done here: the scope decision record, the signed approval, counsel review, the tag and publication.
 
 
@@ -139,7 +143,7 @@ evidence. Every row is "not run in game".
 | `game.actor_stats.write` | OFF; product switch plus fresh offline admission | `off_pending_probe` | Real adjust through the game's own function; whether local-only writes persist is unknown; nothing is restored on unload |
 | `game.gamerules.read` | OFF | `synthetic_only` | Contract and wrappers; no backend bound, so calls answer unavailable; `list_params` serves static definitions |
 | `game.input.registry` | ON (metadata only) | `synthetic_only` | 1,267 named actions; ids above 186 are build-unresolved; no injection |
-| `game.loadout.respawn_completed` | OFF | `synthetic_only` | Event contract; native hook unresolved |
+| `game.events.loadout_respawn_completed` | OFF | `synthetic_only` | Event contract; native hook unresolved |
 | `game.build.info` | ON | `synthetic_only` | Pure metadata, no rows |
 | `game.events.mission_changed` | ON (maintainer ruling 2026-10-16, a product default) | `synthetic_only` | Fires only where a missions backend reports missions; none does today |
 | `game.inventory.read` | OFF | `synthetic_only` | Adapter bound in production behind fail-closed signature-row and bounds checks; held OFF; synthetic objects only |
@@ -154,9 +158,11 @@ evidence. Every row is "not run in game".
 - sco.net server-host and the larger session limit are not part of the kernel.
 - Any change to a `sco_api` table.
 
-The engine-native index follows the
-[2026-10-14 native-index decision](../legal/release-decisions/2026-10-14-native-index.md): the
-documentation site and the static MCP server only, never an SDK zip.
+The current manifest selects native-index/status metadata for game-sc, legacy
+and host-source-sc, with source-matched generated catalogues. Selection is not
+publication approval. The earlier
+[native-index distribution restriction](../legal/release-decisions/2026-10-14-native-index.md)
+requires a new applicable maintainer decision before those bytes are released.
 
 ## Engineering limits
 

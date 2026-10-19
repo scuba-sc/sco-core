@@ -117,7 +117,9 @@ and the optional ImGui adapter are source-kit internals, not public plugin heade
 
 ## Stable tags (1.2)
 
-A 1.2 node is `sco_widget_node_1_2` (128 bytes): the 1.1 node plus a `tag` —
+A 1.2 node is `sco_widget_node_1_2` (128 bytes): the 104-byte 1.1 prefix,
+a `const char* tag` at offset 104 and zero reserved words at offset 112. The host
+copies the tag; it is not inline caller storage. The tag is
 a stable automation identifier, `[A-Za-z0-9._-]{1..63}`, NULL/empty means
 untagged. Tags are host metadata: they appear in panel snapshots (the C++
 `Node::tag`) so renderers, bridges and automation can target nodes by a name
@@ -133,7 +135,10 @@ and the tag tail is invisible, exactly as 1.1 tails are to a 1.0 host.
 
 ## Language coverage and legacy UI
 
-C, C++20, C# and Lua support both methods.
+C, C++20, C# and Lua support the 1.0 set/remove route. Native C/C++ can submit
+extended nodes with the correct stride. C# exposes raw `ScoWidgetNode12` interop,
+but typed `WidgetNode`/`SetPanel` remains 1.0-only. Lua does not accept `tag`.
+The 1.1 tail methods have no typed C#/Lua wrappers.
 
 ## C#
 

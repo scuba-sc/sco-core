@@ -75,8 +75,9 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **194 table methods across 41 tables,
-plus 3 plugin entrypoints: 197 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **206 table methods across 44 C table
+representations, plus 3 plugin entrypoints: 209 method rows**. Multiple minor-version
+representations can describe one service. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -447,7 +448,7 @@ the value, for every plugin's changes. See [settings](api-v1.md#scosettings-10).
 
 ## sco.widgets: `sco_widgets_v1`
 
-Renderer-neutral retained panels, host-owned service 1.1. Source: `include/sco_widgets.h`,
+Renderer-neutral retained panels, host-owned service 1.2. Source: `include/sco_widgets.h`,
 `src/widgets/widgets.cpp`; design: [widgets](design/widgets.md). This does not change
 the frozen sco_api ABI or the legacy sco.ui draw-context/hotkey route. Limits:
 64 panels, 256 nodes/panel, 4096 live nodes, 256 items/node, 16 table columns.
@@ -455,8 +456,8 @@ Strings are copied UTF-8, plain text; callbacks and context are borrowed. All
 methods/events are game-thread only. Events update retained state then dispatch
 under the owner guard; replacing/removing a panel invalidates pending generations.
 C is direct; C++ has `scosdk/widgets.hpp`; Lua has bounded `sco.widgets` tables
-and registry-rooted typed callbacks. C# is unsupported/deferred in
-[#142](https://github.com/scubamount/sco-core/issues/142), a follow-up to #139.
+and registry-rooted typed callbacks. C# also supports bounded 1.0 set/remove panels
+and rooted callbacks; this does not imply typed support for later node extensions.
 The optional ImGui adapter is host-only; plugins never include it.
 
 1.1 appends `update_nodes`, `remove_nodes` and `capabilities` (table 24 -> 48 bytes) and
@@ -467,6 +468,14 @@ hold a 1.1 node receive 1.1 events, including `SCO_WIDGET_EVENT_PAGE`; other pan
 32-byte events. Render snapshots are rebuilt at most once per panel render pass, after a
 change. C# and Lua sco.widgets 1.1 routes are unsupported. Pins: `tests/abi_widgets.c`; host tests:
 `tests/test_widgets11.cpp`.
+
+1.2 adds a node extension, not a table member: `sco_widget_node_1_2` is 128 bytes,
+with `const char* tag` at offset 104 and zero reserved words at offset 112.
+The host copies panel-unique ASCII tags matching `[A-Za-z0-9._-]{1..63}`.
+Check the complete `capabilities` member and `SCO_WIDGETS_FEATURE_STABLE_TAGS`
+before relying on tags. The table remains 48 bytes; 80/104-byte nodes stay valid.
+C# declares raw `ScoWidgetNode12` interop, but its typed node submission stays
+1.0-only; Lua does not accept a `tag` field.
 
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
@@ -834,12 +843,13 @@ containment is not certified. **Not verified on Windows or in game.**
 | `sc_game_spatial_v1.find_zone` | `size >= 32`; 1.0 | `int (*find_zone)(const char* name, sc_game_zone* out);`<br>Exact case-sensitive nonempty name of at most 95 bytes; copy the unique observed match only. Ambiguous, absent or possibly truncated names refuse. Does not discover unseen zones. out->size must be at least sizeof(sc_game_zone); preserve size and unknown caller tail. Outputs unchanged on 0. | Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer. | Game thread only; non-reentrant; no callbacks. | 1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0. | Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission. |
 | `sc_game_spatial_v1.list_zones` | `size >= 40`; 1.0 | `int (*list_zones)(uint64_t epoch, uint32_t offset, sc_game_zone* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_more, uint64_t* out_epoch);`<br>Copied page sorted by zone ID from at most 256 explicitly observed zones, never exhaustive world discovery. epoch=0 selects current set; nonzero epoch must match. Tick refresh, additions/changes, invalidation and stop expire epochs. cap at most 64; stride is aligned to 8 bytes and in [144,4096]; every offered slot has size at least 144. cap=0 allows NULL out and counts remaining entries. offset may equal total. out_count is copied elements; out_more is remaining after this page; out_epoch pins later pages. Validate all slots before writing; preserve caller size and unknown tails. Outputs unchanged on 0. | Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer. | Game thread only; non-reentrant; no callbacks. | 1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0. | Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission. |
 
-## `sc_loadout_v1` — `game.loadout` 1.1
+## `sc_loadout_v1` — synchronous prefix of `game.loadout` 1.2
 
 Typed local-player loadout only, not account inventory. The game pack publishes a
 session-lifetime table even while its mutation capability is false. Current production
-composition installs **no verified engine backend**: every valid request returns
-UNAVAILABLE without engine access. See [loadout](game/loadout.md) for acceptance blockers.
+composition installs no synchronous equip backend: valid synchronous `apply`
+requests return UNAVAILABLE. The separate opt-in asynchronous route is described
+below. See [loadout](game/loadout.md) for acceptance blockers.
 C/C++ native routes only; C# and sandboxed Lua mutation are unsupported.
 
 | Method | Since | Buffer / call contract | Ownership | Thread affinity | Results | Cleanup |
@@ -849,7 +859,9 @@ C/C++ native routes only; C# and sandboxed Lua mutation are unsupported.
 
 ## `sc_quantum_v1` — game.quantum 1.0
 
-See [offline quantum](quantum.md). Production engine bridge unavailable; synthetic control-state evidence only.
+See [offline quantum](quantum.md). A Windows production adapter exists under the
+maintainer's amended rule; availability depends on configuration, resolved rows
+and fresh offline admission. Evidence remains synthetic, not in-game verification.
 
 | Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
 |---|---|---|---|---|---|---|

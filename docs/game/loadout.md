@@ -138,8 +138,10 @@ each adapter call, not a streaming ticket or global inventory snapshot.
 
 ## Thread, lifetime and faults
 
-Game thread only (command/tick/queued game-thread task); caller data lives until
-return. Bounded stack copies only, no retained input, work queue or cancellation.
+Synchronous `apply` is game-thread only (command/tick/queued game-thread task);
+caller data lives until return. That route uses bounded stack copies, with no
+retained input, work queue or cancellation. The 1.2 asynchronous route instead
+retains validated copied job state and exposes status/cancel.
 The host owns publication and withdraws after consumers unload. Borrowed tables must
 not be called after terminal shutdown. Recursive apply returns UNAVAILABLE without
 a nested engine call; backend Start is refused and Stop ignored during apply.
@@ -166,7 +168,7 @@ the producer; an event whose capability is off never fires, so subscribing is ha
   subscribe by name with `sco_api` `subscribe`; the independent native fixture does.
 - Payload `sc_game_loadout_respawn_completed` (`sc_game_events.h`, 8 bytes): `size` and
   `_pad` only. **Occurrence only.** It names no entity, zone, slot or item and is not a
-  per-slot confirmation; use `apply` reports for those. Check `size` before reading any
+per-slot confirmation; use synchronous or asynchronous per-slot reports for those. Check `size` before reading any
   field a later minor appends.
 - Callbacks run on the game thread from the host tick, a frame or so after the occurrence.
   Occurrences recorded within one tick coalesce into one event. The pointer is valid only

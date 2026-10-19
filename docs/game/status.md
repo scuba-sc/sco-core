@@ -4,11 +4,11 @@ SDK 2.3.0 (published 2026-10-15 as `sdk-v2.3.0`) uses game pack **0.6.0**. `main
 
 The dated signature evidence below was recorded at sco-core `main` `2197dfb` (2026-10-11, with `game.actors.died`), where the game pack was still **0.2.0** (0.3.0 arrived in `95a0d34` and first shipped in `sdk-v2.0.0`), against Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, whether it is on by default, and how far it has been checked. Later sections retain their own synthetic-only and unverified limits.
 
-> **Nothing has been verified in game since these services landed.** Every "ON" below means the signature rows behind it resolve on the build and the code is allowed to run; it does not mean anyone has seen it work in a game session. The maintainer deferred the in-game runs to one batch after the conversion ([ledger](#sources), 2026-10-10). Nothing on this page says "verified in game" for that reason; when a run happens, this page is where its date goes.
+> **Nothing has been verified in game since these services landed.** ON records default availability policy subject to readiness, admission and product conditions. Some capabilities expose static metadata without signature rows; ON does not certify gameplay. Recorded in-game results require their own dated evidence.
 
 ## How to read it
 
-**Default.** *ON*: the capability is set when its rows are OK on the running build, and the service answers (it is published only when the product sets `Platform::gameServices`; [game services](../game-services.md#for-products)). *OFF*: the code holds the capability off whatever the rows say, so the function answers `SCO_UNAVAILABLE` with a reason in `last_error`. *none*: no capability of its own gates the line (a composition or conversion table), or, with BLOCKED, nothing is published.
+**Default.** *ON*: default availability policy, still subject to each row's readiness, admission and product conditions ([game services](../game-services.md#for-products)). *OFF*: the operation is held off; a published table can still answer `SCO_UNAVAILABLE`. *none*: no independent capability gates the line, or no blocked surface is published. Defaults are not execution evidence.
 
 **Source.** The service table below is generated from `sdk/status_registry.json` by `python3 tools/status_registry.py --write`, and CI fails when the two differ (`--check`). Change the registry, never the table; its evidence levels restate what the linked pages already record and never claim an in-game run.
 
@@ -23,17 +23,19 @@ The dated signature evidence below was recorded at sco-core `main` `2197dfb` (20
 
 ## Typed loadout extension (G6)
 
-`game.loadout` 1.1 / `game.loadout.apply`: table published by Windows game-services
+`game.loadout` 1.2 / `game.loadout.apply`: table published by Windows game-services
 composition, capability **OFF — typed engine methods unverified**. Synthetic real
 host/provider/native-module checks only; no trusted per-slot equip mapping and no
 offline admission adapter installed. See [loadout](loadout.md). Not run in game.
 
-`game.loadout.weapons` (new in 1.1, unreleased) gates the weapon and multitool slots 8-21
+`game.loadout.weapons` (added in 1.1) gates the weapon and multitool slots 8-21
 of `apply` and is **OFF by default**, vocabulary only: production starts the service
 with no engine backend, so those slots answer unavailable or unsupported until a
 verified backend declares weapon support. Synthetic evidence only; no per-slot port
 mapping is verified and nothing was run in game. The service version macro
-`SC_LOADOUT_SERVICE_VERSION` stays 1.0 while 1.1 is published, as `game.world` 1.1 does.
+`SC_LOADOUT_SERVICE_VERSION` retains the synchronous prefix version. The separate
+1.2 asynchronous adapter is opt-in; the native respawn event producer remains
+unresolved and default OFF. Neither route is verified in game.
 
 ## Quantum control activation (G8, unreleased R1)
 
@@ -65,7 +67,8 @@ broker requests are bounded at four/second and raw ingress at 4,096/second.
 Admission loss, owner unload and host stop close the session; lifecycle records
 contain no passphrase, player name or endpoint. Portable real-backend/native-C
 service and ABI checks are synthetic. **Windows/MSVC, private LAN, EAC inspection,
-firewall policy and gameplay are NOT VERIFIED.** G2 relocation stays disabled.
+firewall policy and gameplay are NOT VERIFIED.** Relocation retains its separately
+documented conditional admission gates.
 
 ## Service tables and capabilities
 

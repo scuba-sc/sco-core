@@ -138,3 +138,6 @@ is not known statically.** That is the first thing the in-game run must confirm 
 
 C and C++ call the tables directly (`sc_actor_stats_read`, `sc_actor_stats_adjust`, `sc_actor_stats_set` and `sc_actor_stats_write_mode` check the table's size first).
 The C# and Lua game.actor_stats routes are unsupported in 1.0, for reads and writes.
+That language limitation also covers the appended read service 1.1 IDs; the
+separate write service remains 1.0.
+The appended read IDs do not expand the write allowlist.

@@ -1,82 +1,67 @@
-# `sco-core` SDK 2.4.0, Studio 0.2 & `sc-offline` 0.7.9 Ecosystem Roadmap
+# sco-core SDK 2.4.0 roadmap
 
-This is an unreleased target roadmap, not a release announcement. Feature presence,
-provider availability, synthetic validation and in-game acceptance are separate
-gates. No release or in-game verification is claimed here.
+SDK **2.4.0**, optional Star Citizen game pack **0.8.0**, frozen plugin ABI
+**1.1**. This is an unreleased development candidate, not a release announcement.
+Contract presence, implementation, default availability, synthetic validation and
+in-game acceptance are separate. No game behavior is certified here.
 
-**Target Releases:**
-* **`sco-core` SDK:** `v2.4.0` (Star Citizen Game Pack `v0.8.0`, Core Plugin ABI `v1.1` Frozen)
-* **`scuba-engine` Studio:** `v0.2.0` (Native D3D12/ImGui Authoring Studio + MCP Bridge)
-* **`sc-offline` Product:** `v0.7.9.0` (Unified 2.4.0 Plugin Suite + In-Game UI Restoration)
-* **`sc-mp` Co-Presence:** `v0.1.0` (Standalone Windows/POSIX UDP Relay & Session Plugin)
+## Scope
 
-**Pinned Game Baseline:** `4.10.197.2878`
+This roadmap covers the SDK and its developer tooling. Engine, studio and product
+releases are separate; they are not SDK 2.4.0 completion criteria. Consumers adopt
+published, checksum-verified archives after release rather than integration branches.
 
-**MCP Protocol Version:** `2025-11-25`
+## Distribution profiles
 
-**License:** `GPL-3.0-only` (REUSE / SPDX compliant)
+| Profile | Candidate archive | Purpose |
+|---|---|---|
+| core | `sco-sdk-core-2.4.0.zip` | Game-neutral plugin headers, bindings, examples and tools |
+| game-sc | `sco-sdk-game-sc-0.8.0.zip` | Optional overlay over the exact compatible core archive |
+| legacy | `sco-sdk-2.4.0.zip` | Combined core and game developer kit |
+| core-source | `sco-sdk-core-source-2.4.0.zip` | Standalone game-neutral host-source kit |
+| host-source-sc | `sco-sdk-host-source-sc-2.4.0.zip` | Standalone host-source kit with optional game implementation |
 
----
+The manifest in `sdk/components.json` defines actual membership. Compatibility
+metadata binds overlays to exact base bytes. Local packaging does not authorize
+distribution; each selected file still needs applicable provenance review.
 
-## 1. Executive Summary
+## Current contract inventory
 
-The `v2.4.0` release cycle unifies all in-flight foundation branches, service expansions, studio tools, and community contributions into a single, cohesive ecosystem release:
+| Surface | Development contract and limits |
+|---|---|
+| `sco.widgets` 1.2 | Stable ASCII tags; 128-byte node with `const char* tag` at offset 104, copied by the host. Native C/C++ submission and raw C# interop are distinct from typed C#/Lua support. |
+| `sco.storage` 1.1 | 144-byte table with bounded table/view and column enumeration. |
+| `sco.diagnostics.publisher` 1.0 | Numeric and enum observations through `sco_diagnostics_observation_v1`; no free-form identifiers. |
+| `game.loadout` 1.2 | Optional asynchronous submit/status/cancel with state, completed-prefix count and nested report. Respawn event availability is a separate gate. |
+| `game.inventory` 1.1 | Copied port snapshot and item-category vocabulary; native read remains held off by default. |
+| `game.inventory.contents` 1.0 | Copied bounded stored-item snapshots; no grounded native adapter is supplied. |
+| `game.actor_stats` 1.1 | 29 raw read IDs; stat units/ranges remain unverified. The separate write service retains its original allowlist and default-off admission. |
+| `game.input` 1.0 | Named action metadata; IDs above 186 remain build-unresolved, not certified input dispatch. |
+| `game.gamerules` 1.1 | Static parameter definitions through `list_params`; live read requires a backend. |
+| `game.relocation` 1.0 | Existing public table with host backend composition and conditional offline admission. |
+| `game.datacore_live` 1.0 | Explicit host-backed pool access; no native pool adapter supplied and writes separately opt-in. |
+| DataCore packs | Atomic remains default; BestEffort receipts and `clone = { record = "...", mode = "deep" }`. Use `sco-dcb lint <pack>...` for syntax and `sco-dcb check <file.dcb> <pack>...` for database-backed validation. |
 
-1. **`sco-core` v2.4.0 (Game Pack v0.8.0)**: Targets a self-contained, agent-ready SDK across five distribution profiles. Includes `sco.widgets` 1.2 (stable automation tags), `sco.storage` 1.1 (SQLite schema introspection), `game.loadout` 1.2 (asynchronous equip + `SPI_Player_OnRespawnLoadoutCompleted` lifecycle event), `game.inventory` 1.1 + `sc_container_contents.h` (copied container snapshots + 192-member `EItemType` enum), `game.input` 1.0 (1,267-member `EGameActions` enum), `game.gamerules` 1.1 (`list_params`), 29 raw actor condition reads, host provider sockets (`SetRelocationBackend`, `SetLoadoutBackend`), `datacore.pack` (`BestEffort` receipts + `clone_mode = "deep"` + `sco-dcb check`), and `datacore.live` (`sc_datacore_live.h`).
-2. **`scuba-engine` v0.2.0**: Combines the Native D3D12 + ImGui dockspace editor (PR `#21`), headless designer codegen (PR `#27`), mock actor stats (PR `#25`), bounded `project_build`/`project_check`/`project_test` MCP tools, `sco.widgets` 1.2 stable-tag readback, and full-product `sc-offline` profile loading so developers can build, inspect, and test the entire `sc-offline` plugin suite out-of-game.
-3. **`sc-offline` v0.7.9.0**: Must resolve the `0.7.8.1` in-game UI focus, input routing, and callback dispatch regressions, and unifies all 13+ modular plugins (including rebased community PR `#127` gear attachment slots 8–21 and PR `#117` ASOP vehicle selector) onto the `sco-core` 2.4.0 SDK.
-4. **`sc-mp` v0.1.0**: Targets integration of the standalone Windows/POSIX relay server and session harness (PR `#5`), verified across 132,422 multi-peer simulation and loopback UDP checks.
+See [contracts](contracts.md), [game capability status](game/status.md) and
+[candidate notes](releases/sdk-v2.4.0.md) for authoritative per-operation limits.
 
----
+## MCP developer workflow
 
-## 2. The Five `sco-core` 2.4.0 Distribution Profiles
+The stdio discovery server uses protocol `2025-11-25`: six read-only tools by
+default and four more with `--extended-tools`. It exposes recorded contracts,
+examples, compatibility, native metadata, manifest/widget validation and pure
+scaffolding; it does not invoke game services. Runtime inspection is a separate,
+default-off launcher. See [agent integration](agent-integration.md) and the
+[SDK/MCP tutorial](sdk-mcp-tutorial.md).
 
-Every `sco-core` release builds and verifies five deterministic archives (`SHA256SUMS`, `SBOM.spdx.json`, and `COMPATIBILITY.json`):
+## Remaining release gates
 
-| Profile Name | Archive Filename | Target Consumer | Bundled Contents & Verification |
-| :--- | :--- | :--- | :--- |
-| **`core`** | `sco-sdk-core-2.4.0.zip` | Game-neutral plugin authors | Neutral kernel headers (`sco_*.h`), C++ wrappers, C# (`Sco.Sdk`, compiler-checked layout pins) & Lua bindings, `sco-new-plugin.py`, `sco-plugin-check`, CMake package config, and neutral examples (`widgets` 1.2, `cs_hello`). |
-| **`game-sc`** | `sco-sdk-game-sc-0.8.0.zip` | Star Citizen plugin authors (overlay) | Composes over `core`. Adds `sc_*.h` / `scosdk/game/*.hpp` headers, compiler-built `sdk-catalogue.json`, `tools/sco-core-mcp/server.py`, native/status metadata, and `docs/sdk-developer-mvp.md`. |
-| **`legacy` (Combined)** | `sco-sdk-2.4.0.zip` | All-in-one developer & AI agent kit | Complete self-contained kit combining `core` + `game-sc` + `sdk-catalogue.json` + stdio MCP discovery server + examples + checker. |
-| **`core-source`** | `sco-sdk-core-source-2.4.0.zip` | Game-neutral host builders (`sc-mp`) | Repository-layout source tree for building a game-neutral host runtime (`src/host`, `src/widgets`, `src/storage`, `src/net`). Verified free of game-specific code by `test-zip.sh`. |
-| **`host-source-sc`** | `sco-sdk-host-source-sc-2.4.0.zip` | Studio & product host builders (`scuba-engine`, `sc-offline`) | Full repository-layout source kit including `core-source`, `src/game`, `src/datacore`, `sdk-catalogue.json`, and stdio MCP discovery tooling. Verified via `test-zip.sh` synthetic host & game-pack CTest suite. |
-
----
-
-## 3. Unified Feature Matrix in SDK 2.4.0 (Game Pack 0.8.0)
-
-| Subsystem / Service | Version | Tracked Issues / PRs | Key Additions in 2.4.0 |
-| :--- | :--- | :--- | :--- |
-| **Agent MCP Discovery** | `2025-11-25` | PR `#226`, PR `#218` | Bundled `sdk-catalogue.json` + zero-dependency `tools/sco-core-mcp/server.py` (6 default + 4 extended tools: `list_services`, `get_capability_status`, `list_engine_natives`, `get_example`, `validate_manifest_and_widgets`, `generate_plugin_scaffold`). |
-| **`sco.widgets`** | `v1.2` | `#142`, `#143`, `K-38` | `sco_widget_node_1_2` (`128` bytes, `const char* tag` at offset `104`, limited to 63 ASCII bytes, `SCO_WIDGETS_FEATURE_STABLE_TAGS = 0x80u`), C++/C#/Lua bindings, and `scuba-engine` JSON readback (`widgets.get` / `widgets.snapshot`). |
-| **`sco.storage`** | `v1.1` | `K-38` | `144`-byte `sco_storage_v1` table adding bounded SQLite table/view/column schema introspection (`KIND_TABLE`, `KIND_VIEW`, `COLUMN_NOTNULL`, `COLUMN_PK`). |
-| **`sco.diagnostics.publisher`** | `v1.0` | `#141`, `K-38` | Privacy-preserving numeric/enum observation contract (`sco_diagnostics_observation`). |
-| **`game.loadout`** | `v1.2` | `#195`, PR `#221` | Asynchronous loadout equip requests, generation tracking, `SPI_Player_OnRespawnLoadoutCompleted` lifecycle event, and `sco_game_set_loadout_backend` host socket. |
-| **`game.inventory` & `game.inventory.contents`** | `v1.1` / `v1.0` | `#190`, PR `#185`, PR `#226` | `sc_container_contents.h` copied-item snapshot ABI (`sc_container_contents_v1.snapshot`), `game.inventory` 1.1 adapter, and 192-member `EItemType` category enum + display-name lookup. |
-| **`game.input`** | `v1.0` | `#194` | 1,267-member `EGameActions` enum and fast name/ID lookup table anchored to `4.10.197.2878`. |
-| **`game.gamerules`** | `v1.1` | `#189` | `list_params` read-only parameter definitions registry (`SGameRulesCvars`). |
-| **`game.actor_stats` & `game.actors`** | `v1.1` | PR `#226`, `K-12` | 29 guarded raw actor condition read IDs, pinned `1.0` write allowlist, and seated actor removal guard. |
-| **`game.relocation` & `game.host`** | `v1.1` | `K-29`, `K-30` | `sco_game_set_relocation_backend` host provider socket and read-only `INetFwPolicy2` COM firewall rule query for G1 offline admission evidence. |
-| **`datacore.pack` & `sco-dcb`** | `v1.1` | `#191`, `#192` | `PackApplyPolicy::BestEffort` + per-record `PackApplyReceipt` (keeping `Atomic` default), `clone_mode = "deep"` array cloning, and `sco-dcb check <pack.toml>` CLI validator. |
-| **`datacore.live`** | `v1.0` | `#193`, PR `#217` | `sc_datacore_live.h` host backend seam (`read_pool`, `write_pool`, `get_pool_stats`) with owner/game-thread enforcement, default-off write opt-in, and fault latch. |
-
----
-
-## 4. Ecosystem Convergence Milestones
-
-```
-[Milestone 1: Unify sco-core 2.4.0]
-  └── Merge K-38 (widgets 1.2 / storage 1.1), Wave 0/1/2 (#185, #189-#195, K-29/K-30), and open PRs (#217-#221, #199, #188) into PR #226
-  └── Verify 9/9 Hosted CI + 5 Archive Profiles + Close all superseded PRs & resolved Issues
-
-[Milestone 2: Unify scuba-engine 0.2.0 & sc-mp 0.1.0]
-  └── Merge scuba-engine Workspace v2 + K-38 Tag Readback + PR #21 (Native D3D12) + PR #25 (Mock Actor Stats) + PR #27 (Designer Codegen)
-  └── Close stale WebUI bot PRs (#18, #3, etc.)
-  └── Merge sc-mp PR #5 (Relay Server) & Close PR #1
-
-[Milestone 3: Unify sc-offline 0.7.9.0 & Restore In-Game UI]
-  └── Update sc-offline to SDK 2.4.0 & merge sc-offline-axiom-foundations
-  └── Fix 0.7.8.1 D3D/ImGui focus, widget callback routing, and G1 admission regressions in src/
-  └── Port PR #127 (Gear Attachments) & PR #117 (ASOP Selector) into modular 2.4.0 plugins
-  └── Verify all 13+ plugins inside scuba-engine & close resolved sc-offline PRs/Issues
-```
+- Reconcile each PR and issue against exact contract, implementation and evidence;
+  a proposed API or static locator does not close a runtime gap.
+- Validate the final frozen source: ABI/native/binding tests, catalogue, legal and
+  documentation gates, five-profile archive checks and reproducibility.
+- Require hosted checks on the exact builder commit and retain archive hashes.
+- Resolve per-profile provenance and native-index distribution decisions; historical
+  approvals do not authorize new bytes.
+- Complete the maintainer candidate, signing, tagging, publication and deployed
+  documentation procedure. No approval or in-game result is implied by this plan.

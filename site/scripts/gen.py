@@ -87,6 +87,7 @@ HUB_DOCS = {
     ),
     'integration': (
         ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
+        ('docs/sdk-mcp-tutorial.md', 'Discover a contract, request a scaffold, validate manifest/widgets and run a native checker.'),
         ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),
         ('docs/releases/sdk-v2.3.0.md', 'Release notes, scope and archives of SDK 2.3.0.'),
         ('docs/releases/sdk-v2.2.0.md', 'Release notes, scope and archives of SDK 2.2.0.'),

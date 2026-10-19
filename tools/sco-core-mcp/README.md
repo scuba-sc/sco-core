@@ -10,8 +10,9 @@ development tooling, not a runtime game-service component.
 implements the fixed runtime tool surface. This discovery executable remains
 credentials-free and catalogue-only, with its original six tools/dependencies by
 default; four more read-only tools are [opt-in](#extended-tools-opt-in).
-The current task supersedes the historical same-server placement in the
-[runtime design](../../docs/design/runtime-mcp.md). No live runtime/game acceptance is claimed.
+The separate launcher supersedes the historical same-server placement in the
+[runtime design](../../docs/design/runtime-mcp.md). Discovery never imports or
+enables runtime inspection. No live runtime/game acceptance is claimed.
 
 The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes
@@ -68,15 +69,40 @@ server before relying on the new snapshot. The server does not regenerate it.
 
 ## Using an extracted SDK archive
 
-SDK 2.4 game developer archives bundle this launcher and a compiled
-`sdk-catalogue.json` at their root, covered by their checksum inventory. Run the
-bundled launcher with `--catalogue /absolute/kit/sdk-catalogue.json --repo-root
-/absolute/kit`; add `--extended-tools` for native queries, validation and scaffold
-generation. Compiler probes run during packaging, not when the agent connects.
-Core-only archives remain game-neutral and do not carry this game catalogue.
+**SDK 2.4.0 is an unreleased candidate.** Its packaging code bundles this
+launcher and a compiler-built `sdk-catalogue.json` in the combined `legacy`
+developer kit, the `game-sc` overlay and the `host-source-sc` kit. These are
+candidate package contents, not available or approved release assets.
+
+Use the combined kit directly, or compose the game overlay over the exact core
+kit required by its compatibility metadata. Set `--repo-root` to the resulting
+SDK root, not the parent extraction directory or an uncomposed overlay. The
+`host-source-sc` archive retains repository layout. Core and core-source profiles
+remain game-neutral and contain neither this game catalogue nor its launcher.
+
+For a trusted extracted candidate, run:
+
+```sh
+python3 /absolute/sdk/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/sdk/sdk-catalogue.json \
+  --repo-root /absolute/sdk
+```
+
+On Windows use `py -3` instead of `python3`, with drive-qualified paths such as
+`C:/absolute/sdk`. Add `--extended-tools` to grant the four additional discovery
+tools. Compiler probes run during packaging, not when the client connects.
+Verify the archive checksum inventory and both SDK/game-pack coordinates before
+using its catalogue; a version match does not establish matching source bytes,
+release approval, a loaded plugin or gameplay support.
 
 Earlier published archives do not contain a catalogue. Release assets remain
 immutable; users of those archives obtain one in either of two ways:
+
+Downloading a catalogue does not install the launcher. Use the launcher from a
+reviewed source checkout and point `--repo-root` at the extracted archive when
+you want its example contents. The catalogue must describe the contracts being
+consumed; the site's current mainline snapshot is not automatically a match for
+an older release.
 
 - **Public catalogue.** Download
   <https://scubamount.github.io/sco-core/sdk-catalogue.json> and check it before
@@ -280,7 +306,8 @@ A widget node has these keys:
 - `parent`, `flags`, `index`, `label`, `text`, `value`, `minimum`, `maximum`,
   `items` and `columns`.
 
-An omitted key is 0 or null. Unknown keys and wrong JSON types are refused as
+`kind` and `id` are required. Omitted optional fields default to zero or null.
+Unknown keys and wrong JSON types are refused as
 tool errors. Each violation of the
 [`sco_widgets.h`](../../include/sco_widgets.h) invariants becomes one finding,
 with the node index, its id and the host result it maps to (`BAD_ARG`, or
@@ -325,7 +352,7 @@ tests compare the two.
 
 The generator is code from `--repo-root`. On the first call the server reads
 `sdk/tools/sco-new-plugin.py`, with the examples' no-symlink containment and the
-256 KiB limit, and runs it in its own process through `importlib`. It does not
+256 KiB limit, and executes those source bytes in the existing server process. It does not
 start a subprocess or write `__pycache__`. Without a root, or when the file is
 missing, a symlink or fails to load, `state` is `unavailable` with a `reason` and
 `files` is empty. The result is not bound to the catalogue `source_sha`.
@@ -467,6 +494,23 @@ review requires `annotations.readOnlyHint: true` on tools it uses. All six tools
 set that annotation, but annotations and an allowlist are not a sandbox for the
 client itself. Do not add a wildcard or assume this restricts the client's other
 tools. Consult the linked GitHub documentation for current UI and runner behavior.
+
+## Troubleshooting
+
+| Symptom | First checks |
+|---|---|
+| Python cannot start | Windows: use `py` with `-3`, or an absolute `python.exe`. macOS/Linux: use `python3` or an absolute interpreter. GUI clients may inherit a different `PATH`. |
+| Missing/refused catalogue | Generate it before connecting or select the matching kit JSON. Check absolute paths, UTF-8, schema and source/version coordinates. |
+| Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
+| Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
+| Extended tool is unknown | Restart with `--extended-tools` and explicit client permissions for the additional names. |
+| Scaffold/native metadata unavailable | Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
+| Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
+| Catalogue is stale | Rebuild matching reviewed source and restart. Root metadata/generator code are separate inputs, not authenticated by catalogue SHA. |
+
+Discovery cannot invoke commands, reload plugins or diagnose live game state.
+Runtime inspection uses the separate default-off launcher with independent host
+and security admission.
 
 ## Security boundaries and limits
 
