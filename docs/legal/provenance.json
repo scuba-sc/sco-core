@@ -976,6 +976,15 @@
       "note": "JSON Schema (draft 2020-12) for the release approval record docs/legal/release-decisions/<tag>.json, checked by tools/ip_audit.py release"
     },
     {
+      "path": ".claude/**",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-19"
+    },
+    {
       "path": "docs/**",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
