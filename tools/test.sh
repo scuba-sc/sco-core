@@ -290,6 +290,7 @@ SHARED_ASAN_SOURCES=(
   "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_log_status.cpp" "$ROOT/src/sco_pe_file.cpp"
   "${GAME[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
   "$ROOT/src/game/services/input.cpp" "$ROOT/src/game/services/gamerules.cpp"
+  "$ROOT/src/game/services/container_contents.cpp"
   "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
   "$ROOT/src/game/pak_hooks.cpp" "${DATACORE[@]}" "${PLUGINS[@]}"
   "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/widgets/widgets.cpp"

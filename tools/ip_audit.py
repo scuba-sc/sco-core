@@ -433,6 +433,8 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         fails = []
         expected = {pkg.destination(m, profile, c): c for c in chosen}
         generated = set(pkg.metadata_names(m, profile))
+        if profile in ("game-sc", "legacy", "host-source-sc"):
+            generated.add("sdk-catalogue.json")
         for rel in names:
             if rel not in expected and rel not in generated:
                 fails.append(f"{rel}: in the archive but not selected by {COMPONENTS} for {profile}")

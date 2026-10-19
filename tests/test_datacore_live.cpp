@@ -66,11 +66,13 @@ int main() {
     SetWritesEnabled(true);
     assert(dc->write_pool(self, SC_DC_POOL_FLOAT, 0, &replacement, sizeof(replacement), &count) == SCO_OK && writes == 1);
     assert(dc->read_pool(self, SC_DC_POOL_FLOAT, UINT64_MAX, &out, sizeof(out), &count) == SCO_BAD_ARG && count == 0);
-    sc_datacore_pool_stats stats{sizeof(stats)};
+    sc_datacore_pool_stats stats{};
+    stats.size = sizeof(stats);
     assert(dc->get_pool_stats(self, SC_DC_POOL_FLOAT, &stats) == SCO_OK && stats.element_count == 1);
     stats.size = 4;
     assert(dc->get_pool_stats(self, SC_DC_POOL_FLOAT, &stats) == SCO_BAD_ARG);
-    uint8_t guid[16]{}; sc_datacore_live_record_info record{sizeof(record)};
+    uint8_t guid[16]{}; sc_datacore_live_record_info record{};
+    record.size = sizeof(record);
     assert(dc->find_record(self, guid, &record) == SCO_NOT_FOUND);
     offline = false;
     const auto before = writes;
