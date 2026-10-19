@@ -562,6 +562,8 @@ WIDGETS_SRC=("$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${R
 # threads beside the game thread's sets, so both sanitizer sets.
 SETTINGS_SRC=("$ROOT/src/settings/settings.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/storage/storage.cpp" \
               "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_settings_ini.cpp" $(obj asan "${PLUGINS[@]}") -ldl -o "$OUT/test_settings_ini"
+"$OUT/test_settings_ini"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_settings.cpp" $(obj asan "${SETTINGS_SRC[@]}") "$SQLITE_ASAN" -ldl -lm -o "$OUT/test_settings"
 "$OUT/test_settings" "$OUT"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_settings.cpp" $(obj tsan "${SETTINGS_SRC[@]}") "$SQLITE_TSAN" -ldl -lm -o "$OUT/test_settings_tsan"
