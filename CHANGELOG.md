@@ -2,6 +2,14 @@
 
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
+## Unreleased
+
+- Add `game.inventory.contents` 1.0: copied bounded stored-item quantities and
+  optional volume, host-owned read backend, C/C++ ABI fixtures and consumer wrapper.
+  Separate from equipped item ports; production capability OFF, no native adapter
+  or gameplay claim. Frozen plugin ABI 1.1 is unchanged. The unpublished game-pack
+  candidate advances to 0.8.0 for the additive service; signature rows are unchanged.
+
 ## sdk-v2.4.0 (2026-10-16)
 
 See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).

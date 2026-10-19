@@ -350,6 +350,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/actors.cpp src/game/services/actor_stats.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp src/game/services/gamerules.cpp src/game/services/inventory.cpp
                                        src/game/services/inventory_walk.cpp src/game/services/inventory_engine.cpp src/game/services/inventory_host.cpp
+                                       src/game/services/container_contents.cpp
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
@@ -1013,6 +1014,23 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_reputation PRIVATE sco_host)
     sco_project_target(test_reputation)
     add_test(NAME reputation COMMAND test_reputation)
+    add_executable(test_container_contents tests/test_container_contents.cpp src/game/services/container_contents.cpp)
+    target_link_libraries(test_container_contents PRIVATE sco_host)
+    sco_project_target(test_container_contents)
+    add_test(NAME container_contents COMMAND test_container_contents)
+    set(_abi_contents_cpp "${CMAKE_CURRENT_BINARY_DIR}/abi_container_contents.cpp")
+    file(CONFIGURE OUTPUT "${_abi_contents_cpp}" CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_container_contents.c\"\n")
+    add_executable(abi_container_contents_c tests/abi_container_contents.c)
+    add_executable(abi_container_contents_cpp "${_abi_contents_cpp}")
+    foreach(_t abi_container_contents_c abi_container_contents_cpp)
+      target_include_directories(${_t} PRIVATE "${SCO_INCLUDE_DIR}")
+      add_test(NAME ${_t} COMMAND ${_t})
+    endforeach()
+    if(NOT MSVC)
+      add_library(abi_container_contents_short OBJECT tests/abi_container_contents.c)
+      target_include_directories(abi_container_contents_short PRIVATE "${SCO_INCLUDE_DIR}")
+      target_compile_options(abi_container_contents_short PRIVATE -fshort-enums)
+    endif()
     add_executable(test_inventory tests/test_inventory.cpp src/game/services/inventory.cpp src/game/services/inventory_walk.cpp)
     target_include_directories(test_inventory PRIVATE "${SCO_INCLUDE_DIR}")
     target_link_libraries(test_inventory PRIVATE sco_host)

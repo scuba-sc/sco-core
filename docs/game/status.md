@@ -92,6 +92,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 <!-- status-registry:start -->
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
+| `game.inventory.contents` ([`sc_container_contents.h`](../../include/sc_container_contents.h)) | 1.0 | `game.inventory.contents.read` (`snapshot`) | OFF | Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game. |
 | `game.input` ([`sc_input.h`](../../include/sc_input.h)) | 1.0 | `game.input.registry` (`count`, `by_id`, `by_name`) | ON | Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game. |
 | `teleport.spatial` ([`sc_spatial.h`](../../include/sc_spatial.h)) | 1.0 | the four `teleport.*` rows (the product's capability `teleport`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | `spawn.entities` ([`sc_spawn.h`](../../include/sc_spawn.h)) | 1.2 | the `spawn.helpers` rows (the product's capability `spawn.ship`) | ON | row resolved on 4.10.196.36804 (sigcheck) |

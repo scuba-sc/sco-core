@@ -164,6 +164,11 @@ clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$
 clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_game_creative.c"
 echo "abi_game_creative: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 
+"$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_container_contents.c"
+"$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_container_contents.c"
+"$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_container_contents.c"
+echo "abi_container_contents: C11, C++20 and short-enum layouts pinned"
+
 # SDK sources (sdk/): the template and native example compile against sco_api.h alone, so a
 # header change that breaks them fails here. The full build from the packaged zip, with MSVC on
 # Windows and the plugin checks, is sdk/test-zip.sh (CI: .github/workflows/sdk.yml).
@@ -333,6 +338,9 @@ HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signature
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_gamerules_params.cpp" \
   $(obj asan "$ROOT/src/game/services/gamerules.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_gamerules_params"
 "$OUT/test_gamerules_params"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_container_contents.cpp" \
+  $(obj asan "$ROOT/src/game/services/container_contents.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_container_contents"
+"$OUT/test_container_contents"
 "$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_game_input.c"
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_game_input.c"
 "$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_game_input.c"
