@@ -8,6 +8,7 @@
 namespace sco::game::services {
 namespace {
 ContainerContentsBackend backend;
+ContainerContentsBackend production;
 bool started = false;
 bool busy = false;
 constexpr const char* capability = "game.inventory.contents.read";
@@ -68,10 +69,18 @@ Result StartContainerContents(const ContainerContentsBackend& next) {
     caps::Set(capability, backend.snapshot != nullptr, "container contents require a host-owned read provider");
     return Result::Ok;
 }
+Result ConfigureProductionContainerContents(const ContainerContentsBackend& next) {
+    if (!OnGameThread()) return Result::WrongThread;
+    if (started || busy) return Result::Failed;
+    if (!next.snapshot && next.ctx) return Result::BadArg;
+    production = next;
+    return Result::Ok;
+}
+Result StartProductionContainerContents() { return StartContainerContents(production); }
 void StopContainerContents() {
     if (!OnGameThread() || !started || busy) return;
     host::WithdrawGameService(SC_CONTAINER_CONTENTS_NAME);
     caps::Set(capability, false, "container contents service stopped");
-    backend = {}; started = false;
+    backend = {}; production = {}; started = false;
 }
 }

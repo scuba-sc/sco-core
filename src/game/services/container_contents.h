@@ -10,5 +10,7 @@ struct ContainerContentsBackend {
     sco_result (*snapshot)(void*, uint64_t, sc_container_snapshot*) = nullptr;
 };
 Result StartContainerContents(const ContainerContentsBackend& backend = {});
+Result ConfigureProductionContainerContents(const ContainerContentsBackend& backend);
+Result StartProductionContainerContents();
 void StopContainerContents();
 }

@@ -516,7 +516,7 @@ Result Start() {
     g_started = true;
     r = StartInput();
     if (r != Result::Ok) { Stop(); return r; }
-    r = StartContainerContents(); // typed read service; no native backend until independently grounded
+    r = StartProductionContainerContents(); // empty until a grounded host-owned provider is configured
     if (r != Result::Ok) { Stop(); return r; }
     r = StartGameRules(); // metadata available; live reads still require a verified backend
     if (r != Result::Ok) { Stop(); return r; }

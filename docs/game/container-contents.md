@@ -27,6 +27,11 @@ return FAILED. For a sufficiently sized output every failure clears the known
 prefix while preserving caller size and future tail. Reentrant reads fail.
 
 Hosts configure a `ContainerContentsBackend` before publishing the service. The
+game-pack startup uses `ConfigureProductionContainerContents` followed by
+`StartProductionContainerContents`; configuration is game-thread-only, refused
+while active, and cleared at service stop. Hosts do not publish a competing table.
+The direct `StartContainerContents` entry remains for standalone host fixtures.
+The
 host owns its callback/context until stop; callback output is copied immediately.
 The default game-pack composition publishes an unavailable service with capability
 `game.inventory.contents.read` OFF. No production native container adapter ships

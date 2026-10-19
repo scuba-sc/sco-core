@@ -63,6 +63,7 @@ int main() {
     G::StopContainerContents();
     Provider provider;
     CHECK(G::StartContainerContents({&provider, Read}) == sco::Result::Ok);
+    CHECK(G::ConfigureProductionContainerContents({&provider, Read}) == sco::Result::Failed);
     CHECK(G::StartContainerContents({&provider, Read}) == sco::Result::Failed);
     CHECK(api->has("game.inventory.contents.read"));
     CHECK(api->query_service(SC_CONTAINER_CONTENTS_NAME, SC_CONTAINER_CONTENTS_VERSION_1_0, &raw) == SCO_OK);
@@ -120,6 +121,14 @@ int main() {
     CHECK(!api->has("game.inventory.contents.read"));
     CHECK(api->query_service(SC_CONTAINER_CONTENTS_NAME, SC_CONTAINER_CONTENTS_VERSION_1_0, &raw) == SCO_NOT_FOUND);
     out = Output(); CHECK(consumer.snapshot(42, out) == SCO_UNAVAILABLE);
+    CHECK(G::ConfigureProductionContainerContents({&provider, nullptr}) == sco::Result::BadArg);
+    CHECK(G::ConfigureProductionContainerContents({&provider, Read}) == sco::Result::Ok);
+    CHECK(G::StartProductionContainerContents() == sco::Result::Ok);
+    out = Output(); CHECK(consumer.snapshot(42, out) == SCO_OK);
+    G::StopContainerContents();
+    CHECK(G::StartProductionContainerContents() == sco::Result::Ok);
+    out = Output(); CHECK(consumer.snapshot(42, out) == SCO_UNAVAILABLE);
+    G::StopContainerContents();
     std::printf("container contents: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }
