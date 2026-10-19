@@ -7549,6 +7549,7 @@
     {"id":"source.container_contents.cpp","source":"src/game/services/container_contents.cpp","destination":"src/game/services/container_contents.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
     {"id":"source.container_contents.h","source":"src/game/services/container_contents.h","destination":"src/game/services/container_contents.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
     {"id":"test.actor_condition_map","source":"tests/test_actor_condition_map.cpp","destination":"tests/test_actor_condition_map.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+    {"id":"test.actor_condition_write_boundary","source":"tests/test_actor_condition_write_boundary.cpp","destination":"tests/test_actor_condition_write_boundary.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
     {"id":"test.container_contents","source":"tests/test_container_contents.cpp","destination":"tests/test_container_contents.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
     {"id":"abi.container_contents","source":"tests/abi_container_contents.c","destination":"tests/abi_container_contents.c","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"game-contract"},
     {
