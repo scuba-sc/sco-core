@@ -145,6 +145,8 @@ Result ValidateReloadTarget(const std::string& name, plugins::Plugin*& target, s
 }
 
 Result BuildReloadGroup(plugins::Plugin* target, std::vector<plugins::Plugin*>& group, std::string& w) {
+    // Discover resolved requires to provider ids in `after`; do not reinterpret capabilities
+    // or host services as plugin dependencies. Only loaded dependents join the cascade.
     group = { target };
     for (size_t i = 0; i < group.size(); ++i)
         for (auto& q : g_list)
