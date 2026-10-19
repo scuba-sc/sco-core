@@ -33,6 +33,6 @@ The default game-pack composition publishes an unavailable service with capabili
 in this increment. Synthetic provider/real-host consumer and C/C++ ABI fixtures
 are the evidence; not run in game.
 
-The C++ `scosdk::game::ContainerContents` wrapper consumes the same table. No C#
+The C++ `sco::sdk::game::ContainerContents` wrapper consumes the same table. No C#
 or Lua route is supported. Studio mocks and game hosts use the same public layout;
 mock readiness is not evidence of native game readiness.

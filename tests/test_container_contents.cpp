@@ -66,7 +66,7 @@ int main() {
     CHECK(G::StartContainerContents({&provider, Read}) == sco::Result::Failed);
     CHECK(api->has("game.inventory.contents.read"));
     CHECK(api->query_service(SC_CONTAINER_CONTENTS_NAME, SC_CONTAINER_CONTENTS_VERSION_1_0, &raw) == SCO_OK);
-    scosdk::game::ContainerContents consumer(static_cast<const sc_container_contents_v1*>(raw), self);
+    sco::sdk::game::ContainerContents consumer(static_cast<const sc_container_contents_v1*>(raw), self);
     recursive_table = static_cast<const sc_container_contents_v1*>(raw); recursive_self = self;
     out = Output();
     CHECK(consumer.snapshot(42, out) == SCO_OK);
