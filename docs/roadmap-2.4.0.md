@@ -35,6 +35,9 @@ distribution; each selected file still needs applicable provenance review.
 | `game.loadout` 1.2 | Optional asynchronous submit/status/cancel with state, completed-prefix count and nested report. Respawn event availability is a separate gate. |
 | `game.inventory` 1.1 | Copied port snapshot and item-category vocabulary; native read remains held off by default. |
 | `game.inventory.contents` 1.0 | Copied bounded stored-item snapshots; no grounded native adapter is supplied. |
+| `game.audio` 1.0 | Owner-bound trigger/playback tokens and unload cleanup; acceptance is not audible playback, native backend absent/OFF. |
+| `game.entities` 1.2 | Copied epoch-pinned class registry, debug name lookup and finite typed component presence; no pointer export or native lookup adapter. New C#/Lua calls unsupported; managed layout parity only. |
+| `game.world.control` 1.1 | Bounded multi-hit with provider-owned acquire/query/release, validated copied records and owner skips; native adapter remains OFF. |
 | `game.actor_stats` 1.1 | 29 raw read IDs; stat units/ranges remain unverified. The separate write service retains its original allowlist and default-off admission. |
 | `game.input` 1.0 | Named action metadata; IDs above 186 remain build-unresolved, not certified input dispatch. |
 | `game.gamerules` 1.1 | Static parameter definitions through `list_params`; live read requires a backend. |

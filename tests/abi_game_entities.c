@@ -36,7 +36,15 @@ PIN(SC_ENTITY_STREAMED_IN == 1u);
 PIN(SC_ENTITY_STREAMED_OUT == 2u);
 
 /* ---- sc_entities_v1: 1.0 is the first 88 bytes, 1.1 appends keep ---- */
-SIZE(sc_entities_v1, 96);
+SIZE(sc_entities_v1, 128);
+PIN(SC_ENTITIES_VERSION_1_2 == 0x00010002u);
+SIZE(sc_entity_class_record, 120);
+SIZE(sc_entity_class_page, 7704);
+SIZE(sc_entity_component_record, 24);
+AT(sc_entities_v1, list_classes, 96);
+AT(sc_entities_v1, find_class, 104);
+AT(sc_entities_v1, find_by_name, 112);
+AT(sc_entities_v1, component, 120);
 AT(sc_entities_v1, size, 0);
 AT(sc_entities_v1, _pad, 4);
 AT(sc_entities_v1, alive, 8);
@@ -64,6 +72,11 @@ static void pin_entities_signatures(const sc_entities_v1* e) {
     sco_result (*query_radius)(uint64_t, const double*, double, const char*, uint64_t*, uint32_t, uint32_t*, uint32_t*) = e->query_radius;
     sco_result (*last_error)(sco_plugin*, char*, uint32_t*) = e->last_error;
     sco_result (*keep)(sco_plugin*, uint64_t) = e->keep;
+    sco_result (*classes)(uint64_t, uint32_t, sc_entity_class_page*) = e->list_classes;
+    sco_result (*find_class)(const char*, sc_entity_class_record*) = e->find_class;
+    sco_result (*name)(const char*, uint64_t*) = e->find_by_name;
+    sco_result (*component)(uint64_t, uint32_t, sc_entity_component_record*) = e->component;
+    (void)classes; (void)find_class; (void)name; (void)component;
     void (*fn)(void*, uint32_t, uint64_t, const char*) = (sc_entity_watch_fn)0;
     (void)alive; (void)class_of; (void)get_transform; (void)set_transform; (void)spawn; (void)despawn;
     (void)watch; (void)unwatch; (void)query_radius; (void)last_error; (void)keep; (void)fn;

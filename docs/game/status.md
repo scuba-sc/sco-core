@@ -95,6 +95,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 <!-- status-registry:start -->
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
+| `game.audio` ([`sc_audio.h`](../../include/sc_audio.h)) | 1.0 | `game.audio.triggers` (`resolve`, `play`, `stop`) | OFF | Owner-bound trigger/playback tokens, actual host release cleanup and bounded synthetic provider tests. No native or audible output verification; not run in game. |
 | `game.inventory.contents` ([`sc_container_contents.h`](../../include/sc_container_contents.h)) | 1.0 | `game.inventory.contents.read` (`snapshot`) | OFF | Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game. |
 | `game.datacore_live` ([`sc_datacore_live.h`](../../include/sc_datacore_live.h)) | 1.0 | `game.datacore_live` (`is_ready`, `get_pool_stats`, `find_record`, `read_pool`, `write_pool`) | OFF | Explicit verified host backend required; no native pool adapter supplied; writes separately opt-in; not run in game |
 | `game.input` ([`sc_input.h`](../../include/sc_input.h)) | 1.0 | `game.input.registry` (`count`, `by_id`, `by_name`) | ON | Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game. |
@@ -110,13 +111,15 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.0 | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
+| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.1 | `game.world.raycast_filtered_many` (`raycast_filtered_many`) | OFF | Bounded scoped multi-hit policy and lifecycle tests; no native grid/hit adapter, not run in game |
+| | | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | | | `game.world.free_camera` (`camera_acquire`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.1 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.world.free_camera_flag` (`free_camera_flag`, read-only) | OFF | OFF pending in-game confirmation |
 | | | camera field of view | none | BLOCKED |
-| `game.entities` ([`sc_entities.h`](../../include/sc_entities.h)) | 1.1 | `game.entities.transform` (`alive`, `get_transform`, `set_transform`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.entities` ([`sc_entities.h`](../../include/sc_entities.h)) | 1.2 | `game.entities.lookup` (`list_classes`, `find_class`, `find_by_name`, `component`) | OFF | Copied registry/name/typed-presence provider policy and ABI tests; no native adapter, not run in game |
+| | | `game.entities.transform` (`alive`, `get_transform`, `set_transform`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.entities.spawn` (`spawn`, `despawn`, `keep`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.entities.class_of` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.entities.query_radius` | OFF | OFF pending in-game confirmation |

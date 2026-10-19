@@ -22,7 +22,29 @@ namespace Sco.Sdk.Game
         public const uint EntityStreamedOut = 2u;               // SC_ENTITY_STREAMED_OUT
     }
 
-    /// <summary>sc_entities_v1, the table of the game service "game.entities": 96 bytes (1.0 is the first 88).</summary>
+    // Layout-only records for native ABI verification; no managed lookup route.
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct ScEntityClassRecord
+    {
+        public uint size, _pad;
+        public ulong epoch, class_id;
+        public fixed byte name[96];
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct ScEntityClassPage
+    {
+        public uint size, count, more, _pad;
+        public ulong epoch;
+        public fixed byte records[64 * 120];
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ScEntityComponentRecord
+    {
+        public uint size, kind;
+        public ulong entity_id, generation;
+    }
+    /// <summary>sc_entities_v1 layout: 128 bytes; 1.0 prefix 88, 1.1 prefix 96.
+    /// The 1.2 lookup tail is layout-only and has no managed callable route.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct ScEntitiesV1
     {
@@ -39,6 +61,11 @@ namespace Sco.Sdk.Game
         public delegate* unmanaged[Cdecl]<ulong, double*, double, byte*, ulong*, uint, uint*, uint*, ScoResult> query_radius;
         public delegate* unmanaged[Cdecl]<void*, byte*, uint*, ScoResult> last_error;
         public delegate* unmanaged[Cdecl]<void*, ulong, ScoResult> keep;   // 1.1
+        // 1.2 native-only methods. Pointer-sized layout slots, not callable FFI.
+        public nint list_classes;
+        public nint find_class;
+        public nint find_by_name;
+        public nint component;
     }
 
     /// <summary>

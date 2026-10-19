@@ -42,6 +42,13 @@ disk, not that a feature has been seen working.
 
 ## Versions
 
+Expanded-before-release optional contracts also add owner-bound `game.audio`1.0,
+copied registry/name/component-presence queries in `game.entities`1.2 and scoped
+bounded multi-hit in `game.world.control`1.1. Each has a bound synthetic provider
+fixture; none supplies a native engine adapter or changes production availability
+to ON. Audio acceptance does not certify audible playback. Entity lookup tails
+are native C/C++ only; managed additions preserve layout but add no callable route.
+
 | What | Version | Where |
 |---|---|---|
 | Kernel (the SDK) | 2.4.0 (was 2.3.0) | `sdk/VERSION`, tag `sdk-v2.4.0` |
@@ -51,6 +58,9 @@ disk, not that a feature has been seen working.
 | `game.actor_stats` service table | 1.1 (29 raw read IDs; original write scope unchanged) | `sc_actor_stats.h` |
 | `game.inventory.contents` service table | 1.0 (copied snapshots; native adapter unavailable) | `sc_container_contents.h` |
 | `game.datacore_live` service table | 1.0 (explicit verified host backend required) | `sc_datacore_live.h` |
+| `game.audio` service table | 1.0 (owner-bound effects; native OFF) | `sc_audio.h` |
+| `game.entities` service table | 1.2 (copied lookup tail; native lookup OFF) | `sc_entities.h` |
+| `game.world.control` service table | 1.1 (bounded multi-hit; native OFF) | `sc_world_control.h` |
 | `game.loadout` service table | 1.2 (asynchronous submit/status/cancel; opt-in) | `sc_loadout.h` |
 | `game.actor_stats_write` service table | 1.0 (new) | `sc_actor_stats_write.h` |
 | `game.gamerules` service table | 1.1 (new; `list_params` appended) | `sc_gamerules.h` |

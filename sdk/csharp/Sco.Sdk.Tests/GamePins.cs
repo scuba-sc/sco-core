@@ -189,7 +189,15 @@ namespace Sco.Sdk.Tests
             lines.Add(("tests/abi_game_entities.c", "PIN(SC_ENTITIES_MAX_TYPE_LEN == 63u);"));
             lines.Add(("tests/abi_game_entities.c", "PIN(SC_ENTITY_STREAMED_IN == 1u);"));
             lines.Add(("tests/abi_game_entities.c", "PIN(SC_ENTITY_STREAMED_OUT == 2u);"));
-            lines.Add(("tests/abi_game_entities.c", "SIZE(sc_entities_v1, 96);"));
+            lines.Add(("tests/abi_game_entities.c", "SIZE(sc_entities_v1, 128);"));
+            lines.Add(("tests/abi_game_entities.c", "PIN(SC_ENTITIES_VERSION_1_2 == 0x00010002u);"));
+            lines.Add(("tests/abi_game_entities.c", "SIZE(sc_entity_class_record, 120);"));
+            lines.Add(("tests/abi_game_entities.c", "SIZE(sc_entity_class_page, 7704);"));
+            lines.Add(("tests/abi_game_entities.c", "SIZE(sc_entity_component_record, 24);"));
+            lines.Add(("tests/abi_game_entities.c", "AT(sc_entities_v1, list_classes, 96);"));
+            lines.Add(("tests/abi_game_entities.c", "AT(sc_entities_v1, find_class, 104);"));
+            lines.Add(("tests/abi_game_entities.c", "AT(sc_entities_v1, find_by_name, 112);"));
+            lines.Add(("tests/abi_game_entities.c", "AT(sc_entities_v1, component, 120);"));
             lines.Add(("tests/abi_game_entities.c", "AT(sc_entities_v1, size, 0);"));
             lines.Add(("tests/abi_game_entities.c", "AT(sc_entities_v1, _pad, 4);"));
             lines.Add(("tests/abi_game_entities.c", "AT(sc_entities_v1, alive, 8);"));

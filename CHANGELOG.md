@@ -4,6 +4,14 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- Expanded optional game-pack contracts: `game.audio` 1.0 provides owner-bound
+  trigger/playback tokens and unload cleanup; `game.entities` 1.2 appends copied
+  class registry/name/typed-component presence; `game.world.control` 1.1 appends
+  bounded synchronous multi-hit with provider-owned grid cleanup. Bound synthetic
+  tests exercise policy and failure paths; no native adapters are supplied and
+  production capabilities stay OFF. Native C/C++ routes; new managed entity slots
+  are layout-only. Frozen plugin ABI1.1 unchanged; not run in game.
+
 - `sco.widgets` 1.2 adds copied, per-panel unique automation tags through a
   pointer-sized node tail; 80-byte and 104-byte nodes remain supported.
   `sco.storage` 1.1 adds bounded owner-scoped table/view and column metadata

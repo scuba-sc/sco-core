@@ -168,6 +168,13 @@ echo "abi_game_creative: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-win
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_container_contents.c"
 "$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_container_contents.c"
 echo "abi_container_contents: C11, C++20 and short-enum layouts pinned"
+for contract in audio world_control; do
+  "$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_${contract}.c"
+  "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_${contract}.c"
+  "$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_${contract}.c"
+  clang --target=x86_64-pc-windows-msvc -ffreestanding -std=c11 "${ABI[@]}" "$ROOT/tests/abi_${contract}.c"
+  clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_${contract}.c"
+done
 
 # SDK sources (sdk/): the template and native example compile against sco_api.h alone, so a
 # header change that breaks them fails here. The full build from the packaged zip, with MSVC on
@@ -291,6 +298,8 @@ SHARED_ASAN_SOURCES=(
   "${GAME[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
   "$ROOT/src/game/services/input.cpp" "$ROOT/src/game/services/gamerules.cpp"
   "$ROOT/src/game/services/container_contents.cpp"
+  "$ROOT/src/game/services/audio.cpp" "$ROOT/src/game/services/world_control.cpp"
+  "$ROOT/src/game/services/entity_lookup.cpp"
   "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
   "$ROOT/src/game/pak_hooks.cpp" "${DATACORE[@]}" "${PLUGINS[@]}"
   "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/widgets/widgets.cpp"
@@ -342,6 +351,15 @@ HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signature
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_container_contents.cpp" \
   $(obj asan "$ROOT/src/game/services/container_contents.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_container_contents"
 "$OUT/test_container_contents"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_audio.cpp" \
+  $(obj asan "$ROOT/src/game/services/audio.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_audio"
+"$OUT/test_audio"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_entity_lookup.cpp" \
+  $(obj asan "$ROOT/src/game/services/entity_lookup.cpp") -o "$OUT/test_entity_lookup"
+"$OUT/test_entity_lookup"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_world_control.cpp" \
+  $(obj asan "$ROOT/src/game/services/world_control.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_world_control"
+"$OUT/test_world_control"
 "$CXX" "${FLAGS[@]}" "$ROOT/tests/test_actor_condition_map.cpp" -o "$OUT/test_actor_condition_map"
 "$OUT/test_actor_condition_map"
 "$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_game_input.c"

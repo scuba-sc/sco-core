@@ -19,6 +19,7 @@
 #include "hangar.h"
 #include "inventory_host.h"
 #include "container_contents.h"
+#include "audio.h"
 #include "reputation.h"
 #include "loadout.h"
 #include "input.h"
@@ -518,6 +519,8 @@ Result Start() {
     if (r != Result::Ok) { Stop(); return r; }
     r = StartProductionContainerContents(); // empty until a grounded host-owned provider is configured
     if (r != Result::Ok) { Stop(); return r; }
+    r = StartAudio(); // publishes unavailable; no native audio backend is installed
+    if (r != Result::Ok) { Stop(); return r; }
     r = StartGameRules(); // metadata available; live reads still require a verified backend
     if (r != Result::Ok) { Stop(); return r; }
     Log("[game] game.spatial 1.0 published: observed chains only; system identity unknown");
@@ -532,6 +535,7 @@ void Stop() {
     if (!g_started) return;
     StopInventory();
     StopContainerContents();
+    (void)StopAudio();
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     StopGameRules();
     StopInput();

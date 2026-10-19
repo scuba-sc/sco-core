@@ -373,9 +373,9 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/actors.cpp src/game/services/actor_stats.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp src/game/services/gamerules.cpp src/game/services/inventory.cpp
                                        src/game/services/inventory_walk.cpp src/game/services/inventory_engine.cpp src/game/services/inventory_host.cpp
-                                       src/game/services/container_contents.cpp
+                                       src/game/services/container_contents.cpp src/game/services/audio.cpp
                                        src/game/services/events.cpp
-                                       src/game/services/entities.cpp src/game/services/creative.cpp
+                                       src/game/services/entities.cpp src/game/services/entity_lookup.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
                                        src/game/services/loadout.cpp src/game/services/loadout_engine.cpp src/game/services/cvars.cpp src/game/services/build.cpp src/game/services/input.cpp
                                        src/game/services/hangar.cpp src/game/services/hangar_engine.cpp
@@ -1017,7 +1017,16 @@ if(SCO_BUILD_TESTS)
   # game.* event payloads (tests/abi_game_world.c, tests/abi_game_events.c), the same three ways.
   set(_abi_bridge_pins titanlink voxel_bridge)
   if(SCO_GAME_SC)
-    list(APPEND _abi_bridge_pins game_world game_events game_spatial world_control prefabs game_loadout game_hangar game_reputation game_asop game_contracts)
+    list(APPEND _abi_bridge_pins game_world game_events game_spatial world_control audio prefabs game_loadout game_hangar game_reputation game_asop game_contracts)
+    add_executable(test_audio tests/test_audio.cpp src/game/services/audio.cpp)
+    target_include_directories(test_audio PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_audio PRIVATE sco_host)
+    sco_project_target(test_audio)
+    add_test(NAME audio COMMAND test_audio)
+    add_executable(test_entity_lookup tests/test_entity_lookup.cpp src/game/services/entity_lookup.cpp)
+    target_include_directories(test_entity_lookup PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_entity_lookup)
+    add_test(NAME entity_lookup COMMAND test_entity_lookup)
     add_executable(test_prefabs tests/test_prefabs.cpp src/game/services/prefabs.cpp)
     target_include_directories(test_prefabs PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(test_prefabs)

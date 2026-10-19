@@ -38,6 +38,12 @@ The rows in [`src/game/world_sigs.cpp`](../../src/game/world_sigs.cpp) are the s
 
 ## game.world 1.1: `free_camera_flag`
 
+The separate `game.world.control` 1.1 service also appends a bounded filtered
+multi-hit query; it does not alter this read-only table or its single-ray behavior.
+The query copies at most64 hits, reports omitted count, and releases its host-owned
+grid scope before publishing validated results. Its native capability remains OFF;
+synthetic provider tests are not in-game evidence. See [world control](../design/world-control.md).
+
 `game.world` 1.1 ([`sc_world.h`](../../include/sc_world.h)) appends one read-only function, `free_camera_flag`, behind its own capability `game.world.free_camera_flag`. It uses only rows that already existed: no row was added. The policy (thread and argument checks, the capability gate) is in [`src/game/services/world_free_cam.cpp`](../../src/game/services/world_free_cam.cpp); the read is in [`src/game/services/world.cpp`](../../src/game/services/world.cpp).
 
 **The capability is OFF by default** (evidence level `off_pending_probe`, [status](status.md)). The rows resolve, but nobody has read the flag from a plugin in a game session, and nothing pins what its value shows on screen. While it is off, `free_camera_flag` answers `SCO_UNAVAILABLE` with the reason in `last_error`, and the game is not touched. Nothing on this page has been verified in game.
