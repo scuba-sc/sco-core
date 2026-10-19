@@ -281,7 +281,7 @@ def check_installed_example_headers(m, profile, root, work):
     root, work = Path(root).resolve(), Path(work).resolve()
     reached = closure(m, profile)
     components = [c for c in m["components"] if reached & set(c["profiles"])]
-    public = {str(root / destination(m, profile, c)): destination(m, profile, c)
+    public = {root / destination(m, profile, c): destination(m, profile, c)
               for c in components if c.get("public_header")}
     examples = [c for c in components if c["source"].startswith(("sdk/examples/", "sdk/template/"))
                 and c["source"].endswith((".c", ".cpp", ".h", ".hpp"))]
@@ -299,9 +299,9 @@ def check_installed_example_headers(m, profile, root, work):
         external = work / destination(m, profile, c)
         external.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(installed, external)
-        local.add(str(external))
+        local.add(external.resolve())
     for header in public:
-        if not Path(header).is_file() or str(Path(header).resolve()) != header:
+        if not header.is_file() or header.resolve() != header:
             raise ManifestError(f"{profile}: missing or redirected installed public header {header}")
 
     # Visual Studio computes the Windows SDK/CRT paths inside MSBuild, even
@@ -395,12 +395,12 @@ def check_installed_example_headers(m, profile, root, work):
                             for p in re.findall(r'(?:\\.|[^\s])+', body)]
         else:
             raise ManifestError(f"{profile}: compiler dependency output absent for {c['source']}")
-        source = str(work / destination(m, profile, c))
-        resolved = {str((build / p).resolve()) for p in dependencies}
+        source = (work / destination(m, profile, c)).resolve()
+        resolved = {(build / p).resolve() for p in dependencies}
         if source not in resolved or not resolved & set(public):
             raise ManifestError(f"{profile}: compiler dependency proof empty for {c['source']}")
         for dep in sorted(resolved):
-            path = Path(dep)
+            path = dep
             if dep in public:
                 seen_public.add(public[dep])
             elif dep in local:
