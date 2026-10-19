@@ -920,6 +920,15 @@
       "date": "2026-10-11"
     },
     {
+      "path": ".claude/**",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "reviewed",
+      "reviewer": "agent draft; maintainer approval pending",
+      "date": "2026-10-11"
+    },
+    {
       "path": "src/**",
       "origin": "project-authored",
       "license": "GPL-3.0-only",
