@@ -412,9 +412,9 @@ Result Reload(std::string_view id, std::string* why) {
         for (auto& q : g_list) {
             if (inGroup.find(&q) == inGroup.end() || inOrdered.find(&q) != inOrdered.end()) continue;
             bool ready = true;
-            for (const auto* provider : group) {
+            for (auto* provider : group) {
                 if (std::find(q.after.begin(), q.after.end(), provider->folder) != q.after.end() &&
-                    inOrdered.find(const_cast<plugins::Plugin*>(provider)) == inOrdered.end()) {
+                    inOrdered.find(provider) == inOrdered.end()) {
                     ready = false;
                     break;
                 }
