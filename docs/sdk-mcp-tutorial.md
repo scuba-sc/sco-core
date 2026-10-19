@@ -1,5 +1,36 @@
 # SDK → MCP → tutorial-owned plugin
 
+## SDK 2.4 developer-kit path
+
+Game developer distributions bundle `sdk-catalogue.json` and the stdio launcher
+`tools/sco-core-mcp/server.py`. Use that catalogue with the same extracted kit;
+it is compiled during packaging and covered by the archive checksum inventory.
+The consumer does not need Clang or a source checkout to run discovery:
+
+```sh
+python /absolute/sdk/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/sdk/sdk-catalogue.json \
+  --repo-root /absolute/sdk --extended-tools
+```
+
+Configure this command in an agent's stdio MCP client. Start with `list_services`,
+then `search_api`, `get_symbol`, `get_capability_status` and `get_example`. Extended
+tools add native-index queries, manifest/widget validation and plugin scaffolding.
+`generate_plugin_scaffold` returns files; the client writes them into its own new
+project, builds with `-DSCO_SDK=/absolute/sdk`, and runs the generated `check` target.
+Discovery does not compile, write projects, invoke the game or certify availability.
+
+Use scuba-engine's separate loopback MCP server to inspect and drive a plugin in
+its synthetic host. Native engine availability and game-session evidence remain
+separate from a successful scaffold/check/mock run. In particular stored-container
+contents and live DataCore pools require native backends not supplied by this kit;
+actor raw values do not define injury tiers. The existing contracts remain the
+API authority; recipe/UI policies are composed by consumers rather than copied
+into the frozen kernel ABI.
+
+The longer source-based tutorial below remains useful for maintainers and prior
+releases. Its evidence ledger does not certify this new archive path.
+
 This command-first tutorial creates **your own** `tutorial_npc` and
 `tutorial_inspector` folders from sc-offline's public-SDK consumers. These IDs do
 not replace the shipped `npc`/`inspector`, add production built-ins, or alter the

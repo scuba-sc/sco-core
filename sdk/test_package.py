@@ -259,6 +259,56 @@ class RealManifest(unittest.TestCase):
         self.assertEqual(names["core"] | names["game-sc"], names["legacy"])
         self.assertEqual(names["core"] & names["game-sc"], {"LICENSE"})
 
+    def test_archive_agent_discovery_and_scaffold(self):
+        """Real packaged stdio MCP works without a checkout or network catalogue."""
+        with zipfile.ZipFile(pkg.build(self.m, "legacy", os.path.join(self.tmp, "agent"))) as archive:
+            root = Path(self.tmp) / "agent-extracted"
+            archive.extractall(root)
+            kit = root / archive.namelist()[0].split("/")[0]
+        catalogue = json.loads((kit / "sdk-catalogue.json").read_text(encoding="utf-8"))
+        self.assertEqual(catalogue["source_sha"], pkg.source_commit())
+        messages = [
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+                "protocolVersion": "2025-11-25", "capabilities": {},
+                "clientInfo": {"name": "archive-test", "version": "1"}}},
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        ]
+        for index, (name, arguments) in enumerate([
+            ("list_services", {}),
+            ("get_capability_status", {"symbol_or_id": "sc_container_contents_v1.snapshot"}),
+            ("list_engine_natives", {"limit": 1}),
+            ("generate_plugin_scaffold", {"id": "archive_probe", "lang": "c", "with_menu": True}),
+            ("get_example", {"symbol_or_id": "sc_container_contents_v1.snapshot", "language": "c"}),
+            ("validate_manifest_and_widgets", {"plugin_ini": "[plugin]\nid=archive_probe\nversion=0.1.0\napi=1.0\nkind=native\nentry=archive_probe.dll\n"}),
+        ], 3):
+            messages.append({"jsonrpc": "2.0", "id": index, "method": "tools/call",
+                             "params": {"name": name, "arguments": arguments}})
+        result = subprocess.run([sys.executable, str(kit / "tools/sco-core-mcp/server.py"),
+            "--catalogue", str(kit / "sdk-catalogue.json"), "--repo-root", str(kit), "--extended-tools"],
+            input="".join(json.dumps(message) + "\n" for message in messages),
+            cwd=self.tmp, capture_output=True, text=True, encoding="utf-8", timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        replies = {reply["id"]: reply for reply in map(json.loads, result.stdout.splitlines())}
+        self.assertEqual(len(replies[2]["result"]["tools"]), 10)
+        for index in range(3, 9):
+            self.assertNotIn("error", replies[index])
+            self.assertFalse(replies[index]["result"].get("isError", False), replies[index])
+        scaffold = replies[6]["result"]
+        self.assertIn("archive_probe", json.dumps(scaffold))
+        payload = json.loads(scaffold["content"][0]["text"])
+        project = Path(self.tmp) / "archive_probe"
+        project.mkdir()
+        for name, text in payload["files"].items():
+            target = project / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        for command in (["cmake", "-S", str(project), "-B", str(project / "build"),
+                         "-DSCO_SDK=" + str(kit)],
+                        ["cmake", "--build", str(project / "build"), "--config", "Debug", "--target", "check"]):
+            checked = subprocess.run(command, cwd=self.tmp, capture_output=True, text=True, timeout=180)
+            self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+
     def test_overlay_keeps_each_archives_own_metadata(self):
         """game-sc unpacks over core: its VERSIONS.txt and SHA256SUMS carry the profile name, so
         the overlay overwrites no file of the core (LICENSE is the one shared file, byte-identical)."""

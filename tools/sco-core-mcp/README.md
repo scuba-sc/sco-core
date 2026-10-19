@@ -3,8 +3,8 @@
 Development-only, read-only discovery of the public sco-core SDK contracts through
 MCP over stdio. The server uses Python 3's standard library and a generated SDK
 catalogue. It does **not** connect to a running host or game, invoke SDK methods,
-compile plugins, execute examples, or modify the repository. It is development
-tooling, not an SDK runtime component.
+compile plugins, execute examples, or modify the repository. It is bundled
+development tooling, not a runtime game-service component.
 
 [Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
 implements the fixed runtime tool surface. This discovery executable remains
@@ -68,9 +68,15 @@ server before relying on the new snapshot. The server does not regenerate it.
 
 ## Using an extracted SDK archive
 
-The published SDK archives do not contain a catalogue, and none is added to a
-release after publication: release assets are immutable. An archive user obtains
-one in either of two ways:
+SDK 2.4 game developer archives bundle this launcher and a compiled
+`sdk-catalogue.json` at their root, covered by their checksum inventory. Run the
+bundled launcher with `--catalogue /absolute/kit/sdk-catalogue.json --repo-root
+/absolute/kit`; add `--extended-tools` for native queries, validation and scaffold
+generation. Compiler probes run during packaging, not when the agent connects.
+Core-only archives remain game-neutral and do not carry this game catalogue.
+
+Earlier published archives do not contain a catalogue. Release assets remain
+immutable; users of those archives obtain one in either of two ways:
 
 - **Public catalogue.** Download
   <https://scubamount.github.io/sco-core/sdk-catalogue.json> and check it before

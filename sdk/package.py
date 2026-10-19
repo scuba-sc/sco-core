@@ -532,6 +532,19 @@ def metadata_names(m, profile):
                                       "ATTRIBUTIONS.json", "SBOM.spdx.json"))
 
 
+def developer_catalogue(profile):
+    """Compile the exact source snapshot for game developer distributions."""
+    if profile not in ("game-sc", "legacy", "host-source-sc"):
+        return None
+    tools = os.path.join(ROOT, "tools")
+    sys.path.insert(0, tools)
+    try:
+        import sdk_catalogue
+        return json_bytes(sdk_catalogue.build(Path(ROOT), source_commit()))
+    finally:
+        sys.path.remove(tools)
+
+
 def attributions(m, profile):
     provenance = json.loads(read("docs/legal/provenance.json"))["entries"]
     records = {}
@@ -553,6 +566,10 @@ def attributions(m, profile):
         records[name] = {"path": name, "source": "sdk/package.py", "origin": "generated",
                          "license": "CC0-1.0" if name.startswith("SBOM.spdx.json") else "GPL-3.0-only",
                          "copyright": "2026 the sco-core contributors", "status": "reviewed"}
+    if profile in ("game-sc", "legacy", "host-source-sc"):
+        records["sdk-catalogue.json"] = {"path": "sdk-catalogue.json", "source": "tools/sdk_catalogue.py",
+            "origin": "generated", "license": "GPL-3.0-only",
+            "copyright": "2026 the sco-core contributors", "status": "needs-review"}
     return records
 
 
@@ -681,6 +698,9 @@ def archive_entries(m, profile):
             entries[dst] = (fix_links(c["source"], dst, f.read(), zip_paths, dirs),
                                          os.access(full, os.X_OK))
     versions_name, sums_name, compat_name, inventory_name, sbom_name = metadata_names(m, profile)
+    catalogue = developer_catalogue(profile)
+    if catalogue is not None:
+        entries["sdk-catalogue.json"] = (catalogue, False)
     entries[versions_name] = (versions_txt(profile, version).encode("ascii"), False)
     commit = source_commit()
     desc = {"schema_version": 1, "profile": profile, "core_sdk_version": sdk_version(),

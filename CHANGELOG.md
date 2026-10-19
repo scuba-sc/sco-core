@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (2026-10-16)
 
+- Game developer kits bundle source-matched compiler-backed API discovery data,
+  stdio MCP discovery and optional native-index/manifest/scaffold tools. Archive
+  consumers no longer need a source checkout or moving website catalogue for
+  discovery. Runtime execution remains a separate host/studio operation.
+
 - Combined candidate: `game.actor_stats` 1.1 reads 29 raw stats without expanding
   stat-write 1.0 authority. `game.inventory.contents` 1.0 adds bounded copied
   stored-item snapshots, a host-owned provider seam and a public C consumer.

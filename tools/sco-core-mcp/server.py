@@ -359,10 +359,10 @@ def read_example(root, parts, limit=MAX_EXAMPLE):
         raw = stream.read(limit + 1)
     if len(raw) > limit:
         raise ToolError("Example exceeds %d KiB" % (limit // 1024))
-    return raw.decode("utf-8")
+    return raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
 
 
-def read_recorded_example(root, parts):
+def read_recorded_example(root, parts, limit=MAX_EXAMPLE):
     """Read a catalogue example from a repository checkout or extracted SDK archive.
 
     Catalogue paths are repository-relative (sdk/examples/...), while the core and
@@ -374,11 +374,11 @@ def read_recorded_example(root, parts):
     from a second layout.
     """
     try:
-        return read_example(root, parts)
+        return read_example(root, parts, limit)
     except FileNotFoundError:
         if len(parts) < 2 or parts[0] != "sdk" or os.path.lexists(os.path.join(root, "sdk")):
             raise
-    return read_example(root, parts[1:])
+    return read_example(root, parts[1:], limit)
 
 
 def list_contained_directory(root, parts):
@@ -1036,7 +1036,7 @@ class Server:
             return None, "No --repo-root: sdk/tools/sco-new-plugin.py is not loaded"
         source_name = "/".join(SCAFFOLDER)
         try:
-            source = read_example(self.repo_root, SCAFFOLDER)
+            source = read_recorded_example(self.repo_root, SCAFFOLDER)
         except (OSError, UnicodeError, ToolError):
             return None, source_name + " unavailable beneath --repo-root (missing, symlink, not a regular file or over 256 KiB)"
         module = importlib.util.module_from_spec(importlib.machinery.ModuleSpec("sco_new_plugin", None, origin=source_name))
@@ -1072,7 +1072,7 @@ class Server:
         if self.repo_root is None:
             return None, GAME_STATUS, "No --repo-root: sdk/status_registry.json and docs/game/status.md are not read"
         try:
-            text = read_example(self.repo_root, STATUS_REGISTRY, MAX_REGISTRY)
+            text = read_recorded_example(self.repo_root, STATUS_REGISTRY, MAX_REGISTRY)
         except FileNotFoundError:
             text = None
         except (OSError, UnicodeError, ToolError):
@@ -1096,7 +1096,7 @@ class Server:
         if self.repo_root is None:
             return None, None, "No --repo-root: sdk/native_index.json is not read"
         try:
-            text = read_example(self.repo_root, NATIVE_INDEX, MAX_NATIVE_INDEX)
+            text = read_recorded_example(self.repo_root, NATIVE_INDEX, MAX_NATIVE_INDEX)
         except (OSError, UnicodeError, ToolError):
             return None, None, "sdk/native_index.json unavailable beneath --repo-root (missing, symlink, not a regular file or over 4 MiB)"
         try:
