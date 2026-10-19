@@ -121,6 +121,32 @@ static sco_result UseWidgets11(const sco_widgets_v1* w) {
     ids[0] = 5;
     Expect("remove_nodes", w->remove_nodes(g_self, panel, ids, 1), SCO_OK);
 
+    {
+        sco_widget_node_1_2 tagged[2];
+        const char* tagged_panel = PROBE_ID ".tags";
+        memset(tagged, 0, sizeof tagged);
+        tagged[0].base = Node11(SCO_WIDGET_COLUMN, 10, 0, NULL);
+        tagged[0].base.base.size = sizeof tagged[0];
+        tagged[0].tag = "probe.root";
+        tagged[1].base = Node11(SCO_WIDGET_LABEL, 11, 10, "tagged");
+        tagged[1].base.base.size = sizeof tagged[1];
+        tagged[1].tag = "probe.child";
+        Expect("set_panel stable tags", w->set_panel(g_self, tagged_panel, "Tags", &tagged[0].base.base,
+               2, sizeof tagged[0], NULL, NULL), SCO_OK);
+        tagged[1].tag = "probe.root";
+        Expect("set_panel duplicate tag", w->set_panel(g_self, tagged_panel, "Tags", &tagged[0].base.base,
+               2, sizeof tagged[0], NULL, NULL), SCO_BAD_ARG);
+        Expect("update_nodes duplicate tag", w->update_nodes(g_self, tagged_panel, &tagged[1].base.base,
+               1, sizeof tagged[1]), SCO_BAD_ARG);
+        tagged[1].tag = "bad tag";
+        Expect("set_panel malformed tag", w->set_panel(g_self, tagged_panel, "Tags", &tagged[0].base.base,
+               2, sizeof tagged[0], NULL, NULL), SCO_BAD_ARG);
+        tagged[1].tag = "probe.child";
+        tagged[1]._reserved[2] = 1;
+        Expect("set_panel tag reserved", w->set_panel(g_self, tagged_panel, "Tags", &tagged[0].base.base,
+               2, sizeof tagged[0], NULL, NULL), SCO_BAD_ARG);
+    }
+
     caps[SCO_WIDGETS_CAP_COUNT] = 1;
     Expect("capabilities count 1", w->capabilities(g_self, caps), SCO_BAD_ARG);
     memset(caps, 0, sizeof caps);

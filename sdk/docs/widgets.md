@@ -1,6 +1,7 @@
 # Widgets without renderer dependencies
 
-For new native plugin UI, use the host-owned `sco.widgets` service (1.0 with additive 1.1 extensions). Include
+For new native plugin UI, use the host-owned `sco.widgets` service (1.0 with additive 1.1 and
+1.2 extensions). Include
 `include/sco_widgets.h` (C) or `include/scosdk/widgets.hpp` (C++20); no renderer
 header, renderer library, GPU or game data is needed to build the example.
 Frozen `sco_api` 1.1 discovers the optional service with `query_service`.
@@ -113,6 +114,22 @@ Full tree/layout/lifecycle details and host integration live in
 [the design contract](../../docs/design/widgets.md) and
 [the per-method contract catalogue](../../docs/contracts.md). Host headers under `include/sco/`
 and the optional ImGui adapter are source-kit internals, not public plugin headers.
+
+## Stable tags (1.2)
+
+A 1.2 node is `sco_widget_node_1_2` (128 bytes): the 1.1 node plus a `tag` —
+a stable automation identifier, `[A-Za-z0-9._-]{1..63}`, NULL/empty means
+untagged. Tags are host metadata: they appear in panel snapshots (the C++
+`Node::tag`) so renderers, bridges and automation can target nodes by a name
+that survives node-id churn, but adapters never render them and event routing
+stays numeric. Tags are unique per panel: a `set_panel`/`update_nodes` whose
+resulting tree would carry the same non-empty tag twice is `BAD_ARG` and
+leaves the panel untouched; a malformed tag (charset, over 63 bytes, nonzero
+reserved) is `BAD_ARG`. A host reports support with
+`SCO_WIDGETS_FEATURE_STABLE_TAGS`; `capabilities` answers the tag byte limit
+at `SCO_WIDGETS_CAP_MAX_TAG` (array length 10 covers all 1.2 indices).
+Plugins built for 1.0/1.1 are unaffected: submit the same 80/104-byte nodes
+and the tag tail is invisible, exactly as 1.1 tails are to a 1.0 host.
 
 ## Language coverage and legacy UI
 

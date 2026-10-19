@@ -746,6 +746,7 @@ typedef struct widget_node_copy {
     char label[SCO_WIDGETS_MAX_TEXT + 1u];
     char text[SCO_WIDGETS_MAX_TEXT + 1u];
     char tooltip[SCO_WIDGETS_MAX_TEXT + 1u];
+    char tag[SCO_WIDGETS_MAX_TAG + 1u];
     char** items;
     int disabled;
     int extended; /* read as a sco_widget_node_1_1: severity..visible_rows are set */
@@ -911,6 +912,17 @@ static sco_result widget_copy_node(const char* p, widget_node_copy* out) {
         out->first_row = x.first_row;
         out->visible_rows = x.visible_rows;
     }
+    if (!short_tables && in->size >= sizeof(sco_widget_node_1_2)) {
+        sco_widget_node_1_2 x;
+        memcpy(&x, p, sizeof x);
+        if (x._reserved[0] || x._reserved[1] || x._reserved[2] ||
+            !widget_string(out->tag, x.tag, SCO_WIDGETS_MAX_TAG, 0)) return SCO_BAD_ARG;
+        for (j = 0; out->tag[j]; ++j) {
+            const unsigned char c = (unsigned char)out->tag[j];
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                  c == '.' || c == '_' || c == '-')) return SCO_BAD_ARG;
+        }
+    }
     return SCO_OK;
 }
 
@@ -938,6 +950,14 @@ static sco_result widget_parse(const sco_widget_node* nodes, uint32_t count, uin
         depth = k + 1u;
         r = widget_copy_node(p, &out[i]);
         if (r != SCO_OK) return r;
+        if (out[i].tag[0]) {
+            for (j = 0; j < i; ++j)
+                if (!strcmp(out[j].tag, out[i].tag)) return SCO_BAD_ARG;
+            if (keep)
+                for (j = 0; j < keep->count; ++j)
+                    if ((j < skip_begin || j >= skip_end) &&
+                        !strcmp(keep->nodes[j].tag, out[i].tag)) return SCO_BAD_ARG;
+        }
         if (in->kind == SCO_WIDGET_ROW || in->kind == SCO_WIDGET_COLUMN) open[depth++] = in->id;
     }
     return SCO_OK;
@@ -1150,19 +1170,19 @@ static sco_result widget_remove_nodes(sco_plugin* self, const char* panel_id, co
 
 #define WIDGET_FEATURES (SCO_WIDGETS_FEATURE_UPDATE_NODES | SCO_WIDGETS_FEATURE_REMOVE_NODES | \
     SCO_WIDGETS_FEATURE_SEVERITY | SCO_WIDGETS_FEATURE_TOOLTIP | SCO_WIDGETS_FEATURE_PAGING | \
-    SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER)
+    SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS)
 
 /* Advertises what the real host does (src/widgets/widgets.cpp), with the 1.0 limit macros. */
 static sco_result widget_capabilities(sco_plugin* self, uint32_t* out) {
-    static const uint32_t known[SCO_WIDGETS_CAPS_1_1] = {
-        SCO_WIDGETS_CAPS_1_1, WIDGET_FEATURES, SCO_WIDGETS_MAX_PANELS, SCO_WIDGETS_MAX_NODES,
+    static const uint32_t known[SCO_WIDGETS_CAPS_1_2] = {
+        SCO_WIDGETS_CAPS_1_2, WIDGET_FEATURES, SCO_WIDGETS_MAX_PANELS, SCO_WIDGETS_MAX_NODES,
         SCO_WIDGETS_MAX_TOTAL_NODES, SCO_WIDGETS_MAX_ITEMS, SCO_WIDGETS_MAX_COLUMNS,
-        SCO_WIDGETS_MAX_TEXT, SCO_WIDGETS_MAX_EVENTS
+        SCO_WIDGETS_MAX_TEXT, SCO_WIDGETS_MAX_EVENTS, SCO_WIDGETS_MAX_TAG
     };
     uint32_t i, n;
     if (!widget_running) return SCO_UNAVAILABLE;
     if (self != &the_plugin || !out || out[SCO_WIDGETS_CAP_COUNT] < 2u) return SCO_BAD_ARG;
-    n = out[SCO_WIDGETS_CAP_COUNT] < SCO_WIDGETS_CAPS_1_1 ? out[SCO_WIDGETS_CAP_COUNT] : SCO_WIDGETS_CAPS_1_1;
+    n = out[SCO_WIDGETS_CAP_COUNT] < SCO_WIDGETS_CAPS_1_2 ? out[SCO_WIDGETS_CAP_COUNT] : SCO_WIDGETS_CAPS_1_2;
     for (i = 1; i < n; ++i) out[i] = known[i];
     out[SCO_WIDGETS_CAP_COUNT] = n;
     printf("  widgets capabilities count=%u features=0x%02x\n", (unsigned)n, (unsigned)WIDGET_FEATURES);
@@ -1412,7 +1432,7 @@ static sco_result provide_service(sco_plugin* self, const char* name, uint32_t v
 }
 
 static sco_result widgets_lookup(const char* name, uint32_t min_version, const void** out) {
-    const uint32_t served = short_tables ? SCO_WIDGETS_VERSION_1_0 : SCO_WIDGETS_VERSION_1_1;
+    const uint32_t served = short_tables ? SCO_WIDGETS_VERSION_1_0 : SCO_WIDGETS_VERSION_1_2;
     if (!name || !out) return SCO_BAD_ARG;
     remember_name(queried, &nqueried, name);
     if (strcmp(name, SCO_WIDGETS_NAME)) return SCO_NOT_FOUND;
@@ -1574,6 +1594,7 @@ static void widget_simulate(void) {
             if (node->extended)
                 printf(" severity=%u first_row=%u visible_rows=%u tooltip=\"%s\"", (unsigned)node->severity,
                        (unsigned)node->first_row, (unsigned)node->visible_rows, node->tooltip);
+            if (node->tag[0]) printf(" tag=\"%s\"", node->tag);
             printf("\n");
             if (!panel->fn || node->disabled || n->kind < SCO_WIDGET_BUTTON || n->kind > SCO_WIDGET_TEXT_INPUT ||
                 ((n->kind == SCO_WIDGET_COMBO || n->kind == SCO_WIDGET_LIST) && !n->item_count)) continue;

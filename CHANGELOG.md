@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (2026-10-16)
 
+- `sco.widgets` 1.2 adds copied, per-panel unique automation tags through a
+  pointer-sized node tail; 80-byte and 104-byte nodes remain supported.
+  `sco.storage` 1.1 adds bounded owner-scoped table/view and column metadata
+  enumeration, with extent-checked C# and Lua adapters. Frozen plugin ABI 1.1
+  is unchanged. Native synthetic and managed validation only; not run in game.
+
 - Game developer kits bundle source-matched compiler-backed API discovery data,
   stdio MCP discovery and optional native-index/manifest/scaffold tools. Archive
   consumers no longer need a source checkout or moving website catalogue for

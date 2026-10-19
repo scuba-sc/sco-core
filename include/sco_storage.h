@@ -38,6 +38,13 @@ extern "C" {
 
 #define SCO_STORAGE_NAME "sco.storage"
 #define SCO_STORAGE_VERSION_1_0 0x00010000u
+#define SCO_STORAGE_VERSION_1_1 0x00010001u /* + next_table, next_column introspection */
+/* sco_storage_v1.next_table out_kind values: the object's sqlite_master type. */
+#define SCO_STORAGE_KIND_TABLE 1u
+#define SCO_STORAGE_KIND_VIEW  2u
+/* Bitmask for sco_storage_v1.next_column out_flags. */
+#define SCO_STORAGE_COLUMN_NOTNULL 0x01u
+#define SCO_STORAGE_COLUMN_PK      0x02u
 
 #define SCO_STORAGE_MAX_KEY     255u          /* key bytes, NUL excluded */
 #define SCO_STORAGE_MAX_VALUE   (1u << 20)    /* value bytes */
@@ -130,6 +137,25 @@ typedef struct sco_storage_v1 {
     /* The message of this plugin's last failed call ("" if none), NUL-terminated, with the
      * size handshake. */
     sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);
+    /* ---- 1.1 tail (additive): schema introspection of this plugin's own database.
+     * Check the size covers a member and it is non-NULL before calling it ---- */
+    /* The first user table or view whose name sorts after "after" (NULL: from the
+     * start), in byte order, copied NUL-terminated with the size handshake; its kind
+     * goes to out_kind (SCO_STORAGE_KIND_*). The host bookkeeping table sco_kv and
+     * SQLite's own sqlite_% objects are never listed. SCO_NOT_FOUND: no more
+     * objects; BAD_ARG: malformed after, NULL out/out_kind. */
+    sco_result (*next_table)(sco_plugin* self, const char* after, char* out, uint32_t* inout_size,
+                             uint32_t* out_kind);
+    /* The column at declaration position *inout_index of one own table or view
+     * (views report their result columns): name and declared type copy
+     * NUL-terminated with two size handshakes; out_flags gets the
+     * SCO_STORAGE_COLUMN_* bitmask (a column without a declared type gets "").
+     * On success *inout_index advances to the next position. SCO_NOT_FOUND: no
+     * such object, or *inout_index is past the last column (outputs untouched).
+     * BAD_ARG: NULL inout pointers, malformed table name. */
+    sco_result (*next_column)(sco_plugin* self, const char* table, uint32_t* inout_index,
+                              char* name, uint32_t* name_size, char* type, uint32_t* type_size,
+                              uint32_t* out_flags);
 } sco_storage_v1;
 
 #ifdef __cplusplus
