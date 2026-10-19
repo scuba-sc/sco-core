@@ -9,6 +9,7 @@
 #include <cstring>
 #include <thread>
 #include <vector>
+#include <stdexcept>
 using sco::Result;
 namespace G = sco::game::services;
 static int pass = 0, fail = 0;
@@ -228,6 +229,13 @@ int main() {
         CHECK(reads == 0);
         CHECK(sc_gamerules_read(t, self, &st) == SCO_OK && st.valid == 1 && st.size == sizeof(st) && reads == 1);
         CHECK(t->list_params(self, 0, nullptr, 0, 0, &cnt, &total) == SCO_OK && reads == 1);
+        sco_result otherThread = SCO_OK;
+        std::thread([&] { otherThread = t->read(self, &st); }).join();
+        CHECK(otherThread == SCO_WRONG_THREAD && reads == 1);
+        CHECK(t->read(nullptr, &st) == SCO_BAD_ARG && reads == 1);
+        auto* released = sco::host::NewPlugin("gamerules_released");
+        CHECK(sco::Release(released) == Result::Ok);
+        CHECK(t->read(released, &st) == SCO_BAD_ARG && reads == 1);
     }
 
     // A function pointer cached before stop is refused after it, with outputs unchanged.
@@ -249,6 +257,19 @@ int main() {
               SCO_OK && total == kTotal);
     G::StopGameRules();
 
+    {
+        G::GameRulesBackend faulty{};
+        faulty.read = [](void*, sc_gamerules_state*) -> bool { throw std::runtime_error("backend fixture"); };
+        CHECK(G::StartGameRules(faulty) == Result::Ok);
+        CHECK(api->query_service(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_VERSION_1_1, &raw) == SCO_OK);
+        auto* faultTable = static_cast<const sc_gamerules_v1*>(raw);
+        bool escaped = false;
+        sco_result result = SCO_OK;
+        try { result = faultTable->read(self, &st); } catch (...) { escaped = true; }
+        CHECK(!escaped && result == SCO_FAILED);
+        if (!escaped) CHECK(faultTable->read(self, &st) == SCO_UNAVAILABLE);
+        G::StopGameRules();
+    }
     std::printf("gamerules params: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

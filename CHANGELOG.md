@@ -4,19 +4,33 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (2026-10-16)
 
+- Combined candidate: `game.actor_stats` 1.1 reads 29 raw stats without expanding
+  stat-write 1.0 authority. `game.inventory.contents` 1.0 adds bounded copied
+  stored-item snapshots, a host-owned provider seam and a public C consumer.
+  No native container reader is supplied; production capability remains OFF.
+  Game-pack candidate 0.8.0; not run in game.
+
+- Local candidate integration preserves asynchronous loadout jobs alongside host
+  injection and respawn events, refuses released DataCore owners, and contains
+  GameRules backend faults and invalid owner/thread calls. Native synthetic
+  regression fixtures only; not run in game. Publication remains held.
+
+- DataCore pack receipts now report final committed counts after atomic rollback
+  or emission failure, rather than successful operations in a discarded trial.
+
 See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).
 
 SDK 2.4.0 packages the entries below without changing frozen plugin ABI 1.1
 (`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.3.0). Core, legacy,
 core-source and host-source-sc use 2.4.0. The candidate adds the game service tables
-`game.actor_stats` 1.0, `game.actor_stats_write` 1.0, `game.gamerules` 1.1 (with the 17-entry `list_params` tail), `game.build` 1.0, `game.input` 1.0
+`game.actor_stats` 1.1, `game.actor_stats_write` 1.0, `game.gamerules` 1.1 (with the 17-entry `list_params` tail), `game.build` 1.0, `game.input` 1.0
 (a 1,267-name action registry whose ids above 186 are build-unresolved metadata) and `game.inventory` 1.1
 (an item-port adapter with the 192-member item category enumeration, `game.inventory.read` held OFF),
 new bus events `game.mission.changed` and `game.loadout.respawn_completed` (default OFF), and
 production engine backends behind `game.relocation` and `game.quantum`, so under the
 [game-pack policy](docs/game-pack.md) (a release that adds or grows a game service raises the
-minor) the game pack and the optional game-sc overlay move to **0.7.0**
-(`SCO_GAME_PACK_VERSION`, was 0.6.0; `sco-sdk-game-sc-0.7.0.zip`). The game pack's verified build is
+minor) the game pack and the optional game-sc overlay move to **0.8.0**
+(`SCO_GAME_PACK_VERSION`, was 0.6.0; `sco-sdk-game-sc-0.8.0.zip`). The game pack's verified build is
 4.10.197.2878: every signature row resolves in a static `sco-sigcheck` run on that build's
 `StarCitizen.exe`. **Nothing below has run in the game.** Evidence is host-side builds, synthetic
 fixtures and static signature checks. The Windows-only engine code is built by hosted CI, not

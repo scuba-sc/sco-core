@@ -35,11 +35,11 @@ int main(int argc, char** argv) {
     item.slot = SC_LOADOUT_SLOT_PRIMARY;
     CHECK(service->apply(self, &request, &report) == SCO_UNAVAILABLE && report.slots[0].status == SC_LOADOUT_UNAVAILABLE);
     item.slot = SC_LOADOUT_SLOT_HEAD;
-    // Published as 1.1; a 1.0 query is still answered and a newer minor is not.
+    // Published as 1.2; the frozen synchronous prefix still answers older queries.
     const void* table11 = nullptr;
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_1, &table11) == SCO_OK && table11 == table);
     const void* table12 = nullptr;
-    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, 0x00010002u, &table12) != SCO_OK && !table12);
+    CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_2, &table12) == SCO_OK && table12 == table);
     sco::game::services::StopLoadout();
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
     sc_loadout_item socketBatch[] = {{SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"}};
@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
         const size_t baseline = sco::SubscriptionCount();
         CHECK(api->subscribe(self, SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED, onEvent, nullptr) == SCO_OK);
         CHECK(sco::game::services::StartLoadout(&ev) == sco::Result::Ok);
-        CHECK(sco::SubscriptionCount() == baseline + 2 && api->has(kCap));
+        CHECK(sco::SubscriptionCount() == baseline + 3 && api->has(kCap));
         // Recording defers: nothing runs until the tick, then exactly one sized, occurrence-only event.
         CHECK(sco::game::services::RecordRespawnLoadoutCompleted() && fired == 0);
         tick();

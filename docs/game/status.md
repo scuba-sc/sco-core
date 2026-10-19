@@ -92,6 +92,8 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 <!-- status-registry:start -->
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
+| `game.inventory.contents` ([`sc_container_contents.h`](../../include/sc_container_contents.h)) | 1.0 | `game.inventory.contents.read` (`snapshot`) | OFF | Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game. |
+| `game.datacore_live` ([`sc_datacore_live.h`](../../include/sc_datacore_live.h)) | 1.0 | `game.datacore_live` (`is_ready`, `get_pool_stats`, `find_record`, `read_pool`, `write_pool`) | OFF | Explicit verified host backend required; no native pool adapter supplied; writes separately opt-in; not run in game |
 | `game.input` ([`sc_input.h`](../../include/sc_input.h)) | 1.0 | `game.input.registry` (`count`, `by_id`, `by_name`) | ON | Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game. |
 | `teleport.spatial` ([`sc_spatial.h`](../../include/sc_spatial.h)) | 1.0 | the four `teleport.*` rows (the product's capability `teleport`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | `spawn.entities` ([`sc_spawn.h`](../../include/sc_spawn.h)) | 1.2 | the `spawn.helpers` rows (the product's capability `spawn.ship`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
@@ -100,7 +102,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | `game.actors.despawn` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.actors.health` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.actors.state` | OFF | OFF pending in-game confirmation |
-| `game.actor_stats` ([`sc_actor_stats.h`](../../include/sc_actor_stats.h)) | 1.0 | `game.actor_stats.read` (`read`) | ON | row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game |
+| `game.actor_stats` ([`sc_actor_stats.h`](../../include/sc_actor_stats.h)) | 1.1 | `game.actor_stats.read` (`read`) | ON | row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game |
 | `game.actor_stats_write` ([`sc_actor_stats_write.h`](../../include/sc_actor_stats_write.h)) | 1.0 | `game.actor_stats.write` (`adjust`, `set`, `mode`) | OFF | OFF pending in-game confirmation |
 | `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
@@ -136,8 +138,9 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.contracts` ([`sc_contracts.h`](../../include/sc_contracts.h)) | 1.0 | `game.contracts.stream_radius` (`stream_radius`, read-only) | OFF | OFF pending in-game confirmation |
 | `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
 | `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
-| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.1 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
+| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.2 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
 | | | `game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`) | OFF | Synthetic policy only; no verified engine backend, no in-game proof |
+| | | `game.loadout.async` (`submit`, `status`, `cancel`) | OFF | Opt-in native spawn/attach/readback adapter, Windows synthetic-object fixture and current-build locator checks; not run in game |
 | `game.quantum` ([`sc_quantum.h`](../../include/sc_quantum.h)) | 1.0 | `game.quantum.control` | OFF | Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED |
 | `game.build` ([`sc_game_build.h`](../../include/sc_game_build.h)) | 1.0 | `game.build.info` (`read`) | ON | No rows: reads TimeDateStamp/SizeOfImage from the running module header and the pack's own verified-build pin; starts only when the numeric mirrors agree with the strings; host-side compile and layout pins verified, not run in game |
 | `game.gamerules` ([`sc_gamerules.h`](../../include/sc_gamerules.h)) | 1.1 | `game.gamerules.read` | OFF | Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED |

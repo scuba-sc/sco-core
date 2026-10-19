@@ -7,7 +7,7 @@
       "table": "sc_actor_stats_v1",
       "source_header": "include/sc_actor_stats.h",
       "signature": "sco_result (*)(uint64_t, uint32_t, float *)",
-      "version_macro": "SC_ACTOR_STATS_VERSION_1_0",
+      "version_macro": "SC_ACTOR_STATS_VERSION_1_1",
       "member_extent": 16,
       "table_size": 16,
       "service": "game.actor_stats",
@@ -19,13 +19,13 @@
       "thread_affinity": "Game thread only; WRONG_THREAD elsewhere before any game access.",
       "callback_context": "No plugin callback.",
       "reentrancy": "Read-only game call under a fault guard; no plugin re-entry.",
-      "results": "OK value copied; BAD_ARG id 0, out_value NULL or stat not a 1.0 stat; NOT_FOUND id not streamed in, not an actor, or no record of that stat; UNAVAILABLE game.actor_stats.read not ready; FAILED game fault or non-finite value; WRONG_THREAD off the game thread.",
+      "results": "OK value copied; BAD_ARG id 0, out_value NULL or stat unsupported by this service minor; NOT_FOUND id not streamed in, not an actor, or no record of that stat; UNAVAILABLE game.actor_stats.read not ready; FAILED game fault or non-finite value; WRONG_THREAD off the game thread.",
       "absent_capability": "Table absent: query_service NOT_FOUND. game.actor_stats.read not ready (a row failed, e.g. actor.stat_names on a build that reordered the stat enum): read answers UNAVAILABLE.",
       "cleanup": "Read-only: nothing to restore. game.actors' stop withdraws the table and clears the capability.",
       "limitations": [
         "Indices and names are static evidence on 4.10.197.2878 (F-4.10.197.2878-006); not run in game.",
         "Units, range and direction of each stat are not pinned; values are raw game floats.",
-        "No maximum or threshold per stat in 1.0.",
+        "No maximum, threshold or injury-tier interpretation; 1.1 adds read IDs 10..29 without broadening stat-write 1.0.",
         "No C# or Lua route."
       ],
       "tests": [

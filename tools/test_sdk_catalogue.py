@@ -93,9 +93,9 @@ class CatalogueTests(unittest.TestCase):
     def test_baseline_matches_header_count(self):
         records, extracted = catalogue.validate(self.root)
         self.assertEqual(len(records), len(extracted['methods']))
-        self.assertEqual(len(records), 197)
-        self.assertEqual(len(extracted['tables']), 41)
-        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 194)
+        self.assertEqual(len(records), 207)
+        self.assertEqual(len(extracted['tables']), 44)
+        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 204)
         wave3 = {
             'sc_mining_v1': (['request', 'state'], 'tests/abi_catalogue_mining.c', 'tests/test_mining.cpp'),
             'sc_private_session_v1': (['request_host', 'request_join', 'leave', 'get_state'],
@@ -272,7 +272,7 @@ class CatalogueTests(unittest.TestCase):
         result = json.loads(outputs[0].read_bytes())
         self.assertEqual(result['source_sha'], SHA)
         self.assertEqual(result['sdk_version'], (self.root / 'sdk/VERSION').read_text().strip())
-        self.assertEqual(result['game_pack_version'], '0.7.0')
+        self.assertEqual(result['game_pack_version'], '0.8.0')
         self.assertNotIn(str(self.root), outputs[0].read_text())
         self.assertEqual(set(result), {'schema_version', 'sdk_version', 'game_pack_version',
                                        'source_sha', 'contract_context', 'tables', 'records'})

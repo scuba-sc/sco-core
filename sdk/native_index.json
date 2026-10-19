@@ -7,7 +7,7 @@
     "3": "spike hold: backs a capability with a spike_ref and default OFF",
     "4": "blocked: backs a capability whose evidence_level is blocked"
   },
-  "row_count": 332,
+  "row_count": 336,
   "entries": [
     {
       "id": "actor.stat_names",
@@ -354,6 +354,46 @@
       "subsystem": "actors",
       "hash": "_0x674207F73AB22BCF",
       "tier": 2,
+      "source": "src/game/actors_sigs.cpp"
+    },
+    {
+      "id": "loadout.attach_entity",
+      "subsystem": "actors",
+      "hash": "_0x21FBA345509CA4F4",
+      "tier": 1,
+      "capability": [
+        "game.loadout.async"
+      ],
+      "source": "src/game/actors_sigs.cpp"
+    },
+    {
+      "id": "loadout.port_by_name",
+      "subsystem": "actors",
+      "hash": "_0x2A572949D23D5A0A",
+      "tier": 1,
+      "capability": [
+        "game.loadout.async"
+      ],
+      "source": "src/game/actors_sigs.cpp"
+    },
+    {
+      "id": "loadout.port_handle",
+      "subsystem": "actors",
+      "hash": "_0xC4F89753108AAAE7",
+      "tier": 1,
+      "capability": [
+        "game.loadout.async"
+      ],
+      "source": "src/game/actors_sigs.cpp"
+    },
+    {
+      "id": "loadout.port_container",
+      "subsystem": "actors",
+      "hash": "_0xD2093A14DCC5B8EB",
+      "tier": 1,
+      "capability": [
+        "game.loadout.async"
+      ],
       "source": "src/game/actors_sigs.cpp"
     },
     {

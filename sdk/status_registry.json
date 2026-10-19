@@ -2,6 +2,8 @@
   "schema_version": 1,
   "about": "Source of truth for the status of every game service table, capability and its evidence. tools/status_registry.py validates this file and renders the service table of docs/game/status.md from it (between the status-registry markers); edit this file, never the rendered table. Every value restates what the repository already documents (evidence_source names where); nothing here has been run in game. evidence_level: sigcheck_resolved = every row the capability reads is OK in a sco-sigcheck report of game_build, nothing executed; in_game_verified = run in a game session on a recorded date (no entry has it); off_pending_probe = rows resolve, an in-game probe must settle an open question first; synthetic_only = synthetic/native-boundary tests only; blocked = no trustworthy locator, nothing published; undocumented = the repository records no evidence.",
   "services": [
+    {"id":"game.inventory.contents","kind":"service","service":"game.inventory.contents","header":"include/sc_container_contents.h","version":"1.0","capabilities":[{"name":"game.inventory.contents.read","methods":["snapshot"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game.","evidence_source":"docs/game/container-contents.md"}]},
+    {"id":"game.datacore_live","kind":"service","service":"game.datacore_live","header":"include/sc_datacore_live.h","version":"1.0","capabilities":[{"name":"game.datacore_live","methods":["is_ready","get_pool_stats","find_record","read_pool","write_pool"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Explicit verified host backend required; no native pool adapter supplied; writes separately opt-in; not run in game","evidence_source":"docs/game/datacore-live.md"}]},
     {"id":"game.input","kind":"service","service":"game.input","header":"include/sc_input.h","version":"1.0","capabilities":[{"name":"game.input.registry","methods":["count","by_id","by_name"],"default":"ON","evidence_level":"synthetic_only","evidence":"Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game.","evidence_source":"docs/game/input.md"}]},
     {
       "id": "teleport.spatial",
@@ -42,7 +44,7 @@
       "kind": "service",
       "service": "game.actor_stats",
       "header": "include/sc_actor_stats.h",
-      "version": "1.0",
+      "version": "1.1",
       "capabilities": [
         {"name": "game.actor_stats.read", "methods": ["read"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.197.2878", "evidence": "row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game", "sig_rows": ["actor.stat_names", "actor.stat_array", "actor.health_site", "actor.status_accessor", "actor.get_stat"], "evidence_source": "docs/game/actor-stats.md"}
       ]
@@ -214,10 +216,11 @@
       "kind": "service",
       "service": "game.loadout",
       "header": "include/sc_loadout.h",
-      "version": "1.1",
+      "version": "1.2",
       "capabilities": [
         {"name": "game.loadout.apply", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic/native-boundary checks only; typed engine methods unverified; not run in game", "evidence_source": "docs/game/loadout.md"},
-        {"name": "game.loadout.weapons", "display": "`game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`)", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified engine backend, no in-game proof", "evidence_source": "docs/game/loadout.md"}
+        {"name": "game.loadout.weapons", "display": "`game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`)", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified engine backend, no in-game proof", "evidence_source": "docs/game/loadout.md"},
+        {"name": "game.loadout.async", "methods": ["submit", "status", "cancel"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Opt-in native spawn/attach/readback adapter, Windows synthetic-object fixture and current-build locator checks; not run in game", "sig_rows": ["loadout.attach_entity", "loadout.port_by_name", "loadout.port_handle", "loadout.port_container"], "evidence_source": "docs/game/loadout.md"}
       ]
     },
     {

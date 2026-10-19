@@ -18,6 +18,7 @@
 #include "contracts_service.h"
 #include "hangar.h"
 #include "inventory_host.h"
+#include "container_contents.h"
 #include "reputation.h"
 #include "loadout.h"
 #include "input.h"
@@ -440,7 +441,7 @@ Result Start() {
         WithdrawSpatial();
         return r;
     }
-    r = StartLoadout(); // no verified engine backend at production start
+    r = StartLoadout(nullptr, ProductionLoadoutBackend()); // synchronous 1.1 stays unavailable
     if (r != Result::Ok) {
         StopCreative(); StopEntities(); StopEvents(); StopWorld();
         StopVehicles(); StopActors(); StopSpawn();
@@ -515,6 +516,8 @@ Result Start() {
     g_started = true;
     r = StartInput();
     if (r != Result::Ok) { Stop(); return r; }
+    r = StartProductionContainerContents(); // empty until a grounded host-owned provider is configured
+    if (r != Result::Ok) { Stop(); return r; }
     r = StartGameRules(); // metadata available; live reads still require a verified backend
     if (r != Result::Ok) { Stop(); return r; }
     Log("[game] game.spatial 1.0 published: observed chains only; system identity unknown");
@@ -528,6 +531,7 @@ void Stop() {
     StopGameBuild();
     if (!g_started) return;
     StopInventory();
+    StopContainerContents();
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     StopGameRules();
     StopInput();

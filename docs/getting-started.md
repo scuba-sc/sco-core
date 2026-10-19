@@ -9,9 +9,9 @@ describes the next version. Get other published versions from
 [releases](https://github.com/scubamount/sco-core/releases/latest).
 
 **Development preview:** this documentation build describes SDK **2.4.0**, an
-unpublished candidate with Star Citizen game pack **0.7.0**. Its tag
+unpublished candidate with Star Citizen game pack **0.8.0**. Its tag
 `sdk-v2.4.0` and archives such as `sco-sdk-core-2.4.0.zip` and
-`sco-sdk-game-sc-0.7.0.zip` are not on the release page yet, so
+`sco-sdk-game-sc-0.8.0.zip` are not on the release page yet, so
 do not try to download them; they exist only after the maintainer publishes
 2.4.0. This page switches its commands to 2.4.0 at that point.
 

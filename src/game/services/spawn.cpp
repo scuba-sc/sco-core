@@ -19,6 +19,7 @@
 #include "quantum.h"
 #include "mining.h"
 #include "cvars.h"
+#include "loadout.h"
 #include "offline_missions.h"
 #include "sco/game/actors.h"
 #include "sco/game/reads.h"
@@ -312,6 +313,7 @@ void OnRelease(const void* owner) {
     ReleaseQuantumOwner(owner);
     ReleaseMiningOwner(owner);
     ReleaseCvarsOwner(owner);
+    ReleaseLoadoutOwner(owner);
 }
 
 // ---- spawn.entities (sc_spawn.h) ---------------------------------------------------------------

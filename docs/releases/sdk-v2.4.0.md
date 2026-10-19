@@ -11,7 +11,7 @@ page is the longer reference behind it.
 
 <!-- release-scope:start -->
 ```json
-{"tag":"sdk-v2.4.0","sdk_version":"2.4.0","game_pack_version":"0.7.0","plugin_abi":"1.1","profiles":["core","game-sc","legacy","core-source","host-source-sc"]}
+{"tag":"sdk-v2.4.0","sdk_version":"2.4.0","game_pack_version":"0.8.0","plugin_abi":"1.1","profiles":["core","game-sc","legacy","core-source","host-source-sc"]}
 ```
 <!-- release-scope:end -->
 
@@ -44,7 +44,10 @@ disk, not that a feature has been seen working.
 |---|---|---|
 | Kernel (the SDK) | 2.4.0 (was 2.3.0) | `sdk/VERSION`, tag `sdk-v2.4.0` |
 | Plugin ABI | 1.1, unchanged | `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h` (frozen; `include/sco_api.h` and `tests/abi_v1.c` byte-identical to 2.3.0) |
-| `game.actor_stats` service table | 1.0 (new) | `sc_actor_stats.h` |
+| `game.actor_stats` service table | 1.1 (29 raw read IDs; original write scope unchanged) | `sc_actor_stats.h` |
+| `game.inventory.contents` service table | 1.0 (copied snapshots; native adapter unavailable) | `sc_container_contents.h` |
+| `game.datacore_live` service table | 1.0 (explicit verified host backend required) | `sc_datacore_live.h` |
+| `game.loadout` service table | 1.2 (asynchronous submit/status/cancel; opt-in) | `sc_loadout.h` |
 | `game.actor_stats_write` service table | 1.0 (new) | `sc_actor_stats_write.h` |
 | `game.gamerules` service table | 1.1 (new; `list_params` appended) | `sc_gamerules.h` |
 | `game.build` service table | 1.0 (new) | `sc_game_build.h` |
@@ -52,7 +55,7 @@ disk, not that a feature has been seen working.
 | `game.inventory` service table | 1.1 (new; item categories, `flags`, `total_seen`) | `sc_inventory.h` |
 | `game.mission.changed`, `game.loadout.respawn_completed` bus events | new records | `sc_game_events.h` |
 | `game.relocation`, `game.quantum` service tables | unchanged | production backends added behind the tables |
-| Star Citizen game pack | 0.7.0 (was 0.6.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
+| Star Citizen game pack | 0.8.0 (was 0.6.0 in the published SDK) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
 | Verified game build | 4.10.197.2878 (was 4.10.196.36804 in 2.3.0) | `SCO_GAME_PACK_VERIFIED_BUILD`; rows verified by sigcheck, in-game verification pending |
 
 `VERSIONS.txt` in the zip states the same lines, generated from the headers by `sdk/package.py`.
@@ -65,7 +68,7 @@ The table lists the contracts a first product consumer needs.
 | Contract | Version on `main` | Default | Evidence |
 |---|---|---|---|
 | `game.build` | 1.0 | ON, pure metadata | `synthetic_only`; not run in game |
-| `game.actor_stats` | 1.0 (with `game.actor_stats_write` 1.0) | read ON when its rows resolve; write OFF | `sigcheck_resolved` (read), `off_pending_probe` (write); not run in game |
+| `game.actor_stats` | 1.1 (with `game.actor_stats_write` 1.0) | read ON when its rows resolve; write OFF; appended read IDs are not writable | `sigcheck_resolved` (read), `off_pending_probe` (write); not run in game |
 | `game.inventory` | 1.1: `flags` and `total_seen` after `ports[]` (a 1.0-sized caller is unchanged), the 192-member `sc_item_type` enumeration with `sc_inventory_item_type_name` and `sc_inventory_port_item_type`, and a production adapter with nine new signature rows | `game.inventory.read` OFF | `synthetic_only`; not run in game; F-4.10.197.2878-011..-016 |
 | `game.input` | 1.0: read-only action registry, 1,267 named members, lookup by id and by name; no input injection | `game.input.registry` ON, which advertises metadata availability only | `synthetic_only`; ids above 186 are build-unresolved metadata (`SC_INPUT_ACTION_BUILD_UNRESOLVED`); `LAST` and `INVALID` share one id; not run in game; F-4.10.197.2878-033, F-INTAKE-010 |
 | `game.gamerules` | 1.1: `list_params` appended, 17 copied name, group and type definitions; no live values; `read` is unchanged | `game.gamerules.read` OFF | `synthetic_only`; source build unresolved; not run in game; F-INTAKE-005 |
@@ -84,9 +87,9 @@ The bus event `game.loadout.respawn_completed` is also on `main`: production cap
 
 - Core SDK, combined/legacy SDK, the neutral core-source kit and the Star Citizen
   host-source kit (`host-source-sc`): 2.4.0.
-- Optional game-sc public overlay: 0.7.0 (was 0.6.0). The candidate adds six game service tables,
+- Optional game-sc public overlay: 0.8.0 (was 0.6.0). The combined candidate adds and extends game service tables,
   and the [game-pack policy](../game-pack.md) raises the minor for a release that adds or grows a
-  game service. The overlay ships as `sco-sdk-game-sc-0.7.0.zip`, so its compatibility descriptor,
+  game service. The overlay ships as `sco-sdk-game-sc-0.8.0.zip`, so its compatibility descriptor,
   which binds the exact 2.4.0 core archive SHA-256, never shares a file name with an earlier
   overlay. Consumers check `COMPATIBILITY.json.game-sc` and the required base digest, never the
   version string alone.
@@ -104,7 +107,10 @@ verification limits. In short:
 
 | Change | Where | Profiles (as packaged today) |
 |---|---|---|
-| `game.actor_stats` 1.0: read nine named stats by actor | `include/sc_actor_stats.h`, [docs](../game/actor-stats.md) | header in game-sc and host-source-sc |
+| `game.actor_stats` 1.1: read 29 raw named stats by actor; no injury-tier or normalized-unit claim | `include/sc_actor_stats.h`, [docs](../game/actor-stats.md) | header in game-sc and host-source-sc |
+| `game.inventory.contents` 1.0: bounded copied stored-item snapshots, generation and optional volume; unavailable without a grounded host provider | `include/sc_container_contents.h`, [docs](../game/container-contents.md) | public contract/example in game-sc; provider in host-source-sc |
+| `game.datacore_live` 1.0: host-backed pool access, fresh offline admission and separate write opt-in; no native pool adapter supplied | `include/sc_datacore_live.h`, [docs](../game/datacore-live.md) | public contract in game-sc; provider in host-source-sc |
+| `game.loadout` 1.2: copied asynchronous submit/status/cancel with native engine path behind explicit opt-in | `include/sc_loadout.h`, [docs](../game/loadout.md) | public contract in game-sc; provider in host-source-sc |
 | `game.actor_stats_write` 1.0: `adjust`, `set`, `mode` for your own player, behind a product switch and fresh offline admission | `include/sc_actor_stats_write.h`, `src/game/services/`, [docs](../game/actor-stats.md) | header in game-sc and host-source-sc; implementation in host-source-sc |
 | `actor_stats_probe`: in-game test plugin and the maintainer's checklist | `sdk/examples/actor_stats_probe/` | game-sc |
 | `game.gamerules` 1.0 with C++20, C# and Lua read wrappers; 1.1 appends `list_params` | `include/sc_gamerules.h`, `include/scosdk/game/gamerules.hpp`, `sdk/csharp/Sco.Sdk/Game/GameRules.cs`, [docs](../game/gamerules.md) | headers and wrappers in game-sc and host-source-sc |

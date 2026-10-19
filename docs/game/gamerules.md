@@ -30,6 +30,11 @@ header exposes named fields only. No pointer, no write, no action crosses the AB
 
 ## Backend binding
 
+Reads reject foreign threads and null, unknown or released plugin owners before
+backend access. Backend exceptions and native faults return `SCO_FAILED` once,
+then latch reads unavailable until process restart. Recursive reads and lifecycle
+replacement from a backend callback refuse. Output is copied only after success.
+
 `services::StartGameRules(backend)` publishes the table. With no backend bound (default
 production config) `read` returns `SCO_UNAVAILABLE`; the capability stays OFF. A host
 binds a backend only after grounding the layout on its exact build (rule 8 evidence:
