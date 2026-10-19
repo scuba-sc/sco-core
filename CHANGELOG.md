@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- `game.actor_stats` 1.1 appends read-only named IDs for the complete 29-stat
+  survival/body-part vocabulary. Existing table layout and IDs stay fixed;
+  stat-write 1.0 retains its original nine-stat allowlist. Raw units and injury
+  tier semantics are not inferred; no gameplay verification claim.
+
 - Add `game.inventory.contents` 1.0: copied bounded stored-item quantities and
   optional volume, host-owned read backend, C/C++ ABI fixtures and consumer wrapper.
   Separate from equipped item ports; production capability OFF, no native adapter

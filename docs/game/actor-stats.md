@@ -1,6 +1,6 @@
 # game.actor_stats: an actor's status stats
 
-`sc_actor_stats.h` · service `game.actor_stats` · version 1.0 · game thread only ·
+`sc_actor_stats.h` · service `game.actor_stats` · version 1.1 · game thread only ·
 capability `game.actor_stats.read`.
 
 Star Citizen tracks an actor's survival state as a set of numbered stats: hunger, thirst,
@@ -28,6 +28,15 @@ streamed in. `stat` is an `sc_actor_stat`:
 | `SC_ACTOR_STAT_OXYGEN` | GasSaturationO2 |
 | `SC_ACTOR_STAT_BODY_RADIATION` | BodyRadiation |
 | `SC_ACTOR_STAT_SUIT_RADIATION` | SuitRadiation |
+
+Version 1.1 appends public IDs 10..29 for BloodDrugLevel, OverdoseLevel, Pressure,
+DownedDamage, HealthPool, six Health-part values (head/torso/left-right arms/legs),
+six Wear-part values, GasSaturationCO2, GasSaturationCO and Hygiene. Existing IDs
+1..9 and the 16-byte service table are unchanged. Query minor 1.1 before using
+new IDs. The game name-switch guard validates all 29 names on each build.
+These are raw stat floats, not injury-tier masks or normalized medical severity.
+Units/thresholds remain unverified. Stat-write 1.0 still accepts only IDs 1..9;
+adding read vocabulary does not authorize more writes.
 
 Values are the game's own floats, in the game's own units. **Nothing here has been run in
 game**, so units, range and direction are not documented yet: for example, whether hunger

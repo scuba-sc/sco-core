@@ -14,6 +14,7 @@
     "note": "The project's copyright notices say 'the sco-core contributors' (as sc_ipc.h does). The maintainer, scubamount, is the only contributor so far; the commit identities 'yerts' and 'scubamount' are both the maintainer."
   },
   "entries": [
+    {"path":"tests/test_actor_condition_map.cpp","origin":"project-authored","license":"GPL-3.0-only","copyright":"2026 the sco-core contributors","status":"needs-review","note":"Synthetic public stat/name index uniqueness and retained 1.0 write-allowlist fixture. No game bytes."},
     {"path":"sdk/examples/container_reader/**","origin":"project-authored","license":"GPL-3.0-only","copyright":"2026 the sco-core contributors","status":"needs-review","note":"Public-header-only copied-container consumer example; synthetic fixture IDs only."},
     {"path":"include/sc_container_contents.h","origin":"project-authored","license":"GPL-3.0-only","copyright":"2026 the sco-core contributors","status":"needs-review","note":"Independent copied-item ABI; no game addresses, synthetic evidence only."},
     {"path":"include/scosdk/game/container_contents.hpp","origin":"project-authored","license":"GPL-3.0-only","copyright":"2026 the sco-core contributors","status":"needs-review","note":"Independent typed consumer wrapper; synthetic evidence only."},
