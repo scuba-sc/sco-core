@@ -2,6 +2,9 @@
 #include "entity_lookup.h"
 #include <algorithm>
 #include <cstring>
+#include <unordered_set>
+#include <string_view>
+#include <new>
 namespace sco::game::services {
 namespace {
 bool Text(const char* text) {
@@ -23,35 +26,39 @@ sco_result EntityLookup::Admission() const {
     if (busy_) return SCO_FAILED;
     return stopped_ ? SCO_UNAVAILABLE : SCO_OK;
 }
-sco_result EntityLookup::Snapshot(sc_entity_class_page& page) {
+sco_result EntityLookup::Snapshot(EntityClassSnapshot& page) try {
     if (!backend_.classes) return SCO_UNAVAILABLE;
-    page.size=sizeof(page); page.count=SC_ENTITIES_MAX_CLASSES;
     const auto r=backend_.classes(backend_.ctx,&page);
     if (stopped_) return SCO_UNAVAILABLE;
     if (r!=SCO_OK) return r;
-    if (page.size!=sizeof(page) || page._pad || !page.epoch || page.more ||
-        page.count>SC_ENTITIES_MAX_CLASSES) return SCO_FAILED;
-    for(uint32_t i=0;i<page.count;++i) {
+    if (!page.epoch || page.records.size()>UINT32_MAX) return SCO_FAILED;
+    std::unordered_set<uint64_t> ids;
+    std::unordered_set<std::string_view> names;
+    for(size_t i=0;i<page.records.size();++i) {
         const auto& c=page.records[i];
         if(c.size!=sizeof(c)||c._pad||c.epoch!=page.epoch||!c.class_id||!Text(c.name)) return SCO_FAILED;
-        for(uint32_t j=0;j<i;++j) if(page.records[j].class_id==c.class_id ||
-            std::strcmp(page.records[j].name,c.name)==0) return SCO_FAILED;
+        if(!ids.insert(c.class_id).second || !names.insert(c.name).second) return SCO_FAILED;
     }
-    std::sort(page.records,page.records+page.count,[](const auto& a,const auto& b){return a.class_id<b.class_id;});
+    std::sort(page.records.begin(),page.records.end(),[](const auto& a,const auto& b){return a.class_id<b.class_id;});
     return SCO_OK;
+} catch (const std::bad_alloc&) {
+    return SCO_TOO_MANY;
+} catch (...) {
+    return SCO_FAILED;
 }
 sco_result EntityLookup::Classes(uint64_t epoch,uint32_t offset,sc_entity_class_page* out) {
     if(!out||out->size<sizeof(*out)) return SCO_BAD_ARG;
     const auto cap=out->count; Clear(out);
     auto r=Admission(); if(r!=SCO_OK)return r;
     if(cap>SC_ENTITIES_MAX_CLASSES)return SCO_BAD_ARG;
-    Busy hold(busy_); sc_entity_class_page page{};
+    Busy hold(busy_); EntityClassSnapshot page;
     r=Snapshot(page); if(r!=SCO_OK)return r;
     if(epoch&&epoch!=page.epoch)return SCO_NOT_FOUND;
-    if(offset>page.count)return SCO_BAD_ARG;
-    out->epoch=page.epoch; out->count=std::min(cap,page.count-offset);
-    out->more=page.count-offset-out->count;
-    std::memcpy(out->records,page.records+offset,out->count*sizeof(page.records[0]));
+    const auto count=static_cast<uint32_t>(page.records.size());
+    if(offset>count)return SCO_BAD_ARG;
+    out->epoch=page.epoch; out->count=std::min(cap,count-offset);
+    out->more=count-offset-out->count;
+    if(out->count)std::memcpy(out->records,page.records.data()+offset,out->count*sizeof(page.records[0]));
     return SCO_OK;
 }
 sco_result EntityLookup::Class(const char* name,sc_entity_class_record* out) {
@@ -59,9 +66,9 @@ sco_result EntityLookup::Class(const char* name,sc_entity_class_record* out) {
     auto r=Admission(); if(r!=SCO_OK)return r;
     if(!Text(name))return SCO_BAD_ARG;
     char copy[96]{}; std::memcpy(copy,name,std::strlen(name));
-    Busy hold(busy_); sc_entity_class_page page{};
+    Busy hold(busy_); EntityClassSnapshot page;
     r=Snapshot(page); if(r!=SCO_OK)return r;
-    for(uint32_t i=0;i<page.count;++i) if(std::strcmp(copy,page.records[i].name)==0) {
+    for(size_t i=0;i<page.records.size();++i) if(std::strcmp(copy,page.records[i].name)==0) {
         const auto size=out->size; *out=page.records[i]; out->size=size; return SCO_OK;
     }
     return SCO_NOT_FOUND;

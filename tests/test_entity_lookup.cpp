@@ -4,6 +4,7 @@
 #include <cstring>
 #include <scosdk/game/entities.hpp>
 #include <memory>
+#include <stdexcept>
 using namespace sco::game::services;
 namespace {
 int passed=0,failed=0,mode=0; bool thread=true;
@@ -16,13 +17,23 @@ sco_result NameTable(const char* n,uint64_t* out){return current->Name(n,out);}
 sco_result ComponentTable(uint64_t id,uint32_t k,sc_entity_component_record* out){return current->Component(id,k,out);}
 #define CHECK(x) do{if(x)++passed;else{++failed;std::printf("FAIL %d: %s\n",__LINE__,#x);}}while(0)
 bool OnThread(){return thread;}
-sco_result Classes(void*,sc_entity_class_page* p){
-    p->epoch=7;p->count=2;
+sco_result Classes(void*,EntityClassSnapshot* p){
+    p->epoch=7;p->records.resize(2);
     for(unsigned i=0;i<2;++i){auto& r=p->records[i];r.size=sizeof(r);r.epoch=7;r.class_id=2-i;std::strcpy(r.name,i?"Alpha":"Beta");}
     if(mode==1)p->records[1].class_id=2;
     if(mode==2)p->records[1].epoch=8;
-    if(mode==3)p->more=1;
+    if(mode==3)p->epoch=0;
     if(mode==5)current->Stop();
+    return SCO_OK;
+}
+sco_result ManyClasses(void*,EntityClassSnapshot* p){
+    if(mode==9)throw std::bad_alloc{};
+    if(mode==10)throw std::runtime_error("provider failure");
+    p->epoch=17;p->records.resize(130);
+    for(unsigned i=0;i<130;++i){auto& r=p->records[i];r.size=sizeof(r);r.epoch=17;r.class_id=130-i;std::snprintf(r.name,sizeof(r.name),"Class%03u",130-i);}
+    if(mode==6)p->records[129].class_id=p->records[0].class_id;
+    if(mode==7)std::strcpy(p->records[129].name,p->records[0].name);
+    if(mode==8)p->records[129].epoch=18;
     return SCO_OK;
 }
 sco_result Name(void*,const char* name,uint64_t* id){
@@ -79,5 +90,21 @@ int main(){
     }
     mode=5;page.count=64;
     CHECK(fresh.Classes(0,0,&page)==SCO_UNAVAILABLE&&page.count==0&&page.epoch==0);
+    mode=0;EntityLookup many({nullptr,OnThread,ManyClasses,Name,Component});
+    page.count=64;CHECK(many.Classes(0,0,&page)==SCO_OK&&page.count==64&&page.more==66&&page.records[0].class_id==1);
+    page.count=64;CHECK(many.Classes(17,64,&page)==SCO_OK&&page.count==64&&page.more==2&&page.records[0].class_id==65);
+    page.count=64;CHECK(many.Classes(17,128,&page)==SCO_OK&&page.count==2&&page.more==0&&page.records[1].class_id==130);
+    record.size=sizeof(record);CHECK(many.Class("Class130",&record)==SCO_OK&&record.class_id==130);
+    page.count=64;CHECK(many.Classes(18,0,&page)==SCO_NOT_FOUND&&page.count==0&&page.epoch==0);
+    page.count=64;CHECK(many.Classes(17,130,&page)==SCO_OK&&page.count==0&&page.more==0);
+    page.count=64;CHECK(many.Classes(17,131,&page)==SCO_BAD_ARG&&page.count==0);
+    for(mode=6;mode<=8;++mode){page.count=64;CHECK(many.Classes(0,0,&page)==SCO_FAILED&&page.count==0&&page.epoch==0);}
+    mode=9;page.count=64;
+    CHECK(many.Classes(0,0,&page)==SCO_TOO_MANY&&page.count==0&&page.epoch==0);
+    CHECK(many.Class("Class130",&record)==SCO_TOO_MANY&&record.class_id==0);
+    mode=10;page.count=64;
+    CHECK(many.Classes(0,0,&page)==SCO_FAILED&&page.count==0&&page.epoch==0);
+    mode=0;page.count=64;
+    CHECK(many.Classes(0,0,&page)==SCO_OK&&page.count==64);
     std::printf("entity lookup: %d passed, %d failed\n",passed,failed);return failed?1:0;
 }
