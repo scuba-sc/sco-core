@@ -26,6 +26,7 @@
 #include "gamerules.h"
 #include "quantum.h"
 #include "cvars.h"
+#include "cvars_engine.h"
 #include "offline_missions.h"
 #include "world.h"
 #include "events.h"
@@ -457,7 +458,8 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
-    r = StartCvars(); // default cvar port remains unavailable
+    r = ConfigureProductionCvars();
+    if(r==Result::Ok) r = StartCvars(); // native access requires explicit opt-in and resolved identities
     if (r != Result::Ok) {
         StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
         StopWorld(); StopVehicles(); StopActors(); StopSpawn();

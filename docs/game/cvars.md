@@ -60,15 +60,43 @@ remain unverified. Only engine callbacks are synthetic; the SDK host/loader are 
 Game-pack-only `src/game/services/cvars.h` defines a host-injected reviewed port.
 Callbacks get a bounded index, never arbitrary command text or engine pointers.
 Adapters must guard native faults, return `SCO_CRASHED`, and validate the actual
-engine type before copying a bool. Default production adapter is absent and
-`game.cvars.read` is OFF; signature matches alone never activate it. Capabilities
-are published only after successful service registration.
+engine type before copying a bool. The Windows reference-integer adapter is
+default OFF. `SCO_CVARS_NATIVE=1` requests the read-only adapter, requiring the
+console, lookup, reference-integer vtable and method identities to resolve.
+Every read re-queries the exact allowlisted name, validates its receiver/type and
+method identities, checks fresh host admission, and copies only canonical 0/1.
+Receiver drift is refused; native exceptions latch restart-required. Capabilities
+are published only after successful service registration. Signature resolution
+and this opt-in do not establish in-game acceptance.
 
-Product `src/cvars.cpp` uses float virtual GetCVarNow/SetCVarNow calls. Their ABI
-and actual engine types are NOT VERIFIED. A future guarded game-pack adapter must
-verify each name/type, calling convention and lookup/get/set contract. If a
-verified float bridge is necessary, accept only exact finite 0.0/1.0; do not
-normalize arbitrary nonzero values. No guessed vtable calls were ported.
+Production native writes remain unavailable, including when an environment
+variable requests them. Address/vtable/name equality does not rule out native
+object destruction and same-address reuse across setter callbacks or a retained
+lease. The adapter's setter and restore mechanics are exercised with synthetic
+objects; no native lifetime pin or generation contract is claimed. Do not enable
+the production write port until object and backing-storage lifetime are grounded.
+
+For host teardown, ordinary fresh admission closes before unload. A separate
+game-thread-only CVar cleanup scope is established only after a fresh positive
+inspection. The optional native restore callback rechecks the full actual
+offline admission predicate before access, immediately before mutation, and after
+setter callbacks; ordinary plugin reads/writes cannot use this scope. Genuine
+admission loss refuses restoration and retains the lease with restart-required.
+The cleanup callback verifies readback itself before the provider clears a lease.
+Legacy injected ports without it retain the ordinary write/readback restore path.
+
+The Windows native-boundary fixtures cover callback-time admission/console/method
+changes, rejected active/faulted reconfiguration, receiver drift and retained
+leases. The host-stop fixture runs actual host/app Stop with the production spawn
+cleanup dispatcher and synthetic engine objects. It verifies restoration while
+offline evidence remains valid, no write after real admission loss, and refusal
+of ordinary service calls and worker-thread cleanup during teardown. These tests
+are not native-object lifetime or game evidence.
+
+The legacy product's float GetCVarNow/SetCVarNow calls are not the new adapter's
+ABI. The new route uses independently checked reference-integer methods and
+rejects arbitrary nonzero values rather than normalizing them. Native setters
+preserve engine callbacks; direct backing-storage writes are not a substitute.
 
 No arbitrary console execution, networking/anti-cheat cvars, quantum keeper
 values, optional bridge values, game extracts or `USER.cfg` writes are included.

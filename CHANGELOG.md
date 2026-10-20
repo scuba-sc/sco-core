@@ -4,6 +4,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- Added a default-OFF Windows native reference-integer CVar read adapter for the
+  four existing names, with current-build method identity checks, fresh admission
+  and fault containment. Native production writes remain unavailable pending
+  object/backing lifetime evidence. Host cleanup has separate freshly checked
+  CVar restoration admission; real host-stop fixtures use synthetic objects.
+  No public ABI change and not run in game.
+
 - Expanded optional game-pack contracts: `game.audio` 1.0 provides owner-bound
   trigger/playback tokens and unload cleanup; `game.entities` 1.2 appends copied
   class registry/name/typed-component presence; `game.world.control` 1.1 appends

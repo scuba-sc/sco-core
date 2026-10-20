@@ -377,7 +377,9 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/entity_lookup.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
-                                       src/game/services/loadout.cpp src/game/services/loadout_engine.cpp src/game/services/cvars.cpp src/game/services/build.cpp src/game/services/input.cpp
+                                       src/game/services/loadout.cpp src/game/services/loadout_engine.cpp src/game/services/cvars.cpp
+                                       src/game/services/cvars_engine.cpp src/game/services/cvars_production.cpp
+                                       src/game/services/build.cpp src/game/services/input.cpp
                                        src/game/services/hangar.cpp src/game/services/hangar_engine.cpp
                                        src/game/services/reputation.cpp src/game/services/reputation_engine.cpp
                                        src/game/services/asop_service.cpp src/game/services/asop_engine.cpp
@@ -1423,6 +1425,25 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_surfaces COMMAND test_surfaces)
 
   if(SCO_GAME_SC)
+    if(WIN32)
+      add_executable(test_cvars_engine tests/test_cvars_engine.cpp src/game/services/cvars_engine.cpp src/game/services/cvars.cpp)
+      target_link_libraries(test_cvars_engine PRIVATE sco_host)
+      sco_project_target(test_cvars_engine)
+      add_test(NAME cvars_engine COMMAND test_cvars_engine)
+      add_test(NAME cvars_engine_fault COMMAND test_cvars_engine fault)
+      add_test(NAME cvars_engine_replace COMMAND test_cvars_engine replace)
+      add_test(NAME cvars_engine_mismatch COMMAND test_cvars_engine mismatch)
+      add_test(NAME cvars_engine_callback_admission COMMAND test_cvars_engine callback-admission)
+      add_test(NAME cvars_engine_callback_method COMMAND test_cvars_engine callback-method)
+      add_test(NAME cvars_engine_callback_console COMMAND test_cvars_engine callback-console)
+      add_test(NAME cvars_engine_lease_replace COMMAND test_cvars_engine lease-replace)
+      add_test(NAME cvars_engine_lease_admission COMMAND test_cvars_engine lease-admission)
+      add_executable(test_cvars_host_stop tests/test_cvars_host_stop.cpp)
+      target_link_libraries(test_cvars_host_stop PRIVATE sco_game_host)
+      sco_project_target(test_cvars_host_stop)
+      add_test(NAME cvars_host_stop COMMAND test_cvars_host_stop)
+      add_test(NAME cvars_host_stop_loss COMMAND test_cvars_host_stop loss)
+    endif()
     add_executable(test_cvars tests/test_cvars.cpp src/game/services/cvars.cpp)
     target_link_libraries(test_cvars PRIVATE sco_host sco_plugins)
     add_library(cvars_probe MODULE tests/fixtures/cvars_probe.c)

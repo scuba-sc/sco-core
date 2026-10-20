@@ -317,7 +317,7 @@ static void TestWorldRows() {
     CHECK(sco::game::RegisterGameSignatures());
     size_t n = 0;
     const sco::game::world::Capability* caps = sco::game::world::Capabilities(n);
-    CHECK(caps && n == 10);
+    CHECK(caps && n == 11);
     for (size_t c = 0; c < n; ++c)
         for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
     size_t rows = 0;
@@ -329,7 +329,7 @@ static void TestWorldRows() {
         ++rows;
         CHECK(WorldRow(id));
     }
-    CHECK(rows == 36);
+    CHECK(rows == 42);
 }
 
 static void TestMiningRows() {

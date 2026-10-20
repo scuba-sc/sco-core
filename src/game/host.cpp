@@ -168,8 +168,13 @@ Result Stop() {
     if (p == Phase::Stopping) return Result::Ok;
     if (p != Phase::Running) return Result::Unavailable;
     if (sco::detail::InCallout()) return Result::Unavailable;
+    const bool cleanupAdmitted = FreshAdmissionAllowed();
     detail::SetFreshAdmissionEnabled(false); // retained workers must pass through before teardown
     phase = Phase::Stopping;
+    struct CvarCleanupScope {
+        explicit CvarCleanupScope(bool admitted) { detail::SetCvarCleanupEnabled(admitted); }
+        ~CvarCleanupScope() { detail::SetCvarCleanupEnabled(false); }
+    } cleanup(cleanupAdmitted);
     // Stop transport/producer access first, but keep DataCore tables available for unload.
     if (pakOwned) { pak::Disable(); pakOwned = false; }
     { std::lock_guard<std::mutex> hold(dataMutex); dataInputs.reset(); dataMounts.reset(); }

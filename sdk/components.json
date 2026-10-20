@@ -635,6 +635,56 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-cvars_engine.h",
+      "source": "src/game/services/cvars_engine.h",
+      "destination": "src/game/services/cvars_engine.h",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-cvars_engine.cpp",
+      "source": "src/game/services/cvars_engine.cpp",
+      "destination": "src/game/services/cvars_engine.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-cvars_production.cpp",
+      "source": "src/game/services/cvars_production.cpp",
+      "destination": "src/game/services/cvars_production.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_cvars_engine.cpp",
+      "source": "tests/test_cvars_engine.cpp",
+      "destination": "tests/test_cvars_engine.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_cvars_host_stop.cpp",
+      "source": "tests/test_cvars_host_stop.cpp",
+      "destination": "tests/test_cvars_host_stop.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-src-game-services-loadout.cpp",
       "source": "src/game/services/loadout.cpp",
       "destination": "src/game/services/loadout.cpp",

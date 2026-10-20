@@ -121,6 +121,7 @@ verification limits. In short:
 
 | Change | Where | Profiles (as packaged today) |
 |---|---|---|
+| `game.cvars` native reference-integer read adapter, default OFF; native writes held for object/backing lifetime evidence; separate fresh host-stop cleanup admission | `src/game/services/cvars_engine.*`, `cvars_production.cpp`, [docs](../game/cvars.md) | implementation and synthetic Windows host-stop fixtures in host-source-sc |
 | `game.actor_stats` 1.1: read 29 raw named stats by actor; no injury-tier or normalized-unit claim | `include/sc_actor_stats.h`, [docs](../game/actor-stats.md) | header in game-sc and host-source-sc |
 | `game.inventory.contents` 1.0: bounded copied stored-item snapshots, generation and optional volume; unavailable without a grounded host provider | `include/sc_container_contents.h`, [docs](../game/container-contents.md) | public contract/example in game-sc; provider in host-source-sc |
 | `game.datacore_live` 1.0: host-backed pool access, fresh offline admission and separate write opt-in; no native pool adapter supplied | `include/sc_datacore_live.h`, [docs](../game/datacore-live.md) | public contract in game-sc; provider in host-source-sc |
@@ -149,6 +150,8 @@ evidence. Every row is "not run in game".
 
 | Capability | Default | Evidence level | What is true |
 |---|---|---|---|
+| `game.cvars.read` | OFF; explicit native read opt-in | `synthetic_only` | Current-build integer method identities and actual Windows adapter tested on synthetic objects; not run in game |
+| `game.cvars.write` | OFF; production native port refuses writes | `synthetic_only` | Setter/restore mechanics and actual host-stop cleanup tested; native lifetime across callbacks and leases remains ungrounded |
 | `game.actor_stats.read` | ON when its rows resolve | `sigcheck_resolved` | Real reads; rows resolve on 4.10.197.2878; units and ranges of each stat unconfirmed |
 | `game.actor_stats.write` | OFF; product switch plus fresh offline admission | `off_pending_probe` | Real adjust through the game's own function; whether local-only writes persist is unknown; nothing is restored on unload |
 | `game.gamerules.read` | OFF | `synthetic_only` | Contract and wrappers; no backend bound, so calls answer unavailable; `list_params` serves static definitions |

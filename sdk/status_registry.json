@@ -274,7 +274,7 @@
       "header": "include/sc_cvars.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.cvars.read", "methods": ["get_bool"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter absent; synthetic engine callbacks only; engine types NOT VERIFIED", "evidence_source": "docs/game/cvars.md"}
+        {"name": "game.cvars.read", "methods": ["get_bool"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Opt-in Windows reference-integer native read adapter with exact receiver/method checks, fresh admission and synthetic native-object fixtures; not run in game", "evidence_source": "docs/game/cvars.md"}
       ]
     },
     {
@@ -284,7 +284,7 @@
       "header": "include/sc_cvars_write.h",
       "version": "1.0",
       "capabilities": [
-        {"name": "game.cvars.write", "methods": ["set_bool"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter absent; synthetic write fixtures only; engine types NOT VERIFIED", "evidence_source": "docs/game/cvars.md"}
+        {"name": "game.cvars.write", "methods": ["set_bool"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Production native writes refused pending object and backing lifetime across callbacks/leases; setter and cleanup admission tested with synthetic native objects and actual host Stop; not run in game", "evidence_source": "docs/game/cvars.md"}
       ]
     },
     {

@@ -12,6 +12,7 @@ The rows in [`src/game/world_sigs.cpp`](../../src/game/world_sigs.cpp) are the s
 | `missions.load_all` | `missions.load_all` |
 | `missions.scripts` | `missions.load_all`, `missions.subsumption`, `missions.file_change`, `missions.xml_system` |
 | `cvars.console` | `cvars.console` |
+| `cvars.reference_int` | `cvars.console`, `cvars.lookup`, `cvars.reference_int_vtable`, `cvars.reference_int_get`, `cvars.reference_int_set`, `cvars.reference_int_flags`, `cvars.reference_int_name` |
 | `cvars.qdrive_kept_on` | `cvars.quantum_travel_allowed`, `cvars.quantum_boost_allowed`, `cvars.ignore_blocked_boost`, `cvars.ignore_blocked_travel`, `cvars.qdrive_logging`, `cvars.target_lock_angular`, `cvars.target_lock_linear` |
 | `quantum.boost` | `quantum.on_action`, `quantum.start_use`, `quantum.drive_input`, `quantum.effect_update`, `quantum.charge`, `quantum.spline_get_y`, `quantum.audio_system`, `quantum.handle_valid` |
 
@@ -33,6 +34,7 @@ The rows in [`src/game/world_sigs.cpp`](../../src/game/world_sigs.cpp) are the s
 | `missions.file_change` | the prologue within 0x400 bytes before the OnFileChange label | `+0x203` loads the system global |
 | `missions.create` | the one `dgs.subsumption.mission.create` registration with `48 8B 59 18` / `48 8D 05` before it | prologue |
 | `cvars.console` | `mov rcx, [console]` before each "debugGUI_enable 1" call | all `kConsoleSites` (7) sites, same global |
+| `cvars.lookup`, `cvars.reference_int_*` | unique lookup/get/set patterns and reference-integer vtable with matching methods | checks integer getter/setter, name and flags accessors; locator readiness does not establish object lifetime or authorize writes |
 | `cvars.*` (seven) | the one registration of each name (`call [rax+0x40]`, floats `0x48`) | storage `lea r8` within 0x20 bytes before |
 | `quantum.*` | one unique pattern each; `quantum.audio_system` is the global the match reads at `+0x2F` | |
 
