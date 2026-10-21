@@ -17,6 +17,8 @@ For the project overview, start with the [root README](../README.md).
 
 1. [Plugin API v1](api-v1.md): exports/root table, ABI compatibility, whole-member
    and non-null checks, capabilities, commands, events, raw handlers and threads.
+   [Stability](stability.md) says which service tables are Stable or Experimental
+   across SDK 2.x, separately from availability and evidence.
 2. [Public contract catalogue and reading rules](contracts.md), backed by
    [machine-readable records](../sdk/contracts): per-method semantics, buffers,
    failures, ownership, callback/service lifetime and unspecified guarantees.

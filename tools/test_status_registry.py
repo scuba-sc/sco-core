@@ -77,6 +77,55 @@ class StatusRegistryTest(unittest.TestCase):
         self.assertRefused(claim_sigcheck, "sigcheck_resolved")
         self.assertRefused(lambda r: self.entry(r, "game.actors")["capabilities"][4].update(default="ON"), "off_pending_probe")
 
+    def test_stability_labels_follow_the_owner_rule(self):
+        labels = {e["id"]: e["stability"] for e in self.registry["services"]}
+        self.assertEqual(sorted(set(labels.values())), ["experimental", "stable"])
+        for entry in self.registry["services"]:
+            with self.subTest(entry=entry["id"]):
+                qualifying = any(cap["evidence_level"] in sr.STABLE_LEVELS for cap in entry["capabilities"])
+                self.assertEqual(entry["stability"], "stable" if qualifying else "experimental")
+                self.assertEqual(sr.rule_stability(entry["capabilities"]), entry["stability"])
+        self.assertEqual(sr.STABLE_LEVELS, {"sigcheck_resolved", "off_pending_probe", "in_game_verified"})
+        self.assertEqual((labels["game.creative"], labels["game.hangar"], labels["game.loadout"]),
+                         ("stable", "stable", "experimental"))
+
+    def test_bad_or_missing_stability_is_refused(self):
+        self.assertRefused(lambda r: self.entry(r, "game.creative").update(stability="beta"), "stability 'beta' not in")
+        self.assertRefused(lambda r: self.entry(r, "game.creative").update(stability="Stable"), "stability 'Stable' not in")
+        self.assertRefused(lambda r: self.entry(r, "game.creative").update(stability=["stable"]), "stability ['stable'] not in")
+        self.assertRefused(lambda r: self.entry(r, "game.creative").pop("stability"), "game.creative: stability missing")
+        self.assertRefused(lambda r: self.entry(r, "game.mining.rows").pop("stability"), "game.mining.rows: stability missing")
+
+    def test_stable_without_qualifying_evidence_is_refused(self):
+        self.assertRefused(lambda r: self.entry(r, "game.loadout").update(stability="stable"),
+                           "game.loadout: stability \"stable\" needs a capability with evidence_level")
+
+        def demote_evidence(r):
+            entry = self.entry(r, "game.actor_stats_write")
+            entry["capabilities"][0].update(evidence_level="synthetic_only", default="OFF",
+                                            evidence="Synthetic fixtures only; not run in game.")
+        self.assertRefused(demote_evidence, "game.actor_stats_write: stability \"stable\" needs")
+        self.assertRefused(lambda r: self.entry(r, "game.creative").update(stability="experimental"), "the rule says stable")
+
+        def promote(r):
+            entry = self.entry(r, "game.loadout")
+            entry["stability"] = "stable"
+            entry["capabilities"][0].update(evidence_level="off_pending_probe", default="OFF",
+                                            evidence=sr.OFF_PENDING)
+        self.assertNotIn("game.loadout", " ".join(e for e in self.errors_after(promote) if "stability" in e))
+
+    def test_rendered_table_has_a_stability_column(self):
+        table = sr.render(self.registry).splitlines()
+        self.assertEqual(table[:2], ["| Table | Version | Stability | Capability | Default | Evidence |",
+                                     "|---|---|---|---|---|---|"])
+        self.assertTrue(all(len(line.split("|")) == 8 for line in table))
+        first = {line.split("|")[1].strip(): line.split("|")[3].strip() for line in table[2:] if line.split("|")[1].strip()}
+        self.assertEqual(first["`game.creative` ([`sc_creative.h`](../../include/sc_creative.h))"], "Stable")
+        self.assertEqual(first["`game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h))"], "Experimental")
+        self.assertEqual(sorted(set(first.values())), ["Experimental", "Stable"])
+        self.assertEqual(len(first), len(self.registry["services"]))
+        self.assertTrue(all(line.split("|")[3].strip() == "" for line in table[2:] if not line.split("|")[1].strip()))
+
     def test_drift_between_registry_and_markdown_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -116,6 +165,7 @@ class StatusRegistryTest(unittest.TestCase):
                 continue
             group = groups[entry["id"]]
             self.assertTrue(group["version_matches_catalogue"], entry["id"])
+            self.assertEqual(group["stability"], entry["stability"], entry["id"])
             self.assertEqual(len(group["rows"]), len(entry["capabilities"]), entry["id"])
         creative = groups["game.creative"]["rows"]
         self.assertEqual([row["evidence_level"] for row in creative], ["row_resolved_sigcheck"] * 4)

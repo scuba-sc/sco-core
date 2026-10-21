@@ -46,7 +46,8 @@ distribution; each selected file still needs applicable provenance review.
 | DataCore packs | Atomic remains default; BestEffort receipts and `clone = { record = "...", mode = "deep" }`. Use `sco-dcb lint <pack>...` for syntax and `sco-dcb check <file.dcb> <pack>...` for database-backed validation. |
 
 See [contracts](contracts.md), [game capability status](game/status.md) and
-[candidate notes](releases/sdk-v2.4.0.md) for authoritative per-operation limits.
+[candidate notes](releases/sdk-v2.4.0.md) for authoritative per-operation limits, and
+[stability](stability.md) for which tables are Stable or Experimental across SDK 2.x.
 
 ## MCP developer workflow
 

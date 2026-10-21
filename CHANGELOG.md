@@ -4,6 +4,21 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- Added the [stability promise](docs/stability.md). Plugin ABI 1.x only grows,
+  and every `sco.*` host service table is Stable: never removed or changed
+  incompatibly within SDK 2.x, growing only at its tail behind a new minor
+  version macro. Each `game.*` registry entry now carries a required `stability`
+  label: Stable when at least one capability has evidence level
+  `sigcheck_resolved`, `off_pending_probe` or `in_game_verified`, otherwise
+  Experimental (16 Stable, 20 Experimental). An Experimental table may later be
+  replaced by a new major version; the old one then stays available, marked
+  deprecated, for at least one further SDK minor release.
+  `tools/status_registry.py` refuses a missing or wrong label and renders a
+  Stability column in `docs/game/status.md`; the MCP server's `list_services`
+  and `get_capability_status` return `stability` and still read the older
+  five-column status table. Stability is separate from availability and
+  evidence. No ABI or service table change; not run in game.
+
 - Added default-OFF native DataCore counted reads, raw GUID record lookup and
   serialized text-blob access with process-retained lifecycle exclusion. Native
   activation requires explicit shell-enforced pre-engine quiescence and resolved

@@ -8,8 +8,11 @@ The registry is the source of truth; the markdown table between
 Validation: schema and enums, every include/sc_*.h service has an entry whose
 version matches the header's highest version macro, every sig_rows id is defined in
 src/game/*_sigs.cpp, every evidence_source exists, and no entry claims in-game
-verification without the in_game_verified level. The rendered table keeps the exact
-five-column format tools/sco-core-mcp/server.py parses.
+verification without the in_game_verified level. Every entry carries a stability label
+(docs/stability.md): "stable" exactly when at least one of its capabilities has evidence
+level sigcheck_resolved, off_pending_probe or in_game_verified, otherwise
+"experimental". The rendered table keeps the exact six-column format
+tools/sco-core-mcp/server.py parses (which still reads the older five-column table).
 """
 import argparse
 import json
@@ -23,14 +26,17 @@ REGISTRY = PurePosixPath("sdk/status_registry.json")
 STATUS = PurePosixPath("docs/game/status.md")
 START = "<!-- status-registry:start -->"
 END = "<!-- status-registry:end -->"
-HEADER = "| Table | Version | Capability | Default | Evidence |"
-SEPARATOR = "|---|---|---|---|---|"
+HEADER = "| Table | Version | Stability | Capability | Default | Evidence |"
+SEPARATOR = "|---|---|---|---|---|---|"
 
 KINDS = {"service", "event_bus", "signature_rows"}
 DEFAULTS = {"ON", "OFF", "none"}
 LEVELS = {"sigcheck_resolved", "in_game_verified", "off_pending_probe",
           "synthetic_only", "blocked", "undocumented"}
-ENTRY_KEYS = {"id", "kind", "service", "header", "doc", "title", "version", "capabilities"}
+ENTRY_KEYS = {"id", "kind", "service", "header", "doc", "title", "version", "stability", "capabilities"}
+STABILITY = {"stable": "Stable", "experimental": "Experimental"}
+# The owner rule (docs/stability.md): a table is Stable when at least one capability has one of these levels.
+STABLE_LEVELS = {"sigcheck_resolved", "off_pending_probe", "in_game_verified"}
 CAP_KEYS = {"name", "display", "methods", "default", "evidence_level", "evidence", "game_build",
             "sig_rows", "spike_ref", "evidence_source"}
 OFF_PENDING = "OFF pending in-game confirmation"
@@ -132,10 +138,32 @@ def validate(registry, root):
             continue
         for cap in caps:
             errors.extend(validate_capability(cap, where, root, rows))
+        errors.extend(validate_stability(entry, caps, where))
     for service, (header, _) in sorted(headers.items()):
         if service not in seen_services:
             errors.append("no registry entry for service %s (%s)" % (service, header))
     return errors
+
+
+def rule_stability(caps):
+    """The label the owner rule gives a table: stable when any capability has a STABLE_LEVELS level."""
+    qualifying = any(isinstance(cap, dict) and cap.get("evidence_level") in STABLE_LEVELS for cap in caps)
+    return "stable" if qualifying else "experimental"
+
+
+def validate_stability(entry, caps, where):
+    if "stability" not in entry:
+        return [where + ": stability missing; set \"stable\" or \"experimental\" (docs/stability.md)"]
+    label = entry["stability"]
+    if not isinstance(label, str) or label not in STABILITY:
+        return ["%s: stability %r not in %s" % (where, label, sorted(STABILITY))]
+    expected = rule_stability(caps)
+    if label == "stable" and expected != "stable":
+        return [where + ": stability \"stable\" needs a capability with evidence_level in %s" % sorted(STABLE_LEVELS)]
+    if label == "experimental" and expected == "stable":
+        return [where + ": stability \"experimental\" but a capability has evidence_level in %s; the rule says stable"
+                % sorted(STABLE_LEVELS)]
+    return []
 
 
 def validate_capability(cap, where, root, rows):
@@ -228,7 +256,8 @@ def render(registry):
     lines = [HEADER, SEPARATOR]
     for entry in registry["services"]:
         for index, cap in enumerate(entry["capabilities"]):
-            lead = "| %s | %s |" % (table_cell(entry), entry["version"]) if index == 0 else "| | |"
+            lead = ("| %s | %s | %s |" % (table_cell(entry), entry["version"], STABILITY[entry["stability"]])
+                    if index == 0 else "| | | |")
             lines.append("%s %s | %s | %s |" % (lead, capability_cell(cap), cap["default"], cap["evidence"]))
     return "\n".join(lines) + "\n"
 

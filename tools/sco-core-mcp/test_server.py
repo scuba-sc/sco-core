@@ -48,15 +48,23 @@ SYNTHETIC_SHA = "a" * 40
 OTHER_SHA = "b" * 40
 GAME_STATUS = """# Synthetic status
 
+| Table | Version | Stability | Capability | Default | Evidence |
+|---|---|---|---|---|---|
+| `game.sample` ([`sc_sample.h`](../../include/sc_sample.h)) | 1.1 | Stable | `game.sample.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
+| | | | `game.sample.watch` | OFF | OFF pending in-game confirmation |
+| | | | sample field | none | BLOCKED |
+| | | | `game.sample.claim` | ON | verified in game (2099-01-01) |
+| `game.other` ([`sc_other.h`](../../include/sc_other.h)) | 1.0 | Experimental | `game.other.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
+
+Trailing prose.
+"""
+# The five-column table SDK 2.3.0 and earlier archives carry: still read, stability unknown.
+GAME_STATUS_V1 = """# Synthetic status
+
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
 | `game.sample` ([`sc_sample.h`](../../include/sc_sample.h)) | 1.1 | `game.sample.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
 | | | `game.sample.watch` | OFF | OFF pending in-game confirmation |
-| | | sample field | none | BLOCKED |
-| | | `game.sample.claim` | ON | verified in game (2099-01-01) |
-| `game.other` ([`sc_other.h`](../../include/sc_other.h)) | 1.0 | `game.other.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
-
-Trailing prose.
 """
 
 
@@ -482,9 +490,12 @@ class ToolTests(ServerCase):
     def test_list_services_summarizes_real_tables(self):
         data = self.result(self.start().call("list_services"))
         expected = [{"table": name, "service": table["service"], "version": table["version"],
-                     "size": table["size"], "member_count": len(table["members"])}
+                     "size": table["size"], "member_count": len(table["members"]), "stability": "stable"}
                     for name, table in sorted(fixture()["tables"].items())]
         self.assertEqual(data["services"], expected)
+        context = data["stability_context"]
+        self.assertEqual((context["document"], context["game_state"]), ("docs/stability.md", "unavailable"))
+        self.assertIn("--repo-root", context["reason"])
 
     def test_examples_without_root_are_paths_only(self):
         data = self.result(self.start().call("get_example", {"symbol_or_id": "sample-read"}))
@@ -956,13 +967,72 @@ class EvidenceStateTests(ServerCase):
     def test_malformed_status_table_refuses_all_rows(self):
         for status in [GAME_STATUS.replace("| sample field | none | BLOCKED |", "| sample field | BLOCKED |"),
                        GAME_STATUS.replace("| OFF | OFF pending", "| MAYBE | OFF pending"),
-                       GAME_STATUS.replace("|---|---|---|---|---|", ""),
-                       GAME_STATUS + "\n| Table | Version | Capability | Default | Evidence |\n"]:
+                       GAME_STATUS.replace("|---|---|---|---|---|---|", ""),
+                       GAME_STATUS + "\n| Table | Version | Capability | Default | Evidence |\n",
+                       GAME_STATUS.replace("| 1.1 | Stable |", "| 1.1 | |"),
+                       GAME_STATUS.replace("| 1.1 | Stable |", "| 1.1 | Beta |"),
+                       GAME_STATUS.replace("| | | | sample field |", "| | | Stable | sample field |"),
+                       GAME_STATUS.replace("| `game.sample.watch` |", "| | `game.sample.watch` |"),
+                       GAME_STATUS_V1.replace("| `game.sample.watch` |", "| Stable | `game.sample.watch` |")]:
             with self.subTest(status=status[-80:]):
                 data, root, catalogue = self.game_root(status)
                 state = self.evidence("game-sample-read", data, catalogue, root)
                 self.assertEqual((state["service_status"]["state"], state["service_status"]["rows"]), ("unavailable", []))
                 self.assertEqual(state["sigcheck_receipt"]["state"], "unknown")
+
+    def stability(self, data, catalogue, repo_root, symbol="game-sample-read"):
+        client = self.start(catalogue=catalogue, repo_root=repo_root)
+        services = self.result(client.call("list_services"), data=data)
+        capability = self.result(client.call("get_capability_status", {"symbol_or_id": symbol}), data=data)
+        return ({item["table"]: item["stability"] for item in services["services"]}, services["stability_context"],
+                capability)
+
+    def test_stability_labels_come_from_the_status_table(self):
+        data, root, catalogue = self.game_root()
+        labels, context, capability = self.stability(data, catalogue, root)
+        self.assertEqual(labels, {"sco_api": "stable", "sco_sample_v1": "stable", "sc_sample_v1": "stable"})
+        self.assertEqual((context["game_source"], context["game_state"]), ("docs/game/status.md", "read"))
+        self.assertEqual(capability["stability"], "stable")
+        self.assertEqual(capability["evidence_state"]["service_status"]["stability"], "stable")
+        self.assertEqual(capability["stability_context"], context)
+        data, root, catalogue = self.game_root(GAME_STATUS.replace("| 1.1 | Stable |", "| 1.1 | Experimental |"))
+        labels, _, capability = self.stability(data, catalogue, root)
+        self.assertEqual((labels["sc_sample_v1"], capability["stability"]), ("experimental", "experimental"))
+
+    def test_neutral_records_are_stable_and_unlabelled_game_tables_unknown(self):
+        data, _, catalogue = self.game_root()
+        labels, context, capability = self.stability(data, catalogue, None)
+        self.assertEqual(labels, {"sco_api": "stable", "sco_sample_v1": "stable", "sc_sample_v1": "unknown"})
+        self.assertEqual(context["game_state"], "unavailable")
+        self.assertEqual(capability["stability"], "unknown")
+        for symbol in ("sample-read", "plugin-load"):
+            with self.subTest(symbol=symbol):
+                self.assertEqual(self.stability(data, catalogue, None, symbol)[2]["stability"], "stable")
+        data, root, catalogue = self.game_root(GAME_STATUS.replace("| 1.1 | Stable |", "| 1.1 | Beta |"))
+        labels, context, capability = self.stability(data, catalogue, root)
+        self.assertEqual((labels["sc_sample_v1"], context["game_state"], capability["stability"]),
+                         ("unknown", "unavailable", "unknown"))
+        self.assertIn("refused", context["reason"])
+
+    def test_second_table_of_a_service_shares_its_label(self):
+        data = game_fixture()
+        data["tables"]["sc_sample_v1_2"] = dict(data["tables"]["sc_sample_v1"], context="Synthetic second table.")
+        root, catalogue = self.temporary_catalogue(data)
+        (root / "docs/game").mkdir(parents=True)
+        (root / "docs/game/status.md").write_text(GAME_STATUS, encoding="utf-8")
+        labels = self.stability(data, catalogue, root)[0]
+        self.assertEqual((labels["sc_sample_v1"], labels["sc_sample_v1_2"]), ("stable", "stable"))
+
+    def test_five_column_status_table_is_still_read_without_stability(self):
+        data, root, catalogue = self.game_root(GAME_STATUS_V1)
+        labels, context, capability = self.stability(data, catalogue, root)
+        status = capability["evidence_state"]["service_status"]
+        self.assertEqual((status["state"], status["documented_version"], len(status["rows"])), ("rows_found", "1.1", 2))
+        self.assertEqual([row["evidence_level"] for row in status["rows"]],
+                         ["row_resolved_sigcheck", "off_pending_in_game_confirmation"])
+        self.assertIsNone(status["stability"])
+        self.assertEqual((labels["sc_sample_v1"], context["game_state"], capability["stability"]),
+                         ("unknown", "read", "unknown"))
 
     def test_symlinked_status_document_is_refused(self):
         data, root, catalogue = self.game_root(write=False)
@@ -974,6 +1044,7 @@ class EvidenceStateTests(ServerCase):
 
 SYNTHETIC_REGISTRY = {"schema_version": 1, "about": "Synthetic registry.", "services": [
     {"id": "game.sample", "kind": "service", "service": "game.sample", "header": "include/sc_sample.h", "version": "1.1",
+     "stability": "stable",
      "capabilities": [
          {"name": "game.sample.read", "methods": ["read"], "default": "ON", "evidence_level": "sigcheck_resolved",
           "game_build": "1.2.3.4", "evidence": "row resolved on 1.2.3.4 (sigcheck)", "sig_rows": ["sample.row"],
@@ -986,6 +1057,7 @@ SYNTHETIC_REGISTRY = {"schema_version": 1, "about": "Synthetic registry.", "serv
          {"name": "game.sample.synthetic", "methods": [], "default": "OFF", "evidence_level": "synthetic_only",
           "evidence": "Synthetic fixtures only"}]},
     {"id": "game.events", "kind": "event_bus", "service": "game.*", "header": "include/sc_sample.h", "version": "bus",
+     "stability": "stable",
      "capabilities": [{"name": "game.events.sample", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved",
                        "evidence": "row resolved on 1.2.3.4 (sigcheck)"}]}]}
 
@@ -1025,6 +1097,25 @@ class RegistryEvidenceTests(ServerCase):
                          ("1.2.3.4", ["sample.row"], "B1"))
         self.assertEqual(state["gameplay_receipt"]["state"], "unknown")
         self.assertNotIn("in_game_verified", json.dumps(state))
+        self.assertEqual(status["stability"], "stable")
+
+    def test_registry_stability_reaches_both_tools(self):
+        for label, expected in (("stable", "stable"), ("experimental", "experimental"), (None, "unknown")):
+            with self.subTest(label=label):
+                registry = copy.deepcopy(SYNTHETIC_REGISTRY)
+                if label is None:
+                    registry["services"][0].pop("stability")
+                else:
+                    registry["services"][0]["stability"] = label
+                data, root, catalogue = self.registry_root(registry)
+                client = self.start(catalogue=catalogue, repo_root=root)
+                services = self.result(client.call("list_services"), data=data)
+                capability = self.result(client.call("get_capability_status", {"symbol_or_id": "game-sample-read"}), data=data)
+                listed = {item["table"]: item["stability"] for item in services["services"]}
+                self.assertEqual((listed["sc_sample_v1"], listed["sco_api"]), (expected, "stable"))
+                self.assertEqual(capability["stability"], expected)
+                self.assertEqual(capability["evidence_state"]["service_status"]["stability"], label)
+                self.assertEqual(services["stability_context"]["game_source"], "sdk/status_registry.json")
 
     def test_absent_registry_falls_back_to_status_document(self):
         status = self.state(*self.registry_root(registry=None))["service_status"]
@@ -1048,6 +1139,8 @@ class RegistryEvidenceTests(ServerCase):
                  mutate(lambda r: r["services"][0]["capabilities"][0].update(evidence_level="verified")),
                  mutate(lambda r: r["services"][0]["capabilities"][0].update(default=["ON"])),
                  mutate(lambda r: r["services"][0].pop("header")),
+                 mutate(lambda r: r["services"][0].update(stability="beta")),
+                 mutate(lambda r: r["services"][0].update(stability=["stable"])),
                  mutate(lambda r: r["services"].append(copy.deepcopy(r["services"][0])))]
         for registry in cases:
             with self.subTest(registry=str(registry)[:60]):
@@ -1637,11 +1730,21 @@ class BuildIntegrationTests(ServerCase):
             self.skipTest("No build catalogue; build one or set SCO_CORE_MCP_TEST_CATALOGUE")
         data = json.loads(path.read_text(encoding="utf-8"))
         client = self.start(catalogue=path, repo_root=ROOT)
+        registry = json.loads((ROOT / "sdk/status_registry.json").read_text(encoding="utf-8"))
+        labels = {e["service"]: e["stability"] for e in registry["services"] if e["kind"] == "service"}
+        services = self.result(client.call("list_services"), data=data)
+        for item in services["services"]:
+            with self.subTest(table=item["table"]):
+                game = data["tables"][item["table"]]["source_header"].startswith("include/sc_")
+                self.assertEqual(item["stability"], labels.get(item["service"], "unknown") if game else "stable")
         # One record per service keeps the session under the 120-call rate limit.
         for record in {r["service"]: r for r in data["records"]}.values():
-            state = self.result(client.call("get_capability_status", {"symbol_or_id": record["id"]}), data=data)["evidence_state"]
+            capability = self.result(client.call("get_capability_status", {"symbol_or_id": record["id"]}), data=data)
+            state = capability["evidence_state"]
             with self.subTest(symbol=record["symbol"]):
                 game = record["source_header"].startswith("include/sc_")
+                self.assertIn(capability["stability"], {"stable", "experimental"} if not game or record["service"] in labels
+                              else {"unknown"})
                 self.assertEqual(state["scope"], "game-pack" if game else "neutral")
                 self.assertNotEqual(state["gameplay_receipt"]["state"], "verified")
                 if game:

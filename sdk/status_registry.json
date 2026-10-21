@@ -1,17 +1,18 @@
 {
   "schema_version": 1,
-  "about": "Source of truth for the status of every game service table, capability and its evidence. tools/status_registry.py validates this file and renders the service table of docs/game/status.md from it (between the status-registry markers); edit this file, never the rendered table. Every value restates what the repository already documents (evidence_source names where); nothing here has been run in game. evidence_level: sigcheck_resolved = every row the capability reads is OK in a sco-sigcheck report of game_build, nothing executed; in_game_verified = run in a game session on a recorded date (no entry has it); off_pending_probe = rows resolve, an in-game probe must settle an open question first; synthetic_only = synthetic/native-boundary tests only; blocked = no trustworthy locator, nothing published; undocumented = the repository records no evidence.",
+  "about": "Source of truth for the status of every game service table, capability and its evidence. tools/status_registry.py validates this file and renders the service table of docs/game/status.md from it (between the status-registry markers); edit this file, never the rendered table. Every value restates what the repository already documents (evidence_source names where); nothing here has been run in game. evidence_level: sigcheck_resolved = every row the capability reads is OK in a sco-sigcheck report of game_build, nothing executed; in_game_verified = run in a game session on a recorded date (no entry has it); off_pending_probe = rows resolve, an in-game probe must settle an open question first; synthetic_only = synthetic/native-boundary tests only; blocked = no trustworthy locator, nothing published; undocumented = the repository records no evidence. stability (required, docs/stability.md): stable when at least one capability has evidence_level sigcheck_resolved, off_pending_probe or in_game_verified, otherwise experimental; it is a compatibility promise about the table, not availability or evidence.",
   "services": [
-{"id":"game.audio","kind":"service","service":"game.audio","header":"include/sc_audio.h","version":"1.1","capabilities":[{"name":"game.audio.triggers","methods":["resolve","play","stop"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Owner-bound trigger/playback tokens, actual host release cleanup and bounded synthetic provider tests. No native or audible output verification; not run in game.","evidence_source":"docs/game/audio.md"},{"name":"game.audio.play_once","methods":["resolve","play_once"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Independent default-OFF capability with owner-bound tokens, extent-checked v1.1 tail, fault latch until process restart and synthetic provider tests. No native backend ships; held until current game-object registration can be confirmed at submission. Not run in game.","evidence_source":"docs/game/audio.md"}]},
-    {"id":"game.inventory.contents","kind":"service","service":"game.inventory.contents","header":"include/sc_container_contents.h","version":"1.0","capabilities":[{"name":"game.inventory.contents.read","methods":["snapshot"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game.","evidence_source":"docs/game/container-contents.md"}]},
-    {"id":"game.datacore_live","kind":"service","service":"game.datacore_live","header":"include/sc_datacore_live.h","version":"1.0","capabilities":[{"name":"game.datacore_live","methods":["is_ready","get_pool_stats","find_record","read_pool","write_pool"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Default-OFF native counted read adapter with validated lifecycle locators, serialized text-blob bytes and inherited record metadata. Requires shell-enforced pre-engine quiescence, lifecycle exclusion and fresh admission. Native writes unavailable; synthetic service/hook/fault tests, not run in game.","evidence_source":"docs/game/datacore-live.md","sig_rows":["pak.datacore_loader","datacore_live.owner_slot","datacore_live.owner_vtable","datacore_live.reset","datacore_live.deleting","datacore_live.destructor"]}]},
-    {"id":"game.input","kind":"service","service":"game.input","header":"include/sc_input.h","version":"1.0","capabilities":[{"name":"game.input.registry","methods":["count","by_id","by_name"],"default":"ON","evidence_level":"synthetic_only","evidence":"Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game.","evidence_source":"docs/game/input.md"}]},
+{"id":"game.audio","kind":"service","service":"game.audio","header":"include/sc_audio.h","version":"1.1","stability":"experimental","capabilities":[{"name":"game.audio.triggers","methods":["resolve","play","stop"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Owner-bound trigger/playback tokens, actual host release cleanup and bounded synthetic provider tests. No native or audible output verification; not run in game.","evidence_source":"docs/game/audio.md"},{"name":"game.audio.play_once","methods":["resolve","play_once"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Independent default-OFF capability with owner-bound tokens, extent-checked v1.1 tail, fault latch until process restart and synthetic provider tests. No native backend ships; held until current game-object registration can be confirmed at submission. Not run in game.","evidence_source":"docs/game/audio.md"}]},
+    {"id":"game.inventory.contents","kind":"service","service":"game.inventory.contents","header":"include/sc_container_contents.h","version":"1.0","stability":"experimental","capabilities":[{"name":"game.inventory.contents.read","methods":["snapshot"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game.","evidence_source":"docs/game/container-contents.md"}]},
+    {"id":"game.datacore_live","kind":"service","service":"game.datacore_live","header":"include/sc_datacore_live.h","version":"1.0","stability":"experimental","capabilities":[{"name":"game.datacore_live","methods":["is_ready","get_pool_stats","find_record","read_pool","write_pool"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Default-OFF native counted read adapter with validated lifecycle locators, serialized text-blob bytes and inherited record metadata. Requires shell-enforced pre-engine quiescence, lifecycle exclusion and fresh admission. Native writes unavailable; synthetic service/hook/fault tests, not run in game.","evidence_source":"docs/game/datacore-live.md","sig_rows":["pak.datacore_loader","datacore_live.owner_slot","datacore_live.owner_vtable","datacore_live.reset","datacore_live.deleting","datacore_live.destructor"]}]},
+    {"id":"game.input","kind":"service","service":"game.input","header":"include/sc_input.h","version":"1.0","stability":"experimental","capabilities":[{"name":"game.input.registry","methods":["count","by_id","by_name"],"default":"ON","evidence_level":"synthetic_only","evidence":"Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game.","evidence_source":"docs/game/input.md"}]},
     {
       "id": "teleport.spatial",
       "kind": "service",
       "service": "teleport.spatial",
       "header": "include/sc_spatial.h",
       "version": "1.0",
+      "stability": "stable",
       "capabilities": [
         {"name": "teleport", "display": "the four `teleport.*` rows (the product's capability `teleport`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"}
       ]
@@ -22,6 +23,7 @@
       "service": "spawn.entities",
       "header": "include/sc_spawn.h",
       "version": "1.2",
+      "stability": "stable",
       "capabilities": [
         {"name": "spawn.ship", "display": "the `spawn.helpers` rows (the product's capability `spawn.ship`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["spawn.helpers"], "evidence_source": "docs/game/status.md"}
       ]
@@ -32,6 +34,7 @@
       "service": "game.actors",
       "header": "include/sc_actors.h",
       "version": "1.1",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.actors.local_player", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
         {"name": "game.actors.spawn_npc", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
@@ -46,6 +49,7 @@
       "service": "game.actor_stats",
       "header": "include/sc_actor_stats.h",
       "version": "1.1",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.actor_stats.read", "methods": ["read"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.197.2878", "evidence": "row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game", "sig_rows": ["actor.stat_names", "actor.stat_array", "actor.health_site", "actor.status_accessor", "actor.get_stat"], "evidence_source": "docs/game/actor-stats.md"}
       ]
@@ -56,6 +60,7 @@
       "service": "game.actor_stats_write",
       "header": "include/sc_actor_stats_write.h",
       "version": "1.0",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.actor_stats.write", "methods": ["adjust", "set", "mode"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["actor.adjust_stat", "actor.stat_authority", "actor.stat_names", "actor.stat_array"], "evidence_source": "docs/game/actor-stats.md"}
       ]
@@ -66,6 +71,7 @@
       "service": "game.vehicles",
       "header": "include/sc_vehicles.h",
       "version": "1.0",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.vehicles.seats", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
         {"name": "game.vehicles.seat", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
@@ -78,6 +84,7 @@
       "service": "game.world.control",
       "header": "include/sc_world_control.h",
       "version": "1.1",
+      "stability": "experimental",
       "capabilities": [
         {"name":"game.world.raycast_filtered_many","methods":["raycast_filtered_many"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Bounded scoped multi-hit policy and lifecycle tests; no native grid/hit adapter, not run in game","evidence_source":"docs/design/world-control.md"},
         {"name": "game.world.raycast_filtered", "methods": ["raycast_filtered"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified offline engine adapter, no Windows/game proof", "evidence_source": "docs/design/world-control.md"},
@@ -90,6 +97,7 @@
       "service": "game.world",
       "header": "include/sc_world.h",
       "version": "1.1",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.world.raycast", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
         {"name": "game.world.camera", "display": "`game.world.camera` (position, rotation, zone)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.to_camera", "build.camera_fields"], "evidence_source": "docs/game/status.md"},
@@ -103,6 +111,7 @@
       "service": "game.entities",
       "header": "include/sc_entities.h",
       "version": "1.2",
+      "stability": "stable",
       "capabilities": [
         {"name":"game.entities.lookup","methods":["list_classes","find_class","find_by_name","component"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Copied registry/name/typed-presence provider policy and ABI tests; no native adapter, not run in game","evidence_source":"docs/game/entities.md"},
         {"name": "game.entities.transform", "methods": ["alive", "get_transform", "set_transform"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
@@ -118,6 +127,7 @@
       "service": "game.*",
       "header": "include/sc_game_events.h",
       "version": "bus",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.events.player_spawned", "display": "`game.events.player_spawned` (`game.player.spawned`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["event.player_spawn"], "evidence_source": "docs/game/status.md"},
         {"name": "game.events.player_died", "display": "`game.events.player_died` (`game.player.died`)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["event.player_death"], "evidence_source": "docs/game/status.md"},
@@ -135,6 +145,7 @@
       "title": "mining rows",
       "doc": "docs/game/mining.md",
       "version": "row",
+      "stability": "stable",
       "capabilities": [
         {"name": "mining.cell", "display": "`mining.cell` (legacy host row)", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["mining.cell"], "evidence_source": "docs/game/status.md"}
       ]
@@ -145,6 +156,7 @@
       "service": "game.creative",
       "header": "include/sc_creative.h",
       "version": "1.0",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.creative.god_mode", "methods": ["set_god_mode"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.landing_helper", "spawn.god_mode_call", "spawn.set_god_mode"], "evidence_source": "docs/game/creative.md"},
         {"name": "game.creative.fly", "methods": ["set_fly_mode", "set_fly_speed"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["teleport.entity_system", "spawn.landing_helper", "spawn.request_fly_mode", "spawn.actor_link", "spawn.game_cvars", "spawn.fly_speed_scaler"], "evidence_source": "docs/game/creative.md"},
@@ -158,6 +170,7 @@
       "service": "game.hangar",
       "header": "include/sc_hangar.h",
       "version": "1.0",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.hangar.lift", "methods": ["lift_of_landing_area", "lift_request"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["lift.open_request", "lift.close_request", "teleport.entity_system", "spawn.find_entity_by_name", "spawn.handle_to_id"], "evidence_source": "docs/game/hangar.md"},
         {"name": "game.hangar.atc_cancel", "methods": ["atc_cancel_request"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["atc.get_component", "atc.request_cancel", "spawn.handle_to_id"], "evidence_source": "docs/game/hangar.md"}
@@ -169,6 +182,7 @@
       "service": "game.reputation",
       "header": "include/sc_reputation.h",
       "version": "1.0",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.reputation.checks", "display": "`game.reputation.checks` (`checks`, read-only)", "methods": ["checks"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["contracts.reputation_services"], "evidence_source": "docs/game/reputation.md"}
       ]
@@ -179,6 +193,7 @@
       "service": "game.asop",
       "header": "include/sc_asop.h",
       "version": "1.0",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.asop.claim_timeout", "methods": ["claim_timeout"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["insurance.update_pending_requests", "insurance.config"], "evidence_source": "docs/game/asop-service.md"},
         {"name": "game.asop.shard_persisted", "methods": ["shard_persisted"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["asop.on_request_open", "asop.shard_persisted"], "evidence_source": "docs/game/asop-service.md"}
@@ -190,6 +205,7 @@
       "service": "game.contracts",
       "header": "include/sc_contracts.h",
       "version": "1.0",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.contracts.stream_radius", "display": "`game.contracts.stream_radius` (`stream_radius`, read-only)", "methods": ["stream_radius"], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["contracts.mission_settings"], "evidence_source": "docs/game/contracts-service.md"}
       ]
@@ -200,6 +216,7 @@
       "service": "game.prefabs",
       "header": "include/sc_prefabs.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.entities.prefabs", "methods": ["spawn"], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED", "sig_rows": ["spawn.prefabs"], "evidence_source": "docs/design/prefabs.md"}
       ]
@@ -210,6 +227,7 @@
       "service": "game.owned",
       "header": "include/sc_owned.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": null, "display": "no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads", "methods": [], "default": "none", "evidence_level": "synthetic_only", "evidence": "Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime", "evidence_source": "docs/game/status.md"}
       ]
@@ -220,6 +238,7 @@
       "service": "game.loadout",
       "header": "include/sc_loadout.h",
       "version": "1.2",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.loadout.apply", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic/native-boundary checks only; typed engine methods unverified; not run in game", "evidence_source": "docs/game/loadout.md"},
         {"name": "game.loadout.weapons", "display": "`game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`)", "methods": ["apply"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified engine backend, no in-game proof", "evidence_source": "docs/game/loadout.md"},
@@ -232,6 +251,7 @@
       "service": "game.quantum",
       "header": "include/sc_quantum.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.quantum.control", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED", "evidence_source": "docs/quantum.md"}
       ]
@@ -242,17 +262,19 @@
       "service": "game.build",
       "header": "include/sc_game_build.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.build.info", "methods": ["read"], "default": "ON", "evidence_level": "synthetic_only", "evidence": "No rows: reads TimeDateStamp/SizeOfImage from the running module header and the pack's own verified-build pin; starts only when the numeric mirrors agree with the strings; host-side compile and layout pins verified, not run in game", "evidence_source": "docs/game/build.md"}
       ]
     },
-    {"id":"game.gamerules","kind":"service","service":"game.gamerules","header":"include/sc_gamerules.h","version":"1.1","capabilities":[{"name":"game.gamerules.read","methods":[],"default":"OFF","evidence_level":"synthetic_only","evidence":"Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED","evidence_source":"docs/game/gamerules.md"},{"name":"game.gamerules.params","methods":["list_params"],"default":"ON","evidence_level":"synthetic_only","evidence":"Static definition metadata from F-INTAKE-005; source build unresolved; not run in game.","evidence_source":"docs/game/gamerules.md"}]},
+    {"id":"game.gamerules","kind":"service","service":"game.gamerules","header":"include/sc_gamerules.h","version":"1.1","stability":"experimental","capabilities":[{"name":"game.gamerules.read","methods":[],"default":"OFF","evidence_level":"synthetic_only","evidence":"Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED","evidence_source":"docs/game/gamerules.md"},{"name":"game.gamerules.params","methods":["list_params"],"default":"ON","evidence_level":"synthetic_only","evidence":"Static definition metadata from F-INTAKE-005; source build unresolved; not run in game.","evidence_source":"docs/game/gamerules.md"}]},
     {
       "id": "game.inventory",
       "kind": "service",
       "service": "game.inventory",
       "header": "include/sc_inventory.h",
       "version": "1.1",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.inventory.read", "methods": ["snapshot"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only item-port snapshot of the local player (whole attached tree, depth first, 128 ports max with TRUNCATED and total_seen); adapter grounded on the private corpus (F-4.10.197.2878-011..-016, static analysis only) and bound in production behind fail-closed guards; the signature rows resolve against the 4.10.197.2878 executable on disk, and the adapter is exercised against synthetic game objects only; switched off by default; not run in game", "sig_rows": ["inventory.get_item_ports", "inventory.port_is_valid", "inventory.port_item_handle", "inventory.handle_valid", "inventory.unequip_item", "inventory.port_get_item", "inventory.port_get_container", "inventory.container_type_id", "inventory.item_type_names"], "evidence_source": "docs/game/inventory.md"}
       ]
@@ -263,6 +285,7 @@
       "service": "game.private_session",
       "header": "include/sc_private_session.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.private_session", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON by owner approval for R1 (loopback broker, no socket until Host/Join); synthetic service and ABI checks only; Windows/MSVC, private LAN, EAC inspection and gameplay NOT VERIFIED", "evidence_source": "docs/game/private-session.md"}
       ]
@@ -273,6 +296,7 @@
       "service": "game.cvars",
       "header": "include/sc_cvars.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.cvars.read", "methods": ["get_bool"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Opt-in Windows reference-integer native read adapter with exact receiver/method checks, fresh admission and synthetic native-object fixtures; not run in game", "evidence_source": "docs/game/cvars.md"}
       ]
@@ -283,6 +307,7 @@
       "service": "game.cvars_write",
       "header": "include/sc_cvars_write.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.cvars.write", "methods": ["set_bool"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Production native writes refused pending object and backing lifetime across callbacks/leases; setter and cleanup admission tested with synthetic native objects and actual host Stop; not run in game", "evidence_source": "docs/game/cvars.md"}
       ]
@@ -293,6 +318,7 @@
       "service": "game.economy",
       "header": "include/sc_economy.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.economy.read", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"},
         {"name": "game.economy.apply", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"}
@@ -304,6 +330,7 @@
       "service": "game.missions",
       "header": "include/sc_missions.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.missions.read", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"},
         {"name": "game.missions.accept", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only", "evidence_source": "docs/design/offline-missions.md"},
@@ -317,6 +344,7 @@
       "service": "game.mining",
       "header": "include/sc_mining.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.mining", "display": "`game.mining` (the service's mining activation)", "methods": [], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Off by default; native adapter not verified on Windows or in game; synthetic provider tests only", "evidence_source": "docs/game/mining-service.md"}
       ]
@@ -327,6 +355,7 @@
       "service": "game.relocation",
       "header": "include/sc_relocation.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": "game.relocation", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game", "sig_rows": ["teleport.to_camera", "teleport.relocation"], "evidence_source": "docs/game-services.md"}
       ]
@@ -337,6 +366,7 @@
       "service": "game.spatial",
       "header": "include/sc_game_spatial.h",
       "version": "1.0",
+      "stability": "experimental",
       "capabilities": [
         {"name": null, "display": "no capability of its own: full-pose conversion and copied observed zones", "methods": [], "default": "none", "evidence_level": "synthetic_only", "evidence": "Synthetic fixtures only; not verified on Windows or in game", "evidence_source": "docs/game-services.md"}
       ]
@@ -348,6 +378,7 @@
       "title": "CryPak adapter rows",
       "doc": "docs/api.md",
       "version": "row",
+      "stability": "stable",
       "capabilities": [
         {"name": "game.pak.all_files", "display": "`game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts)", "methods": [], "default": "OFF", "evidence_level": "off_pending_probe", "evidence": "OFF pending in-game confirmation", "sig_rows": ["pak.datacore_loader", "pak.crypak", "pak.slots"], "evidence_source": "docs/api.md"}
       ]
