@@ -69,11 +69,22 @@ NATIVE_ENTRY_KEYS = {"id", "subsystem", "hash", "tier", "source"}
 NATIVE_HASH = re.compile(r"_0x[0-9A-F]{16}")
 SCAFFOLDER = ("sdk", "tools", "sco-new-plugin.py")
 SCAFFOLD_SERVICE = r"^[a-z0-9_]+(\.[a-z0-9_]+)*(@[0-9]{1,5}\.[0-9]{1,5})?$"
-SCAFFOLD_CONCLUSIONS = [
-    "files maps each relative path to the text sdk/tools/sco-new-plugin.py's render_plugin returns for this spec; nothing was written, built or checked.",
-    "To use them, write the files into a missing or empty folder, then: cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder> and cmake --build DIR/build --target check.",
-    "The generator is read from --repo-root and run in this server process; it is not bound to the catalogue source_sha.",
-    "The plugin declares api = 1.0 and looks services up as optional; nothing generated here has been loaded by a host or run in game."]
+SCAFFOLD_LANGS = ("c", "cpp", "csharp", "lua")
+SCAFFOLD_USE = {
+    "c": "cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder> and cmake --build DIR/build --target check.",
+    "csharp": "dotnet publish DIR -c Release -r win-x64 -o DIR/out/<id> -p:ScoSdk=<SDK folder>, then sco-plugin-check DIR/out/<id>, "
+              "with and without --short-tables (README.md in the files).",
+    "lua": "cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder> and cmake --build DIR/build --target check; "
+           "with Lua 5.4, lua5.4 <SDK folder>/tools/lua-check.lua DIR runs the script against a stand-in.",
+}
+
+
+def scaffold_conclusions(lang):
+    return [
+        "files maps each relative path to the text sdk/tools/sco-new-plugin.py's render_plugin returns for this spec; nothing was written, built or checked.",
+        "To use them, write the files into a missing or empty folder, then: " + SCAFFOLD_USE.get(lang, SCAFFOLD_USE["c"]),
+        "The generator is read from --repo-root and run in this server process; it is not bound to the catalogue source_sha.",
+        "The plugin declares api = 1.0 and treats every service as optional; nothing generated here has been loaded by a host or run in game."]
 NATIVE_CONCLUSIONS = [
     "hash is _0x plus 16 hex digits of sha256('sco-core:native:' + id): a stable symbolic name, not an address. The index records no pattern, mask, offset or address.",
     "tier comes from sdk/status_registry.json sig_rows: tier 2 means no registry capability names the row, not that the row is unused.",
@@ -173,9 +184,10 @@ EXTENDED_TOOLS = [
          {"plugin_ini": string_schema(32768), "folder": {**string_schema(255), "pattern": r"^[^/\\]+$"},
           "widgets": {"type": "array", "minItems": 1, "maxItems": 256, "items": WIDGET_NODE}}, ("plugin_ini",)),
     tool("generate_plugin_scaffold", "Return, as {relative path: text}, the plugin folder sdk/tools/sco-new-plugin.py beneath --repo-root "
-         "would generate for this spec; writes, builds and runs nothing.",
+         "would generate for this spec (c, cpp or csharp native plugin, or lua script; lua takes no services "
+         "beyond sco.widgets with with_menu); writes, builds and runs nothing.",
          {"id": {**string_schema(31), "pattern": r"^[a-z0-9_]{1,31}$"},
-          "lang": {"type": "string", "enum": ["c", "cpp"]},
+          "lang": {"type": "string", "enum": list(SCAFFOLD_LANGS)},
           "with_menu": {"type": "boolean", "default": False},
           "services": {"type": "array", "minItems": 0, "maxItems": 16,
                        "items": {**string_schema(75), "pattern": SCAFFOLD_SERVICE}}}, ("id", "lang")),
@@ -1097,7 +1109,7 @@ class Server:
         if self.scaffolder is None:
             self.scaffolder = self.load_scaffolder()
         loaded, reason = self.scaffolder
-        result = {"source": "/".join(SCAFFOLDER), "written": False, "conclusions": SCAFFOLD_CONCLUSIONS}
+        result = {"source": "/".join(SCAFFOLDER), "written": False, "conclusions": scaffold_conclusions(args.get("lang"))}
         if loaded is None:
             return result | {"state": "unavailable", "reason": reason, "files": {}}
         render, spec_error = loaded

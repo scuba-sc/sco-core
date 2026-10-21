@@ -326,27 +326,35 @@ The host refuses the whole panel at its first violation. These checks are not
 made: the panel id and title, the stride and size fields, pointer readability, and
 renderer markup in labels.
 
-**Plugin scaffold.** `generate_plugin_scaffold` returns the native plugin folder
+**Plugin scaffold.** `generate_plugin_scaffold` returns the plugin folder
 that [`sdk/tools/sco-new-plugin.py`](../../sdk/tools/sco-new-plugin.py) would
-write, as `files`: a map from relative path to text (`plugin.ini`,
-`CMakeLists.txt` and `<id>.c` or `<id>.cpp`). It takes these arguments:
+write, as `files`: a map from relative path to text. For `c` and `cpp` that is
+`plugin.ini`, `CMakeLists.txt` and `<id>.c` or `<id>.cpp`; for `csharp`,
+`plugin.ini`, `<id>.csproj` (NativeAOT), `<Name>Plugin.cs` and `README.md`; for
+`lua`, `plugin.ini` (`kind = lua`), `main.lua` and `CMakeLists.txt`. It takes
+these arguments:
 
 | Argument | Required | Content |
 |---|---|---|
 | `id` | yes | 1-31 characters from `a-z`, `0-9` and `_`; `sco`, `host`, `menu` and `game` are reserved. |
-| `lang` | yes | `c` or `cpp`. |
+| `lang` | yes | `c`, `cpp`, `csharp` or `lua`. |
 | `with_menu` | no | `true` adds a `sco.widgets` panel. Default `false`. |
-| `services` | no | Up to 16 `NAME` or `NAME@MAJOR.MINOR` strings, looked up as optional services on `game.ready`. |
+| `services` | no | Up to 16 `NAME` or `NAME@MAJOR.MINOR` strings, looked up as optional services on `game.ready`. Refused for `lua` (the sandbox has no service lookup), except `sco.widgets` with `with_menu`. |
 
 The display name and author take the generator's defaults; there is no output
 path. Any other argument, or a value outside the schema, is refused as a tool
 error. A spec the generator itself refuses, such as a reserved id or a service
-listed twice, comes back as a tool error that carries the generator's message.
+listed twice, or services with `lua`, comes back as a tool error that carries the
+generator's message.
 
 The server writes no files and runs no build or check. To use the result, write
-the files into a missing or empty folder, then run
+the files into a missing or empty folder, then run the steps the CLI prints and
+the result's second conclusion names for that language: for `c`, `cpp` and `lua`,
 `cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder>` and
-`cmake --build DIR/build --target check`, the same steps the CLI prints.
+`cmake --build DIR/build --target check` (for `lua`, also
+`tools/lua-check.lua` with Lua 5.4); for `csharp`,
+`dotnet publish DIR -c Release -r win-x64 -o DIR/out/<id> -p:ScoSdk=<SDK folder>`,
+then `sco-plugin-check` on `DIR/out/<id>` with and without `--short-tables`.
 The output is exactly what `render_plugin(spec)` returns for the same spec; the
 tests compare the two.
 

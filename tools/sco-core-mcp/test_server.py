@@ -1520,6 +1520,10 @@ SCAFFOLD_SPECS = [
     {"id": "hud_probe", "lang": "cpp", "services": ["game.actors@1.1"]},
     {"id": "hud_probe", "lang": "cpp", "with_menu": True, "services": ["sco.widgets"]},
     {"id": "plain", "lang": "cpp", "with_menu": False, "services": []},
+    {"id": "cs_probe", "lang": "csharp", "with_menu": True, "services": ["game.actors@1.1", "sco.widgets"]},
+    {"id": "cs_plain", "lang": "csharp"},
+    {"id": "lua_probe", "lang": "lua", "with_menu": True, "services": ["sco.widgets"]},
+    {"id": "lua_plain", "lang": "lua"},
 ]
 
 
@@ -1550,6 +1554,20 @@ class ScaffoldTests(ServerCase):
                 self.assertEqual((result["state"], result["source"], result["written"], result["spec"]),
                                  ("available", "sdk/tools/sco-new-plugin.py", False, spec))
                 self.assertEqual(result["files"], self.expected(spec))
+                self.assertIn("run in game", result["conclusions"][-1])
+                use = result["conclusions"][1]
+                self.assertIn({"csharp": "dotnet publish", "lua": "lua-check.lua"}.get(spec["lang"], "--target check"), use)
+
+    def test_new_languages_files(self):
+        client = self.start(repo_root=ROOT, extended=True)
+        files = self.scaffold(client, {"id": "cs_probe", "lang": "csharp", "with_menu": True})["files"]
+        self.assertEqual(sorted(files), ["CsProbePlugin.cs", "README.md", "cs_probe.csproj", "plugin.ini"])
+        self.assertIn("<PublishAot>true</PublishAot>", files["cs_probe.csproj"])
+        self.assertIn("kind = native", files["plugin.ini"])
+        files = self.scaffold(client, {"id": "lua_probe", "lang": "lua"})["files"]
+        self.assertEqual(sorted(files), ["CMakeLists.txt", "main.lua", "plugin.ini"])
+        self.assertIn("kind = lua", files["plugin.ini"])
+        self.assertIn('name = "lua_probe.ping"', files["main.lua"])
 
     def test_copied_scaffolder_matches_and_nothing_is_written(self):
         root, catalogue = self.scaffold_root(SCAFFOLDER.read_text(encoding="utf-8"))
@@ -1592,7 +1610,8 @@ class ScaffoldTests(ServerCase):
     def test_strict_schema_and_spec_refusals(self):
         client = self.start(repo_root=ROOT, extended=True)
         base = {"id": "my_radar", "lang": "c"}
-        for arguments in [{"id": "my_radar"}, {"lang": "c"}, {**base, "lang": "lua"}, {**base, "id": "My-Radar"},
+        for arguments in [{"id": "my_radar"}, {"lang": "c"}, {**base, "lang": "rust"}, {**base, "lang": "C#"},
+                          {**base, "id": "My-Radar"},
                           {**base, "id": "x" * 32}, {**base, "id": 7}, {**base, "with_menu": "yes"}, {**base, "with_menu": 1},
                           {**base, "services": "game.actors"}, {**base, "services": [1]}, {**base, "services": ["Game.Actors"]},
                           {**base, "services": ["game..actors"]}, {**base, "services": ["game.actors@1"]},
@@ -1602,7 +1621,10 @@ class ScaffoldTests(ServerCase):
                 self.assertNotIn("files", self.scaffold(client, arguments, is_error=True))
         for arguments, message in [({**base, "id": "game"}, "reserved"),
                                    ({**base, "services": ["game.actors", "game.actors@1.1"]}, "listed twice"),
-                                   ({**base, "services": ["a" * 64]}, "1-63 characters")]:
+                                   ({**base, "services": ["a" * 64]}, "1-63 characters"),
+                                   ({**base, "lang": "csharp", "id": "host"}, "reserved"),
+                                   ({**base, "lang": "lua", "services": ["game.actors"]}, "lang lua can't look up services"),
+                                   ({**base, "lang": "lua", "services": ["sco.widgets"]}, "lang lua can't look up services")]:
             with self.subTest(arguments=arguments):
                 refused = self.scaffold(client, arguments, is_error=True)
                 self.assertIn("Spec refused by sco-new-plugin", refused["error"])
