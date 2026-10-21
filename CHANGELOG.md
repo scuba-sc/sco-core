@@ -4,6 +4,15 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- Added a community plugin directory: plugins stay in their authors' own
+  repositories, and `docs/plugin-directory.md` lists them from the validated index
+  `docs/plugin-directory.json` (plugin ids, https repository, author, SPDX licence,
+  languages, SDK and game-pack version tested, last `sco-plugin-check` full/short
+  result and date, offline confirmation, in-game status). `tools/plugin_directory.py
+  --check` validates the index and the rendered tables in CI; a new issue form
+  collects listing requests. It starts with the first-party sc-offline and sc-mp
+  plugins and no community entries. A listing is compatibility information, not an
+  endorsement; no plugin ABI change and nothing listed is verified in game.
 - The discovery MCP server (`tools/sco-core-mcp/server.py`) gains three opt-in
   development tools: `run_plugin_check` runs `sco-plugin-check` on a built plugin
   folder (`full` or `short` tables), and `build_plugin_project` and

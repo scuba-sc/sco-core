@@ -68,6 +68,7 @@ HUB_DOCS = {
         ('docs/README.md', 'Curated guides grouped by audience.'),
         ('docs/plugins.md', 'Plugin folders, `plugin.ini`, discovery, loading and data packs.'),
         ('docs/plugin-design.md', 'Design principles for modular plugins, with a provider and consumer example pair.'),
+        ('docs/plugin-directory.md', 'Community plugins in their own repositories, with reported SDK compatibility.'),
         ('docs/framework.md', 'How the runtime, plugin system, services and SDK sit under each product.'),
     ),
     'sdks': (

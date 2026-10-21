@@ -15,6 +15,9 @@ For the project overview, start with the [root README](../README.md).
 4. [Designing modular plugins](plugin-design.md): one feature per plugin, versioned
    service tables, `requires`, clean unload and anti-patterns, with a provider and
    consumer example pair.
+5. [Community plugin directory](plugin-directory.md): plugins in their authors' own
+   repositories with reported SDK compatibility, the listing rules and how to request a
+   listing. Not an endorsement; nothing there is verified in game.
 
 ## Plugin API consumer — Use the API safely
 
