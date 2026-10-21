@@ -99,13 +99,28 @@ class-name lookup, value-change GameRules reads, fire-and-forget audio), but the
 yet show that the game objects involved stay valid for the whole call. Until it does, the table
 answers unavailable and nothing is hooked. They are first in line after 2.4.0 (section 4).
 
-### What still stands between the candidate and a release
+### What must be true before 2.4.0 is called ready
 
-- Build the final source, then pass the test, ABI, catalogue, legal and documentation gates and the
-  hosted CI checks on that exact commit.
-- Rebuild all five archives from that commit and record their hashes.
-- Finish the provenance review of every shipped file.
-- The maintainer approves, signs, tags and publishes. Nothing on this page is that approval.
+2.4.0 does not need every capability finished. It needs to be a foundation people can build on
+without starting over later:
+
+- **A stability promise.** A published contract for what will not break, and a Stable or
+  Experimental label on every service. The plugin ABI and host services are Stable; a game table is
+  Stable once its signature rows resolve on the verified build. An Experimental table can later be
+  replaced by a new major version, with the old one kept through a deprecation window.
+- **MCP tools for the whole development loop:** run the plugin checker, scaffold C# and Lua plugins
+  as well as C and C++, search the guides, and (opt-in) build and test a plugin project.
+- **A plugin design principles guide** with a modular example, and a **community plugin directory**:
+  plugins live in their authors' own repositories and are listed with their compatibility.
+- **An outsider dry run:** starting only from the published archive, the docs site and the MCP, an
+  assistant with no access to the source gets to a checked plugin without help.
+- **An in-game smoke run:** a plugin built from the 2.4.0 archive loads, runs a command and unloads.
+- **The release itself:** the final source passes every check and hosted CI on that exact commit, the
+  five archives are rebuilt and hashed, every shipped file has a provenance decision, the maintainer
+  approves, signs, tags and publishes, and the docs site switches to 2.4.0. Nothing on this page is
+  that approval.
+
+Progress on each of these is counted on the [one-page roadmap](https://scubamount.github.io/sco-core/roadmap/).
 
 ## 3. Milestone 2: products and studio on the 2.4.0 SDK
 
