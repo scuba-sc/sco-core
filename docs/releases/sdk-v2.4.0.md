@@ -39,10 +39,18 @@ disk, not that a feature has been seen working.
 - Changed: teleport (`game.relocation`) and quantum boost (`game.quantum`) have real implementations
   behind the same tables. Relocation turns on only when offline play is confirmed and the game's
   data is found; quantum control stays off.
+- New, off by default: a fire-and-forget sound trigger (`game.audio` 1.1 `play_once`, no native
+  backend yet); guarded native reads of the game's in-memory DataCore records (`game.datacore_live`,
+  explicit opt-in, no writes); guarded native reads of four integer CVars (`game.cvars`, opt-in). A
+  native CVar write is refused in production, and a regression test pins that.
+- Contracts only, natively unavailable (maintainer scope decision, 2026-10-21): filtered single-hit
+  rays, exact class-name entity lookup, value-change GameRules reads and fire-and-forget audio. Plugins
+  can be written and tested against their synthetic providers today; in the game these calls answer
+  unavailable until the native side is grounded, which is the first work after 2.4.0.
 
 ## Versions
 
-Expanded-before-release optional contracts also add owner-bound `game.audio`1.0,
+Expanded-before-release optional contracts also add owner-bound `game.audio` 1.0 (grown to 1.1 by `play_once`),
 copied registry/name/component-presence queries in `game.entities`1.2 and scoped
 bounded multi-hit in `game.world.control`1.1. Each has a bound synthetic provider
 fixture; none supplies a native engine adapter or changes production availability
@@ -57,8 +65,8 @@ are native C/C++ only; managed additions preserve layout but add no callable rou
 | `sco.storage` | 1.1 | 144-byte table with bounded table/view and column enumeration |
 | `game.actor_stats` service table | 1.1 (29 raw read IDs; original write scope unchanged) | `sc_actor_stats.h` |
 | `game.inventory.contents` service table | 1.0 (copied snapshots; native adapter unavailable) | `sc_container_contents.h` |
-| `game.datacore_live` service table | 1.0 (explicit verified host backend required) | `sc_datacore_live.h` |
-| `game.audio` service table | 1.0 (owner-bound effects; native OFF) | `sc_audio.h` |
+| `game.datacore_live` service table | 1.0 (explicit verified host backend; guarded native reads, opt-in, default OFF) | `sc_datacore_live.h` |
+| `game.audio` service table | 1.1 (`play_once` appended, 32 to 40 bytes; owner-bound effects; native OFF) | `sc_audio.h` |
 | `game.entities` service table | 1.2 (copied lookup tail; native lookup OFF) | `sc_entities.h` |
 | `game.world.control` service table | 1.1 (bounded multi-hit; native OFF) | `sc_world_control.h` |
 | `game.loadout` service table | 1.2 (asynchronous submit/status/cancel; opt-in) | `sc_loadout.h` |
@@ -92,7 +100,7 @@ The bus event `game.loadout.respawn_completed` is also on `main`: production cap
 ### Prerequisites before a candidate
 
 1. The nine required jobs succeed on the exact `main` commit that will be built.
-2. Obtain static signature evidence for the final signature implementation. The recorded 332/332 run is historical and source-bound; the current index inventory includes additional async-loadout rows. Inventory is not proof of resolution against the executable.
+2. Obtain static signature evidence for the final signature implementation. The recorded 332/332 run is historical and source-bound; the current index inventory includes additional async-loadout rows. Inventory is not proof of resolution against the executable. A local `sco-sigcheck` run of the 2026-10-21 candidate source resolved 347/347 rows on 4.10.197.2878 (static only).
 3. The designated human owner/operator dispatches `release-candidate.yml` on the exact fully green main commit. Local ZIP generation is separate from that candidate and its attestations.
 4. Human acts, none of them done here: the scope decision record, the signed approval, counsel review, the tag and publication.
 
@@ -121,10 +129,11 @@ verification limits. In short:
 
 | Change | Where | Profiles (as packaged today) |
 |---|---|---|
-| `game.cvars` native reference-integer read adapter, default OFF; native writes held for object/backing lifetime evidence; separate fresh host-stop cleanup admission | `src/game/services/cvars_engine.*`, `cvars_production.cpp`, [docs](../game/cvars.md) | implementation and synthetic Windows host-stop fixtures in host-source-sc |
+| `game.cvars` native reference-integer read adapter, default OFF; native writes held for object/backing lifetime evidence and refused in production (pinned by a regression test); separate fresh host-stop cleanup admission | `src/game/services/cvars_engine.*`, `cvars_production.cpp`, [docs](../game/cvars.md) | implementation and synthetic Windows host-stop fixtures in host-source-sc |
 | `game.actor_stats` 1.1: read 29 raw named stats by actor; no injury-tier or normalized-unit claim | `include/sc_actor_stats.h`, [docs](../game/actor-stats.md) | header in game-sc and host-source-sc |
 | `game.inventory.contents` 1.0: bounded copied stored-item snapshots, generation and optional volume; unavailable without a grounded host provider | `include/sc_container_contents.h`, [docs](../game/container-contents.md) | public contract/example in game-sc; provider in host-source-sc |
-| `game.datacore_live` 1.0: host-backed pool access, fresh offline admission and separate write opt-in; no native pool adapter supplied | `include/sc_datacore_live.h`, [docs](../game/datacore-live.md) | public contract in game-sc; provider in host-source-sc |
+| `game.datacore_live` 1.0: host-backed pool access, fresh offline admission and separate write opt-in; guarded native counted reads, GUID record lookup and text-blob reads, default OFF, needing explicit pre-engine quiescence; native writes unavailable | `include/sc_datacore_live.h`, [docs](../game/datacore-live.md) | public contract in game-sc; provider in host-source-sc |
+| `game.audio` 1.1: `play_once` fire-and-forget trigger with its own default-OFF capability; no native backend | `include/sc_audio.h`, `include/scosdk/game/audio.hpp`, [docs](../game/audio.md) | public contract in game-sc; provider seam in host-source-sc |
 | `game.loadout` 1.2: copied asynchronous submit/status/cancel with native engine path behind explicit opt-in | `include/sc_loadout.h`, [docs](../game/loadout.md) | public contract in game-sc; provider in host-source-sc |
 | `game.actor_stats_write` 1.0: `adjust`, `set`, `mode` for your own player, behind a product switch and fresh offline admission | `include/sc_actor_stats_write.h`, `src/game/services/`, [docs](../game/actor-stats.md) | header in game-sc and host-source-sc; implementation in host-source-sc |
 | `actor_stats_probe`: in-game test plugin and the maintainer's checklist | `sdk/examples/actor_stats_probe/` | game-sc |
@@ -154,7 +163,12 @@ evidence. Every row is "not run in game".
 | `game.cvars.write` | OFF; production native port refuses writes | `synthetic_only` | Setter/restore mechanics and actual host-stop cleanup tested; native lifetime across callbacks and leases remains ungrounded |
 | `game.actor_stats.read` | ON when its rows resolve | `sigcheck_resolved` | Real reads; rows resolve on 4.10.197.2878; units and ranges of each stat unconfirmed |
 | `game.actor_stats.write` | OFF; product switch plus fresh offline admission | `off_pending_probe` | Real adjust through the game's own function; whether local-only writes persist is unknown; nothing is restored on unload |
-| `game.gamerules.read` | OFF | `synthetic_only` | Contract and wrappers; no backend bound, so calls answer unavailable; `list_params` serves static definitions |
+| `game.gamerules.read` | OFF | `synthetic_only` | Contract and wrappers; no backend bound, so calls answer unavailable; `list_params` serves static definitions. Native value-change read held (scope decision 2026-10-21) |
+| `game.audio.triggers` | OFF | `synthetic_only` | Owner-bound trigger and playback tokens on a synthetic provider; no native or audible verification |
+| `game.audio.play_once` | OFF | `synthetic_only` | Fire-and-forget on a synthetic provider; OK means accepted only; no native backend (scope decision 2026-10-21) |
+| `game.datacore_live` | OFF; explicit native read opt-in | `synthetic_only` | Guarded native reads tested on synthetic hosts; activation needs pre-engine quiescence; writes unavailable |
+| `game.entities.lookup` | OFF | `synthetic_only` | Copied lookup on a synthetic provider; native exact class-name lookup held (scope decision 2026-10-21) |
+| `game.world.raycast_filtered` | OFF | `synthetic_only` | Filtered rays with copied results on a synthetic provider; native single-hit held (scope decision 2026-10-21) |
 | `game.input.registry` | ON (metadata only) | `synthetic_only` | 1,267 named actions; ids above 186 are build-unresolved; no injection |
 | `game.events.loadout_respawn_completed` | OFF | `synthetic_only` | Event contract; native hook unresolved |
 | `game.build.info` | ON | `synthetic_only` | Pure metadata, no rows |
@@ -170,6 +184,11 @@ evidence. Every row is "not run in game".
   does not write it. Console command execution for quantum control is not offered.
 - sco.net server-host and the larger session limit are not part of the kernel.
 - Any change to a `sco_api` table.
+- Native backends for filtered single-hit rays, exact class-name entity lookup, value-change
+  GameRules reads and fire-and-forget audio (maintainer scope decision, 2026-10-21). Their contracts
+  ship with synthetic providers; natively they answer unavailable and install no hook, because the
+  evidence does not yet show that the game objects each call touches stay valid for the whole call.
+  They are the first native work after 2.4.0.
 
 The current manifest selects native-index/status metadata for game-sc, legacy
 and host-source-sc, with source-matched generated catalogues. Selection is not

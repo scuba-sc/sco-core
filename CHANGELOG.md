@@ -13,7 +13,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 - Added a default-OFF Windows native reference-integer CVar read adapter for the
   four existing names, with current-build method identity checks, fresh admission
   and fault containment. Native production writes remain unavailable pending
-  object/backing lifetime evidence. Host cleanup has separate freshly checked
+  object/backing lifetime evidence; a production-path regression test pins that a
+  native CVar write is refused. Host cleanup has separate freshly checked
   CVar restoration admission; real host-stop fixtures use synthetic objects.
   No public ABI change and not run in game.
 
@@ -25,6 +26,14 @@ What each change means for plugin authors and for products built on sco-core (sc
   audio off until process restart without affecting the trigger mode. No native
   backend ships; it is held until game-object registration can be confirmed at
   submission. Synthetic tests only; not run in game.
+
+- Scope decision (maintainer, 2026-10-21): four narrowed native backends ship
+  fail-closed in 2.4.0: filtered single-hit rays (`game.world.control`), exact
+  class-name entity lookup (`game.entities`), value-change GameRules reads
+  (`game.gamerules`) and fire-and-forget audio (`game.audio` `play_once`). Their
+  contracts and synthetic providers ship; natively they answer unavailable and
+  install nothing, because the evidence does not yet show the game objects involved
+  stay valid for the whole call. Grounding them is the first work after 2.4.0.
 
 - Expanded optional game-pack contracts: `game.audio` 1.0 provides owner-bound
   trigger/playback tokens and unload cleanup; `game.entities` 1.2 appends copied
@@ -103,23 +112,23 @@ readiness. Other additions retain their registry-recorded OFF or conditional gat
   ABI: `sc_inventory_snapshot` gains `flags` and `total_seen` after `ports[]` (`SC_INVENTORY_FLAG_TRUNCATED`,
   `SC_INVENTORY_FLAG_LIMITED`), written only when `out->size` covers them; a 1.0 caller passing
   `SC_INVENTORY_SNAPSHOT_SIZE_1_0` is accepted unchanged. `generation` is computed by comparing
-  snapshots. In addition, 192 item categories are published as the `sc_item_type` enumeration (#190 [G19],
-  K-34) with `sc_inventory_item_type_name` and `sc_inventory_port_item_type` helpers.
+  snapshots. In addition, 192 item categories are published as the `sc_item_type` enumeration (#190 [G19])
+  with `sc_inventory_item_type_name` and `sc_inventory_port_item_type` helpers.
   `game.inventory.read` stays default OFF (`SCO_INVENTORY_READ=1` or the product switch,
   and every row must be OK); evidence `synthetic_only`. Not run in game. F-4.10.197.2878-011..-016.
 
-- **DataCore pack `BestEffort` partial-apply policy & pre-flight validator (`K-27`, `#192 [G21]`)**:
+- **DataCore pack `BestEffort` partial-apply policy & pre-flight validator (`#192 [G21]`)**:
   `datacore.pack` keeps `Atomic` as default and introduces an explicit opt-in `PackApplyPolicy::BestEffort`
   (`policy = "best_effort"`) returning structured per-record receipts (`PackApplyReceipt`).
   `sco-dcb lint <pack.toml>` checks syntax without game data;
   `sco-dcb check Game2.dcb <pack.toml>` validates operations against a database.
   These are offline file checks, not live-game evidence.
 
-- **DataCore pack deep-clone directive (`K-28`, `#191 [G20]`)**:
+- **DataCore pack deep-clone directive (`#191 [G20]`)**:
   Adds `mode = "deep"` to pack clone definitions (`clone = { record = "...", mode = "deep" }`) to duplicate
   referenced arrays and nested struct instances in DataCore packs, preventing shared-pointer mutation bugs.
 
-- **Host provider sockets for relocation & loadout (`K-29`)**:
+- **Host provider sockets for relocation & loadout**:
   Adds the host-only C-linkage sockets `sco_game_set_relocation_backend` (`src/game/services/relocation.h`) and
   `sco_game_set_loadout_backend` (`src/game/services/loadout.h`) allowing host shells to supply custom simulation
   and equipment backends. They are host-source seams, not plugin-facing tables, so the public headers
@@ -128,7 +137,7 @@ readiness. Other additions retain their registry-recorded OFF or conditional gat
   setter on an already started service returns `SCO_UNAVAILABLE` and installs nothing, and the relocation
   socket takes the provider's `player`, `target`, `apply` and `pose` callbacks (`now` optional).
 
-- **Read-only Windows Firewall admission inspection (`K-30`)**:
+- **Read-only Windows Firewall admission inspection**:
   Adds `InspectWindowsFirewallRule` (`include/sco/game/host.h`) via `INetFwPolicy2` COM API to query active
   outbound block rules as an official G1 offline admission signal without elevation.
 
