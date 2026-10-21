@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Native local-player async loadout adapter. Static build grounding does not
 // certify gameplay: explicit SCO_LOADOUT_ASYNC=1 opt-in and fresh G1 admission.
+// Item-port slots (port by name, attached container, handle, AttachEntity), the port vector and
+// the detach-behavior and persistence-reason values: F-4.10.197.2878-053, with
+// F-4.10.197.2878-012/-013. The 14 port names below are the consumer-side slot table of
+// docs/game/loadout.md, not verified engine port names: they are data-driven and absent from the
+// executable (F-4.10.197.2878-053).
+// game.loadout.async defaults OFF. Not run in game.
 #include "loadout.h"
 #include "spawn.h"
 #include "actors.h"

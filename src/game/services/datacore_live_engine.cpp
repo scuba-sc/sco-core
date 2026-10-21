@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // SPDX-FileCopyrightText: 2026 the sco-core contributors
+// Native DataCore counted-read adapter (default OFF). The owner layout (state, header, definition
+// tables, records, value pools, text blob), the owner table slots and the record and definition
+// strides are F-4.10.197.2878-051; the header and value pools are also in F-4.10.197.2878-031.
+// Header and definition layouts match the file parser (src/datacore). Not run in game.
 #include "datacore_live_engine.h"
 
 #include "sco/datacore.h"
@@ -114,6 +118,8 @@ bool ReadSnapshotUnsafe(const EngineRows* rows, Snapshot* out) {
         Load<uintptr_t>(vt + 0x20) != rows->deletingDestructor)
         return false;
 
+    // 2 means the load attempt finished, not that it succeeded (F-4.10.197.2878-051): early failures leave the
+    // header or pools null and the checks below refuse them; a late short read can leave a pool partly filled.
     if (Load<uint32_t>(owner + 0x1c8) != 2) return false;
     const uintptr_t header = Load<uintptr_t>(owner + 0x1d0);
     const uintptr_t structs = Load<uintptr_t>(owner + 0x1d8);

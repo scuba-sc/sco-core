@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // SPDX-FileCopyrightText: 2026 the sco-core contributors
+// Locators for the native DataCore owner (constructor table, reset, deleting wrapper, destructor,
+// owner slot) and the layout facts they check: F-4.10.197.2878-051 (DataCore owner/loader layout),
+// with the value-pool header from F-4.10.197.2878-031. Static resolution on 4.10.197.2878 only;
+// not run in game.
 #include "sig_rows.h"
 #include <cstring>
 

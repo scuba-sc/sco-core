@@ -20,7 +20,10 @@
 
 #define SC_DATACORE_LIVE_CAPABILITY "game.datacore_live"
 
-/* Supported scalar pool types for in-memory records */
+/* Supported scalar pool types for in-memory records. Each id names one of the game's 13 DataCore value
+ * pools; the pool, its element width and its type code are verified on the build (F-4.10.197.2878-051).
+ * The bool/signed/unsigned/float/GUID meanings follow the game's own DataCore field-type names and are
+ * not proven by the build's instructions. */
 typedef enum sc_datacore_pool_type {
     SC_DC_POOL_BOOL     = 0,
     SC_DC_POOL_INT8     = 1,

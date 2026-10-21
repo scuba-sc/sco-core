@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Actual host Stop and native CVar adapter over synthetic engine objects.
+// CVar interface slot positions and the write-blocking flag: F-4.10.197.2878-052 (with
+// F-4.10.196.36804-007). Not run in game.
 #include "../src/game/services/cvars_engine.h"
 #include "../src/game/services/spawn.h"
 #include "../src/game/admission.h"

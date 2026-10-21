@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// Native reference-integer CVar adapter. The console lookup slot, the CVar interface slots (get,
+// set, flags, name) and the write-blocking flag bit are F-4.10.197.2878-052 (lookup and set also
+// F-4.10.196.36804-007); g_squadron_frontend is F-4.10.197.2878-046. Production does not install
+// the write path. Not run in game.
 #include "cvars_engine.h"
 #include <cstring>
 #include <windows.h>

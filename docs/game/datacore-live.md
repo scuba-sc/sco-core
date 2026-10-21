@@ -42,6 +42,11 @@ active loader call before host service withdrawal.
 Scalar statistics describe the current counted allocation extent; capacity equals
 the populated count because the serialized scalar buffers are allocated to that
 count. Offsets and lengths are bytes and may span elements within that extent.
+
+The owner reports a finished load attempt, not a successful one, so the native reads also refuse a
+missing header or pool; a load that failed late can still leave a pool only partly filled
+(F-4.10.197.2878-051). Pool element widths are verified on the build; the type names follow the
+game's own field-type names. Not run in game.
 STRING exposes the serialized value-text blob itself, including embedded NUL and
 non-ASCII bytes: element size is one and count/capacity are blob byte length. It
 does not expose native string pointers or the separate string-offset index table.

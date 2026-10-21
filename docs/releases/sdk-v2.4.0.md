@@ -29,7 +29,7 @@ disk, not that a feature has been seen working.
   new widget/storage features need their own version and complete-member checks.
 - New: read an actor's hunger, thirst, temperature, oxygen, stun, distortion and radiation
   (`game.actor_stats`); change one stat of your own player, off by default (`game.actor_stats_write`);
-  read the server's quantum-travel settings and list the 17 parameter definitions
+  read the server's quantum-travel settings and list the 15 parameter definitions
   (`game.gamerules` 1.1, read off, no backend); look up any of 1,297 named input actions by id or name
   (`game.input` 1.0, metadata only; ids are scoped to build 4.10.197.2878); ask which game
   build is running (`game.build`); an event when an accepted mission changes
@@ -93,7 +93,7 @@ a main-branch merge, final-source CI, native availability or game acceptance.
 | `game.actor_stats` | 1.1 (with `game.actor_stats_write` 1.0) | read ON when its rows resolve; write OFF; appended read IDs are not writable | `sigcheck_resolved` (read), `off_pending_probe` (write); not run in game |
 | `game.inventory` | 1.1: `flags` and `total_seen` after `ports[]` (a 1.0-sized caller is unchanged), the 192-member `sc_item_type` enumeration with `sc_inventory_item_type_name` and `sc_inventory_port_item_type`, and a production adapter with nine new signature rows | `game.inventory.read` OFF | `synthetic_only`; not run in game; F-4.10.197.2878-011..-016 |
 | `game.input` | 1.0: read-only action registry, 1,297 named actions (ids 1..1297), lookup by id and by name; no input injection | `game.input.registry` ON, which advertises metadata availability only | `synthetic_only`; ids and names re-derived statically from the 4.10.197.2878 action registry, build-scoped; not run in game; F-4.10.197.2878-050 |
-| `game.gamerules` | 1.1: `list_params` appended, 17 copied name, group and type definitions; no live values; `read` is unchanged | `game.gamerules.read` OFF | `synthetic_only`; source build unresolved; not run in game; F-INTAKE-005 |
+| `game.gamerules` | 1.1: `list_params` appended, 15 name, group and type definitions whose names are verified on 4.10.197.2878 (types not verified); no live values; `read` is unchanged | `game.gamerules.read` OFF | `synthetic_only`; names build-scoped to 4.10.197.2878; not run in game; F-4.10.197.2878-054 |
 
 The bus event `game.loadout.respawn_completed` is also on `main`: production capability OFF, native hook unresolved, not run in game (F-INTAKE-004). #185's in-game hold was resolved by the owner's acceptance of static evidence; inventory 1.1 is **not run in game**.
 

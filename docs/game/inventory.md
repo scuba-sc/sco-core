@@ -15,7 +15,7 @@ capability stays OFF until an in-game run confirms it.
 
 ## Grounding
 
-Enumeration recipe (findings F-4.10.196.36804-007..-009, corrected and extended on 4.10.197.2878 by
+Enumeration recipe (findings F-4.10.196.36804-009, corrected and extended on 4.10.197.2878 by
 F-4.10.197.2878-011..-016; static analysis only, not run in game):
 
 - The item ports belong to an item-port container, which is a **component** fetched from the

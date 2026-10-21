@@ -30,21 +30,20 @@ int ReadGuarded(sc_gamerules_state* out) {
 #endif
 }
 sc_gamerules_v1 g_table = {sizeof(sc_gamerules_v1), 0, nullptr, nullptr};
-// Static parameter definitions: the members of the client's SGameRulesCvars type (F-INTAKE-005;
-// source build unresolved), flattened in declaration order. Names, groups and types only; no
-// values, offsets or pointers, and nothing here reads game memory.
+// Static parameter definitions: the 15 GameRules console variables whose names occur on the
+// verified build 4.10.197.2878 as g_gameRules.<group>.<name> (F-4.10.197.2878-054), in fixed
+// registry order. Names, groups and types only; no values, offsets or pointers, and nothing here
+// reads game memory. The INT/FLOAT types are not verified on a captured build. Not run in game.
 #define SC_GR_PARAM(type, group, name) {sizeof(sc_gamerules_param_info), type, name, group}
 constexpr sc_gamerules_param_info kParams[] = {
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "control", "capturableDebug"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "control", "phaseDebug"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "control", "objectiveDebug"),
-    SC_GR_PARAM(SC_GAMERULES_PARAM_FLOAT, "control", "terminalsDisabledTime"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "state", "log"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "scoring", "enabled"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "scoring", "log"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "damagehandling", "log"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "damagehandling", "disableCollisionFilter"),
-    SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "accessibility", "QTEMode"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "", "showRaceCheckpoints"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "", "showRaceInfo"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_FLOAT, "", "overrideRespawnTimer"),
