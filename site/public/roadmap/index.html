@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SCO SDK Roadmap</title>
-<meta name="description" content="Where the sco-core SDK stands, what 2.4.0 delivers, and what comes after. Progress is counted from concrete gates.">
+<meta name="description" content="Where the sco-core SDK stands on the road to 2.4.0, and where it goes after. Progress is counted from concrete gates.">
 <style>
 :root {
   --bg: #090b10; --surface: #121620; --surface-2: #181d2a;
@@ -112,6 +112,11 @@ footer { margin-top: 18px; text-align: center; color: var(--subtle); font-size: 
   .track-card { padding: 18px; }
 }
 
+.modes { display: inline-flex; gap: 4px; padding: 4px; margin-top: 22px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); flex-wrap: wrap; }
+.mode-btn { border: 0; background: transparent; color: var(--muted); padding: 9px 18px; border-radius: 999px; font: 650 14px var(--font); cursor: pointer; transition: all 0.2s ease; }
+.mode-btn:hover { color: var(--text); }
+.mode-btn[aria-selected="true"] { background: var(--blue-soft); color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+.mode-btn:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 </head>
@@ -125,9 +130,10 @@ footer { margin-top: 18px; text-align: center; color: var(--subtle); font-size: 
     </div>
   </nav>
   <header class="hero">
-    <div class="badge">SDK 2.4.0 &amp; beyond</div>
+    <div class="badge" id="mode-badge">From SDK 2.3.0 to 2.4.0</div>
     <h1>Platform Roadmap</h1>
-    <p class="subtitle">Where the sco-core SDK stands, what 2.4.0 delivers so anyone can build plugins on it, and what comes after. Every percentage is counted from concrete gates, not estimated.</p>
+    <p class="subtitle" id="mode-subtitle"></p>
+    <div class="modes" id="mode-tabs" role="tablist" aria-label="Roadmap view"></div>
     <div class="cta">
       <a class="icon-btn" href="/sco-core/guides/roadmap/">Read the roadmap guide</a>
       <a class="icon-btn" href="/sco-core/guides/getting-started/">Start a plugin</a>
@@ -143,7 +149,7 @@ footer { margin-top: 18px; text-align: center; color: var(--subtle); font-size: 
         </svg>
         <div class="ring-center"><span class="ring-number" id="overall-pct">0%</span><span class="ring-sub" id="overall-sub"></span></div>
       </div>
-      <div class="ring-label">SDK 2.4.0 readiness (gates done)</div>
+      <div class="ring-label" id="ring-label"></div>
     </div>
     <div class="card pillars-card">
       <div class="pillars-title">Milestone overview</div>
@@ -151,12 +157,16 @@ footer { margin-top: 18px; text-align: center; color: var(--subtle); font-size: 
     </div>
   </section>
 
-  <main id="phases-root"></main>
-  <p class="method">How progress is measured: each bar is the share of its listed gates that are done, and the ring counts every 2.4.0 gate. Gates are checked against the repositories and CI. Tests, static signature checks and mock runs are not evidence of in-game behavior; anything not yet run in game is labelled as such. This page is a direction, not a release date.</p>
+  <main id="phases-root" role="tabpanel" aria-live="polite"></main>
+  <p class="method">How progress is measured: each bar is the share of its listed gates that are done, and the ring counts the gates of the milestone in view. Gates are checked against the repositories and CI. Tests, static signature checks and mock runs are not evidence of in-game behavior; anything not yet run in game is labelled as such. This page is a direction, not a release date.</p>
   <footer>SCO SDK · Offline modding platform, never connected to official game servers · Updated 21 October 2026</footer>
 </div>
 <script>
-const DATA = {"phases": [{"id": "phase-1", "eyebrow": "Phase 1 · Release candidate", "title": "SDK 2.4.0: the contributor foundation", "color": "emerald", "items": [{"name": "Stable plugin ABI and service contracts", "desc": "Plugins are built against a frozen plain-C ABI that only grows. 2.4.0 adds a written stability promise and a Stable or Experimental label on every service, so contributors know what will not change under them.", "gates": [{"text": "Plugin ABI 1.1 frozen, byte-identical to 2.3.0", "done": true}, {"text": "Every public method catalogued (218 of 218)", "done": true}, {"text": "Stable or Experimental label on every service", "done": false}, {"text": "Stability and deprecation contract published", "done": false}]}, {"name": "Build, tests and static checks", "desc": "The candidate builds on Windows, Linux and macOS, passes the full suite, and every signature row resolves against the verified game build. Static checks find code; they do not prove behavior in game.", "gates": [{"text": "150 of 150 tests pass, including ABI layout pins", "done": true}, {"text": "347 of 347 signature rows resolve on build 4.10.197.2878", "done": true}, {"text": "All nine required CI jobs green on the candidate", "done": true}, {"text": "All five archive profiles build and pass their exercises", "done": true}]}, {"name": "MCP and developer tools", "desc": "The SDK ships its own MCP server so an AI assistant can discover the API, read contracts and examples, and help build a plugin without a source checkout. 2.4.0 extends it from discovery to the full development loop.", "gates": [{"text": "Ten read-only discovery tools bundled in the developer kit", "done": true}, {"text": "Scaffold C and C++ plugins", "done": true}, {"text": "Run the plugin checker from MCP", "done": false}, {"text": "Scaffold C# and Lua plugins", "done": false}, {"text": "Search the SDK guides from MCP", "done": false}, {"text": "Build and test a plugin project from MCP (opt-in)", "done": false}]}, {"name": "Docs and the contributor path", "desc": "Everything a newcomer needs to go from zero to a published plugin: getting started, the contract catalogue, the design principles that keep plugins modular, and a directory where community plugins are listed.", "gates": [{"text": "Getting-started guide and contract catalogue", "done": true}, {"text": "Public roadmap page", "done": false}, {"text": "Plugin design principles guide with a modular example", "done": false}, {"text": "Community plugin directory (plugins live in their authors' repos)", "done": false}, {"text": "Docs site and MCP catalogue switched to 2.4.0 at release", "done": false}]}, {"name": "Native backends, as scoped for 2.4.0", "desc": "New native paths stay off until someone opts in, and anything not proven safe answers unavailable instead of guessing. Four narrowed backends ship as contracts with synthetic providers; grounding them is the first work after 2.4.0.", "gates": [{"text": "Opt-in native DataCore reads, writes unavailable", "done": true}, {"text": "Opt-in native CVar reads; production writes refused", "done": true}, {"text": "Rays, entity lookup, GameRules reads and audio fail closed", "done": true}]}, {"name": "Proof it works for someone new", "desc": "Before the go signal, an isolated assistant with only the published archive, the docs site and the MCP must get from zero to a checked plugin, and a plugin built from the 2.4.0 archive must load in the game.", "gates": [{"text": "Outsider dry run: archive to checked plugin with no help", "done": false}, {"text": "In-game smoke: a 2.4.0-built plugin loads, runs a command and unloads", "done": false}]}, {"name": "Provenance review and release", "desc": "Every shipped file has a recorded provenance decision, the release workflow builds and attests the official archives, and the maintainer signs, tags and publishes.", "gates": [{"text": "Provenance decision for every shipped file", "done": false}, {"text": "Official candidate built by the release workflow", "done": false}, {"text": "Signed approval, tag and publication", "done": false}]}]}, {"id": "phase-2", "eyebrow": "Phase 2 · Right after 2.4.0", "title": "Native grounding and products on the SDK", "color": "blue", "items": [{"name": "Ground the four held native backends", "desc": "Fire-and-forget audio first, then value-change GameRules reads, exact class-name entity lookup and filtered single-hit rays. Each ships off by default once the game objects it touches are proven valid for the whole call.", "gates": [{"text": "Audio play_once native backend", "done": false}, {"text": "GameRules value-change read backend", "done": false}, {"text": "Exact class-name entity lookup backend", "done": false}, {"text": "Filtered single-hit ray backend", "done": false}]}, {"name": "scuba-engine studio on 2.4.0", "desc": "The out-of-game studio hosts plugins against mock game services, so authors can build and inspect a plugin without launching the game.", "gates": [{"text": "Native studio host and MCP bridge", "done": true}, {"text": "Main build green on every platform", "done": false}, {"text": "Mocks for the new 2.4.0 tables", "done": false}, {"text": "Pinned to the published 2.4.0 SDK", "done": false}]}, {"name": "sc-offline on 2.4.0", "desc": "The offline product ships each feature as a plugin that uses only the public SDK, which makes it the reference for how modular plugins fit together.", "gates": [{"text": "Features split into SDK-only plugins", "done": true}, {"text": "Pinned to the published 2.4.0 SDK", "done": false}, {"text": "Community attachments and ASOP selector landed as plugins", "done": false}]}, {"name": "Private co-presence (sc-mp)", "desc": "Players on a LAN or VPN see each other through a small relay built only on public SDK networking, never on official servers.", "gates": [{"text": "Relay server and session plugin", "done": true}, {"text": "Built on the published 2.4.0 SDK", "done": false}, {"text": "Run in game between two players", "done": false}]}]}, {"id": "phase-3", "eyebrow": "Phase 3 · Long-term horizon", "title": "Toward full engine coverage", "color": "purple", "items": [{"name": "Spatial zones and world control", "desc": "Coordinate conversion across nested zones, filtered multi-hit rays, camera and aim control.", "gates": []}, {"name": "Containers, economy and missions", "desc": "Native stored-container traversal, mission catalogue reads and writes, generated contracts.", "gates": []}, {"name": "Vehicles, crew and seated actors", "desc": "Safe seated-actor transitions, multi-crew state and persistent terminal data.", "gates": []}, {"name": "Audio and typed events", "desc": "Spatial audio events and typed entity and game event producers on the event bus.", "gates": []}, {"name": "Patch-day revalidation", "desc": "Faster rechecks of every signature row when the game updates.", "gates": []}]}]};
+const DATA = {"default_mode": "road-to-240", "modes": [{"id": "road-to-240", "label": "Road to 2.4.0", "badge": "From SDK 2.3.0 to 2.4.0", "ring_phase": "phase-1", "ring_label": "SDK 2.4.0 readiness (gates done)", "subtitle": "What SDK 2.4.0 adds over 2.3.0, and the gates it must pass before release so anyone can build plugins on it.", "phases": [{"id": "built-since-230", "eyebrow": "Built since 2.3.0", "title": "What 2.4.0 adds", "color": "blue", "items": [{"name": "Host and UI services", "desc": "New and grown host services that every plugin can use, game or not.", "gates": [{"text": "sco.widgets 1.2: retained panels with stable node tags", "done": true}, {"text": "sco.storage 1.1: table, view and column introspection", "done": true}, {"text": "sco.diagnostics.publisher 1.0: numeric and enum observations", "done": true}, {"text": "DataCore packs: best-effort apply with receipts, deep record cloning", "done": true}]}, {"name": "Game pack 0.8.0 contracts", "desc": "Versioned tables for Star Citizen on the verified build. Each says what it reads, what it can change, and when it answers unavailable.", "gates": [{"text": "game.loadout 1.2: asynchronous equip jobs", "done": true}, {"text": "game.inventory 1.1 and game.inventory.contents 1.0: copied snapshots and item categories", "done": true}, {"text": "game.actor_stats 1.1 (29 reads) and game.actor_stats_write 1.0", "done": true}, {"text": "game.gamerules 1.1, game.build 1.0, game.entities 1.2, game.world.control 1.1", "done": true}, {"text": "game.audio 1.1: fire-and-forget play_once", "done": true}, {"text": "game.input 1.0: 1,297 actions with ids re-verified on the build", "done": false}]}, {"name": "Real implementations behind the tables", "desc": "Native paths that stay off until someone opts in, and production backends for features that already had tables.", "gates": [{"text": "Opt-in native DataCore live reads", "done": true}, {"text": "Opt-in native CVar reads; production writes refused", "done": true}, {"text": "Production backends for relocation and quantum boost", "done": true}]}]}, {"id": "phase-1", "eyebrow": "Release gates", "title": "What must be true before 2.4.0 ships", "color": "emerald", "items": [{"name": "Stable plugin ABI and service contracts", "desc": "Plugins are built against a frozen plain-C ABI that only grows. 2.4.0 adds a written stability promise and a Stable or Experimental label on every service, so contributors know what will not change under them.", "gates": [{"text": "Plugin ABI 1.1 frozen, byte-identical to 2.3.0", "done": true}, {"text": "Every public method catalogued (218 of 218)", "done": true}, {"text": "Stable or Experimental label on every service", "done": false}, {"text": "Stability and deprecation contract published", "done": false}]}, {"name": "Build, tests and static checks", "desc": "The candidate builds on Windows, Linux and macOS, passes the full suite, and every signature row resolves against the verified game build. Static checks find code; they do not prove behavior in game.", "gates": [{"text": "150 of 150 tests pass, including ABI layout pins", "done": true}, {"text": "347 of 347 signature rows resolve on build 4.10.197.2878", "done": true}, {"text": "All nine required CI jobs green on the candidate", "done": true}, {"text": "All five archive profiles build and pass their exercises", "done": true}]}, {"name": "MCP and developer tools", "desc": "The SDK ships its own MCP server so an AI assistant can discover the API, read contracts and examples, and help build a plugin without a source checkout. 2.4.0 extends it from discovery to the full development loop.", "gates": [{"text": "Ten read-only discovery tools bundled in the developer kit", "done": true}, {"text": "Scaffold C and C++ plugins", "done": true}, {"text": "Run the plugin checker from MCP", "done": false}, {"text": "Scaffold C# and Lua plugins", "done": false}, {"text": "Search the SDK guides from MCP", "done": false}, {"text": "Build and test a plugin project from MCP (opt-in)", "done": false}]}, {"name": "Docs and the contributor path", "desc": "Everything a newcomer needs to go from zero to a published plugin: getting started, the contract catalogue, the design principles that keep plugins modular, and a directory where community plugins are listed.", "gates": [{"text": "Getting-started guide and contract catalogue", "done": true}, {"text": "Public roadmap page", "done": false}, {"text": "Plugin design principles guide with a modular example", "done": false}, {"text": "Community plugin directory (plugins live in their authors' repos)", "done": false}, {"text": "Docs site and MCP catalogue switched to 2.4.0 at release", "done": false}]}, {"name": "Native backends, as scoped for 2.4.0", "desc": "New native paths stay off until someone opts in, and anything not proven safe answers unavailable instead of guessing. Four narrowed backends ship as contracts with synthetic providers; grounding them is the first work after 2.4.0.", "gates": [{"text": "Opt-in native DataCore reads, writes unavailable", "done": true}, {"text": "Opt-in native CVar reads; production writes refused", "done": true}, {"text": "Rays, entity lookup, GameRules reads and audio fail closed", "done": true}]}, {"name": "Proof it works for someone new", "desc": "Before the go signal, an isolated assistant with only the published archive, the docs site and the MCP must get from zero to a checked plugin, and a plugin built from the 2.4.0 archive must load in the game.", "gates": [{"text": "Outsider dry run: archive to checked plugin with no help", "done": false}, {"text": "In-game smoke: a 2.4.0-built plugin loads, runs a command and unloads", "done": false}]}, {"name": "Provenance review and release", "desc": "Every shipped file has a recorded provenance decision, the release workflow builds and attests the official archives, and the maintainer signs, tags and publishes.", "gates": [{"text": "Provenance decision for every shipped file", "done": false}, {"text": "Official candidate built by the release workflow", "done": false}, {"text": "Signed approval, tag and publication", "done": false}]}]}]}, {"id": "after-240", "label": "After 2.4.0", "badge": "SDK 2.4.0 and beyond", "ring_phase": "phase-2", "ring_label": "Next milestone (gates done)", "subtitle": "Where the platform goes once 2.4.0 is out: native backends, products built only on the SDK, community plugins, then full engine coverage.", "phases": [{"id": "phase-2", "eyebrow": "Right after 2.4.0", "title": "Native grounding and products on the SDK", "color": "blue", "items": [{"name": "Ground the four held native backends", "desc": "Fire-and-forget audio first, then value-change GameRules reads, exact class-name entity lookup and filtered single-hit rays. Each ships off by default once the game objects it touches are proven valid for the whole call.", "gates": [{"text": "Audio play_once native backend", "done": false}, {"text": "GameRules value-change read backend", "done": false}, {"text": "Exact class-name entity lookup backend", "done": false}, {"text": "Filtered single-hit ray backend", "done": false}]}, {"name": "scuba-engine studio on 2.4.0", "desc": "The out-of-game studio hosts plugins against mock game services, so authors can build and inspect a plugin without launching the game.", "gates": [{"text": "Native studio host and MCP bridge", "done": true}, {"text": "Main build green on every platform", "done": false}, {"text": "Mocks for the new 2.4.0 tables", "done": false}, {"text": "Pinned to the published 2.4.0 SDK", "done": false}]}, {"name": "sc-offline on 2.4.0", "desc": "The offline product ships each feature as a plugin that uses only the public SDK, which makes it the reference for how modular plugins fit together.", "gates": [{"text": "Features split into SDK-only plugins", "done": true}, {"text": "Pinned to the published 2.4.0 SDK", "done": false}, {"text": "Community attachments and ASOP selector landed as plugins", "done": false}]}, {"name": "Private co-presence (sc-mp)", "desc": "Players on a LAN or VPN see each other through a small relay built only on public SDK networking, never on official servers.", "gates": [{"text": "Relay server and session plugin", "done": true}, {"text": "Built on the published 2.4.0 SDK", "done": false}, {"text": "Run in game between two players", "done": false}]}, {"name": "Community plugins", "desc": "Plugins live in their authors' own repositories and are listed in the directory with their compatibility.", "gates": [{"text": "First community plugin listed in the directory", "done": false}, {"text": "First outside contribution merged after 2.4.0", "done": false}]}]}, {"id": "phase-3", "eyebrow": "Phase 3 · Long-term horizon", "title": "Toward full engine coverage", "color": "purple", "items": [{"name": "Spatial zones and world control", "desc": "Coordinate conversion across nested zones, filtered multi-hit rays, camera and aim control.", "gates": []}, {"name": "Containers, economy and missions", "desc": "Native stored-container traversal, mission catalogue reads and writes, generated contracts.", "gates": []}, {"name": "Vehicles, crew and seated actors", "desc": "Safe seated-actor transitions, multi-crew state and persistent terminal data.", "gates": []}, {"name": "Audio and typed events", "desc": "Spatial audio events and typed entity and game event producers on the event bus.", "gates": []}, {"name": "Patch-day revalidation", "desc": "Faster rechecks of every signature row when the game updates.", "gates": []}]}]}]};
+const ALIASES = { 'road-to-2.4.0': 'road-to-240', 'before': 'road-to-240', 'pre': 'road-to-240',
+                  'after-2.4.0': 'after-240', 'after': 'after-240', 'post': 'after-240' };
+const SLUGS = { 'road-to-240': 'road-to-2.4.0', 'after-240': 'after-2.4.0' };
+let current = DATA.default_mode;
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function count(items) {
   let done = 0, total = 0;
@@ -166,6 +176,7 @@ function count(items) {
 function tone(pct, phaseColor) {
   if (pct === null) return phaseColor === 'emerald' ? 'slate' : phaseColor;
   if (pct === 0) return 'slate';
+  if (pct === 100) return 'emerald';
   if (phaseColor !== 'emerald') return phaseColor;
   return pct >= 75 ? 'emerald' : 'amber';
 }
@@ -178,20 +189,30 @@ function statusText(c) {
 function bar(pct, t, big) {
   return `<div class="bar${big ? ' lg' : ''}" role="img" aria-label="${pct}% of gates done"><div class="bar-fill fill-${t}" style="width:0%" data-target="${pct}"></div></div>`;
 }
+function modeById(id) { return DATA.modes.find(m => m.id === id) || DATA.modes[0]; }
 function render() {
-  const p1 = count(DATA.phases[0].items);
+  const mode = modeById(current);
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    const on = b.dataset.mode === mode.id;
+    b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
+  });
+  document.getElementById('mode-badge').textContent = mode.badge;
+  document.getElementById('mode-subtitle').textContent = mode.subtitle;
+  document.getElementById('ring-label').textContent = mode.ring_label;
+  const ringPhase = mode.phases.find(p => p.id === mode.ring_phase) || mode.phases[0];
+  const rc = count(ringPhase.items);
   const ring = document.getElementById('main-ring');
   const circ = 2 * Math.PI * 62;
-  ring.style.strokeDashoffset = (circ - (p1.pct / 100) * circ).toFixed(2);
-  document.getElementById('overall-pct').textContent = `${p1.pct}%`;
-  document.getElementById('overall-sub').textContent = `${p1.done} of ${p1.total} gates`;
-  document.getElementById('pillars-summary').innerHTML = DATA.phases.map(ph => {
+  ring.style.strokeDashoffset = (circ - ((rc.pct || 0) / 100) * circ).toFixed(2);
+  document.getElementById('overall-pct').textContent = rc.pct === null ? '-' : `${rc.pct}%`;
+  document.getElementById('overall-sub').textContent = rc.total ? `${rc.done} of ${rc.total} gates` : '';
+  document.getElementById('pillars-summary').innerHTML = mode.phases.map(ph => {
     const c = count(ph.items);
     return `<div class="pillar-row"><div class="pillar-top"><span>${esc(ph.title)}</span>
       <span class="pillar-pct">${c.pct === null ? 'Planned' : `${c.pct}% · ${c.done}/${c.total}`}</span></div>
       ${c.pct === null ? '' : bar(c.pct, ph.color, false)}</div>`;
   }).join('');
-  document.getElementById('phases-root').innerHTML = DATA.phases.map(ph => {
+  document.getElementById('phases-root').innerHTML = mode.phases.map(ph => {
     const c = count(ph.items);
     return `<section class="phase-section" id="${esc(ph.id)}"><div class="phase-header"><div>
       <div class="phase-eyebrow" style="color: var(--${ph.color})">${esc(ph.eyebrow)}</div>
@@ -215,6 +236,16 @@ function render() {
     document.querySelectorAll('.bar-fill[data-target]').forEach(el => { el.style.width = `${el.dataset.target}%`; });
   }, 50));
 }
+function setMode(id, push) {
+  current = modeById(id).id;
+  if (push && history.replaceState) history.replaceState(null, '', '#' + SLUGS[current]);
+  render();
+}
+function fromHash() {
+  const h = decodeURIComponent((location.hash || '').slice(1)).toLowerCase();
+  const id = ALIASES[h] || (DATA.modes.some(m => m.id === h) ? h : null);
+  return id || DATA.default_mode;
+}
 function toggleGates() {
   const open = document.body.classList.toggle('gates-open');
   const b = document.getElementById('gates-btn');
@@ -228,9 +259,19 @@ function setTheme(t) {
 function toggleTheme() { setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); }
 window.addEventListener('DOMContentLoaded', () => {
   if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) setTheme('light');
+  const tabs = document.getElementById('mode-tabs');
+  tabs.innerHTML = DATA.modes.map(m => `<button class="mode-btn" type="button" role="tab" data-mode="${esc(m.id)}" aria-controls="phases-root">${esc(m.label)}</button>`).join('');
+  tabs.addEventListener('click', e => { const b = e.target.closest('.mode-btn'); if (b) setMode(b.dataset.mode, true); });
+  tabs.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const i = DATA.modes.findIndex(m => m.id === current);
+    const n = DATA.modes[(i + (e.key === 'ArrowRight' ? 1 : DATA.modes.length - 1)) % DATA.modes.length];
+    setMode(n.id, true); tabs.querySelector(`[data-mode="${n.id}"]`).focus();
+  });
+  window.addEventListener('hashchange', () => setMode(fromHash(), false));
   document.getElementById('gates-btn').addEventListener('click', toggleGates);
   document.getElementById('theme-btn').addEventListener('click', toggleTheme);
-  render();
+  setMode(fromHash(), false);
 });
 </script>
 </body>
