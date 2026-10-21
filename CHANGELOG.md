@@ -25,6 +25,7 @@ locally. `game.actor_stats.read`, `game.build.info`, `game.events.mission_change
 
 - **Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths** (`src/ipc/diagnostics_platform_win.cpp`). Fixes a length type mismatch in the Windows diagnostics transport. Built by hosted CI only.
 - **MCP documentation at the current release, with drift gates.** `tools/sco-core-mcp/README.md` and `docs/sdk-mcp-tutorial.md` follow the release coordinates, and `tools/doc_release_gate.py` fails when either lags.
+- **Docs: public roadmap and direction page** (`docs/roadmap.md`), also served at `/roadmap/` on the docs site and linked from the README and the docs index.
 - **Tooling:** `tools/ip_audit.py` names the SBOM instead of a local path; Windows gate checks compare pinned files byte-exactly and print POSIX paths; `sdk_catalogue` and `sigcheck` find LLVM/Clang on Windows when it is not on PATH; `docs/net-wire.md` documents unknown control types and headless hosts.
 - **Loadout completion bus event**: additive occurrence-only payload and
   subscription name `game.loadout.respawn_completed` (F-INTAKE-004 / T-3).

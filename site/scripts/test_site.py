@@ -28,6 +28,8 @@ SENTINELS = ('PRIVATE_SENTINEL_73c61ae9', 'PRIVATE_FILENAME_93b4167a')
 DOWNLOADS = {gen.BASE + '/sdk-catalogue.json', gen.BASE + '/' + gen.NATIVE_DOWNLOAD}
 # Routes external checkers depend on; the release notifier polls the release-notes page.
 PINNED_ROUTES = ('guides/releases/sdk-v210', 'guides/getting-started', 'guides/api-v1', 'guides/readme')
+# Short URLs that astro.config.mjs redirects to a guide: a static page each, not a copy of the content.
+SHORT_ROUTES = {'roadmap': 'guides/roadmap'}
 GZIP_FILE_LIMIT = 16 << 20
 GZIP_TOTAL_LIMIT = 256 << 20
 
@@ -561,9 +563,12 @@ class SiteTests(unittest.TestCase):
         pages, links = check_built(BUILT)
         expected = (len(self.catalogue['records']) + len({r['service'] for r in self.catalogue['records']})
                     + len(gen.inputs(ROOT)) + len(gen.LANGUAGES) + len(gen.HUBS) + 1 + 1)  # hubs, natives, home
-        self.assertEqual(pages, expected + 1)  # Starlight's generated 404 page.
+        self.assertEqual(pages, expected + 1 + len(SHORT_ROUTES))  # Starlight's 404 page and the short-URL redirects.
         for identifier in PINNED_ROUTES + tuple('hubs/' + key for key, _, _ in gen.HUBS) + ('natives',):
             self.assertTrue((BUILT / identifier / 'index.html').is_file(), identifier)
+        for short, target in SHORT_ROUTES.items():
+            self.assertTrue((BUILT / target / 'index.html').is_file(), target)
+            self.assertIn(gen.route(target), (BUILT / short / 'index.html').read_text(), short)
         index = json.loads((ROOT / gen.NATIVE_INDEX).read_text())
         self.assertEqual((BUILT / gen.NATIVE_DOWNLOAD).read_bytes(), (ROOT / gen.NATIVE_INDEX).read_bytes())
         natives = (BUILT / 'natives/index.html').read_text()

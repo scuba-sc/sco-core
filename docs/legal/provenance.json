@@ -977,6 +977,14 @@
       "note": "JSON Schema (draft 2020-12) for the release approval record docs/legal/release-decisions/<tag>.json, checked by tools/ip_audit.py release"
     },
     {
+      "path": "docs/roadmap.md",
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "copyright": "2026 the sco-core contributors",
+      "status": "needs-review",
+      "note": "Independently authored public roadmap and contribution guide; describes direction and status only. No game material; not run in game."
+    },
+    {
       "path": "docs/**",
       "origin": "project-authored",
       "license": "GPL-3.0-only",

@@ -9,6 +9,8 @@ export default defineConfig({
   site: 'https://scubamount.github.io',
   base: '/sco-core',
   trailingSlash: 'always',
+  // Short URL for the roadmap guide: a static redirect page, not a second copy of the content.
+  redirects: { '/roadmap': '/sco-core/guides/roadmap/' },
   integrations: [starlight({
     title: 'sco-core SDK',
     description: 'Public SDK contracts and engineering guides',

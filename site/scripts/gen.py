@@ -64,6 +64,7 @@ HUBS = (
 # Editorial one-line summaries for hub cards; navigation text, not contract claims.
 HUB_DOCS = {
     'start': (
+        ('docs/roadmap.md', 'Where the SDK stands, what 2.4.0 delivers, what comes after, and how to contribute.'),
         ('docs/getting-started.md', 'One path from a published SDK archive to a checked C plugin deployed on Windows.'),
         ('docs/README.md', 'Curated guides grouped by audience.'),
         ('docs/plugins.md', 'Plugin folders, `plugin.ini`, discovery, loading and data packs.'),
@@ -837,7 +838,8 @@ def generate(root, catalogue, output, release_tag=None):
     libraries = '\n## Libraries\n\n' + hub_cards(groups)
     home = ['Public SDK contracts generated from a compiler-validated catalogue. '
             'Engineering guides are selected by an explicit public-input allowlist.\n',
-            '[Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json)',
+            '[Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json) · [Roadmap and direction]('
+            + route(doc_routes['docs/roadmap.md']) + ')',
             release_portal(root, catalogue, release_tag, doc_routes, libraries)]
     home += ['\n## Reading rules', catalogue['contract_context']['reading_rules'],
              '\n## Remaining gaps', rewrite_links(catalogue['contract_context']['remaining_gaps'], catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes)]
