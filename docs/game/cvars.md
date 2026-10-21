@@ -93,6 +93,31 @@ offline evidence remains valid, no write after real admission loss, and refusal
 of ordinary service calls and worker-thread cleanup during teardown. These tests
 are not native-object lifetime or game evidence.
 
+The production-route fixture (`tests/test_cvars_production.cpp`; CTest
+`cvars_production_refusal`) uses the real signature registry with synthetic
+resolver outputs and positive synthetic offline admission. Its assertions map to:
+`CHECK(FreshAdmissionAllowed())` — positive-admission precondition only;
+`CHECK(ConfigureProductionCvars() == Result::Ok)` followed by
+`CHECK(read->get_bool(...))` — production configuration and successful canonical
+read through the actual configured provider; `CHECK(write->set_bool(...) == SCO_UNAVAILABLE)`
+— production write refusal even with `SCO_CVARS_NATIVE=1`; and
+`CHECK(setters == 0 ...)` — no synthetic setter executes. These are assertion
+descriptions, not executable test-case IDs. Synthetic host evidence only; not run
+in game.
+
+The existing boundary matrix maps as follows: `test_cvars.cpp` —
+`cvars_four_exact_names_and_types`, `cvars_canonical_0_1_and_unchanged_outputs`,
+and `cvars_read_fault_latches_restart`; `cvars_engine` —
+`native_exact_allowlist_and_canonical_values`; `cvars_engine_fault` —
+`native_SEH_latches_restart_and_preserves_output`; `cvars_engine_callback_admission`
+— `fresh_admission_loss_refuses_native_access`; `cvars_engine_replace` and
+`cvars_engine_callback_method` — `receiver_and_method_identity_drift_refuse`;
+`cvars_engine_lease_replace` and `cvars_engine_lease_admission` —
+`first_prior_lease_is_retained_when_safe_restore_cannot_proceed`; `cvars_host_stop`
+— `stop_restores_lease_while_positive_cleanup_admission_remains`; and
+`cvars_host_stop_loss` — `admission_loss_refuses_restore_and_retains_lease`.
+The synthetic engine and host fixtures do not constitute in-game evidence.
+
 The legacy product's float GetCVarNow/SetCVarNow calls are not the new adapter's
 ABI. The new route uses independently checked reference-integer methods and
 rejects arbitrary nonzero values rather than normalizing them. Native setters
