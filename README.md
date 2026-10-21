@@ -61,6 +61,7 @@ Linux, macOS and Windows (MSVC). Sanitizer runs, options and CI: [Building and t
 | [Check or update a game build](docs/README.md#game-pack-contributor--check-or-update-a-game-build) | Game-pack contributor: signatures, guards and evidence |
 | [Discover via MCP](docs/README.md#agent--ide-user--discover-the-sdk-via-mcp) | Agent/IDE user: read-only SDK discovery |
 | [Build, contribute, release](docs/README.md#maintainer--build-contribute-release) | Maintainer: tests, release/decision evidence and publication |
+| [Roadmap and direction](docs/roadmap.md) | Where the SDK is going and how to contribute |
 | [Curated docs index](docs/README.md) | All six audience paths plus historical evidence |
 
 ## Scope

@@ -2,6 +2,7 @@
 
 Curated guides by audience, not an exhaustive inventory of historical records.
 For the project overview, start with the [root README](../README.md).
+For where the SDK is going and how to contribute, read the [roadmap](roadmap.md).
 
 ## New plugin author — Start a plugin
 
