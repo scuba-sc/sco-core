@@ -3,6 +3,7 @@
   "docs": [
     "docs/README.md",
     "docs/getting-started.md",
+    "docs/roadmap.md",
     "docs/api.md",
     "docs/api-v1.md",
     "docs/plugins.md",
