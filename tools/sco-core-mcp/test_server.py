@@ -94,6 +94,10 @@ def approval(tag, sha=SYNTHETIC_SHA, status="approved-for-publication"):
             "approved_by": "synthetic-approver", "approved_at": "2099-01-01T00:00:00Z"}
 
 
+def server_exe():
+    return ".exe" if os.name == "nt" else ""
+
+
 class Client:
     """One real child process; bounded reads without platform-specific selectors."""
 
@@ -2037,6 +2041,17 @@ if marker("noisy"):
         print("line %05d of synthetic output" % number)
     print("FAILED: 1 failure(s)")
     sys.exit(1)
+if marker("latin"):  # FAIL lines that are not UTF-8: each byte decodes to U+FFFD, six bytes once escaped
+    for number in range(300):
+        sys.stdout.buffer.write(b"FAIL " + b"\xe9" * 4000 + b"\n")
+    sys.stdout.buffer.write(b"FAILED: 300 failure(s)\n")
+    sys.stdout.flush()
+    sys.exit(1)
+if marker("linger"):  # exits at once, leaving a descendant that would write a file later
+    subprocess.Popen([sys.executable, "-c", "import sys, time; time.sleep(3); open(sys.argv[1], 'w').write('lingered')",
+                      os.path.join(folder, "lingered")])
+    print("OK: 0 failure(s)", flush=True)
+    sys.exit(0)
 if marker("bad"):
     print("FAIL plugin.ini: missing key 'entry'")
     print("FAIL id 'bad' does not match folder 'other'")
@@ -2310,6 +2325,108 @@ class DevToolTests(ServerCase):
             with self.subTest(name=name, arguments=arguments):
                 self.result(client.call(name, arguments), is_error=True)
         self.assertFalse((self.tools / "check-ran.log").exists())
+
+    def test_batch_programs_are_refused(self):
+        # Windows runs .bat/.cmd through cmd.exe, which would parse the caller's folder path as shell syntax.
+        for name, flag in (("check.cmd", "--plugin-check"), ("cmake.BAT", "--cmake"), ("ctest.Cmd", "--ctest")):
+            program = self.tools / name
+            program.write_text("@echo off\n", encoding="utf-8")
+            with self.subTest(flag=flag):
+                run = subprocess.run([sys.executable, str(SERVER), "--catalogue", str(CATALOGUE), "--enable-dev-tools",
+                                      "--project-root", str(self.root), flag, str(program)],
+                                     stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertEqual(run.stdout, b"")
+                self.assertIn(b"batch file", run.stderr)
+        server = importlib.import_module("server")
+        self.assertIsNone(server.program_refusal(str(self.tools / "check.py"), "--plugin-check"))
+        self.assertIsNotNone(server.program_refusal(str(self.tools / "check.cmd. "), "--plugin-check"))
+        if os.name == "nt":
+            self.assertIsNotNone(server.program_refusal(str(self.tools / "check.txt"), "--plugin-check"))
+            self.assertIsNone(server.program_refusal(str(self.tools / "cmake.EXE"), "--cmake"))
+        # A program found at call time (cmake on PATH here) is checked too, and nothing runs.
+        self.project("demo")
+        dev = server.DevTools([str(self.root)], sco_sdk=str(self.tools / "sdk"))
+        original = server.shutil.which
+        server.shutil.which = lambda name: str(self.tools / "cmake.BAT")
+        try:
+            built = dev.build_plugin_project({"project": "demo"})
+        finally:
+            server.shutil.which = original
+        self.assertEqual((built["state"], built["passed"], built["steps"]), ("unavailable", False, []))
+        self.assertIn("batch file", built["reason"])
+        self.assertTrue(any(line.startswith("Nothing was run") for line in built["conclusions"]))
+        self.assertFalse((self.root / "demo" / "build").exists())
+
+    def test_program_that_cannot_start_is_not_started(self):
+        self.folder("good")
+        broken = self.tools / ("broken" + server_exe())
+        broken.write_text("not a program\n", encoding="utf-8")  # no execute bit; not a PE image
+        client = self.start(extra=["--enable-dev-tools", "--project-root", self.root, "--plugin-check", broken])
+        result = self.result(client.call("run_plugin_check", {"folder": "good"}))
+        self.assertEqual((result["state"], result["passed"], result["exit_code"]), ("not_started", False, None))
+        self.assertIn("could not be started", result["reason"])
+
+    def test_several_project_roots(self):
+        second = self.root.parent / "second"
+        (second / "only2").mkdir(parents=True)
+        (second / "only2" / "plugin.ini").write_text("id = only2\n", encoding="utf-8")
+        client = self.start(extra=self.options() + ["--project-root", second])
+        accepted = self.result(client.call("run_plugin_check", {"folder": str(second / "only2")}))
+        self.assertEqual((accepted["passed"], accepted["folder"]), (True, str((second / "only2").resolve())))
+        self.refused(client, "run_plugin_check", {"folder": "only2"})  # relative paths resolve from the first root
+        self.refused(client, "run_plugin_check", {"folder": "../second/../outside/plugin"})
+        self.assertEqual((self.tools / "check-ran.log").read_text(encoding="utf-8").splitlines(),
+                         [str((second / "only2").resolve())])
+
+    @unittest.skipUnless(os.name == "nt", "Windows path forms")
+    def test_windows_stream_device_and_unc_paths_are_refused(self):
+        self.folder("inner")
+        client = self.client()
+        for folder in ("inner:x", "inner::$DATA", "\\\\?\\" + str(self.root / "inner"), "\\\\localhost\\c$",
+                       "\\\\.\\" + str(self.root / "inner"), "C:inner"):
+            with self.subTest(folder=folder):
+                self.refused(client, "run_plugin_check", {"folder": folder})
+        self.assertFalse((self.tools / "check-ran.log").exists())
+
+    def test_non_utf8_findings_fit_the_response_cap(self):
+        self.folder("latin", "latin")
+        server = importlib.import_module("server")
+        for limit in (None, 256 * 1024):
+            with self.subTest(limit=limit):
+                response = self.client(limit=limit).call("run_plugin_check", {"folder": "latin"})
+                result = self.result(response)  # not the "Result exceeds 4 MiB" error
+                self.assertEqual((result["state"], result["exit_code"], result["passed"]), ("completed", 1, False))
+                self.assertEqual(result["summary"], "FAILED: 300 failure(s)")
+                self.assertTrue(result["findings"])
+                self.assertTrue(result["findings_truncated"])
+                self.assertTrue(result["output_truncated"])
+                self.assertTrue(all(set(finding) == {"\ufffd"} for finding in result["findings"]))
+                self.assertLessEqual(len(server.encoded(result)), server.DEV_RESULT_BUDGET + 4096)
+
+    def test_descendants_do_not_outlive_a_normal_exit(self):
+        folder = self.folder("linger", "linger")
+        started = time.monotonic()
+        result = self.result(self.client().call("run_plugin_check", {"folder": "linger"}))
+        self.assertEqual((result["state"], result["passed"], result["output_complete"]), ("completed", True, True))
+        self.assertLess(time.monotonic() - started, 3)
+        time.sleep(max(0.0, started + 6 - time.monotonic()))
+        self.assertFalse((folder / "lingered").exists(), "a descendant outlived the call")
+
+    @unittest.skipUnless(os.name == "nt", "the kill-on-close job object is Windows-only; POSIX is documented")
+    def test_killing_the_server_ends_a_running_check(self):
+        folder = self.folder("slow", "hang")
+        client = self.client(timeout=60)
+        client.send({"jsonrpc": "2.0", "id": 99, "method": "tools/call",
+                     "params": {"name": "run_plugin_check", "arguments": {"folder": "slow"}}})
+        deadline = time.monotonic() + 10
+        while not (self.tools / "check-ran.log").exists() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        time.sleep(1)  # the checker has started its 4 s grandchild
+        client.process.kill()
+        client.process.wait(timeout=10)
+        time.sleep(6)
+        self.assertFalse((folder / "survived").exists(), "the tree outlived the server")
 
 
 README = HERE / "README.md"

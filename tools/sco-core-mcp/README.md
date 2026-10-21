@@ -457,7 +457,7 @@ environment variable, and any other argument is refused as a tool error.
 | `--enable-dev-tools` | off | Offer the three tools. Refused at start without a `--project-root`. |
 | `--project-root DIR` | none | A folder the tools may use. Repeat it for more folders. Each must exist. |
 | `--plugin-check PATH` | `bin/` or `out/bin/` of the SDK folder | The `sco-plugin-check` program. `cmake --install <build> --prefix out` in the SDK folder puts it in `out/bin/`. |
-| `--cmake PATH` | `cmake` on the server's `PATH` | The CMake program. |
+| `--cmake PATH` | `cmake` on the server's `PATH` (`cmake.exe` on Windows) | The CMake program. |
 | `--ctest PATH` | `ctest` beside `--cmake`, else on `PATH` | The CTest program. |
 | `--cmake-generator NAME` | CMake's default | Passed as `-G` when configuring, for example `Visual Studio 17 2022`. |
 | `--cmake-platform NAME` | none | Passed as `-A` when configuring, for example `x64` with a Visual Studio generator. |
@@ -469,8 +469,13 @@ Any of these options without `--enable-dev-tools` is refused at start, as is a
 missing project root or an out-of-range limit. Programs are looked up on every
 call, so a checker built after the server started is found. A program path that
 ends in `.py` is run with the server's own Python interpreter, which lets an
-operator use a wrapper script. Each call runs exactly these command lines,
-without a shell:
+operator use a wrapper script. Batch files are refused: Windows runs a `.bat` or
+`.cmd` program through `cmd.exe`, which would parse the caller's path as shell
+syntax. On Windows a program must be an `.exe` or a `.py` wrapper, on every
+platform a `.bat` or `.cmd` name is refused, and the `PATH` lookup asks for
+`cmake.exe` and `ctest.exe` only, never a shim. An explicit flag naming one is
+refused at start; a program found at call time gives `unavailable` with the
+reason. Each call runs exactly these command lines, without a shell:
 
 | Tool | Command line | Working folder |
 |---|---|---|
@@ -479,8 +484,9 @@ without a shell:
 | `test_plugin_project` | `ctest --test-dir PROJECT/build -C Release --output-on-failure --no-tests=error` | `PROJECT` |
 
 The build step runs only when configuring succeeded. Both cmake steps also set
-`MSBUILDDISABLENODEREUSE=1`, so no MSBuild node outlives the call; otherwise the
-programs inherit the server's environment. `test_plugin_project` is refused
+`MSBUILDDISABLENODEREUSE=1`, so no MSBuild node outlives the call, and
+`VSLANG=1033`, which asks MSVC for English messages where that language is
+installed; otherwise the programs inherit the server's environment. `test_plugin_project` is refused
 until `PROJECT/build/CMakeCache.txt` exists, and with `--no-tests=error` a
 project without tests fails rather than passing with nothing run.
 
@@ -491,23 +497,31 @@ target does.
 
 **Results.** Each result has `state`: `completed`, `timed_out`, `not_started`
 (the program could not be started) or `unavailable` (a program or the SDK folder
-is not configured or not found, with a `reason`). It also has `passed`, which is
-true only for a completed run with exit code 0; for a build, both steps must
-pass. A run reports these fields (a build reports them for each of its `steps`):
+is not configured or not found, with a `reason`; nothing was run). It also has
+`passed`, which is true only for a completed run with exit code 0; for a build,
+both steps must pass. `program`, the file name only, appears once per result. A
+run reports these fields (a build reports them for each of its `steps`):
 
+- `arguments`, exactly as passed;
 - `exit_code`, `timed_out` and `duration_seconds`;
-- `output`: the last `output_limit` bytes of combined stdout and stderr;
+- `output`: at most the last `output_limit` bytes of combined stdout and stderr;
 - `output_bytes` and `output_truncated`;
 - `output_complete`: false when a descendant still held the output open 5
-  seconds after the program ended;
-- `program`: the file name only, and `arguments`.
+  seconds after the program ended.
 
 `run_plugin_check` adds `findings`, the checker's `FAIL` lines without the
-prefix (at most 256), and `summary`, its last `OK: N failure(s)` or
+prefix (at most 256 lines and 256 KiB, with `findings_truncated` true when more
+were dropped), and `summary`, its last `OK: N failure(s)` or
 `FAILED: N failure(s)` line. `test_plugin_project` adds `summary`, CTest's
 `N% tests passed` line. Both are read from the whole output stream, so a
 truncated tail still reports them. Results name the resolved folder or project
 path. Every result carries `provenance`, like the other tools.
+
+A result always fits the 4 MiB response cap. Output that is not UTF-8 is decoded
+with replacement characters, which take more room once escaped, so if a whole
+result would be too large the server shortens the output tails first and then
+the findings, setting `output_truncated` and `findings_truncated`. `state`,
+`exit_code`, `passed` and `summary` are always kept.
 
 **Security model.**
 
@@ -524,13 +538,19 @@ path. Every result carries `provenance`, like the other tools.
 - **Fixed programs and arguments.** Programs, generator, platform, SDK folder,
   timeout and output limit come only from the operator's command line. The
   caller's path is passed as one resolved absolute argument, so it never starts
-  with `-`. Processes start with stdin closed and no shell.
+  with `-`. Processes start with stdin closed and no shell, and batch files,
+  which Windows would hand to `cmd.exe`, are refused (see above).
 - **Bounded time and output.** Each process runs in its own process group: a new
   process group and a job object on Windows, a new session on POSIX. On timeout
   the whole tree is killed: `taskkill /F /T` and the job object on Windows,
-  `SIGKILL` to the process group on POSIX. A descendant that deliberately leaves
-  the group or job can survive. Output beyond the limit is dropped from the
-  front.
+  `SIGKILL` to the process group on POSIX. When the program exits normally, any
+  descendant still running is killed the same way, so nothing it started
+  outlives the call. On Windows the job object is set to kill on close, so if
+  the server itself is killed or exits mid-call, the running tree ends with it.
+  On POSIX it does not: killing the server mid-call leaves that call's process
+  group running, so end it yourself (for example `kill -9 -PGID`). A descendant
+  that deliberately leaves the group or job can survive. Output beyond the limit
+  is dropped from the front.
 - **This runs code.** CMake runs the project's `CMakeLists.txt`, the build runs
   compilers, and `sco-plugin-check` loads the plugin's native code and runs it
   against a stand-in host. None of this is a sandbox. Grant only project roots

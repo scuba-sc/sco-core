@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only, tools-only MCP 2025-11-25 server for SDK catalogue schema 1.
+"""Tools-only MCP 2025-11-25 server for SDK catalogue schema 1; read-only unless --enable-dev-tools.
 
 By default: no SDK invocation, subprocesses, network access, or filesystem writes.
 Stdout is reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr.
@@ -16,7 +16,7 @@ The one exception is opt-in: with --enable-dev-tools and at least one
 --project-root, three more tools run operator-configured programs (sco-plugin-check,
 cmake, ctest) with fixed arguments on a folder inside a project root, with a
 timeout, an output cap and a process-tree kill. Callers never supply commands,
-flags or environment.
+flags or environment, and batch files (.bat, .cmd) are never run.
 """
 import argparse
 from collections import Counter, deque
@@ -269,11 +269,20 @@ DEV_BUILD_CONFIG = "Release"
 DEV_EXE = ".exe" if os.name == "nt" else ""
 CHECK_SUMMARY = re.compile(r"^(OK|FAILED): [0-9]+ failure\(s\)$")
 CTEST_SUMMARY = re.compile(r"^[0-9]+% tests passed, [0-9]+ tests? failed out of [0-9]+$")
+DEV_FINDINGS_BYTES = 256 * 1024
+# The result goes out twice (structuredContent and its JSON text copy, where escaping can double each byte),
+# so one dev result is kept to a third of the response cap, less room for provenance and framing.
+DEV_RESULT_BUDGET = (MAX_RESPONSE - 64 * 1024) // 3
 DEV_CONCLUSIONS = [
     "Ran on this machine: an operator-configured program with fixed arguments; the caller supplied only a folder inside a --project-root.",
     "The project's CMakeLists.txt and the plugin's own code run with the server's privileges; treat each project root as code you would run yourself.",
-    "output is the last output_limit bytes of combined stdout and stderr; findings and summary are collected from the whole stream.",
+    "output is at most the last output_limit bytes of combined stdout and stderr (less if the result had to be trimmed to fit "
+    "the response cap); findings and summary are collected from the whole stream.",
     "sco-plugin-check is a stand-in host, not the real host. Nothing here loaded the plugin in the game: not run in game."]
+DEV_UNAVAILABLE_CONCLUSIONS = [
+    "Nothing was run: the program or SDK folder this tool needs is not configured or not found; see reason.",
+    "Nothing here loaded the plugin in the game: not run in game."]
+BATCH_SUFFIXES = (".bat", ".cmd")
 
 
 class ToolError(ValueError):
@@ -1221,6 +1230,8 @@ def _kernel32():
         for name, argtypes, restype in (
                 ("CreateJobObjectW", (wintypes.LPVOID, wintypes.LPCWSTR), wintypes.HANDLE),
                 ("OpenProcess", (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD), wintypes.HANDLE),
+                ("SetInformationJobObject", (wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD),
+                 wintypes.BOOL),
                 ("AssignProcessToJobObject", (wintypes.HANDLE, wintypes.HANDLE), wintypes.BOOL),
                 ("TerminateJobObject", (wintypes.HANDLE, wintypes.UINT), wintypes.BOOL),
                 ("CloseHandle", (wintypes.HANDLE,), wintypes.BOOL)):
@@ -1230,13 +1241,41 @@ def _kernel32():
     return _KERNEL32
 
 
+def _kill_on_close(kernel32, job):
+    """JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: closing the last job handle, including when this server dies, ends the tree."""
+    import ctypes
+    from ctypes import wintypes
+
+    class Basic(ctypes.Structure):
+        _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                    ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD)]
+
+    class Extended(ctypes.Structure):
+        _fields_ = [("BasicLimitInformation", Basic), ("IoInfo", ctypes.c_uint64 * 6),
+                    ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                    ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+    limits = Extended()
+    limits.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    # 9 = JobObjectExtendedLimitInformation
+    return bool(kernel32.SetInformationJobObject(job, 9, ctypes.byref(limits), ctypes.sizeof(limits)))
+
+
 def _job_for(pid):
-    """A Windows job object holding the process, so a timeout also ends descendants that outlive their parent."""
+    """A Windows job object holding the process, so a timeout also ends descendants that outlive their parent.
+
+    The job kills its processes when its handle closes: after each run (so nothing started by the
+    program outlives the call) and when this server exits or is killed mid-call.
+    """
     try:
         kernel32 = _kernel32()
         job = kernel32.CreateJobObjectW(None, None)
         if not job:
             return None
+        _kill_on_close(kernel32, job)
         handle = kernel32.OpenProcess(0x0100 | 0x0001, False, pid)  # PROCESS_SET_QUOTA | PROCESS_TERMINATE
         assigned = bool(handle) and bool(kernel32.AssignProcessToJobObject(job, handle))
         if handle:
@@ -1290,12 +1329,18 @@ def run_bounded(argv, cwd, timeout, limit, env=None, summary=None, finding_prefi
     job = _job_for(process.pid) if os.name == "nt" else None
     lock = threading.Lock()
     tail, pending = bytearray(), bytearray()
-    seen = {"bytes": 0, "findings": [], "summary": None}
+    seen = {"bytes": 0, "findings": [], "finding_bytes": 0, "findings_truncated": False, "summary": None}
 
     def take(line):
         text = bytes(line[:DEV_LINE]).decode("utf-8", errors="replace").rstrip("\r")
-        if finding_prefix and text.startswith(finding_prefix) and len(seen["findings"]) < DEV_FINDINGS:
-            seen["findings"].append(text[len(finding_prefix):])
+        if finding_prefix and text.startswith(finding_prefix):
+            finding = text[len(finding_prefix):]
+            size = len(encoded(finding))
+            if len(seen["findings"]) < DEV_FINDINGS and seen["finding_bytes"] + size <= DEV_FINDINGS_BYTES:
+                seen["findings"].append(finding)
+                seen["finding_bytes"] += size
+            else:
+                seen["findings_truncated"] = True
         if summary and summary.match(text.strip()):
             seen["summary"] = text.strip()
 
@@ -1339,8 +1384,15 @@ def run_bounded(argv, cwd, timeout, limit, env=None, summary=None, finding_prefi
         except subprocess.TimeoutExpired:
             exit_code = None
     finally:
+        # Nothing the program started may outlive the call: closing the kill-on-close job ends any
+        # remaining descendants on Windows; elsewhere the process group (its own session) is killed.
         if job:
             _kernel32().CloseHandle(job)
+        elif os.name != "nt":
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except OSError:
+                pass
     reader.join(timeout=5)
     complete = not reader.is_alive()
     if complete:
@@ -1353,6 +1405,7 @@ def run_bounded(argv, cwd, timeout, limit, env=None, summary=None, finding_prefi
                   "output_complete": complete, "output_limit": limit}
         if finding_prefix:
             result["findings"] = list(seen["findings"])
+            result["findings_truncated"] = seen["findings_truncated"]
         if summary:
             result["summary"] = seen["summary"]
     return result
@@ -1369,6 +1422,36 @@ def within(path, root):
 def launch(program):
     """argv prefix for an operator-configured program; a .py wrapper runs with this interpreter."""
     return [sys.executable, program] if program.lower().endswith(".py") else [program]
+
+
+def program_refusal(program, what):
+    """Why an operator program may not run, or None.
+
+    Windows runs a .bat or .cmd file through cmd.exe, which would parse the caller's folder path as
+    shell syntax, so batch files are refused everywhere. On Windows only .exe programs and .py
+    wrappers (run with this interpreter) are accepted.
+    """
+    name = os.path.basename(program).lower().rstrip(". ")
+    if name.endswith(BATCH_SUFFIXES) or (os.name == "nt" and not name.endswith((".exe", ".py"))):
+        return (what + " must name an .exe program or a .py wrapper, not a batch file or script "
+                "(Windows runs .bat and .cmd through cmd.exe)")
+    return None
+
+
+def fit_result(result):
+    """Trim output tails, then findings, until the result fits DEV_RESULT_BUDGET; never drop the result."""
+    runs = result.get("steps") or [result]
+    while len(encoded(result)) > DEV_RESULT_BUDGET:
+        longest = max(runs, key=lambda run: len(run.get("output", "")))
+        if len(longest.get("output", "")) > 64:
+            longest["output"] = longest["output"][len(longest["output"]) // 2:]
+            longest["output_truncated"] = True
+        elif result.get("findings"):
+            result["findings"] = result["findings"][:len(result["findings"]) // 2]
+            result["findings_truncated"] = True
+        else:
+            break
+    return result
 
 
 class DevTools:
@@ -1396,6 +1479,15 @@ class DevTools:
         self.cmake = os.path.abspath(cmake) if cmake else None
         self.ctest = os.path.abspath(ctest) if ctest else None
         self.sco_sdk = Path(os.path.abspath(sco_sdk)) if sco_sdk else None
+        for flag, program in (("--plugin-check", self.plugin_check), ("--cmake", self.cmake), ("--ctest", self.ctest)):
+            refusal = program and program_refusal(program, flag)
+            require(not refusal, refusal)
+
+    @staticmethod
+    def found(program, what):
+        """(program, None) if it may run, else (None, the reason): checked again for every program found at call time."""
+        refusal = program_refusal(program, what)
+        return (None, refusal) if refusal else (program, None)
 
     # Programs are found at call time, so a checker built after the server started is picked up.
     def sdk(self):
@@ -1413,7 +1505,7 @@ class DevTools:
     def checker(self):
         if self.plugin_check is not None:
             if os.path.isfile(self.plugin_check):
-                return self.plugin_check, None
+                return self.found(self.plugin_check, "--plugin-check")
             return None, "--plugin-check names no file"
         sdk, _ = self.sdk()
         if sdk is not None:
@@ -1426,20 +1518,21 @@ class DevTools:
 
     def cmake_program(self):
         if self.cmake is not None:
-            return (self.cmake, None) if os.path.isfile(self.cmake) else (None, "--cmake names no file")
-        found = shutil.which("cmake")
-        return (found, None) if found else (None, "No --cmake and no cmake on the server's PATH")
+            return self.found(self.cmake, "--cmake") if os.path.isfile(self.cmake) else (None, "--cmake names no file")
+        found = shutil.which("cmake" + DEV_EXE)  # cmake.exe on Windows: never a cmake.cmd shim from PATHEXT
+        return self.found(found, "cmake on PATH") if found else (None, "No --cmake and no cmake on the server's PATH")
 
     def ctest_program(self):
         if self.ctest is not None:
-            return (self.ctest, None) if os.path.isfile(self.ctest) else (None, "--ctest names no file")
+            return self.found(self.ctest, "--ctest") if os.path.isfile(self.ctest) else (None, "--ctest names no file")
         cmake, _ = self.cmake_program()
         if cmake is not None:
             sibling = Path(cmake).with_name("ctest" + Path(cmake).suffix)
             if sibling.is_file():
-                return str(sibling), None
-        found = shutil.which("ctest")
-        return (found, None) if found else (None, "No --ctest, no ctest beside cmake and none on the server's PATH")
+                return self.found(str(sibling), "ctest beside cmake")
+        found = shutil.which("ctest" + DEV_EXE)
+        return (self.found(found, "ctest on PATH") if found
+                else (None, "No --ctest, no ctest beside cmake and none on the server's PATH"))
 
     def contained(self, value, what):
         """Resolve a caller path; refuse it unless it is an existing folder inside a project root.
@@ -1449,7 +1542,8 @@ class DevTools:
         Outside, missing and not-a-folder get the same refusal, so nothing is learned about other paths.
         """
         refusal = what + " must be an existing folder inside a --project-root (after resolving symlinks and ..)"
-        if "\x00" in value or (os.name == "nt" and ":" in value[2:]):
+        # Windows: a colon only as the drive of an absolute path (no streams, devices or drive-relative C:x).
+        if "\x00" in value or (os.name == "nt" and ":" in value and not re.match(r"[A-Za-z]:[\\/][^:]*$", value)):
             raise ToolError(refusal)
         candidate = os.path.normpath(os.path.join(str(self.roots[0][0]), value))
         if not any(within(candidate, root) for pair in self.roots for root in pair):
@@ -1489,11 +1583,11 @@ class DevTools:
                   "conclusions": DEV_CONCLUSIONS}
         program, reason = self.checker()
         if program is None:
-            return result | {"state": "unavailable", "reason": reason}
+            return result | {"state": "unavailable", "reason": reason, "conclusions": DEV_UNAVAILABLE_CONCLUSIONS}
         arguments = [str(folder)] + (["--short-tables"] if mode == "short" else [])
         run = self.run(program, arguments, folder, summary=CHECK_SUMMARY, finding_prefix="FAIL ")
-        return result | {"program": Path(program).name, "arguments": arguments} | run | {
-            "passed": run["state"] == "completed" and run["exit_code"] == 0}
+        return fit_result(result | {"program": Path(program).name, "arguments": arguments} | run | {
+            "passed": run["state"] == "completed" and run["exit_code"] == 0})
 
     def build_plugin_project(self, args):
         project, build = self.project(args["project"])
@@ -1502,10 +1596,12 @@ class DevTools:
         cmake, reason = self.cmake_program()
         sdk, sdk_reason = self.sdk()
         if cmake is None or sdk is None:
-            return result | {"state": "unavailable", "reason": reason or sdk_reason, "exit_code": None}
+            return result | {"state": "unavailable", "reason": reason or sdk_reason, "exit_code": None,
+                             "conclusions": DEV_UNAVAILABLE_CONCLUSIONS}
         configure = (["-S", str(project), "-B", str(build)] + (["-G", self.generator] if self.generator else [])
                      + (["-A", self.platform] if self.platform else []) + ["-DSCO_SDK=" + sdk])
-        environment = dict(os.environ, MSBUILDDISABLENODEREUSE="1")  # no MSBuild node outlives the call
+        # No MSBuild node outlives the call; VSLANG=1033 asks MSVC for English (ASCII) messages where installed.
+        environment = dict(os.environ, MSBUILDDISABLENODEREUSE="1", VSLANG="1033")
         deadline = time.monotonic() + self.timeout
         steps = [{"step": "configure", "arguments": configure} | self.run(cmake, configure, project, env=environment)]
         if steps[0]["state"] == "completed" and steps[0]["exit_code"] == 0:
@@ -1514,8 +1610,9 @@ class DevTools:
             steps.append({"step": "build", "arguments": arguments}
                          | self.run(cmake, arguments, project, timeout=remaining, env=environment))
         last = steps[-1]
-        return result | {"program": Path(cmake).name, "state": last["state"], "exit_code": last["exit_code"], "steps": steps,
-                         "passed": len(steps) == 2 and all(s["state"] == "completed" and s["exit_code"] == 0 for s in steps)}
+        return fit_result(result | {
+            "program": Path(cmake).name, "state": last["state"], "exit_code": last["exit_code"], "steps": steps,
+            "passed": len(steps) == 2 and all(s["state"] == "completed" and s["exit_code"] == 0 for s in steps)})
 
     def test_plugin_project(self, args):
         project, build = self.project(args["project"])
@@ -1525,11 +1622,11 @@ class DevTools:
             raise ToolError("project is not configured: no build/CMakeCache.txt; run build_plugin_project first")
         ctest, reason = self.ctest_program()
         if ctest is None:
-            return result | {"state": "unavailable", "reason": reason}
+            return result | {"state": "unavailable", "reason": reason, "conclusions": DEV_UNAVAILABLE_CONCLUSIONS}
         arguments = ["--test-dir", str(build), "-C", DEV_BUILD_CONFIG, "--output-on-failure", "--no-tests=error"]
         run = self.run(ctest, arguments, project, summary=CTEST_SUMMARY)
-        return result | {"program": Path(ctest).name, "arguments": arguments} | run | {
-            "passed": run["state"] == "completed" and run["exit_code"] == 0}
+        return fit_result(result | {"program": Path(ctest).name, "arguments": arguments} | run | {
+            "passed": run["state"] == "completed" and run["exit_code"] == 0})
 
 
 def aliases(record):

@@ -147,7 +147,19 @@ schemas and limits. The launcher above stays at the six default tools.
 run the build-and-check loop. Add `--enable-dev-tools` and one or more
 `--project-root /absolute/path/to/projects` to `args`, and the server offers three
 more tools: `run_plugin_check`, `build_plugin_project` and
-`test_plugin_project`. Add each name you want to `tools` explicitly.
+`test_plugin_project`. Add each name you want to `tools` explicitly. In `args`,
+every flag and every value is its own array element; `"--project-root /abs"` as
+one element is refused at start. Append these elements to the existing `args`
+and `tools` arrays of the configuration above:
+
+```json
+{
+  "args": ["--enable-dev-tools",
+           "--project-root", "/absolute/path/to/projects",
+           "--plugin-check", "/absolute/path/to/sco-plugin-check"],
+  "tools": ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
+}
+```
 
 - `run_plugin_check` takes a built plugin `folder` and an optional `mode`
   (`full` or `short`). It runs the operator's `sco-plugin-check` and returns the
@@ -160,9 +172,10 @@ more tools: `run_plugin_check`, `build_plugin_project` and
 The caller supplies only that path. The operator fixes the programs (with
 `--plugin-check`, `--cmake` and `--ctest`), the generator and platform
 (`--cmake-generator`, `--cmake-platform`), the SDK folder (`--sco-sdk`), a
-timeout (`--dev-timeout`) and an output cap (`--dev-output-limit`). Paths outside
-every project root are refused after resolving symlinks and `..`. A timeout kills
-the whole process tree.
+timeout (`--dev-timeout`) and an output cap (`--dev-output-limit`). Programs must
+be an `.exe` (or a native program elsewhere) or a `.py` wrapper; batch files are
+refused. Paths outside every project root are refused after resolving symlinks
+and `..`. A timeout kills the whole process tree.
 
 These tools run code. CMake runs the project's build files, and the checker
 loads the plugin's native code into a stand-in host. They are not a sandbox, so
