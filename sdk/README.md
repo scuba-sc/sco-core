@@ -4,7 +4,7 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 
 | Kind | What it is | Example |
 |---|---|---|
-| `native` | A 64-bit Windows DLL written in C against `sco_api.h`, in C++20 with the `include/scosdk/` headers, or in C# with `csharp/Sco.Sdk` (NativeAOT) | [`examples/hello`](examples/hello), [`examples/cpp_hello`](examples/cpp_hello), [`examples/cs_hello`](examples/cs_hello) |
+| `native` | A 64-bit Windows DLL written in C against `sco_api.h`, in C++20 with the `include/scosdk/` headers, or in C# with `csharp/Sco.Sdk` (NativeAOT) | [`examples/hello`](examples/hello), [`examples/cpp_hello`](examples/cpp_hello), [`examples/cs_hello`](examples/cs_hello); two plugins sharing a service: [`examples/counter_service`](examples/counter_service) and [`examples/counter_panel`](examples/counter_panel) |
 | `data` | Files only: missions, rules, scripts, lists and game-data overrides (`datacore\*.toml`). Runs no code | [`examples/travel_pack`](examples/travel_pack), [`examples/quantum_pack`](examples/quantum_pack) |
 | `lua` | A Lua 5.4 script, run in a sandbox by sc-offline's bundled Lua runtime | [`examples/greeter`](examples/greeter), [`examples/notebook`](examples/notebook) (storage) |
 
@@ -23,7 +23,7 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 | `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins-1). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |
 | `cmake/sco-plugin.cmake` | `sco_add_plugin()` and `sco_add_pack()`: build a plugin and lay it out |
 | `template/` | A native plugin to copy and rename |
-| `examples/` | `hello` (native C), `widgets` (native C, retained neutral UI), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
+| `examples/` | `hello` (native C), `counter_service` and `counter_panel` (native C: a provider and a consumer of one service table), `widgets` (native C, retained neutral UI), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
 | `tools/sco-plugin-check.c` | Checks a built plugin folder on your machine, without the game |
 | `tools/lua-check.lua` | Runs a Lua plugin against a stand-in `sco` table, without the game |
 | `docs/` | [plugin.ini](docs/plugin-ini.md), [data packs](docs/data-packs.md), [Lua](docs/lua.md), [plugin rules](docs/plugin-rules.md), [API reference](../docs/api-v1.md), [C++ SDK](../docs/sdk-cpp.md), [C# SDK](../docs/sdk-csharp.md) |
@@ -183,7 +183,7 @@ cmake --build build
 cmake --install build --prefix out
 ```
 
-`out/data/plugins/` now holds `hello/`, `cpp_hello/`, `widgets/`, `greeter/`, `notebook/` and `my_plugin/` (the template), plus `travel_pack/` and `quantum_pack/` when the Star Citizen extension is unpacked over the core SDK, laid out the way sc-offline reads them, and `out/bin/` holds `sco-plugin-check`.
+`out/data/plugins/` now holds `hello/`, `cpp_hello/`, `widgets/`, `widgets_lua/`, `content_reader/`, `counter_service/`, `counter_panel/`, `greeter/`, `notebook/` and `my_plugin/` (the template), plus `travel_pack/` and `quantum_pack/` when the Star Citizen extension is unpacked over the core SDK, laid out the way sc-offline reads them, and `out/bin/` holds `sco-plugin-check`.
 
 ## Check a plugin
 

@@ -6,6 +6,7 @@
     "docs/api.md",
     "docs/api-v1.md",
     "docs/plugins.md",
+    "docs/plugin-design.md",
     "docs/sdk-cpp.md",
     "docs/sdk-csharp.md",
     "docs/framework.md",

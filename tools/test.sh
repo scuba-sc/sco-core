@@ -665,6 +665,12 @@ rm -rf "$OUT/sim"
 mkdir -p "$SIM/hello"
 "$CC" -std=c11 -O1 -Wall -Wextra -Werror -I "$ROOT/include" "${SHARED[@]}" "$ROOT/sdk/examples/hello/hello.c" -o "$SIM/hello/hello.so"
 sed 's/^entry = hello\.dll/entry = hello.so/' "$ROOT/sdk/examples/hello/plugin.ini" > "$SIM/hello/plugin.ini"
+# The modular pair: counter_panel requires counter_service.counter and calls its table.
+for ex in counter_service counter_panel; do
+  mkdir -p "$SIM/$ex"
+  "$CC" -std=c11 -O1 -Wall -Wextra -Werror -I "$ROOT/include" "${SHARED[@]}" "$ROOT/sdk/examples/$ex/$ex.c" -o "$SIM/$ex/$ex.so"
+  sed "s/^entry = $ex\.dll/entry = $ex.so/" "$ROOT/sdk/examples/$ex/plugin.ini" > "$SIM/$ex/plugin.ini"
+done
 cp -R "$ROOT/sdk/examples/greeter" "$ROOT/sdk/examples/travel_pack" "$ROOT/sdk/examples/quantum_pack" "$SIM/"
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -I "$ROOT/plugins/lua" -isystem "$LUA_SRC" "$ROOT/tools/sco-host-sim.cpp" \
@@ -675,4 +681,11 @@ fi
 cat "$OUT/sim.log"
 grep -qF '[sim] invoke hello.wave -> OK "Hello, Pilot One"' "$OUT/sim.log" || { echo "sco-host-sim: no reply from hello.wave"; exit 1; }
 grep -qF '[sim] datacore quantum_pack datacore/eos.toml: OK' "$OUT/sim.log" || { echo "sco-host-sim: the sample datacore pack wasn't linted"; exit 1; }
-echo "sco-host-sim: SDK examples load, tick, answer and unload"
+if ! "$OUT/sco-host-sim" "$SIM" --ticks 1 --invoke counter_panel.bump > "$OUT/sim-counter.log"; then
+  cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter pair failed"; exit 1
+fi
+grep -qF '[sim] invoke counter_panel.bump -> OK "counter is 1"' "$OUT/sim-counter.log" || { cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter_panel did not reach counter_service's table"; exit 1; }
+provider_at=$(grep -nF '[plugin] loaded counter_service ' "$OUT/sim-counter.log" | head -n 1 | cut -d: -f1)
+consumer_at=$(grep -nF '[plugin] loaded counter_panel ' "$OUT/sim-counter.log" | head -n 1 | cut -d: -f1)
+[ -n "$provider_at" ] && [ -n "$consumer_at" ] && [ "$provider_at" -lt "$consumer_at" ] || { cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter_panel loaded before its provider"; exit 1; }
+echo "sco-host-sim: SDK examples load, tick, answer and unload; counter_panel calls counter_service across plugins"

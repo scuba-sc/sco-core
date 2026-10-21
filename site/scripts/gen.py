@@ -67,6 +67,7 @@ HUB_DOCS = {
         ('docs/getting-started.md', 'One path from a published SDK archive to a checked C plugin deployed on Windows.'),
         ('docs/README.md', 'Curated guides grouped by audience.'),
         ('docs/plugins.md', 'Plugin folders, `plugin.ini`, discovery, loading and data packs.'),
+        ('docs/plugin-design.md', 'Design principles for modular plugins, with a provider and consumer example pair.'),
         ('docs/framework.md', 'How the runtime, plugin system, services and SDK sit under each product.'),
     ),
     'sdks': (

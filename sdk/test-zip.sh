@@ -267,6 +267,24 @@ grep -q 'invoke  hello.wave -> ok "Hello, Pilot One"' "$WORK/hello.txt"
 grep -q 'invoke  cpp_hello.wave -> ok "Hello, Pilot One"' "$WORK/cpp_hello.txt"
 grep -q 'invoke  cpp_hello.ticks -> ok "3 ticks"' "$WORK/cpp_hello.txt"
 grep -q 'service cpp_hello.greeter 1.0' "$WORK/cpp_hello.txt"
+# The modular pair, one folder at a time: the checker never connects one plugin's service to
+# another, so the provider publishes its table and the consumer, alone, takes its documented
+# absent-provider path (unavailable with a reason, not a failure). CTest host_sim_examples runs both
+# together through the real host.
+"$CHECK" "$P/counter_service" | tee "$WORK/counter_service.txt"
+grep -q 'service counter_service.counter 1.0' "$WORK/counter_service.txt"
+grep -q 'invoke  counter_service.value -> ok "counter is 0"' "$WORK/counter_service.txt"
+"$CHECK" "$P/counter_panel" | tee "$WORK/counter_panel.txt"
+grep -q 'needs   counter_service.counter' "$WORK/counter_panel.txt"
+grep -q 'invoke  counter_panel.bump -> unavailable "counter_service.counter is not installed"' "$WORK/counter_panel.txt"
+grep -q 'invoke  counter_panel.show -> unavailable "counter_service.counter is not installed"' "$WORK/counter_panel.txt"
+# On a 1.0 sco_api both degrade instead of failing: the provider publishes nothing but keeps its
+# command, and the consumer names the host, not the provider, as the reason.
+"$CHECK" "$P/counter_service" --short-tables | tee "$WORK/counter_service-short.txt"
+grep -q 'this host has no provide_service (sco_api 1.0): counter_service.counter is not published' "$WORK/counter_service-short.txt"
+grep -q 'invoke  counter_service.value -> ok "counter is 0"' "$WORK/counter_service-short.txt"
+"$CHECK" "$P/counter_panel" --short-tables | tee "$WORK/counter_panel-short.txt"
+grep -q 'invoke  counter_panel.bump -> unavailable "this host has no query_service (sco_api 1.0)"' "$WORK/counter_panel-short.txt"
 "$CHECK" "$P/my_plugin" | tee "$WORK/template.txt"
 grep -q 'invoke  my_plugin.ping -> ok "pong"' "$WORK/template.txt"
 if [ $GAME = 1 ]; then
@@ -415,6 +433,10 @@ fi
 cp -R "$ROOT/template" "$WORK/mine"
 cmake -S "$WORK/mine" -B "$WORK/mine/build" -DSCO_SDK="$ROOT" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$WORK/mine/build" --config Release
+# counter_panel builds from its own folder too: its include of the provider's header
+# (../counter_service/counter_service.h) resolves inside the unpacked SDK.
+cmake -S "$ROOT/examples/counter_panel" -B "$WORK/counter_panel-build" -DCMAKE_BUILD_TYPE=Release
+cmake --build "$WORK/counter_panel-build" --config Release
 
 # The Lua and data-pack examples configure and install on their own too: project(... NONE), so
 # no compiler is enabled and the 64-bit check must not fire. greeter builds in its own folder,

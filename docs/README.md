@@ -12,6 +12,9 @@ For the project overview, start with the [root README](../README.md).
    and [plugin rules](../sdk/docs/plugin-rules.md): packaging, manifests and trust.
 3. Your language: [C ABI](api-v1.md), [C++](sdk-cpp.md), [C#](sdk-csharp.md),
    [Lua](../sdk/docs/lua.md) or [data packs](../sdk/docs/data-packs.md).
+4. [Designing modular plugins](plugin-design.md): one feature per plugin, versioned
+   service tables, `requires`, clean unload and anti-patterns, with a provider and
+   consumer example pair.
 
 ## Plugin API consumer — Use the API safely
 
