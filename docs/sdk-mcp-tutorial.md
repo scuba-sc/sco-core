@@ -91,8 +91,9 @@ has not been loaded in a real host.
 `lang` also takes `csharp` and `lua`. A `csharp` result holds `plugin.ini`,
 `my_probe.csproj` (NativeAOT, referencing the kit's `csharp/Sco.Sdk`),
 `MyProbePlugin.cs` and a `README.md` with the `dotnet publish` line; a `lua`
-result holds `plugin.ini`, `main.lua` and a `CMakeLists.txt` with the same
-`check` target. Lua scripts have no service lookup, so a `lua` request with
+result holds `plugin.ini`, `main.lua` and a `CMakeLists.txt` whose `check`
+target runs `sco-plugin-check` on the folder (manifest and entry only;
+`tools/lua-check.lua` with Lua 5.4 runs the script against a stand-in). Lua scripts have no service lookup, so a `lua` request with
 `services` other than `sco.widgets` (with `with_menu`) is refused with the
 generator's reason.
 

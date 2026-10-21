@@ -146,6 +146,7 @@ verification limits. In short:
 | `game.quantum` default production backend under the maintainer's amended rule of 2026-10-15 | `src/game/services/quantum_engine.cpp`, `quantum_owned.*`, [quantum](../quantum.md), [cvars](../game/cvars.md) | host-source-sc |
 | Verified build 4.10.197.2878 | `include/sc_game_pack.h`, [game pack](../game-pack.md) | header in game-sc and host-source-sc |
 | Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths | `src/ipc/diagnostics_platform_win.cpp` | host-source-sc |
+| `sco-new-plugin.py` and MCP `generate_plugin_scaffold`: `--lang csharp` (NativeAOT project) and `--lang lua`; stand-in checks only, not run in game | `sdk/tools/sco-new-plugin.py`, `tools/sco-core-mcp/server.py`, [SDK README](../../sdk/README.md#generate-a-plugin-folder) | core and core-source (the C# layer it targets ships in core) |
 | MCP documentation at the current release with drift gates; tooling and Windows gate hardening | `tools/`, `docs/sdk-mcp-tutorial.md` | repository |
 | Game status table and engine-native index regenerated | [evidence status](../game/status.md), `sdk/native_index.json` | repository; the native index stays on the docs site and static MCP only |
 

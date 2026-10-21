@@ -18,7 +18,7 @@ csharp: plugin.ini, <id>.csproj (a NativeAOT class library referencing the SDK's
 csharp/Sco.Sdk), <Name>Plugin.cs and README.md. Then:
 
     dotnet publish DIR -c Release -r win-x64 -o DIR/out/<id> -p:ScoSdk=<SDK folder>
-    sco-plugin-check DIR/out/<id>          (and again with --short-tables)
+    <SDK folder>/out/bin/sco-plugin-check DIR/out/<id>   (and again with --short-tables)
 
 lua: plugin.ini (kind = lua), main.lua and a CMakeLists.txt whose `check` target runs
 sco-plugin-check on the folder; tools/lua-check.lua (Lua 5.4) runs the script against a stand-in.
@@ -105,8 +105,8 @@ def normalize(spec):
     if lang == "lua" and lookups(s):
         names = ", ".join(x[0] for x in lookups(s))
         raise SpecError(f"lang lua can't look up services ({names}): the Lua sandbox has no query_service, "
-                        "only sco.widgets (with --with-menu) and the sco.* tables in docs/lua.md. "
-                        "Drop --services, or use c, cpp or csharp")
+                        "only sco.widgets (with with_menu, --with-menu) and the sco.* tables in docs/lua.md. "
+                        "Drop services (--services), or use c, cpp or csharp")
     return s
 
 
@@ -644,7 +644,7 @@ def render_csproj(s):
 
   <Target Name="ScoSdkRequired" BeforeTargets="_GenerateRestoreProjectSpec;CollectPackageReferences;ResolveProjectReferences"
           Condition="!Exists('$(ScoSdk)/csharp/Sco.Sdk/Sco.Sdk.csproj')">
-    <Error Text="Set ScoSdk to the unpacked sco SDK (the folder with csharp/Sco.Sdk): dotnet publish -p:ScoSdk=&lt;path&gt;, or the SCO_SDK environment variable." />
+    <Error Text="Set ScoSdk to the unpacked sco SDK (the folder with csharp/Sco.Sdk; the core SDK archive has it, the core-source kit does not): dotnet publish -p:ScoSdk=&lt;path&gt;, or the SCO_SDK environment variable." />
   </Target>
 
 </Project>
@@ -842,14 +842,15 @@ No .NET runtime is needed on the player's machine.
 ## Build and check
 
 You need the .NET 8 SDK (a newer SDK builds `net8.0` too) and, on Windows, Visual Studio 2019 or
-newer with "Desktop development with C++" (NativeAOT links with MSVC). Build `sco-plugin-check`
-first (the SDK's README). `ScoSdk` is the unpacked sco SDK (the folder with `csharp/` and `tools/`),
-or `sdk/` in a sco-core checkout; the `SCO_SDK` environment variable works too.
+newer with "Desktop development with C++" (NativeAOT links with MSVC). `ScoSdk` is the unpacked
+core sco SDK (the folder with `csharp/` and `tools/`), or `sdk/` in a sco-core checkout; the
+`SCO_SDK` environment variable works too. The SDK README's "Build the examples" step builds the
+checker into `<SDK folder>\\out\\bin\\sco-plugin-check`.
 
 ```powershell
 dotnet publish -c Release -r win-x64 -o out\\{pid} -p:ScoSdk=<SDK folder>
-sco-plugin-check out\\{pid}
-sco-plugin-check out\\{pid} --short-tables
+<SDK folder>\\out\\bin\\sco-plugin-check out\\{pid}
+<SDK folder>\\out\\bin\\sco-plugin-check out\\{pid} --short-tables
 ```
 
 The publish copies `plugin.ini` next to `{pid}.dll`. `--short-tables` hands the plugin a 1.0
@@ -1000,8 +1001,14 @@ def main(argv=None):
     print("next:")
     if args.lang == "csharp":
         out = os.path.join(args.out, "out", args.id)
-        print(f'  dotnet publish "{args.out}" -c Release -r win-x64 -o "{out}" -p:ScoSdk="{sdk}"')
-        print(f'  sco-plugin-check "{out}"   (and again with --short-tables; see README.md)')
+        if os.path.isfile(os.path.join(sdk, "csharp", "Sco.Sdk", "Sco.Sdk.csproj")):
+            kit = sdk
+        else:  # the core-source kit ships this tool but not the C# layer
+            kit = "<core SDK folder>"
+            print("  (this kit has no csharp/Sco.Sdk: point ScoSdk at an unpacked core SDK archive, which has it)")
+        print(f'  dotnet publish "{args.out}" -c Release -r win-x64 -o "{out}" -p:ScoSdk="{kit}"')
+        checker = os.path.join(kit, "out", "bin", "sco-plugin-check")
+        print(f'  "{checker}" "{out}"   (and again with --short-tables; built by "Build the examples" in the SDK README)')
         return 0
     print(f'  cmake -S "{args.out}" -B "{os.path.join(args.out, "build")}" -DSCO_SDK="{sdk}"')
     print(f'  cmake --build "{os.path.join(args.out, "build")}" --target check')

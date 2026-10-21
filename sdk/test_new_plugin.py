@@ -11,7 +11,9 @@
    tools/lua-check.lua when a Lua 5.4 interpreter is on PATH.
 3. With SCO_SDK_CSHARP=1 and dotnet on PATH, C# plugins are published with NativeAOT against a copy
    of this sdk/csharp (-p:ScoSdk=...) and checked by sco-plugin-check with and without
-   --short-tables. SCO_FAST_AOT=1 passes -p:SCO_FAST_AOT=1.
+   --short-tables. SCO_FAST_AOT=1 passes -p:SCO_FAST_AOT=1. On Windows the Visual Studio Installer
+   folder (vswhere, which the NativeAOT link uses to find MSVC) is added to PATH when present, as
+   sdk/test-zip.sh does.
 """
 import importlib.util
 import os
@@ -153,10 +155,18 @@ class Render(unittest.TestCase):
             {"id": "ok", "lang": "c", "with_menu": "yes"}, {"id": "ok", "lang": "c", "extra": 1},
         ]
         for s in bad:
-            for lang in LANGS:  # the same id, service, text and key rules in every language
-                spec = dict(s, lang=lang) if s.get("lang") in ("c", "cpp") else s
-                with self.assertRaises(gen.SpecError, msg=repr(spec)):
+            if s.get("lang") not in ("c", "cpp"):  # the bad value is the lang itself
+                with self.assertRaises(gen.SpecError, msg=repr(s)):
+                    gen.render_plugin(s)
+                continue
+            with self.assertRaises(gen.SpecError, msg=repr(s)) as ctx:
+                gen.render_plugin(dict(s, lang="c"))
+            want = str(ctx.exception)
+            for lang in LANGS:  # the same id, service, text and key rules, with the same reason, in every language
+                spec = dict(s, lang=lang)
+                with self.assertRaises(gen.SpecError, msg=repr(spec)) as ctx:
                     gen.render_plugin(spec)
+                self.assertEqual(str(ctx.exception), want, repr(spec))
         # What one language can't do: Lua has no service lookup (sco.widgets is the menu's own).
         for s in ({"id": "ok", "lang": "lua", "services": ["game.actors"]},
                   {"id": "ok", "lang": "lua", "services": ["sco.widgets"]},
@@ -198,6 +208,7 @@ class Cli(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(sorted(os.listdir(out)), ["MyRadarPlugin.cs", "README.md", "my_radar.csproj", "plugin.ini"])
         self.assertIn("dotnet publish", r.stdout)
+        self.assertNotIn("has no csharp/Sco.Sdk", r.stdout)  # sdk/ in a checkout has the C# layer
         out = os.path.join(self.tmp, "lua")
         r = self.cli("--id", "my_radar", "--lang", "lua", "--with-menu", "--out", out)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -207,6 +218,16 @@ class Cli(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("lang lua can't look up services", r.stderr)
         self.assertFalse(os.path.exists(os.path.join(self.tmp, "nope")))
+
+    def test_csharp_from_a_kit_without_the_csharp_layer(self):
+        # The core-source kit ships tools/sco-new-plugin.py but not csharp/Sco.Sdk.
+        tools = os.path.join(self.tmp, "kit", "tools")
+        os.makedirs(tools)
+        tool = shutil.copy(TOOL, tools)
+        r = run([sys.executable, tool, "--id", "my_radar", "--lang", "csharp", "--out", os.path.join(self.tmp, "cs")])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("this kit has no csharp/Sco.Sdk", r.stdout)
+        self.assertIn('-p:ScoSdk="<core SDK folder>"', r.stdout)
 
     def test_refuses_unsafe_outputs(self):
         full = os.path.join(self.tmp, "full")
@@ -327,6 +348,12 @@ class CSharpBuild(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp()
+        # The NativeAOT link finds MSVC with vswhere, which may not be on PATH (as in sdk/test-zip.sh).
+        cls.env = dict(os.environ)
+        vsw = os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                           "Microsoft Visual Studio", "Installer")
+        if os.name == "nt" and os.path.isdir(vsw):
+            cls.env["PATH"] = cls.env.get("PATH", "") + os.pathsep + vsw
         # A copy of the C# layer, so dotnet's bin/ and obj/ stay out of sdk/csharp.
         cls.sdk = os.path.join(cls.tmp, "sdk")
         shutil.copytree(os.path.join(HERE, "csharp", "Sco.Sdk"), os.path.join(cls.sdk, "csharp", "Sco.Sdk"),
@@ -370,7 +397,7 @@ class CSharpBuild(unittest.TestCase):
                "-p:ScoSdk=" + self.sdk]
         if os.environ.get("SCO_FAST_AOT") == "1":
             cmd.append("-p:SCO_FAST_AOT=1")
-        r = run(cmd)
+        r = run(cmd, env=self.env)
         self.assertEqual(r.returncode, 0, f"{' '.join(cmd)}\n{r.stdout}\n{r.stderr}")
         self.assertTrue(os.path.isfile(os.path.join(publish, "plugin.ini")), "the publish copies plugin.ini")
         stage = os.path.join(self.tmp, "stage", pid)  # the folder named after the id, entry = <id>.dll

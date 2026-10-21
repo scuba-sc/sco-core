@@ -226,13 +226,13 @@ cmake --build ../my_radar/build --target check
 - Every generated plugin registers `<id>.ping`. The code checks `sco_api`'s size before any 1.1 member and each service table's `size` before using it, so the plugin also loads on a 1.0 host.
 - `--with-menu` adds a `sco.widgets` panel (`<id>.main`). C++ builds it with `scosdk::PanelBuilder` ([UI cookbook](../docs/ui.md)); C writes the `sco_widget_node` array itself. Without the service the plugin runs with no panel.
 - `--services NAME[@MAJOR.MINOR],...` (default version 1.0) looks each service up on `game.ready` and logs the ones that are missing; the plugin keeps working. `plugin.ini` lists them on a commented `requires` line. Uncomment it if the plugin can't run without them. Include a service's header to call its table.
-- `--lang csharp` writes `plugin.ini`, `<id>.csproj` (a NativeAOT class library that references `csharp/Sco.Sdk`, like [`cs_hello`](examples/cs_hello)), `<Name>Plugin.cs` (`Sco.Sdk` with the three exports; `--with-menu` uses `PanelBuilder`, `--services` uses `Query`) and a `README.md`. Publish and check it with the [.NET 8 SDK and NativeAOT toolchain](../docs/sdk-csharp.md#setup); `ScoSdk` (or the `SCO_SDK` environment variable) is this folder, and the publish copies `plugin.ini` next to the DLL:
+- `--lang csharp` writes `plugin.ini`, `<id>.csproj` (a NativeAOT class library that references `csharp/Sco.Sdk`, like [`cs_hello`](examples/cs_hello)), `<Name>Plugin.cs` (`Sco.Sdk` with the three exports; `--with-menu` uses `PanelBuilder`, `--services` uses `Query`) and a `README.md`. Publish and check it with the [.NET 8 SDK and NativeAOT toolchain](../docs/sdk-csharp.md#setup); `ScoSdk` (or the `SCO_SDK` environment variable) is this folder, and the publish copies `plugin.ini` next to the DLL. `out/bin/sco-plugin-check` comes from [Build the examples](#build-the-examples):
 
   ```sh
   python3 tools/sco-new-plugin.py --id my_radar --lang csharp --with-menu --out ../my_radar
   dotnet publish ../my_radar -c Release -r win-x64 -o ../my_radar/out/my_radar -p:ScoSdk="$PWD"
-  sco-plugin-check ../my_radar/out/my_radar
-  sco-plugin-check ../my_radar/out/my_radar --short-tables
+  out/bin/sco-plugin-check ../my_radar/out/my_radar
+  out/bin/sco-plugin-check ../my_radar/out/my_radar --short-tables
   ```
 
 - `--lang lua` writes `plugin.ini` (`kind = lua`), `main.lua` (`<id>.ping`; `--with-menu` adds a [`sco.widgets`](docs/lua.md#renderer-neutral-widgets-scowidgets-10) panel when the host has the service) and a `CMakeLists.txt` that installs the folder with `sco_add_pack` and whose `check` target runs `sco-plugin-check` on it. `lua5.4 tools/lua-check.lua ../my_radar` runs the script against a stand-in. The Lua sandbox has no service lookup, so `--services` is refused for Lua (except `sco.widgets` with `--with-menu`).
