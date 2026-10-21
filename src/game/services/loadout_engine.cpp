@@ -4,7 +4,8 @@
 // Item-port slots (port by name, attached container, handle, AttachEntity), the port vector and
 // the detach-behavior and persistence-reason values: F-4.10.197.2878-053, with
 // F-4.10.197.2878-012/-013. The 14 port names below are the consumer-side slot table of
-// docs/game/loadout.md (also recorded in F-4.10.197.2878-053), not verified engine port names.
+// docs/game/loadout.md, not verified engine port names: they are data-driven and absent from the
+// executable (F-4.10.197.2878-053).
 // game.loadout.async defaults OFF. Not run in game.
 #include "loadout.h"
 #include "spawn.h"

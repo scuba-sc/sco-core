@@ -118,6 +118,8 @@ bool ReadSnapshotUnsafe(const EngineRows* rows, Snapshot* out) {
         Load<uintptr_t>(vt + 0x20) != rows->deletingDestructor)
         return false;
 
+    // 2 means the load attempt finished, not that it succeeded (F-4.10.197.2878-051): early failures leave the
+    // header or pools null and the checks below refuse them; a late short read can leave a pool partly filled.
     if (Load<uint32_t>(owner + 0x1c8) != 2) return false;
     const uintptr_t header = Load<uintptr_t>(owner + 0x1d0);
     const uintptr_t structs = Load<uintptr_t>(owner + 0x1d8);
