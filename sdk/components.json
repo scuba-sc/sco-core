@@ -81,6 +81,14 @@
       "why": "Repository catalogue refusal tests; not part of the kernel source kit."
     },
     {
+      "path": "tools/sdk_guides.py",
+      "why": "Repository guide-section builder; developer profiles ship its generated sdk-guides.json, not the builder."
+    },
+    {
+      "path": "tools/test_sdk_guides.py",
+      "why": "Repository guide-section builder tests; not part of the kernel source kit."
+    },
+    {
       "path": "sdk/status_registry.json",
       "why": "Repository source of the docs/game/status.md service table; the packaged page carries the rendered table."
     },

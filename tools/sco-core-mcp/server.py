@@ -6,11 +6,14 @@ reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr. Besides
 the catalogue and record-listed examples, only sdk/status_registry.json (else
 docs/game/status.md), docs/legal/release-decisions/ and, with --extended-tools,
 sdk/native_index.json and sdk/tools/sco-new-plugin.py are read, and only beneath
---repo-root. The scaffolder is the one piece of repository code this process runs:
-with --extended-tools, on the first generate_plugin_scaffold call, in-process.
+--repo-root. With --extended-tools the guide tools also read sdk-guides.json beside
+the catalogue (or --guides); without one, they build the guide sections in memory
+from --repo-root's tools/sdk_guides.py and the public docs it allowlists. Those two
+generators are the only repository code this process runs: with --extended-tools,
+on the first call that needs them, in-process.
 """
 import argparse
-from collections import deque
+from collections import Counter, deque
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -90,6 +93,25 @@ NATIVE_CONCLUSIONS = [
     "tier comes from sdk/status_registry.json sig_rows: tier 2 means no registry capability names the row, not that the row is unused.",
     "A registered row is not evidence that it resolves on any game build or that anything ran in game.",
     "Read from --repo-root at server start; not bound to the catalogue source_sha."]
+GUIDES_FILE = "sdk-guides.json"
+GUIDES_BUILDER = ("tools", "sdk_guides.py")
+MAX_GUIDES = 16 * 1024 * 1024
+GUIDE_KEYS = {"schema_version", "sdk_version", "source_sha", "source", "text_limit", "docs", "sections"}
+GUIDE_DOC_KEYS = {"doc", "title", "url", "sections"}
+GUIDE_SECTION_KEYS = {"doc", "title", "heading", "anchor", "level", "text", "truncated", "url"}
+GUIDE_SNIPPET = 320
+GUIDE_STOPWORDS = frozenset(
+    "a an and are as at be by can do does for from how i in is it me my of on or should the this to "
+    "what when where which why with you your".split())
+GUIDE_WORD = re.compile(r"[\w.+#-]+")
+GUIDE_CONCLUSIONS = [
+    "Sections are the Markdown guides listed in site/public-inputs.json and the SDK's shipped sdk/docs guides, as plain "
+    "text bounded to text_limit characters; a truncated section continues in the guide at url.",
+    "anchor is the GitHub-style heading slug in the repository file; url is the docs-site page (or the repository path "
+    "for sdk/docs guides), whose heading anchors may differ.",
+    "Ranking is whole-word term matching (a term of four or more characters also matches words it starts), heading and "
+    "title above body text, not semantic search.",
+    "Guides are prose, not contract records (use get_symbol), and nothing in them is evidence that code ran in game."]
 GAME_STATUS_HEADER = "| Table | Version | Stability | Capability | Default | Evidence |"
 GAME_STATUS_SEPARATOR = "|---|---|---|---|---|---|"
 # The table before stability labels (SDK 2.3.0 and earlier archives): read, stability unknown.
@@ -191,6 +213,15 @@ EXTENDED_TOOLS = [
           "with_menu": {"type": "boolean", "default": False},
           "services": {"type": "array", "minItems": 0, "maxItems": 16,
                        "items": {**string_schema(75), "pattern": SCAFFOLD_SERVICE}}}, ("id", "lang")),
+    tool("search_guides", "Rank sections of the SDK guides (sdk-guides.json: the public docs allowlist and the shipped sdk/docs "
+         "guides) by the query's whole-word terms, heading and title above body text, optionally within one doc; returns "
+         "bounded snippets with doc, heading, anchor and url, one page per call. Guide prose is not a contract record or "
+         "in-game evidence.",
+         {"query": string_schema(256), "doc": string_schema(256),
+          "limit": {"type": "integer", "minimum": 1, "maximum": 25, "default": 5},
+          "cursor": {**string_schema(6), "pattern": r"^(0|[1-9][0-9]{0,5})$"}}, ("query",)),
+    tool("get_guide_section", "Return one SDK guide section's bounded plain text by the doc and anchor search_guides returned.",
+         {"doc": string_schema(256), "anchor": string_schema(256)}, ("doc", "anchor")),
 ]
 TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS}
 
@@ -599,6 +630,80 @@ def parse_native_index(text):
         require(entry["id"] not in by_key and entry["hash"] not in by_key, "duplicate id or hash")
         by_key[entry["id"]] = by_key[entry["hash"]] = entry
     return data, by_key
+
+
+def parse_guides(data):
+    """Strictly check an sdk-guides.json document (tools/sdk_guides.py validate, restated for the
+    archive, which ships this server without the builder). source_sha is null only for a document
+    built in memory from --repo-root. Any malformed section refuses the whole document."""
+    require(isinstance(data, dict) and set(data) == GUIDE_KEYS, "unexpected top-level keys")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "unsupported schema_version; expected 1")
+    require(data["source_sha"] is None or (isinstance(data["source_sha"], str) and re.fullmatch(SHA_PATTERN, data["source_sha"])),
+            "invalid source_sha")
+    require(nonempty(data["sdk_version"]) and len(data["sdk_version"]) <= 128 and data["source"] == "site/public-inputs.json",
+            "invalid sdk_version or source")
+    limit = data["text_limit"]
+    require(type(limit) is int and 1 <= limit <= 65536, "invalid text_limit")
+    require(isinstance(data["docs"], list) and len(data["docs"]) <= 1024
+            and isinstance(data["sections"], list) and len(data["sections"]) <= 20000, "invalid docs or sections")
+    counts = {}
+    for doc in data["docs"]:
+        require(isinstance(doc, dict) and set(doc) == GUIDE_DOC_KEYS and type(doc["sections"]) is int
+                and all(nonempty(doc[key]) and len(doc[key]) <= 512 for key in ("doc", "title", "url"))
+                and doc["doc"] not in counts, "invalid docs entry")
+        counts[doc["doc"]] = doc["sections"]
+    by_key, found = {}, {}
+    for section in data["sections"]:
+        require(isinstance(section, dict) and set(section) == GUIDE_SECTION_KEYS, "section has unknown keys")
+        require(all(nonempty(section[key]) and len(section[key]) <= 512 for key in ("doc", "title", "heading", "anchor", "url"))
+                and isinstance(section["text"], str) and len(section["text"]) <= limit, "invalid section text")
+        require(type(section["level"]) is int and 1 <= section["level"] <= 6 and type(section["truncated"]) is bool,
+                "invalid section level or truncated flag")
+        key = (section["doc"], section["anchor"])
+        require(section["doc"] in counts and key not in by_key, "duplicate or undeclared section")
+        by_key[key] = section
+        found[section["doc"]] = found.get(section["doc"], 0) + 1
+    require(found == {name: count for name, count in counts.items() if count}, "docs section counts disagree with sections")
+    return data, by_key
+
+
+def guide_sequence(text):
+    """Casefolded whole words in order (the query tokenizer)."""
+    return [word for word in (word.strip(".-") for word in GUIDE_WORD.findall(text.casefold())) if word]
+
+
+def guide_terms(query):
+    """Query words without common question words or single characters, unless nothing else is left."""
+    words = list(dict.fromkeys(guide_sequence(query)))
+    kept = [word for word in words if word not in GUIDE_STOPWORDS] or words
+    return [word for word in kept if len(word) > 1] or kept
+
+
+def guide_index(text):
+    """(word counts, padded word sequence): whole words, plus the parts of dotted or hyphenated ones."""
+    sequence = guide_sequence(text)
+    counts = Counter(sequence)
+    counts.update(part for word in sequence if "." in word or "-" in word
+                  for part in re.split(r"[.-]+", word) if part)
+    return counts, " " + " ".join(sequence) + " "
+
+
+def guide_hits(counts, term):
+    """Whole-word occurrences of term; a term of four or more characters also counts words it starts."""
+    if len(term) < 4:
+        return counts.get(term, 0)
+    return sum(count for word, count in counts.items() if word.startswith(term))
+
+
+def guide_snippet(text, terms):
+    """A bounded, whitespace-collapsed window of text around the first term it contains."""
+    folded = text.casefold()
+    found = (re.search(r"(?<![\w])" + re.escape(term) + (r"" if len(term) >= 4 else r"(?![\w])"), folded) for term in terms)
+    positions = [match.start() for match in found if match]
+    start = max(0, min(positions) - GUIDE_SNIPPET // 4) if positions else 0
+    end = min(len(text), start + GUIDE_SNIPPET)
+    snippet = " ".join(text[start:end].split())
+    return ("..." if start else "") + snippet + ("..." if end < len(text) else "")
 
 
 # ---- plugin.ini: sdk/tools/sco-plugin-check.c read_manifest/setting_line, rule for rule, on bytes ----
@@ -1063,8 +1168,12 @@ def aliases(record):
 
 
 class Server:
-    def __init__(self, catalogue, repo_root=None, extended_tools=False):
+    def __init__(self, catalogue, repo_root=None, extended_tools=False, guides_path=None, guides_explicit=False):
         self.catalogue = catalogue
+        # sdk-guides.json beside the catalogue (archive mode) or an explicit --guides file.
+        self.guides_path, self.guides_explicit = guides_path, guides_explicit
+        self.guides = None
+        self.guide_words = None
         self.tools = TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS
         self.enabled = {definition["name"] for definition in self.tools}
         self.provenance = {key: catalogue[key] for key in PROVENANCE_KEYS}
@@ -1118,6 +1227,116 @@ class Server:
         except spec_error as error:
             raise ToolError("Spec refused by sco-new-plugin: " + str(error)) from None
         return result | {"state": "available", "spec": args, "files": files}
+
+    def load_guides(self):
+        """Return ((document, sections by (doc, anchor), context), None) or (None, reason).
+
+        sdk-guides.json beside the catalogue, or the --guides file, is preferred; one that
+        exists but is refused is reported, not bypassed. Without one, --repo-root's
+        tools/sdk_guides.py is read with the examples' no-symlink containment and executed
+        from those bytes, in-process, to build the sections in memory from that root.
+        """
+        path = self.guides_path
+        if path is not None and (self.guides_explicit or os.path.lexists(path)):
+            name = "--guides file" if self.guides_explicit else GUIDES_FILE + " beside the catalogue"
+            try:
+                descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+                with os.fdopen(descriptor, "rb") as stream:
+                    if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                        return None, name + " is not a regular file"
+                    raw = stream.read(MAX_GUIDES + 1)
+            except OSError as error:
+                return None, name + " unreadable: " + type(error).__name__
+            if len(raw) > MAX_GUIDES:
+                return None, name + " exceeds 16 MiB"
+            try:
+                data, by_key = parse_guides(parse_json(raw.decode("utf-8")))
+            except (ValueError, UnicodeError, TypeError, RecursionError) as error:
+                return None, name + " refused: " + str(error)
+            context = {"mode": "file", "source": name, "source_sha": data["source_sha"],
+                       "matches_catalogue_source_sha": data["source_sha"] == self.catalogue["source_sha"]}
+            return (data, by_key, context), None
+        if self.repo_root is None:
+            return None, ("no " + GUIDES_FILE + " beside the catalogue and no --repo-root; build it with "
+                          "tools/sdk_guides.py build, or use an SDK kit that ships it")
+        source_name = "/".join(GUIDES_BUILDER)
+        try:
+            source = read_example(self.repo_root, GUIDES_BUILDER)
+        except (OSError, UnicodeError, ToolError):
+            return None, (source_name + " unavailable beneath --repo-root (missing, symlink, not a regular file or over 256 KiB), "
+                          "and no " + GUIDES_FILE + " beside the catalogue")
+        module = importlib.util.module_from_spec(importlib.machinery.ModuleSpec("sco_sdk_guides", None, origin=source_name))
+        try:
+            exec(compile(source, source_name, "exec"), module.__dict__)
+            docs, sections = module.sections(self.repo_root)
+            sdk_version = read_example(self.repo_root, ("sdk", "VERSION")).strip()
+            data, by_key = parse_guides({"schema_version": 1, "sdk_version": sdk_version, "source_sha": None,
+                                         "source": module.ALLOWLIST, "text_limit": module.TEXT_LIMIT,
+                                         "docs": docs, "sections": sections})
+        except OSError as error:  # Filesystem messages can carry absolute host paths.
+            return None, source_name + " could not read its inputs: " + type(error).__name__
+        except Exception as error:  # Repository code: report any failure as unavailable, keep serving.
+            return None, source_name + " failed: " + type(error).__name__ + ": " + str(error)[:300]
+        context = {"mode": "source", "source": source_name + " beneath --repo-root, built in memory on first use",
+                   "source_sha": None, "matches_catalogue_source_sha": None}
+        return (data, by_key, context), None
+
+    def guide_data(self):
+        if self.guides is None:
+            self.guides = self.load_guides()
+        loaded, reason = self.guides
+        if loaded is None:
+            raise ToolError("SDK guides unavailable: " + reason)
+        return loaded
+
+    def search_guides(self, args):
+        data, _, context = self.guide_data()
+        if "doc" in args and not any(doc["doc"] == args["doc"] for doc in data["docs"]):
+            raise ToolError("Unknown doc; known docs: " + ", ".join(sorted(doc["doc"] for doc in data["docs"])))
+        terms = guide_terms(args["query"])
+        if not terms:
+            raise ToolError("query has no searchable words")
+        if self.guide_words is None:
+            self.guide_words = [(guide_index(section["heading"]), guide_index(section["title"] + " " + section["doc"])[0],
+                                 guide_index(section["text"])) for section in data["sections"]]
+        phrase = " " + " ".join(terms) + " "
+        weights = []
+        for (heading, _), title, (text, _) in self.guide_words:
+            weights.append([(6 if guide_hits(heading, term) else 0) + (3 if guide_hits(title, term) else 0)
+                            + min(guide_hits(text, term), 5) for term in terms])
+        # A term found in fewer sections counts for more (inverse section frequency over all guides).
+        rarity = [math.log(1 + len(weights) / max(1, sum(1 for row in weights if row[index])))
+                  for index in range(len(terms))]
+        hits = []
+        for order, (section, words, row) in enumerate(zip(data["sections"], self.guide_words, weights)):
+            if "doc" in args and section["doc"] != args["doc"]:
+                continue
+            matched = sum(1 for weight in row if weight)
+            if not matched:
+                continue
+            score = sum(weight * factor for weight, factor in zip(row, rarity))
+            if len(terms) > 1:
+                (_, heading_sequence), _, (_, text_sequence) = words
+                score += ((8 if phrase in heading_sequence else 0) + (4 if phrase in text_sequence else 0)) * min(rarity)
+            score = round(score, 3)
+            hits.append((-score, -matched, order, section, matched, score))
+        hits.sort(key=lambda hit: hit[:3])
+        start, limit = int(args.get("cursor", "0")), args.get("limit", 5)
+        page = [{"doc": section["doc"], "title": section["title"], "heading": section["heading"],
+                 "anchor": section["anchor"], "level": section["level"], "url": section["url"],
+                 "matched_terms": matched, "score": score, "truncated": section["truncated"],
+                 "snippet": guide_snippet(section["text"], terms)}
+                for _, _, _, section, matched, score in hits[start:start + limit]]
+        return {"query_terms": terms, "sections": page, "total_matches": len(hits), "limit": limit,
+                "cursor": str(start), "next_cursor": str(start + limit) if start + limit < len(hits) else None,
+                "guides": context, "conclusions": GUIDE_CONCLUSIONS}
+
+    def guide_section(self, args):
+        _, by_key, context = self.guide_data()
+        section = by_key.get((args["doc"], args["anchor"]))
+        if section is None:
+            raise ToolError("Unknown guide section; pass a doc and anchor that search_guides returned")
+        return {"section": section, "guides": context, "conclusions": GUIDE_CONCLUSIONS}
 
     def load_game_status(self):
         """Return (rows by catalogue table, source, None) or (None, source, reason).
@@ -1384,6 +1603,10 @@ class Server:
             return result | {"entry": entry, "tier_meaning": self.natives["tiers"][str(entry["tier"])]}
         if name == "generate_plugin_scaffold":
             return self.scaffold(args)
+        if name == "search_guides":
+            return self.search_guides(args)
+        if name == "get_guide_section":
+            return self.guide_section(args)
         if name == "validate_manifest_and_widgets":
             result = {"manifest": check_manifest(args["plugin_ini"], args.get("folder"))}
             if "widgets" in args:
@@ -1503,11 +1726,14 @@ def main():
     parser.add_argument("--catalogue", default=os.environ.get("SCO_CORE_CATALOGUE"))
     parser.add_argument("--repo-root")
     parser.add_argument("--extended-tools", action="store_true",
-                        help="also offer list_engine_natives, get_engine_native, validate_manifest_and_widgets "
-                             "and generate_plugin_scaffold")
+                        help="also offer list_engine_natives, get_engine_native, validate_manifest_and_widgets, "
+                             "generate_plugin_scaffold, search_guides and get_guide_section")
+    parser.add_argument("--guides", help="sdk-guides.json for the guide tools (default: sdk-guides.json beside the "
+                                         "catalogue, else built in memory from --repo-root)")
     args = parser.parse_args()
     if not args.catalogue:
         parser.error("--catalogue or SCO_CORE_CATALOGUE is required")
+    guides = args.guides or os.path.join(os.path.dirname(os.path.abspath(args.catalogue)), GUIDES_FILE)
     try:
         catalogue = load_catalogue(args.catalogue)
     except (OSError, ValueError, RecursionError) as error:
@@ -1515,7 +1741,8 @@ def main():
               (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
         return 1
     try:
-        Server(catalogue, args.repo_root, args.extended_tools).serve(sys.stdin.buffer, sys.stdout.buffer)
+        Server(catalogue, args.repo_root, args.extended_tools, guides, args.guides is not None).serve(
+            sys.stdin.buffer, sys.stdout.buffer)
     except BrokenPipeError:
         return 0
     return 0

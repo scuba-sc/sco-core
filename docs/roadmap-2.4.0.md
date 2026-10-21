@@ -52,9 +52,9 @@ See [contracts](contracts.md), [game capability status](game/status.md) and
 ## MCP developer workflow
 
 The stdio discovery server uses protocol `2025-11-25`: six read-only tools by
-default and four more with `--extended-tools`. It exposes recorded contracts,
-examples, compatibility, native metadata, manifest/widget validation and pure
-scaffolding; it does not invoke game services. Runtime inspection is a separate,
+default and six more with `--extended-tools`. It exposes recorded contracts,
+examples, compatibility, native metadata, manifest/widget validation, pure
+scaffolding and guide-section search; it does not invoke game services. Runtime inspection is a separate,
 default-off launcher. See [agent integration](agent-integration.md) and the
 [SDK/MCP tutorial](sdk-mcp-tutorial.md).
 

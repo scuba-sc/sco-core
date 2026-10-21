@@ -5,8 +5,8 @@ build it and check both full and short host-table behavior. The game-sc overlay
 also carries discovery tooling when composed over its exact required core kit.
 The host-source kit keeps repository layout for building a compatible host.
 
-The kit contains `sdk-catalogue.json`, `tools/sco-core-mcp/server.py`, native/status
-metadata, `tools/sco-new-plugin.py`, checker source and CMake integration. Configure
+The kit contains `sdk-catalogue.json`, `sdk-guides.json`, `tools/sco-core-mcp/server.py`,
+native/status metadata, `tools/sco-new-plugin.py`, checker source and CMake integration. Configure
 your agent with Python and these absolute arguments:
 
 ```json
@@ -27,6 +27,8 @@ Discover a service with `search_api`; read `get_symbol` and
 `list_engine_natives` exposes symbolic names and evidence tiers, not addresses.
 `validate_manifest_and_widgets` checks configuration/tree invariants.
 `generate_plugin_scaffold` returns project files without writing or building them.
+`search_guides` and `get_guide_section` answer "how do I ..." questions from the
+guide sections in `sdk-guides.json`; guide prose is not a contract record.
 The agent writes the returned files into its own new project and runs:
 
 ```sh

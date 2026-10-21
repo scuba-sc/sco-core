@@ -3,8 +3,8 @@
 ## Standalone developer-kit workflow
 
 **SDK 2.4.0 is an unreleased candidate.** The candidate combined kit, composed
-core-plus-game overlay and host-source kit can supply the discovery launcher and
-`sdk-catalogue.json`. This is candidate packaging behavior, not a published SDK
+core-plus-game overlay and host-source kit can supply the discovery launcher,
+`sdk-catalogue.json` and `sdk-guides.json`. This is candidate packaging behavior, not a published SDK
 download or gameplay acceptance claim. Core-only profiles do not contain the
 game catalogue.
 
@@ -36,9 +36,10 @@ or an absolute Python executable if the client does not inherit shell `PATH`.
 
 The [integration guide](agent-integration.md) explains client configuration and
 explicit allowlists. Without `--extended-tools` there are exactly six discovery
-tools. With it there are ten; no runtime tools are added. Grant the four additional
+tools. With it there are twelve; no runtime tools are added. Grant the six additional
 names deliberately. A root permits bounded example/metadata reads and lets the
-scaffold tool execute that root's reviewed generator code in-process.
+scaffold tool, and the guide tools when no `sdk-guides.json` is present, execute
+that root's reviewed generator code in-process.
 
 ### Discover one contract
 
@@ -139,6 +140,29 @@ If available, pass one returned entry's `id` as `get_engine_native.id_or_hash`;
 preserve its evidence tier. Follow `next_cursor` without inventing cursor values.
 These are symbolic signature-row names, not addresses, resolved runtime
 functions or proof of in-game execution.
+
+### Ask the guides how to do something
+
+The contract records say what a method guarantees; the guides say how to use
+it. Search the guide sections with a plain question:
+
+```json
+{"name":"search_guides","arguments":{"query":"How do I deploy a plugin on Windows?","limit":3}}
+```
+
+Each hit names its guide `doc`, `heading`, `anchor` and docs-site `url`, with
+a short snippet. Read one hit in full by passing its `doc` and `anchor` back:
+
+```json
+{"name":"get_guide_section","arguments":{"doc":"docs/getting-started.md","anchor":"start-your-first-plugin"}}
+```
+
+Add `"doc"` to a search to stay within one guide, and follow `next_cursor` for
+more hits. The kit's `sdk-guides.json` beside its catalogue answers these calls;
+its `guides.source_sha` should equal the catalogue's. A section's text stops at
+4000 characters (`truncated: true`); read the rest at its `url`. Guide prose is
+not a contract record: confirm a method with `get_symbol` before relying on it.
+Nothing in a guide is evidence that code ran in game.
 
 ### Build and check outside MCP
 

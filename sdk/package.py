@@ -144,6 +144,7 @@ def load_manifest(path=MANIFEST, root=ROOT):
         raise ManifestError("no components")
     ids, dsts, srcs = set(), {}, set()
     reserved = {n for prof in profiles for n in metadata_names(m, prof)}   # written by package.py
+    reserved |= {"sdk-catalogue.json", "sdk-guides.json"}                   # generated developer data
     for i, c in enumerate(comps):
         if not isinstance(c, dict):
             raise ManifestError(f"component {i} is not an object")
@@ -545,6 +546,23 @@ def developer_catalogue(profile):
         sys.path.remove(tools)
 
 
+def developer_guides(profile):
+    """The searchable guide sections of the same source snapshot, in exactly the profiles
+    that ship sdk-catalogue.json; the MCP server reads them from beside the catalogue."""
+    if profile not in ("game-sc", "legacy", "host-source-sc"):
+        return None
+    tools = os.path.join(ROOT, "tools")
+    sys.path.insert(0, tools)
+    try:
+        import sdk_guides
+        try:
+            return sdk_guides.encoded(sdk_guides.build(Path(ROOT), source_commit()))
+        except sdk_guides.GuidesError as e:
+            raise ManifestError(f"sdk-guides.json: {e}") from e
+    finally:
+        sys.path.remove(tools)
+
+
 def attributions(m, profile):
     provenance = json.loads(read("docs/legal/provenance.json"))["entries"]
     records = {}
@@ -568,6 +586,9 @@ def attributions(m, profile):
                          "copyright": "2026 the sco-core contributors", "status": "reviewed"}
     if profile in ("game-sc", "legacy", "host-source-sc"):
         records["sdk-catalogue.json"] = {"path": "sdk-catalogue.json", "source": "tools/sdk_catalogue.py",
+            "origin": "generated", "license": "GPL-3.0-only",
+            "copyright": "2026 the sco-core contributors", "status": "needs-review"}
+        records["sdk-guides.json"] = {"path": "sdk-guides.json", "source": "tools/sdk_guides.py",
             "origin": "generated", "license": "GPL-3.0-only",
             "copyright": "2026 the sco-core contributors", "status": "needs-review"}
     return records
@@ -701,6 +722,9 @@ def archive_entries(m, profile):
     catalogue = developer_catalogue(profile)
     if catalogue is not None:
         entries["sdk-catalogue.json"] = (catalogue, False)
+    guides = developer_guides(profile)
+    if guides is not None:
+        entries["sdk-guides.json"] = (guides, False)
     entries[versions_name] = (versions_txt(profile, version).encode("ascii"), False)
     commit = source_commit()
     desc = {"schema_version": 1, "profile": profile, "core_sdk_version": sdk_version(),

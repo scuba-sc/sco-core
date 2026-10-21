@@ -251,6 +251,20 @@ class RealManifest(unittest.TestCase):
         versions = pkg.metadata_names(self.m, "core")[0]
         self.assertNotIn("game pack", z.read(next(n for n in z.namelist() if n.endswith(versions))).decode())
 
+    def test_guides_ship_beside_the_catalogue(self):
+        """sdk-guides.json is generated in exactly the profiles that ship sdk-catalogue.json."""
+        for prof in self.m["profiles"]:
+            entries = pkg.archive_entries(self.m, prof)[1]
+            with self.subTest(profile=prof):
+                self.assertEqual("sdk-guides.json" in entries, "sdk-catalogue.json" in entries)
+                if "sdk-guides.json" in entries:
+                    self.assertEqual(entries["sdk-guides.json"][0], pkg.developer_guides(prof))
+                    data = json.loads(entries["sdk-guides.json"][0])
+                    self.assertEqual(data["source_sha"], pkg.source_commit())
+                    self.assertFalse([s for s in data["sections"] if s["doc"].startswith(("docs/legal/", "docs/design/"))])
+        self.assertEqual({p for p in self.m["profiles"] if pkg.developer_guides(p) is not None},
+                         {"game-sc", "legacy", "host-source-sc"})
+
     def test_core_and_game_sc_partition_legacy(self):
         names = {}
         for prof in ("core", "game-sc", "legacy"):
@@ -267,6 +281,8 @@ class RealManifest(unittest.TestCase):
             kit = root / archive.namelist()[0].split("/")[0]
         catalogue = json.loads((kit / "sdk-catalogue.json").read_text(encoding="utf-8"))
         self.assertEqual(catalogue["source_sha"], pkg.source_commit())
+        guides = json.loads((kit / "sdk-guides.json").read_text(encoding="utf-8"))
+        self.assertEqual((guides["source_sha"], guides["sdk_version"]), (pkg.source_commit(), pkg.sdk_version()))
         messages = [
             {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
                 "protocolVersion": "2025-11-25", "capabilities": {},
@@ -281,6 +297,7 @@ class RealManifest(unittest.TestCase):
             ("generate_plugin_scaffold", {"id": "archive_probe", "lang": "c", "with_menu": True}),
             ("get_example", {"symbol_or_id": "sc_container_contents_v1.snapshot", "language": "c"}),
             ("validate_manifest_and_widgets", {"plugin_ini": "[plugin]\nid=archive_probe\nversion=0.1.0\napi=1.0\nkind=native\nentry=archive_probe.dll\n"}),
+            ("search_guides", {"query": "start your first plugin", "limit": 1}),
         ], 3):
             messages.append({"jsonrpc": "2.0", "id": index, "method": "tools/call",
                              "params": {"name": name, "arguments": arguments}})
@@ -290,10 +307,13 @@ class RealManifest(unittest.TestCase):
             cwd=self.tmp, capture_output=True, text=True, encoding="utf-8", timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         replies = {reply["id"]: reply for reply in map(json.loads, result.stdout.splitlines())}
-        self.assertEqual(len(replies[2]["result"]["tools"]), 10)
-        for index in range(3, 9):
+        self.assertEqual(len(replies[2]["result"]["tools"]), 12)
+        for index in range(3, 10):
             self.assertNotIn("error", replies[index])
             self.assertFalse(replies[index]["result"].get("isError", False), replies[index])
+        found = replies[9]["result"]["structuredContent"]
+        self.assertEqual((found["guides"]["mode"], found["guides"]["matches_catalogue_source_sha"]), ("file", True))
+        self.assertEqual(found["sections"][0]["doc"], "docs/getting-started.md")
         scaffold = replies[6]["result"]
         self.assertIn("archive_probe", json.dumps(scaffold))
         payload = json.loads(scaffold["content"][0]["text"])
