@@ -106,7 +106,7 @@ four more read-only tools after the six. They are `list_engine_natives`,
 `get_engine_native`, `validate_manifest_and_widgets` and
 `generate_plugin_scaffold`. Add each name you want to `tools` explicitly.
 
-`generate_plugin_scaffold` takes an `id`, a `lang` (`c` or `cpp`), an optional
+`generate_plugin_scaffold` takes an `id`, a `lang` (`c`, `cpp`, `csharp` or `lua`), an optional
 `with_menu` and an optional `services` list. It returns the files
 `sdk/tools/sco-new-plugin.py` would generate, as relative path to text. It writes
 and builds nothing; save the files into an empty folder and build them with the

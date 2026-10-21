@@ -34,6 +34,12 @@ cmake -S project -B project/build -DSCO_SDK=/absolute/sdk
 cmake --build project/build --config Debug --target check
 ```
 
+For `lang: "csharp"` there is no `CMakeLists.txt`: publish with
+`dotnet publish project -c Release -r win-x64 -o project/out/<id> -p:ScoSdk=/absolute/sdk`
+and run `sco-plugin-check` on `project/out/<id>` with and without `--short-tables`
+(the generated `README.md` has the steps). For `lang: "lua"` the `check` target
+checks the manifest and entry only.
+
 The check target exercises a stand-in host and does not sandbox native code.
 Python standard library suffices for discovery; CMake and a C/C++ compiler are
 required for builds. A catalogue producer additionally needs Clang for compiled

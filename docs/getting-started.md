@@ -30,6 +30,17 @@ and verifying the archive; return here for deployment and diagnostics. The
 copy/build/check commands below deliberately choose **C**, not a universal
 recipe for every language.
 
+To start from a generated folder instead of a copied example, the archive's
+`tools/sco-new-plugin.py` writes one with a `<id>.ping` command, an optional
+`sco.widgets` panel (`--with-menu`) and optional service lookups
+(`--services`): `--lang c` or `cpp` since SDK 2.2.0, and in the 2.4.0 candidate
+also `csharp` (a NativeAOT project whose `README.md` gives the `dotnet publish`
+line) and `lua` (`plugin.ini` and `main.lua`; Lua has no service lookup, so
+`--services` is refused there). The
+[SDK README](../sdk/README.md#generate-a-plugin-folder) lists what each
+language's folder holds and how to check it. A generated plugin that passes the
+checkers has not been run in game.
+
 ### Previous release: published SDK 2.3.0 assets
 
 | Published SDK 2.3.0 asset | Choose it when |

@@ -15,7 +15,8 @@ published archive with the site's changing mainline catalogue.
 
 Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client supporting
 protocol `2025-11-25`. Building a scaffold additionally needs CMake 3.20+ and a
-64-bit C/C++ compiler. Clang is required to produce a source catalogue, not to
+64-bit C/C++ compiler (for a `csharp` scaffold, the .NET 8 SDK and the NativeAOT
+toolchain; a `lua` scaffold builds only `sco-plugin-check`). Clang is required to produce a source catalogue, not to
 consume a bundled one.
 
 ### Connect the client
@@ -86,6 +87,15 @@ The generated manifest uses `api = 1.0`; generated code guards access to later
 root-table members. `services` requests optional lookups on `game.ready`, not
 implementations or automatic permission to invoke those services. This scaffold
 has not been loaded in a real host.
+
+`lang` also takes `csharp` and `lua`. A `csharp` result holds `plugin.ini`,
+`my_probe.csproj` (NativeAOT, referencing the kit's `csharp/Sco.Sdk`),
+`MyProbePlugin.cs` and a `README.md` with the `dotnet publish` line; a `lua`
+result holds `plugin.ini`, `main.lua` and a `CMakeLists.txt` whose `check`
+target runs `sco-plugin-check` on the folder (manifest and entry only;
+`tools/lua-check.lua` with Lua 5.4 runs the script against a stand-in). Lua scripts have no service lookup, so a `lua` request with
+`services` other than `sco.widgets` (with `with_menu`) is refused with the
+generator's reason.
 
 ### Validate manifest text and widget invariants
 
