@@ -3,8 +3,8 @@
 ## Standalone developer-kit workflow
 
 **SDK 2.4.0 is published as release candidate 1**
-([`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), a GitHub
-pre-release; the final signed `sdk-v2.4.0` follows). Its combined kit, composed
+([`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
+release; the final signed `sdk-v2.4.0` follows). Its combined kit, composed
 core-plus-game overlay and host-source kit supply the discovery launcher,
 `sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
 gameplay acceptance claim. Core-only profiles do not contain the game catalogue.

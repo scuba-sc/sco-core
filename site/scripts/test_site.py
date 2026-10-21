@@ -334,8 +334,8 @@ class SiteTests(unittest.TestCase):
         self.assertTrue(gen.PUBLISHED_DOWNLOAD_TAG.startswith(gen.PUBLISHED_RELEASE))
         saved = gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG
         try:
-            for download, status in (('sdk-v2.4.0', 'Published release'), ('sdk-v2.4.0-rc.1', 'Published pre-release'),
-                                     ('sdk-v2.4.0-rc.12', 'Published pre-release')):
+            for download, status in (('sdk-v2.4.0', 'Published release'), ('sdk-v2.4.0-rc.1', 'Published release candidate'),
+                                     ('sdk-v2.4.0-rc.12', 'Published release candidate')):
                 with self.subTest(download=download):
                     gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0', download
                     self.assertEqual(gen.published_stage()[0], status)

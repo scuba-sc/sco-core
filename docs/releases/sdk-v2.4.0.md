@@ -2,12 +2,12 @@
 
 Final tag `sdk-v2.4.0`, combined archive `sco-sdk-2.4.0.zip`.
 **Status: release candidate 1 published.** On 2026-10-21 the five archives were published as the
-GitHub pre-release [`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
+release [`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
 release-candidate workflow from `main` commit `48d7055`, with every file attested. It is the only
 SDK release on the release page: the 2.0.0 to 2.3.0 release downloads were withdrawn (their tags
 remain in git). The final signed `sdk-v2.4.0` release is pending; nothing here authorizes approval,
-signing, tagging or that publication. GitHub does not count a pre-release as its "latest" release,
-so link to the tag page. The release workflow publishes the CHANGELOG section
+signing, tagging or that publication. It is marked as the repository's latest
+release. The release workflow publishes the CHANGELOG section
 [`## sdk-v2.4.0`](../../CHANGELOG.md) as the final release's notes; this page is the longer
 reference behind it.
 
@@ -115,7 +115,7 @@ The bus event `game.loadout.respawn_completed` is also on `main`: production cap
 ### Steps to the final release
 
 Step 3 produced release candidate 1: the release-candidate workflow ran on `main` commit
-`48d7055` and its attested archives are the `sdk-v2.4.0-rc.1` pre-release. Step 4 remains.
+`48d7055` and its attested archives are the `sdk-v2.4.0-rc.1` release. Step 4 remains.
 
 1. The nine required jobs succeed on the exact `main` commit that will be built.
 2. Obtain static signature evidence for the final signature implementation. The recorded 332/332 run is historical and source-bound; the current index inventory includes additional async-loadout rows. Inventory is not proof of resolution against the executable. A local `sco-sigcheck` run of the 2026-10-21 candidate source resolved 347/347 rows on 4.10.197.2878 (static only).
