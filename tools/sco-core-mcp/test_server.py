@@ -35,7 +35,7 @@ TOOLS = {
 }
 ORIGINAL_ORDER = ["search_api", "get_symbol", "list_services", "get_example", "get_capability_status", "check_compatibility"]
 EXTENDED_ORDER = ORIGINAL_ORDER + ["list_engine_natives", "get_engine_native", "validate_manifest_and_widgets",
-                                   "generate_plugin_scaffold"]
+                                   "generate_plugin_scaffold", "search_guides", "get_guide_section"]
 SCAFFOLDER = ROOT / "sdk" / "tools" / "sco-new-plugin.py"
 PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source_sha"}
 
@@ -95,8 +95,8 @@ def approval(tag, sha=SYNTHETIC_SHA, status="approved-for-publication"):
 class Client:
     """One real child process; bounded reads without platform-specific selectors."""
 
-    def __init__(self, catalogue=CATALOGUE, repo_root=None, use_env=False, extended=False):
-        command = [sys.executable, str(SERVER)] + (["--extended-tools"] if extended else [])
+    def __init__(self, catalogue=CATALOGUE, repo_root=None, use_env=False, extended=False, extra=()):
+        command = [sys.executable, str(SERVER)] + (["--extended-tools"] if extended else []) + list(extra)
         environment = os.environ.copy()
         environment.pop("SCO_CORE_CATALOGUE", None)
         if use_env:
@@ -263,8 +263,8 @@ class ServerCase(unittest.TestCase):
         if not SERVER.is_file():
             raise unittest.SkipTest("server.py has not been written yet")
 
-    def start(self, catalogue=CATALOGUE, repo_root=None, use_env=False, ready=True, extended=False):
-        client = Client(catalogue, repo_root, use_env, extended)
+    def start(self, catalogue=CATALOGUE, repo_root=None, use_env=False, ready=True, extended=False, extra=()):
+        client = Client(catalogue, repo_root, use_env, extended, extra)
         self.addCleanup(client.close)
         if ready:
             response = client.initialize()
@@ -1747,6 +1747,157 @@ class CompatibilityReleaseTests(ServerCase):
                 self.result(client.call("check_compatibility", arguments), is_error=True)
 
 
+GUIDE_URL = "https://scubamount.github.io/sco-core/guides/"
+
+
+def guide_section(doc, heading, anchor, text, level=2, truncated=False):
+    title = "Synthetic " + doc.rsplit("/", 1)[-1]
+    return {"doc": doc, "title": title, "heading": heading, "anchor": anchor, "level": level, "text": text,
+            "truncated": truncated, "url": GUIDE_URL + doc.rsplit("/", 1)[-1][:-3] + "/"}
+
+
+GUIDE_SECTIONS = [
+    guide_section("docs/alpha.md", "Synthetic alpha.md", "synthetic-alphamd", "Overview. Deploy notes live below.", 1),
+    guide_section("docs/alpha.md", "Deploy a plugin", "deploy-a-plugin", "Copy the plugin folder. " + "filler " * 120 + "deploy"),
+    guide_section("docs/alpha.md", "Storage", "storage", "Keys and SQL. The plugin deploy step is elsewhere."),
+    guide_section("docs/beta.md", "Synthetic beta.md", "synthetic-betamd", "Beta overview about widgets.", 1),
+    guide_section("docs/beta.md", "Widgets", "widgets", "Build a panel. Deploy is not covered here.", truncated=True),
+]
+
+
+def guides_document(sections=None, source_sha=None):
+    sections = GUIDE_SECTIONS if sections is None else sections
+    source_sha = fixture()["source_sha"] if source_sha is None else source_sha
+    docs = []
+    for section in sections:
+        if not docs or docs[-1]["doc"] != section["doc"]:
+            docs.append({"doc": section["doc"], "title": section["title"], "url": section["url"], "sections": 0})
+        docs[-1]["sections"] += 1
+    return {"schema_version": 1, "sdk_version": "9.9.9", "source_sha": source_sha, "source": "site/public-inputs.json",
+            "text_limit": 4000, "docs": docs, "sections": sections}
+
+
+class GuideTests(ServerCase):
+    def guide_client(self, document=None, text=None, repo_root=None):
+        root, catalogue = self.temporary_catalogue(fixture())
+        (root / "sdk-guides.json").write_text(text if text is not None else json.dumps(document or guides_document()),
+                                              encoding="utf-8")
+        return self.start(catalogue=catalogue, repo_root=repo_root, extended=True)
+
+    def test_search_ranks_heading_above_text_and_pages(self):
+        client = self.guide_client()
+        first = self.result(client.call("search_guides", {"query": "How do I deploy a plugin?", "limit": 2}))
+        self.assertEqual(first["query_terms"], ["deploy", "plugin"])
+        self.assertEqual([(s["doc"], s["anchor"]) for s in first["sections"]],
+                         [("docs/alpha.md", "deploy-a-plugin"), ("docs/alpha.md", "storage")])
+        self.assertEqual((first["total_matches"], first["cursor"], first["next_cursor"]), (4, "0", "2"))
+        top = first["sections"][0]
+        self.assertEqual(set(top), {"doc", "title", "heading", "anchor", "level", "url", "matched_terms", "score",
+                                    "truncated", "snippet"})
+        self.assertEqual((top["matched_terms"], top["url"]), (2, GUIDE_URL + "alpha/"))
+        self.assertLessEqual(len(top["snippet"]), 330)
+        self.assertEqual(first["guides"], {"mode": "file", "source": "sdk-guides.json beside the catalogue",
+                                           "source_sha": fixture()["source_sha"], "matches_catalogue_source_sha": True})
+        self.assertTrue(any("nothing in them is evidence that code ran in game" in line for line in first["conclusions"]))
+        second = self.result(client.call("search_guides", {"query": "How do I deploy a plugin?", "limit": 2,
+                                                             "cursor": first["next_cursor"]}))
+        self.assertEqual([s["anchor"] for s in second["sections"]], ["synthetic-alphamd", "widgets"])
+        self.assertIsNone(second["next_cursor"])
+        again = self.result(client.call("search_guides", {"query": "How do I deploy a plugin?", "limit": 2}))
+        self.assertEqual(again, first)
+
+    def test_doc_filter_and_detail(self):
+        client = self.guide_client()
+        found = self.result(client.call("search_guides", {"query": "widgets", "doc": "docs/beta.md"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["widgets", "synthetic-betamd"])
+        self.assertIs(found["sections"][0]["truncated"], True)
+        detail = self.result(client.call("get_guide_section", {"doc": "docs/alpha.md", "anchor": "storage"}))
+        self.assertEqual(detail["section"], GUIDE_SECTIONS[2])
+        self.assertEqual(detail["guides"]["mode"], "file")
+        nothing = self.result(client.call("search_guides", {"query": "zzzz"}))
+        self.assertEqual((nothing["sections"], nothing["total_matches"], nothing["next_cursor"]), ([], 0, None))
+        for name, arguments, token in (
+                ("search_guides", {"query": "deploy", "doc": "docs/missing.md"}, "Unknown doc"),
+                ("get_guide_section", {"doc": "docs/alpha.md", "anchor": "missing"}, "Unknown guide section"),
+                ("search_guides", {"query": "..."}, "no searchable words")):
+            with self.subTest(arguments=arguments):
+                self.assertIn(token, self.result(client.call(name, arguments), is_error=True)["error"])
+
+    def test_stopword_only_queries_still_search(self):
+        found = self.result(self.guide_client().call("search_guides", {"query": "how to"}))
+        self.assertEqual(found["query_terms"], ["how", "to"])
+
+    def test_argument_refusals(self):
+        client = self.guide_client()
+        for name, arguments in (("search_guides", {}), ("search_guides", {"query": "x", "limit": 0}),
+                                ("search_guides", {"query": "x", "limit": 26}), ("search_guides", {"query": "x", "cursor": "01"}),
+                                ("search_guides", {"query": "x" * 257}), ("search_guides", {"query": "x", "extra": 1}),
+                                ("get_guide_section", {"doc": "docs/alpha.md"}), ("get_guide_section", {"doc": "", "anchor": "x"})):
+            with self.subTest(name=name, arguments=arguments):
+                self.result(client.call(name, arguments), is_error=True)
+
+    def test_missing_guides_is_a_tool_error(self):
+        client = self.start(extended=True)
+        for name, arguments in (("search_guides", {"query": "deploy"}), ("get_guide_section", {"doc": "d", "anchor": "a"})):
+            with self.subTest(name=name):
+                error = self.result(client.call(name, arguments), is_error=True)["error"]
+                self.assertIn("SDK guides unavailable", error)
+                self.assertIn("sdk-guides.json", error)
+
+    def test_refused_file_is_reported_not_bypassed(self):
+        broken = guides_document()
+        broken["sections"] = list(broken["sections"])
+        broken["sections"][1] = dict(broken["sections"][1], text="x" * 4001)
+        for text, token in ((json.dumps(broken), "invalid section text"), ("{", "refused"),
+                            (json.dumps(dict(guides_document(), schema_version=2)), "schema_version"),
+                            (json.dumps(dict(guides_document(), extra=1)), "unexpected top-level keys")):
+            with self.subTest(token=token):
+                client = self.guide_client(text=text, repo_root=ROOT)
+                error = self.result(client.call("search_guides", {"query": "deploy"}), is_error=True)["error"]
+                self.assertIn("sdk-guides.json beside the catalogue refused", error)
+                self.assertIn(token, error)
+
+    def test_other_source_sha_is_reported(self):
+        client = self.guide_client(guides_document(source_sha=OTHER_SHA))
+        context = self.result(client.call("search_guides", {"query": "deploy"}))["guides"]
+        self.assertEqual((context["source_sha"], context["matches_catalogue_source_sha"]), (OTHER_SHA, False))
+
+    def test_explicit_guides_file(self):
+        root, catalogue = self.temporary_catalogue(fixture())
+        path = root / "elsewhere.json"
+        path.write_text(json.dumps(guides_document()), encoding="utf-8")
+        client = self.start(catalogue=catalogue, extended=True, extra=["--guides", str(path)])
+        found = self.result(client.call("search_guides", {"query": "storage"}))
+        self.assertEqual((found["sections"][0]["anchor"], found["guides"]["source"]), ("storage", "--guides file"))
+        missing = self.start(catalogue=catalogue, extended=True, extra=["--guides", str(root / "absent.json")])
+        error = self.result(missing.call("search_guides", {"query": "storage"}), is_error=True)["error"]
+        self.assertIn("--guides file unreadable", error)
+        self.assertNotIn(str(root), error)
+
+    def test_source_mode_builds_the_repository_guides_in_memory(self):
+        sys.path.insert(0, str(ROOT / "tools"))
+        try:
+            import sdk_guides
+        finally:
+            sys.path.remove(str(ROOT / "tools"))
+        _, sections = sdk_guides.sections(ROOT)
+        _, catalogue = self.temporary_catalogue(fixture())
+        client = self.start(catalogue=catalogue, repo_root=ROOT, extended=True)
+        found = self.result(client.call("search_guides", {"query": "first plugin", "doc": "docs/getting-started.md"}))
+        self.assertTrue(found["sections"])
+        self.assertEqual(found["guides"], {"mode": "source", "source_sha": None, "matches_catalogue_source_sha": None,
+                                           "source": "tools/sdk_guides.py beneath --repo-root, built in memory on first use"})
+        first = found["sections"][0]
+        detail = self.result(client.call("get_guide_section", {"doc": first["doc"], "anchor": first["anchor"]}))
+        self.assertIn(detail["section"], sections)
+
+    def test_source_mode_without_builder_is_unavailable(self):
+        root, catalogue = self.temporary_catalogue(fixture())
+        client = self.start(catalogue=catalogue, repo_root=root, extended=True)
+        error = self.result(client.call("search_guides", {"query": "deploy"}), is_error=True)["error"]
+        self.assertIn("tools/sdk_guides.py unavailable beneath --repo-root", error)
+
+
 class BuildIntegrationTests(ServerCase):
     def test_actual_build_catalogue_mcp_transcript(self):
         override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")
@@ -1817,6 +1968,25 @@ class BuildIntegrationTests(ServerCase):
                 self.assertEqual(release["signature_verification"], "not_performed")
                 self.assertEqual(release["records"][0]["signature_file"],
                                  "present" if record_path.with_name(record_path.name + ".sig").is_file() else "absent")
+
+    def test_actual_guides_beside_the_build_catalogue(self):
+        """sdk-guides.json beside the build catalogue (CI builds both), else the in-memory source build."""
+        override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")
+        path = Path(override) if override else ROOT / "dist/sdk-catalogue.json"
+        if not path.is_file():
+            self.skipTest("No build catalogue; build one or set SCO_CORE_MCP_TEST_CATALOGUE")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        beside = path.with_name("sdk-guides.json")
+        client = self.start(catalogue=path, repo_root=ROOT, extended=True)
+        found = self.result(client.call("search_guides", {"query": "start your first plugin", "limit": 25}), data=data)
+        self.assertIn("docs/getting-started.md", {section["doc"] for section in found["sections"]})
+        if beside.is_file():
+            guides = json.loads(beside.read_text(encoding="utf-8"))
+            self.assertEqual(found["guides"]["mode"], "file")
+            self.assertEqual(found["guides"]["source_sha"], guides["source_sha"])
+            self.assertIs(found["guides"]["matches_catalogue_source_sha"], guides["source_sha"] == data["source_sha"])
+        else:
+            self.assertEqual(found["guides"]["mode"], "source")
 
 
 README = HERE / "README.md"

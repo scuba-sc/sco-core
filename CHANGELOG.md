@@ -4,6 +4,17 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- Added guide search to the discovery MCP server. `tools/sdk_guides.py` builds
+  `sdk-guides.json` from the Markdown guides in `site/public-inputs.json` (never
+  `docs/legal/` or `docs/design/`): one record per heading with plain text bounded
+  to 4000 characters, a GitHub-style anchor and the docs-site URL, in reproducible
+  bytes, with a `check` mode CI runs. The `legacy`, `game-sc` and `host-source-sc`
+  packages ship it beside `sdk-catalogue.json`. With `--extended-tools`, the new
+  `search_guides` and `get_guide_section` tools rank and return guide sections from
+  that file, or from an in-memory build of `--repo-root`; the default six tools are
+  unchanged. Lets an agent answer "how do I ..." from the guides, not only the
+  contract records. No ABI change; guide prose is not in-game evidence, and nothing
+  here was run in game.
 - `tools/sco-new-plugin.py` and the MCP `generate_plugin_scaffold` tool also
   generate C# and Lua plugins. `--lang csharp` writes a NativeAOT class library
   (`<id>.csproj` referencing the kit's `csharp/Sco.Sdk` through `ScoSdk` or

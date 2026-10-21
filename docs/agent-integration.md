@@ -27,6 +27,13 @@ Clang is required for compiler-backed AST extraction. The tool uses `CLANG` if
 set, otherwise `clang` on `PATH`; pass `--clang /absolute/path/to/clang` to the
 `build` command to override either.
 
+For the opt-in guide tools, build the guide sections beside the catalogue as
+well (standard library only, no compiler):
+
+```sh
+python3 tools/sdk_guides.py build --out dist/sdk-guides.json --source-sha "$(git rev-parse HEAD)"
+```
+
 Use source bytes matching that full commit; a supplied SHA does not certify a
 clean checkout. Generation is separate from discovery and compiles/runs probes.
 After contracts or mappings change, rebuild the catalogue and restart the client.
@@ -102,9 +109,21 @@ then review the exposed tools and enable only those six. The envelope under
 copy an entire client config into another client.
 
 **Opt-in extended tools.** Add `--extended-tools` to `args` and the server offers
-four more read-only tools after the six. They are `list_engine_natives`,
-`get_engine_native`, `validate_manifest_and_widgets` and
-`generate_plugin_scaffold`. Add each name you want to `tools` explicitly.
+six more read-only tools after the six. They are `list_engine_natives`,
+`get_engine_native`, `validate_manifest_and_widgets`,
+`generate_plugin_scaffold`, `search_guides` and `get_guide_section`. Add each
+name you want to `tools` explicitly.
+
+`search_guides` answers "how do I ..." questions from the SDK guides, not only
+the contract catalogue. It takes a `query` and optionally one guide path as
+`doc`, a `limit` and a `cursor`, and returns ranked sections with a bounded
+snippet, the guide path, heading, GitHub-style `anchor` and docs-site `url`.
+`get_guide_section` returns one section's bounded plain text by `doc` and
+`anchor`. The sections come from `sdk-guides.json` beside the catalogue (the
+candidate kits ship it), or are built in memory from `--repo-root` when no file
+is there; with neither, the tools return a tool error. Ranking is plain term
+matching, and guide prose is not a contract record or evidence that anything
+ran in game: confirm a method with `get_symbol`.
 
 `generate_plugin_scaffold` takes an `id`, a `lang` (`c`, `cpp`, `csharp` or `lua`), an optional
 `with_menu` and an optional `services` list. It returns the files
