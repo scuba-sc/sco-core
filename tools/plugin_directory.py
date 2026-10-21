@@ -6,7 +6,8 @@
 The index is the source of truth; the markdown between "<!-- plugin-directory:start -->" and
 "<!-- plugin-directory:end -->" is generated. Validation: the documented schema (top-level keys,
 the in-file "fields" description naming exactly the entry keys), https repository URLs without
-credentials, query or fragment, plugin ids unique across the whole directory, a stated SPDX-shaped
+credentials, query or fragment, plugin ids unique across the whole directory and not reserved by
+the host, table-safe one-line text (no HTML, Markdown links or code spans), a stated SPDX-shaped
 licence, plugin kinds/languages from a fixed set, SDK and game-pack versions no newer than this
 checkout's, sco-plugin-check results with a real UTC date that is not in the future, the offline
 confirmation, and an in-game field that can never claim verification. Community listings must
@@ -40,6 +41,8 @@ LANGUAGES = ("c", "cpp", "csharp", "lua", "data")
 LANGUAGE_LABELS = {"c": "C", "cpp": "C++", "csharp": "C#", "lua": "Lua", "data": "data pack"}
 IN_GAME = {"not-run": "not run in game", "not-verified": "not verified in game"}
 NO_LICENCE = {"NONE", "NOASSERTION", "UNLICENSED"}
+RESERVED_IDS = ("game", "host", "menu", "sco")
+UNSAFE_TEXT = set("|<>`[]")
 PLUGIN_ID = re.compile(r"[a-z0-9_]{1,31}")
 SEMVER = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -69,6 +72,12 @@ def current_versions(root):
 def one_line(value):
     return isinstance(value, str) and value.strip() == value and bool(value) \
         and "|" not in value and "\n" not in value and "\r" not in value
+
+
+def table_text(value):
+    """One line that renders as plain text in a table cell and on the docs site: no HTML tag, no
+    Markdown link or code span, and so never the generator's own markers."""
+    return one_line(value) and not UNSAFE_TEXT.intersection(value)
 
 
 def check_date(value, today, where, key):
@@ -154,7 +163,7 @@ def check_checker(checker, section, where, today):
         return ["%s: checker must be an object with exactly %s" % (where, sorted(CHECKER_KEYS))]
     errors = []
     for mode in ("full", "short"):
-        if checker[mode] not in RESULTS:
+        if not isinstance(checker[mode], str) or checker[mode] not in RESULTS:
             errors.append("%s: checker %s %r not in %s" % (where, mode, checker[mode], sorted(RESULTS)))
     if errors:
         return errors
@@ -184,14 +193,14 @@ def validate_entry(entry, section, index, today, versions):
     if missing:
         return errors
     for key in ("name", "author"):
-        if not one_line(entry[key]) or "[" in entry[key] or "]" in entry[key]:
-            errors.append("%s: %s must be one non-empty line without '|', '[' or ']'" % (where, key))
+        if not table_text(entry[key]):
+            errors.append("%s: %s must be one non-empty line without any of | < > ` [ ]" % (where, key))
     description = entry["description"]
-    if not one_line(description) or len(description) > MAX_DESCRIPTION:
-        errors.append("%s: description must be one line without '|' of at most %d characters"
+    if not table_text(description) or len(description) > MAX_DESCRIPTION:
+        errors.append("%s: description must be one line without any of | < > ` [ ] and at most %d characters"
                       % (where, MAX_DESCRIPTION))
-    if "note" in entry and not one_line(entry["note"]):
-        errors.append(where + ": note must be one non-empty line without '|'")
+    if "note" in entry and not table_text(entry["note"]):
+        errors.append(where + ": note must be one non-empty line without any of | < > ` [ ]")
     ids = entry["ids"]
     if not isinstance(ids, list) or not ids:
         errors.append(where + ": ids must be a non-empty list of plugin ids")
@@ -199,6 +208,8 @@ def validate_entry(entry, section, index, today, versions):
         for plugin_id in ids:
             if not isinstance(plugin_id, str) or not PLUGIN_ID.fullmatch(plugin_id):
                 errors.append("%s: id %r is not [a-z0-9_], 1-31 characters" % (where, plugin_id))
+            elif plugin_id in RESERVED_IDS:
+                errors.append("%s: id %s is reserved by the host (%s)" % (where, plugin_id, ", ".join(RESERVED_IDS)))
     errors.extend(check_url(entry["repository"], where))
     errors.extend(check_licence(entry["licence"], where))
     languages = entry["languages"]
@@ -219,7 +230,7 @@ def validate_entry(entry, section, index, today, versions):
     errors.extend(check_checker(entry["checker"], section, where, today))
     if entry["offline"] is not True:
         errors.append(where + ": offline must be true: every listing follows the offline-only plugin rules")
-    if entry["in_game"] not in IN_GAME:
+    if not isinstance(entry["in_game"], str) or entry["in_game"] not in IN_GAME:
         errors.append("%s: in_game %r not in %s; the directory never records in-game verification"
                       % (where, entry["in_game"], sorted(IN_GAME)))
     errors.extend(check_date(entry["listed"], today, where, "listed"))

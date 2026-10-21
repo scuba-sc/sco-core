@@ -35,7 +35,7 @@ that the plugin follows the offline-only [plugin rules](../sdk/docs/plugin-rules
 
 | Plugin | Description | Plugin ids | Author | Licence | Languages | SDK tested | Game pack | sco-plugin-check | Offline | In game | Listed |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| [sc-offline plugin suite](https://github.com/scubamount/sc-offline) | The plugins in sc-offline's plugins folder: build placement, creative, crew, inspector, loadout, mining, NPCs, quantum, spawn, teleport and optional local bridges. First-party product plugins. Some ship disabled (Discord presence is blocked pending review); per-feature in-game status is on the repository's own status page. | `build`, `contracts`, `creative`, `crew`, `discord`, `inspector`, `inspector_lua`, `loadout`, `loadout_lists`, `mining`, `npc`, `quantum`, `spawn`, `teleport`, `titanlink`, `voxel_bridge` | scubamount | `GPL-3.0-only` | C++, Lua, data pack | 2.3.0 | 0.6.0 | not recorded | confirmed | not verified in game | 2026-10-21 |
+| [sc-offline plugin suite](https://github.com/scubamount/sc-offline) | sc-offline's plugins and shipped data packs: build placement, creative, crew, inspector, loadout, mining, NPCs, quantum, spawn, teleport, picker catalogs and optional local bridges. First-party product plugins, built in-tree with the host from a pinned sco-core commit (SDK baseline 2.3.0), not from a published SDK archive. Some ship disabled (Discord presence is blocked pending review); per-feature in-game status is on the repository's own status page. | `build`, `contracts`, `creative`, `crew`, `discord`, `inspector`, `inspector_lua`, `loadout`, `loadout_lists`, `mining`, `npc`, `picker_catalog`, `quantum`, `quantum_drive`, `spawn`, `teleport`, `titanlink`, `voxel_bridge` | scubamount | `GPL-3.0-only` | C++, Lua, data pack | 2.3.0 | 0.6.0 | not recorded | confirmed | not verified in game | 2026-10-21 |
 | [sc-mp private multiplayer co-presence](https://github.com/scubamount/sc-mp) | Private co-presence for players running sc-offline, over sco.net: each game shows remote players as ghost entities it spawns itself. First-party; the repository's CI runs sco-plugin-check on the plugin, but no dated result is recorded here. | `multiplayer` | scubamount | `GPL-3.0-only` | C++ | 2.3.0 | 0.6.0 | not recorded | confirmed | not run in game | 2026-10-21 |
 
 ### Community
@@ -45,7 +45,10 @@ No community plugins are listed yet. [Request a listing](#request-a-listing).
 
 First-party entries are listed because they exist publicly today. They follow the same fields,
 and their checker column shows only what is recorded here ("not recorded" where no dated run is
-recorded); each repository keeps its own status page.
+recorded); each repository keeps its own status page. They are not held to listing rule 1: the
+sc-offline plugins are built in-tree with the host from a pinned sco-core commit, so their
+*SDK tested* value is that commit's SDK baseline, not a published archive (the entry's note says
+so).
 
 ## Listing rules
 
@@ -56,15 +59,23 @@ A community plugin is listed when all of these hold:
    [Start your first plugin](getting-started.md), not an integration branch or a source checkout.
    *SDK tested* names that release.
 2. **Passes `sco-plugin-check` in full mode** on the built plugin folder, with the checker from
-   that same archive. Report the short-mode (`--short-tables`) result too; a failure there is shown,
-   not hidden.
+   that same archive ([how to run it](../sdk/README.md#check-a-plugin)). For a native plugin, report
+   the short-mode (`--short-tables`) result too; a failure there is shown, not hidden. Short mode
+   applies to native plugins only and is recorded as "not recorded" for Lua plugins and data packs.
+   For a Lua plugin the checker only reads `plugin.ini` and checks that the entry script exists, and
+   for a data pack it only lists the files, so a Lua plugin also reports a run of the archive's
+   `tools/lua-check.lua` (and a `luac -p` syntax check) in the request.
 3. **Follows the [plugin rules](../sdk/docs/plugin-rules.md), including offline-only.** No
    connection to Cloud Imperium Games' servers or online services, no anti-cheat bypass, no
    account or entitlement tampering, no telemetry, no personal data, and no network or shared
    memory outside `sco.net` and the IPC service.
 4. **Source in a public repository**, at an `https` URL anyone can read without an account.
 5. **States its licence** in the repository, given in the listing as the SPDX identifier the
-   author uses (for example `GPL-3.0-only` or `MIT`).
+   author uses (for example `GPL-3.0-only` or `MIT`). sco-core is GPL-3.0-only, and the
+   [plugin rules](../sdk/docs/plugin-rules.md#license) say the project expects plugins that include
+   its headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms; this is
+   not legal advice. The validator only checks that an SPDX licence is stated; whether a licence
+   fits is the maintainer's decision when reviewing the request.
 6. **Ships no game files**: no parts of `StarCitizen.exe`, no dumps, nothing extracted from
    `Data.p4k`. Entity and class names in text files are fine.
 7. **Unique plugin ids.** Each `plugin.ini` id appears once in the whole directory and is not a
@@ -78,7 +89,9 @@ the index plus the checker output you ran:
 
 - name, plugin ids, repository URL, author, licence (SPDX id), languages;
 - the SDK release you built with and, when you use `game.*` services, its game-pack version;
-- the full-mode and short-mode `sco-plugin-check` results, the date you ran them and the output;
+- the full-mode and short-mode `sco-plugin-check` results (short mode is "not applicable" for Lua
+  plugins and data packs), the date you ran them and the output, plus the `lua-check.lua` output
+  for a Lua plugin;
 - a short description, the in-game status (not run, or not verified) and the offline-only
   confirmation.
 
@@ -109,7 +122,9 @@ python3 tools/test_plugin_directory.py
 ```
 
 `--check` validates the schema (documented in the file's own `fields` object), `https`
-repository URLs, unique plugin ids and names, a stated SPDX licence, the language set, SDK and
+repository URLs, unique plugin ids and names, no reserved id (`sco`, `host`, `menu`, `game`),
+plain one-line text cells (no `|`, `<`, `>`, backtick, `[` or `]`, so no HTML, links or code spans
+reach the page), a stated SPDX licence, the language set, SDK and
 game-pack versions no newer than this checkout, checker results and dates (real, UTC, not in the
 future), the offline confirmation and the in-game field. CI runs it next to the game status
 registry check.

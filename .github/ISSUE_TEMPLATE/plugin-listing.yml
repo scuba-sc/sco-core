@@ -61,17 +61,20 @@ body:
     validations:
       required: true
 
-  - type: checkboxes
+  - type: dropdown
     id: languages
     attributes:
       label: "Languages and plugin kinds"
-      description: "Select every kind the listing contains."
+      description: "Select every kind the listing contains (at least one)."
+      multiple: true
       options:
-        - label: "C"
-        - label: "C++"
-        - label: "C#"
-        - label: "Lua"
-        - label: "Data pack"
+        - "C"
+        - "C++"
+        - "C#"
+        - "Lua"
+        - "Data pack"
+    validations:
+      required: true
 
   - type: input
     id: sdk_version
@@ -99,9 +102,10 @@ body:
     id: checker_full
     attributes:
       label: "sco-plugin-check, full mode (default run)"
+      description: "A community listing needs a full-mode pass."
       options:
         - "pass"
-        - "fail"
+        - "fail (cannot be listed until it passes)"
     validations:
       required: true
 
@@ -109,10 +113,14 @@ body:
     id: checker_short
     attributes:
       label: "sco-plugin-check, short mode (--short-tables)"
+      description: >-
+        Short mode applies to native plugins only. Lua plugins and data packs choose
+        "not applicable"; it is recorded as not recorded.
       options:
         - "pass"
         - "fail"
         - "not run"
+        - "not applicable (Lua or data pack)"
     validations:
       required: true
 
@@ -130,8 +138,9 @@ body:
       label: "Checker output"
       description: >-
         The complete output of the full-mode run, and of the short-mode run if you
-        ran it, with the command lines you used. Remove local paths you do not want
-        to share.
+        ran it, with the command lines you used. For a Lua plugin also include the
+        output of the SDK's tools/lua-check.lua and a luac -p syntax check. Remove
+        local paths you do not want to share.
       render: text
     validations:
       required: true
@@ -153,7 +162,9 @@ body:
     id: description
     attributes:
       label: "Short description"
-      description: "What the plugin does, one line of at most 200 characters."
+      description: >-
+        What the plugin does, one line of at most 200 characters, plain text: no HTML,
+        links, backticks, square brackets or "|".
     validations:
       required: true
 

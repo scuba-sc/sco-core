@@ -10,7 +10,13 @@ from pathlib import Path
 import plugin_directory as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-TODAY = datetime.date(2026, 10, 21)
+# Dates are relative to the real UTC day, so maintainers adding or updating entries never trip
+# the "in the future" check here; the mutation tests run on a copy of the index with no community
+# entries, so real listings never change what they test.
+TODAY = datetime.datetime.now(datetime.timezone.utc).date()
+YESTERDAY = (TODAY - datetime.timedelta(days=1)).isoformat()
+TOMORROW = (TODAY + datetime.timedelta(days=1)).isoformat()
+NEXT_YEAR = (TODAY + datetime.timedelta(days=400)).isoformat()
 
 
 def quiet_main(args):
@@ -28,11 +34,11 @@ def community_entry(**changes):
         "languages": ["c"],
         "sdk_version": "2.3.0",
         "game_pack_version": None,
-        "checker": {"full": "pass", "short": "pass", "date": "2026-10-20"},
+        "checker": {"full": "pass", "short": "pass", "date": YESTERDAY},
         "offline": True,
         "in_game": "not-run",
         "description": "Synthetic test entry: keeps a list of waypoints in sco.storage.",
-        "listed": "2026-10-21",
+        "listed": TODAY.isoformat(),
     }
     entry.update(changes)
     return entry
@@ -41,8 +47,14 @@ def community_entry(**changes):
 class PluginDirectoryTest(unittest.TestCase):
     directory = pd.load(ROOT)
 
-    def errors_after(self, mutate):
+    def base(self):
+        """The live first-party entries with an empty community section."""
         directory = copy.deepcopy(self.directory)
+        directory["community"] = []
+        return directory
+
+    def errors_after(self, mutate):
+        directory = self.base()
         mutate(directory)
         return pd.validate(directory, ROOT, TODAY)
 
@@ -64,7 +76,6 @@ class PluginDirectoryTest(unittest.TestCase):
         repositories = {e["repository"] for e in self.directory["first_party"]}
         self.assertEqual(repositories, {"https://github.com/scubamount/sc-offline",
                                         "https://github.com/scubamount/sc-mp"})
-        self.assertEqual(self.directory["community"], [])
         for entry in self.directory["first_party"]:
             self.assertIn(entry["in_game"], ("not-run", "not-verified"))
 
@@ -77,14 +88,14 @@ class PluginDirectoryTest(unittest.TestCase):
 
     def test_valid_community_entry_is_accepted_and_rendered(self):
         self.assertAccepted(self.add())
-        directory = copy.deepcopy(self.directory)
+        directory = self.base()
+        self.assertIn("No community plugins are listed yet", pd.render(directory))
         directory["community"].append(community_entry(note="Synthetic caveat."))
         text = pd.render(directory)
         self.assertIn("| [Example waypoints](https://example.com/author/example-waypoints) |", text)
-        self.assertIn("| full pass, short pass (2026-10-20) | confirmed | not run in game | 2026-10-21 |", text)
+        self.assertIn("| full pass, short pass (%s) | confirmed | not run in game | %s |" % (YESTERDAY, TODAY), text)
         self.assertIn("Synthetic caveat.", text)
         self.assertNotIn("No community plugins", text)
-        self.assertIn("No community plugins are listed yet", pd.render(self.directory))
 
     def test_repository_must_be_https_without_extras(self):
         for url, fragment in (("http://example.com/a/b", "not an https URL"),
@@ -103,7 +114,10 @@ class PluginDirectoryTest(unittest.TestCase):
         self.assertRefused(self.add(ids=[]), "non-empty list")
         self.assertRefused(self.add(ids=["multiplayer"]), "id multiplayer is already listed")
         self.assertRefused(self.add(ids=["a", "a"]), "id a is already listed")
-        self.assertRefused(self.add(name="sc-mp private multiplayer co-presence"), "listed twice")
+        self.assertRefused(self.add(name=self.directory["first_party"][1]["name"].upper()), "listed twice")
+        self.assertRefused(self.add(ids=["quantum_drive"]), "id quantum_drive is already listed")
+        for reserved in ("sco", "host", "menu", "game"):
+            self.assertRefused(self.add(ids=[reserved]), "id %s is reserved" % reserved)
 
     def test_licence_must_be_stated_as_spdx(self):
         self.assertRefused(lambda d: d["community"].append(
@@ -126,24 +140,31 @@ class PluginDirectoryTest(unittest.TestCase):
         self.assertAccepted(self.add(languages=["cpp", "csharp", "lua", "data"], game_pack_version="0.6.0"))
 
     def test_checker_results_and_dates(self):
-        self.assertRefused(self.add(checker={"full": "fail", "short": "pass", "date": "2026-10-20"}),
+        self.assertRefused(self.add(checker={"full": "fail", "short": "pass", "date": YESTERDAY}),
                            "passing full-mode")
         self.assertRefused(self.add(checker={"full": "not-recorded", "short": "not-recorded", "date": None}),
                            "passing full-mode")
-        self.assertRefused(self.add(checker={"full": "ok", "short": "pass", "date": "2026-10-20"}), "checker full")
+        self.assertRefused(self.add(checker={"full": "ok", "short": "pass", "date": YESTERDAY}), "checker full")
+        self.assertRefused(self.add(checker={"full": ["pass"], "short": "pass", "date": YESTERDAY}), "checker full")
+        self.assertRefused(self.add(checker={"full": "pass", "short": {"x": 1}, "date": YESTERDAY}), "checker short")
         self.assertRefused(self.add(checker={"full": "pass", "short": "pass"}), "exactly")
         self.assertRefused(self.add(checker={"full": "pass", "short": "fail", "date": None}), "checker date")
         self.assertRefused(self.add(checker={"full": "pass", "short": "pass", "date": "2026-02-30"}), "not a real date")
         self.assertRefused(self.add(checker={"full": "pass", "short": "pass", "date": "20/10/2026"}), "YYYY-MM-DD")
-        self.assertRefused(self.add(checker={"full": "pass", "short": "pass", "date": "2026-10-22"}), "in the future")
-        self.assertAccepted(self.add(checker={"full": "pass", "short": "fail", "date": "2026-10-21"}))
-        self.assertRefused(lambda d: d["first_party"][0]["checker"].update(date="2026-10-01"), "must be null")
-        self.assertRefused(self.add(listed="2027-01-01"), "listed 2027-01-01 is in the future")
+        self.assertRefused(self.add(checker={"full": "pass", "short": "pass", "date": TOMORROW}), "in the future")
+        self.assertAccepted(self.add(checker={"full": "pass", "short": "fail", "date": TODAY.isoformat()}))
+        self.assertAccepted(self.add(languages=["lua"], checker={"full": "pass", "short": "not-recorded",
+                                                                 "date": YESTERDAY}))
+        self.assertRefused(self.add(checker={"full": "not-recorded", "short": "not-recorded", "date": YESTERDAY}),
+                           "must be null")
+        self.assertRefused(self.add(listed=NEXT_YEAR), "listed %s is in the future" % NEXT_YEAR)
 
     def test_offline_and_in_game_cannot_be_upgraded(self):
         self.assertRefused(self.add(offline=False), "offline must be true")
         self.assertRefused(self.add(offline="yes"), "offline must be true")
         self.assertRefused(self.add(in_game="verified"), "never records in-game verification")
+        self.assertRefused(self.add(in_game=["not-run"]), "never records in-game verification")
+        self.assertRefused(self.add(in_game={"state": "not-run"}), "never records in-game verification")
         self.assertRefused(lambda d: d["first_party"][1].update(in_game="verified in game (2026-10-21)"),
                            "never records in-game verification")
 
@@ -153,6 +174,13 @@ class PluginDirectoryTest(unittest.TestCase):
         self.assertRefused(self.add(name="two\nlines"), "name must be")
         self.assertRefused(self.add(author="[link](x)"), "author must be")
         self.assertRefused(self.add(note=""), "note must be")
+        for text in (pd.END, pd.START, "<img src=x onerror=alert(1)>", "[click](javascript:alert(1))",
+                     "a `code` span", "a > b"):
+            self.assertRefused(self.add(description=text), "description must be")
+            self.assertRefused(self.add(note=text), "note must be")
+            self.assertRefused(self.add(author=text), "author must be")
+            self.assertRefused(self.add(name=text), "name must be")
+        self.assertAccepted(self.add(description="Plain text (with parentheses), commas & 'quotes'."))
         self.assertRefused(self.add(stars=5), "unknown keys ['stars']")
         self.assertRefused(lambda d: d.update(community={}), "community must be a list")
 
