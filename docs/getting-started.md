@@ -190,6 +190,9 @@ To disable a plugin, place an empty file named `disabled` inside its folder.
 
 ## 8. Where next
 
+- [Designing modular plugins](plugin-design.md): one feature per plugin, sharing through
+  versioned service tables, `requires` and clean unload, with the `counter_service` /
+  `counter_panel` example pair.
 - [Plugin ABI reference](api-v1.md) and [contract catalogue / reading rules](contracts.md):
   authoritative declarations/semantics, service presence, buffers, threads and lifetimes.
 - [C++](sdk-cpp.md), [C#](sdk-csharp.md), [Lua](../sdk/docs/lua.md),

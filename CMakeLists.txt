@@ -1800,7 +1800,8 @@ if(SCO_BUILD_TESTS)
   add_test(NAME test_shutdown_drain COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}" shutdown-only)
 
   # sco-host-sim over the SDK examples, laid out like data/plugins: <out>/sim/plugins/
-  # {hello/{hello.<ext>,plugin.ini}, greeter/, travel_pack/}. Keep in step with tools/test.sh.
+  # {hello/{hello.<ext>,plugin.ini}, cpp_hello/, counter_service/, counter_panel/, greeter/,
+  # travel_pack/}. Keep in step with tools/test.sh.
   set(_sim "${SCO_TEST_OUT}/sim/plugins")
   file(REMOVE_RECURSE "${SCO_TEST_OUT}/sim")
   add_library(sco_sim_hello SHARED sdk/examples/hello/hello.c)
@@ -1827,12 +1828,27 @@ if(SCO_BUILD_TESTS)
     string(REPLACE "entry = cpp_hello.dll" "entry = cpp_hello.so" _cpp_hello_ini "${_cpp_hello_ini}")
   endif()
   file(WRITE "${_sim}/cpp_hello/plugin.ini" "${_cpp_hello_ini}")
+  # The modular pair: counter_panel requires counter_service.counter and calls it across plugins.
+  foreach(_pair counter_service counter_panel)
+    add_library(sco_sim_${_pair} SHARED sdk/examples/${_pair}/${_pair}.c)
+    target_include_directories(sco_sim_${_pair} PRIVATE "${SCO_INCLUDE_DIR}")
+    set_target_properties(sco_sim_${_pair} PROPERTIES
+      OUTPUT_NAME ${_pair} PREFIX "" SUFFIX ".${_ext}"
+      LIBRARY_OUTPUT_DIRECTORY "$<1:${_sim}/${_pair}>"
+      RUNTIME_OUTPUT_DIRECTORY "$<1:${_sim}/${_pair}>")
+    sco_warnings(sco_sim_${_pair})
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/${_pair}/plugin.ini" _pair_ini)
+    if(NOT WIN32)
+      string(REPLACE "entry = ${_pair}.dll" "entry = ${_pair}.so" _pair_ini "${_pair_ini}")
+    endif()
+    file(WRITE "${_sim}/${_pair}/plugin.ini" "${_pair_ini}")
+  endforeach()
   file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/greeter" DESTINATION "${_sim}")
   if(SCO_GAME_SC)
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/travel_pack"
               "${CMAKE_CURRENT_SOURCE_DIR}/sdk/examples/quantum_pack" DESTINATION "${_sim}")
   endif()
-  add_dependencies(sco-host-sim sco_sim_hello sco_sim_cpp_hello)
+  add_dependencies(sco-host-sim sco_sim_hello sco_sim_cpp_hello sco_sim_counter_service sco_sim_counter_panel)
   # tests/host_sim.cmake runs the sim and prints "host_sim_examples: FAIL" unless it exits 0 and
   # answers the invoke; CTest needs the reply and no FAIL line.
   add_test(NAME host_sim_examples

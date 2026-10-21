@@ -34,7 +34,7 @@ In order, it:
 4. builds the fake plugins from `tests/fixtures/plugins/native/fake_plugin.c` into `tests/out/plugins/` and runs `test_plugins` (ASan+UBSan), then `test_ui` under ASan+UBSan and ThreadSanitizer,
 5. builds Lua and sco-lua and runs `test_lua` (ASan+UBSan), which also loads `sdk/examples/greeter` through the real loader,
 6. runs `test_app` (ASan+UBSan): the host kit with built-in plugins, two fake plugins, `greeter` and `travel_pack`,
-7. builds `hello` as a shared library into `tests/out/sim/plugins/` next to copies of `greeter` and `travel_pack`, builds `sco-host-sim` (ASan+UBSan) and runs `sco-host-sim tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"`, which must exit 0 and answer `Hello, Pilot One`.
+7. builds `hello` as a shared library into `tests/out/sim/plugins/` next to copies of `greeter` and `travel_pack`, builds `sco-host-sim` (ASan+UBSan) and runs `sco-host-sim tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"`, which must exit 0 and answer `Hello, Pilot One`. It also builds `counter_service` and `counter_panel` there and runs the sim again with `--invoke counter_panel.bump`, which must answer `counter is 1` through `counter_service`'s table.
 
 Each test binary ends with `N passed, M failed` and exits non-zero on any failure; the script stops at the first failure. Output goes to `tests/out/` (ignored by git).
 
@@ -155,7 +155,7 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 | `test_plugins` | `plugin.ini`, discovery, the content index and the native loader against the fake plugins in `<build>/tests/out/plugins/` |
 | `test_lua` | sco-lua through the real loader and host table, including `sdk/examples/greeter`, and `sco.store` over a real `sco.storage` with `sdk/examples/notebook` |
 | `test_app` | The host kit (`sco::app`) and built-in plugins: load order, `game.ready`, tick, a faulting built-in contained, `game.exit` before unload, unload order, restart |
-| `host_sim_examples` | `sco-host-sim <build>/tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply (`tests/host_sim.cmake`) |
+| `host_sim_examples` | `sco-host-sim <build>/tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello`, `cpp_hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply; then `--invoke counter_panel.bump` over the same folder, where `counter_panel` calls `counter_service`'s table and must answer `counter is 1` (`tests/host_sim.cmake`) |
 
 On Windows `test_plugins` loads real DLLs with `LoadLibraryExW` and runs the real `__try/__except` crash guard. The TSan runs and the `x86_64-pc-windows-msvc` cross-compile of the ABI pin stay in `tools/test.sh`.
 
