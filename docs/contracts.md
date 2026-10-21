@@ -6,6 +6,8 @@ one versioned format. This document's method cells are checked against those
 records: update both together; CI refuses disagreement. Common reading rules,
 per-service narrative and remaining gaps stay authoritative here and are carried
 into the built catalogue, not copied into another editable prose source.
+Which tables are Stable or Experimental across SDK 2.x, separately from
+availability and evidence, is in [Stability](stability.md).
 
 ```sh
 python3 tools/sdk_catalogue.py check

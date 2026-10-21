@@ -2085,6 +2085,12 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
+path = "docs/stability.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
 path = "docs/roadmap-2.4.0.md"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"

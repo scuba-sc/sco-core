@@ -164,9 +164,9 @@ first; any other argument name is refused:
 |---|---|---|
 | `search_api` | `query`; optional: `language`, `service`, `limit` | Search catalogue contracts, with optional service and language filtering. |
 | `get_symbol` | `symbol_or_id` | Retrieve a symbol's contract and its source-backed language mappings. |
-| `list_services` | none | Discover public service tables, versions, sizes and member counts. |
+| `list_services` | none | Discover public service tables, versions, sizes, member counts and [stability](#stability) labels. |
 | `get_example` | `symbol_or_id`; optional: `language` | Return a selected record's listed example paths, and optionally their bounded contents. |
-| `get_capability_status` | `symbol_or_id` | Read documented capability evidence, limitations and the record's [evidence state](#evidence-state); not a live availability probe. |
+| `get_capability_status` | `symbol_or_id` | Read documented capability evidence, limitations, the record's [evidence state](#evidence-state) and its table's [stability](#stability); not a live availability probe. |
 | `check_compatibility` | optional: `sdk_version`, `game_pack_version`, `tag`, `source_sha`, `service`, `min_version`, `member_extent` | Compare requested coordinates with catalogue metadata, read a [release approval record](#release-approval-records) and check a service's minimum version and member extent; not a runtime compatibility test. |
 
 `symbol_or_id` takes a table-qualified symbol such as `sc_actors_v1.spawn_npc` or
@@ -613,14 +613,21 @@ Game-pack records also carry `service_status`. It is **service-scoped**. When
 `sdk/status_registry.json` exists, its rows are the capabilities of the `service`
 entry whose `service` and header file name both match the record's catalogue
 table. Otherwise they are the rows of the
-`| Table | Version | Capability | Default | Evidence |` table in
-`docs/game/status.md` whose backticked service and linked header both match.
+`| Table | Version | Stability | Capability | Default | Evidence |` table in
+`docs/game/status.md` (or the five-column table without Stability that older
+archives carry) whose backticked service and linked header both match.
 `service_status.source` names the file used. Each row keeps `capability`, `default` (`ON`, `OFF` or
 `none`) and `evidence` verbatim, plus an `evidence_level`:
 `row_resolved_sigcheck` (with `game_build`), `off_pending_in_game_confirmation`,
 `blocked`, or `unclassified` for any other text, including in-game claims.
 `documented_version` and `version_matches_catalogue` compare the row's version with
-the catalogue.
+the catalogue. `stability` is the table's label, `stable` or `experimental`, or
+`null` when the registry entry or status table predates labels. The registry is read
+at `schema_version` 2 (labels required on service and event-bus entries, with
+`stable_since` exactly on `stable` ones, and absent on signature-row groups) or 1 (the
+unlabelled registry of older archives, no `stability` or `stable_since` keys); any
+other version is refused. In the status table a signature-row group's Stability cell
+is `-`, read as `null`.
 
 Registry rows also keep these registry fields where they are set:
 
@@ -651,3 +658,28 @@ The registry or status document is read from the configured root when the server
 is not bound to the catalogue's `source_sha`. Its sigcheck rows are dated to the
 build named in each row, and none of it is evidence that an operation worked in
 a game session.
+
+## Stability
+
+`list_services` adds `stability` to each service, and `get_capability_status` adds
+`stability` for the record's table. Both also return a `stability_context` naming
+[`docs/stability.md`](../../docs/stability.md), the game status source and whether it
+was read. Values:
+
+- `stable`: never removed or changed incompatibly within SDK 2.x; grows only at its
+  tail behind a new minor version macro. Once a released SDK has carried the label,
+  the table stays `stable` for the rest of SDK 2.x. The `sco_api` root table, plugin
+  entry points and every `sco.*` host table are always `stable`.
+- `experimental`: a later SDK minor may replace the table with a new table under a
+  distinct service name and its own header; the old name then stays published, marked
+  deprecated, for at least one further SDK minor release. The kernel publishes one
+  table per name, so a replacement never reuses the old name.
+- `unknown`: a game-pack table (any table declared in an `include/sc_*.h` header: the
+  `game.*` tables, `teleport.spatial` and `spawn.entities`) whose label could not be
+  read: no `--repo-root`, the status source is unavailable, refused or predates labels,
+  or it has no entry for the table.
+
+A game-pack label comes from the same source as `service_status` and is read at
+server start, not bound to the catalogue's `source_sha`. Stability is not
+availability or evidence: a `stable` table's capability can be OFF or answer
+`SCO_UNAVAILABLE`, and no label says anything was run in game.

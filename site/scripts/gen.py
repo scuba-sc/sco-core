@@ -76,6 +76,7 @@ HUB_DOCS = {
     'reference': (
         ('docs/api-v1.md', 'The plain-C root plugin ABI: exports, root table, capabilities, commands, events and threads.'),
         ('docs/contracts.md', 'How to read the per-method service contract catalogue.'),
+        ('docs/stability.md', 'What stays compatible across SDK 2.x: Stable and Experimental service tables.'),
         ('docs/game-services.md', 'Services the Star Citizen game pack publishes under the reserved owner `game`.'),
         ('docs/game/status.md', 'Status of every `game.*` table.'),
         ('docs/storage.md', 'Per-plugin key-value and SQL storage over SQLite.'),

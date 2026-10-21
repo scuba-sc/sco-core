@@ -54,7 +54,12 @@ REGISTRY_KINDS = {"service", "event_bus", "signature_rows"}
 REGISTRY_DEFAULTS = {"ON", "OFF", "none"}
 REGISTRY_LEVELS = {"sigcheck_resolved", "in_game_verified", "off_pending_probe",
                    "synthetic_only", "blocked", "undocumented"}
-REGISTRY_ENTRY_KEYS = {"id", "kind", "service", "header", "doc", "title", "version", "capabilities"}
+# schema_version 1: before stability labels. 2: "stability" on service and event_bus entries,
+# "stable_since" with a stable label, neither on signature_rows entries.
+REGISTRY_ENTRY_KEYS = {1: {"id", "kind", "service", "header", "doc", "title", "version", "capabilities"}}
+REGISTRY_ENTRY_KEYS[2] = REGISTRY_ENTRY_KEYS[1] | {"stability", "stable_since"}
+REGISTRY_STABILITY = {"stable", "experimental"}
+REGISTRY_STABLE_SINCE = re.compile(r"sdk-v[0-9]+\.[0-9]+\.[0-9]+")
 REGISTRY_CAP_KEYS = {"name", "display", "methods", "default", "evidence_level", "evidence", "game_build",
                      "sig_rows", "spike_ref", "evidence_source"}
 NATIVE_INDEX = ("sdk", "native_index.json")
@@ -74,8 +79,13 @@ NATIVE_CONCLUSIONS = [
     "tier comes from sdk/status_registry.json sig_rows: tier 2 means no registry capability names the row, not that the row is unused.",
     "A registered row is not evidence that it resolves on any game build or that anything ran in game.",
     "Read from --repo-root at server start; not bound to the catalogue source_sha."]
-GAME_STATUS_HEADER = "| Table | Version | Capability | Default | Evidence |"
-GAME_STATUS_SEPARATOR = "|---|---|---|---|---|"
+GAME_STATUS_HEADER = "| Table | Version | Stability | Capability | Default | Evidence |"
+GAME_STATUS_SEPARATOR = "|---|---|---|---|---|---|"
+# The table before stability labels (SDK 2.3.0 and earlier archives): read, stability unknown.
+GAME_STATUS_HEADER_V1 = "| Table | Version | Capability | Default | Evidence |"
+GAME_STATUS_SEPARATOR_V1 = "|---|---|---|---|---|"
+# "-" is a signature-row group's cell: not a service table, no label.
+GAME_STATUS_STABILITY = {"Stable": "stable", "Experimental": "experimental", "-": None}
 GAME_STATUS_TABLE = re.compile(r"`([^`]+)` \(\[`([^`/]+)`\]\([^)\s]+\)\)")
 SIGCHECK_LEVEL = re.compile(r"row resolved on ([0-9][0-9.]*) \(sigcheck\)")
 RELEASE_CONCLUSIONS = [
@@ -89,6 +99,15 @@ STATUS_CAVEAT = (
     "an enabled capability does not prove an operation worked in game. "
     "Consult docs/game/status.md and the contract context. No works flag is inferred."
 )
+STABILITY_CONCLUSIONS = [
+    "stable: the table is never removed or changed incompatibly within SDK 2.x; it grows only at its tail behind a new minor version macro. "
+    "Once a released SDK has carried the label it stays stable for the rest of SDK 2.x, whatever later evidence says. "
+    "experimental: a later SDK minor may replace it with a new table under a distinct service name and its own header; the old name then "
+    "stays published, marked deprecated, for at least one further SDK minor release. See docs/stability.md.",
+    "The sco_api root table, plugin entry points and every sco.* host table are stable by that promise. A game-pack table's label (any include/sc_*.h table) is read "
+    "from sdk/status_registry.json (else docs/game/status.md) beneath --repo-root at server start, not bound to the catalogue source_sha.",
+    "unknown: no --repo-root, the status source is unavailable, refused or predates stability labels, or it has no entry for the table.",
+    "Stability is not availability or evidence: a stable table's capability can be OFF or answer SCO_UNAVAILABLE, and nothing here was run in game."]
 
 
 def string_schema(maximum=512):
@@ -111,10 +130,12 @@ TOOLS = [
          {"query": string_schema(), "language": LANGUAGE, "service": string_schema(),
           "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10}}, ("query",)),
     tool("get_symbol", "Return the complete contract, table narrative and catalogue reading context.", SYMBOL, ("symbol_or_id",)),
-    tool("list_services", "List catalogue table names, services, packed table versions, x64 sizes and member counts."),
+    tool("list_services", "List catalogue table names, services, packed table versions, x64 sizes, member counts and stability labels "
+         "(stable/experimental/unknown)."),
     tool("get_example", "Return record-listed examples only; without a repository root return paths only.",
          {**SYMBOL, "language": LANGUAGE}, ("symbol_or_id",)),
-    tool("get_capability_status", "Read language exposure, absent-capability contracts and recorded evidence state, not running-game status.", SYMBOL, ("symbol_or_id",)),
+    tool("get_capability_status", "Read language exposure, absent-capability contracts, recorded evidence state and the table's stability label, "
+         "not running-game status.", SYMBOL, ("symbol_or_id",)),
     tool("check_compatibility", "Compare exact SDK/game-pack/source coordinates with catalogue metadata, optionally read a release approval record "
          "(no signature verification) and compare a service's minimum version and member extent with the catalogue table; not runtime certification.",
          {"sdk_version": string_schema(), "game_pack_version": string_schema(),
@@ -399,17 +420,22 @@ def list_contained_directory(root, parts):
 
 
 def parse_game_status(text, tables):
-    """Strictly parse the five-column service table of docs/game/status.md.
+    """Strictly parse the service table of docs/game/status.md.
 
-    Rows are attributed to a catalogue table only when the backticked service
-    and the linked header both match it. Any malformed row refuses the whole
-    table, so evidence is reported unknown rather than half-read.
+    The current table has six columns (Stability after Version); the five-column
+    table of older archives is still read, with stability None. Rows are attributed
+    to a catalogue table only when the backticked service and the linked header both
+    match it. Any malformed row refuses the whole table, so evidence is reported
+    unknown rather than half-read.
     """
     lines = [line.strip() for line in text.splitlines()]
-    starts = [index for index, line in enumerate(lines) if line == GAME_STATUS_HEADER]
+    starts = [(index, line == GAME_STATUS_HEADER) for index, line in enumerate(lines)
+              if line in (GAME_STATUS_HEADER, GAME_STATUS_HEADER_V1)]
     require(len(starts) == 1, "service table header not found exactly once")
-    start = starts[0] + 1
-    require(start < len(lines) and lines[start] == GAME_STATUS_SEPARATOR, "service table separator missing")
+    start, labelled = starts[0][0] + 1, starts[0][1]
+    separator = GAME_STATUS_SEPARATOR if labelled else GAME_STATUS_SEPARATOR_V1
+    require(start < len(lines) and lines[start] == separator, "service table separator missing")
+    width = 6 if labelled else 5
     by_service = {table["service"]: (name, table) for name, table in tables.items()}
     groups, current, started = {}, None, False
     for line in lines[start + 1:]:
@@ -417,10 +443,14 @@ def parse_game_status(text, tables):
             break
         require(line.endswith("|"), "unterminated service table row")
         cells = [cell.strip() for cell in line[1:-1].split("|")]
-        require(len(cells) == 5, "service table row does not have five cells")
-        table_cell, version, capability, default, evidence = cells
+        require(len(cells) == width, "service table row does not have %d cells" % width)
+        if labelled:
+            table_cell, version, label, capability, default, evidence = cells
+        else:
+            (table_cell, version, capability, default, evidence), label = cells, None
         if table_cell:
             require(version, "service table row has no version")
+            require(not labelled or label in GAME_STATUS_STABILITY, "service table row has no Stable, Experimental or - label")
             match = GAME_STATUS_TABLE.fullmatch(table_cell)
             current, started = None, True
             if match and match[1] in by_service:
@@ -430,9 +460,10 @@ def parse_game_status(text, tables):
                     current = name
                     catalogue_version = "%d.%d" % (table["version"] >> 16, table["version"] & 0xFFFF)
                     groups[name] = {"documented_version": version,
-                                    "version_matches_catalogue": version == catalogue_version, "rows": []}
+                                    "version_matches_catalogue": version == catalogue_version,
+                                    "stability": GAME_STATUS_STABILITY.get(label), "rows": []}
         else:
-            require(started and not version, "continuation row without a table")
+            require(started and not version and not label, "continuation row without a table")
         require(capability and evidence and default in {"ON", "OFF", "none"}, "unrecognized service table row")
         if current is None:
             continue
@@ -490,15 +521,27 @@ def parse_status_registry(text, tables):
     """
     data = parse_json(text)
     require(isinstance(data, dict) and set(data) == {"schema_version", "about", "services"}, "unexpected top-level keys")
-    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "unsupported schema_version; expected 1")
+    schema = data["schema_version"]
+    require(type(schema) is int and schema in REGISTRY_ENTRY_KEYS, "unsupported schema_version; expected 1 or 2")
     entries = data["services"]
     require(isinstance(entries, list) and len(entries) <= 512, "services must be a list of at most 512 entries")
     by_service = {table["service"]: (name, table) for name, table in tables.items()}
     groups = {}
     for entry in entries:
-        require(isinstance(entry, dict) and set(entry) <= REGISTRY_ENTRY_KEYS, "entry has unknown keys")
+        require(isinstance(entry, dict) and set(entry) <= REGISTRY_ENTRY_KEYS[schema], "entry has unknown keys")
         require(isinstance(entry.get("kind"), str) and entry["kind"] in REGISTRY_KINDS, "unknown entry kind")
         require(all(nonempty(entry.get(key)) for key in ("id", "service", "version")), "entry needs id, service and version")
+        if schema >= 2:
+            # Shape only; tools/status_registry.py applies the evidence rule and the ratchet in the repository.
+            if entry["kind"] == "signature_rows":
+                require("stability" not in entry and "stable_since" not in entry, "signature_rows entry has a stability label")
+            else:
+                require(isinstance(entry.get("stability"), str) and entry["stability"] in REGISTRY_STABILITY,
+                        "stability is not stable or experimental")
+                since = entry.get("stable_since")
+                require((since is None) == (entry["stability"] != "stable")
+                        and (since is None or (isinstance(since, str) and REGISTRY_STABLE_SINCE.fullmatch(since))),
+                        "stable_since must name sdk-vX.Y.Z exactly when stability is stable")
         capabilities = entry.get("capabilities")
         require(isinstance(capabilities, list) and 1 <= len(capabilities) <= 256, "entry needs 1-256 capabilities")
         rows = [registry_row(cap) for cap in capabilities]
@@ -513,7 +556,8 @@ def parse_status_registry(text, tables):
         require(name not in groups, "registry repeats a service")
         catalogue_version = "%d.%d" % (table["version"] >> 16, table["version"] & 0xFFFF)
         groups[name] = {"documented_version": entry["version"],
-                        "version_matches_catalogue": entry["version"] == catalogue_version, "rows": rows}
+                        "version_matches_catalogue": entry["version"] == catalogue_version,
+                        "stability": entry.get("stability"), "rows": rows}
     return groups
 
 
@@ -1132,6 +1176,28 @@ class Server:
             state["service_status"] = {**base, "state": "rows_found", **self.game_status[record["table"]]}
         return state
 
+    def stability(self, table, source_header):
+        """stable, experimental or unknown for a catalogue table; table is None for a record without one."""
+        if not source_header.startswith("include/sc_"):
+            return "stable"
+        if self.game_status is None or table not in self.catalogue["tables"]:
+            return "unknown"
+        # A label belongs to the service: a second catalogue table of the same service and header
+        # (game.loadout's sc_loadout_v1 and sc_loadout_v1_2) shares the label status rows attribute to the other.
+        service = self.catalogue["tables"][table]["service"]
+        names = [table] + sorted(name for name, other in self.catalogue["tables"].items()
+                                 if name != table and other["service"] == service and other["source_header"] == source_header)
+        labels = [self.game_status[name].get("stability") for name in names if name in self.game_status]
+        return next((label for label in labels if label), "unknown")
+
+    def stability_context(self):
+        context = {"document": "docs/stability.md", "game_source": "/".join(self.game_status_source),
+                   "game_state": "unavailable" if self.game_status is None else "read",
+                   "conclusions": STABILITY_CONCLUSIONS}
+        if self.game_status is None:
+            context["reason"] = self.game_status_reason
+        return context
+
     def release_record(self, name):
         """Shape-check one approval record; never verifies its signature."""
         entry = {"path": "/".join(RELEASE_DIR + (name,))}
@@ -1261,8 +1327,10 @@ class Server:
             return {"records": hits[:limit], "total_matches": len(hits), "limit": limit}
         if name == "list_services":
             return {"services": [{"table": name, "service": table["service"], "version": table["version"],
-                                  "size": table["size"], "member_count": len(table["members"])}
-                                 for name, table in sorted(self.catalogue["tables"].items())]}
+                                  "size": table["size"], "member_count": len(table["members"]),
+                                  "stability": self.stability(name, table["source_header"])}
+                                 for name, table in sorted(self.catalogue["tables"].items())],
+                    "stability_context": self.stability_context()}
         if name == "check_compatibility":
             coordinates = {k: self.catalogue[k] for k in PROVENANCE_KEYS[1:]}
             result = {"requested": args, "catalogue_coordinates": coordinates,
@@ -1318,7 +1386,9 @@ class Server:
                     "contract_context": self.catalogue["contract_context"], "evidence_state": self.evidence_state(record)}
         if name == "get_capability_status":
             return ({key: record[key] for key in ("language_mappings", "absent_capability", "limitations")}
-                    | {"status_caveat": STATUS_CAVEAT, "evidence_state": self.evidence_state(record)})
+                    | {"status_caveat": STATUS_CAVEAT, "evidence_state": self.evidence_state(record),
+                       "stability": self.stability(record["table"], record["source_header"]),
+                       "stability_context": self.stability_context()})
         examples = record["examples"]
         if len(examples) > MAX_EXAMPLES:
             raise ToolError("Example result exceeds 16 files")

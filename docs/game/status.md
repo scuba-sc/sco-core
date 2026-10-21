@@ -2,11 +2,13 @@
 
 SDK 2.3.0 (published 2026-10-15 as `sdk-v2.3.0`) uses game pack **0.6.0**. `main` pins the verified build **4.10.197.2878** (PE timestamp `0x6accbae3`, [game pack](../game-pack.md#verified-game-builds)): the rows recorded on 4.10.196.36804 re-scan unchanged on it, and the evidence strings below keep the build each was recorded on. A package coordinate or a pin bump includes additive contracts; it does not establish in-game verification.
 
-The dated signature evidence below was recorded at sco-core `main` `2197dfb` (2026-10-11, with `game.actors.died`), where the game pack was still **0.2.0** (0.3.0 arrived in `95a0d34` and first shipped in `sdk-v2.0.0`), against Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, whether it is on by default, and how far it has been checked. Later sections retain their own synthetic-only and unverified limits.
+The dated signature evidence below was recorded at sco-core `main` `2197dfb` (2026-10-11, with `game.actors.died`), where the game pack was still **0.2.0** (0.3.0 arrived in `95a0d34` and first shipped in `sdk-v2.0.0`), against Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, its [stability](../stability.md) label, whether it is on by default, and how far it has been checked. Later sections retain their own synthetic-only and unverified limits.
 
 > **Nothing has been verified in game since these services landed.** ON records default availability policy subject to readiness, admission and product conditions. Some capabilities expose static metadata without signature rows; ON does not certify gameplay. Recorded in-game results require their own dated evidence.
 
 ## How to read it
+
+**Stability.** *Stable* or *Experimental*, per table: a compatibility promise about the table's layout and lifetime within SDK 2.x, decided by the rule in [Stability](../stability.md#how-a-game-table-gets-its-label) (a new label is Stable when at least one capability has a `sigcheck` row result, an OFF-pending-probe line or a dated in-game result, otherwise Experimental; once a released SDK has carried Stable, the table stays Stable for the rest of SDK 2.x). The `game.*` event bus row's label covers its event names and payload structs. A `-` marks a signature-row group (mining rows, CryPak adapter rows): it is not a service table, its rows can stop resolving with a game patch, and it carries no stability promise. A label says nothing about availability or evidence: a Stable table can still be OFF, answer `SCO_UNAVAILABLE`, or have no in-game run.
 
 **Default.** *ON*: default availability policy, still subject to each row's readiness, admission and product conditions ([game services](../game-services.md#for-products)). *OFF*: the operation is held off; a published table can still answer `SCO_UNAVAILABLE`. *none*: no independent capability gates the line, or no blocked surface is published. Defaults are not execution evidence.
 
@@ -93,79 +95,79 @@ not disappearance. Retained build ownership lasts only while loaded and ordinary
 unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 
 <!-- status-registry:start -->
-| Table | Version | Capability | Default | Evidence |
-|---|---|---|---|---|
-| `game.audio` ([`sc_audio.h`](../../include/sc_audio.h)) | 1.1 | `game.audio.triggers` (`resolve`, `play`, `stop`) | OFF | Owner-bound trigger/playback tokens, actual host release cleanup and bounded synthetic provider tests. No native or audible output verification; not run in game. |
-| | | `game.audio.play_once` (`resolve`, `play_once`) | OFF | Independent default-OFF capability with owner-bound tokens, extent-checked v1.1 tail, fault latch until process restart and synthetic provider tests. No native backend ships; held until current game-object registration can be confirmed at submission. Not run in game. |
-| `game.inventory.contents` ([`sc_container_contents.h`](../../include/sc_container_contents.h)) | 1.0 | `game.inventory.contents.read` (`snapshot`) | OFF | Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game. |
-| `game.datacore_live` ([`sc_datacore_live.h`](../../include/sc_datacore_live.h)) | 1.0 | `game.datacore_live` (`is_ready`, `get_pool_stats`, `find_record`, `read_pool`, `write_pool`) | OFF | Default-OFF native counted read adapter with validated lifecycle locators, serialized text-blob bytes and inherited record metadata. Requires shell-enforced pre-engine quiescence, lifecycle exclusion and fresh admission. Native writes unavailable; synthetic service/hook/fault tests, not run in game. |
-| `game.input` ([`sc_input.h`](../../include/sc_input.h)) | 1.0 | `game.input.registry` (`count`, `by_id`, `by_name`) | ON | Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game. |
-| `teleport.spatial` ([`sc_spatial.h`](../../include/sc_spatial.h)) | 1.0 | the four `teleport.*` rows (the product's capability `teleport`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `spawn.entities` ([`sc_spawn.h`](../../include/sc_spawn.h)) | 1.2 | the `spawn.helpers` rows (the product's capability `spawn.ship`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.actors` ([`sc_actors.h`](../../include/sc_actors.h)) | 1.1 | `game.actors.local_player` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.actors.spawn_npc` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.actors.despawn` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.actors.health` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.actors.state` | OFF | OFF pending in-game confirmation |
-| `game.actor_stats` ([`sc_actor_stats.h`](../../include/sc_actor_stats.h)) | 1.1 | `game.actor_stats.read` (`read`) | ON | row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game |
-| `game.actor_stats_write` ([`sc_actor_stats_write.h`](../../include/sc_actor_stats_write.h)) | 1.0 | `game.actor_stats.write` (`adjust`, `set`, `mode`) | OFF | OFF pending in-game confirmation |
-| `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.1 | `game.world.raycast_filtered_many` (`raycast_filtered_many`) | OFF | Bounded scoped multi-hit policy and lifecycle tests; no native grid/hit adapter, not run in game |
-| | | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
-| | | `game.world.free_camera` (`camera_acquire`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
-| `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.1 | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.world.free_camera_flag` (`free_camera_flag`, read-only) | OFF | OFF pending in-game confirmation |
-| | | camera field of view | none | BLOCKED |
-| `game.entities` ([`sc_entities.h`](../../include/sc_entities.h)) | 1.2 | `game.entities.lookup` (`list_classes`, `find_class`, `find_by_name`, `component`) | OFF | Copied registry/name/typed-presence provider policy and ABI tests; no native adapter, not run in game |
-| | | `game.entities.transform` (`alive`, `get_transform`, `set_transform`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.entities.spawn` (`spawn`, `despawn`, `keep`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.entities.class_of` | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.entities.query_radius` | OFF | OFF pending in-game confirmation |
-| | | `game.entities.watch` (`watch`, `unwatch`) | OFF | OFF pending in-game confirmation |
-| `game.*` events ([`sc_game_events.h`](../../include/sc_game_events.h)) | bus | `game.events.player_spawned` (`game.player.spawned`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.events.player_died` (`game.player.died`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.events.actor_died` (`game.actors.died`) | ON | row resolved on 4.10.196.36804 (sigcheck); the same row as player_died, one hook two events |
-| | | `game.events.zone_changed` (`game.zone.changed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`) | OFF | OFF pending in-game confirmation |
-| | | `game.events.mission_changed` (`game.mission.changed`) | ON | ON by owner ruling (2026-10-16): a product default, not a verified claim. No rows; published once a bound, admitted game.missions backend reports active missions. Synthetic only: backend adapters are synthetic today, so it does not fire; not run in game |
-| | | `game.events.loadout_respawn_completed` (`game.loadout.respawn_completed`) | OFF | Verified offline host producer seam only; native hook signature/site unresolved (F-INTAKE-004, T-3); not run in game. |
-| mining rows ([`mining.md`](mining.md)) | row | `mining.cell` (legacy host row) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.creative` ([`sc_creative.h`](../../include/sc_creative.h)) | 1.0 | `game.creative.god_mode` (`set_god_mode`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.creative.fly` (`set_fly_mode`, `set_fly_speed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.creative.ammo` (`set_infinite_ammo`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| | | `game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard) | ON | row resolved on 4.10.196.36804 (sigcheck) |
-| `game.hangar` ([`sc_hangar.h`](../../include/sc_hangar.h)) | 1.0 | `game.hangar.lift` (`lift_of_landing_area`, `lift_request`) | OFF | OFF pending in-game confirmation |
-| | | `game.hangar.atc_cancel` (`atc_cancel_request`) | OFF | OFF pending in-game confirmation |
-| `game.reputation` ([`sc_reputation.h`](../../include/sc_reputation.h)) | 1.0 | `game.reputation.checks` (`checks`, read-only) | OFF | OFF pending in-game confirmation |
-| `game.asop` ([`sc_asop.h`](../../include/sc_asop.h)) | 1.0 | `game.asop.claim_timeout` (`claim_timeout`) | OFF | OFF pending in-game confirmation |
-| | | `game.asop.shard_persisted` (`shard_persisted`) | OFF | OFF pending in-game confirmation |
-| `game.contracts` ([`sc_contracts.h`](../../include/sc_contracts.h)) | 1.0 | `game.contracts.stream_radius` (`stream_radius`, read-only) | OFF | OFF pending in-game confirmation |
-| `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
-| `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
-| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.2 | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
-| | | `game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`) | OFF | Synthetic policy only; no verified engine backend, no in-game proof |
-| | | `game.loadout.async` (`submit`, `status`, `cancel`) | OFF | Opt-in native spawn/attach/readback adapter, Windows synthetic-object fixture and current-build locator checks; not run in game |
-| `game.quantum` ([`sc_quantum.h`](../../include/sc_quantum.h)) | 1.0 | `game.quantum.control` | OFF | Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED |
-| `game.build` ([`sc_game_build.h`](../../include/sc_game_build.h)) | 1.0 | `game.build.info` (`read`) | ON | No rows: reads TimeDateStamp/SizeOfImage from the running module header and the pack's own verified-build pin; starts only when the numeric mirrors agree with the strings; host-side compile and layout pins verified, not run in game |
-| `game.gamerules` ([`sc_gamerules.h`](../../include/sc_gamerules.h)) | 1.1 | `game.gamerules.read` | OFF | Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED |
-| | | `game.gamerules.params` (`list_params`) | ON | Static definition metadata from F-INTAKE-005; source build unresolved; not run in game. |
-| `game.inventory` ([`sc_inventory.h`](../../include/sc_inventory.h)) | 1.1 | `game.inventory.read` (`snapshot`) | OFF | Read-only item-port snapshot of the local player (whole attached tree, depth first, 128 ports max with TRUNCATED and total_seen); adapter grounded on the private corpus (F-4.10.197.2878-011..-016, static analysis only) and bound in production behind fail-closed guards; the signature rows resolve against the 4.10.197.2878 executable on disk, and the adapter is exercised against synthetic game objects only; switched off by default; not run in game |
-| `game.private_session` ([`sc_private_session.h`](../../include/sc_private_session.h)) | 1.0 | `game.private_session` | ON | ON by owner approval for R1 (loopback broker, no socket until Host/Join); synthetic service and ABI checks only; Windows/MSVC, private LAN, EAC inspection and gameplay NOT VERIFIED |
-| `game.cvars` ([`sc_cvars.h`](../../include/sc_cvars.h)) | 1.0 | `game.cvars.read` (`get_bool`) | OFF | Opt-in Windows reference-integer native read adapter with exact receiver/method checks, fresh admission and synthetic native-object fixtures; not run in game |
-| `game.cvars_write` ([`sc_cvars_write.h`](../../include/sc_cvars_write.h)) | 1.0 | `game.cvars.write` (`set_bool`) | OFF | Production native writes refused pending object and backing lifetime across callbacks/leases; setter and cleanup admission tested with synthetic native objects and actual host Stop; not run in game |
-| `game.economy` ([`sc_economy.h`](../../include/sc_economy.h)) | 1.0 | `game.economy.read` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
-| | | `game.economy.apply` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
-| `game.missions` ([`sc_missions.h`](../../include/sc_missions.h)) | 1.0 | `game.missions.read` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
-| | | `game.missions.accept` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
-| | | `game.missions.progress` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
-| | | `game.missions.scripts` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
-| `game.mining` ([`sc_mining.h`](../../include/sc_mining.h)) | 1.0 | `game.mining` (the service's mining activation) | OFF | Off by default; native adapter not verified on Windows or in game; synthetic provider tests only |
-| `game.relocation` ([`sc_relocation.h`](../../include/sc_relocation.h)) | 1.0 | `game.relocation` | ON | ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game |
-| `game.spatial` ([`sc_game_spatial.h`](../../include/sc_game_spatial.h)) | 1.0 | no capability of its own: full-pose conversion and copied observed zones | none | Synthetic fixtures only; not verified on Windows or in game |
-| CryPak adapter rows ([`api.md`](../api.md)) | row | `game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts) | OFF | OFF pending in-game confirmation |
+| Table | Version | Stability | Capability | Default | Evidence |
+|---|---|---|---|---|---|
+| `game.audio` ([`sc_audio.h`](../../include/sc_audio.h)) | 1.1 | Experimental | `game.audio.triggers` (`resolve`, `play`, `stop`) | OFF | Owner-bound trigger/playback tokens, actual host release cleanup and bounded synthetic provider tests. No native or audible output verification; not run in game. |
+| | | | `game.audio.play_once` (`resolve`, `play_once`) | OFF | Independent default-OFF capability with owner-bound tokens, extent-checked v1.1 tail, fault latch until process restart and synthetic provider tests. No native backend ships; held until current game-object registration can be confirmed at submission. Not run in game. |
+| `game.inventory.contents` ([`sc_container_contents.h`](../../include/sc_container_contents.h)) | 1.0 | Experimental | `game.inventory.contents.read` (`snapshot`) | OFF | Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game. |
+| `game.datacore_live` ([`sc_datacore_live.h`](../../include/sc_datacore_live.h)) | 1.0 | Experimental | `game.datacore_live` (`is_ready`, `get_pool_stats`, `find_record`, `read_pool`, `write_pool`) | OFF | Default-OFF native counted read adapter with validated lifecycle locators, serialized text-blob bytes and inherited record metadata. Requires shell-enforced pre-engine quiescence, lifecycle exclusion and fresh admission. Native writes unavailable; synthetic service/hook/fault tests, not run in game. |
+| `game.input` ([`sc_input.h`](../../include/sc_input.h)) | 1.0 | Experimental | `game.input.registry` (`count`, `by_id`, `by_name`) | ON | Static metadata lookups only. F-4.10.197.2878-033 / F-INTAKE-010; tail above 186 build unresolved; not run in game. |
+| `teleport.spatial` ([`sc_spatial.h`](../../include/sc_spatial.h)) | 1.0 | Stable | the four `teleport.*` rows (the product's capability `teleport`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `spawn.entities` ([`sc_spawn.h`](../../include/sc_spawn.h)) | 1.2 | Stable | the `spawn.helpers` rows (the product's capability `spawn.ship`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.actors` ([`sc_actors.h`](../../include/sc_actors.h)) | 1.1 | Stable | `game.actors.local_player` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.actors.spawn_npc` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.actors.despawn` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.actors.health` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.actors.state` | OFF | OFF pending in-game confirmation |
+| `game.actor_stats` ([`sc_actor_stats.h`](../../include/sc_actor_stats.h)) | 1.1 | Stable | `game.actor_stats.read` (`read`) | ON | row resolved on 4.10.197.2878 (sigcheck); actor.stat_names keeps each named stat on its game index (F-4.10.197.2878-006); stat units, range and direction not run in game |
+| `game.actor_stats_write` ([`sc_actor_stats_write.h`](../../include/sc_actor_stats_write.h)) | 1.0 | Stable | `game.actor_stats.write` (`adjust`, `set`, `mode`) | OFF | OFF pending in-game confirmation |
+| `game.vehicles` ([`sc_vehicles.h`](../../include/sc_vehicles.h)) | 1.0 | Stable | `game.vehicles.seats` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.1 | Experimental | `game.world.raycast_filtered_many` (`raycast_filtered_many`) | OFF | Bounded scoped multi-hit policy and lifecycle tests; no native grid/hit adapter, not run in game |
+| | | | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
+| | | | `game.world.free_camera` (`camera_acquire`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
+| `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.1 | Stable | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.world.free_camera_flag` (`free_camera_flag`, read-only) | OFF | OFF pending in-game confirmation |
+| | | | camera field of view | none | BLOCKED |
+| `game.entities` ([`sc_entities.h`](../../include/sc_entities.h)) | 1.2 | Stable | `game.entities.lookup` (`list_classes`, `find_class`, `find_by_name`, `component`) | OFF | Copied registry/name/typed-presence provider policy and ABI tests; no native adapter, not run in game |
+| | | | `game.entities.transform` (`alive`, `get_transform`, `set_transform`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.entities.spawn` (`spawn`, `despawn`, `keep`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.entities.class_of` | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.entities.query_radius` | OFF | OFF pending in-game confirmation |
+| | | | `game.entities.watch` (`watch`, `unwatch`) | OFF | OFF pending in-game confirmation |
+| `game.*` events ([`sc_game_events.h`](../../include/sc_game_events.h)) | bus | Stable | `game.events.player_spawned` (`game.player.spawned`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.events.player_died` (`game.player.died`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.events.actor_died` (`game.actors.died`) | ON | row resolved on 4.10.196.36804 (sigcheck); the same row as player_died, one hook two events |
+| | | | `game.events.zone_changed` (`game.zone.changed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`) | OFF | OFF pending in-game confirmation |
+| | | | `game.events.mission_changed` (`game.mission.changed`) | ON | ON by owner ruling (2026-10-16): a product default, not a verified claim. No rows; published once a bound, admitted game.missions backend reports active missions. Synthetic only: backend adapters are synthetic today, so it does not fire; not run in game |
+| | | | `game.events.loadout_respawn_completed` (`game.loadout.respawn_completed`) | OFF | Verified offline host producer seam only; native hook signature/site unresolved (F-INTAKE-004, T-3); not run in game. |
+| mining rows ([`mining.md`](mining.md)) | row | - | `mining.cell` (legacy host row) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.creative` ([`sc_creative.h`](../../include/sc_creative.h)) | 1.0 | Stable | `game.creative.god_mode` (`set_god_mode`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.creative.fly` (`set_fly_mode`, `set_fly_speed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.creative.ammo` (`set_infinite_ammo`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| | | | `game.creative.ship_ammo` (`set_infinite_ship_ammo`, the ship you're aboard) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| `game.hangar` ([`sc_hangar.h`](../../include/sc_hangar.h)) | 1.0 | Stable | `game.hangar.lift` (`lift_of_landing_area`, `lift_request`) | OFF | OFF pending in-game confirmation |
+| | | | `game.hangar.atc_cancel` (`atc_cancel_request`) | OFF | OFF pending in-game confirmation |
+| `game.reputation` ([`sc_reputation.h`](../../include/sc_reputation.h)) | 1.0 | Stable | `game.reputation.checks` (`checks`, read-only) | OFF | OFF pending in-game confirmation |
+| `game.asop` ([`sc_asop.h`](../../include/sc_asop.h)) | 1.0 | Stable | `game.asop.claim_timeout` (`claim_timeout`) | OFF | OFF pending in-game confirmation |
+| | | | `game.asop.shard_persisted` (`shard_persisted`) | OFF | OFF pending in-game confirmation |
+| `game.contracts` ([`sc_contracts.h`](../../include/sc_contracts.h)) | 1.0 | Stable | `game.contracts.stream_radius` (`stream_radius`, read-only) | OFF | OFF pending in-game confirmation |
+| `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | Experimental | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
+| `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | Experimental | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
+| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.2 | Experimental | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
+| | | | `game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`) | OFF | Synthetic policy only; no verified engine backend, no in-game proof |
+| | | | `game.loadout.async` (`submit`, `status`, `cancel`) | OFF | Opt-in native spawn/attach/readback adapter, Windows synthetic-object fixture and current-build locator checks; not run in game |
+| `game.quantum` ([`sc_quantum.h`](../../include/sc_quantum.h)) | 1.0 | Experimental | `game.quantum.control` | OFF | Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED |
+| `game.build` ([`sc_game_build.h`](../../include/sc_game_build.h)) | 1.0 | Experimental | `game.build.info` (`read`) | ON | No rows: reads TimeDateStamp/SizeOfImage from the running module header and the pack's own verified-build pin; starts only when the numeric mirrors agree with the strings; host-side compile and layout pins verified, not run in game |
+| `game.gamerules` ([`sc_gamerules.h`](../../include/sc_gamerules.h)) | 1.1 | Experimental | `game.gamerules.read` | OFF | Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (private corpus receipts F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE); Windows/MSVC and gameplay NOT VERIFIED |
+| | | | `game.gamerules.params` (`list_params`) | ON | Static definition metadata from F-INTAKE-005; source build unresolved; not run in game. |
+| `game.inventory` ([`sc_inventory.h`](../../include/sc_inventory.h)) | 1.1 | Experimental | `game.inventory.read` (`snapshot`) | OFF | Read-only item-port snapshot of the local player (whole attached tree, depth first, 128 ports max with TRUNCATED and total_seen); adapter grounded on the private corpus (F-4.10.197.2878-011..-016, static analysis only) and bound in production behind fail-closed guards; the signature rows resolve against the 4.10.197.2878 executable on disk, and the adapter is exercised against synthetic game objects only; switched off by default; not run in game |
+| `game.private_session` ([`sc_private_session.h`](../../include/sc_private_session.h)) | 1.0 | Experimental | `game.private_session` | ON | ON by owner approval for R1 (loopback broker, no socket until Host/Join); synthetic service and ABI checks only; Windows/MSVC, private LAN, EAC inspection and gameplay NOT VERIFIED |
+| `game.cvars` ([`sc_cvars.h`](../../include/sc_cvars.h)) | 1.0 | Experimental | `game.cvars.read` (`get_bool`) | OFF | Opt-in Windows reference-integer native read adapter with exact receiver/method checks, fresh admission and synthetic native-object fixtures; not run in game |
+| `game.cvars_write` ([`sc_cvars_write.h`](../../include/sc_cvars_write.h)) | 1.0 | Experimental | `game.cvars.write` (`set_bool`) | OFF | Production native writes refused pending object and backing lifetime across callbacks/leases; setter and cleanup admission tested with synthetic native objects and actual host Stop; not run in game |
+| `game.economy` ([`sc_economy.h`](../../include/sc_economy.h)) | 1.0 | Experimental | `game.economy.read` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| | | | `game.economy.apply` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| `game.missions` ([`sc_missions.h`](../../include/sc_missions.h)) | 1.0 | Experimental | `game.missions.read` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| | | | `game.missions.accept` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| | | | `game.missions.progress` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| | | | `game.missions.scripts` | OFF | Default provider unavailable pending an owner-approved Windows adapter; synthetic callbacks only |
+| `game.mining` ([`sc_mining.h`](../../include/sc_mining.h)) | 1.0 | Experimental | `game.mining` (the service's mining activation) | OFF | Off by default; native adapter not verified on Windows or in game; synthetic provider tests only |
+| `game.relocation` ([`sc_relocation.h`](../../include/sc_relocation.h)) | 1.0 | Experimental | `game.relocation` | ON | ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game |
+| `game.spatial` ([`sc_game_spatial.h`](../../include/sc_game_spatial.h)) | 1.0 | Experimental | no capability of its own: full-pose conversion and copied observed zones | none | Synthetic fixtures only; not verified on Windows or in game |
+| CryPak adapter rows ([`api.md`](../api.md)) | row | - | `game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts) | OFF | OFF pending in-game confirmation |
 <!-- status-registry:end -->
 
 Fields a published table leaves empty, because nothing in the game's code pins them:

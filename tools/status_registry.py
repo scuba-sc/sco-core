@@ -8,8 +8,18 @@ The registry is the source of truth; the markdown table between
 Validation: schema and enums, every include/sc_*.h service has an entry whose
 version matches the header's highest version macro, every sig_rows id is defined in
 src/game/*_sigs.cpp, every evidence_source exists, and no entry claims in-game
-verification without the in_game_verified level. The rendered table keeps the exact
-five-column format tools/sco-core-mcp/server.py parses.
+verification without the in_game_verified level.
+
+Stability (docs/stability.md, schema_version 2): every service and event_bus entry carries
+"stability". A new label follows the owner rule: "stable" when at least one capability has
+evidence level sigcheck_resolved, off_pending_probe or in_game_verified, otherwise
+"experimental". A stable entry also names "stable_since", the SDK release that first
+carries the label. Once that release is out (sdk/VERSION is past it, same major) the label
+is a ratchet: it stays "stable" for the rest of that major whatever later evidence says,
+and demoting it is refused. signature_rows entries are not service tables and carry no
+label. The rendered table keeps the exact six-column format tools/sco-core-mcp/server.py
+parses (which still reads the older five-column table); a row group's Stability cell is
+"-".
 """
 import argparse
 import json
@@ -23,14 +33,21 @@ REGISTRY = PurePosixPath("sdk/status_registry.json")
 STATUS = PurePosixPath("docs/game/status.md")
 START = "<!-- status-registry:start -->"
 END = "<!-- status-registry:end -->"
-HEADER = "| Table | Version | Capability | Default | Evidence |"
-SEPARATOR = "|---|---|---|---|---|"
+HEADER = "| Table | Version | Stability | Capability | Default | Evidence |"
+SEPARATOR = "|---|---|---|---|---|---|"
 
 KINDS = {"service", "event_bus", "signature_rows"}
 DEFAULTS = {"ON", "OFF", "none"}
 LEVELS = {"sigcheck_resolved", "in_game_verified", "off_pending_probe",
           "synthetic_only", "blocked", "undocumented"}
-ENTRY_KEYS = {"id", "kind", "service", "header", "doc", "title", "version", "capabilities"}
+SCHEMA_VERSION = 2
+ENTRY_KEYS = {"id", "kind", "service", "header", "doc", "title", "version", "stability", "stable_since", "capabilities"}
+STABILITY = {"stable": "Stable", "experimental": "Experimental"}
+UNLABELLED = "-"  # the Stability cell of a signature_rows entry: not a service table, no promise
+STABLE_SINCE = re.compile(r"sdk-v(\d+)\.(\d+)\.(\d+)")
+SDK_VERSION = PurePosixPath("sdk/VERSION")
+# The owner rule (docs/stability.md): a table is Stable when at least one capability has one of these levels.
+STABLE_LEVELS = {"sigcheck_resolved", "off_pending_probe", "in_game_verified"}
 CAP_KEYS = {"name", "display", "methods", "default", "evidence_level", "evidence", "game_build",
             "sig_rows", "spike_ref", "evidence_source"}
 OFF_PENDING = "OFF pending in-game confirmation"
@@ -68,10 +85,25 @@ def sig_row_ids(root):
     return ids
 
 
-def validate(registry, root):
+def sdk_version(root):
+    """sdk/VERSION as a (major, minor, patch) tuple, or None when it is missing or malformed."""
+    try:
+        text = (root / SDK_VERSION).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", text)
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def validate(registry, root, current=None):
+    """current: the SDK version (major, minor, patch); default sdk/VERSION under root."""
     errors = []
-    if not isinstance(registry, dict) or registry.get("schema_version") != 1:
-        return ["schema_version must be 1"]
+    if not isinstance(registry, dict) or registry.get("schema_version") != SCHEMA_VERSION:
+        return ["schema_version must be %d" % SCHEMA_VERSION]
+    if current is None:
+        current = sdk_version(root)
+        if current is None:
+            return ["%s missing or not X.Y.Z" % SDK_VERSION]
     entries = registry.get("services")
     if not isinstance(entries, list) or not entries:
         return ["services must be a non-empty list"]
@@ -132,10 +164,57 @@ def validate(registry, root):
             continue
         for cap in caps:
             errors.extend(validate_capability(cap, where, root, rows))
+        errors.extend(validate_stability(entry, caps, where, current))
     for service, (header, _) in sorted(headers.items()):
         if service not in seen_services:
             errors.append("no registry entry for service %s (%s)" % (service, header))
     return errors
+
+
+def rule_stability(caps):
+    """The label the owner rule gives a table: stable when any capability has a STABLE_LEVELS level."""
+    qualifying = any(isinstance(cap, dict) and cap.get("evidence_level") in STABLE_LEVELS for cap in caps)
+    return "stable" if qualifying else "experimental"
+
+
+def validate_stability(entry, caps, where, current):
+    if entry.get("kind") == "signature_rows":
+        present = sorted(set(entry) & {"stability", "stable_since"})
+        if present:
+            return ["%s: signature_rows entries are not service tables and carry no %s (docs/stability.md)"
+                    % (where, " or ".join(present))]
+        return []
+    if "stability" not in entry:
+        return [where + ": stability missing; set \"stable\" or \"experimental\" (docs/stability.md)"]
+    label = entry["stability"]
+    if not isinstance(label, str) or label not in STABILITY:
+        return ["%s: stability %r not in %s" % (where, label, sorted(STABILITY))]
+    since, released = entry.get("stable_since"), False
+    if since is not None:
+        match = STABLE_SINCE.fullmatch(since) if isinstance(since, str) else None
+        if match is None:
+            return ["%s: stable_since %r is not sdk-vX.Y.Z" % (where, since)]
+        version = tuple(int(part) for part in match.groups())
+        if version > current:
+            return ["%s: stable_since %s is after %s %s" % (where, since, SDK_VERSION, ".".join(map(str, current)))]
+        # Released: an SDK of the current major already shipped the label; it can no longer be withdrawn.
+        released = version[0] == current[0] and version < current
+    qualifying = rule_stability(caps) == "stable"
+    if label == "stable":
+        if since is None:
+            return [where + ": stability \"stable\" needs stable_since, the SDK release that first carries the label"]
+        if not qualifying and not released:
+            return [where + ": stability \"stable\" needs a capability with evidence_level in %s" % sorted(STABLE_LEVELS)]
+        return []
+    if since is not None:
+        if released:
+            return ["%s: stable since %s, a released SDK; a Stable table stays Stable for the rest of SDK %d.x and "
+                    "cannot be demoted (docs/stability.md)" % (where, since, current[0])]
+        return [where + ": stable_since belongs only to a stable entry"]
+    if qualifying:
+        return [where + ": stability \"experimental\" but a capability has evidence_level in %s; the rule says stable"
+                % sorted(STABLE_LEVELS)]
+    return []
 
 
 def validate_capability(cap, where, root, rows):
@@ -228,7 +307,8 @@ def render(registry):
     lines = [HEADER, SEPARATOR]
     for entry in registry["services"]:
         for index, cap in enumerate(entry["capabilities"]):
-            lead = "| %s | %s |" % (table_cell(entry), entry["version"]) if index == 0 else "| | |"
+            label = UNLABELLED if entry["kind"] == "signature_rows" else STABILITY[entry["stability"]]
+            lead = "| %s | %s | %s |" % (table_cell(entry), entry["version"], label) if index == 0 else "| | | |"
             lines.append("%s %s | %s | %s |" % (lead, capability_cell(cap), cap["default"], cap["evidence"]))
     return "\n".join(lines) + "\n"
 
