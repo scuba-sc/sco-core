@@ -10,10 +10,13 @@
  *  - The table starts with uint32_t size, set by the provider to sizeof(counter_service_v1)
  *    as it was built. A consumer checks that size covers a member before reading or calling
  *    it (COUNTER_SERVICE_HAS below), so a 1.0 provider and a 1.1 consumer still work together.
- *  - Version 1 only grows at the end: a later minor appends members after get and bumps
- *    COUNTER_SERVICE_VERSION. Nothing is removed, renamed, retyped or reordered. A break would
- *    be version 2.0, published under the same name; query_service answers SCO_UNAVAILABLE to
- *    a consumer that asked for 1.x.
+ *  - Version 1 only grows at the end: a later minor appends members after get and adds a
+ *    COUNTER_SERVICE_VERSION_1_<minor> constant. Nothing is removed, renamed, retyped or
+ *    reordered. A break needs a new major; to keep 1.x consumers working, publish it under a
+ *    second name (for example counter_service.counter2) beside this table, see the plugin
+ *    design guide. (A 2.0 table under this name would answer SCO_UNAVAILABLE to every 1.x
+ *    consumer.)
+ *  - The layout is pinned below with static asserts, so an accidental change fails the build.
  *  - Plain C types only: no C++ types, no exceptions, no varargs across the boundary.
  *
  * Threads: call add and get on the game thread only (in a command, a task from
@@ -45,6 +48,17 @@ typedef struct counter_service_v1 {
     sco_result (*get)(int64_t* out_value);
     /* 1.1 and later: new members go here, at the end. */
 } counter_service_v1;
+
+/* Layout pins: size first, members in order, pointer-sized slots (24 bytes on x64). */
+#ifdef __cplusplus
+#define COUNTER_SERVICE_STATIC_ASSERT(e, m) static_assert(e, m)
+#else
+#define COUNTER_SERVICE_STATIC_ASSERT(e, m) _Static_assert(e, m)
+#endif
+COUNTER_SERVICE_STATIC_ASSERT(offsetof(counter_service_v1, size) == 0, "counter_service_v1.size");
+COUNTER_SERVICE_STATIC_ASSERT(offsetof(counter_service_v1, add) == 8, "counter_service_v1.add");
+COUNTER_SERVICE_STATIC_ASSERT(offsetof(counter_service_v1, get) == 8 + sizeof(void*), "counter_service_v1.get");
+COUNTER_SERVICE_STATIC_ASSERT(sizeof(counter_service_v1) == 8 + 2 * sizeof(void*), "counter_service_v1 size");
 
 /* 1 when table is not NULL, its size covers the whole member and the member is not NULL. Check
  * it before every member you call: covering one member says nothing about a later one. */

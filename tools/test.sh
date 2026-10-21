@@ -685,5 +685,7 @@ if ! "$OUT/sco-host-sim" "$SIM" --ticks 1 --invoke counter_panel.bump > "$OUT/si
   cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter pair failed"; exit 1
 fi
 grep -qF '[sim] invoke counter_panel.bump -> OK "counter is 1"' "$OUT/sim-counter.log" || { cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter_panel did not reach counter_service's table"; exit 1; }
-grep -qF '[counter_panel] found counter_service.counter 1.0' "$OUT/sim-counter.log" || { cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter_panel loaded before its provider published"; exit 1; }
+provider_at=$(grep -nF '[plugin] loaded counter_service ' "$OUT/sim-counter.log" | head -n 1 | cut -d: -f1)
+consumer_at=$(grep -nF '[plugin] loaded counter_panel ' "$OUT/sim-counter.log" | head -n 1 | cut -d: -f1)
+[ -n "$provider_at" ] && [ -n "$consumer_at" ] && [ "$provider_at" -lt "$consumer_at" ] || { cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter_panel loaded before its provider"; exit 1; }
 echo "sco-host-sim: SDK examples load, tick, answer and unload; counter_panel calls counter_service across plugins"

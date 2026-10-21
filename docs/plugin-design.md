@@ -123,7 +123,11 @@ if (c && c->size >= offsetof(counter_service_v1, add) + sizeof(c->add) && c->add
 ```
 
 - **Query when you need it.** `query_service` works from any thread; a table you keep
-  is a borrowed pointer, not a lease. Never call a peer's table from
+  is a borrowed pointer, not a lease. The first successful lookup hands the provider's
+  table out, and from then on the host keeps that provider loaded for the session
+  (`sco.reload` refuses it), so look it up in the command or callback that uses it,
+  not in `sco_plugin_load` "just to check": `counter_panel` queries only when
+  `bump` or `show` runs. Never call a peer's table from
   your `sco_plugin_unload`, during shutdown or after its provider faulted
   ([native trust](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage)).
 - **Check every member before the call:** the table is not NULL, its `size` covers
@@ -149,6 +153,7 @@ if (c && c->size >= offsetof(counter_service_v1, add) + sizeof(c->add) && c->add
   example `counter_service.counter2`) beside the 1.x table.
 - **Pin your layout** the way sco-core pins its own tables (`tests/abi_*.c`): static
   asserts on `sizeof` and each `offsetof`, so an accidental change fails the build.
+  `counter_service.h` pins `counter_service_v1` that way, in C and in C++.
 - The plugin's own `version` in `plugin.ini` is for people; the service version is the
   contract. Change them independently.
 
@@ -192,11 +197,14 @@ capabilities. Design for absence:
   Don't treat it as a failure, don't retry in a loop, and never call a NULL member.
 - Every `sco_api` function added in 1.1 (`provide_service` through `register_raw`) is
   behind an `api->size` check. `sco-plugin-check --short-tables` serves a 1.0
-  table and fails any call to a 1.1 member made without that check. A consumer degrades
-  under it (`counter_panel` answers `unavailable`); a provider that can't publish on a
-  1.0 host may decline to load instead (`counter_service` returns `SCO_UNAVAILABLE` from
-  `sco_plugin_load`, and its `api = 1.1` in `plugin.ini` keeps a 1.0 host from loading it
-  at all).
+  table and fails any call to a 1.1 member made without that check, and any plugin whose
+  `sco_plugin_load` returns an error. Degrade under it instead of declining: a consumer
+  answers `unavailable` and names the host as the reason (`counter_panel` replies `this
+  host has no query_service (sco_api 1.0)`); a provider logs why, publishes nothing and
+  keeps what still works (`counter_service` keeps its `counter_service.value` command).
+  Both then pass the two checker runs that a `sco-new-plugin.py` project's `check`
+  target makes. `api = 1.1` in `plugin.ini` still keeps a real 1.0 host from loading
+  either plugin at all.
 
 ## Threads, events and callbacks
 
@@ -269,8 +277,10 @@ uses it in a separate native or Lua plugin.
 - The plugin id: 1-31 of `a-z 0-9 _`, equal to the folder name and, for a native
   plugin, to `sco_plugin_info.name`. `sco`, `host`, `menu` and `game` are reserved.
 - Commands `<id>.<action>` (`counter_panel.bump`), services `<id>` or `<id>.<name>`
-  (`counter_service.counter`), raw handlers `<id>.<name>`, IPC and network channels
-  `<id>.<name>`. The host prefixes log and status lines with the id.
+  (`counter_service.counter`), raw handlers `<id>.<name>`, network channels
+  `<id>.<name>` (you pass the full name). For an IPC channel you pass only `<name>`
+  (1-31 of `a-z 0-9 _`) and the host adds your id (`sco_ipc.h`). The host prefixes log
+  and status lines with the id.
 - Name the table type after the service and its major (`counter_service_v1`) and the
   version constants after the minor (`COUNTER_SERVICE_VERSION_1_0`).
 
@@ -299,7 +309,9 @@ Take a waypoint feature: saved locations, a menu to manage them, and travel to o
   or game service your `requires` names); `--short-tables` serves a 1.0 `sco_api`. It
   checks one folder at a time and does not connect one plugin's service to another, so
   a consumer checked alone sees its provider as missing: a good test of its degraded
-  path.
+  path. Run it both ways, as is and with `--short-tables` (the `check` target of a
+  `sdk/tools/sco-new-plugin.py` project does). Both example plugins pass both runs, and
+  the SDK's archive test asserts their replies.
 - **Several plugins together:** sco-core's host simulator, `sco-host-sim` (in the
   repository and the core source kit), loads a whole plugin folder through the real
   neutral host, with `requires` ordering, and can invoke one command
@@ -336,10 +348,15 @@ Take a waypoint feature: saved locations, a menu to manage them, and travel to o
 
 [`counter_service`](../sdk/examples/counter_service) owns a counter and publishes
 `counter_service.counter` 1.0 (`add`, `get`) with a size-first table and an `api->size`
-check before `provide_service`; it also registers the command `counter_service.value`.
+check before `provide_service` (on a 1.0 `sco_api` it publishes nothing and keeps its
+command); it also registers the command `counter_service.value`, and its header pins the
+table layout with static asserts.
 [`counter_panel`](../sdk/examples/counter_panel) owns nothing: it says
-`requires = counter_service.counter`, looks the table up on each command, checks each
+`requires = counter_service.counter`, looks the table up only when a command runs (never
+at load, so the provider stays reloadable until the feature is used), checks each
 member's extent and answers `SCO_UNAVAILABLE` with a reason when the service is missing.
+It shows a required dependency that still degrades: `requires` orders the load, but a
+stand-in host, or a provider that published nothing, can leave the service absent.
 Both are plain C against the neutral headers only. Both ship in the core SDK, are built
 and checked one folder at a time by the SDK's archive test, and are loaded together by
 CTest `host_sim_examples`, where `counter_panel.bump` answers `counter is 1` through the

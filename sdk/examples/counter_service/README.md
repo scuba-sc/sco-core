@@ -18,7 +18,11 @@ cmake --install build --config Release --prefix out
 ```
 
 The checker shows `service counter_service.counter 1.0` and
-`invoke  counter_service.value -> ok "counter is 0"`. It loads one folder at a time
+`invoke  counter_service.value -> ok "counter is 0"`. With `--short-tables` (a 1.0
+host's `sco_api`, which has no `provide_service`) it still passes: the plugin logs
+`this host has no provide_service (sco_api 1.0): counter_service.counter is not
+published` and keeps its command. A real 1.0 host never loads it, because
+`plugin.ini` says `api = 1.1`. The checker loads one folder at a time
 and does not connect one plugin's service to another; the host does. The two
 plugins together are exercised by sco-core's `host_sim_examples` test, which loads
 both through the real neutral host and calls `counter_panel.bump`.

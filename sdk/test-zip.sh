@@ -276,9 +276,15 @@ grep -q 'service counter_service.counter 1.0' "$WORK/counter_service.txt"
 grep -q 'invoke  counter_service.value -> ok "counter is 0"' "$WORK/counter_service.txt"
 "$CHECK" "$P/counter_panel" | tee "$WORK/counter_panel.txt"
 grep -q 'needs   counter_service.counter' "$WORK/counter_panel.txt"
-grep -q 'counter_service.counter is not installed: bump and show answer unavailable' "$WORK/counter_panel.txt"
 grep -q 'invoke  counter_panel.bump -> unavailable "counter_service.counter is not installed"' "$WORK/counter_panel.txt"
 grep -q 'invoke  counter_panel.show -> unavailable "counter_service.counter is not installed"' "$WORK/counter_panel.txt"
+# On a 1.0 sco_api both degrade instead of failing: the provider publishes nothing but keeps its
+# command, and the consumer names the host, not the provider, as the reason.
+"$CHECK" "$P/counter_service" --short-tables | tee "$WORK/counter_service-short.txt"
+grep -q 'this host has no provide_service (sco_api 1.0): counter_service.counter is not published' "$WORK/counter_service-short.txt"
+grep -q 'invoke  counter_service.value -> ok "counter is 0"' "$WORK/counter_service-short.txt"
+"$CHECK" "$P/counter_panel" --short-tables | tee "$WORK/counter_panel-short.txt"
+grep -q 'invoke  counter_panel.bump -> unavailable "this host has no query_service (sco_api 1.0)"' "$WORK/counter_panel-short.txt"
 "$CHECK" "$P/my_plugin" | tee "$WORK/template.txt"
 grep -q 'invoke  my_plugin.ping -> ok "pong"' "$WORK/template.txt"
 if [ $GAME = 1 ]; then

@@ -5,10 +5,12 @@
  * shows how a consumer stays correct whatever it finds:
  *   - plugin.ini says `requires = counter_service.counter`, so the host loads counter_service
  *     first (this folder sorts before it) and refuses this plugin if nothing can provide it,
- *   - the table is looked up with query_service when it is needed, not kept,
+ *   - the table is looked up with query_service only when a command runs, never at load and
+ *     never kept: the first lookup pins counter_service for the rest of the session,
  *   - every member is checked (size covers it, not NULL) before the call,
  *   - SCO_NOT_FOUND and SCO_UNAVAILABLE are ordinary answers: the commands reply with the
- *     reason and return SCO_UNAVAILABLE instead of failing or crashing.
+ *     reason (no provider, another version, or a host without query_service) and return
+ *     SCO_UNAVAILABLE instead of failing or crashing.
  * Build: see README.md. GPL-3.0, like sco-core.
  */
 #include <stdio.h>
@@ -27,24 +29,32 @@ static const sco_plugin_info info = {
     "sco SDK example",
 };
 
+/* 1 when this host's sco_api has query_service (1.1 and later). */
+static int host_has_query(void) {
+    return api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) && api->query_service;
+}
+
 /* Looks the service up now. SCO_OK: *out is the table. Anything else: *out is NULL and the
  * result says why (SCO_NOT_FOUND: nobody publishes it; SCO_UNAVAILABLE: another major version,
- * an older minor, or a host without query_service). */
+ * an older minor, or a host without query_service; not_there tells those apart). */
 static sco_result find_counter(const counter_service_v1** out) {
     const void* found = NULL;
     sco_result r;
     *out = NULL;
-    if (api->size < offsetof(sco_api, query_service) + sizeof(api->query_service) || !api->query_service)
-        return SCO_UNAVAILABLE;
+    if (!host_has_query()) return SCO_UNAVAILABLE;
     r = api->query_service(COUNTER_SERVICE_NAME, COUNTER_SERVICE_VERSION_1_0, &found);
     if (r == SCO_OK) *out = (const counter_service_v1*)found;
     return r;
 }
 
-/* The reply for a lookup that did not succeed. Always SCO_UNAVAILABLE: a missing provider is a
- * normal state for an optional feature, not a failure of this command. */
+/* The reply for a lookup that did not succeed, naming the real cause. Always SCO_UNAVAILABLE.
+ * plugin.ini requires the provider, but it can still be absent when a command runs (a stand-in
+ * host such as sco-plugin-check, a provider that faulted or published nothing), so the commands
+ * degrade instead of failing. */
 static sco_result not_there(sco_result why, char* reply, uint32_t reply_size) {
-    if (why == SCO_NOT_FOUND)
+    if (!host_has_query())
+        snprintf(reply, reply_size, "this host has no query_service (sco_api 1.0)");
+    else if (why == SCO_NOT_FOUND)
         snprintf(reply, reply_size, "counter_service.counter is not installed");
     else
         snprintf(reply, reply_size, "counter_service.counter 1.x is not available");
@@ -110,7 +120,6 @@ static sco_result add_command(const char* name, const char* title, const char* h
 SCO_EXPORT const sco_plugin_info* sco_plugin_query(void) { return &info; }
 
 SCO_EXPORT sco_result sco_plugin_load(const sco_api* a, sco_plugin* self) {
-    const counter_service_v1* c;
     sco_result r;
 
     api = a;
@@ -119,16 +128,12 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* a, sco_plugin* self) {
     if ((r = add_command("counter_panel.bump", "Bump counter", "Adds 1 to the shared counter", bump)) != SCO_OK) return r;
     if ((r = add_command("counter_panel.show", "Show counter", "Shows the shared counter", show)) != SCO_OK) return r;
 
-    /* requires = counter_service.counter loaded the provider before this plugin, so in a real host
-     * the service is normally there already. Say so either way; the commands check again on
-     * every call, because the provider can be gone or another version later. */
-    r = find_counter(&c);
-    if (r == SCO_OK)
-        api->log(me, SCO_LOG_INFO, "found counter_service.counter 1.0");
-    else
-        api->log(me, SCO_LOG_WARN, r == SCO_NOT_FOUND
-                                       ? "counter_service.counter is not installed: bump and show answer unavailable"
-                                       : "counter_service.counter 1.x is not available: bump and show answer unavailable");
+    /* No lookup here. requires = counter_service.counter already loaded the provider first, and
+     * the first query_service hands its table out, after which the host keeps counter_service
+     * loaded for the rest of the session (sco.reload refuses it). Looking it up only when a
+     * command runs leaves the provider reloadable until someone uses the feature. */
+    if (!host_has_query())
+        api->log(me, SCO_LOG_WARN, "this host has no query_service (sco_api 1.0): bump and show answer unavailable");
     api->status(me, "Counter panel ready");
     return SCO_OK;
 }

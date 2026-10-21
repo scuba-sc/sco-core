@@ -8,10 +8,13 @@ What each change means for plugin authors and for products built on sco-core (sc
   sharing through versioned size-first service tables, `requires` ordering, normal
   `UNAVAILABLE`/`NOT_FOUND` results, game-thread rules, clean unload and
   anti-patterns. New neutral C example pair in the core SDK: `counter_service`
-  publishes `counter_service.counter` 1.0 and `counter_panel` requires and calls it,
-  answering `unavailable` with a reason when it is absent. The archive test checks
-  each folder alone; CTest `host_sim_examples` loads both through the real neutral
-  host. No ABI change. Not run in game.
+  publishes `counter_service.counter` 1.0 and `counter_panel` requires it and calls it
+  only when a command runs, answering `unavailable` with a reason when it is absent.
+  Both degrade on a 1.0 `sco_api` instead of failing to load, so both pass
+  `sco-plugin-check` as is and with `--short-tables`. The archive test checks each
+  folder alone both ways; CTest `host_sim_examples` loads both through the real
+  neutral host. The SDK now compiles 8 external C/C++ examples in the installed-header
+  proof (core). No ABI change. Not run in game.
 - Added the [stability promise](docs/stability.md), shipped in the core SDK
   archives. Plugin ABI 1.x only grows, and every `sco.*` host service table is
   Stable: never removed or changed incompatibly within SDK 2.x, growing only at

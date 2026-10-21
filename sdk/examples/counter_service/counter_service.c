@@ -4,7 +4,8 @@
  * One feature, one plugin: it owns a counter and shares it with other plugins only through a
  * versioned service table, "counter_service.counter" 1.0 (counter_service.h). It shows:
  *   - a size-first table published once with provide_service, under "<plugin id>.<name>",
- *   - a check that the host's sco_api is new enough (1.1) before calling provide_service,
+ *   - a check that the host's sco_api has provide_service (1.1) before calling it; on a 1.0
+ *     sco_api it degrades (no table, the command still works) instead of failing to load,
  *   - argument checks in the provider (a fault in a provider is blamed on the provider),
  *   - one command for people, counter_service.value, beside the table for plugins.
  * counter_panel is the consumer. Build: see README.md. GPL-3.0, like sco-core.
@@ -69,16 +70,18 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* a, sco_plugin* self) {
     me = self;
     counter = 0;
 
-    /* provide_service arrived in sco_api 1.1. On an older host this plugin can't do its one job,
-     * so it says why and declines to load; its dependents are then refused with the reason. */
+    /* provide_service arrived in sco_api 1.1. `api = 1.1` in plugin.ini already keeps a 1.0 host
+     * from loading this plugin, so this branch runs only under a stand-in such as
+     * `sco-plugin-check --short-tables`. A missing host function is a normal answer: say why,
+     * publish nothing and keep the part that still works (the command). A consumer then finds no
+     * table and answers unavailable with its own reason. */
     if (api->size < offsetof(sco_api, provide_service) + sizeof(api->provide_service) || !api->provide_service) {
-        api->log(me, SCO_LOG_ERROR, "this host has no provide_service (sco_api 1.0); counter_service needs 1.1");
-        return SCO_UNAVAILABLE;
-    }
-    r = api->provide_service(me, COUNTER_SERVICE_NAME, COUNTER_SERVICE_VERSION_1_0, &table);
-    if (r != SCO_OK) {
+        api->log(me, SCO_LOG_WARN, "this host has no provide_service (sco_api 1.0): counter_service.counter is not published");
+    } else if ((r = api->provide_service(me, COUNTER_SERVICE_NAME, COUNTER_SERVICE_VERSION_1_0, &table)) != SCO_OK) {
         api->log(me, SCO_LOG_ERROR, "could not publish counter_service.counter");
         return r;
+    } else {
+        api->log(me, SCO_LOG_INFO, "published counter_service.counter 1.0");
     }
 
     memset(&cmd, 0, sizeof cmd);
@@ -93,8 +96,6 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* a, sco_plugin* self) {
     cmd.fn           = value;
     cmd.ctx          = NULL;
     if ((r = api->register_command(me, &cmd)) != SCO_OK) return r;
-
-    api->log(me, SCO_LOG_INFO, "published counter_service.counter 1.0");
     return SCO_OK;
 }
 
