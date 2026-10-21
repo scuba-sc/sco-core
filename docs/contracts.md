@@ -75,8 +75,8 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **214 table methods across 45 C table
-representations, plus 3 plugin entrypoints: 217 method rows**. Multiple minor-version
+The mechanically enumerated inventory is **215 table methods across 45 C table
+representations, plus 3 plugin entrypoints: 218 method rows**. Multiple minor-version
 representations can describe one service. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
@@ -233,7 +233,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_cvars_write_v1` | 2 | 24 | 1.0 |
 | `sc_world_v1` | 4 | 40 | 1.1 |
 | `sc_world_control_v1` | 5 | 48 | 1.1 |
-| `sc_audio_v1` | 3 | 32 | 1.0 |
+| `sc_audio_v1` | 4 | 40 | 1.1 |
 | `sc_entities_v1` | 15 | 128 | 1.2 |
 | `sc_prefabs_v1` | 1 | 16 | 1.0 |
 | `sc_owned_v1` | 6 | 56 | 1.0 |
@@ -821,6 +821,7 @@ See [audio ownership and cleanup](game/audio.md).
 | `sc_audio_v1.resolve` | `size >= 16`; 1.0 | `sco_result (*resolve)(sco_plugin* self, const char* name, uint64_t* out_trigger);`<br>Resolve an exact bounded name to an owner-bound session trigger token; unknown names return NOT_FOUND and zero output without playback. | Live caller owns trigger and playback tokens. No native pointers or cross-boundary allocation; tokens never reused within process. | Game thread only. | OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure. | Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery. |
 | `sc_audio_v1.play` | `size >= 24`; 1.0 | `sco_result (*play)(sco_plugin* self, uint64_t trigger, uint64_t* out_playback);`<br>Accept an isolated playback for an owned trigger and return a distinct owner-bound playback token; acceptance is not audible output or completion. | Live caller owns trigger and playback tokens. No native pointers or cross-boundary allocation; tokens never reused within process. | Game thread only. | OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure. | Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery. |
 | `sc_audio_v1.stop` | `size >= 32`; 1.0 | `sco_result (*stop)(sco_plugin* self, uint64_t playback);`<br>Stop one owned playback; failure retains backing state and blocks new effects pending restart, while cleanup may retry. | Live caller owns trigger and playback tokens. No native pointers or cross-boundary allocation; tokens never reused within process. | Game thread only. | OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure. | Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery. |
+| `sc_audio_v1.play_once` | `size >= 40`; 1.1 | `sco_result (*play_once)(sco_plugin* self, uint64_t trigger);`<br>Submit one fire-and-forget trigger request; no playback token, no audible-output or completion guarantee, no stop. | Live caller owns the trigger token from resolve. No playback token is issued; no native pointers or cross-boundary allocation. | Game thread only. | OK accepted submission only; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind trigger; FAILED foreign owner, backend refusal or recursion; CRASHED backend fault (play_once then OFF until restart); UNAVAILABLE unbound, revoked, stopped, restart-required, a 1.0-sized table, or owner released during an accepted call (no rollback, do not retry). | Nothing to clean up per call: no playback is tracked. Owner unload needs no stop; an accepted submission cannot be cancelled. |
 
 ## sco.diagnostics.publisher — `sco_diagnostics_publisher_v1` 1.0
 

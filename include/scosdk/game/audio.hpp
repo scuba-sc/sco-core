@@ -37,7 +37,9 @@ public:
         return table_->stop(self_, playback);
     }
     sco_result PlayOnce(uint64_t trigger) const noexcept {
-        return table_ ? sc_audio_play_once(table_, self_, trigger) : SCO_UNAVAILABLE;
+        if (!table_ || table_->size < offsetof(sc_audio_v1, play_once) + sizeof(table_->play_once) || !table_->play_once)
+            return SCO_UNAVAILABLE;
+        return table_->play_once(self_, trigger);
     }
 private:
     const sc_audio_v1* table_ = nullptr;

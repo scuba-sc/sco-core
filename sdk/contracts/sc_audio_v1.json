@@ -7,9 +7,9 @@
       "table": "sc_audio_v1",
       "source_header": "include/sc_audio.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, uint64_t *)",
-      "version_macro": "SC_AUDIO_VERSION_1_0",
+      "version_macro": "SC_AUDIO_VERSION_1_1",
       "member_extent": 16,
-      "table_size": 32,
+      "table_size": 40,
       "service": "game.audio",
       "id": "sc-audio-v1-resolve",
       "since": "`size >= 16`; 1.0",
@@ -84,9 +84,9 @@
       "table": "sc_audio_v1",
       "source_header": "include/sc_audio.h",
       "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t *)",
-      "version_macro": "SC_AUDIO_VERSION_1_0",
+      "version_macro": "SC_AUDIO_VERSION_1_1",
       "member_extent": 24,
-      "table_size": 32,
+      "table_size": 40,
       "service": "game.audio",
       "id": "sc-audio-v1-play",
       "since": "`size >= 24`; 1.0",
@@ -161,9 +161,9 @@
       "table": "sc_audio_v1",
       "source_header": "include/sc_audio.h",
       "signature": "sco_result (*)(sco_plugin *, uint64_t)",
-      "version_macro": "SC_AUDIO_VERSION_1_0",
+      "version_macro": "SC_AUDIO_VERSION_1_1",
       "member_extent": 32,
-      "table_size": 32,
+      "table_size": 40,
       "service": "game.audio",
       "id": "sc-audio-v1-stop",
       "since": "`size >= 32`; 1.0",
@@ -204,6 +204,83 @@
             {
               "path": "include/scosdk/game/audio.hpp",
               "token": "table_->stop("
+            }
+          ],
+          "tests": [
+            "tests/test_audio.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/audio.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/audio.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_audio_v1.play_once",
+      "table": "sc_audio_v1",
+      "source_header": "include/sc_audio.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "version_macro": "SC_AUDIO_VERSION_1_1",
+      "member_extent": 40,
+      "table_size": 40,
+      "service": "game.audio",
+      "id": "sc-audio-v1-play-once",
+      "since": "`size >= 40`; 1.1",
+      "purpose": "Submit one fire-and-forget trigger request; no playback token, no audible-output or completion guarantee, no stop.",
+      "buffer_contract": "`sco_result (*play_once)(sco_plugin* self, uint64_t trigger);`<br>Submit one fire-and-forget trigger request; no playback token, no audible-output or completion guarantee, no stop.",
+      "ownership": "Live caller owns the trigger token from resolve. No playback token is issued; no native pointers or cross-boundary allocation.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callbacks. Host backend synchronous, bounded and nonthrowing.",
+      "reentrancy": "Recursive operations fail with FAILED; owner release during backend call drains cleanup on return.",
+      "results": "OK accepted submission only; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind trigger; FAILED foreign owner, backend refusal or recursion; CRASHED backend fault (play_once then OFF until restart); UNAVAILABLE unbound, revoked, stopped, restart-required, a 1.0-sized table, or owner released during an accepted call (no rollback, do not retry).",
+      "absent_capability": "game.audio.play_once OFF without a bound host provider; independent of game.audio.triggers; no native backend, not run in game.",
+      "cleanup": "Nothing to clean up per call: no playback is tracked. Owner unload needs no stop; an accepted submission cannot be cancelled.",
+      "limitations": [
+        "Synthetic host evidence only; no native backend and no audible playback verification.",
+        "C# and Lua unsupported."
+      ],
+      "tests": [
+        "tests/abi_audio.c",
+        "tests/test_audio.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_audio.h",
+              "token": "(*play_once)"
+            }
+          ],
+          "tests": [
+            "tests/abi_audio.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/audio.hpp",
+              "token": "table_->play_once("
             }
           ],
           "tests": [
