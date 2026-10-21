@@ -13,8 +13,9 @@
 #
 # Needs python3, cmake, a C and C++20 compiler and Lua 5.4 (lua5.4). SCO_SDK_NO_LUA=1 skips the Lua
 # example's run (the Windows CI job, which has no Lua); the job that packages runs it.
-# SCO_SDK_CSHARP=1 also runs the C# SDK's test and publishes cs_hello with NativeAOT (needs the
-# .NET 8 SDK, and on Windows Visual Studio's linker), then checks it like the C examples.
+# SCO_SDK_CSHARP=1 also runs the C# SDK's test and publishes cs_hello and a generated C# scaffold
+# with NativeAOT (needs the .NET 8 SDK, and on Windows Visual Studio's linker), then checks them
+# like the C examples.
 #
 # SCO_SDK_WIDGETS_ONLY=1 <core.zip> builds/checks only widgets + sco-plugin-check from that archive.
 # Exit 0 = the selected archive check passed (all examples unless narrowed above).
@@ -338,6 +339,20 @@ PY
   grep -q 'invoke  cs_hello.ticks -> ok "3 ticks"' "$WORK/cs_hello.txt"
   grep -q 'service cs_hello.greeter 1.0' "$WORK/cs_hello.txt"
   echo "C#: cs_hello ($RID, NativeAOT) checked"
+  # The C# scaffold: tools/sco-new-plugin.py --lang csharp, published against this kit (-p:ScoSdk).
+  "$PY" "$ROOT/tools/sco-new-plugin.py" --id scaf_cs --lang csharp --with-menu --services game.actors \
+    --out "$WORK/scaf_cs" > /dev/null
+  dotnet publish "$WORK/scaf_cs/scaf_cs.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]}" -p:ScoSdk="$ROOT" \
+    -o "$WORK/scaf_cs_publish"
+  mkdir -p "$WORK/cs/scaf_cs"
+  cp "$WORK/scaf_cs_publish/scaf_cs.${LIB##*.}" "$WORK/cs/scaf_cs/scaf_cs.dll"
+  cp "$WORK/scaf_cs_publish/plugin.ini" "$WORK/cs/scaf_cs/"
+  "$CHECK" "$WORK/cs/scaf_cs" | tee "$WORK/scaf_cs.txt"
+  grep -q 'invoke  scaf_cs.ping -> ok "pong (0 of 1 services)"' "$WORK/scaf_cs.txt"
+  grep -q 'widgets panel scaf_cs.main' "$WORK/scaf_cs.txt"
+  "$CHECK" "$WORK/cs/scaf_cs" --short-tables | tee "$WORK/scaf_cs.txt"
+  grep -q 'invoke  scaf_cs.ping -> ok "pong (0 of 1 services)"' "$WORK/scaf_cs.txt"
+  echo "C#: the generated C# scaffold ($RID, NativeAOT) checked"
 else
   echo "C#: skipped (SCO_SDK_CSHARP=1 runs it)"
 fi
@@ -395,6 +410,11 @@ mode = enum(easy, hard) default hard")
 grep -q '^  setting speed (int)$' "$WORK/case.txt" && grep -q '^  setting mode (enum)$' "$WORK/case.txt" || { cat "$WORK/case.txt"; echo "sco-plugin-check didn't list the settings"; exit 1; }
 echo "sco-plugin-check: 15 bad plugin.ini refused, requires naming services and plugin ids, unknown keys, a 3000-byte line and a [settings] section accepted"
 
+# The Lua scaffold (tools/sco-new-plugin.py --lang lua): plugin.ini with the host's rules here, the
+# script with lua-check below.
+"$PY" "$ROOT/tools/sco-new-plugin.py" --id scaf_lua --lang lua --with-menu --out "$CASES/scaf_lua" > /dev/null
+"$CHECK" "$CASES/scaf_lua"
+
 if [ "${SCO_SDK_NO_LUA:-0}" = 1 ]; then
   echo "lua-check: skipped (SCO_SDK_NO_LUA=1)"
 else
@@ -427,6 +447,8 @@ EOF
   grep -q 'invoke  notebook.add -> ok "note 1 saved"' "$WORK/notebook.txt"
   grep -q 'invoke  notebook.list -> ok "1 note: buy fuel"' "$WORK/notebook.txt"
   grep -q 'invoke  notebook.clear -> ok "removed 1 note"' "$WORK/notebook.txt"
+  "$LUA" "$ROOT/tools/lua-check.lua" "$CASES/scaf_lua" | tee "$WORK/scaf_lua.txt"
+  grep -q 'invoke  scaf_lua.ping -> ok "pong"' "$WORK/scaf_lua.txt"
 fi
 
 # A copied template must build outside the SDK folder with -DSCO_SDK.

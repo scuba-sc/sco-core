@@ -1,23 +1,36 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""sco-new-plugin: writes a ready-to-build native plugin folder. Part of the sco SDK.
+"""sco-new-plugin: writes a ready-to-build plugin folder. Part of the sco SDK.
 
-    python3 tools/sco-new-plugin.py --id my_radar --lang c|cpp [--with-menu]
+    python3 tools/sco-new-plugin.py --id my_radar --lang c|cpp|csharp|lua [--with-menu]
                                     [--services game.actors,sco.widgets] [--name TEXT]
                                     [--author TEXT] --out DIR
 
-The folder holds plugin.ini, the source (<id>.c in C11 or <id>.cpp in C++20), and a
-CMakeLists.txt that builds it with the SDK's cmake/sco-plugin.cmake and adds a `check` target
-running tools/sco-plugin-check on the built plugin twice: as is, and with --short-tables (a 1.0
-host's sco_api). Then:
+c and cpp: plugin.ini, the source (<id>.c in C11 or <id>.cpp in C++20), and a CMakeLists.txt
+that builds it with the SDK's cmake/sco-plugin.cmake and adds a `check` target running
+tools/sco-plugin-check on the built plugin twice: as is, and with --short-tables (a 1.0 host's
+sco_api). Then:
 
     cmake -S DIR -B DIR/build -DSCO_SDK=<unpacked SDK, or sdk/ in a sco-core checkout>
     cmake --build DIR/build --target check
 
-The generated code checks every table's size before it touches a 1.1 member, so it loads on a
-1.0 host (plugin.ini says api = 1.0). --with-menu adds a sco.widgets panel: built with
-scosdk::PanelBuilder in C++, as a sco_widget_node array in C. --services looks each named service
-up on game.ready (NAME or NAME@MAJOR.MINOR, default 1.0); a missing one is logged, never fatal.
+csharp: plugin.ini, <id>.csproj (a NativeAOT class library referencing the SDK's
+csharp/Sco.Sdk), <Name>Plugin.cs and README.md. Then:
+
+    dotnet publish DIR -c Release -r win-x64 -o DIR/out/<id> -p:ScoSdk=<SDK folder>
+    sco-plugin-check DIR/out/<id>          (and again with --short-tables)
+
+lua: plugin.ini (kind = lua), main.lua and a CMakeLists.txt whose `check` target runs
+sco-plugin-check on the folder; tools/lua-check.lua (Lua 5.4) runs the script against a stand-in.
+The Lua sandbox has no generic service lookup, so --services is refused for lua (sco.widgets with
+--with-menu is the menu's own and allowed).
+
+The generated code checks every table's size before it touches a 1.1 member (the C# SDK and the
+Lua runtime do it for their plugins), so it loads on a 1.0 host (plugin.ini says api = 1.0).
+--with-menu adds a sco.widgets panel: built with scosdk::PanelBuilder in C++ and Sco.Sdk's
+PanelBuilder in C#, as a sco_widget_node array in C and a node table in Lua. --services looks each
+named service up on game.ready (NAME or NAME@MAJOR.MINOR, default 1.0); a missing one is logged,
+never fatal.
 
 Other tools can import this file and call render_plugin(spec), which returns
 {relative path: file text} and writes nothing. Exit 0 = written, 2 = refused (reason printed).
@@ -34,7 +47,8 @@ VERSION_RE = re.compile(r"^([0-9]{1,5})\.([0-9]{1,5})$")
 TEXT_RE = re.compile(r"^[A-Za-z0-9 _.,()+-]{1,63}$")
 MAX_SERVICES = 16
 WIDGETS = "sco.widgets"
-LANGS = ("c", "cpp")
+LANGS = ("c", "cpp", "csharp", "lua")
+CS_NAMESPACE = "ScoPlugins"  # fixed: a namespace named after the id could hide a Sco.Sdk type
 
 
 class SpecError(ValueError):
@@ -66,7 +80,7 @@ def normalize(spec):
         raise SpecError(f"id '{pid}' is reserved")
     lang = spec.get("lang")
     if lang not in LANGS:
-        raise SpecError(f"lang {lang!r}: use c or cpp")
+        raise SpecError(f"lang {lang!r}: use c, cpp, csharp or lua")
     with_menu = spec.get("with_menu", False)
     if not isinstance(with_menu, bool):
         raise SpecError("with_menu must be true or false")
@@ -85,8 +99,15 @@ def normalize(spec):
     for label, value in (("name", name), ("author", author)):
         if not isinstance(value, str) or not TEXT_RE.match(value) or value != value.strip():
             raise SpecError(f"{label} {value!r}: 1-63 characters from A-Z, a-z, 0-9, space and _.,()+-")
-    return {"id": pid, "lang": lang, "with_menu": with_menu, "services": services,
-            "name": name, "author": author}
+    s = {"id": pid, "lang": lang, "with_menu": with_menu, "services": services,
+         "name": name, "author": author}
+    # The same id, service and text rules hold for every language; this is what one can't do.
+    if lang == "lua" and lookups(s):
+        names = ", ".join(x[0] for x in lookups(s))
+        raise SpecError(f"lang lua can't look up services ({names}): the Lua sandbox has no query_service, "
+                        "only sco.widgets (with --with-menu) and the sco.* tables in docs/lua.md. "
+                        "Drop --services, or use c, cpp or csharp")
+    return s
 
 
 def class_name(pid):
@@ -104,16 +125,24 @@ def lookups(s):
 
 
 def render_ini(s):
+    what, why, kind, entry = {
+        "csharp": ("native C# plugin (Sco.Sdk, NativeAOT)",
+                   "Sco.Sdk checks sco_api's size before each 1.1 call", "native", f"{s['id']}.dll"),
+        "lua": ("Lua plugin for the sco-lua sandbox",
+                "the script needs nothing newer (sco.widgets answers unavailable without it)",
+                "lua", "main.lua"),
+    }.get(s["lang"], ("native plugin", "the code checks sco_api's size before each 1.1 call", "native",
+                      f"{s['id']}.dll"))
     lines = [
-        f"; {s['id']}: native plugin generated by sco-new-plugin. Format: docs/plugin-ini.md in the SDK.",
+        f"; {s['id']}: {what} generated by sco-new-plugin. Format: docs/plugin-ini.md in the SDK.",
         f"id = {s['id']}",
         f"name = {s['name']}",
         "version = 0.1.0",
         f"author = {s['author']}",
-        "; 1.0: the code checks sco_api's size before each 1.1 call, so a 1.0 host loads it too.",
+        f"; 1.0: {why}, so a 1.0 host loads it too.",
         "api = 1.0",
-        "kind = native",
-        f"entry = {s['id']}.dll",
+        f"kind = {kind}",
+        f"entry = {entry}",
     ]
     names = [x[0] for x in s["services"]]
     if names:
@@ -125,10 +154,7 @@ def render_ini(s):
     return "\n".join(lines) + "\n"
 
 
-def render_cmake(s):
-    pid = s["id"]
-    src = f"{pid}.c" if s["lang"] == "c" else f"{pid}.cpp"
-    langs = "C" if s["lang"] == "c" else "C CXX"
+def cmake_head(pid, langs):
     return f"""\
 cmake_minimum_required(VERSION 3.20)
 project({pid} {langs})
@@ -140,7 +166,14 @@ if(NOT EXISTS "${{SCO_SDK}}/cmake/sco-plugin.cmake")
   message(FATAL_ERROR "Set SCO_SDK to the unpacked sco SDK: cmake -S . -B build -DSCO_SDK=<path>")
 endif()
 include("${{SCO_SDK}}/cmake/sco-plugin.cmake")
+"""
 
+
+def render_cmake(s):
+    pid = s["id"]
+    src = f"{pid}.c" if s["lang"] == "c" else f"{pid}.cpp"
+    langs = "C" if s["lang"] == "c" else "C CXX"
+    return cmake_head(pid, langs) + f"""
 sco_add_plugin({pid} SOURCES {src} INI plugin.ini)
 
 # `cmake --build build --target check`: the plugin is built into build/check/{pid}/ next to a copy
@@ -152,10 +185,45 @@ set_target_properties({pid} PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "$<1:${{_sco_check_dir}}>"
   RUNTIME_OUTPUT_DIRECTORY "$<1:${{_sco_check_dir}}>")
 configure_file(plugin.ini "${{_sco_check_dir}}/plugin.ini" COPYONLY)
+""" + cmake_checker() + f"""
+add_custom_target(check
+  COMMAND sco-plugin-check "${{_sco_check_dir}}"
+  COMMAND sco-plugin-check "${{_sco_check_dir}}" --short-tables
+  DEPENDS {pid} sco-plugin-check
+  VERBATIM)
+"""
 
+
+def render_cmake_lua(s):
+    pid = s["id"]
+    # C only for sco-plugin-check: the plugin itself compiles nothing.
+    return cmake_head(pid, "C") + f"""
+# Nothing to compile: `cmake --install build --prefix <out>` copies plugin.ini and main.lua into
+# <out>/data/plugins/{pid}/, the folder to copy into sc-offline's data/plugins/.
+sco_add_pack({pid} DIR "${{CMAKE_CURRENT_SOURCE_DIR}}")
+
+# `cmake --build build --target check`: plugin.ini and main.lua are copied into build/check/{pid}/
+# (sco-plugin-check wants the folder named after the id), then sco-plugin-check reads plugin.ini
+# with the host's rules and finds the entry script. It does not run Lua: for that, with Lua 5.4,
+#   lua5.4 <SDK>/tools/lua-check.lua <this folder>
+# runs the script against a stand-in sco table. Neither is the game; a plugin that passes still
+# needs a run in the game.
+set(_sco_check_dir "${{CMAKE_CURRENT_BINARY_DIR}}/check/{pid}")
+configure_file(plugin.ini "${{_sco_check_dir}}/plugin.ini" COPYONLY)
+configure_file(main.lua "${{_sco_check_dir}}/main.lua" COPYONLY)
+""" + cmake_checker() + """
+add_custom_target(check
+  COMMAND sco-plugin-check "${_sco_check_dir}"
+  DEPENDS sco-plugin-check
+  VERBATIM)
+"""
+
+
+def cmake_checker():
+    return """
 if(NOT TARGET sco-plugin-check)
-  add_executable(sco-plugin-check EXCLUDE_FROM_ALL "${{SCO_SDK}}/tools/sco-plugin-check.c")
-  target_include_directories(sco-plugin-check PRIVATE "${{SCO_SDK_INCLUDE_DIR}}")
+  add_executable(sco-plugin-check EXCLUDE_FROM_ALL "${SCO_SDK}/tools/sco-plugin-check.c")
+  target_include_directories(sco-plugin-check PRIVATE "${SCO_SDK_INCLUDE_DIR}")
   # gnu11: the checker uses POSIX lstat on macOS and Linux.
   set_target_properties(sco-plugin-check PROPERTIES
     C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS ON MSVC_RUNTIME_LIBRARY "MultiThreaded")
@@ -163,15 +231,9 @@ if(NOT TARGET sco-plugin-check)
     target_compile_options(sco-plugin-check PRIVATE /W4 /WX /wd5105 /D_CRT_SECURE_NO_WARNINGS)
   else()
     target_compile_options(sco-plugin-check PRIVATE -Wall -Wextra -Werror)
-    target_link_libraries(sco-plugin-check PRIVATE ${{CMAKE_DL_LIBS}})
+    target_link_libraries(sco-plugin-check PRIVATE ${CMAKE_DL_LIBS})
   endif()
 endif()
-
-add_custom_target(check
-  COMMAND sco-plugin-check "${{_sco_check_dir}}"
-  COMMAND sco-plugin-check "${{_sco_check_dir}}" --short-tables
-  DEPENDS {pid} sco-plugin-check
-  VERBATIM)
 """
 
 
@@ -527,16 +589,359 @@ SCO_PLUGIN({cls}, "{pid}", "0.1.0", "{author}");
     return "".join(out)
 
 
+def cs_class(pid):
+    return class_name(pid) + "Plugin"
+
+
+def render_csproj(s):
+    pid = s["id"]
+    return f"""\
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- {pid}: a native sco plugin in C#, generated by sco-new-plugin. Published with NativeAOT into
+       one self-contained {pid}.dll with the three C exports; no .NET runtime is needed on the
+       player's machine. ScoSdk is the unpacked sco SDK (the folder with csharp/ and tools/), or
+       sdk/ in a sco-core checkout; the SCO_SDK environment variable works too:
+
+         dotnet publish -c Release -r win-x64 -o out/{pid} -p:ScoSdk=<SDK folder>
+
+       The publish copies plugin.ini next to {pid}.dll. See README.md and docs/sdk-csharp.md. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>{pid}</AssemblyName>
+    <RootNamespace>{CS_NAMESPACE}</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>12</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- NativeAOT: a native shared library. Plugins are 64-bit Windows DLLs; sco-plugin-check
+         also loads a linux-x64 build. -->
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <SelfContained>true</SelfContained>
+    <!-- No ICU next to the game: culture data isn't shipped, every culture is invariant. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+
+    <ScoSdk Condition="'$(ScoSdk)' == ''">$(SCO_SDK)</ScoSdk>
+  </PropertyGroup>
+
+  <!-- Faster NativeAOT compilation for development and CI: -p:SCO_FAST_AOT=1. -->
+  <PropertyGroup Condition="'$(SCO_FAST_AOT)' == '1'">
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(ScoSdk)/csharp/Sco.Sdk/Sco.Sdk.csproj" />
+    <None Update="plugin.ini" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="ScoSdkRequired" BeforeTargets="_GenerateRestoreProjectSpec;CollectPackageReferences;ResolveProjectReferences"
+          Condition="!Exists('$(ScoSdk)/csharp/Sco.Sdk/Sco.Sdk.csproj')">
+    <Error Text="Set ScoSdk to the unpacked sco SDK (the folder with csharp/Sco.Sdk): dotnet publish -p:ScoSdk=&lt;path&gt;, or the SCO_SDK environment variable." />
+  </Target>
+
+</Project>
+"""
+
+
+def render_cs(s):
+    pid, name, author = s["id"], s["name"], s["author"]
+    cls = cs_class(pid)
+    svcs = lookups(s)
+    menu = s["with_menu"]
+    out = [f"""\
+// {pid}: native plugin generated by sco-new-plugin (C#, Sco.Sdk, published with NativeAOT).
+//
+// Build and check: see README.md. Reference: docs/sdk-csharp.md in the SDK.
+// sco-core is GPL-3.0-only; see LICENSE and docs/plugin-rules.md in the SDK
+// for the project's plugin distribution policy. No linking exception is granted.
+//
+// sco_api 1.1 members are reached only through Sco.Sdk calls that check the table's size first
+// (Query, Widgets.Open), so the plugin also loads on a 1.0 host (sco-plugin-check --short-tables).
+// Service tables start with uint size: test a member with ServiceRef.Covers before calling it.
+using System.Runtime.InteropServices;
+using Sco.Sdk;
+using Sco.Sdk.Interop;
+
+namespace {CS_NAMESPACE}
+{{
+"""]
+    if svcs:
+        out.append("""\
+    // Any service table: they all start with uint size. Declare the service's own table struct
+    // (see docs/sdk-csharp.md, Services) and query with it to call its functions.
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AnyTable
+    {
+        public uint size;
+    }
+
+""")
+    out.append(f"""\
+    public sealed class {cls} : Plugin
+    {{
+""")
+    if svcs:
+        rows = "\n".join(f'            ("{n}", ServiceVersion({ma}, {mi})),' for n, ma, mi in svcs)
+        out.append(f"""\
+        // Services looked up on game.ready. A table is borrowed: its provider may unload, so look it
+        // up again when you need it.
+        private static readonly (string Name, uint Version)[] Wanted =
+        {{
+{rows}
+        }};
+
+        private readonly bool[] _found = new bool[Wanted.Length];
+""")
+    if menu:
+        out.append(f"""\
+        private const string PanelId = "{pid}.main";
+        private readonly Widgets _widgets = new();
+        private bool _enabled;
+        private double _amount = 0.5;
+""")
+    out.append(f"""\
+        private Subscription? _ready;
+
+        public override ScoResult OnLoad()
+        {{
+            // {pid}.ping: a command with no arguments. Runs on the game thread.
+            ScoResult r = new CommandBuilder(this, "{pid}.ping")
+                .Title("Ping")
+                .Help("Answers pong")
+                .Handle((args, reply) =>
+                {{
+""")
+    if svcs:
+        out.append("                    reply.Set($\"pong ({Found()} of {Wanted.Length} services)\");\n")
+    else:
+        out.append('                    reply.Set("pong");\n')
+    out.append("""\
+                    return ScoResult.Ok;
+                })
+                .Register();
+            if (r != ScoResult.Ok) return r;
+
+            _ready = Subscribe("game.ready", OnReady);
+            if (_ready.Result != ScoResult.Ok) return _ready.Result;
+""")
+    if menu:
+        out.append("            ShowPanel();\n")
+    out.append("""\
+            Info("loaded");
+            return ScoResult.Ok;  // anything else: the host unloads the plugin
+        }
+""")
+    if menu:
+        out.append("""
+        public override void OnUnload()
+        {
+            if (_widgets.IsOpen) _widgets.RemovePanel(PanelId);
+        }
+""")
+    out.append("""
+        private void OnReady()
+        {
+""")
+    if svcs:
+        out.append("            LookupServices();\n")
+    out.append(f"""\
+            Status("{name} ready");
+        }}
+""")
+    if svcs:
+        out.append("""
+        private void LookupServices()
+        {
+            for (int i = 0; i < Wanted.Length; ++i)
+            {
+                ScoResult r = Query(Wanted[i].Name, Wanted[i].Version, out ServiceRef<AnyTable> table);
+                _found[i] = r == ScoResult.Ok;
+                if (_found[i]) Info($"service {Wanted[i].Name} found (table size {table.Size})");
+                else Warn($"service {Wanted[i].Name} not available (result {r}): carrying on without it");
+            }
+        }
+
+        private int Found()
+        {
+            int n = 0;
+            foreach (bool found in _found) n += found ? 1 : 0;
+            return n;
+        }
+""")
+    if menu:
+        out.append(f"""
+        // The panel: sco.widgets 1.0. Widgets.Open checks sco_api's size before query_service; an
+        // optional service: without it the plugin still works, just without a panel.
+        private void ShowPanel()
+        {{
+            if (_widgets.Open(this) != ScoResult.Ok)
+            {{
+                Info("sco.widgets not available: no panel");
+                return;
+            }}
+            // Preorder, explicit nonzero ids, stable across replacements.
+            var panel = new PanelBuilder()
+                .Column(1, column => column
+                    .Toggle(2, "Enabled", _enabled, value => _enabled = value)
+                    .Slider(3, "Amount", _amount, 0.0, 1.0, value => _amount = value)
+                    .Button(4, "Ping", () => Info("ping from the panel")));
+            ScoResult r = _widgets.SetPanel(PanelId, "{name}", panel.Build(), panel.Dispatch);
+            if (r != ScoResult.Ok) Warn($"{{PanelId}}: set_panel refused (result {{r}})");
+        }}
+""")
+    out.append(f"""\
+    }}
+
+    // The three exports. NativeAOT exports [UnmanagedCallersOnly(EntryPoint = ...)] methods of the
+    // published assembly only, so they live here and forward to the SDK. "{pid}" must equal
+    // plugin.ini's id; it is also the command prefix.
+    public static unsafe class Exports
+    {{
+        [UnmanagedCallersOnly(EntryPoint = "sco_plugin_query")]
+        public static ScoPluginInfo* Query() => PluginExports.Query("{pid}", "0.1.0", "{author}");
+
+        [UnmanagedCallersOnly(EntryPoint = "sco_plugin_load")]
+        public static ScoResult Load(ScoApi* api, void* self) => PluginExports.Load<{cls}>(api, self, "{pid}");
+
+        [UnmanagedCallersOnly(EntryPoint = "sco_plugin_unload")]
+        public static void Unload() => PluginExports.Unload();
+    }}
+}}
+""")
+    return "".join(out)
+
+
+def render_cs_readme(s):
+    pid, name = s["id"], s["name"]
+    cls = cs_class(pid)
+    extra = []
+    if s["with_menu"]:
+        extra.append(f"- a `sco.widgets` panel, `{pid}.main`, built with `PanelBuilder` when the host has the service,")
+    if lookups(s):
+        names = ", ".join(f"`{n}`" for n, _, _ in lookups(s))
+        extra.append(f"- on `game.ready`, a lookup of {names}; a missing service is logged, never fatal,")
+    lines = "\n".join(extra)
+    return f"""\
+# {name} (`{pid}`)
+
+A native sco plugin in C#, generated by `sco-new-plugin`: [`{cls}.cs`]({cls}.cs) on the SDK's C# layer
+(`csharp/Sco.Sdk`), published with NativeAOT into one native `{pid}.dll` with the three C exports.
+No .NET runtime is needed on the player's machine.
+
+- one command, `{pid}.ping`, which answers `pong`,
+{lines + chr(10) if lines else ""}- `plugin.ini` with `api = 1.0`: Sco.Sdk checks sco_api's size before each 1.1 call.
+
+## Build and check
+
+You need the .NET 8 SDK (a newer SDK builds `net8.0` too) and, on Windows, Visual Studio 2019 or
+newer with "Desktop development with C++" (NativeAOT links with MSVC). Build `sco-plugin-check`
+first (the SDK's README). `ScoSdk` is the unpacked sco SDK (the folder with `csharp/` and `tools/`),
+or `sdk/` in a sco-core checkout; the `SCO_SDK` environment variable works too.
+
+```powershell
+dotnet publish -c Release -r win-x64 -o out\\{pid} -p:ScoSdk=<SDK folder>
+sco-plugin-check out\\{pid}
+sco-plugin-check out\\{pid} --short-tables
+```
+
+The publish copies `plugin.ini` next to `{pid}.dll`. `--short-tables` hands the plugin a 1.0
+host's `sco_api`. `sco-plugin-check` is a stand-in host, not the game: a plugin that passes still
+needs a run in the game. Install by copying `out\\{pid}` (`{pid}.dll` and `plugin.ini`; leave the
+`.pdb` files) into sc-offline's `data\\plugins\\`.
+
+On Linux, `dotnet publish -r linux-x64` builds `{pid}.so` (needs `clang` and `zlib1g-dev`); rename
+it to `{pid}.dll` for `sco-plugin-check`. The game needs the Windows build.
+
+The C# SDK reference (`docs/sdk-csharp.md`) covers lifetimes, threads, the exception boundary and
+the NativeAOT rules.
+"""
+
+
+def render_lua(s):
+    pid, name = s["id"], s["name"]
+    out = [f"""\
+-- {pid}: Lua plugin generated by sco-new-plugin. sc-offline's sco-lua runtime runs this script
+-- once at load, in a sandbox (no io, os, require or FFI); its callbacks run on the game thread.
+--
+-- Check: see CMakeLists.txt, and with Lua 5.4: lua5.4 <SDK>/tools/lua-check.lua <this folder>.
+-- Reference: docs/lua.md in the SDK.
+-- sco-core is GPL-3.0-only; see LICENSE and docs/plugin-rules.md in the SDK
+-- for the project's plugin distribution policy.
+
+-- {pid}.ping: a command with no arguments.
+assert(sco.register_command{{
+  name = "{pid}.ping",
+  title = "Ping",
+  help = "Answers pong",
+  fn = function() return "pong" end,
+}})
+
+assert(sco.subscribe("game.ready", function()
+  sco.status("{name} ready")
+end))
+"""]
+    if s["with_menu"]:
+        out.append(f"""
+-- The panel: sco.widgets 1.0. available() is false without the host service; a runtime without
+-- sco.widgets (and tools/lua-check.lua) has no table at all. Either way: no panel, commands work.
+-- The host copies the nodes; an ordinary unload removes the panel before closing the script.
+local enabled, amount = false, 0.5
+if sco.widgets and sco.widgets.available() then
+  -- Flat preorder nodes: ids are nonzero and unique, parent is 0 or a preceding row/column.
+  local ok, err = sco.widgets.set_panel("{pid}.main", "{name}", {{
+    {{kind = "column", id = 1}},
+    {{kind = "toggle", id = 2, parent = 1, label = "Enabled", value = enabled}},
+    {{kind = "slider", id = 3, parent = 1, label = "Amount", value = amount, minimum = 0, maximum = 1}},
+    {{kind = "button", id = 4, parent = 1, label = "Ping"}},
+  }}, function(panel, event)
+    if event.kind == "toggle" then enabled = event.value
+    elseif event.kind == "slider" then amount = event.value
+    elseif event.kind == "button" then sco.log("info", panel .. ": ping from the panel") end
+  end)
+  if not ok then sco.log("warn", "{pid}.main: set_panel refused (" .. tostring(err) .. ")") end
+else
+  sco.log("info", "sco.widgets not available: no panel")
+end
+""")
+    out.append("""
+sco.log("info", "loaded")
+""")
+    return "".join(out)
+
+
 def render_plugin(spec):
-    """spec: {"id", "lang": "c"|"cpp", "with_menu"?, "services"? [str], "name"?, "author"?}.
-    Returns {relative path: text} for a ready-to-build plugin folder. Pure: writes nothing.
-    Raises SpecError for an id, language, service, name or author the generator refuses."""
+    """spec: {"id", "lang": "c"|"cpp"|"csharp"|"lua", "with_menu"?, "services"? [str], "name"?,
+    "author"?}. Returns {relative path: text} for a ready-to-build plugin folder. Pure: writes
+    nothing. Raises SpecError for an id, language, service, name or author the generator refuses,
+    and for services with lang lua (the sandbox has no service lookup)."""
     s = normalize(spec)
-    src = f"{s['id']}.c" if s["lang"] == "c" else f"{s['id']}.cpp"
+    pid, lang = s["id"], s["lang"]
+    if lang == "csharp":
+        return {
+            "plugin.ini": render_ini(s),
+            f"{pid}.csproj": render_csproj(s),
+            f"{cs_class(pid)}.cs": render_cs(s),
+            "README.md": render_cs_readme(s),
+        }
+    if lang == "lua":
+        return {
+            "plugin.ini": render_ini(s),
+            "CMakeLists.txt": render_cmake_lua(s),
+            "main.lua": render_lua(s),
+        }
+    src = f"{pid}.c" if lang == "c" else f"{pid}.cpp"
     return {
         "plugin.ini": render_ini(s),
         "CMakeLists.txt": render_cmake(s),
-        src: render_c(s) if s["lang"] == "c" else render_cpp(s),
+        src: render_c(s) if lang == "c" else render_cpp(s),
     }
 
 
@@ -569,7 +974,7 @@ def write_plugin(files, out):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="sco-new-plugin", description="Writes a ready-to-build sco native plugin folder.")
+    ap = argparse.ArgumentParser(prog="sco-new-plugin", description="Writes a ready-to-build sco plugin folder (C, C++, C# or Lua).")
     ap.add_argument("--id", required=True, help="plugin id: 1-31 characters from a-z, 0-9 and _")
     ap.add_argument("--lang", required=True, choices=LANGS)
     ap.add_argument("--with-menu", action="store_true", help="add a sco.widgets panel")
@@ -593,8 +998,15 @@ def main(argv=None):
     sdk = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     print(f"wrote {', '.join(sorted(files))} to {args.out}")
     print("next:")
+    if args.lang == "csharp":
+        out = os.path.join(args.out, "out", args.id)
+        print(f'  dotnet publish "{args.out}" -c Release -r win-x64 -o "{out}" -p:ScoSdk="{sdk}"')
+        print(f'  sco-plugin-check "{out}"   (and again with --short-tables; see README.md)')
+        return 0
     print(f'  cmake -S "{args.out}" -B "{os.path.join(args.out, "build")}" -DSCO_SDK="{sdk}"')
     print(f'  cmake --build "{os.path.join(args.out, "build")}" --target check')
+    if args.lang == "lua":
+        print(f'  lua5.4 "{os.path.join(sdk, "tools", "lua-check.lua")}" "{args.out}"   (needs Lua 5.4)')
     return 0
 
 

@@ -4,6 +4,19 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- `tools/sco-new-plugin.py` and the MCP `generate_plugin_scaffold` tool also
+  generate C# and Lua plugins. `--lang csharp` writes a NativeAOT class library
+  (`<id>.csproj` referencing the kit's `csharp/Sco.Sdk` through `ScoSdk` or
+  `SCO_SDK`, `<Name>Plugin.cs`, `plugin.ini` with `api = 1.0`, and a `README.md`
+  with the `dotnet publish` line); `--lang lua` writes `plugin.ini`
+  (`kind = lua`), `main.lua` and a `CMakeLists.txt` whose `check` target runs
+  `sco-plugin-check`. Id, service and text validation is the same for every
+  language; Lua refuses `--services` (the sandbox has no service lookup) apart
+  from `sco.widgets` with `--with-menu`. `sdk/test_new_plugin.py` and
+  `sdk/test-zip.sh` (with `SCO_SDK_CSHARP=1`) publish generated C# plugins and
+  check them with `sco-plugin-check`, with and without `--short-tables`; Lua
+  plugins are checked by `sco-plugin-check` and `tools/lua-check.lua`. No ABI
+  change. Stand-in hosts only; not run in game.
 - Added a plugin design guide (`docs/plugin-design.md`): one feature per plugin,
   sharing through versioned size-first service tables, `requires` ordering, normal
   `UNAVAILABLE`/`NOT_FOUND` results, game-thread rules, clean unload and
