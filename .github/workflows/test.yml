@@ -35,6 +35,11 @@ jobs:
           python3 tools/status_registry.py --check
           python3 tools/test_status_registry.py
 
+      - name: Plugin directory index matches docs/plugin-directory.md
+        run: |
+          python3 tools/plugin_directory.py --check
+          python3 tools/test_plugin_directory.py
+
       - name: Native index matches src/game/*_sigs.cpp
         run: |
           python3 tools/native_index.py --check

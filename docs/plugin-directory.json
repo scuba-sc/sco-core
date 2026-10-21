@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "about": "Community plugin directory: plugins that live in their authors' own public repositories, with the compatibility information they reported. A listing is not an endorsement and nothing here is verified in game. tools/plugin_directory.py --check validates this file and the table in docs/plugin-directory.md; --write re-renders the table. Rules and the request process: docs/plugin-directory.md.",
+  "fields": {
+    "name": "Display name of the plugin or suite, one line.",
+    "ids": "Every plugin.ini id the listing covers: [a-z0-9_], 1-31 characters, unique across the whole directory.",
+    "repository": "Public source repository: an https URL without credentials, query or fragment.",
+    "author": "Author or organisation as they want to be credited, one line.",
+    "licence": "SPDX licence expression exactly as the author states it (for example GPL-3.0-only or MIT). NONE, NOASSERTION and UNLICENSED are refused.",
+    "languages": "Plugin kinds and languages in the listing: any of c, cpp, csharp, lua, data.",
+    "sdk_version": "SDK release (x.y.z) the listing was built and tested against; never newer than sdk/VERSION.",
+    "game_pack_version": "Star Citizen game pack (x.y.z) of that SDK release when the plugin uses game.* services, else null.",
+    "checker": "Last sco-plugin-check result: full (default tables) and short (--short-tables), each pass, fail or not-recorded, and the UTC date (YYYY-MM-DD) of that run, null only when both are not-recorded. Community listings need full = pass.",
+    "offline": "true: the author confirms the plugin follows sdk/docs/plugin-rules.md, including offline-only. Must be true.",
+    "in_game": "not-run (never run in game) or not-verified (no in-game verification is recorded by sco-core). There is no verified value.",
+    "description": "What the plugin does, one line of at most 200 characters.",
+    "listed": "UTC date (YYYY-MM-DD) the entry was added or last updated.",
+    "note": "Optional one-line caveat."
+  },
+  "first_party": [
+    {
+      "name": "sc-offline plugin suite",
+      "ids": ["build", "contracts", "creative", "crew", "discord", "inspector", "inspector_lua", "loadout", "loadout_lists",
+              "mining", "npc", "quantum", "spawn", "teleport", "titanlink", "voxel_bridge"],
+      "repository": "https://github.com/scubamount/sc-offline",
+      "author": "scubamount",
+      "licence": "GPL-3.0-only",
+      "languages": ["cpp", "lua", "data"],
+      "sdk_version": "2.3.0",
+      "game_pack_version": "0.6.0",
+      "checker": {"full": "not-recorded", "short": "not-recorded", "date": null},
+      "offline": true,
+      "in_game": "not-verified",
+      "description": "The plugins in sc-offline's plugins folder: build placement, creative, crew, inspector, loadout, mining, NPCs, quantum, spawn, teleport and optional local bridges.",
+      "listed": "2026-10-21",
+      "note": "First-party product plugins. Some ship disabled (Discord presence is blocked pending review); per-feature in-game status is on the repository's own status page."
+    },
+    {
+      "name": "sc-mp private multiplayer co-presence",
+      "ids": ["multiplayer"],
+      "repository": "https://github.com/scubamount/sc-mp",
+      "author": "scubamount",
+      "licence": "GPL-3.0-only",
+      "languages": ["cpp"],
+      "sdk_version": "2.3.0",
+      "game_pack_version": "0.6.0",
+      "checker": {"full": "not-recorded", "short": "not-recorded", "date": null},
+      "offline": true,
+      "in_game": "not-run",
+      "description": "Private co-presence for players running sc-offline, over sco.net: each game shows remote players as ghost entities it spawns itself.",
+      "listed": "2026-10-21",
+      "note": "First-party; the repository's CI runs sco-plugin-check on the plugin, but no dated result is recorded here."
+    }
+  ],
+  "community": []
+}

@@ -58,6 +58,15 @@ scaffolding and guide-section search; it does not invoke game services. Runtime 
 default-off launcher. See [agent integration](agent-integration.md) and the
 [SDK/MCP tutorial](sdk-mcp-tutorial.md).
 
+## Community plugin directory
+
+Plugins stay in their authors' own repositories. The
+[community plugin directory](plugin-directory.md) lists them from a validated index
+with the SDK release, game-pack version and `sco-plugin-check` result each author
+reported, plus listing rules and an issue form for requests. It starts with the
+first-party sc-offline and sc-mp plugins and no community entries. A listing is
+compatibility information, not an endorsement or in-game verification.
+
 ## Remaining release gates
 
 - Reconcile each PR and issue against exact contract, implementation and evidence;
