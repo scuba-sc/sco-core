@@ -3535,6 +3535,17 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "docs.stability.md",
+      "source": "docs/stability.md",
+      "destination": "docs/stability.md",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "docs.sdk-cpp.md",
       "source": "docs/sdk-cpp.md",
       "destination": "docs/sdk-cpp.md",

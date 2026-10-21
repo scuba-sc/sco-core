@@ -8,7 +8,7 @@ The dated signature evidence below was recorded at sco-core `main` `2197dfb` (20
 
 ## How to read it
 
-**Stability.** *Stable* or *Experimental*, per table: a compatibility promise about the table's layout and lifetime within SDK 2.x, decided by the rule in [Stability](../stability.md#how-a-game-table-gets-its-label) (Stable when at least one capability has a `sigcheck` row result, an OFF-pending-probe line or a dated in-game result; otherwise Experimental). It says nothing about availability or evidence: a Stable table can still be OFF, answer `SCO_UNAVAILABLE`, or have no in-game run.
+**Stability.** *Stable* or *Experimental*, per table: a compatibility promise about the table's layout and lifetime within SDK 2.x, decided by the rule in [Stability](../stability.md#how-a-game-table-gets-its-label) (a new label is Stable when at least one capability has a `sigcheck` row result, an OFF-pending-probe line or a dated in-game result, otherwise Experimental; once a released SDK has carried Stable, the table stays Stable for the rest of SDK 2.x). The `game.*` event bus row's label covers its event names and payload structs. A `-` marks a signature-row group (mining rows, CryPak adapter rows): it is not a service table, its rows can stop resolving with a game patch, and it carries no stability promise. A label says nothing about availability or evidence: a Stable table can still be OFF, answer `SCO_UNAVAILABLE`, or have no in-game run.
 
 **Default.** *ON*: default availability policy, still subject to each row's readiness, admission and product conditions ([game services](../game-services.md#for-products)). *OFF*: the operation is held off; a published table can still answer `SCO_UNAVAILABLE`. *none*: no independent capability gates the line, or no blocked surface is published. Defaults are not execution evidence.
 
@@ -134,7 +134,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | | `game.events.vehicle_seat` (`game.vehicle.boarded` / `exited`) | OFF | OFF pending in-game confirmation |
 | | | | `game.events.mission_changed` (`game.mission.changed`) | ON | ON by owner ruling (2026-10-16): a product default, not a verified claim. No rows; published once a bound, admitted game.missions backend reports active missions. Synthetic only: backend adapters are synthetic today, so it does not fire; not run in game |
 | | | | `game.events.loadout_respawn_completed` (`game.loadout.respawn_completed`) | OFF | Verified offline host producer seam only; native hook signature/site unresolved (F-INTAKE-004, T-3); not run in game. |
-| mining rows ([`mining.md`](mining.md)) | row | Stable | `mining.cell` (legacy host row) | ON | row resolved on 4.10.196.36804 (sigcheck) |
+| mining rows ([`mining.md`](mining.md)) | row | - | `mining.cell` (legacy host row) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | `game.creative` ([`sc_creative.h`](../../include/sc_creative.h)) | 1.0 | Stable | `game.creative.god_mode` (`set_god_mode`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | | `game.creative.fly` (`set_fly_mode`, `set_fly_speed`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | | `game.creative.ammo` (`set_infinite_ammo`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
@@ -167,7 +167,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.mining` ([`sc_mining.h`](../../include/sc_mining.h)) | 1.0 | Experimental | `game.mining` (the service's mining activation) | OFF | Off by default; native adapter not verified on Windows or in game; synthetic provider tests only |
 | `game.relocation` ([`sc_relocation.h`](../../include/sc_relocation.h)) | 1.0 | Experimental | `game.relocation` | ON | ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game |
 | `game.spatial` ([`sc_game_spatial.h`](../../include/sc_game_spatial.h)) | 1.0 | Experimental | no capability of its own: full-pose conversion and copied observed zones | none | Synthetic fixtures only; not verified on Windows or in game |
-| CryPak adapter rows ([`api.md`](../api.md)) | row | Stable | `game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts) | OFF | OFF pending in-game confirmation |
+| CryPak adapter rows ([`api.md`](../api.md)) | row | - | `game.pak.all_files` (`sco::game::pak` `Scope::AllFiles`: persistent CryPak slots, `files/` replacement mounts) | OFF | OFF pending in-game confirmation |
 <!-- status-registry:end -->
 
 Fields a published table leaves empty, because nothing in the game's code pins them:

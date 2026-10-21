@@ -55,6 +55,7 @@ GAME_STATUS = """# Synthetic status
 | | | | sample field | none | BLOCKED |
 | | | | `game.sample.claim` | ON | verified in game (2099-01-01) |
 | `game.other` ([`sc_other.h`](../../include/sc_other.h)) | 1.0 | Experimental | `game.other.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
+| sample rows ([`status.md`](status.md)) | row | - | `sample.row` | ON | row resolved on 1.2.3.4 (sigcheck) |
 
 Trailing prose.
 """
@@ -1042,9 +1043,9 @@ class EvidenceStateTests(ServerCase):
         self.assertEqual(self.evidence("game-sample-read", data, catalogue, root)["service_status"]["state"], "unavailable")
 
 
-SYNTHETIC_REGISTRY = {"schema_version": 1, "about": "Synthetic registry.", "services": [
+SYNTHETIC_REGISTRY = {"schema_version": 2, "about": "Synthetic registry.", "services": [
     {"id": "game.sample", "kind": "service", "service": "game.sample", "header": "include/sc_sample.h", "version": "1.1",
-     "stability": "stable",
+     "stability": "stable", "stable_since": "sdk-v2.4.0",
      "capabilities": [
          {"name": "game.sample.read", "methods": ["read"], "default": "ON", "evidence_level": "sigcheck_resolved",
           "game_build": "1.2.3.4", "evidence": "row resolved on 1.2.3.4 (sigcheck)", "sig_rows": ["sample.row"],
@@ -1057,9 +1058,23 @@ SYNTHETIC_REGISTRY = {"schema_version": 1, "about": "Synthetic registry.", "serv
          {"name": "game.sample.synthetic", "methods": [], "default": "OFF", "evidence_level": "synthetic_only",
           "evidence": "Synthetic fixtures only"}]},
     {"id": "game.events", "kind": "event_bus", "service": "game.*", "header": "include/sc_sample.h", "version": "bus",
-     "stability": "stable",
+     "stability": "stable", "stable_since": "sdk-v2.4.0",
      "capabilities": [{"name": "game.events.sample", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved",
-                       "evidence": "row resolved on 1.2.3.4 (sigcheck)"}]}]}
+                       "evidence": "row resolved on 1.2.3.4 (sigcheck)"}]},
+    {"id": "game.sample.rows", "kind": "signature_rows", "service": "game.sample", "doc": "docs/game/status.md",
+     "title": "sample rows", "version": "row",
+     "capabilities": [{"name": "sample.row", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved",
+                       "game_build": "1.2.3.4", "evidence": "row resolved on 1.2.3.4 (sigcheck)"}]}]}
+
+
+def unlabelled_registry():
+    """The schema_version 1 registry of SDK 2.3.0 and earlier archives: no stability labels."""
+    registry = copy.deepcopy(SYNTHETIC_REGISTRY)
+    registry["schema_version"] = 1
+    for entry in registry["services"]:
+        entry.pop("stability", None)
+        entry.pop("stable_since", None)
+    return registry
 
 
 class RegistryEvidenceTests(ServerCase):
@@ -1104,9 +1119,10 @@ class RegistryEvidenceTests(ServerCase):
             with self.subTest(label=label):
                 registry = copy.deepcopy(SYNTHETIC_REGISTRY)
                 if label is None:
-                    registry["services"][0].pop("stability")
-                else:
+                    registry = unlabelled_registry()
+                elif label == "experimental":
                     registry["services"][0]["stability"] = label
+                    registry["services"][0].pop("stable_since")
                 data, root, catalogue = self.registry_root(registry)
                 client = self.start(catalogue=catalogue, repo_root=root)
                 services = self.result(client.call("list_services"), data=data)
@@ -1134,7 +1150,13 @@ class RegistryEvidenceTests(ServerCase):
             registry = copy.deepcopy(SYNTHETIC_REGISTRY)
             change(registry)
             return registry
-        cases = ["{", json.dumps({**SYNTHETIC_REGISTRY, "schema_version": 2}),
+        cases = ["{", json.dumps({**SYNTHETIC_REGISTRY, "schema_version": 3}),
+                 json.dumps({**SYNTHETIC_REGISTRY, "schema_version": 1}),
+                 mutate(lambda r: r["services"][0].pop("stability")),
+                 mutate(lambda r: r["services"][0].pop("stable_since")),
+                 mutate(lambda r: r["services"][0].update(stable_since="2.4.0")),
+                 mutate(lambda r: r["services"][1].update(stability="experimental")),
+                 mutate(lambda r: r["services"][2].update(stability="stable")),
                  mutate(lambda r: r["services"][0]["capabilities"][0].update(address="0x1")),
                  mutate(lambda r: r["services"][0]["capabilities"][0].update(evidence_level="verified")),
                  mutate(lambda r: r["services"][0]["capabilities"][0].update(default=["ON"])),
@@ -1148,6 +1170,15 @@ class RegistryEvidenceTests(ServerCase):
                 status = state["service_status"]
                 self.assertEqual((status["state"], status["source"], status["rows"]), ("unavailable", "sdk/status_registry.json", []))
                 self.assertIn("sdk/status_registry.json", status["reason"])
+
+    def test_unlabelled_schema_1_registry_is_still_read(self):
+        status = self.state(*self.registry_root(unlabelled_registry()))["service_status"]
+        self.assertEqual((status["state"], status["source"], len(status["rows"])), ("rows_found", "sdk/status_registry.json", 5))
+        self.assertIsNone(status["stability"])
+        labelled = unlabelled_registry()
+        labelled["services"][0]["stability"] = "stable"
+        status = self.state(*self.registry_root(labelled))["service_status"]
+        self.assertEqual((status["state"], status["rows"]), ("unavailable", []))
 
     def test_symlinked_registry_is_refused(self):
         data, root, catalogue = self.registry_root(registry=None)

@@ -622,7 +622,12 @@ archives carry) whose backticked service and linked header both match.
 `blocked`, or `unclassified` for any other text, including in-game claims.
 `documented_version` and `version_matches_catalogue` compare the row's version with
 the catalogue. `stability` is the table's label, `stable` or `experimental`, or
-`null` when the registry entry or status table predates labels.
+`null` when the registry entry or status table predates labels. The registry is read
+at `schema_version` 2 (labels required on service and event-bus entries, with
+`stable_since` exactly on `stable` ones, and absent on signature-row groups) or 1 (the
+unlabelled registry of older archives, no `stability` or `stable_since` keys); any
+other version is refused. In the status table a signature-row group's Stability cell
+is `-`, read as `null`.
 
 Registry rows also keep these registry fields where they are set:
 
@@ -662,16 +667,19 @@ a game session.
 was read. Values:
 
 - `stable`: never removed or changed incompatibly within SDK 2.x; grows only at its
-  tail behind a new minor version macro. The `sco_api` root table, plugin entry points
-  and every `sco.*` host table are always `stable`.
-- `experimental`: a later SDK minor may replace the table with a new major version;
-  the old version then stays available, marked deprecated, for at least one further
-  SDK minor release.
-- `unknown`: a `game.*` table whose label could not be read: no `--repo-root`, the
-  status source is unavailable, refused or predates labels, or it has no entry for
-  the table.
+  tail behind a new minor version macro. Once a released SDK has carried the label,
+  the table stays `stable` for the rest of SDK 2.x. The `sco_api` root table, plugin
+  entry points and every `sco.*` host table are always `stable`.
+- `experimental`: a later SDK minor may replace the table with a new table under a
+  distinct service name and its own header; the old name then stays published, marked
+  deprecated, for at least one further SDK minor release. The kernel publishes one
+  table per name, so a replacement never reuses the old name.
+- `unknown`: a game-pack table (any table declared in an `include/sc_*.h` header: the
+  `game.*` tables, `teleport.spatial` and `spawn.entities`) whose label could not be
+  read: no `--repo-root`, the status source is unavailable, refused or predates labels,
+  or it has no entry for the table.
 
-A `game.*` label comes from the same source as `service_status` and is read at
+A game-pack label comes from the same source as `service_status` and is read at
 server start, not bound to the catalogue's `source_sha`. Stability is not
 availability or evidence: a `stable` table's capability can be OFF or answer
 `SCO_UNAVAILABLE`, and no label says anything was run in game.

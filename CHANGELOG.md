@@ -4,20 +4,27 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
-- Added the [stability promise](docs/stability.md). Plugin ABI 1.x only grows,
-  and every `sco.*` host service table is Stable: never removed or changed
-  incompatibly within SDK 2.x, growing only at its tail behind a new minor
-  version macro. Each `game.*` registry entry now carries a required `stability`
-  label: Stable when at least one capability has evidence level
+- Added the [stability promise](docs/stability.md), shipped in the core SDK
+  archives. Plugin ABI 1.x only grows, and every `sco.*` host service table is
+  Stable: never removed or changed incompatibly within SDK 2.x, growing only at
+  its tail behind a new minor version macro. Every game-pack registry entry with
+  a table or events (the `game.*` tables, `teleport.spatial`, `spawn.entities`
+  and the `game.*` event bus) now carries a required `stability` label: a new
+  label is Stable when at least one capability has evidence level
   `sigcheck_resolved`, `off_pending_probe` or `in_game_verified`, otherwise
-  Experimental (16 Stable, 20 Experimental). An Experimental table may later be
-  replaced by a new major version; the old one then stays available, marked
-  deprecated, for at least one further SDK minor release.
-  `tools/status_registry.py` refuses a missing or wrong label and renders a
-  Stability column in `docs/game/status.md`; the MCP server's `list_services`
+  Experimental. That gives 13 Stable and 20 Experimental service tables, and a
+  Stable event bus; the two signature-row groups are not service tables and
+  carry no label. A Stable entry records `stable_since` (`sdk-v2.4.0` today);
+  once that release is out the label cannot be withdrawn within SDK 2.x. An
+  Experimental table may later be replaced by a new table under a distinct
+  service name; the old name then stays published, marked deprecated, for at
+  least one further SDK minor release. `sdk/status_registry.json` moves to
+  `schema_version` 2. `tools/status_registry.py` enforces the labels and renders
+  a Stability column in `docs/game/status.md`; the MCP server's `list_services`
   and `get_capability_status` return `stability` and still read the older
-  five-column status table. Stability is separate from availability and
-  evidence. No ABI or service table change; not run in game.
+  five-column status table and `schema_version` 1 registry. Stability is
+  separate from availability and evidence. No ABI or service table change; not
+  run in game.
 
 - Added default-OFF native DataCore counted reads, raw GUID record lookup and
   serialized text-blob access with process-retained lifecycle exclusion. Native

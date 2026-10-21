@@ -54,8 +54,12 @@ REGISTRY_KINDS = {"service", "event_bus", "signature_rows"}
 REGISTRY_DEFAULTS = {"ON", "OFF", "none"}
 REGISTRY_LEVELS = {"sigcheck_resolved", "in_game_verified", "off_pending_probe",
                    "synthetic_only", "blocked", "undocumented"}
-REGISTRY_ENTRY_KEYS = {"id", "kind", "service", "header", "doc", "title", "version", "stability", "capabilities"}
+# schema_version 1: before stability labels. 2: "stability" on service and event_bus entries,
+# "stable_since" with a stable label, neither on signature_rows entries.
+REGISTRY_ENTRY_KEYS = {1: {"id", "kind", "service", "header", "doc", "title", "version", "capabilities"}}
+REGISTRY_ENTRY_KEYS[2] = REGISTRY_ENTRY_KEYS[1] | {"stability", "stable_since"}
 REGISTRY_STABILITY = {"stable", "experimental"}
+REGISTRY_STABLE_SINCE = re.compile(r"sdk-v[0-9]+\.[0-9]+\.[0-9]+")
 REGISTRY_CAP_KEYS = {"name", "display", "methods", "default", "evidence_level", "evidence", "game_build",
                      "sig_rows", "spike_ref", "evidence_source"}
 NATIVE_INDEX = ("sdk", "native_index.json")
@@ -80,7 +84,8 @@ GAME_STATUS_SEPARATOR = "|---|---|---|---|---|---|"
 # The table before stability labels (SDK 2.3.0 and earlier archives): read, stability unknown.
 GAME_STATUS_HEADER_V1 = "| Table | Version | Capability | Default | Evidence |"
 GAME_STATUS_SEPARATOR_V1 = "|---|---|---|---|---|"
-GAME_STATUS_STABILITY = {"Stable": "stable", "Experimental": "experimental"}
+# "-" is a signature-row group's cell: not a service table, no label.
+GAME_STATUS_STABILITY = {"Stable": "stable", "Experimental": "experimental", "-": None}
 GAME_STATUS_TABLE = re.compile(r"`([^`]+)` \(\[`([^`/]+)`\]\([^)\s]+\)\)")
 SIGCHECK_LEVEL = re.compile(r"row resolved on ([0-9][0-9.]*) \(sigcheck\)")
 RELEASE_CONCLUSIONS = [
@@ -96,9 +101,10 @@ STATUS_CAVEAT = (
 )
 STABILITY_CONCLUSIONS = [
     "stable: the table is never removed or changed incompatibly within SDK 2.x; it grows only at its tail behind a new minor version macro. "
-    "experimental: a later SDK minor may replace it with a new major version; the old version then stays available, marked deprecated, "
-    "for at least one further SDK minor release. See docs/stability.md.",
-    "The sco_api root table, plugin entry points and every sco.* host table are stable by that promise. A game.* table's label is read "
+    "Once a released SDK has carried the label it stays stable for the rest of SDK 2.x, whatever later evidence says. "
+    "experimental: a later SDK minor may replace it with a new table under a distinct service name and its own header; the old name then "
+    "stays published, marked deprecated, for at least one further SDK minor release. See docs/stability.md.",
+    "The sco_api root table, plugin entry points and every sco.* host table are stable by that promise. A game-pack table's label (any include/sc_*.h table) is read "
     "from sdk/status_registry.json (else docs/game/status.md) beneath --repo-root at server start, not bound to the catalogue source_sha.",
     "unknown: no --repo-root, the status source is unavailable, refused or predates stability labels, or it has no entry for the table.",
     "Stability is not availability or evidence: a stable table's capability can be OFF or answer SCO_UNAVAILABLE, and nothing here was run in game."]
@@ -124,10 +130,12 @@ TOOLS = [
          {"query": string_schema(), "language": LANGUAGE, "service": string_schema(),
           "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10}}, ("query",)),
     tool("get_symbol", "Return the complete contract, table narrative and catalogue reading context.", SYMBOL, ("symbol_or_id",)),
-    tool("list_services", "List catalogue table names, services, packed table versions, x64 sizes and member counts."),
+    tool("list_services", "List catalogue table names, services, packed table versions, x64 sizes, member counts and stability labels "
+         "(stable/experimental/unknown)."),
     tool("get_example", "Return record-listed examples only; without a repository root return paths only.",
          {**SYMBOL, "language": LANGUAGE}, ("symbol_or_id",)),
-    tool("get_capability_status", "Read language exposure, absent-capability contracts and recorded evidence state, not running-game status.", SYMBOL, ("symbol_or_id",)),
+    tool("get_capability_status", "Read language exposure, absent-capability contracts, recorded evidence state and the table's stability label, "
+         "not running-game status.", SYMBOL, ("symbol_or_id",)),
     tool("check_compatibility", "Compare exact SDK/game-pack/source coordinates with catalogue metadata, optionally read a release approval record "
          "(no signature verification) and compare a service's minimum version and member extent with the catalogue table; not runtime certification.",
          {"sdk_version": string_schema(), "game_pack_version": string_schema(),
@@ -442,7 +450,7 @@ def parse_game_status(text, tables):
             (table_cell, version, capability, default, evidence), label = cells, None
         if table_cell:
             require(version, "service table row has no version")
-            require(not labelled or label in GAME_STATUS_STABILITY, "service table row has no Stable or Experimental label")
+            require(not labelled or label in GAME_STATUS_STABILITY, "service table row has no Stable, Experimental or - label")
             match = GAME_STATUS_TABLE.fullmatch(table_cell)
             current, started = None, True
             if match and match[1] in by_service:
@@ -513,19 +521,27 @@ def parse_status_registry(text, tables):
     """
     data = parse_json(text)
     require(isinstance(data, dict) and set(data) == {"schema_version", "about", "services"}, "unexpected top-level keys")
-    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "unsupported schema_version; expected 1")
+    schema = data["schema_version"]
+    require(type(schema) is int and schema in REGISTRY_ENTRY_KEYS, "unsupported schema_version; expected 1 or 2")
     entries = data["services"]
     require(isinstance(entries, list) and len(entries) <= 512, "services must be a list of at most 512 entries")
     by_service = {table["service"]: (name, table) for name, table in tables.items()}
     groups = {}
     for entry in entries:
-        require(isinstance(entry, dict) and set(entry) <= REGISTRY_ENTRY_KEYS, "entry has unknown keys")
+        require(isinstance(entry, dict) and set(entry) <= REGISTRY_ENTRY_KEYS[schema], "entry has unknown keys")
         require(isinstance(entry.get("kind"), str) and entry["kind"] in REGISTRY_KINDS, "unknown entry kind")
         require(all(nonempty(entry.get(key)) for key in ("id", "service", "version")), "entry needs id, service and version")
-        # Optional here so a registry from before stability labels is still read (stability None);
-        # tools/status_registry.py requires it in the repository.
-        require("stability" not in entry or (isinstance(entry["stability"], str) and entry["stability"] in REGISTRY_STABILITY),
-                "stability is not stable or experimental")
+        if schema >= 2:
+            # Shape only; tools/status_registry.py applies the evidence rule and the ratchet in the repository.
+            if entry["kind"] == "signature_rows":
+                require("stability" not in entry and "stable_since" not in entry, "signature_rows entry has a stability label")
+            else:
+                require(isinstance(entry.get("stability"), str) and entry["stability"] in REGISTRY_STABILITY,
+                        "stability is not stable or experimental")
+                since = entry.get("stable_since")
+                require((since is None) == (entry["stability"] != "stable")
+                        and (since is None or (isinstance(since, str) and REGISTRY_STABLE_SINCE.fullmatch(since))),
+                        "stable_since must name sdk-vX.Y.Z exactly when stability is stable")
         capabilities = entry.get("capabilities")
         require(isinstance(capabilities, list) and 1 <= len(capabilities) <= 256, "entry needs 1-256 capabilities")
         rows = [registry_row(cap) for cap in capabilities]
