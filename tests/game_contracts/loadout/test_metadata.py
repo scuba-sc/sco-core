@@ -16,15 +16,19 @@ class LoadoutMetadata(unittest.TestCase):
         self.assertTrue(components['include/scosdk/game/loadout.hpp']['public_header'])
     def test_production_composition_fail_closed(self):
         source = (ROOT / 'src/game/services/spatial.cpp').read_text()
-        self.assertIn('r = StartLoadout();', source)
+        self.assertIn('r = StartLoadout(nullptr, ProductionLoadoutBackend());', source)
         self.assertNotIn('StartLoadout(&', source)
         self.assertGreaterEqual(source.count('StopLoadout();'), 2)
     def test_catalogue_language_routes(self):
         records = json.loads((ROOT / 'sdk/contracts/sc_loadout_v1.json').read_text())['records']
-        self.assertEqual(len(records), 1)
+        self.assertEqual(len(records), 5)
         record = records[0]
         self.assertEqual(record['symbol'], 'sc_loadout_v1.apply')
         self.assertEqual(record['member_extent'], 16)
+        self.assertEqual({r['symbol'] for r in records[1:]}, {
+            'sc_loadout_v1_2.apply', 'sc_loadout_v1_2.submit',
+            'sc_loadout_v1_2.status', 'sc_loadout_v1_2.cancel'})
+        self.assertEqual([r['member_extent'] for r in records[1:]], [16, 24, 32, 40])
         self.assertEqual(record['language_mappings']['c']['status'], 'direct')
         self.assertEqual(record['language_mappings']['cpp']['status'], 'typed-wrapper')
         for language in ('csharp', 'lua'):

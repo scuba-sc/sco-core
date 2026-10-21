@@ -142,7 +142,7 @@ sco_result EnterWrite(sco_plugin* self, uint64_t id, uint32_t stat, bool admissi
     if (!OnGameThread()) return SCO_WRONG_THREAD;
     if (!self || !sco::host::PluginId(self) || sco::detail::Released(self)) return SCO_BAD_ARG;
     index = actor_stats::IndexOf(stat);
-    if (!id || index < 0) return SCO_BAD_ARG;
+    if (!id || index < 0 || !actor_stats::Writable1_0(stat)) return SCO_BAD_ARG;
     UpdateWriteCap();   // picks up a switch flipped off the game thread
     const char* why = nullptr;
     if (!WriteReady() || !ActorStatusReady(why) || !caps::Has(kCapWrite)) return SCO_UNAVAILABLE;
@@ -252,7 +252,7 @@ Result StartActorStats() {
     GetEnvironmentVariableA("SCO_ACTOR_STATS_WRITE", env, sizeof(env));
     if (env[0] == '1') g_writesEnabled.store(true);
 
-    Result r = sco::host::ProvideGameService(SC_ACTOR_STATS_NAME, SC_ACTOR_STATS_VERSION_1_0, &kTable);
+    Result r = sco::host::ProvideGameService(SC_ACTOR_STATS_NAME, SC_ACTOR_STATS_VERSION_1_1, &kTable);
     if (r == Result::Ok) {
         r = sco::host::ProvideGameService(SC_ACTOR_STATS_WRITE_NAME, SC_ACTOR_STATS_WRITE_VERSION_1_0, &kWriteTable);
         if (r != Result::Ok) sco::host::WithdrawGameService(SC_ACTOR_STATS_NAME);

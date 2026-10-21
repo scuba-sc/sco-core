@@ -49,6 +49,10 @@ jobs:
           python3 tools/sdk_catalogue.py check
           python3 tools/test_sdk_catalogue.py
           python3 tools/sdk_catalogue.py build --out "$RUNNER_TEMP/evidence/sdk-catalogue.json" --source-sha "$SOURCE_SHA"
+          python3 tools/sdk_guides.py check
+          python3 tools/test_sdk_guides.py
+          python3 tools/sdk_guides.py build --out "$RUNNER_TEMP/evidence/sdk-guides.json" --source-sha "$SOURCE_SHA"
+          python3 tools/sdk_guides.py check --file "$RUNNER_TEMP/evidence/sdk-guides.json"
           SCO_CORE_MCP_TEST_CATALOGUE="$RUNNER_TEMP/evidence/sdk-catalogue.json" python3 tools/sco-core-mcp/test_server.py
           python3 tools/sco-core-mcp/test_runtime_schema.py
 

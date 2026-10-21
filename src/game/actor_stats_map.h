@@ -38,7 +38,26 @@ constexpr Entry kEntries[] = {
     { SC_ACTOR_STAT_OXYGEN,           0x09, "GasSaturationO2" },
     { SC_ACTOR_STAT_BODY_RADIATION,   0x18, "BodyRadiation" },
     { SC_ACTOR_STAT_SUIT_RADIATION,   0x19, "SuitRadiation" },
-    { 0,                              0x0B, "HealthPool" },   // cross-check: game.actors health's index
+    { SC_ACTOR_STAT_BLOOD_DRUG_LEVEL, 0x02, "BloodDrugLevel" },
+    { SC_ACTOR_STAT_OVERDOSE_LEVEL,   0x03, "OverdoseLevel" },
+    { SC_ACTOR_STAT_PRESSURE,         0x08, "Pressure" },
+    { SC_ACTOR_STAT_DOWNED_DAMAGE,    0x0A, "DownedDamage" },
+    { SC_ACTOR_STAT_HEALTH_POOL,      0x0B, "HealthPool" },
+    { SC_ACTOR_STAT_HEALTH_HEAD,      0x0C, "HealthHead" },
+    { SC_ACTOR_STAT_HEALTH_TORSO,     0x0D, "HealthTorso" },
+    { SC_ACTOR_STAT_HEALTH_LEFT_ARM,  0x0E, "HealthLeftArm" },
+    { SC_ACTOR_STAT_HEALTH_RIGHT_ARM, 0x0F, "HealthRightArm" },
+    { SC_ACTOR_STAT_HEALTH_LEFT_LEG,  0x10, "HealthLeftLeg" },
+    { SC_ACTOR_STAT_HEALTH_RIGHT_LEG, 0x11, "HealthRightLeg" },
+    { SC_ACTOR_STAT_WEAR_HEAD,        0x12, "WearHead" },
+    { SC_ACTOR_STAT_WEAR_TORSO,       0x13, "WearTorso" },
+    { SC_ACTOR_STAT_WEAR_LEFT_ARM,    0x14, "WearLeftArm" },
+    { SC_ACTOR_STAT_WEAR_RIGHT_ARM,   0x15, "WearRightArm" },
+    { SC_ACTOR_STAT_WEAR_LEFT_LEG,    0x16, "WearLeftLeg" },
+    { SC_ACTOR_STAT_WEAR_RIGHT_LEG,   0x17, "WearRightLeg" },
+    { SC_ACTOR_STAT_CARBON_DIOXIDE,   0x1A, "GasSaturationCO2" },
+    { SC_ACTOR_STAT_CARBON_MONOXIDE,  0x1B, "GasSaturationCO" },
+    { SC_ACTOR_STAT_HYGIENE,          0x1C, "Hygiene" },
 };
 
 // The game index for a 1.0 stat; -1 for anything else.
@@ -48,7 +67,8 @@ constexpr int IndexOf(uint32_t stat) {
     return -1;
 }
 
-static_assert(std::size(kEntries) == SC_ACTOR_STAT_LAST_1_0 + 1, "one entry per 1.0 stat plus the cross-check");
-static_assert(IndexOf(SC_ACTOR_STAT_NONE) == -1 && IndexOf(SC_ACTOR_STAT_LAST_1_0 + 1) == -1, "only 1.0 stats map");
+constexpr bool Writable1_0(uint32_t stat) { return stat > 0 && stat <= SC_ACTOR_STAT_LAST_1_0; }
+static_assert(std::size(kEntries) == SC_ACTOR_STAT_LAST_1_1, "one entry per named read stat");
+static_assert(IndexOf(SC_ACTOR_STAT_NONE) == -1 && IndexOf(SC_ACTOR_STAT_LAST_1_1 + 1) == -1, "only supported read stats map");
 
 }  // namespace sco::game::actor_stats

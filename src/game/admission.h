@@ -7,4 +7,7 @@ namespace sco::game::host::detail {
 // the process; it must never point to plugin code or unloadable shell storage.
 void SetFreshInspector(Admission (*inspect)());
 void SetFreshAdmissionEnabled(bool enabled);
+// Game-thread host teardown only; never permits ordinary fresh service access.
+void SetCvarCleanupEnabled(bool enabled);
+bool CvarCleanupAllowed() noexcept;
 }

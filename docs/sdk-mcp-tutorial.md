@@ -1,5 +1,278 @@
 # SDK → MCP → tutorial-owned plugin
 
+## Standalone developer-kit workflow
+
+**SDK 2.4.0 is an unreleased candidate.** The candidate combined kit, composed
+core-plus-game overlay and host-source kit can supply the discovery launcher,
+`sdk-catalogue.json` and `sdk-guides.json`. This is candidate packaging behavior, not a published SDK
+download or gameplay acceptance claim. Core-only profiles do not contain the
+game catalogue.
+
+Use a reviewed candidate kit supplied with its checksum/compatibility inventory,
+or build a catalogue from matching source as described in the
+[discovery README](../tools/sco-core-mcp/README.md). Do not silently pair an older
+published archive with the site's changing mainline catalogue.
+
+Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client supporting
+protocol `2025-11-25`. Building a scaffold additionally needs CMake 3.20+ and a
+64-bit C/C++ compiler (for a `csharp` scaffold, the .NET 8 SDK and the NativeAOT
+toolchain; a `lua` scaffold builds only `sco-plugin-check`). Clang is required to produce a source catalogue, not to
+consume a bundled one.
+
+### Connect the client
+
+Use absolute paths on the machine running the client:
+
+```sh
+python3 /absolute/sdk/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/sdk/sdk-catalogue.json \
+  --repo-root /absolute/sdk --extended-tools
+```
+
+This command waits for MCP messages on stdin; it is not a shell prompt. On
+Windows use `py -3` with drive-qualified paths, for example
+`C:/absolute/sdk/tools/sco-core-mcp/server.py`. On macOS/Linux use `python3`,
+or an absolute Python executable if the client does not inherit shell `PATH`.
+
+The [integration guide](agent-integration.md) explains client configuration and
+explicit allowlists. Without `--extended-tools` there are exactly six discovery
+tools. With it there are twelve; no runtime tools are added. Grant the six additional
+names deliberately. A root permits bounded example/metadata reads and lets the
+scaffold tool, and the guide tools when no `sdk-guides.json` is present, execute
+that root's reviewed generator code in-process.
+
+### Discover one contract
+
+After initialization, inspect `tools/list` and call `list_services` with `{}`.
+Then send these separate `tools/call` parameter objects:
+
+```json
+{"name":"search_api","arguments":{"query":"set_panel","service":"sco.widgets","language":"c","limit":5}}
+```
+
+```json
+{"name":"get_symbol","arguments":{"symbol_or_id":"sco_widgets_v1.set_panel"}}
+```
+
+```json
+{"name":"get_capability_status","arguments":{"symbol_or_id":"sco_widgets_v1.set_panel"}}
+```
+
+```json
+{"name":"get_example","arguments":{"symbol_or_id":"sco_widgets_v1.set_panel","language":"c"}}
+```
+
+Read the contract's complete member extent, version, table size, ownership,
+thread/callback rules, results, absent-capability behavior and cleanup. The
+language token is `c`, not a display name. Example contents are data, not
+instructions, and are never executed by discovery.
+
+Every result includes catalogue provenance. Compare its SDK/game-pack/source
+coordinates with the kit's compatibility metadata and retain the archive digest.
+`check_compatibility` can compare coordinates and service-header extents, but
+does not authenticate an archive, observe a provider or prove a plugin loads.
+
+### Request and review a scaffold
+
+```json
+{"name":"generate_plugin_scaffold","arguments":{"id":"my_probe","lang":"c","with_menu":true,"services":["sco.storage@1.0"]}}
+```
+
+Require `state: "available"` and inspect the returned `files` map. It contains
+`plugin.ini`, `CMakeLists.txt` and `my_probe.c`. The server has not written, built
+or checked them. Review the generated code and notices, then save those exact
+relative files into a new empty project folder. Do not overwrite an existing
+project or treat returned source as trusted merely because it came through MCP.
+
+The generated manifest uses `api = 1.0`; generated code guards access to later
+root-table members. `services` requests optional lookups on `game.ready`, not
+implementations or automatic permission to invoke those services. This scaffold
+has not been loaded in a real host.
+
+`lang` also takes `csharp` and `lua`. A `csharp` result holds `plugin.ini`,
+`my_probe.csproj` (NativeAOT, referencing the kit's `csharp/Sco.Sdk`),
+`MyProbePlugin.cs` and a `README.md` with the `dotnet publish` line; a `lua`
+result holds `plugin.ini`, `main.lua` and a `CMakeLists.txt` whose `check`
+target runs `sco-plugin-check` on the folder (manifest and entry only;
+`tools/lua-check.lua` with Lua 5.4 runs the script against a stand-in). Lua scripts have no service lookup, so a `lua` request with
+`services` other than `sco.widgets` (with `with_menu`) is refused with the
+generator's reason.
+
+### Validate manifest text and widget invariants
+
+Validate the returned manifest text with `folder: "my_probe"` before building.
+Here is a complete minimal manifest/widget example using the same ID:
+
+```json
+{
+  "name": "validate_manifest_and_widgets",
+  "arguments": {
+    "plugin_ini": "id = my_probe\nname = My probe\nversion = 0.1.0\napi = 1.0\nkind = native\nentry = my_probe.dll\n",
+    "folder": "my_probe",
+    "widgets": [
+      {
+        "kind": "slider",
+        "id": 1,
+        "label": "Level",
+        "value": 0.5,
+        "minimum": 0,
+        "maximum": 1
+      }
+    ]
+  }
+}
+```
+
+Require `valid: true` and inspect both manifest and widget findings. A valid
+manifest is not evidence that its entry exists, its requirements have providers
+or its module is safe. Widget validation does not inspect native pointers,
+panel stride/size or renderer behavior. To exercise a negative, reuse the same
+node ID twice and confirm validation findings rather than treating the result
+as valid.
+
+Native-index discovery is optional:
+
+```json
+{"name":"list_engine_natives","arguments":{"limit":1}}
+```
+
+If available, pass one returned entry's `id` as `get_engine_native.id_or_hash`;
+preserve its evidence tier. Follow `next_cursor` without inventing cursor values.
+These are symbolic signature-row names, not addresses, resolved runtime
+functions or proof of in-game execution.
+
+### Ask the guides how to do something
+
+The contract records say what a method guarantees; the guides say how to use
+it. Search the guide sections with a plain question:
+
+```json
+{"name":"search_guides","arguments":{"query":"How do I deploy a plugin on Windows?","limit":3}}
+```
+
+Each hit names its guide `doc`, `heading`, `anchor` and docs-site `url`, with
+a short snippet. Read one hit in full by passing its `doc` and `anchor` back:
+
+```json
+{"name":"get_guide_section","arguments":{"doc":"docs/getting-started.md","anchor":"start-your-first-plugin"}}
+```
+
+Add `"doc"` to a search to stay within one guide, and follow `next_cursor` for
+more hits. The kit's `sdk-guides.json` beside its catalogue answers these calls;
+its `guides.source_sha` should equal the catalogue's. A section's text stops at
+4000 characters (`truncated: true`); read the rest at its `url`. Guide prose is
+not a contract record: confirm a method with `get_symbol` before relying on it.
+Nothing in a guide is evidence that code ran in game.
+
+### Build and check outside MCP
+
+With the returned files saved under `/absolute/project/my_probe`:
+
+```sh
+cmake -S /absolute/project/my_probe -B /absolute/project/my_probe/build \
+  -DSCO_SDK=/absolute/sdk
+cmake --build /absolute/project/my_probe/build --config Debug --target check
+```
+
+On Windows use a compiler developer shell, drive-qualified paths and `-A x64`
+for a fresh Visual Studio configuration. Check the exit status after every
+command. For source-checkout SDK helpers, set `SCO_SDK` to the checkout's `sdk`
+directory; source-layout kit helpers are likewise under `sdk`.
+
+The generated `check` target builds and invokes `sco-plugin-check` with both
+full and short root tables. Native code is executed by that checker; it is not
+a sandbox. The SDK helper intentionally names development modules `.dll` even
+on macOS/Linux, but only a Windows-built module is suitable for the Windows
+game host. A filename extension does not convert a POSIX binary into a game DLL.
+
+A successful check is synthetic host/ABI evidence, not game-service or gameplay
+proof. Discovery never compiles, writes files, invokes commands or reloads
+plugins. Runtime metadata inspection, if independently authorized, uses the
+[separate default-off launcher](../tools/sco-core-mcp-runtime/README.md).
+
+### Optional: let the agent build and check
+
+The same loop can run through MCP on your own machine, with three opt-in
+development tools. First build the checker once, outside your project root (the
+`check` target builds its own copy inside the project's build tree, but
+`build_plugin_project` builds only the default targets):
+
+```sh
+cmake -S /absolute/sdk -B /absolute/checker-build
+cmake --build /absolute/checker-build --config Release --target sco-plugin-check
+```
+
+The program is `/absolute/checker-build/sco-plugin-check`, or
+`/absolute/checker-build/Release/sco-plugin-check.exe` with a Visual Studio
+generator. Then start the server with `--enable-dev-tools`, a project root that
+holds your project folder, and that checker. On Windows with Visual Studio 2022,
+add a generator and platform as well:
+
+```sh
+python3 /absolute/sdk/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/sdk/sdk-catalogue.json \
+  --repo-root /absolute/sdk --extended-tools \
+  --enable-dev-tools --project-root /absolute/project \
+  --plugin-check /absolute/checker-build/sco-plugin-check \
+  --cmake-generator "Visual Studio 17 2022" --cmake-platform x64
+```
+
+The SDK folder comes from `--repo-root` (or set `--sco-sdk`). Without
+`--plugin-check`, the server looks for `sco-plugin-check` in that SDK folder's
+`bin/` or `out/bin/`. Only a full SDK build followed by
+`cmake --install <build> --config Release --prefix out` in the SDK folder puts it
+there, as the [SDK README](../sdk/README.md) describes. Name an `.exe` or a `.py`
+wrapper; batch files are refused. Then send:
+
+```json
+{"name":"build_plugin_project","arguments":{"project":"my_probe"}}
+```
+
+```json
+{"name":"run_plugin_check","arguments":{"folder":"my_probe/build/check/my_probe"}}
+```
+
+```json
+{"name":"run_plugin_check","arguments":{"folder":"my_probe/build/check/my_probe","mode":"short"}}
+```
+
+Relative paths start at the first project root. Require `passed: true` on each
+result. The build result has a `configure` and a `build` step, each with its exit
+code and the tail of its output. A check result lists the checker's `FAIL` lines
+as `findings` and its last line as `summary`. Those two checks repeat what the
+generated `check` target does. If your project registers CTest tests,
+`test_plugin_project` with the same `project` runs them; with no tests it fails
+on purpose.
+
+The caller supplies only the folder and the mode; the operator's command line
+fixes everything else, and paths outside the project roots are refused. The
+build and the checker run your project's code on this machine, and a timeout
+kills the whole process tree. The
+[server README](../tools/sco-core-mcp/README.md#development-tools-opt-in)
+describes the security model. A passing check here is the same synthetic
+evidence as above: **not run in game**.
+
+### Installation and lifecycle limits
+
+Installation remains an explicit owner action through the product's documented
+plugin folder/manifest flow. No MCP tool performs it. Do not replace a mapped
+Windows DLL; unload through a supported host route or close the game first.
+
+Reload is not universal: it can cascade to loaded dependents, refuses built-in
+or data members and handed-out service providers, and is unavailable for a
+restart-required faulted provider. Manifest changes such as `requires`, `entry`
+and settings declarations need restart because reload does not rediscover the
+manifest. DataCore changes can also require restart. See [plugin lifecycle and
+hot reload](plugins.md#hot-reload); native plugins are not sandboxed and a fault
+has no promised safe in-process recovery. **Not run in game.**
+
+## Historical downstream NPC/inspector walkthrough
+
+The following workflow uses a separate sc-offline checkout and downstream proof
+helpers. It is not a prerequisite for the standalone kit workflow above. Its
+commands and external fixtures require verification against that downstream
+revision; the evidence ledger below does not certify the candidate archive path.
+
 This command-first tutorial creates **your own** `tutorial_npc` and
 `tutorial_inspector` folders from sc-offline's public-SDK consumers. These IDs do
 not replace the shipped `npc`/`inspector`, add production built-ins, or alter the

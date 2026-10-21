@@ -54,7 +54,8 @@ def source_tree(root, sha):
     resolved = subprocess.check_output(['git', '-C', str(root), 'rev-parse', sha + '^{commit}'],
                                        stderr=subprocess.PIPE, text=True).strip()
     require(resolved == sha, 'source must identify the exact commit object')
-    archive = subprocess.check_output(['git', '-C', str(root), 'archive', '--format=tar', sha])
+    archive = subprocess.check_output(['git', '-c', 'core.autocrlf=false', '-c', 'core.eol=lf',
+                                       '-C', str(root), 'archive', '--format=tar', sha])
     tree = subprocess.check_output(['git', '-C', str(root), 'ls-tree', '-rz', '--full-tree', sha])
     objects = {}
     for entry in tree.split(b'\0'):
@@ -205,7 +206,7 @@ def plan(root, sha, catalogue_path, archives, channel):
         package_inputs = {'sdk/package.py', 'sdk/components.json', 'sdk/VERSION', 'include/sco_api.h',
                           'include/sc_game_pack.h', 'docs/legal/provenance.json'}
         inputs = package_inputs | {'tools/sdk_catalogue.py', 'tools/abi_snapshot.py', 'docs/contracts.md'}
-        inputs |= {str(p.relative_to(source)) for p in (source / 'sdk/contracts').glob('*.json')}
+        inputs |= {p.relative_to(source).as_posix() for p in (source / 'sdk/contracts').glob('*.json')}
         for record in records:
             inputs.add(record['source_header'])
             inputs.update(record['tests'])
@@ -300,7 +301,7 @@ def verify(root, target, archives, inventory_sha256):
         if path.is_dir():
             continue
         require(path.is_file(), 'snapshot contains non-regular file')
-        actual_files[str(path.relative_to(target))] = path.read_bytes()
+        actual_files[path.relative_to(target).as_posix()] = path.read_bytes()
     require(actual_files == expected_files, 'snapshot file set/bytes mismatch')
     return inventory
 

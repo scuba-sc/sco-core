@@ -68,6 +68,8 @@ HUB_DOCS = {
         ('docs/getting-started.md', 'One path from a published SDK archive to a checked C plugin deployed on Windows.'),
         ('docs/README.md', 'Curated guides grouped by audience.'),
         ('docs/plugins.md', 'Plugin folders, `plugin.ini`, discovery, loading and data packs.'),
+        ('docs/plugin-design.md', 'Design principles for modular plugins, with a provider and consumer example pair.'),
+        ('docs/plugin-directory.md', 'Community plugins in their own repositories, with reported SDK compatibility.'),
         ('docs/framework.md', 'How the runtime, plugin system, services and SDK sit under each product.'),
     ),
     'sdks': (
@@ -77,6 +79,7 @@ HUB_DOCS = {
     'reference': (
         ('docs/api-v1.md', 'The plain-C root plugin ABI: exports, root table, capabilities, commands, events and threads.'),
         ('docs/contracts.md', 'How to read the per-method service contract catalogue.'),
+        ('docs/stability.md', 'What stays compatible across SDK 2.x: Stable and Experimental service tables.'),
         ('docs/game-services.md', 'Services the Star Citizen game pack publishes under the reserved owner `game`.'),
         ('docs/game/status.md', 'Status of every `game.*` table.'),
         ('docs/storage.md', 'Per-plugin key-value and SQL storage over SQLite.'),
@@ -88,6 +91,7 @@ HUB_DOCS = {
     ),
     'integration': (
         ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
+        ('docs/sdk-mcp-tutorial.md', 'Discover a contract, request a scaffold, validate manifest/widgets and run a native checker.'),
         ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),
         ('docs/releases/sdk-v2.3.0.md', 'Release notes, scope and archives of SDK 2.3.0.'),
         ('docs/releases/sdk-v2.2.0.md', 'Release notes, scope and archives of SDK 2.2.0.'),

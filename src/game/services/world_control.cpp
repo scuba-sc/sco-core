@@ -51,6 +51,58 @@ sco_result WorldControl::Ray(sco_plugin* self, uint64_t zone, const double* from
     std::memcpy(out->pos, hit.pos, sizeof(out->pos)); out->distance = hit.distance;
     return SCO_OK;
 }
+sco_result WorldControl::Rays(sco_plugin* self, uint64_t zone, const double* from,
+    const double* dir, double distance, const uint64_t* ids, uint32_t count, sc_world_hits* out) {
+    if (!out || out->size < sizeof(*out)) return SCO_BAD_ARG;
+    const auto size = out->size, capacity = out->count;
+    std::memset(out, 0, sizeof(*out)); out->size = size;
+    auto r = Admission(self); if (r != SCO_OK) return r;
+    if (capacity > SC_WORLD_CONTROL_MAX_HITS || !zone || !Finite(from, 3) ||
+        !Finite(dir, 3) || !std::isfinite(distance) || distance <= 0 ||
+        count > SC_WORLD_CONTROL_MAX_SKIPS || (count && !ids)) return SCO_BAD_ARG;
+    const double norm = std::hypot(dir[0], dir[1], dir[2]);
+    if (!std::isfinite(norm) || norm == 0) return SCO_BAD_ARG;
+    uint64_t skips[SC_WORLD_CONTROL_MAX_SKIPS]{};
+    for (uint32_t i = 0; i < count; ++i) {
+        if (!ids[i]) return SCO_BAD_ARG;
+        for (uint32_t j = 0; j < i; ++j) if (skips[j] == ids[i]) return SCO_BAD_ARG;
+        skips[i] = ids[i];
+    }
+    if (!p_.ray_acquire || !p_.ray_query || !p_.ray_release || (count && !p_.owned))
+        return SCO_UNAVAILABLE;
+    Busy guard(busy_);
+    for (uint32_t i = 0; i < count; ++i) if (!p_.owned(self, skips[i])) return SCO_FAILED;
+    void* scope = nullptr;
+    r = p_.ray_acquire(zone, &scope);
+    if (r != SCO_OK) return r;
+    if (!scope) { (void)p_.ray_release(scope); failed_ = true; return SCO_FAILED; }
+    const double unit[3]{dir[0]/norm, dir[1]/norm, dir[2]/norm};
+    const double limit = std::min(distance, double(SC_WORLD_RAY_MAX_DISTANCE));
+    sc_world_hits hits{}; hits.size = sizeof(hits); hits.count = SC_WORLD_CONTROL_MAX_HITS;
+    r = p_.ray_query(scope, from, unit, limit, skips, count, &hits);
+    if (p_.ray_release(scope) != SCO_OK) {
+        fault_scope_ = scope; failed_ = true; return SCO_FAILED;
+    }
+    if (r != SCO_OK) return r;
+    if (hits.size != sizeof(hits) || hits._pad || hits.count > SC_WORLD_CONTROL_MAX_HITS ||
+        hits.more > std::numeric_limits<uint32_t>::max() - hits.count) return SCO_FAILED;
+    for (uint32_t i = 0; i < hits.count; ++i) {
+        const auto& h = hits.hits[i];
+        if (h.size != sizeof(h) || (h.flags & ~(SC_WORLD_HIT_ENTITY | SC_WORLD_HIT_NORMAL)) ||
+            !Finite(h.pos, 3) || !std::isfinite(h.distance) || h.distance < 0 || h.distance > limit ||
+            (i && h.distance < hits.hits[i-1].distance) ||
+            ((h.flags & SC_WORLD_HIT_ENTITY) ? !h.entity_id : h.entity_id != 0)) return SCO_FAILED;
+        if (h.flags & SC_WORLD_HIT_NORMAL) {
+            if (!Finite(h.normal, 3) || std::abs(std::hypot(h.normal[0], h.normal[1], h.normal[2])-1) > 1e-6)
+                return SCO_FAILED;
+        } else if (h.normal[0] != 0 || h.normal[1] != 0 || h.normal[2] != 0) return SCO_FAILED;
+    }
+    if (!hits.count && !hits.more) return SCO_NOT_FOUND;
+    out->count = std::min(capacity, hits.count);
+    out->more = hits.more + hits.count - out->count;
+    std::memcpy(out->hits, hits.hits, out->count * sizeof(hits.hits[0]));
+    return SCO_OK;
+}
 sco_result WorldControl::Acquire(sco_plugin* self, uint64_t* out) {
     if (!out) return SCO_BAD_ARG;
     *out = 0;

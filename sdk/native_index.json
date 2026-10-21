@@ -7,7 +7,7 @@
     "3": "spike hold: backs a capability with a spike_ref and default OFF",
     "4": "blocked: backs a capability whose evidence_level is blocked"
   },
-  "row_count": 332,
+  "row_count": 347,
   "entries": [
     {
       "id": "actor.stat_names",
@@ -354,6 +354,46 @@
       "subsystem": "actors",
       "hash": "_0x674207F73AB22BCF",
       "tier": 2,
+      "source": "src/game/actors_sigs.cpp"
+    },
+    {
+      "id": "loadout.attach_entity",
+      "subsystem": "actors",
+      "hash": "_0x21FBA345509CA4F4",
+      "tier": 1,
+      "capability": [
+        "game.loadout.async"
+      ],
+      "source": "src/game/actors_sigs.cpp"
+    },
+    {
+      "id": "loadout.port_by_name",
+      "subsystem": "actors",
+      "hash": "_0x2A572949D23D5A0A",
+      "tier": 1,
+      "capability": [
+        "game.loadout.async"
+      ],
+      "source": "src/game/actors_sigs.cpp"
+    },
+    {
+      "id": "loadout.port_handle",
+      "subsystem": "actors",
+      "hash": "_0xC4F89753108AAAE7",
+      "tier": 1,
+      "capability": [
+        "game.loadout.async"
+      ],
+      "source": "src/game/actors_sigs.cpp"
+    },
+    {
+      "id": "loadout.port_container",
+      "subsystem": "actors",
+      "hash": "_0xD2093A14DCC5B8EB",
+      "tier": 1,
+      "capability": [
+        "game.loadout.async"
+      ],
       "source": "src/game/actors_sigs.cpp"
     },
     {
@@ -1230,6 +1270,56 @@
       "hash": "_0x5F430E89CE659FF2",
       "tier": 2,
       "source": "src/game/contracts_sigs.cpp"
+    },
+    {
+      "id": "datacore_live.owner_vtable",
+      "subsystem": "datacore_live",
+      "hash": "_0x07BF7146EEB7462F",
+      "tier": 1,
+      "capability": [
+        "game.datacore_live"
+      ],
+      "source": "src/game/datacore_live_sigs.cpp"
+    },
+    {
+      "id": "datacore_live.owner_slot",
+      "subsystem": "datacore_live",
+      "hash": "_0xCC94C3AE1A10EFE7",
+      "tier": 1,
+      "capability": [
+        "game.datacore_live"
+      ],
+      "source": "src/game/datacore_live_sigs.cpp"
+    },
+    {
+      "id": "datacore_live.reset",
+      "subsystem": "datacore_live",
+      "hash": "_0xA1B9BB009B81B56D",
+      "tier": 1,
+      "capability": [
+        "game.datacore_live"
+      ],
+      "source": "src/game/datacore_live_sigs.cpp"
+    },
+    {
+      "id": "datacore_live.deleting",
+      "subsystem": "datacore_live",
+      "hash": "_0x31DE9773D45EE05B",
+      "tier": 1,
+      "capability": [
+        "game.datacore_live"
+      ],
+      "source": "src/game/datacore_live_sigs.cpp"
+    },
+    {
+      "id": "datacore_live.destructor",
+      "subsystem": "datacore_live",
+      "hash": "_0x2F284B955F5F378B",
+      "tier": 1,
+      "capability": [
+        "game.datacore_live"
+      ],
+      "source": "src/game/datacore_live_sigs.cpp"
     },
     {
       "id": "entities.dump",
@@ -2217,6 +2307,7 @@
       "hash": "_0xFEC952200E333875",
       "tier": 1,
       "capability": [
+        "game.datacore_live",
         "game.pak.all_files"
       ],
       "source": "src/game/pak_sigs.cpp"
@@ -2454,6 +2545,48 @@
       "id": "cvars.console",
       "subsystem": "world",
       "hash": "_0xD86F4582B67FB6E6",
+      "tier": 2,
+      "source": "src/game/world_sigs.cpp"
+    },
+    {
+      "id": "cvars.lookup",
+      "subsystem": "world",
+      "hash": "_0x43AA235CA0109D4B",
+      "tier": 2,
+      "source": "src/game/world_sigs.cpp"
+    },
+    {
+      "id": "cvars.reference_int_get",
+      "subsystem": "world",
+      "hash": "_0xF9E352AD7A3CDC70",
+      "tier": 2,
+      "source": "src/game/world_sigs.cpp"
+    },
+    {
+      "id": "cvars.reference_int_set",
+      "subsystem": "world",
+      "hash": "_0x327245BA52E5CA08",
+      "tier": 2,
+      "source": "src/game/world_sigs.cpp"
+    },
+    {
+      "id": "cvars.reference_int_vtable",
+      "subsystem": "world",
+      "hash": "_0xC68778CEF6122103",
+      "tier": 2,
+      "source": "src/game/world_sigs.cpp"
+    },
+    {
+      "id": "cvars.reference_int_flags",
+      "subsystem": "world",
+      "hash": "_0xF37F6FD4DBBB63B8",
+      "tier": 2,
+      "source": "src/game/world_sigs.cpp"
+    },
+    {
+      "id": "cvars.reference_int_name",
+      "subsystem": "world",
+      "hash": "_0x9CB7570D6A4724F8",
       "tier": 2,
       "source": "src/game/world_sigs.cpp"
     },

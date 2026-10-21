@@ -13,11 +13,19 @@ For where the SDK is going and how to contribute, read the [roadmap](roadmap.md)
    and [plugin rules](../sdk/docs/plugin-rules.md): packaging, manifests and trust.
 3. Your language: [C ABI](api-v1.md), [C++](sdk-cpp.md), [C#](sdk-csharp.md),
    [Lua](../sdk/docs/lua.md) or [data packs](../sdk/docs/data-packs.md).
+4. [Designing modular plugins](plugin-design.md): one feature per plugin, versioned
+   service tables, `requires`, clean unload and anti-patterns, with a provider and
+   consumer example pair.
+5. [Community plugin directory](plugin-directory.md): plugins in their authors' own
+   repositories with reported SDK compatibility, the listing rules and how to request a
+   listing. Not an endorsement; nothing there is verified in game.
 
 ## Plugin API consumer — Use the API safely
 
 1. [Plugin API v1](api-v1.md): exports/root table, ABI compatibility, whole-member
    and non-null checks, capabilities, commands, events, raw handlers and threads.
+   [Stability](stability.md) says which service tables are Stable or Experimental
+   across SDK 2.x, separately from availability and evidence.
 2. [Public contract catalogue and reading rules](contracts.md), backed by
    [machine-readable records](../sdk/contracts): per-method semantics, buffers,
    failures, ownership, callback/service lifetime and unspecified guarantees.
@@ -64,12 +72,17 @@ For where the SDK is going and how to contribute, read the [roadmap](roadmap.md)
 
 1. [Agent and IDE integration](agent-integration.md): compiler/catalogue
    prerequisites, stdio launcher, client configuration and troubleshooting.
-2. [MCP server authority](../tools/sco-core-mcp/README.md): six read-only tools,
-   allowlist, provenance, limits and separate administrator-owned runner settings.
-3. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
+2. [SDK to MCP to plugin](sdk-mcp-tutorial.md): discover a contract, request a
+   scaffold, validate manifest/widgets and run the native checker.
+3. [MCP server authority](../tools/sco-core-mcp/README.md): six default tools, six opt-in
+   discovery tools (including guide search with `search_guides` and `get_guide_section`)
+   and three opt-in development tools, allowlist, provenance, limits and separate
+   administrator-owned runner settings.
+4. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
    exact source/archive inputs; development previews are not approved releases.
 
-MCP is static discovery, not a host/game connection, compiler or SDK executor.
+MCP is static discovery by default; the opt-in development tools build and
+check plugins on this machine only, never a host or the game.
 Client-specific instructions live in the integration guide, not in this index.
 
 ## Maintainer — Build, contribute, release
@@ -88,8 +101,9 @@ Client-specific instructions live in the integration guide, not in this index.
    checks and existing Pages publication workflow.
 5. [IP policy](../IP_POLICY.md), [third-party notices](../THIRD_PARTY_NOTICES.md)
    and [dependency inventory](legal/third-party-inventory.md).
-6. [Design: opt-in runtime MCP](design/runtime-mcp.md): owner-approved decisions
-   (2026-10-12), not implemented; metadata-only runtime group and security/fixture acceptance.
+6. [Design: opt-in runtime MCP](design/runtime-mcp.md): separate implemented
+   default-off metadata launcher, historical decisions and outstanding
+   Windows/manual acceptance.
 
 ### Historical designs and evidence
 

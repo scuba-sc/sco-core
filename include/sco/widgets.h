@@ -18,6 +18,8 @@ struct Node {
     uint32_t severity = 0, first_row = 0, visible_rows = 0;
     std::string tooltip;
     bool extended = false; // submitted as sco_widget_node_1_1
+    // 1.2 stable automation tag ("" = untagged; unique per panel; not rendered).
+    std::string tag;
 };
 struct Panel {
     std::string id, title, owner;

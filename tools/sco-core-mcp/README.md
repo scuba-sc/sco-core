@@ -3,15 +3,18 @@
 Development-only, read-only discovery of the public sco-core SDK contracts through
 MCP over stdio. The server uses Python 3's standard library and a generated SDK
 catalogue. It does **not** connect to a running host or game, invoke SDK methods,
-compile plugins, execute examples, or modify the repository. It is development
-tooling, not an SDK runtime component.
+execute examples, or modify the repository. It is bundled development tooling,
+not a runtime game-service component. By default it compiles nothing; three
+[development tools](#development-tools-opt-in) that build and check plugin
+projects exist only when the operator turns them on.
 
 [Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
 implements the fixed runtime tool surface. This discovery executable remains
 credentials-free and catalogue-only, with its original six tools/dependencies by
-default; four more read-only tools are [opt-in](#extended-tools-opt-in).
-The current task supersedes the historical same-server placement in the
-[runtime design](../../docs/design/runtime-mcp.md). No live runtime/game acceptance is claimed.
+default; six more read-only tools are [opt-in](#extended-tools-opt-in).
+The separate launcher supersedes the historical same-server placement in the
+[runtime design](../../docs/design/runtime-mcp.md). Discovery never imports or
+enables runtime inspection. No live runtime/game acceptance is claimed.
 
 The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes
@@ -68,9 +71,41 @@ server before relying on the new snapshot. The server does not regenerate it.
 
 ## Using an extracted SDK archive
 
-The published SDK archives do not contain a catalogue, and none is added to a
-release after publication: release assets are immutable. An archive user obtains
-one in either of two ways:
+**SDK 2.4.0 is an unreleased candidate.** Its packaging code bundles this
+launcher, a compiler-built `sdk-catalogue.json` and the matching guide sections
+`sdk-guides.json` in the combined `legacy` developer kit, the `game-sc` overlay
+and the `host-source-sc` kit. These are
+candidate package contents, not available or approved release assets.
+
+Use the combined kit directly, or compose the game overlay over the exact core
+kit required by its compatibility metadata. Set `--repo-root` to the resulting
+SDK root, not the parent extraction directory or an uncomposed overlay. The
+`host-source-sc` archive retains repository layout. Core and core-source profiles
+remain game-neutral and contain neither this game catalogue nor its launcher.
+
+For a trusted extracted candidate, run:
+
+```sh
+python3 /absolute/sdk/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/sdk/sdk-catalogue.json \
+  --repo-root /absolute/sdk
+```
+
+On Windows use `py -3` instead of `python3`, with drive-qualified paths such as
+`C:/absolute/sdk`. Add `--extended-tools` to grant the six additional discovery
+tools; the guide tools read the kit's `sdk-guides.json` beside its catalogue. Compiler probes run during packaging, not when the client connects.
+Verify the archive checksum inventory and both SDK/game-pack coordinates before
+using its catalogue; a version match does not establish matching source bytes,
+release approval, a loaded plugin or gameplay support.
+
+Earlier published archives do not contain a catalogue. Release assets remain
+immutable; users of those archives obtain one in either of two ways:
+
+Downloading a catalogue does not install the launcher. Use the launcher from a
+reviewed source checkout and point `--repo-root` at the extracted archive when
+you want its example contents. The catalogue must describe the contracts being
+consumed; the site's current mainline snapshot is not automatically a match for
+an older release.
 
 - **Public catalogue.** Download
   <https://scubamount.github.io/sco-core/sdk-catalogue.json> and check it before
@@ -123,8 +158,10 @@ recorded path.
 
 ## Tools and explicit allowlist
 
-These are the complete six default tool names (four more are
-[opt-in](#extended-tools-opt-in)). Enable them explicitly, not with a wildcard.
+These are the complete six default tool names (six more are
+[opt-in](#extended-tools-opt-in), and three
+[development tools](#development-tools-opt-in) are a separate opt-in). Enable
+them explicitly, not with a wildcard.
 The Arguments column gives the exact `inputSchema` property names, required ones
 first; any other argument name is refused:
 
@@ -132,9 +169,9 @@ first; any other argument name is refused:
 |---|---|---|
 | `search_api` | `query`; optional: `language`, `service`, `limit` | Search catalogue contracts, with optional service and language filtering. |
 | `get_symbol` | `symbol_or_id` | Retrieve a symbol's contract and its source-backed language mappings. |
-| `list_services` | none | Discover public service tables, versions, sizes and member counts. |
+| `list_services` | none | Discover public service tables, versions, sizes, member counts and [stability](#stability) labels. |
 | `get_example` | `symbol_or_id`; optional: `language` | Return a selected record's listed example paths, and optionally their bounded contents. |
-| `get_capability_status` | `symbol_or_id` | Read documented capability evidence, limitations and the record's [evidence state](#evidence-state); not a live availability probe. |
+| `get_capability_status` | `symbol_or_id` | Read documented capability evidence, limitations, the record's [evidence state](#evidence-state) and its table's [stability](#stability); not a live availability probe. |
 | `check_compatibility` | optional: `sdk_version`, `game_pack_version`, `tag`, `source_sha`, `service`, `min_version`, `member_extent` | Compare requested coordinates with catalogue metadata, read a [release approval record](#release-approval-records) and check a service's minimum version and member extent; not a runtime compatibility test. |
 
 `symbol_or_id` takes a table-qualified symbol such as `sc_actors_v1.spawn_npc` or
@@ -190,7 +227,9 @@ request, and `no_matching_approval_record` otherwise. Each record reports its
 - A record is committed at its release tag, so a branch without it reports no
   match. That is not proof that no release exists.
 
-Every tool advertises these MCP annotations:
+Every discovery tool (the six above and the six extended tools) advertises
+these MCP annotations; the development tools advertise
+[different ones](#development-tools-opt-in):
 
 ```json
 {
@@ -206,7 +245,7 @@ methods mentioned in the returned contracts read-only or safe to invoke.
 
 ### Extended tools (opt-in)
 
-Start the server with `--extended-tools` to add four more read-only tools after
+Start the server with `--extended-tools` to add six more read-only tools after
 the six above. Without the flag, `tools/list` is exactly the six, and calling an
 extended name is refused as an unknown tool, so existing allowlists and the
 launcher in [the integration guide](../../docs/agent-integration.md) are
@@ -219,6 +258,8 @@ explicitly:
 | `get_engine_native` | `id_or_hash` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
 | `validate_manifest_and_widgets` | `plugin_ini`; optional: `folder`, `widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
 | `generate_plugin_scaffold` | `id`, `lang`; optional: `with_menu`, `services` | Return the files [`sco-new-plugin`](../../sdk/tools/sco-new-plugin.py) would generate for a plugin spec, without writing them. |
+| `search_guides` | `query`; optional: `doc`, `limit`, `cursor` | Rank sections of the SDK guides by the query's whole-word terms (heading and title above body text, rarer terms above common ones) and return bounded snippets with doc, heading, anchor and url. |
+| `get_guide_section` | `doc`, `anchor` | Return one guide section's bounded plain text, by the doc and anchor `search_guides` returned. |
 
 **Engine natives.** Both native tools read `sdk/native_index.json` beneath
 `--repo-root` once, at start. The file has the same no-symlink containment as
@@ -274,7 +315,8 @@ A widget node has these keys:
 - `parent`, `flags`, `index`, `label`, `text`, `value`, `minimum`, `maximum`,
   `items` and `columns`.
 
-An omitted key is 0 or null. Unknown keys and wrong JSON types are refused as
+`kind` and `id` are required. Omitted optional fields default to zero or null.
+Unknown keys and wrong JSON types are refused as
 tool errors. Each violation of the
 [`sco_widgets.h`](../../include/sco_widgets.h) invariants becomes one finding,
 with the node index, its id and the host result it maps to (`BAD_ARG`, or
@@ -293,38 +335,234 @@ The host refuses the whole panel at its first violation. These checks are not
 made: the panel id and title, the stride and size fields, pointer readability, and
 renderer markup in labels.
 
-**Plugin scaffold.** `generate_plugin_scaffold` returns the native plugin folder
+**Plugin scaffold.** `generate_plugin_scaffold` returns the plugin folder
 that [`sdk/tools/sco-new-plugin.py`](../../sdk/tools/sco-new-plugin.py) would
-write, as `files`: a map from relative path to text (`plugin.ini`,
-`CMakeLists.txt` and `<id>.c` or `<id>.cpp`). It takes these arguments:
+write, as `files`: a map from relative path to text. For `c` and `cpp` that is
+`plugin.ini`, `CMakeLists.txt` and `<id>.c` or `<id>.cpp`; for `csharp`,
+`plugin.ini`, `<id>.csproj` (NativeAOT), `<Name>Plugin.cs` and `README.md`; for
+`lua`, `plugin.ini` (`kind = lua`), `main.lua` and `CMakeLists.txt`. It takes
+these arguments:
 
 | Argument | Required | Content |
 |---|---|---|
 | `id` | yes | 1-31 characters from `a-z`, `0-9` and `_`; `sco`, `host`, `menu` and `game` are reserved. |
-| `lang` | yes | `c` or `cpp`. |
+| `lang` | yes | `c`, `cpp`, `csharp` or `lua`. |
 | `with_menu` | no | `true` adds a `sco.widgets` panel. Default `false`. |
-| `services` | no | Up to 16 `NAME` or `NAME@MAJOR.MINOR` strings, looked up as optional services on `game.ready`. |
+| `services` | no | Up to 16 `NAME` or `NAME@MAJOR.MINOR` strings, looked up as optional services on `game.ready`. Refused for `lua` (the sandbox has no service lookup), except `sco.widgets` with `with_menu`. |
 
 The display name and author take the generator's defaults; there is no output
 path. Any other argument, or a value outside the schema, is refused as a tool
 error. A spec the generator itself refuses, such as a reserved id or a service
-listed twice, comes back as a tool error that carries the generator's message.
+listed twice, or services with `lua`, comes back as a tool error that carries the
+generator's message.
 
 The server writes no files and runs no build or check. To use the result, write
-the files into a missing or empty folder, then run
+the files into a missing or empty folder, then run the steps the CLI prints and
+the result's second conclusion names for that language: for `c`, `cpp` and `lua`,
 `cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder>` and
-`cmake --build DIR/build --target check`, the same steps the CLI prints.
+`cmake --build DIR/build --target check` (for `lua`, also
+`tools/lua-check.lua` with Lua 5.4); for `csharp`,
+`dotnet publish DIR -c Release -r win-x64 -o DIR/out/<id> -p:ScoSdk=<SDK folder>`,
+then `sco-plugin-check` on `DIR/out/<id>` with and without `--short-tables`.
 The output is exactly what `render_plugin(spec)` returns for the same spec; the
 tests compare the two.
 
 The generator is code from `--repo-root`. On the first call the server reads
 `sdk/tools/sco-new-plugin.py`, with the examples' no-symlink containment and the
-256 KiB limit, and runs it in its own process through `importlib`. It does not
+256 KiB limit, and executes those source bytes in the existing server process. It does not
 start a subprocess or write `__pycache__`. Without a root, or when the file is
 missing, a symlink or fails to load, `state` is `unavailable` with a `reason` and
 `files` is empty. The result is not bound to the catalogue `source_sha`.
 Generated plugins declare `api = 1.0`. Nothing generated here has been loaded by
 a host or run in game.
+
+**Guide search.** `search_guides` and `get_guide_section` answer "how do I ..."
+questions from the SDK guides rather than the contract records. Their data is
+`sdk-guides.json`, which [`tools/sdk_guides.py`](../sdk_guides.py) builds from the
+Markdown guides listed in [`site/public-inputs.json`](../../site/public-inputs.json)
+(never `docs/legal/` or `docs/design/`, in any letter case) and from the SDK's own
+plugin-authoring guides: every `sdk/docs/*.md` that
+[`sdk/components.json`](../../sdk/components.json) lists as project-authored and
+shipped in a profile (`plugin.ini`, plugin rules, Lua, widgets and data packs
+today). Each heading starts one section with `doc`, `title`, `heading`,
+`anchor`, `level`, `text` (plain text, at most 4000 characters), `truncated` and
+`url`. `anchor` is the GitHub-style slug of the heading in the repository file;
+`url` is the docs-site page for that guide, whose own heading anchors may differ,
+or the repository path for an `sdk/docs` guide, which the site does not render.
+
+The server finds the sections in this order, on the first guide call:
+
+1. the file given with `--guides`;
+2. `sdk-guides.json` beside the catalogue, as the developer kits ship it;
+3. without either, an in-memory build from `--repo-root`: the server reads
+   `tools/sdk_guides.py` with the examples' no-symlink containment and 256 KiB
+   limit and runs those bytes in its own process, which then reads the
+   allowlist, `sdk/components.json` and the guides beneath that root.
+
+A file wins over `--repo-root`. In a checkout you edit, either leave the file
+out (the sections are then built from the tree on each server's first guide call) or
+rebuild it after editing a guide and restart the client.
+
+A file that exists but is malformed is reported, not bypassed. With none of the
+three, both tools return a tool error that names the missing file. Each result's
+`guides` object says which source answered (`mode` `file` or `source`), its
+`source_sha` (`null` for an in-memory build) and whether that equals the
+catalogue's. To build the file beside a source catalogue:
+
+```sh
+python3 tools/sdk_guides.py build --out dist/sdk-guides.json --source-sha "$(git rev-parse HEAD)"
+```
+
+`search_guides` drops common question words (`how`, `do`, `i`, `the` and similar)
+and single characters unless nothing else is left. Terms match whole words,
+case-insensitively: `ui` does not match `build`, the parts of a dotted or
+hyphenated word also count (`sco.net` matches `net`), and a term of four or more
+characters also matches the words it starts (`deploy` matches `deployment`). Every
+section that contains at least one term is ranked by a score that weights a term
+in the heading above one in the title or doc path, above body occurrences (at most
+five), each multiplied by the term's rarity across all sections, so a rare term
+outweighs a common one such as `plugin`; ties go to more distinct terms matched,
+then guide order. `doc` keeps one guide's sections (an unknown `doc` is refused
+with the list of known ones); `limit` is 1-25 (default 5) and `cursor` pages like
+`list_engine_natives`. Snippets are at most about 320 characters. Ranking is
+term matching, not semantic search. Guides are prose, not contract records:
+check a method with `get_symbol` before relying on it. Nothing in a guide is
+evidence that code ran in game.
+
+### Development tools (opt-in)
+
+Three more tools let an agent run the developer's own loop on this machine:
+check a built plugin, and configure, build and test a CMake plugin project.
+They are **off** unless the operator starts the server with
+`--enable-dev-tools` **and** at least one `--project-root DIR`. Without the flag,
+`tools/list` is unchanged (six tools, or twelve with `--extended-tools`) and calling
+one of these names is refused as an unknown tool. With it, they follow the other
+tools in `tools/list`. Add each name to the client allowlist explicitly:
+
+| Tool | Arguments | Purpose |
+|---|---|---|
+| `run_plugin_check` | `folder`; optional: `mode` | Run `sco-plugin-check` on a built plugin folder. `mode` is `full` (default) or `short`, which adds `--short-tables` (the 1.0 host tables). |
+| `build_plugin_project` | `project` | Configure a CMake plugin project into its own `build` subfolder, then build it. |
+| `test_plugin_project` | `project` | Run `ctest` in that `build` subfolder. Run `build_plugin_project` first. |
+
+`folder` and `project` are paths: absolute, or relative to the first
+`--project-root`. They are the only things a caller supplies. There is no
+argument for a command, flag, generator, build type, target, test filter or
+environment variable, and any other argument is refused as a tool error.
+
+**Operator configuration.** Everything else is fixed when the server starts:
+
+| Flag | Default | Effect |
+|---|---|---|
+| `--enable-dev-tools` | off | Offer the three tools. Refused at start without a `--project-root`. |
+| `--project-root DIR` | none | A folder the tools may use. Repeat it for more folders. Each must exist. |
+| `--plugin-check PATH` | `bin/` or `out/bin/` of the SDK folder | The `sco-plugin-check` program. `cmake --install <build> --prefix out` in the SDK folder puts it in `out/bin/`. |
+| `--cmake PATH` | `cmake` on the server's `PATH` (`cmake.exe` on Windows) | The CMake program. |
+| `--ctest PATH` | `ctest` beside `--cmake`, else on `PATH` | The CTest program. |
+| `--cmake-generator NAME` | CMake's default | Passed as `-G` when configuring, for example `Visual Studio 17 2022`. |
+| `--cmake-platform NAME` | none | Passed as `-A` when configuring, for example `x64` with a Visual Studio generator. |
+| `--sco-sdk DIR` | `--repo-root`, or its `sdk/` | The SDK folder passed as `-DSCO_SDK`: the folder that holds `cmake/sco-plugin.cmake`. |
+| `--dev-timeout SECONDS` | 600 | Time limit for one call, 1-7200. A build's configure and build steps share it. |
+| `--dev-output-limit BYTES` | 32768 | Output tail returned per step, 256-262144. |
+
+Any of these options without `--enable-dev-tools` is refused at start, as is a
+missing project root or an out-of-range limit. Programs are looked up on every
+call, so a checker built after the server started is found. A program path that
+ends in `.py` is run with the server's own Python interpreter, which lets an
+operator use a wrapper script. Batch files are refused: Windows runs a `.bat` or
+`.cmd` program through `cmd.exe`, which would parse the caller's path as shell
+syntax. On Windows a program must be an `.exe` or a `.py` wrapper, on every
+platform a `.bat` or `.cmd` name is refused, and the `PATH` lookup asks for
+`cmake.exe` and `ctest.exe` only, never a shim. An explicit flag naming one is
+refused at start; a program found at call time gives `unavailable` with the
+reason. Each call runs exactly these command lines, without a shell:
+
+| Tool | Command line | Working folder |
+|---|---|---|
+| `run_plugin_check` | `sco-plugin-check FOLDER`, plus `--short-tables` for `mode: "short"` | `FOLDER` |
+| `build_plugin_project` | `cmake -S PROJECT -B PROJECT/build [-G GENERATOR] [-A PLATFORM] -DSCO_SDK=SDK`, then `cmake --build PROJECT/build --config Release` | `PROJECT` |
+| `test_plugin_project` | `ctest --test-dir PROJECT/build -C Release --output-on-failure --no-tests=error` | `PROJECT` |
+
+The build step runs only when configuring succeeded. Both cmake steps also set
+`MSBUILDDISABLENODEREUSE=1`, so no MSBuild node outlives the call, and
+`VSLANG=1033`, which asks MSVC for English messages where that language is
+installed; otherwise the programs inherit the server's environment. `test_plugin_project` is refused
+until `PROJECT/build/CMakeCache.txt` exists, and with `--no-tests=error` a
+project without tests fails rather than passing with nothing run.
+
+A project made by `generate_plugin_scaffold` builds its plugin into
+`build/check/<id>/` beside a copy of `plugin.ini`. Pass that folder to
+`run_plugin_check`, once with each `mode`, to repeat what the generated `check`
+target does.
+
+**Results.** Each result has `state`: `completed`, `timed_out`, `not_started`
+(the program could not be started) or `unavailable` (a program or the SDK folder
+is not configured or not found, with a `reason`; nothing was run). It also has
+`passed`, which is true only for a completed run with exit code 0; for a build,
+both steps must pass. `program`, the file name only, appears once per result. A
+run reports these fields (a build reports them for each of its `steps`):
+
+- `arguments`, exactly as passed;
+- `exit_code`, `timed_out` and `duration_seconds`;
+- `output`: at most the last `output_limit` bytes of combined stdout and stderr;
+- `output_bytes` and `output_truncated`;
+- `output_complete`: false when a descendant still held the output open 5
+  seconds after the program ended.
+
+`run_plugin_check` adds `findings`, the checker's `FAIL` lines without the
+prefix (at most 256 lines and 256 KiB, with `findings_truncated` true when more
+were dropped), and `summary`, its last `OK: N failure(s)` or
+`FAILED: N failure(s)` line. `test_plugin_project` adds `summary`, CTest's
+`N% tests passed` line. Both are read from the whole output stream, so a
+truncated tail still reports them. Results name the resolved folder or project
+path. Every result carries `provenance`, like the other tools.
+
+A result always fits the 4 MiB response cap. Output that is not UTF-8 is decoded
+with replacement characters, which take more room once escaped, so if a whole
+result would be too large the server shortens the output tails first and then
+the findings, setting `output_truncated` and `findings_truncated`. `state`,
+`exit_code`, `passed` and `summary` are always kept.
+
+**Security model.**
+
+- **Containment.** A path is first checked as text: joined to the first root and
+  normalized, it must lie inside a configured root, before the filesystem is
+  touched. It is then resolved (symlinks, junctions and `..`), and the result
+  must be an existing folder inside a root. A path outside every root, a missing
+  path and a file all get the same refusal, so a caller learns nothing about
+  other paths. NUL characters, and on Windows a `:` after the drive, are
+  refused. A project whose `build` entry resolves outside the roots is refused.
+  The roots themselves are operator-supplied and trusted; a symlinked root is
+  followed. These checks are not race-free against a project that changes during
+  the call.
+- **Fixed programs and arguments.** Programs, generator, platform, SDK folder,
+  timeout and output limit come only from the operator's command line. The
+  caller's path is passed as one resolved absolute argument, so it never starts
+  with `-`. Processes start with stdin closed and no shell, and batch files,
+  which Windows would hand to `cmd.exe`, are refused (see above).
+- **Bounded time and output.** Each process runs in its own process group: a new
+  process group and a job object on Windows, a new session on POSIX. On timeout
+  the whole tree is killed: `taskkill /F /T` and the job object on Windows,
+  `SIGKILL` to the process group on POSIX. When the program exits normally, any
+  descendant still running is killed the same way, so nothing it started
+  outlives the call. On Windows the job object is set to kill on close, so if
+  the server itself is killed or exits mid-call, the running tree ends with it.
+  On POSIX it does not: killing the server mid-call leaves that call's process
+  group running, so end it yourself (for example `kill -9 -PGID`). A descendant
+  that deliberately leaves the group or job can survive. Output beyond the limit
+  is dropped from the front.
+- **This runs code.** CMake runs the project's `CMakeLists.txt`, the build runs
+  compilers, and `sco-plugin-check` loads the plugin's native code and runs it
+  against a stand-in host. None of this is a sandbox. Grant only project roots
+  whose code you would build and run yourself. The tools advertise
+  `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false` and
+  `openWorldHint: false`. Prefer a client that asks before each call.
+- **One call at a time.** The server handles requests in order, so a build
+  blocks every other tool call until it ends or times out. The limit of 120
+  calls per 60 seconds covers these tools too.
+- **What a pass means.** A passing check is synthetic host and ABI evidence from
+  a stand-in host. It is not the real host, and nothing here loads the plugin in
+  the game: **not run in game**.
 
 ## MCP clients
 
@@ -462,14 +700,39 @@ set that annotation, but annotations and an allowlist are not a sandbox for the
 client itself. Do not add a wildcard or assume this restricts the client's other
 tools. Consult the linked GitHub documentation for current UI and runner behavior.
 
+## Troubleshooting
+
+| Symptom | First checks |
+|---|---|
+| Python cannot start | Windows: use `py` with `-3`, or an absolute `python.exe`. macOS/Linux: use `python3` or an absolute interpreter. GUI clients may inherit a different `PATH`. |
+| Missing/refused catalogue | Generate it before connecting or select the matching kit JSON. Check absolute paths, UTF-8, schema and source/version coordinates. |
+| Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
+| Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
+| Extended tool is unknown | Restart with `--extended-tools` and explicit client permissions for the additional names. |
+| Development tool is unknown or refused | Restart with `--enable-dev-tools` and a `--project-root`. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
+| Scaffold/native metadata unavailable | Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
+| Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |
+| Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
+| Catalogue is stale | Rebuild matching reviewed source and restart. Root metadata/generator code are separate inputs, not authenticated by catalogue SHA. |
+| Guide sections are stale | A `sdk-guides.json` beside the catalogue (or from `--guides`) wins over `--repo-root`. Rebuild it with `tools/sdk_guides.py build`, or delete it to build from the tree, and restart. `guides.source_sha` says which commit the file came from. |
+
+Discovery cannot invoke commands, reload plugins or diagnose live game state.
+The opt-in development tools build and check plugins on this machine only; they
+never reach a host or the game.
+Runtime inspection uses the separate default-off launcher with independent host
+and security admission.
+
 ## Security boundaries and limits
 
-- **No network, subprocess execution, or file writes by the server.** Its interface
+- **No network, subprocess execution, or file writes by the server**, unless the
+  operator enables the [development tools](#development-tools-opt-in), which run
+  fixed programs on folders inside the configured project roots. Its interface
   is stdio and its discovery operations read local catalogue data and optional
   example files. The separate catalogue builder compiles/runs probes and writes
-  its output; the server does neither. The one piece of repository code it runs is
-  `sdk/tools/sco-new-plugin.py`, and only with `--extended-tools` and a
-  `--repo-root`, in-process, on the first `generate_plugin_scaffold` call. Treat
+  its output; the server does neither. The only repository code it runs is
+  `sdk/tools/sco-new-plugin.py`, on the first `generate_plugin_scaffold` call, and
+  `tools/sdk_guides.py`, on the first guide call when no `sdk-guides.json` is
+  found; both only with `--extended-tools` and a `--repo-root`, in-process. Treat
   that root as code you would run yourself.
 - **Not arbitrary file access.** `get_example` reads only paths listed in the
   selected catalogue record's `examples`, beneath the configured repository root.
@@ -477,10 +740,19 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
   most 1 MiB), or `docs/game/status.md` when there is no registry (each read once,
   at start), the `sdk-v*.json`/`.json.sig` records in `docs/legal/release-decisions/`
   (per `check_compatibility` call) and, with `--extended-tools` only,
-  `sdk/native_index.json` (at most 4 MiB, once at start) and
+  `sdk/native_index.json` (at most 4 MiB, once at start),
   `sdk/tools/sco-new-plugin.py` (at most 256 KiB, once, on the first scaffold
-  call). All use the same
-  no-symlink containment, and the default size limit applies to the rest.
+  call) and, for the guide tools without an `sdk-guides.json`,
+  `tools/sdk_guides.py` (at most 256 KiB) with `sdk/VERSION`, once, on the first
+  guide call. That builder then reads `site/public-inputs.json`,
+  `sdk/components.json` and the guides they name with its own check: it refuses a
+  symlink or Windows junction in any path component and any file whose real path
+  is not exactly that name beneath the root (which also refuses a name in the
+  wrong letter case), and it caps each guide and the allowlist at 2 MiB and the
+  component manifest at 8 MiB. The `sdk-guides.json` file itself, beside the
+  catalogue or from `--guides`, is operator-chosen like the catalogue and is read
+  once, at most 16 MiB. The server's own root reads use the examples' no-symlink
+  containment, and the default size limit applies to the rest.
   Absolute paths, traversal outside the root, and symlinks anywhere the catalogue
   names are refused, including on the extracted-archive `examples/...` fallback;
   an `sdk` symlink in the root disables that fallback. The configured root itself is operator-supplied and trusted,
@@ -563,14 +835,21 @@ Game-pack records also carry `service_status`. It is **service-scoped**. When
 `sdk/status_registry.json` exists, its rows are the capabilities of the `service`
 entry whose `service` and header file name both match the record's catalogue
 table. Otherwise they are the rows of the
-`| Table | Version | Capability | Default | Evidence |` table in
-`docs/game/status.md` whose backticked service and linked header both match.
+`| Table | Version | Stability | Capability | Default | Evidence |` table in
+`docs/game/status.md` (or the five-column table without Stability that older
+archives carry) whose backticked service and linked header both match.
 `service_status.source` names the file used. Each row keeps `capability`, `default` (`ON`, `OFF` or
 `none`) and `evidence` verbatim, plus an `evidence_level`:
 `row_resolved_sigcheck` (with `game_build`), `off_pending_in_game_confirmation`,
 `blocked`, or `unclassified` for any other text, including in-game claims.
 `documented_version` and `version_matches_catalogue` compare the row's version with
-the catalogue.
+the catalogue. `stability` is the table's label, `stable` or `experimental`, or
+`null` when the registry entry or status table predates labels. The registry is read
+at `schema_version` 2 (labels required on service and event-bus entries, with
+`stable_since` exactly on `stable` ones, and absent on signature-row groups) or 1 (the
+unlabelled registry of older archives, no `stability` or `stable_since` keys); any
+other version is refused. In the status table a signature-row group's Stability cell
+is `-`, read as `null`.
 
 Registry rows also keep these registry fields where they are set:
 
@@ -601,3 +880,28 @@ The registry or status document is read from the configured root when the server
 is not bound to the catalogue's `source_sha`. Its sigcheck rows are dated to the
 build named in each row, and none of it is evidence that an operation worked in
 a game session.
+
+## Stability
+
+`list_services` adds `stability` to each service, and `get_capability_status` adds
+`stability` for the record's table. Both also return a `stability_context` naming
+[`docs/stability.md`](../../docs/stability.md), the game status source and whether it
+was read. Values:
+
+- `stable`: never removed or changed incompatibly within SDK 2.x; grows only at its
+  tail behind a new minor version macro. Once a released SDK has carried the label,
+  the table stays `stable` for the rest of SDK 2.x. The `sco_api` root table, plugin
+  entry points and every `sco.*` host table are always `stable`.
+- `experimental`: a later SDK minor may replace the table with a new table under a
+  distinct service name and its own header; the old name then stays published, marked
+  deprecated, for at least one further SDK minor release. The kernel publishes one
+  table per name, so a replacement never reuses the old name.
+- `unknown`: a game-pack table (any table declared in an `include/sc_*.h` header: the
+  `game.*` tables, `teleport.spatial` and `spawn.entities`) whose label could not be
+  read: no `--repo-root`, the status source is unavailable, refused or predates labels,
+  or it has no entry for the table.
+
+A game-pack label comes from the same source as `service_status` and is read at
+server start, not bound to the catalogue's `source_sha`. Stability is not
+availability or evidence: a `stable` table's capability can be OFF or answer
+`SCO_UNAVAILABLE`, and no label says anything was run in game.

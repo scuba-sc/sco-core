@@ -332,7 +332,8 @@ end }
 static void TestGameEntities() {
     static sc_entities_v1 kFake = { sizeof(sc_entities_v1), 0, FakeEntAlive, FakeEntClassOf, FakeEntGet, FakeEntSet,
                                           FakeEntSpawn, FakeEntDespawn, FakeEntWatch, FakeEntUnwatch, FakeEntQuery, FakeEntLastError,
-                                          nullptr /* keep: Lua is read-only */ };
+                                          nullptr /* keep: Lua is read-only */,
+                                          nullptr, nullptr, nullptr, nullptr /* native-only 1.2 lookup tail */ };
     CHECK(sco::host::ProvideGameService(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, &kFake) == Result::Ok);
     Write("gaent", R"(
 local e = assert(sco.game and sco.game.entities, "sco.game.entities")

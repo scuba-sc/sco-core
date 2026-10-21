@@ -35,12 +35,37 @@ sco_result ray(uint64_t zone, const double*, const double* dir, double dist,
 }
 WorldControlProvider provider() { return {on_thread, live, owned, ray, begin, step, restore}; }
 WorldControl* ctrl;
+int grid = 0, acquired = 0, queried = 0, released = 0, multi_mode = 0;
+sco_result grid_acquire(uint64_t zone, void** out) {
+    CHECK(zone == 8); ++acquired; *out = &grid; return SCO_OK;
+}
+sco_result grid_query(void* scope, const double*, const double* dir, double distance,
+    const uint64_t*, uint32_t, sc_world_hits* out) {
+    CHECK(scope == &grid && dir[0] == 1 && distance == 20000); ++queried;
+    if (multi_mode == 1) return SCO_NOT_FOUND;
+    if (multi_mode == 2) return SCO_FAILED;
+    out->count = 2; out->more = 1;
+    for (uint32_t i = 0; i < 2; ++i) {
+        auto& h = out->hits[i]; h.size = sizeof(h); h.distance = i + 2;
+        h.pos[0] = h.distance;
+    }
+    if (multi_mode == 3) out->hits[1].distance = 1;
+    if (multi_mode == 4) out->count = 65;
+    if (multi_mode == 6) out->hits[1].flags = 4;
+    if (multi_mode == 7) out->hits[1].normal[0] = 1;
+    return SCO_OK;
+}
+sco_result grid_release(void* scope) {
+    CHECK(scope == &grid); ++released; return multi_mode == 5 ? SCO_FAILED : SCO_OK;
+}
 void owner_released(const void* owner) { CHECK(ctrl->ReleaseOwner(owner)==SCO_OK); }
 sco_result ray_table(sco_plugin* self, uint64_t z, const double* f, const double* d, double m, const uint64_t* ids, uint32_t n, sc_world_hit* hit) { return ctrl->Ray(self,z,f,d,m,ids,n,hit); }
 sco_result acquire_table(sco_plugin* self, uint64_t* token) { return ctrl->Acquire(self,token); }
 sco_result step_table(sco_plugin* self, uint64_t token, const sc_world_camera_step* s) { return ctrl->Step(self,token,s); }
 sco_result release_table(sco_plugin* self, uint64_t token) { return ctrl->Release(self,token); }
-sc_world_control_v1 table{sizeof(table),0,ray_table,acquire_table,step_table,release_table};
+sco_result rays_table(sco_plugin* self, uint64_t z, const double* f, const double* d, double m,
+    const uint64_t* ids, uint32_t n, sc_world_hits* hits) { return ctrl->Rays(self,z,f,d,m,ids,n,hits); }
+sc_world_control_v1 table{sizeof(table),0,ray_table,acquire_table,step_table,release_table,rays_table};
 const void* offered = &table;
 sco_result query_result = SCO_OK;
 sco_result query(const char* name, uint32_t version, const void** out) {
@@ -58,6 +83,44 @@ int main() {
     const double from[3]{}, dir[3]{2,0,0}; uint64_t ids[33]{};
     for (unsigned i=0; i<33; ++i) ids[i]=100+i;
     sc_world_hit hit{};
+    auto mp = provider(); mp.ray_acquire = grid_acquire;
+    mp.ray_query = grid_query; mp.ray_release = grid_release;
+    WorldControl many(mp, true);
+    sc_world_hits hits{}; hits.size = sizeof(hits); hits.count = 1;
+    CHECK(many.Rays(A,8,from,dir,1e9,ids,1,&hits)==SCO_OK);
+    CHECK(hits.count==1 && hits.more==2 && hits.hits[0].distance==2);
+    CHECK(acquired==1 && queried==1 && released==1);
+    hits.count=0;
+    CHECK(many.Rays(A,8,from,dir,1e9,nullptr,0,&hits)==SCO_OK && hits.count==0 && hits.more==3);
+    const int admitted = acquired;
+    hits.count=64; CHECK(many.Rays(B,8,from,dir,1e9,ids,1,&hits)==SCO_FAILED);
+    CHECK(acquired==admitted && hits.count==0);
+    for (int mode=1; mode<=4; ++mode) {
+        multi_mode=mode; hits.count=64;
+        const int cleanup=released;
+        CHECK(many.Rays(A,8,from,dir,1e9,nullptr,0,&hits)==(mode==1 ? SCO_NOT_FOUND : SCO_FAILED));
+        CHECK(released==cleanup+1 && hits.count==0 && hits.more==0);
+    }
+    multi_mode=5; hits.count=64;
+    CHECK(many.Rays(A,8,from,dir,1e9,nullptr,0,&hits)==SCO_FAILED && hits.count==0);
+    multi_mode=0; const int latched=acquired; hits.count=64;
+    CHECK(many.Rays(A,8,from,dir,1e9,nullptr,0,&hits)==SCO_UNAVAILABLE && acquired==latched);
+    WorldControl wrapper_many(mp,true); ctrl=&wrapper_many;
+    hits.count=64;
+    CHECK(w.RaycastFilteredMany(8,from,dir,1e9,nullptr,0,hits)==SCO_OK && hits.count==2 && hits.more==1);
+    for (int mode : {6,7}) {
+        multi_mode=mode; hits.count=64;
+        CHECK(w.RaycastFilteredMany(8,from,dir,1e9,nullptr,0,hits)==SCO_FAILED && hits.count==0);
+    }
+    multi_mode=0;
+    struct ExtendedHits { sc_world_hits hits; uint64_t tail; } future{};
+    future.hits.size=sizeof(future); future.hits.count=64; future.tail=12345;
+    CHECK(wrapper_many.Rays(A,8,from,dir,1e9,nullptr,0,&future.hits)==SCO_OK);
+    CHECK(future.hits.size==sizeof(future) && future.tail==12345);
+    hits.count=65; CHECK(wrapper_many.Rays(A,8,from,dir,1e9,nullptr,0,&hits)==SCO_BAD_ARG);
+    thread=false; hits.count=64;
+    CHECK(wrapper_many.Rays(A,8,from,dir,1e9,nullptr,0,&hits)==SCO_WRONG_THREAD); thread=true;
+    ctrl=&c;
     CHECK(w.RaycastFiltered(8,from,dir,1e9,ids,1,hit)==SCO_OK);
     CHECK(hit.distance==5 && hit.flags==0 && hit.entity_id==0 && hit.normal[2]==0);
     CHECK(w.RaycastFiltered(8,from,dir,1e9,nullptr,0,hit)==SCO_OK && hit.distance==2);
@@ -140,7 +203,7 @@ int main() {
     CHECK(sco::Release(B)==sco::Result::BadArg); // unload twice cannot restore again
     CHECK(sco::RemoveReleaseHook(owner_released)==sco::Result::Ok);
     // Each field independently physically truncated, then full-sized null.
-    const size_t offsets[]{8,16,24,32};
+    const size_t offsets[]{8,16,24,32,40};
     for (const auto offset: offsets) {
         auto bytes=std::make_unique<unsigned char[]>(offset+7);
         std::memcpy(bytes.get(),&table,offset+7); const uint32_t n=static_cast<uint32_t>(offset+7);
@@ -149,11 +212,13 @@ int main() {
         if(offset==16) CHECK(w.CameraAcquire(lease)==SCO_UNAVAILABLE && lease==0);
         if(offset==24) CHECK(w.CameraStep(1,input)==SCO_UNAVAILABLE);
         if(offset==32) CHECK(w.CameraRelease(1)==SCO_UNAVAILABLE);
+        if(offset==40) CHECK(w.RaycastFilteredMany(8,from,dir,1e9,nullptr,0,hits)==SCO_UNAVAILABLE);
     }
     sc_world_control_v1 nulls{}; nulls.size=sizeof(nulls); offered=&nulls; CHECK(w.Open(&api,A)==SCO_OK);
     CHECK(w.RaycastFiltered(8,from,dir,1e9,ids,1,hit)==SCO_UNAVAILABLE);
     CHECK(w.CameraAcquire(lease)==SCO_UNAVAILABLE && lease==0);
     CHECK(w.CameraStep(1,input)==SCO_UNAVAILABLE); CHECK(w.CameraRelease(1)==SCO_UNAVAILABLE);
+    CHECK(w.RaycastFilteredMany(8,from,dir,1e9,nullptr,0,hits)==SCO_UNAVAILABLE);
     query_result=SCO_NOT_FOUND; CHECK(w.Open(&api,A)==SCO_NOT_FOUND); CHECK(w.CameraAcquire(lease)==SCO_UNAVAILABLE);
     query_result=SCO_OK; offered=nullptr; CHECK(w.Open(&api,A)==SCO_UNAVAILABLE);
     api.query_service=nullptr; CHECK(w.Open(&api,A)==SCO_UNAVAILABLE);

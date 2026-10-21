@@ -81,7 +81,22 @@ plugin-authored fields require a separately reviewed versioned contract.
 Protocol numbers and schema v1 below remain design contracts, not new exports
 or runtime acceptance evidence.
 
-## Historical placement A (superseded by current separate-launcher task)
+## Current launcher placement
+
+The discovery launcher remains catalogue-only: six tools by default and four
+additional read-only tools with `--extended-tools`. It does not import or enable
+runtime inspection. Runtime inspection uses the separate
+[`sco-core-mcp-runtime` launcher](../../tools/sco-core-mcp-runtime/README.md).
+That launcher advertises zero tools while disabled and exactly six runtime tools
+after explicit `--enable-runtime`, disclosure consent, the complete startup
+allowlist and pinned adapter/credential admission. It does not implement the
+historical environment-variable opt-in described below.
+
+Host opt-in is independent through `Platform::runtimeInspection` and the host's
+offline, disclosure and protected-audit admission. Implemented registration is
+not Windows runtime or game acceptance; consult the runtime acceptance ledger.
+
+## Historical placement A (superseded by the separate launcher)
 
 One client registration allows contract/runtime comparison without embedding MCP
 parsing in the game. This convenience must not silently expand the current
@@ -415,14 +430,12 @@ opt-in is a sanitized startup error; absent in disabled mode is irrelevant.
 
 ## Opt-in, offline admission and no-host behavior
 
-Proposed host option on `Platform` plus product `runtime_inspection=off` developer
-setting is **new work**; no offline/diagnostics field exists in the current
-`Platform` (`include/sco/app.h`). Require positive trusted-product offline
-authorization before channel, secret or capture creation. Unknown/online/disallowed
-means disabled; do not contact servers, interrogate/bypass anti-cheat or infer
-posture from signatures, plugin enablement or `gameServices`. Product ownership
-and revocation facts must be named before implementation rollout, as required
-by the approved default. If trustworthy policy
+`Platform::runtimeInspection` exists and is independently default off. Trusted
+product settings, positive offline admission and revocation facts remain product
+integration responsibilities; the launcher installs no universal product INI key.
+Require positive trusted-product authorization before channel, secret or capture
+creation. Unknown, online or disallowed state refuses admission. Signatures,
+plugin enablement and `gameServices` are not authorization. If trustworthy policy
 cannot be supplied, leave inspection unavailable.
 
 Revocation closes admission/mapping before plugin teardown, invalidates keys,
@@ -496,9 +509,9 @@ flowchart LR
     Operator[Local human operator] -->|startup opt-in and disclosure consent| Launcher
     Operator -->|host opt-in and offline policy| Product
     subgraph Untrusted[Untrusted client side]
-        Client[Same-PC MCP client and agent] -->|stdio JSON-RPC| Launcher[Existing sco-core-mcp server]
-        Launcher --> Discovery[Unchanged six catalogue tools]
-        Launcher -->|conditional import only when enabled| Runtime[Six proposed runtime tools and native peer]
+        Client[Same-PC MCP client and agent] -->|separate stdio configuration| Launcher[Separate default-off runtime launcher]
+        Client -->|discovery stdio configuration| Discovery[Catalogue-only discovery launcher]
+        Launcher -->|peer loaded only when enabled| Runtime[Six fixed runtime tools and pinned native peer]
     end
     Discovery --> Catalogue[Reviewed static catalogue]
     subgraph Trusted[Trusted offline product and host]
@@ -528,7 +541,11 @@ flowchart LR
 | Online or remote use | Two human opt-ins plus trusted positive offline admission; no socket/listener/tunnel/remote deploy; revoke before teardown. Product verdict is policy assertion, not anti-cheat detection. |
 | Compromised native host/plugin or administrator | Outside integrity/confidentiality guarantee; native full rights documented, no recovery or sandbox claim. |
 
-## Phased PR plan and acceptance
+## Historical phased PR plan and acceptance
+
+This table preserves implementation-wave planning, not current launcher setup
+or a new execution receipt. Current placement is defined above; outstanding
+Windows and manual acceptance belongs to the [acceptance ledger](../runtime-acceptance.md).
 
 All phases remain game-neutral/buildable with `SCO_GAME_SC=OFF`; product adapters
 supply optional game-pack metadata, not game types in the kernel. Each follow-up
@@ -568,10 +585,12 @@ Windows runtime or gameplay acceptance.
 
 ## Licence and provenance
 
-Project-authored design, schema and synthetic vectors use GPL-3.0-only and remain
-repository-only under `sdk/components.json:57-60`'s existing MCP exclusion.
-`docs/legal/provenance.json` records the new path scopes and generated REUSE
-mapping. No proprietary extracts or third-party implementation are introduced.
+Project-authored design, schema, synthetic vectors and runtime implementation use
+GPL-3.0-only. Runtime packaging is separate local development packaging, not a
+plugin SDK profile. Discovery and native/status metadata have explicit developer-kit
+component entries; older exclusion descriptions do not define their membership.
+`sdk/components.json` defines package selection and `docs/legal/provenance.json`
+records provenance. Selection does not supply publication approval.
 Existing MIT `sc_ipc.h` is reused under its own grant (its SPDX licence header in `include/sc_ipc.h`);
 that grant covers only the four named headers, not a new diagnostics wire/adapter
 (`IP_POLICY.md:9-20`). Owner must resolve future per-file grants and package

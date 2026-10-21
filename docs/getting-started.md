@@ -9,9 +9,9 @@ describes the next version. Get other published versions from
 [releases](https://github.com/scubamount/sco-core/releases/latest).
 
 **Development preview:** this documentation build describes SDK **2.4.0**, an
-unpublished candidate with Star Citizen game pack **0.7.0**. Its tag
+unpublished candidate with Star Citizen game pack **0.8.0**. Its tag
 `sdk-v2.4.0` and archives such as `sco-sdk-core-2.4.0.zip` and
-`sco-sdk-game-sc-0.7.0.zip` are not on the release page yet, so
+`sco-sdk-game-sc-0.8.0.zip` are not on the release page yet, so
 do not try to download them; they exist only after the maintainer publishes
 2.4.0. This page switches its commands to 2.4.0 at that point.
 
@@ -29,6 +29,17 @@ For C++, C#, Lua or data, follow that route's canonical guide after downloading
 and verifying the archive; return here for deployment and diagnostics. The
 copy/build/check commands below deliberately choose **C**, not a universal
 recipe for every language.
+
+To start from a generated folder instead of a copied example, the archive's
+`tools/sco-new-plugin.py` writes one with a `<id>.ping` command, an optional
+`sco.widgets` panel (`--with-menu`) and optional service lookups
+(`--services`): `--lang c` or `cpp` since SDK 2.2.0, and in the 2.4.0 candidate
+also `csharp` (a NativeAOT project whose `README.md` gives the `dotnet publish`
+line) and `lua` (`plugin.ini` and `main.lua`; Lua has no service lookup, so
+`--services` is refused there). The
+[SDK README](../sdk/README.md#generate-a-plugin-folder) lists what each
+language's folder holds and how to check it. A generated plugin that passes the
+checkers has not been run in game.
 
 ### Previous release: published SDK 2.3.0 assets
 
@@ -190,6 +201,9 @@ To disable a plugin, place an empty file named `disabled` inside its folder.
 
 ## 8. Where next
 
+- [Designing modular plugins](plugin-design.md): one feature per plugin, sharing through
+  versioned service tables, `requires` and clean unload, with the `counter_service` /
+  `counter_panel` example pair.
 - [Plugin ABI reference](api-v1.md) and [contract catalogue / reading rules](contracts.md):
   authoritative declarations/semantics, service presence, buffers, threads and lifetimes.
 - [C++](sdk-cpp.md), [C#](sdk-csharp.md), [Lua](../sdk/docs/lua.md),

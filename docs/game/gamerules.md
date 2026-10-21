@@ -15,7 +15,7 @@ The plugin ABI is the header; the rest of this page is for the game pack and hos
 ## Where the values live
 
 The client's GameRules params sync stores the server parameter set behind a module
-accessor chain (evidence: private corpus, F-4.10.196.36804-007/-008; verified at
+accessor chain (evidence: F-4.10.196.36804-007/-008; verified at
 4.10.196.36804 and the 4.10.197.2878 hotfix):
 
 * the module-name string `IGameRulesParamsModule` in `.rdata` — the row anchor;
@@ -23,12 +23,20 @@ accessor chain (evidence: private corpus, F-4.10.196.36804-007/-008; verified at
   prologue; the row fails loudly on adds/losses, never silently re-picks);
 * the parameter blob is reached through the module accessor; observed offsets: byte
   +8 enforce-group-QT, +9 quantum-travel-allowed, +10 quantum-boost-allowed, floats
-  +0xC/+0x10/+0x14/+0x18/+0x1C/+0x20/+0x24 (thresholds).
+  +0xC/+0x10/+0x14/+0x18/+0x1C/+0x20/+0x24. That is seven float slots; the header names six
+  of them as thresholds (`travel_target_threshold_angle`, the four `target_lock_*` values and
+  `boost_group_distance_threshold`) and does not expose the seventh. No backend maps the slots
+  yet.
 
 Offsets enter the provider's engine adapter (host side), never the public header: the
 header exposes named fields only. No pointer, no write, no action crosses the ABI.
 
 ## Backend binding
+
+Reads reject foreign threads and null, unknown or released plugin owners before
+backend access. Backend exceptions and native faults return `SCO_FAILED` once,
+then latch reads unavailable until process restart. Recursive reads and lifecycle
+replacement from a backend callback refuse. Output is copied only after success.
 
 `services::StartGameRules(backend)` publishes the table. With no backend bound (default
 production config) `read` returns `SCO_UNAVAILABLE`; the capability stays OFF. A host
@@ -45,14 +53,15 @@ entry. It never reports a value, reads no game memory, calls no backend and need
 `read` is unchanged: without a backend it stays `SCO_UNAVAILABLE`, and listing a definition is
 not evidence that its value can be read.
 
-The entries are the members of the client's `SGameRulesCvars` type (F-INTAKE-005), flattened in
-declaration order. The type comes from a type inventory whose source build is unresolved, so the
-registry claims the names and types of that inventory and nothing about a specific build. These
-are the members of that struct, not the fields of `sc_gamerules_state`. Each record is
+The registry has 15 entries: the GameRules console variables whose names occur on the verified
+build 4.10.197.2878 as `g_gameRules.<group>.<name>` or `g_gameRules.<name>`
+(F-4.10.197.2878-054), in a fixed order. The names and groups are verified on that build; the
+`INT`/`FLOAT` types are not verified on a captured build. These are console variables, not the
+fields of `sc_gamerules_state`. Each record is
 `sc_gamerules_param_info`: `size`, `type` (`SC_GAMERULES_PARAM_INT` or `_FLOAT`), `name[48]`
-and `group[32]`, both NUL-terminated copies; `group` is the name of the nested member that holds
-the entry (`control`, `state`, `scoring`, `damagehandling`, `accessibility`) and is empty for
-a top-level member. No offset or engine pointer is exposed.
+and `group[32]`, both NUL-terminated copies; `group` is the console-variable group that holds
+the entry (`control`, `state`, `scoring`, `damagehandling`) and is empty for a top-level
+variable. No offset or engine pointer is exposed.
 
 Table layout: `read` stays at offset 8 and the 1.0 extent is 16 bytes, so a 1.0 caller and its
 old 16-byte record keep working; `list_params` is appended at offset 16 and the 1.1 table is 24

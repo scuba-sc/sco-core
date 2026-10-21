@@ -144,6 +144,7 @@ def load_manifest(path=MANIFEST, root=ROOT):
         raise ManifestError("no components")
     ids, dsts, srcs = set(), {}, set()
     reserved = {n for prof in profiles for n in metadata_names(m, prof)}   # written by package.py
+    reserved |= {"sdk-catalogue.json", "sdk-guides.json"}                   # generated developer data
     for i, c in enumerate(comps):
         if not isinstance(c, dict):
             raise ManifestError(f"component {i} is not an object")
@@ -281,7 +282,7 @@ def check_installed_example_headers(m, profile, root, work):
     root, work = Path(root).resolve(), Path(work).resolve()
     reached = closure(m, profile)
     components = [c for c in m["components"] if reached & set(c["profiles"])]
-    public = {str(root / destination(m, profile, c)): destination(m, profile, c)
+    public = {root / destination(m, profile, c): destination(m, profile, c)
               for c in components if c.get("public_header")}
     examples = [c for c in components if c["source"].startswith(("sdk/examples/", "sdk/template/"))
                 and c["source"].endswith((".c", ".cpp", ".h", ".hpp"))]
@@ -299,9 +300,9 @@ def check_installed_example_headers(m, profile, root, work):
         external = work / destination(m, profile, c)
         external.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(installed, external)
-        local.add(str(external))
+        local.add(external.resolve())
     for header in public:
-        if not Path(header).is_file() or str(Path(header).resolve()) != header:
+        if not header.is_file() or header.resolve() != header:
             raise ManifestError(f"{profile}: missing or redirected installed public header {header}")
 
     # Visual Studio computes the Windows SDK/CRT paths inside MSBuild, even
@@ -395,12 +396,12 @@ def check_installed_example_headers(m, profile, root, work):
                             for p in re.findall(r'(?:\\.|[^\s])+', body)]
         else:
             raise ManifestError(f"{profile}: compiler dependency output absent for {c['source']}")
-        source = str(work / destination(m, profile, c))
-        resolved = {str((build / p).resolve()) for p in dependencies}
+        source = (work / destination(m, profile, c)).resolve()
+        resolved = {(build / p).resolve() for p in dependencies}
         if source not in resolved or not resolved & set(public):
             raise ManifestError(f"{profile}: compiler dependency proof empty for {c['source']}")
         for dep in sorted(resolved):
-            path = Path(dep)
+            path = dep
             if dep in public:
                 seen_public.add(public[dep])
             elif dep in local:
@@ -532,6 +533,36 @@ def metadata_names(m, profile):
                                       "ATTRIBUTIONS.json", "SBOM.spdx.json"))
 
 
+def developer_catalogue(profile):
+    """Compile the exact source snapshot for game developer distributions."""
+    if profile not in ("game-sc", "legacy", "host-source-sc"):
+        return None
+    tools = os.path.join(ROOT, "tools")
+    sys.path.insert(0, tools)
+    try:
+        import sdk_catalogue
+        return json_bytes(sdk_catalogue.build(Path(ROOT), source_commit()))
+    finally:
+        sys.path.remove(tools)
+
+
+def developer_guides(profile):
+    """The searchable guide sections of the same source snapshot, in exactly the profiles
+    that ship sdk-catalogue.json; the MCP server reads them from beside the catalogue."""
+    if profile not in ("game-sc", "legacy", "host-source-sc"):
+        return None
+    tools = os.path.join(ROOT, "tools")
+    sys.path.insert(0, tools)
+    try:
+        import sdk_guides
+        try:
+            return sdk_guides.encoded(sdk_guides.build(Path(ROOT), source_commit()))
+        except sdk_guides.GuidesError as e:
+            raise ManifestError(f"sdk-guides.json: {e}") from e
+    finally:
+        sys.path.remove(tools)
+
+
 def attributions(m, profile):
     provenance = json.loads(read("docs/legal/provenance.json"))["entries"]
     records = {}
@@ -553,6 +584,13 @@ def attributions(m, profile):
         records[name] = {"path": name, "source": "sdk/package.py", "origin": "generated",
                          "license": "CC0-1.0" if name.startswith("SBOM.spdx.json") else "GPL-3.0-only",
                          "copyright": "2026 the sco-core contributors", "status": "reviewed"}
+    if profile in ("game-sc", "legacy", "host-source-sc"):
+        records["sdk-catalogue.json"] = {"path": "sdk-catalogue.json", "source": "tools/sdk_catalogue.py",
+            "origin": "generated", "license": "GPL-3.0-only",
+            "copyright": "2026 the sco-core contributors", "status": "needs-review"}
+        records["sdk-guides.json"] = {"path": "sdk-guides.json", "source": "tools/sdk_guides.py",
+            "origin": "generated", "license": "GPL-3.0-only",
+            "copyright": "2026 the sco-core contributors", "status": "needs-review"}
     return records
 
 
@@ -681,6 +719,12 @@ def archive_entries(m, profile):
             entries[dst] = (fix_links(c["source"], dst, f.read(), zip_paths, dirs),
                                          os.access(full, os.X_OK))
     versions_name, sums_name, compat_name, inventory_name, sbom_name = metadata_names(m, profile)
+    catalogue = developer_catalogue(profile)
+    if catalogue is not None:
+        entries["sdk-catalogue.json"] = (catalogue, False)
+    guides = developer_guides(profile)
+    if guides is not None:
+        entries["sdk-guides.json"] = (guides, False)
     entries[versions_name] = (versions_txt(profile, version).encode("ascii"), False)
     commit = source_commit()
     desc = {"schema_version": 1, "profile": profile, "core_sdk_version": sdk_version(),

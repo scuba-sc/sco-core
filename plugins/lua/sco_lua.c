@@ -877,6 +877,62 @@ static int L_store_keys(lua_State* L) {
     return 1;
 }
 
+/* tables([limit]): a list of this plugin's own table/view names in byte order, and a parallel
+ * list of kinds (1 = table, 2 = view); the host bookkeeping table sco_kv and sqlite_% objects
+ * are never listed. Or nil, err, message. */
+static int L_store_tables(lua_State* L) {
+    Script* s;
+    const sco_storage_v1* st = StoreCall(L, &s);
+    if (!st) return StoreFail(L, s, st, SCO_UNAVAILABLE);
+    if (st->size < (uint32_t)(offsetof(sco_storage_v1, next_table) + sizeof(st->next_table)) || !st->next_table)
+        return StoreFail(L, s, st, SCO_UNAVAILABLE);
+    const lua_Integer limit = luaL_optinteger(L, 1, STORE_MAX_KEYS);
+    if (limit < 1 || limit > STORE_MAX_KEYS) return StoreBad(L);
+    char name[SCO_STORAGE_MAX_KEY + 1], cursor[SCO_STORAGE_MAX_KEY + 1];
+    lua_createtable(L, 0, 0); const int list = lua_gettop(L);
+    lua_createtable(L, 0, 0); const int kinds = lua_gettop(L);
+    for (lua_Integer n = 0; n < limit; ++n) {
+        uint32_t size = sizeof name, kind = 0;
+        const sco_result r = st->next_table(s->self, n ? cursor : NULL, name, &size, &kind);
+        if (r == SCO_NOT_FOUND) break;
+        if (r != SCO_OK) return StoreFail(L, s, st, r);
+        lua_pushstring(L, name);  lua_rawseti(L, list, n + 1);
+        lua_pushinteger(L, kind); lua_rawseti(L, kinds, n + 1);
+        strcpy(cursor, name);
+        if (n + 1 < limit) sco_lua_step(L, STORE_STEPS);
+    }
+    lua_pushvalue(L, list); lua_pushvalue(L, kinds);
+    return 2;
+}
+/* columns(table[, limit]): lists of column names, declared types and flag bitmasks
+ * (1 = NOTNULL, 2 = PRIMARY KEY), in declaration order. Or nil, err, message. */
+static int L_store_columns(lua_State* L) {
+    Script* s;
+    const sco_storage_v1* st = StoreCall(L, &s);
+    if (!st) return StoreFail(L, s, st, SCO_UNAVAILABLE);
+    if (st->size < (uint32_t)(offsetof(sco_storage_v1, next_column) + sizeof(st->next_column)) || !st->next_column)
+        return StoreFail(L, s, st, SCO_UNAVAILABLE);
+    const char* table = CString(L, 1);
+    const lua_Integer limit = luaL_optinteger(L, 2, STORE_MAX_KEYS);
+    if (!table || limit < 1 || limit > STORE_MAX_KEYS) return StoreBad(L);
+    char cname[SCO_STORAGE_MAX_KEY + 1], ctype[SCO_STORAGE_MAX_KEY + 1];
+    lua_createtable(L, 0, 0); const int names = lua_gettop(L);
+    lua_createtable(L, 0, 0); const int types = lua_gettop(L);
+    lua_createtable(L, 0, 0); const int flags = lua_gettop(L);
+    for (lua_Integer n = 0; n < limit; ++n) {
+        uint32_t index = (uint32_t)n, ns = sizeof cname, ts = sizeof ctype, f = 0;
+        const sco_result r = st->next_column(s->self, table, &index, cname, &ns, ctype, &ts, &f);
+        if (r == SCO_NOT_FOUND) break;
+        if (r != SCO_OK) return StoreFail(L, s, st, r);
+        lua_pushstring(L, cname); lua_rawseti(L, names, n + 1);
+        lua_pushstring(L, ctype); lua_rawseti(L, types, n + 1);
+        lua_pushinteger(L, f);    lua_rawseti(L, flags, n + 1);
+        if (n + 1 < limit) sco_lua_step(L, STORE_STEPS);
+    }
+    lua_pushvalue(L, names); lua_pushvalue(L, types); lua_pushvalue(L, flags);
+    return 3;
+}
+
 static int StoreTx(lua_State* L, sco_result (*fn)(sco_plugin*), const sco_storage_v1* st, Script* s) {
     if (!st) return StoreFail(L, s, st, SCO_UNAVAILABLE);
     const sco_result r = fn(s->self);
@@ -1531,7 +1587,8 @@ static int SetupBody(lua_State* L) {
             { "available", L_store_available }, { "get", L_store_get }, { "put", L_store_put },
             { "delete", L_store_delete }, { "keys", L_store_keys }, { "begin", L_store_begin },
             { "commit", L_store_commit }, { "rollback", L_store_rollback }, { "exec", L_store_exec },
-            { "sql", L_store_sql }, { NULL, NULL } };
+            { "sql", L_store_sql }, { "tables", L_store_tables }, { "columns", L_store_columns },
+            { NULL, NULL } };
         luaL_newlib(L, stfns);
         lua_setfield(L, -2, "store");
     }

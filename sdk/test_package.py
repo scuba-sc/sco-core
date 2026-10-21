@@ -251,6 +251,20 @@ class RealManifest(unittest.TestCase):
         versions = pkg.metadata_names(self.m, "core")[0]
         self.assertNotIn("game pack", z.read(next(n for n in z.namelist() if n.endswith(versions))).decode())
 
+    def test_guides_ship_beside_the_catalogue(self):
+        """sdk-guides.json is generated in exactly the profiles that ship sdk-catalogue.json."""
+        for prof in self.m["profiles"]:
+            entries = pkg.archive_entries(self.m, prof)[1]
+            with self.subTest(profile=prof):
+                self.assertEqual("sdk-guides.json" in entries, "sdk-catalogue.json" in entries)
+                if "sdk-guides.json" in entries:
+                    self.assertEqual(entries["sdk-guides.json"][0], pkg.developer_guides(prof))
+                    data = json.loads(entries["sdk-guides.json"][0])
+                    self.assertEqual(data["source_sha"], pkg.source_commit())
+                    self.assertFalse([s for s in data["sections"] if s["doc"].startswith(("docs/legal/", "docs/design/"))])
+        self.assertEqual({p for p in self.m["profiles"] if pkg.developer_guides(p) is not None},
+                         {"game-sc", "legacy", "host-source-sc"})
+
     def test_core_and_game_sc_partition_legacy(self):
         names = {}
         for prof in ("core", "game-sc", "legacy"):
@@ -258,6 +272,62 @@ class RealManifest(unittest.TestCase):
             names[prof] = {n.split("/", 1)[1] for n in z.namelist()} - set(pkg.metadata_names(self.m, prof))
         self.assertEqual(names["core"] | names["game-sc"], names["legacy"])
         self.assertEqual(names["core"] & names["game-sc"], {"LICENSE"})
+
+    def test_archive_agent_discovery_and_scaffold(self):
+        """Real packaged stdio MCP works without a checkout or network catalogue."""
+        with zipfile.ZipFile(pkg.build(self.m, "legacy", os.path.join(self.tmp, "agent"))) as archive:
+            root = Path(self.tmp) / "agent-extracted"
+            archive.extractall(root)
+            kit = root / archive.namelist()[0].split("/")[0]
+        catalogue = json.loads((kit / "sdk-catalogue.json").read_text(encoding="utf-8"))
+        self.assertEqual(catalogue["source_sha"], pkg.source_commit())
+        guides = json.loads((kit / "sdk-guides.json").read_text(encoding="utf-8"))
+        self.assertEqual((guides["source_sha"], guides["sdk_version"]), (pkg.source_commit(), pkg.sdk_version()))
+        messages = [
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+                "protocolVersion": "2025-11-25", "capabilities": {},
+                "clientInfo": {"name": "archive-test", "version": "1"}}},
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        ]
+        for index, (name, arguments) in enumerate([
+            ("list_services", {}),
+            ("get_capability_status", {"symbol_or_id": "sc_container_contents_v1.snapshot"}),
+            ("list_engine_natives", {"limit": 1}),
+            ("generate_plugin_scaffold", {"id": "archive_probe", "lang": "c", "with_menu": True}),
+            ("get_example", {"symbol_or_id": "sc_container_contents_v1.snapshot", "language": "c"}),
+            ("validate_manifest_and_widgets", {"plugin_ini": "[plugin]\nid=archive_probe\nversion=0.1.0\napi=1.0\nkind=native\nentry=archive_probe.dll\n"}),
+            ("search_guides", {"query": "start your first plugin", "limit": 1}),
+        ], 3):
+            messages.append({"jsonrpc": "2.0", "id": index, "method": "tools/call",
+                             "params": {"name": name, "arguments": arguments}})
+        result = subprocess.run([sys.executable, str(kit / "tools/sco-core-mcp/server.py"),
+            "--catalogue", str(kit / "sdk-catalogue.json"), "--repo-root", str(kit), "--extended-tools"],
+            input="".join(json.dumps(message) + "\n" for message in messages),
+            cwd=self.tmp, capture_output=True, text=True, encoding="utf-8", timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        replies = {reply["id"]: reply for reply in map(json.loads, result.stdout.splitlines())}
+        self.assertEqual(len(replies[2]["result"]["tools"]), 12)
+        for index in range(3, 10):
+            self.assertNotIn("error", replies[index])
+            self.assertFalse(replies[index]["result"].get("isError", False), replies[index])
+        found = replies[9]["result"]["structuredContent"]
+        self.assertEqual((found["guides"]["mode"], found["guides"]["matches_catalogue_source_sha"]), ("file", True))
+        self.assertEqual(found["sections"][0]["doc"], "docs/getting-started.md")
+        scaffold = replies[6]["result"]
+        self.assertIn("archive_probe", json.dumps(scaffold))
+        payload = json.loads(scaffold["content"][0]["text"])
+        project = Path(self.tmp) / "archive_probe"
+        project.mkdir()
+        for name, text in payload["files"].items():
+            target = project / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        for command in (["cmake", "-S", str(project), "-B", str(project / "build"),
+                         "-DSCO_SDK=" + str(kit)],
+                        ["cmake", "--build", str(project / "build"), "--config", "Debug", "--target", "check"]):
+            checked = subprocess.run(command, cwd=self.tmp, capture_output=True, text=True, timeout=180)
+            self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
 
     def test_overlay_keeps_each_archives_own_metadata(self):
         """game-sc unpacks over core: its VERSIONS.txt and SHA256SUMS carry the profile name, so
@@ -384,7 +454,8 @@ class RealManifest(unittest.TestCase):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
                 root = self.installed_fixture(profile, tmp)
                 proof = pkg.check_installed_example_headers(self.m, profile, root, Path(tmp, "proof"))
-                self.assertEqual(proof["translation_units"], 7 if profile in ("game-sc", "legacy") else 6)  # template, hello, cpp_hello, widgets, diagnostics C/C++; + actor_stats_probe with the SC extension
+                expected_units = 10 if profile in ("game-sc", "legacy") else 9 if profile == "host-source-sc" else 8
+                self.assertEqual(proof["translation_units"], expected_units)
                 self.assertEqual(set(proof["languages"]), {"C", "CXX"})
                 self.assertIn("include/sco_api.h", proof["public_headers"])
                 self.assertIn("include/scosdk/scosdk.hpp", proof["public_headers"])
@@ -418,7 +489,7 @@ class RealManifest(unittest.TestCase):
                                      "--profile", "core", "--check-installed-headers", str(root)],
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn("6 external C/C++ examples compiled", result.stdout)
+            self.assertIn("8 external C/C++ examples compiled", result.stdout)
             self.assertIn("exact installed public header dependencies approved", result.stdout)
 
     def test_msvc_system_headers_use_evaluated_include_path(self):

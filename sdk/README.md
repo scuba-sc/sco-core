@@ -4,11 +4,11 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 
 | Kind | What it is | Example |
 |---|---|---|
-| `native` | A 64-bit Windows DLL written in C against `sco_api.h`, in C++20 with the `include/scosdk/` headers, or in C# with `csharp/Sco.Sdk` (NativeAOT) | [`examples/hello`](examples/hello), [`examples/cpp_hello`](examples/cpp_hello), [`examples/cs_hello`](examples/cs_hello) |
+| `native` | A 64-bit Windows DLL written in C against `sco_api.h`, in C++20 with the `include/scosdk/` headers, or in C# with `csharp/Sco.Sdk` (NativeAOT) | [`examples/hello`](examples/hello), [`examples/cpp_hello`](examples/cpp_hello), [`examples/cs_hello`](examples/cs_hello); two plugins sharing a service: [`examples/counter_service`](examples/counter_service) and [`examples/counter_panel`](examples/counter_panel) |
 | `data` | Files only: missions, rules, scripts, lists and game-data overrides (`datacore\*.toml`). Runs no code | [`examples/travel_pack`](examples/travel_pack), [`examples/quantum_pack`](examples/quantum_pack) |
 | `lua` | A Lua 5.4 script, run in a sandbox by sc-offline's bundled Lua runtime | [`examples/greeter`](examples/greeter), [`examples/notebook`](examples/notebook) (storage) |
 
-> **SDK 2.3.0** (tag `sdk-v2.3.0`; the plugin ABI is **1.1**, unchanged since `sdk-v1.1.0`; Star Citizen game pack 0.6.0; `VERSIONS.txt` in the zip says so, with the verified game build). See the [SDK 2.3.0 release notes](../docs/releases/sdk-v2.3.0.md). The API is stable: version 1 only grows, so a plugin built with this SDK keeps loading in later 1.x hosts. In sc-offline, plugin loading is on by default (`plugins = on` in `sc-offline.ini`); optional folders can still ship disabled. This product default is not a kernel policy. See the [SDK/MCP tutorial](../docs/sdk-mcp-tutorial.md) for isolated owned examples and lifecycle limits.
+> **SDK 2.4.0 development candidate**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** unchanged. See the [candidate notes](../docs/releases/sdk-v2.4.0.md); local archives are not approved release assets. The latest published SDK remains [2.3.0](../docs/releases/sdk-v2.3.0.md). The ABI only grows, but plugins must still check service versions, sized extents, capabilities and manifest requirements. In sc-offline, plugin loading is on by default (`plugins = on` in `sc-offline.ini`); optional folders can ship disabled. That product default is not kernel policy. See the [SDK/MCP tutorial](../docs/sdk-mcp-tutorial.md).
 
 **Native plugins run with the game's full rights.** Only install plugins you trust; sc-offline doesn't review them. Plugins never connect to Cloud Imperium Games' servers; the only connections allowed are local IPC (`sco.ipc`) and private LAN/VPN co-presence through `sco.net`, both host services: see [Plugin rules](docs/plugin-rules.md).
 
@@ -16,14 +16,14 @@ Build plugins for [sc-offline](https://github.com/scubamount/sc-offline), the St
 
 | Path | What |
 |---|---|
-| `include/sco_api.h` | The only header a native C plugin includes |
+| `include/sco_api.h` | The frozen root plugin ABI; include public service headers for the services used |
 | `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_ui_surfaces.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core); `sco_datacore.h` (Star Citizen extension) |
 | `include/sc_*.h` | Core: the MIT wires and bridge layouts (`sc_ipc.h`, `sc_net.h`, `sc_titanlink.h`, `sc_voxel_bridge.h`). Star Citizen extension: the game pack's service tables and events (`sc_spatial.h`, `sc_spawn.h`, `sc_actors.h`, `sc_vehicles.h`, `sc_world.h`, `sc_entities.h`, `sc_creative.h`, `sc_game_events.h`; [game services](../docs/game-services.md), [status](../docs/game/status.md)) and its version (`sc_game_pack.h`) |
 | `include/scosdk/` | The C++20 layer over `sco_api.h`, header-only: [C++ plugins](#c-plugins). `scosdk/game/` and `scosdk/datacore.hpp` come with the Star Citizen extension |
 | `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins-1). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |
 | `cmake/sco-plugin.cmake` | `sco_add_plugin()` and `sco_add_pack()`: build a plugin and lay it out |
 | `template/` | A native plugin to copy and rename |
-| `examples/` | `hello` (native C), `widgets` (native C, retained neutral UI), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
+| `examples/` | `hello` (native C), `counter_service` and `counter_panel` (native C: a provider and a consumer of one service table), `widgets` (native C, retained neutral UI), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
 | `tools/sco-plugin-check.c` | Checks a built plugin folder on your machine, without the game |
 | `tools/lua-check.lua` | Runs a Lua plugin against a stand-in `sco` table, without the game |
 | `docs/` | [plugin.ini](docs/plugin-ini.md), [data packs](docs/data-packs.md), [Lua](docs/lua.md), [plugin rules](docs/plugin-rules.md), [API reference](../docs/api-v1.md), [C++ SDK](../docs/sdk-cpp.md), [C# SDK](../docs/sdk-csharp.md) |
@@ -82,10 +82,10 @@ New C/C++ plugins use `sco.widgets` 1.0 (`sco_widgets.h`, `scosdk/widgets.hpp`):
 retained copied trees, typed game-thread events and no plugin renderer linkage.
 The [widget guide](docs/widgets.md) and `examples/widgets` show all eight widgets
 plus ROW/COLUMN layout with synthetic data. `sco-plugin-check` supplies deterministic
-headless interaction coverage. The C# route is deferred in
-[#142](https://github.com/scubamount/sco-core/issues/142); the Lua route is deferred
-in [#143](https://github.com/scubamount/sco-core/issues/143), both follow-ups to #139.
-Do not treat the existing C#/Lua `sco.ui` features as support for neutral widgets.
+headless interaction coverage. C# and Lua implement the bounded 1.0 set/remove
+route with rooted callbacks. Native C/C++ can submit extended nodes; raw C#
+`ScoWidgetNode12` interop does not add typed stable tags, and Lua accepts no `tag`.
+Typed 1.1 tail methods remain unsupported in those languages.
 The optional host-only adapter is source-kit code, never a public plugin header.
 
 ## Optional ImGui: a host-specific third-party ABI
@@ -183,7 +183,7 @@ cmake --build build
 cmake --install build --prefix out
 ```
 
-`out/data/plugins/` now holds `hello/`, `cpp_hello/`, `widgets/`, `greeter/`, `notebook/` and `my_plugin/` (the template), plus `travel_pack/` and `quantum_pack/` when the Star Citizen extension is unpacked over the core SDK, laid out the way sc-offline reads them, and `out/bin/` holds `sco-plugin-check`.
+`out/data/plugins/` now holds `hello/`, `cpp_hello/`, `widgets/`, `widgets_lua/`, `content_reader/`, `counter_service/`, `counter_panel/`, `greeter/`, `notebook/` and `my_plugin/` (the template), plus `travel_pack/` and `quantum_pack/` when the Star Citizen extension is unpacked over the core SDK, laid out the way sc-offline reads them, and `out/bin/` holds `sco-plugin-check`.
 
 ## Check a plugin
 
@@ -199,7 +199,7 @@ lua5.4 tools/lua-check.lua examples/greeter --invoke greeter.greet "Pilot One" t
 
 `--short-tables` hands the plugin a 1.0 host's `sco_api`: `size` 88 (`offsetof(sco_api, provide_service)`) and `minor` 0. Calling a 1.1 member (`provide_service`, `query_service`, `release_service`, `invoke_raw`, `register_raw`) without first checking `api->size >= offsetof(sco_api, member) + sizeof(api->member)` fails the check, with the size the call needed. Run it once on a plugin that should still load on an older host.
 
-The stand-in serves `sco.widgets` 1.1 by default: `update_nodes`, `remove_nodes` and `capabilities` apply the host's rules (IDs, preorder subtrees, a replaced root keeps its parent, a new root joins parent 0 or a ROW/COLUMN, no removal that empties the panel), each node is read as 1.0 or 1.1 by its own `size`, 1.1 tails (severity, tooltip, LIST/TABLE paging) are validated, panels holding a 1.1 node get `sco_widget_event_1_1` events with `row`, and `capabilities` reports the host's features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24, 1.1 node tails ignored): calling `update_nodes`, `remove_nodes` or `capabilities` without first checking `size >= offsetof(sco_widgets_v1, member) + sizeof(member)` and a non-NULL pointer fails the check. An unchecked `query_service` under `--short-tables` fails too, but still returns that 1.0 table, so later unchecked widgets calls are reported as well.
+The stand-in serves `sco.widgets` 1.2 by default. It validates complete preorder trees, subtree updates/removals, 1.1 tooltip/severity/paging tails and 1.2 stable tags, including resulting-panel tag uniqueness. Each node is read only through its advertised size; capability readback reports features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24), with extension tails ignored. Calling later table members without complete-member extent and non-null checks fails the checker. An unchecked `query_service` under that short root table also fails, while returning the stand-in table so subsequent unchecked calls can be diagnosed.
 
 The stand-in host is not the game: it has no game thread, no crash guard and no game features. A plugin that passes still needs a run in the game.
 
@@ -213,7 +213,7 @@ To switch one plugin off, create an empty file named `disabled` in its folder.
 
 ## Generate a plugin folder
 
-`tools/sco-new-plugin.py` (Python 3.8 or newer) writes a ready-to-build native plugin in one command:
+`tools/sco-new-plugin.py` (Python 3.8 or newer) writes a ready-to-build plugin folder in one command, in C, C++, C# or Lua:
 
 ```sh
 python3 tools/sco-new-plugin.py --id my_radar --lang c --out ../my_radar
@@ -222,10 +222,21 @@ cmake -S ../my_radar -B ../my_radar/build -DSCO_SDK="$PWD"
 cmake --build ../my_radar/build --target check
 ```
 
-- The folder holds `plugin.ini` (`api = 1.0`), `<id>.c` (C11) or `<id>.cpp` (C++20, `include/scosdk/`), and a `CMakeLists.txt` that builds the plugin with `cmake/sco-plugin.cmake`. Its `check` target builds `sco-plugin-check` from `tools/` and runs it on the plugin twice: as is, and with `--short-tables`.
+- C and C++: the folder holds `plugin.ini` (`api = 1.0`), `<id>.c` (C11) or `<id>.cpp` (C++20, `include/scosdk/`), and a `CMakeLists.txt` that builds the plugin with `cmake/sco-plugin.cmake`. Its `check` target builds `sco-plugin-check` from `tools/` and runs it on the plugin twice: as is, and with `--short-tables`.
 - Every generated plugin registers `<id>.ping`. The code checks `sco_api`'s size before any 1.1 member and each service table's `size` before using it, so the plugin also loads on a 1.0 host.
 - `--with-menu` adds a `sco.widgets` panel (`<id>.main`). C++ builds it with `scosdk::PanelBuilder` ([UI cookbook](../docs/ui.md)); C writes the `sco_widget_node` array itself. Without the service the plugin runs with no panel.
 - `--services NAME[@MAJOR.MINOR],...` (default version 1.0) looks each service up on `game.ready` and logs the ones that are missing; the plugin keeps working. `plugin.ini` lists them on a commented `requires` line. Uncomment it if the plugin can't run without them. Include a service's header to call its table.
+- `--lang csharp` writes `plugin.ini`, `<id>.csproj` (a NativeAOT class library that references `csharp/Sco.Sdk`, like [`cs_hello`](examples/cs_hello)), `<Name>Plugin.cs` (`Sco.Sdk` with the three exports; `--with-menu` uses `PanelBuilder`, `--services` uses `Query`) and a `README.md`. Publish and check it with the [.NET 8 SDK and NativeAOT toolchain](../docs/sdk-csharp.md#setup); `ScoSdk` (or the `SCO_SDK` environment variable) is this folder, and the publish copies `plugin.ini` next to the DLL. `out/bin/sco-plugin-check` comes from [Build the examples](#build-the-examples):
+
+  ```sh
+  python3 tools/sco-new-plugin.py --id my_radar --lang csharp --with-menu --out ../my_radar
+  dotnet publish ../my_radar -c Release -r win-x64 -o ../my_radar/out/my_radar -p:ScoSdk="$PWD"
+  out/bin/sco-plugin-check ../my_radar/out/my_radar
+  out/bin/sco-plugin-check ../my_radar/out/my_radar --short-tables
+  ```
+
+- `--lang lua` writes `plugin.ini` (`kind = lua`), `main.lua` (`<id>.ping`; `--with-menu` adds a [`sco.widgets`](docs/lua.md#renderer-neutral-widgets-scowidgets-10) panel when the host has the service) and a `CMakeLists.txt` that installs the folder with `sco_add_pack` and whose `check` target runs `sco-plugin-check` on it. `lua5.4 tools/lua-check.lua ../my_radar` runs the script against a stand-in. The Lua sandbox has no service lookup, so `--services` is refused for Lua (except `sco.widgets` with `--with-menu`).
+- The id, `--services` and text rules are the same in every language; a combination a language can't support is refused with the reason. Neither `sco-plugin-check` nor `lua-check.lua` is the game: a generated plugin that passes has not been run in game.
 - `--name` and `--author` set the display name and author. The id follows the rules below. The tool refuses an unsafe id, an output that is a file or a symbolic link, and a folder that isn't empty, and it never overwrites a file.
 - Other tools can import the file and call `render_plugin(spec)`, which returns `{relative path: text}` and writes nothing.
 

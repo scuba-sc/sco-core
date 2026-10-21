@@ -123,6 +123,23 @@ public:
         return t_ && Covers(t_->size, offsetof(sc_entities_v1, query_radius)) && t_->query_radius ? t_->query_radius(zoneId, pos, radius, classFilter, ids, max, &count, &more) : SCO_UNAVAILABLE;
     }
 
+    sco_result ListClasses(uint64_t epoch, uint32_t offset, sc_entity_class_page& page) const noexcept {
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1,list_classes)) && t_->list_classes ?
+            t_->list_classes(epoch,offset,&page) : SCO_UNAVAILABLE;
+    }
+    sco_result FindClass(const char* name, sc_entity_class_record& record) const noexcept {
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1,find_class)) && t_->find_class ?
+            t_->find_class(name,&record) : SCO_UNAVAILABLE;
+    }
+    sco_result FindByName(const char* name, uint64_t& id) const noexcept {
+        id=0;
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1,find_by_name)) && t_->find_by_name ?
+            t_->find_by_name(name,&id) : SCO_UNAVAILABLE;
+    }
+    sco_result Component(uint64_t id, uint32_t kind, sc_entity_component_record& record) const noexcept {
+        return t_ && Covers(t_->size, offsetof(sc_entities_v1,component)) && t_->component ?
+            t_->component(id,kind,&record) : SCO_UNAVAILABLE;
+    }
     // The reason for this plugin's last failed SetTransform, Spawn, Despawn, Keep, Watch or Unwatch.
     std::string LastError() const noexcept { return Error(self_); }
     // The reason for the last failed ClassOf, GetTransform or QueryRadius (they take no plugin handle).

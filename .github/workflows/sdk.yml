@@ -46,7 +46,8 @@ jobs:
       - name: Packaging tests (manifest, profiles, refusals)
         run: python3 sdk/test_package.py
 
-      # sco-new-plugin: C and C++ plugins generated, built against sdk/ and run through sco-plugin-check.
+      # sco-new-plugin: C, C++ and Lua scaffolds generated and checked against sdk/; the C# scaffold is
+      # published and checked in the test-zip.sh steps (SCO_SDK_CSHARP=1).
       - name: Plugin scaffolder tests (sdk/test_new_plugin.py)
         env:
           CC: clang

@@ -19,17 +19,23 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 ## What you get
 
 - **A stable ABI:** [`sco_api.h`](include/sco_api.h), version 1.1. Version 1 only grows, so a plugin built today keeps loading in later 1.x hosts.
-- **Host services:** storage (SQLite), UI and hotkeys, typed settings, DataCore patches, local IPC and private-session messages.
-- **Game services** from the Star Citizen game pack: actors and actor stats, vehicles, world, entities, events and more. Their signature rows resolve on the verified build 4.10.197.2878 (earlier checks were on 4.10.196.36804), but none has been run in a game session yet: [status of every game.* table](docs/game/status.md).
+- **Game-neutral host services:** storage (SQLite), retained widgets, UI and hotkeys, typed settings, local IPC and private-session messages.
+- **Optional Star Citizen extension:** DataCore patches and game services for actors, actor stats, vehicles, world, entities, events and more. Contract presence, native availability, static signature checks and in-game verification are separate: [status of every game.* table](docs/game/status.md). No current game-service implementation is claimed verified in game.
 - **Native fault handling and hot reload:** guarded host-entered calls on Windows support best-effort fault attribution and withdrawal, not safe recovery. Native plugins are trusted in-process code, not sandboxed; raw service calls and custom workers are not automatically guarded, and corruption can still end the process. Eligible plugins can reload while the game runs; restart after a native fault. [Guard limits and restart rules](docs/plugins.md#crash-containment).
 
 ## Quick start: write a plugin
 
 SDK [2.3.0](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.3.0) is the latest published release (plugin ABI 1.1). Download `sco-sdk-<version>.zip` from the [latest published release](https://github.com/scubamount/sco-core/releases/latest), or build it with `python3 sdk/package.py`. Then:
 
+The development tree targets SDK **2.4.0**, game pack **0.8.0**, with unchanged
+plugin ABI **1.1**. It is unreleased; local archives are not approved release
+assets. See the [candidate notes](docs/releases/sdk-v2.4.0.md).
+
 ```sh
 cd sco-sdk-<version>
-cmake -S . -B build && cmake --build build && cmake --install build --prefix out
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+cmake --install build --config Release --prefix out
 out/bin/sco-plugin-check out/data/plugins/hello --invoke hello.wave "Pilot One"
 ```
 

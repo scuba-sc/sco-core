@@ -10,6 +10,8 @@ extern const SigDef kSystemSignatures[];
 extern const size_t kSystemSignatureCount;
 extern const SigDef kPakSignatures[];
 extern const size_t kPakSignatureCount;
+extern const SigDef kDataCoreLiveSignatures[];
+extern const size_t kDataCoreLiveSignatureCount;
 extern const SigDef kAsopSignatures[];
 extern const size_t kAsopSignatureCount;
 extern const SigDef kAtcSignatures[];
@@ -45,6 +47,7 @@ bool RegisterGameSignatures() {
     const bool ok = RegisterSignatures(kTeleportSignatures, kTeleportSignatureCount)
                  && RegisterSignatures(kSystemSignatures, kSystemSignatureCount)
                  && RegisterSignatures(kPakSignatures, kPakSignatureCount)
+                  && RegisterSignatures(kDataCoreLiveSignatures, kDataCoreLiveSignatureCount)
                  && RegisterSignatures(kAsopSignatures, kAsopSignatureCount)
                  && RegisterSignatures(kAtcSignatures, kAtcSignatureCount)
                  && RegisterSignatures(kHangarSignatures, kHangarSignatureCount)
