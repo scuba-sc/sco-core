@@ -5,8 +5,10 @@ is today, what SDK 2.4.0 is meant to deliver, and where it goes after that. It i
 release promise: there are no dates, and a feature named here exists only when its contract,
 implementation and evidence say so in [game capability status](game/status.md) and the release notes.
 
-The newest published SDK is [2.3.0](releases/sdk-v2.3.0.md). SDK 2.4.0 is an unpublished
-development candidate ([draft notes](releases/sdk-v2.4.0.md)).
+The current SDK is 2.4.0, published on 2026-10-21 as
+[release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1) (tag `sdk-v2.4.0-rc.1`, a
+GitHub pre-release; [release notes](releases/sdk-v2.4.0.md)). It is the only SDK release on the
+release page. The final signed `sdk-v2.4.0` release follows.
 
 ## How to read status on this page
 
@@ -53,14 +55,15 @@ sco-core instead of a game build, and a game patch is fixed once here instead of
 Contributions follow [IP_POLICY.md](../IP_POLICY.md): no game files, dumps or leaked code, and you
 must have the right to contribute what you send.
 
-## 2. Milestone 1: SDK 2.4.0, the contributor platform (current candidate)
+## 2. Milestone 1: SDK 2.4.0, the contributor platform (release candidate 1)
 
 **Goal:** a developer can discover a capability, read its contract and limits, write a plugin in a
 supported language, validate it without the game, and deploy it on a compatible host, without
 reverse engineering anything.
 
-Status: **development candidate, not released.** Plugin ABI 1.1 stays byte-identical. Star Citizen
-game pack 0.8.0 on verified build 4.10.197.2878.
+Status: **release candidate 1 published** (`sdk-v2.4.0-rc.1`, a GitHub pre-release with the five
+archives); the final signed `sdk-v2.4.0` release follows. Plugin ABI 1.1 stays byte-identical. Star
+Citizen game pack 0.8.0 on verified build 4.10.197.2878. Nothing new in 2.4.0 has been run in game.
 
 ### Developer kit
 

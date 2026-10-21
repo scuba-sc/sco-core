@@ -25,11 +25,13 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 
 ## Quick start: write a plugin
 
-SDK [2.3.0](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.3.0) is the latest published release (plugin ABI 1.1). Download `sco-sdk-<version>.zip` from the [latest published release](https://github.com/scubamount/sco-core/releases/latest), or build it with `python3 sdk/package.py`. Then:
-
-The development tree targets SDK **2.4.0**, game pack **0.8.0**, with unchanged
-plugin ABI **1.1**. It is unreleased; local archives are not approved release
-assets. See the [candidate notes](docs/releases/sdk-v2.4.0.md).
+The current SDK is **2.4.0**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** (unchanged
+since 2.3.0), published as [release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1)
+(tag `sdk-v2.4.0-rc.1`, a GitHub pre-release; the final signed `sdk-v2.4.0` follows). Download
+`sco-sdk-2.4.0.zip` (or `sco-sdk-core-2.4.0.zip`) and `SHA256SUMS` from that release page and
+check the digest as in [Start your first plugin](docs/getting-started.md), or build an archive
+with `python3 sdk/package.py`. See the [2.4.0 release notes](docs/releases/sdk-v2.4.0.md); nothing
+new in 2.4.0 has been run in game. Then:
 
 ```sh
 cd sco-sdk-<version>

@@ -1,7 +1,7 @@
 # Designing modular plugins
 
 How to cut a feature into plugins that stay small, replaceable and safe to combine. It
-applies to the SDK 2.4.0 development candidate and plugin ABI 1.1; every API name below is
+applies to SDK 2.4.0 (release candidate 1) and plugin ABI 1.1; every API name below is
 in [`sco_api.h`](../include/sco_api.h) or a host-service header, and the rules are the
 ones the host already enforces ([API v1](api-v1.md), [plugin.ini](../sdk/docs/plugin-ini.md),
 [plugin rules](../sdk/docs/plugin-rules.md)). This page adds the design reasoning and a
