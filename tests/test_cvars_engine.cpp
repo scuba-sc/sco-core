@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Real native-access adapter over synthetic vtables, never a game session.
+// CVar interface slot positions and the write-blocking flag: F-4.10.197.2878-052 (with
+// F-4.10.196.36804-007). Not run in game.
 #include "../src/game/services/cvars_engine.h"
 #include <sc_cvars_write.h>
 #include "sco/host.h"

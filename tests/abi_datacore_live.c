@@ -1,4 +1,7 @@
-/* SPDX-License-Identifier: MIT */
+/* SPDX-License-Identifier: GPL-3.0-only */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include "sc_datacore_live.h"
 #include <assert.h>
 #include <stdio.h>

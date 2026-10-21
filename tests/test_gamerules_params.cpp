@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// game.gamerules 1.1 list_params: the static parameter-definition registry (F-INTAKE-005 member
-// names, no values). Real host API and service start/stop; nothing here runs in game.
+// game.gamerules 1.1 list_params: the static parameter-definition registry (15 names verified on
+// 4.10.197.2878, F-4.10.197.2878-054; no values). Real host API and service start/stop; nothing
+// here runs in game.
 #include <sc_gamerules.h>
 #include "../src/game/services/gamerules.h"
 #include "sco/host.h"
@@ -16,18 +17,17 @@ static int pass = 0, fail = 0;
 #define CHECK(x) do { if (x) ++pass; else { ++fail; std::printf("FAIL %d: %s\n", __LINE__, #x); } } while (0)
 
 struct Expect { uint32_t type; const char* group; const char* name; };
-// Declaration order of SGameRulesCvars, nested structs flattened where they are declared.
+// Registry order of the g_gameRules.<group>.<name> console variables; group is empty for a
+// top-level g_gameRules.<name> variable.
 static const Expect kExpect[] = {
     {SC_GAMERULES_PARAM_INT, "control", "capturableDebug"},
     {SC_GAMERULES_PARAM_INT, "control", "phaseDebug"},
     {SC_GAMERULES_PARAM_INT, "control", "objectiveDebug"},
-    {SC_GAMERULES_PARAM_FLOAT, "control", "terminalsDisabledTime"},
     {SC_GAMERULES_PARAM_INT, "state", "log"},
     {SC_GAMERULES_PARAM_INT, "scoring", "enabled"},
     {SC_GAMERULES_PARAM_INT, "scoring", "log"},
     {SC_GAMERULES_PARAM_INT, "damagehandling", "log"},
     {SC_GAMERULES_PARAM_INT, "damagehandling", "disableCollisionFilter"},
-    {SC_GAMERULES_PARAM_INT, "accessibility", "QTEMode"},
     {SC_GAMERULES_PARAM_INT, "", "showRaceCheckpoints"},
     {SC_GAMERULES_PARAM_INT, "", "showRaceInfo"},
     {SC_GAMERULES_PARAM_FLOAT, "", "overrideRespawnTimer"},
@@ -37,6 +37,7 @@ static const Expect kExpect[] = {
     {SC_GAMERULES_PARAM_INT, "", "allowAllPlayerCameras"},
 };
 static constexpr uint32_t kTotal = sizeof(kExpect) / sizeof(kExpect[0]);
+static_assert(kTotal == 15, "the 15 parameters verified on 4.10.197.2878");
 
 static unsigned reads = 0;
 static bool BackendRead(void*, sc_gamerules_state* out) { ++reads; out->valid = 1; return true; }

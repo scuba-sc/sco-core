@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // SPDX-FileCopyrightText: 2026 the sco-core contributors
+// Native DataCore counted-read adapter over a synthetic owner object laid out at the owner layout
+// of F-4.10.197.2878-051 (and F-4.10.197.2878-031). Synthetic pool values only; not run in game.
 #include "../src/game/services/datacore_live_engine.h"
 #include "../src/game/services/datacore_live.h"
 #include "sco/host.h"

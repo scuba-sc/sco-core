@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- GameRules `list_params` now lists the 15 parameters verified on game build
+  4.10.197.2878 (F-4.10.197.2878-054); two names that do not occur on that build are
+  removed. Native adapter facts (DataCore owner layout, CVar interface slots, item-port
+  slots) cite their banked findings (F-4.10.197.2878-051..-053). Not run in game.
 - `game.input` now ships the 1,297 actions re-verified on game build 4.10.197.2878
   (F-4.10.197.2878-050), replacing an unverified table whose ids were wrong for
   this build (for example `attack1` is 115). Ids 1..1297 and their names come from
@@ -162,7 +166,7 @@ See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).
 SDK 2.4.0 packages the entries below without changing frozen plugin ABI 1.1
 (`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.3.0). Core, legacy,
 core-source and host-source-sc use 2.4.0. The candidate adds the game service tables
-`game.actor_stats` 1.1, `game.actor_stats_write` 1.0, `game.gamerules` 1.1 (with the 17-entry `list_params` tail), `game.build` 1.0, `game.input` 1.0
+`game.actor_stats` 1.1, `game.actor_stats_write` 1.0, `game.gamerules` 1.1 (with the 15-entry `list_params` tail), `game.build` 1.0, `game.input` 1.0
 (a 1,297-name action registry re-verified on 4.10.197.2878) and `game.inventory` 1.1
 (an item-port adapter with the 192-member item category enumeration, `game.inventory.read` held OFF),
 new bus events `game.mission.changed` (capability default ON; no active production
@@ -187,9 +191,10 @@ readiness. Other additions retain their registry-recorded OFF or conditional gat
   Deferred to the game-thread tick, gated by verified offline provider attestation;
   native hook unresolved and production capability OFF. Not run in game.
 - **`game.gamerules` 1.1 parameter definitions**: additive `list_params` tail,
-  17 copied names/groups/types (F-INTAKE-005), paged and count-only enumeration.
-  No live values or parameter offsets; the read prefix and wrappers stay intact.
-  Source build unresolved; default read backend remains unavailable. Not run in game.
+  15 names/groups/types, paged and count-only enumeration. The names are the
+  GameRules console variables verified on 4.10.197.2878 (F-4.10.197.2878-054); the
+  INT/FLOAT types are not verified. No live values or parameter offsets; the read
+  prefix and wrappers stay intact. Default read backend remains unavailable. Not run in game.
 - **`game.input` 1.0 action registry** (`sc_input.h`): 1,297 named actions,
   ids 1..1297 on 4.10.197.2878, O(1) id lookup and binary-search name lookup.
   No sentinel records or aliases. No input injection or engine
