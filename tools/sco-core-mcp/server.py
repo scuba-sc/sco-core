@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Read-only, tools-only MCP 2025-11-25 server for SDK catalogue schema 1.
 
-No SDK invocation, subprocesses, network access, or filesystem writes. Stdout is
-reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr. Besides
-the catalogue and record-listed examples, only sdk/status_registry.json (else
-docs/game/status.md), docs/legal/release-decisions/ and, with --extended-tools,
-sdk/native_index.json and sdk/tools/sco-new-plugin.py are read, and only beneath
---repo-root. With --extended-tools the guide tools also read sdk-guides.json beside
-the catalogue (or --guides); without one, they build the guide sections in memory
-from --repo-root's tools/sdk_guides.py and the public docs it allowlists. Those two
-generators are the only repository code this process runs: with --extended-tools,
-on the first call that needs them, in-process.
+By default: no SDK invocation, subprocesses, network access, or filesystem writes.
+Stdout is reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr.
+Besides the catalogue and record-listed examples, only sdk/status_registry.json
+(else docs/game/status.md), docs/legal/release-decisions/ and, with
+--extended-tools, sdk/native_index.json and sdk/tools/sco-new-plugin.py are read,
+and only beneath --repo-root. With --extended-tools the guide tools also read
+sdk-guides.json beside the catalogue (or --guides); without one, they build the
+guide sections in memory from --repo-root's tools/sdk_guides.py and the public docs
+it allowlists. Those two generators are the only repository code this process runs:
+with --extended-tools, on the first call that needs them, in-process.
+
+The one exception is opt-in: with --enable-dev-tools and at least one
+--project-root, three more tools run operator-configured programs (sco-plugin-check,
+cmake, ctest) with fixed arguments on a folder inside a project root, with a
+timeout, an output cap and a process-tree kill. Callers never supply commands,
+flags or environment.
 """
 import argparse
 from collections import Counter, deque
@@ -22,8 +28,12 @@ import math
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shutil
+import signal
 import stat
+import subprocess
 import sys
+import threading
 import time
 
 PROTOCOL_VERSION = "2025-11-25"
@@ -223,7 +233,47 @@ EXTENDED_TOOLS = [
     tool("get_guide_section", "Return one SDK guide section's bounded plain text by the doc and anchor search_guides returned.",
          {"doc": string_schema(256), "anchor": string_schema(256)}, ("doc", "anchor")),
 ]
-TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS}
+# Opt-in with --enable-dev-tools plus --project-root. These run programs on this machine, including the
+# plugin's and the project's own code, so they do not claim to be read-only.
+DEV_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": True,
+                   "idempotentHint": False, "openWorldHint": False}
+DEV_PATH = string_schema(1024)
+
+
+def dev_tool(name, description, properties, required):
+    definition = tool(name, description, properties, required)
+    definition["annotations"] = dict(DEV_ANNOTATIONS)
+    return definition
+
+
+DEV_TOOLS = [
+    dev_tool("run_plugin_check", "Run the operator-configured sco-plugin-check on a built plugin folder inside a --project-root "
+             "(mode short adds --short-tables, as a 1.0 host serves); returns exit code, pass/fail and FAIL lines. "
+             "Loads and runs the plugin's code against a stand-in host; not run in game.",
+             {"folder": DEV_PATH, "mode": {"type": "string", "enum": ["full", "short"], "default": "full"}}, ("folder",)),
+    dev_tool("build_plugin_project", "Configure and build a CMake plugin project inside a --project-root with the operator's cmake, "
+             "generator and SCO_SDK, into the project's build subfolder; fixed arguments, bounded output tail.",
+             {"project": DEV_PATH}, ("project",)),
+    dev_tool("test_plugin_project", "Run ctest in the build subfolder of a plugin project inside a --project-root with fixed "
+             "arguments; bounded output tail. Build it first with build_plugin_project.",
+             {"project": DEV_PATH}, ("project",)),
+]
+TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS + DEV_TOOLS}
+DEV_TIMEOUT = 600
+DEV_TIMEOUT_RANGE = (1, 7200)
+DEV_OUTPUT = 32 * 1024
+DEV_OUTPUT_RANGE = (256, 256 * 1024)
+DEV_FINDINGS = 256
+DEV_LINE = 2048
+DEV_BUILD_CONFIG = "Release"
+DEV_EXE = ".exe" if os.name == "nt" else ""
+CHECK_SUMMARY = re.compile(r"^(OK|FAILED): [0-9]+ failure\(s\)$")
+CTEST_SUMMARY = re.compile(r"^[0-9]+% tests passed, [0-9]+ tests? failed out of [0-9]+$")
+DEV_CONCLUSIONS = [
+    "Ran on this machine: an operator-configured program with fixed arguments; the caller supplied only a folder inside a --project-root.",
+    "The project's CMakeLists.txt and the plugin's own code run with the server's privileges; treat each project root as code you would run yourself.",
+    "output is the last output_limit bytes of combined stdout and stderr; findings and summary are collected from the whole stream.",
+    "sco-plugin-check is a stand-in host, not the real host. Nothing here loaded the plugin in the game: not run in game."]
 
 
 class ToolError(ValueError):
@@ -355,7 +405,7 @@ def validate_arguments(name, arguments):
         elif type(value) is not int or not spec["minimum"] <= value <= spec["maximum"]:
             raise ToolError(key + " must be an integer within the advertised range")
         if "enum" in spec and value not in spec["enum"]:
-            raise ToolError(key + " is not an advertised language")
+            raise ToolError(key + (" is not an advertised language" if key == "language" else " is not an advertised value"))
         if "pattern" in spec and not re.fullmatch(spec["pattern"], value):
             raise ToolError(key + " does not match the advertised pattern")
     for key, needed in schema.get("dependentRequired", {}).items():
@@ -1157,6 +1207,331 @@ VALIDATION_CONCLUSIONS = [
     "Pure validation of the supplied text: no file is read or written and nothing is executed."]
 
 
+# ---- opt-in development tools: operator programs, fixed arguments, folders inside --project-root ----
+_KERNEL32 = None
+
+
+def _kernel32():
+    """kernel32 with typed job-object calls; loaded only when a development tool first runs on Windows."""
+    global _KERNEL32
+    if _KERNEL32 is None:
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        for name, argtypes, restype in (
+                ("CreateJobObjectW", (wintypes.LPVOID, wintypes.LPCWSTR), wintypes.HANDLE),
+                ("OpenProcess", (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD), wintypes.HANDLE),
+                ("AssignProcessToJobObject", (wintypes.HANDLE, wintypes.HANDLE), wintypes.BOOL),
+                ("TerminateJobObject", (wintypes.HANDLE, wintypes.UINT), wintypes.BOOL),
+                ("CloseHandle", (wintypes.HANDLE,), wintypes.BOOL)):
+            function = getattr(kernel32, name)
+            function.argtypes, function.restype = argtypes, restype
+        _KERNEL32 = kernel32
+    return _KERNEL32
+
+
+def _job_for(pid):
+    """A Windows job object holding the process, so a timeout also ends descendants that outlive their parent."""
+    try:
+        kernel32 = _kernel32()
+        job = kernel32.CreateJobObjectW(None, None)
+        if not job:
+            return None
+        handle = kernel32.OpenProcess(0x0100 | 0x0001, False, pid)  # PROCESS_SET_QUOTA | PROCESS_TERMINATE
+        assigned = bool(handle) and bool(kernel32.AssignProcessToJobObject(job, handle))
+        if handle:
+            kernel32.CloseHandle(handle)
+        if not assigned:
+            kernel32.CloseHandle(job)
+            return None
+        return job
+    except (OSError, AttributeError):
+        return None
+
+
+def kill_tree(process, job):
+    """Kill the process and its descendants: taskkill /T and the job object on Windows, the process group elsewhere."""
+    if os.name == "nt":
+        taskkill = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "taskkill.exe")
+        try:
+            subprocess.run([taskkill, "/F", "/T", "/PID", str(process.pid)], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15,
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        if job:
+            _kernel32().TerminateJobObject(job, 1)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    try:
+        process.kill()
+    except OSError:
+        pass
+
+
+def run_bounded(argv, cwd, timeout, limit, env=None, summary=None, finding_prefix=None):
+    """Run argv without a shell, stdin closed, in its own process group; bounded time and output.
+
+    Returns the exit code, the last `limit` bytes of combined stdout/stderr, and, read from the
+    whole stream, lines starting with finding_prefix and the last line matching summary.
+    """
+    flags = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
+             if os.name == "nt" else {"start_new_session": True})
+    started = time.monotonic()
+    try:
+        process = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, **flags)
+    except OSError as error:
+        return {"state": "not_started", "reason": "the program could not be started: " + type(error).__name__,
+                "exit_code": None, "timed_out": False}
+    job = _job_for(process.pid) if os.name == "nt" else None
+    lock = threading.Lock()
+    tail, pending = bytearray(), bytearray()
+    seen = {"bytes": 0, "findings": [], "summary": None}
+
+    def take(line):
+        text = bytes(line[:DEV_LINE]).decode("utf-8", errors="replace").rstrip("\r")
+        if finding_prefix and text.startswith(finding_prefix) and len(seen["findings"]) < DEV_FINDINGS:
+            seen["findings"].append(text[len(finding_prefix):])
+        if summary and summary.match(text.strip()):
+            seen["summary"] = text.strip()
+
+    def read():
+        while True:
+            try:
+                chunk = process.stdout.read1(65536)
+            except (OSError, ValueError):
+                break
+            if not chunk:
+                break
+            with lock:
+                seen["bytes"] += len(chunk)
+                tail.extend(chunk)
+                if len(tail) > limit:
+                    del tail[:len(tail) - limit]
+                pending.extend(chunk)
+                while True:
+                    end = pending.find(b"\n")
+                    if end < 0:
+                        break
+                    take(pending[:end])
+                    del pending[:end + 1]
+                if len(pending) > 2 * DEV_LINE:  # one very long line: keep its head only
+                    del pending[DEV_LINE:]
+        with lock:
+            if pending:
+                take(pending)
+                pending.clear()
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    timed_out = False
+    try:
+        exit_code = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        kill_tree(process, job)
+        try:
+            exit_code = process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            exit_code = None
+    finally:
+        if job:
+            _kernel32().CloseHandle(job)
+    reader.join(timeout=5)
+    complete = not reader.is_alive()
+    if complete:
+        process.stdout.close()
+    with lock:
+        output = bytes(tail).decode("utf-8", errors="replace").replace("\r\n", "\n")
+        result = {"state": "timed_out" if timed_out else "completed", "exit_code": exit_code, "timed_out": timed_out,
+                  "duration_seconds": round(time.monotonic() - started, 3), "output": output,
+                  "output_bytes": seen["bytes"], "output_truncated": seen["bytes"] > len(tail),
+                  "output_complete": complete, "output_limit": limit}
+        if finding_prefix:
+            result["findings"] = list(seen["findings"])
+        if summary:
+            result["summary"] = seen["summary"]
+    return result
+
+
+def within(path, root):
+    path, root = os.path.normcase(str(path)), os.path.normcase(str(root))
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:  # different drives, or a mix of absolute and relative
+        return False
+
+
+def launch(program):
+    """argv prefix for an operator-configured program; a .py wrapper runs with this interpreter."""
+    return [sys.executable, program] if program.lower().endswith(".py") else [program]
+
+
+class DevTools:
+    """Operator configuration for the opt-in development tools. Callers supply only a folder and a mode."""
+
+    def __init__(self, project_roots, repo_root=None, plugin_check=None, cmake=None, ctest=None, generator=None,
+                 platform=None, sco_sdk=None, timeout=DEV_TIMEOUT, output_limit=DEV_OUTPUT):
+        require(project_roots, "--enable-dev-tools needs at least one --project-root")
+        self.roots = []
+        for root in project_roots:
+            configured = Path(os.path.abspath(root))
+            resolved = configured.resolve(strict=True)
+            require(resolved.is_dir(), "--project-root is not a directory: " + str(configured))
+            self.roots.append((configured, resolved))
+        require(type(timeout) is int and DEV_TIMEOUT_RANGE[0] <= timeout <= DEV_TIMEOUT_RANGE[1],
+                "--dev-timeout must be %d-%d seconds" % DEV_TIMEOUT_RANGE)
+        require(type(output_limit) is int and DEV_OUTPUT_RANGE[0] <= output_limit <= DEV_OUTPUT_RANGE[1],
+                "--dev-output-limit must be %d-%d bytes" % DEV_OUTPUT_RANGE)
+        for name, value in (("--cmake-generator", generator), ("--cmake-platform", platform)):
+            require(value is None or (nonempty(value) and len(value) <= 128 and "\x00" not in value), name + " must be short text")
+        self.timeout, self.output_limit = timeout, output_limit
+        self.generator, self.platform = generator, platform
+        self.repo_root = Path(os.path.abspath(repo_root)) if repo_root else None
+        self.plugin_check = os.path.abspath(plugin_check) if plugin_check else None
+        self.cmake = os.path.abspath(cmake) if cmake else None
+        self.ctest = os.path.abspath(ctest) if ctest else None
+        self.sco_sdk = Path(os.path.abspath(sco_sdk)) if sco_sdk else None
+
+    # Programs are found at call time, so a checker built after the server started is picked up.
+    def sdk(self):
+        if self.sco_sdk is not None:
+            candidates = [self.sco_sdk]
+        elif self.repo_root is not None:
+            candidates = [self.repo_root, self.repo_root / "sdk"]
+        else:
+            return None, "No --sco-sdk or --repo-root: the SDK folder passed as SCO_SDK is not configured"
+        for candidate in candidates:
+            if (candidate / "cmake" / "sco-plugin.cmake").is_file():
+                return str(candidate), None
+        return None, "No cmake/sco-plugin.cmake in the configured SDK folder (--sco-sdk, else --repo-root or its sdk/)"
+
+    def checker(self):
+        if self.plugin_check is not None:
+            if os.path.isfile(self.plugin_check):
+                return self.plugin_check, None
+            return None, "--plugin-check names no file"
+        sdk, _ = self.sdk()
+        if sdk is not None:
+            for folder in ("bin", os.path.join("out", "bin")):
+                candidate = os.path.join(sdk, folder, "sco-plugin-check" + DEV_EXE)
+                if os.path.isfile(candidate):
+                    return candidate, None
+        return None, ("No --plugin-check, and no built sco-plugin-check in the SDK folder's bin/ or out/bin/ "
+                      "(cmake --install <build> --prefix out installs it there)")
+
+    def cmake_program(self):
+        if self.cmake is not None:
+            return (self.cmake, None) if os.path.isfile(self.cmake) else (None, "--cmake names no file")
+        found = shutil.which("cmake")
+        return (found, None) if found else (None, "No --cmake and no cmake on the server's PATH")
+
+    def ctest_program(self):
+        if self.ctest is not None:
+            return (self.ctest, None) if os.path.isfile(self.ctest) else (None, "--ctest names no file")
+        cmake, _ = self.cmake_program()
+        if cmake is not None:
+            sibling = Path(cmake).with_name("ctest" + Path(cmake).suffix)
+            if sibling.is_file():
+                return str(sibling), None
+        found = shutil.which("ctest")
+        return (found, None) if found else (None, "No --ctest, no ctest beside cmake and none on the server's PATH")
+
+    def contained(self, value, what):
+        """Resolve a caller path; refuse it unless it is an existing folder inside a project root.
+
+        A relative path is taken from the first --project-root. The path is checked lexically before
+        the filesystem is touched, then again after resolving symlinks, junctions and .. components.
+        Outside, missing and not-a-folder get the same refusal, so nothing is learned about other paths.
+        """
+        refusal = what + " must be an existing folder inside a --project-root (after resolving symlinks and ..)"
+        if "\x00" in value or (os.name == "nt" and ":" in value[2:]):
+            raise ToolError(refusal)
+        candidate = os.path.normpath(os.path.join(str(self.roots[0][0]), value))
+        if not any(within(candidate, root) for pair in self.roots for root in pair):
+            raise ToolError(refusal)
+        try:
+            resolved = Path(candidate).resolve(strict=True)
+            inside = any(within(resolved, root) for _, root in self.roots) and resolved.is_dir()
+        except (OSError, RuntimeError, ValueError):
+            inside = False
+        if not inside:
+            raise ToolError(refusal)
+        return resolved
+
+    def project(self, value):
+        project = self.contained(value, "project")
+        if not (project / "CMakeLists.txt").is_file():
+            raise ToolError("project has no CMakeLists.txt")
+        build = project / "build"
+        if os.path.lexists(build):
+            try:
+                resolved = build.resolve(strict=True)
+                inside = any(within(resolved, root) for _, root in self.roots) and resolved.is_dir()
+            except (OSError, RuntimeError, ValueError):
+                inside = False
+            if not inside:
+                raise ToolError("project's build entry must be a folder inside a --project-root")
+            build = resolved
+        return project, build
+
+    def run(self, program, arguments, cwd, timeout=None, **kwargs):
+        return run_bounded(launch(program) + arguments, str(cwd), self.timeout if timeout is None else timeout,
+                           self.output_limit, **kwargs)
+
+    def run_plugin_check(self, args):
+        folder, mode = self.contained(args["folder"], "folder"), args.get("mode", "full")
+        result = {"tool": "sco-plugin-check", "folder": str(folder), "mode": mode, "passed": False,
+                  "conclusions": DEV_CONCLUSIONS}
+        program, reason = self.checker()
+        if program is None:
+            return result | {"state": "unavailable", "reason": reason}
+        arguments = [str(folder)] + (["--short-tables"] if mode == "short" else [])
+        run = self.run(program, arguments, folder, summary=CHECK_SUMMARY, finding_prefix="FAIL ")
+        return result | {"program": Path(program).name, "arguments": arguments} | run | {
+            "passed": run["state"] == "completed" and run["exit_code"] == 0}
+
+    def build_plugin_project(self, args):
+        project, build = self.project(args["project"])
+        result = {"tool": "cmake", "project": str(project), "build_dir": str(build), "config": DEV_BUILD_CONFIG,
+                  "passed": False, "steps": [], "conclusions": DEV_CONCLUSIONS}
+        cmake, reason = self.cmake_program()
+        sdk, sdk_reason = self.sdk()
+        if cmake is None or sdk is None:
+            return result | {"state": "unavailable", "reason": reason or sdk_reason, "exit_code": None}
+        configure = (["-S", str(project), "-B", str(build)] + (["-G", self.generator] if self.generator else [])
+                     + (["-A", self.platform] if self.platform else []) + ["-DSCO_SDK=" + sdk])
+        environment = dict(os.environ, MSBUILDDISABLENODEREUSE="1")  # no MSBuild node outlives the call
+        deadline = time.monotonic() + self.timeout
+        steps = [{"step": "configure", "arguments": configure} | self.run(cmake, configure, project, env=environment)]
+        if steps[0]["state"] == "completed" and steps[0]["exit_code"] == 0:
+            arguments = ["--build", str(build), "--config", DEV_BUILD_CONFIG]
+            remaining = max(deadline - time.monotonic(), 0.001)
+            steps.append({"step": "build", "arguments": arguments}
+                         | self.run(cmake, arguments, project, timeout=remaining, env=environment))
+        last = steps[-1]
+        return result | {"program": Path(cmake).name, "state": last["state"], "exit_code": last["exit_code"], "steps": steps,
+                         "passed": len(steps) == 2 and all(s["state"] == "completed" and s["exit_code"] == 0 for s in steps)}
+
+    def test_plugin_project(self, args):
+        project, build = self.project(args["project"])
+        result = {"tool": "ctest", "project": str(project), "build_dir": str(build), "config": DEV_BUILD_CONFIG,
+                  "passed": False, "conclusions": DEV_CONCLUSIONS}
+        if not (build / "CMakeCache.txt").is_file():
+            raise ToolError("project is not configured: no build/CMakeCache.txt; run build_plugin_project first")
+        ctest, reason = self.ctest_program()
+        if ctest is None:
+            return result | {"state": "unavailable", "reason": reason}
+        arguments = ["--test-dir", str(build), "-C", DEV_BUILD_CONFIG, "--output-on-failure", "--no-tests=error"]
+        run = self.run(ctest, arguments, project, summary=CTEST_SUMMARY)
+        return result | {"program": Path(ctest).name, "arguments": arguments} | run | {
+            "passed": run["state"] == "completed" and run["exit_code"] == 0}
+
+
 def aliases(record):
     # Schema 1 has no aliases field: derive searchable names from source evidence,
     # retaining the full original mapping evidence in get_symbol.
@@ -1168,13 +1543,15 @@ def aliases(record):
 
 
 class Server:
-    def __init__(self, catalogue, repo_root=None, extended_tools=False, guides_path=None, guides_explicit=False):
+    def __init__(self, catalogue, repo_root=None, extended_tools=False, guides_path=None, guides_explicit=False,
+                 dev_tools=None):
         self.catalogue = catalogue
         # sdk-guides.json beside the catalogue (archive mode) or an explicit --guides file.
         self.guides_path, self.guides_explicit = guides_path, guides_explicit
         self.guides = None
         self.guide_words = None
-        self.tools = TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS
+        self.tools = (TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS) + (DEV_TOOLS if dev_tools else [])
+        self.dev = dev_tools
         self.enabled = {definition["name"] for definition in self.tools}
         self.provenance = {key: catalogue[key] for key in PROVENANCE_KEYS}
         self.repo_root = Path(os.path.abspath(repo_root)) if repo_root is not None else None
@@ -1607,6 +1984,8 @@ class Server:
             return self.search_guides(args)
         if name == "get_guide_section":
             return self.guide_section(args)
+        if name in ("run_plugin_check", "build_plugin_project", "test_plugin_project"):
+            return getattr(self.dev, name)(args)
         if name == "validate_manifest_and_widgets":
             result = {"manifest": check_manifest(args["plugin_ini"], args.get("folder"))}
             if "widgets" in args:
@@ -1730,10 +2109,42 @@ def main():
                              "generate_plugin_scaffold, search_guides and get_guide_section")
     parser.add_argument("--guides", help="sdk-guides.json for the guide tools (default: sdk-guides.json beside the "
                                          "catalogue, else built in memory from --repo-root)")
+    development = parser.add_argument_group(
+        "development tools", "run_plugin_check, build_plugin_project and test_plugin_project run programs on this "
+        "machine; they are offered only with --enable-dev-tools and at least one --project-root")
+    development.add_argument("--enable-dev-tools", action="store_true")
+    development.add_argument("--project-root", action="append", default=[],
+                             help="a folder whose plugin folders and projects the tools may use (repeatable)")
+    development.add_argument("--plugin-check", help="sco-plugin-check program (default: the SDK folder's bin/ or out/bin/)")
+    development.add_argument("--cmake", help="cmake program (default: cmake on PATH)")
+    development.add_argument("--ctest", help="ctest program (default: ctest beside cmake, else on PATH)")
+    development.add_argument("--cmake-generator", help="passed as -G when configuring (default: cmake's own)")
+    development.add_argument("--cmake-platform", help="passed as -A when configuring, e.g. x64 (default: none)")
+    development.add_argument("--sco-sdk", help="SDK folder passed as -DSCO_SDK (default: --repo-root, else its sdk/)")
+    development.add_argument("--dev-timeout", type=int, default=DEV_TIMEOUT,
+                             help="seconds per call before the process tree is killed (default %d)" % DEV_TIMEOUT)
+    development.add_argument("--dev-output-limit", type=int, default=DEV_OUTPUT,
+                             help="bytes of output tail returned per step (default %d)" % DEV_OUTPUT)
     args = parser.parse_args()
     if not args.catalogue:
         parser.error("--catalogue or SCO_CORE_CATALOGUE is required")
     guides = args.guides or os.path.join(os.path.dirname(os.path.abspath(args.catalogue)), GUIDES_FILE)
+    dev_options = ("project_root", "plugin_check", "cmake", "ctest", "cmake_generator", "cmake_platform", "sco_sdk")
+    if not args.enable_dev_tools and (any(getattr(args, name) for name in dev_options)
+                                      or args.dev_timeout != DEV_TIMEOUT or args.dev_output_limit != DEV_OUTPUT):
+        parser.error("development tool options need --enable-dev-tools")
+    if args.enable_dev_tools and not args.project_root:
+        parser.error("--enable-dev-tools needs at least one --project-root")
+    dev_tools = None
+    if args.enable_dev_tools:
+        try:
+            dev_tools = DevTools(args.project_root, args.repo_root, args.plugin_check, args.cmake, args.ctest,
+                                 args.cmake_generator, args.cmake_platform, args.sco_sdk, args.dev_timeout,
+                                 args.dev_output_limit)
+        except (OSError, ValueError, RuntimeError) as error:
+            print("sco-core-mcp: development tools refused: " + type(error).__name__ +
+                  (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
+            return 1
     try:
         catalogue = load_catalogue(args.catalogue)
     except (OSError, ValueError, RecursionError) as error:
@@ -1741,7 +2152,7 @@ def main():
               (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
         return 1
     try:
-        Server(catalogue, args.repo_root, args.extended_tools, guides, args.guides is not None).serve(
+        Server(catalogue, args.repo_root, args.extended_tools, guides, args.guides is not None, dev_tools).serve(
             sys.stdin.buffer, sys.stdout.buffer)
     except BrokenPipeError:
         return 0

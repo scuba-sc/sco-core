@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 
 HERE = Path(__file__).resolve().parent
@@ -36,6 +37,7 @@ TOOLS = {
 ORIGINAL_ORDER = ["search_api", "get_symbol", "list_services", "get_example", "get_capability_status", "check_compatibility"]
 EXTENDED_ORDER = ORIGINAL_ORDER + ["list_engine_natives", "get_engine_native", "validate_manifest_and_widgets",
                                    "generate_plugin_scaffold", "search_guides", "get_guide_section"]
+DEV_ORDER = ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
 SCAFFOLDER = ROOT / "sdk" / "tools" / "sco-new-plugin.py"
 PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source_sha"}
 
@@ -96,7 +98,7 @@ class Client:
     """One real child process; bounded reads without platform-specific selectors."""
 
     def __init__(self, catalogue=CATALOGUE, repo_root=None, use_env=False, extended=False, extra=()):
-        command = [sys.executable, str(SERVER)] + (["--extended-tools"] if extended else []) + list(extra)
+        command = [sys.executable, str(SERVER)] + (["--extended-tools"] if extended else []) + [str(a) for a in extra]
         environment = os.environ.copy()
         environment.pop("SCO_CORE_CATALOGUE", None)
         if use_env:
@@ -2014,6 +2016,302 @@ class BuildIntegrationTests(ServerCase):
             self.assertEqual(found["guides"]["mode"], "source")
 
 
+# Synthetic stand-ins for the operator's programs: Python scripts the server runs with its own
+# interpreter, so nothing is compiled. Each records its arguments next to its output.
+FAKE_CHECK = r'''
+import os, subprocess, sys, time
+folder = sys.argv[1]
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "check-ran.log"), "a") as log:
+    log.write(folder + "\n")
+marker = lambda name: os.path.exists(os.path.join(folder, name))
+print(folder)
+print("  args " + " ".join(sys.argv[2:]), flush=True)
+if marker("hang"):
+    subprocess.Popen([sys.executable, "-c", "import sys, time; time.sleep(4); open(sys.argv[1], 'w').write('survived')",
+                      os.path.join(folder, "survived")])
+    print("hanging", flush=True)
+    time.sleep(60)
+if marker("noisy"):
+    print("FAIL early finding")
+    for number in range(5000):
+        print("line %05d of synthetic output" % number)
+    print("FAILED: 1 failure(s)")
+    sys.exit(1)
+if marker("bad"):
+    print("FAIL plugin.ini: missing key 'entry'")
+    print("FAIL id 'bad' does not match folder 'other'")
+    print("FAILED: 2 failure(s)")
+    sys.exit(1)
+print("OK: 0 failure(s)")
+'''
+FAKE_CMAKE = r'''
+import json, os, sys, time
+args = sys.argv[1:]
+def record(build, name):
+    with open(os.path.join(build, name), "w") as stream:
+        json.dump({"args": args, "nodereuse": os.environ.get("MSBUILDDISABLENODEREUSE")}, stream)
+if args[0] == "-S":
+    source, build = args[1], args[3]
+    os.makedirs(build, exist_ok=True)
+    record(build, "configure-args.json")
+    print("-- Configuring done")
+    if os.path.exists(os.path.join(source, "fail-configure")):
+        print("CMake Error: synthetic configure failure")
+        sys.exit(1)
+    open(os.path.join(build, "CMakeCache.txt"), "w").close()
+    print("-- Generating done")
+    sys.exit(0)
+if args[0] == "--build":
+    build = args[1]
+    source = os.path.dirname(build)
+    record(build, "build-args.json")
+    if os.path.exists(os.path.join(source, "hang-build")):
+        print("building slowly", flush=True)
+        time.sleep(60)
+    if os.path.exists(os.path.join(source, "fail-build")):
+        print("error: synthetic compile failure")
+        sys.exit(1)
+    print("Build succeeded")
+    sys.exit(0)
+sys.exit(2)
+'''
+FAKE_CTEST = r'''
+import json, os, sys
+args = sys.argv[1:]
+build = args[1]
+with open(os.path.join(build, "ctest-args.json"), "w") as stream:
+    json.dump(args, stream)
+if os.path.exists(os.path.join(os.path.dirname(build), "fail-test")):
+    print("50% tests passed, 1 tests failed out of 2")
+    sys.exit(8)
+print("100% tests passed, 0 tests failed out of 2")
+'''
+DEV_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}
+REFUSED = "inside a --project-root"
+
+
+class DevToolTests(ServerCase):
+    """Opt-in run_plugin_check, build_plugin_project and test_plugin_project, with synthetic programs."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="sco_mcp_dev_")
+        self.addCleanup(temporary.cleanup)
+        base = Path(temporary.name)
+        self.tools, self.root, self.outside = base / "tools", base / "projects", base / "outside"
+        for folder in (self.tools, self.root, self.outside, self.tools / "sdk" / "cmake"):
+            folder.mkdir(parents=True, exist_ok=True)
+        (self.tools / "sdk" / "cmake" / "sco-plugin.cmake").write_text("# synthetic\n", encoding="utf-8")
+        for name, text in (("check.py", FAKE_CHECK), ("cmake.py", FAKE_CMAKE), ("ctest.py", FAKE_CTEST)):
+            (self.tools / name).write_text(text, encoding="utf-8")
+        (self.outside / "plugin").mkdir()
+        (self.outside / "plugin" / "plugin.ini").write_text("id = plugin\n", encoding="utf-8")
+        (self.outside / "CMakeLists.txt").write_text("# outside\n", encoding="utf-8")
+
+    def options(self, timeout=None, limit=None, checker=True, cmake=True, sdk=True):
+        options = ["--enable-dev-tools", "--project-root", self.root, "--cmake-generator", "Fake Generator",
+                   "--cmake-platform", "x64"]
+        options += ["--plugin-check", self.tools / "check.py"] if checker else []
+        options += ["--cmake", self.tools / "cmake.py"] if cmake else []
+        options += ["--sco-sdk", self.tools / "sdk"] if sdk else []
+        options += ["--dev-timeout", timeout] if timeout is not None else []
+        options += ["--dev-output-limit", limit] if limit is not None else []
+        return options
+
+    def client(self, **kwargs):
+        return self.start(extra=self.options(**kwargs))
+
+    def folder(self, name, *markers):
+        folder = self.root / name
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "plugin.ini").write_text("id = %s\n" % name, encoding="utf-8")
+        for marker in markers:
+            (folder / marker).write_text("", encoding="utf-8")
+        return folder
+
+    def project(self, name, *markers):
+        project = self.folder(name, *markers)
+        (project / "CMakeLists.txt").write_text("# synthetic\n", encoding="utf-8")
+        return project
+
+    def symlink(self, link, target):
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError) as error:
+            self.skipTest("cannot create a directory symlink here: " + type(error).__name__)
+
+    def refused(self, client, name, arguments, token=REFUSED):
+        result = self.result(client.call(name, arguments), is_error=True)
+        self.assertIn(token, result["error"])
+        return result
+
+    def test_disabled_by_default_and_tool_lists(self):
+        for extended, order in ((False, ORIGINAL_ORDER), (True, EXTENDED_ORDER)):
+            client = self.start(extended=extended)
+            self.assertEqual([tool["name"] for tool in client.request("tools/list")["result"]["tools"]], order)
+            for name in DEV_ORDER:
+                with self.subTest(extended=extended, name=name):
+                    self.rpc_error(client.call(name, {"folder": str(self.root)}), -32602)
+        for extended, order in ((False, ORIGINAL_ORDER), (True, EXTENDED_ORDER)):
+            tools = self.start(extended=extended, extra=self.options()).request("tools/list")["result"]["tools"]
+            self.assertEqual([tool["name"] for tool in tools], order + DEV_ORDER)
+            for tool in tools[len(order):]:
+                self.assertEqual(tool["annotations"], DEV_ANNOTATIONS)
+                self.assertIs(tool["inputSchema"]["additionalProperties"], False)
+
+    def test_startup_refusals(self):
+        missing = self.root / "missing"
+        for options in (["--enable-dev-tools"], ["--project-root", self.root], ["--cmake", self.tools / "cmake.py"],
+                        ["--enable-dev-tools", "--project-root", missing],
+                        ["--enable-dev-tools", "--project-root", self.tools / "check.py"],
+                        self.options(timeout=0), self.options(limit=10)):
+            with self.subTest(options=[str(option) for option in options]):
+                run = subprocess.run([sys.executable, str(SERVER), "--catalogue", str(CATALOGUE)] + [str(o) for o in options],
+                                     stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertEqual(run.stdout, b"")
+
+    def test_plugin_check_pass_fail_and_short_mode(self):
+        client = self.client()
+        good, bad = self.folder("good"), self.folder("bad", "bad")
+        result = self.result(client.call("run_plugin_check", {"folder": str(good)}))
+        self.assertEqual((result["state"], result["exit_code"], result["passed"]), ("completed", 0, True))
+        self.assertEqual((result["mode"], result["arguments"], result["findings"]), ("full", [str(good.resolve())], []))
+        self.assertEqual((result["summary"], result["program"]), ("OK: 0 failure(s)", "check.py"))
+        self.assertFalse(result["output_truncated"])
+        self.assertTrue(any("not run in game" in line for line in result["conclusions"]))
+        short = self.result(client.call("run_plugin_check", {"folder": str(good), "mode": "short"}))
+        self.assertEqual(short["arguments"], [str(good.resolve()), "--short-tables"])
+        self.assertIn("args --short-tables", short["output"])
+        failed = self.result(client.call("run_plugin_check", {"folder": "bad"}))  # relative: from the first root
+        self.assertEqual((failed["exit_code"], failed["passed"], failed["summary"]), (1, False, "FAILED: 2 failure(s)"))
+        self.assertEqual(failed["findings"], ["plugin.ini: missing key 'entry'", "id 'bad' does not match folder 'other'"])
+        self.assertEqual(failed["folder"], str(bad.resolve()))
+
+    def test_paths_outside_the_roots_are_refused_before_running(self):
+        client = self.client()
+        self.folder("inner")
+        (self.root / "file.txt").write_text("", encoding="utf-8")
+        outside = self.outside / "plugin"
+        for folder in (str(outside), "../outside/plugin", "inner/../../outside/plugin", str(self.root / ".." / "outside" / "plugin"),
+                       "missing", "file.txt", "inner\x00", str(self.tools)):
+            with self.subTest(folder=folder):
+                self.refused(client, "run_plugin_check", {"folder": folder})
+                self.assertFalse((self.tools / "check-ran.log").exists())
+        for name in ("build_plugin_project", "test_plugin_project"):
+            with self.subTest(name=name):
+                self.refused(client, name, {"project": str(self.outside)})
+                self.refused(client, name, {"project": "../outside"})
+        self.assertFalse((self.outside / "build").exists())
+
+    def test_symlink_escape_is_refused(self):
+        self.symlink(self.root / "escape", self.outside / "plugin")
+        self.symlink(self.root / "projlink", self.outside)
+        inner = self.folder("inner")
+        self.symlink(self.root / "alias", inner)
+        client = self.client()
+        self.refused(client, "run_plugin_check", {"folder": "escape"})
+        self.refused(client, "build_plugin_project", {"project": "projlink"})
+        self.assertFalse((self.tools / "check-ran.log").exists())
+        # A link that stays inside a root is followed; the result names the resolved folder.
+        followed = self.result(client.call("run_plugin_check", {"folder": "alias"}))
+        self.assertEqual((followed["passed"], followed["folder"]), (True, str(inner.resolve())))
+        project = self.project("proj")
+        self.symlink(project / "build", self.outside)
+        self.refused(client, "build_plugin_project", {"project": "proj"}, "build entry")
+        self.assertFalse((self.outside / "configure-args.json").exists())
+
+    def test_timeout_kills_the_process_tree(self):
+        folder = self.folder("slow", "hang")
+        client = self.client(timeout=2)
+        started = time.monotonic()
+        result = self.result(client.call("run_plugin_check", {"folder": "slow"}))
+        self.assertLess(time.monotonic() - started, 30)
+        self.assertEqual((result["state"], result["timed_out"], result["passed"]), ("timed_out", True, False))
+        self.assertNotEqual(result["exit_code"], 0)
+        self.assertIn("hanging", result["output"])  # the grandchild had been started
+        time.sleep(max(0.0, started + 7 - time.monotonic()))
+        self.assertFalse((folder / "survived").exists(), "a grandchild outlived the timeout")
+
+    def test_output_is_capped_but_findings_cover_the_whole_stream(self):
+        self.folder("noisy", "noisy")
+        result = self.result(self.client(limit=1024).call("run_plugin_check", {"folder": "noisy"}))
+        self.assertEqual((result["exit_code"], result["passed"], result["output_limit"]), (1, False, 1024))
+        self.assertTrue(result["output_truncated"])
+        self.assertGreater(result["output_bytes"], 100000)
+        self.assertLessEqual(len(result["output"].encode("utf-8")), 1024)
+        self.assertIn("FAILED: 1 failure(s)", result["output"])
+        self.assertNotIn("FAIL early finding", result["output"])
+        self.assertEqual((result["findings"], result["summary"]), (["early finding"], "FAILED: 1 failure(s)"))
+
+    def test_build_and_test_use_fixed_arguments(self):
+        project = self.project("demo").resolve()
+        client = self.client()
+        self.refused(client, "test_plugin_project", {"project": "demo"}, "not configured")
+        built = self.result(client.call("build_plugin_project", {"project": "demo"}))
+        self.assertEqual((built["state"], built["exit_code"], built["passed"]), ("completed", 0, True))
+        self.assertEqual([step["step"] for step in built["steps"]], ["configure", "build"])
+        build = project / "build"
+        configure = json.loads((build / "configure-args.json").read_text(encoding="utf-8"))
+        self.assertEqual(configure, {"args": ["-S", str(project), "-B", str(build), "-G", "Fake Generator", "-A", "x64",
+                                              "-DSCO_SDK=" + str(self.tools / "sdk")], "nodereuse": "1"})
+        self.assertEqual(json.loads((build / "build-args.json").read_text(encoding="utf-8"))["args"],
+                         ["--build", str(build.resolve()), "--config", "Release"])
+        self.assertIn("Build succeeded", built["steps"][1]["output"])
+        tested = self.result(client.call("test_plugin_project", {"project": str(project)}))
+        self.assertEqual((tested["exit_code"], tested["passed"], tested["program"]), (0, True, "ctest.py"))
+        self.assertEqual(tested["summary"], "100% tests passed, 0 tests failed out of 2")
+        self.assertEqual(json.loads((build / "ctest-args.json").read_text(encoding="utf-8")),
+                         ["--test-dir", str(build.resolve()), "-C", "Release", "--output-on-failure", "--no-tests=error"])
+
+    def test_build_and_test_failures(self):
+        client = self.client()
+        self.project("noconf", "fail-configure")
+        configure = self.result(client.call("build_plugin_project", {"project": "noconf"}))
+        self.assertEqual(([s["step"] for s in configure["steps"]], configure["exit_code"], configure["passed"]),
+                         (["configure"], 1, False))
+        self.project("nobuild", "fail-build")
+        build = self.result(client.call("build_plugin_project", {"project": "nobuild"}))
+        self.assertEqual((len(build["steps"]), build["exit_code"], build["passed"]), (2, 1, False))
+        self.assertIn("synthetic compile failure", build["steps"][1]["output"])
+        self.project("notest", "fail-test")
+        self.assertTrue(self.result(client.call("build_plugin_project", {"project": "notest"}))["passed"])
+        tested = self.result(client.call("test_plugin_project", {"project": "notest"}))
+        self.assertEqual((tested["exit_code"], tested["passed"]), (8, False))
+        self.assertEqual(tested["summary"], "50% tests passed, 1 tests failed out of 2")
+        self.folder("nolists")
+        self.refused(client, "build_plugin_project", {"project": "nolists"}, "CMakeLists.txt")
+
+    def test_build_timeout(self):
+        self.project("stuck", "hang-build")
+        result = self.result(self.client(timeout=2).call("build_plugin_project", {"project": "stuck"}))
+        self.assertEqual((result["state"], result["passed"]), ("timed_out", False))
+        self.assertEqual([step["state"] for step in result["steps"]], ["completed", "timed_out"])
+
+    def test_unconfigured_programs_are_unavailable(self):
+        self.folder("good")
+        self.project("demo")
+        client = self.client(checker=False, cmake=False, sdk=False)
+        checked = self.result(client.call("run_plugin_check", {"folder": "good"}))
+        self.assertEqual((checked["state"], checked["passed"]), ("unavailable", False))
+        self.assertIn("--plugin-check", checked["reason"])
+        built = self.result(client.call("build_plugin_project", {"project": "demo"}))
+        self.assertEqual((built["state"], built["passed"], built["steps"]), ("unavailable", False, []))
+        self.assertFalse((self.root / "demo" / "build").exists())
+
+    def test_arguments_are_strict(self):
+        client = self.client()
+        self.folder("good")
+        for name, arguments in (("run_plugin_check", {"folder": "good", "mode": "fast"}),
+                                ("run_plugin_check", {"folder": "good", "args": ["--invoke", "x"]}),
+                                ("run_plugin_check", {"folder": 1}),
+                                ("run_plugin_check", {}),
+                                ("build_plugin_project", {"project": "good", "generator": "Ninja"}),
+                                ("test_plugin_project", {"project": ""})):
+            with self.subTest(name=name, arguments=arguments):
+                self.result(client.call(name, arguments), is_error=True)
+        self.assertFalse((self.tools / "check-ran.log").exists())
+
+
 README = HERE / "README.md"
 AGENT_GUIDE = ROOT / "docs" / "agent-integration.md"
 TOOL_TABLE = "| Tool | Arguments | Purpose |"
@@ -2070,14 +2368,17 @@ class DocumentationTests(ServerCase):
     """The README's tool tables and argument names are the server's actual tools/list."""
 
     def listed(self):
-        return self.start(extended=True).request("tools/list")["result"]["tools"]
+        root = tempfile.TemporaryDirectory(prefix="sco_mcp_test_")
+        self.addCleanup(root.cleanup)
+        return self.start(extended=True, extra=["--enable-dev-tools", "--project-root", root.name]).request(
+            "tools/list")["result"]["tools"]
 
     def test_readme_tool_tables_match_tools_list(self):
         self.assertEqual(documentation_refusals(README.read_text(encoding="utf-8"), self.listed()), [])
 
     def test_agent_guide_names_every_tool(self):
         guide = AGENT_GUIDE.read_text(encoding="utf-8")
-        for name in EXTENDED_ORDER:
+        for name in EXTENDED_ORDER + DEV_ORDER:
             with self.subTest(name=name):
                 self.assertIn(f"`{name}`" if name not in ORIGINAL_ORDER else f'"{name}"', guide)
 

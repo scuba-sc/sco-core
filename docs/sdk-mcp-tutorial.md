@@ -190,6 +190,54 @@ proof. Discovery never compiles, writes files, invokes commands or reloads
 plugins. Runtime metadata inspection, if independently authorized, uses the
 [separate default-off launcher](../tools/sco-core-mcp-runtime/README.md).
 
+### Optional: let the agent build and check
+
+The same loop can run through MCP on your own machine, with three opt-in
+development tools. Start the server with `--enable-dev-tools` and a project root
+that holds your project folder. On Windows with Visual Studio 2022, add a
+generator and platform as well:
+
+```sh
+python3 /absolute/sdk/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/sdk/sdk-catalogue.json \
+  --repo-root /absolute/sdk --extended-tools \
+  --enable-dev-tools --project-root /absolute/project \
+  --cmake-generator "Visual Studio 17 2022" --cmake-platform x64
+```
+
+The SDK folder comes from `--repo-root` (or set `--sco-sdk`). The checker is
+`sco-plugin-check` in that folder's `out/bin/` (or `bin/`), where building the
+SDK and `cmake --install <build> --prefix out` put it, unless you name one with
+`--plugin-check`. Then send:
+
+```json
+{"name":"build_plugin_project","arguments":{"project":"my_probe"}}
+```
+
+```json
+{"name":"run_plugin_check","arguments":{"folder":"my_probe/build/check/my_probe"}}
+```
+
+```json
+{"name":"run_plugin_check","arguments":{"folder":"my_probe/build/check/my_probe","mode":"short"}}
+```
+
+Relative paths start at the first project root. Require `passed: true` on each
+result. The build result has a `configure` and a `build` step, each with its exit
+code and the tail of its output. A check result lists the checker's `FAIL` lines
+as `findings` and its last line as `summary`. Those two checks repeat what the
+generated `check` target does. If your project registers CTest tests,
+`test_plugin_project` with the same `project` runs them; with no tests it fails
+on purpose.
+
+The caller supplies only the folder and the mode; the operator's command line
+fixes everything else, and paths outside the project roots are refused. The
+build and the checker run your project's code on this machine, and a timeout
+kills the whole process tree. The
+[server README](../tools/sco-core-mcp/README.md#development-tools-opt-in)
+describes the security model. A passing check here is the same synthetic
+evidence as above: **not run in game**.
+
 ### Installation and lifecycle limits
 
 Installation remains an explicit owner action through the product's documented

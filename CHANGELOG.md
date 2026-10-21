@@ -4,6 +4,16 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- The discovery MCP server (`tools/sco-core-mcp/server.py`) gains three opt-in
+  development tools: `run_plugin_check` runs `sco-plugin-check` on a built plugin
+  folder (`full` or `short` tables), and `build_plugin_project` and
+  `test_plugin_project` configure, build and test a CMake plugin project in its
+  own `build` folder. They are off unless the operator passes
+  `--enable-dev-tools` and at least one `--project-root`. Callers supply only a
+  folder inside a project root; the operator fixes the programs, generator, SDK
+  folder, timeout and output cap. A timeout kills the whole process tree. The
+  default and `--extended-tools` lists are unchanged. No ABI change. Tested with
+  synthetic stand-in programs; not run in game.
 - Added guide search to the discovery MCP server. `tools/sdk_guides.py` builds
   `sdk-guides.json` from the Markdown guides in `site/public-inputs.json` (never
   `docs/legal/` or `docs/design/`) and the shipped `sdk/docs` guides that
