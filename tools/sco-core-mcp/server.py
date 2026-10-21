@@ -13,7 +13,7 @@ generators are the only repository code this process runs: with --extended-tools
 on the first call that needs them, in-process.
 """
 import argparse
-from collections import deque
+from collections import Counter, deque
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -103,11 +103,14 @@ GUIDE_SNIPPET = 320
 GUIDE_STOPWORDS = frozenset(
     "a an and are as at be by can do does for from how i in is it me my of on or should the this to "
     "what when where which why with you your".split())
+GUIDE_WORD = re.compile(r"[\w.+#-]+")
 GUIDE_CONCLUSIONS = [
-    "Sections are the Markdown guides listed in site/public-inputs.json, as plain text bounded to text_limit characters; "
-    "a truncated section continues in the guide at url.",
-    "anchor is the GitHub-style heading slug in the repository file; url is the docs-site page, whose heading anchors may differ.",
-    "Ranking is plain term matching, heading and title above body text, not semantic search.",
+    "Sections are the Markdown guides listed in site/public-inputs.json and the SDK's shipped sdk/docs guides, as plain "
+    "text bounded to text_limit characters; a truncated section continues in the guide at url.",
+    "anchor is the GitHub-style heading slug in the repository file; url is the docs-site page (or the repository path "
+    "for sdk/docs guides), whose heading anchors may differ.",
+    "Ranking is whole-word term matching (a term of four or more characters also matches words it starts), heading and "
+    "title above body text, not semantic search.",
     "Guides are prose, not contract records (use get_symbol), and nothing in them is evidence that code ran in game."]
 GAME_STATUS_HEADER = "| Table | Version | Stability | Capability | Default | Evidence |"
 GAME_STATUS_SEPARATOR = "|---|---|---|---|---|---|"
@@ -210,9 +213,10 @@ EXTENDED_TOOLS = [
           "with_menu": {"type": "boolean", "default": False},
           "services": {"type": "array", "minItems": 0, "maxItems": 16,
                        "items": {**string_schema(75), "pattern": SCAFFOLD_SERVICE}}}, ("id", "lang")),
-    tool("search_guides", "Rank sections of the SDK guides (sdk-guides.json, built from the public docs allowlist) by the query's "
-         "terms, heading and title above body text, optionally within one doc; returns bounded snippets with doc, heading, "
-         "anchor and url, one page per call. Guide prose is not a contract record or in-game evidence.",
+    tool("search_guides", "Rank sections of the SDK guides (sdk-guides.json: the public docs allowlist and the shipped sdk/docs "
+         "guides) by the query's whole-word terms, heading and title above body text, optionally within one doc; returns "
+         "bounded snippets with doc, heading, anchor and url, one page per call. Guide prose is not a contract record or "
+         "in-game evidence.",
          {"query": string_schema(256), "doc": string_schema(256),
           "limit": {"type": "integer", "minimum": 1, "maximum": 25, "default": 5},
           "cursor": {**string_schema(6), "pattern": r"^(0|[1-9][0-9]{0,5})$"}}, ("query",)),
@@ -663,18 +667,39 @@ def parse_guides(data):
     return data, by_key
 
 
+def guide_sequence(text):
+    """Casefolded whole words in order (the query tokenizer)."""
+    return [word for word in (word.strip(".-") for word in GUIDE_WORD.findall(text.casefold())) if word]
+
+
 def guide_terms(query):
-    """Casefolded query words without common question words, unless nothing else is left."""
-    words = [word.strip(".-") for word in re.findall(r"[\w.+#-]+", query.casefold())]
-    words = list(dict.fromkeys(word for word in words if word))
-    kept = [word for word in words if word not in GUIDE_STOPWORDS]
-    return kept or words
+    """Query words without common question words or single characters, unless nothing else is left."""
+    words = list(dict.fromkeys(guide_sequence(query)))
+    kept = [word for word in words if word not in GUIDE_STOPWORDS] or words
+    return [word for word in kept if len(word) > 1] or kept
+
+
+def guide_index(text):
+    """(word counts, padded word sequence): whole words, plus the parts of dotted or hyphenated ones."""
+    sequence = guide_sequence(text)
+    counts = Counter(sequence)
+    counts.update(part for word in sequence if "." in word or "-" in word
+                  for part in re.split(r"[.-]+", word) if part)
+    return counts, " " + " ".join(sequence) + " "
+
+
+def guide_hits(counts, term):
+    """Whole-word occurrences of term; a term of four or more characters also counts words it starts."""
+    if len(term) < 4:
+        return counts.get(term, 0)
+    return sum(count for word, count in counts.items() if word.startswith(term))
 
 
 def guide_snippet(text, terms):
     """A bounded, whitespace-collapsed window of text around the first term it contains."""
     folded = text.casefold()
-    positions = [position for position in (folded.find(term) for term in terms) if position >= 0]
+    found = (re.search(r"(?<![\w])" + re.escape(term) + (r"" if len(term) >= 4 else r"(?![\w])"), folded) for term in terms)
+    positions = [match.start() for match in found if match]
     start = max(0, min(positions) - GUIDE_SNIPPET // 4) if positions else 0
     end = min(len(text), start + GUIDE_SNIPPET)
     snippet = " ".join(text[start:end].split())
@@ -1148,6 +1173,7 @@ class Server:
         # sdk-guides.json beside the catalogue (archive mode) or an explicit --guides file.
         self.guides_path, self.guides_explicit = guides_path, guides_explicit
         self.guides = None
+        self.guide_words = None
         self.tools = TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS
         self.enabled = {definition["name"] for definition in self.tools}
         self.provenance = {key: catalogue[key] for key in PROVENANCE_KEYS}
@@ -1266,28 +1292,34 @@ class Server:
     def search_guides(self, args):
         data, _, context = self.guide_data()
         if "doc" in args and not any(doc["doc"] == args["doc"] for doc in data["docs"]):
-            raise ToolError("Unknown doc; pass a doc path a search_guides result returned")
+            raise ToolError("Unknown doc; known docs: " + ", ".join(sorted(doc["doc"] for doc in data["docs"])))
         terms = guide_terms(args["query"])
         if not terms:
             raise ToolError("query has no searchable words")
-        phrase = " ".join(terms)
+        if self.guide_words is None:
+            self.guide_words = [(guide_index(section["heading"]), guide_index(section["title"] + " " + section["doc"])[0],
+                                 guide_index(section["text"])) for section in data["sections"]]
+        phrase = " " + " ".join(terms) + " "
+        weights = []
+        for (heading, _), title, (text, _) in self.guide_words:
+            weights.append([(6 if guide_hits(heading, term) else 0) + (3 if guide_hits(title, term) else 0)
+                            + min(guide_hits(text, term), 5) for term in terms])
+        # A term found in fewer sections counts for more (inverse section frequency over all guides).
+        rarity = [math.log(1 + len(weights) / max(1, sum(1 for row in weights if row[index])))
+                  for index in range(len(terms))]
         hits = []
-        for order, section in enumerate(data["sections"]):
+        for order, (section, words, row) in enumerate(zip(data["sections"], self.guide_words, weights)):
             if "doc" in args and section["doc"] != args["doc"]:
                 continue
-            heading = section["heading"].casefold()
-            title = (section["title"] + " " + section["doc"]).casefold()
-            text = section["text"].casefold()
-            matched, score = 0, 0
-            for term in terms:
-                weight = (6 if term in heading else 0) + (3 if term in title else 0) + min(text.count(term), 5)
-                matched += weight > 0
-                score += weight
+            matched = sum(1 for weight in row if weight)
             if not matched:
                 continue
+            score = sum(weight * factor for weight, factor in zip(row, rarity))
             if len(terms) > 1:
-                score += (8 if phrase in heading else 0) + (4 if phrase in text else 0)
-            hits.append((-matched, -score, order, section, matched, score))
+                (_, heading_sequence), _, (_, text_sequence) = words
+                score += ((8 if phrase in heading_sequence else 0) + (4 if phrase in text_sequence else 0)) * min(rarity)
+            score = round(score, 3)
+            hits.append((-score, -matched, order, section, matched, score))
         hits.sort(key=lambda hit: hit[:3])
         start, limit = int(args.get("cursor", "0")), args.get("limit", 5)
         page = [{"doc": section["doc"], "title": section["title"], "heading": section["heading"],

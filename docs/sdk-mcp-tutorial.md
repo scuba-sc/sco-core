@@ -3,8 +3,8 @@
 ## Standalone developer-kit workflow
 
 **SDK 2.4.0 is an unreleased candidate.** The candidate combined kit, composed
-core-plus-game overlay and host-source kit can supply the discovery launcher and
-`sdk-catalogue.json`. This is candidate packaging behavior, not a published SDK
+core-plus-game overlay and host-source kit can supply the discovery launcher,
+`sdk-catalogue.json` and `sdk-guides.json`. This is candidate packaging behavior, not a published SDK
 download or gameplay acceptance claim. Core-only profiles do not contain the
 game catalogue.
 
@@ -38,7 +38,8 @@ The [integration guide](agent-integration.md) explains client configuration and
 explicit allowlists. Without `--extended-tools` there are exactly six discovery
 tools. With it there are twelve; no runtime tools are added. Grant the six additional
 names deliberately. A root permits bounded example/metadata reads and lets the
-scaffold tool execute that root's reviewed generator code in-process.
+scaffold tool, and the guide tools when no `sdk-guides.json` is present, execute
+that root's reviewed generator code in-process.
 
 ### Discover one contract
 

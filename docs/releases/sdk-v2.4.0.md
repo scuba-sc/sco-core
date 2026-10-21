@@ -148,6 +148,7 @@ verification limits. In short:
 | Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths | `src/ipc/diagnostics_platform_win.cpp` | host-source-sc |
 | `sco-new-plugin.py` and MCP `generate_plugin_scaffold`: `--lang csharp` (NativeAOT project) and `--lang lua`; stand-in checks only, not run in game | `sdk/tools/sco-new-plugin.py`, `tools/sco-core-mcp/server.py`, [SDK README](../../sdk/README.md#generate-a-plugin-folder) | core and core-source (the C# layer it targets ships in core) |
 | MCP documentation at the current release with drift gates; tooling and Windows gate hardening | `tools/`, `docs/sdk-mcp-tutorial.md` | repository |
+| Guide search in the discovery MCP server: `search_guides` and `get_guide_section` behind `--extended-tools` (default six tools unchanged), over `sdk-guides.json` built by `tools/sdk_guides.py` from the public guides; not run in game | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | `sdk-guides.json` beside `sdk-catalogue.json` in legacy, game-sc and host-source-sc |
 | Game status table and engine-native index regenerated | [evidence status](../game/status.md), `sdk/native_index.json` | repository; the native index stays on the docs site and static MCP only |
 
 Profiles are the `sdk/components.json` classification; `legacy` includes `core` and `game-sc`, and

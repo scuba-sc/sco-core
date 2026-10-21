@@ -252,7 +252,7 @@ explicitly:
 | `get_engine_native` | `id_or_hash` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
 | `validate_manifest_and_widgets` | `plugin_ini`; optional: `folder`, `widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
 | `generate_plugin_scaffold` | `id`, `lang`; optional: `with_menu`, `services` | Return the files [`sco-new-plugin`](../../sdk/tools/sco-new-plugin.py) would generate for a plugin spec, without writing them. |
-| `search_guides` | `query`; optional: `doc`, `limit`, `cursor` | Rank sections of the SDK guides by the query's terms (heading and title above body text) and return bounded snippets with doc, heading, anchor and url. |
+| `search_guides` | `query`; optional: `doc`, `limit`, `cursor` | Rank sections of the SDK guides by the query's whole-word terms (heading and title above body text, rarer terms above common ones) and return bounded snippets with doc, heading, anchor and url. |
 | `get_guide_section` | `doc`, `anchor` | Return one guide section's bounded plain text, by the doc and anchor `search_guides` returned. |
 
 **Engine natives.** Both native tools read `sdk/native_index.json` beneath
@@ -374,11 +374,15 @@ a host or run in game.
 questions from the SDK guides rather than the contract records. Their data is
 `sdk-guides.json`, which [`tools/sdk_guides.py`](../sdk_guides.py) builds from the
 Markdown guides listed in [`site/public-inputs.json`](../../site/public-inputs.json)
-(entries under `docs/` and `sdk/docs/` only; never `docs/legal/` or
-`docs/design/`). Each heading starts one section with `doc`, `title`, `heading`,
+(never `docs/legal/` or `docs/design/`, in any letter case) and from the SDK's own
+plugin-authoring guides: every `sdk/docs/*.md` that
+[`sdk/components.json`](../../sdk/components.json) lists as project-authored and
+shipped in a profile (`plugin.ini`, plugin rules, Lua, widgets and data packs
+today). Each heading starts one section with `doc`, `title`, `heading`,
 `anchor`, `level`, `text` (plain text, at most 4000 characters), `truncated` and
 `url`. `anchor` is the GitHub-style slug of the heading in the repository file;
-`url` is the docs-site page for that guide, whose own heading anchors may differ.
+`url` is the docs-site page for that guide, whose own heading anchors may differ,
+or the repository path for an `sdk/docs` guide, which the site does not render.
 
 The server finds the sections in this order, on the first guide call:
 
@@ -387,7 +391,11 @@ The server finds the sections in this order, on the first guide call:
 3. without either, an in-memory build from `--repo-root`: the server reads
    `tools/sdk_guides.py` with the examples' no-symlink containment and 256 KiB
    limit and runs those bytes in its own process, which then reads the
-   allowlisted guides beneath that root.
+   allowlist, `sdk/components.json` and the guides beneath that root.
+
+A file wins over `--repo-root`. In a checkout you edit, either leave the file
+out (the sections are then built from the tree on each server's first guide call) or
+rebuild it after editing a guide and restart the client.
 
 A file that exists but is malformed is reported, not bypassed. With none of the
 three, both tools return a tool error that names the missing file. Each result's
@@ -400,12 +408,18 @@ python3 tools/sdk_guides.py build --out dist/sdk-guides.json --source-sha "$(git
 ```
 
 `search_guides` drops common question words (`how`, `do`, `i`, `the` and similar)
-unless nothing else is left, then ranks every section that contains at least one
-term: first by the number of distinct terms matched, then by a score that weights
-a term in the heading above one in the title or doc path, above body occurrences.
-`doc` keeps one guide's sections; `limit` is 1-25 (default 5) and `cursor` pages
-like `list_engine_natives`. Snippets are at most about 320 characters. Ranking is
-plain term matching, not semantic search. Guides are prose, not contract records:
+and single characters unless nothing else is left. Terms match whole words,
+case-insensitively: `ui` does not match `build`, the parts of a dotted or
+hyphenated word also count (`sco.net` matches `net`), and a term of four or more
+characters also matches the words it starts (`deploy` matches `deployment`). Every
+section that contains at least one term is ranked by a score that weights a term
+in the heading above one in the title or doc path, above body occurrences (at most
+five), each multiplied by the term's rarity across all sections, so a rare term
+outweighs a common one such as `plugin`; ties go to more distinct terms matched,
+then guide order. `doc` keeps one guide's sections (an unknown `doc` is refused
+with the list of known ones); `limit` is 1-25 (default 5) and `cursor` pages like
+`list_engine_natives`. Snippets are at most about 320 characters. Ranking is
+term matching, not semantic search. Guides are prose, not contract records:
 check a method with `get_symbol` before relying on it. Nothing in a guide is
 evidence that code ran in game.
 
@@ -558,6 +572,7 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |
 | Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
 | Catalogue is stale | Rebuild matching reviewed source and restart. Root metadata/generator code are separate inputs, not authenticated by catalogue SHA. |
+| Guide sections are stale | A `sdk-guides.json` beside the catalogue (or from `--guides`) wins over `--repo-root`. Rebuild it with `tools/sdk_guides.py build`, or delete it to build from the tree, and restart. `guides.source_sha` says which commit the file came from. |
 
 Discovery cannot invoke commands, reload plugins or diagnose live game state.
 Runtime inspection uses the separate default-off launcher with independent host
@@ -583,11 +598,15 @@ and security admission.
   `sdk/tools/sco-new-plugin.py` (at most 256 KiB, once, on the first scaffold
   call) and, for the guide tools without an `sdk-guides.json`,
   `tools/sdk_guides.py` (at most 256 KiB) with `sdk/VERSION`, once, on the first
-  guide call. That builder then reads `site/public-inputs.json` and the guides it
-  lists, refusing symlinked inputs and any guide over 2 MiB. The `sdk-guides.json`
-  file itself, beside the catalogue or from `--guides`, is operator-chosen like the
-  catalogue and is read once, at most 16 MiB. All root reads use the same
-  no-symlink containment, and the default size limit applies to the rest.
+  guide call. That builder then reads `site/public-inputs.json`,
+  `sdk/components.json` and the guides they name with its own check: it refuses a
+  symlink or Windows junction in any path component and any file whose real path
+  is not exactly that name beneath the root (which also refuses a name in the
+  wrong letter case), and it caps each guide and the allowlist at 2 MiB and the
+  component manifest at 8 MiB. The `sdk-guides.json` file itself, beside the
+  catalogue or from `--guides`, is operator-chosen like the catalogue and is read
+  once, at most 16 MiB. The server's own root reads use the examples' no-symlink
+  containment, and the default size limit applies to the rest.
   Absolute paths, traversal outside the root, and symlinks anywhere the catalogue
   names are refused, including on the extracted-archive `examples/...` fallback;
   an `sdk` symlink in the root disables that fallback. The configured root itself is operator-supplied and trusted,

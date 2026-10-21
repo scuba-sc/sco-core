@@ -70,8 +70,9 @@ For the project overview, start with the [root README](../README.md).
    prerequisites, stdio launcher, client configuration and troubleshooting.
 2. [SDK to MCP to plugin](sdk-mcp-tutorial.md): discover a contract, request a
    scaffold, validate manifest/widgets and run the native checker.
-3. [MCP server authority](../tools/sco-core-mcp/README.md): six default and four opt-in tools,
-   allowlist, provenance, limits and separate administrator-owned runner settings.
+3. [MCP server authority](../tools/sco-core-mcp/README.md): six default and six opt-in tools
+   (including guide search with `search_guides` and `get_guide_section`), allowlist,
+   provenance, limits and separate administrator-owned runner settings.
 4. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
    exact source/archive inputs; development previews are not approved releases.
 

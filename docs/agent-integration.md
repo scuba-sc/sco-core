@@ -27,12 +27,17 @@ Clang is required for compiler-backed AST extraction. The tool uses `CLANG` if
 set, otherwise `clang` on `PATH`; pass `--clang /absolute/path/to/clang` to the
 `build` command to override either.
 
-For the opt-in guide tools, build the guide sections beside the catalogue as
-well (standard library only, no compiler):
+The opt-in guide tools need no file in a checkout: without `sdk-guides.json`
+beside the catalogue they build fresh sections from `--repo-root` on first use.
+To pin them to a commit instead, build the file beside the catalogue (standard
+library only, no compiler):
 
 ```sh
 python3 tools/sdk_guides.py build --out dist/sdk-guides.json --source-sha "$(git rev-parse HEAD)"
 ```
+
+A built file wins over `--repo-root`: after editing a guide, rebuild it (or
+delete it) and restart the client, or the server keeps serving the old sections.
 
 Use source bytes matching that full commit; a supplied SHA does not certify a
 clean checkout. Generation is separate from discovery and compiles/runs probes.
@@ -121,8 +126,10 @@ snippet, the guide path, heading, GitHub-style `anchor` and docs-site `url`.
 `get_guide_section` returns one section's bounded plain text by `doc` and
 `anchor`. The sections come from `sdk-guides.json` beside the catalogue (the
 candidate kits ship it), or are built in memory from `--repo-root` when no file
-is there; with neither, the tools return a tool error. Ranking is plain term
-matching, and guide prose is not a contract record or evidence that anything
+is there; with neither, the tools return a tool error. The guides are the
+allowlisted public docs and the SDK's shipped `sdk/docs` guides (such as
+`plugin.ini`, Lua and widgets). Ranking is whole-word term matching that favours
+rarer terms, and guide prose is not a contract record or evidence that anything
 ran in game: confirm a method with `get_symbol`.
 
 `generate_plugin_scaffold` takes an `id`, a `lang` (`c`, `cpp`, `csharp` or `lua`), an optional

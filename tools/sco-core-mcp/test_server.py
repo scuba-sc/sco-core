@@ -1817,11 +1817,33 @@ class GuideTests(ServerCase):
         nothing = self.result(client.call("search_guides", {"query": "zzzz"}))
         self.assertEqual((nothing["sections"], nothing["total_matches"], nothing["next_cursor"]), ([], 0, None))
         for name, arguments, token in (
-                ("search_guides", {"query": "deploy", "doc": "docs/missing.md"}, "Unknown doc"),
+                ("search_guides", {"query": "deploy", "doc": "docs/missing.md"}, "known docs: docs/alpha.md, docs/beta.md"),
                 ("get_guide_section", {"doc": "docs/alpha.md", "anchor": "missing"}, "Unknown guide section"),
                 ("search_guides", {"query": "..."}, "no searchable words")):
             with self.subTest(arguments=arguments):
                 self.assertIn(token, self.result(client.call(name, arguments), is_error=True)["error"])
+
+    def test_terms_match_whole_words_not_substrings(self):
+        sections = [guide_section("docs/alpha.md", "Build it", "build-it", "Guide build steps, because the user asked.", 1),
+                    guide_section("docs/alpha.md", "UI", "ui", "The ui service and its API."),
+                    guide_section("docs/beta.md", "Deployment", "deployment", "Ship sco.net plugins.", 1)]
+        client = self.guide_client(guides_document(sections))
+        found = self.result(client.call("search_guides", {"query": "ui"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["ui"])
+        found = self.result(client.call("search_guides", {"query": "How do I use the C API?"}))
+        self.assertEqual((found["query_terms"], [s["anchor"] for s in found["sections"]]), (["use", "api"], ["ui"]))
+        found = self.result(client.call("search_guides", {"query": "deploy"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["deployment"])
+        found = self.result(client.call("search_guides", {"query": "net"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["deployment"])
+        self.assertEqual(self.result(client.call("search_guides", {"query": "use"}))["total_matches"], 0)
+
+    def test_rarer_terms_outrank_common_ones(self):
+        sections = [guide_section("docs/alpha.md", "Write", "write", "Text.", 1),
+                    guide_section("docs/alpha.md", "Write more", "write-more", "Text."),
+                    guide_section("docs/beta.md", "Lua", "lua", "Text.", 1)]
+        found = self.result(self.guide_client(guides_document(sections)).call("search_guides", {"query": "write lua"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["lua", "write", "write-more"])
 
     def test_stopword_only_queries_still_search(self):
         found = self.result(self.guide_client().call("search_guides", {"query": "how to"}))
@@ -1890,6 +1912,9 @@ class GuideTests(ServerCase):
         first = found["sections"][0]
         detail = self.result(client.call("get_guide_section", {"doc": first["doc"], "anchor": first["anchor"]}))
         self.assertIn(detail["section"], sections)
+        found = self.result(client.call("search_guides", {"query": "How do I write plugin.ini?"}))
+        self.assertEqual((found["sections"][0]["doc"], found["sections"][0]["url"]),
+                         ("sdk/docs/plugin-ini.md", "sdk/docs/plugin-ini.md"))
 
     def test_source_mode_without_builder_is_unavailable(self):
         root, catalogue = self.temporary_catalogue(fixture())

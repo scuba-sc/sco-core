@@ -66,6 +66,7 @@ class SyntheticTree(unittest.TestCase):
         (self.root / 'sdk/VERSION').write_text('9.9.9\n', encoding='utf-8')
         self.write('docs/guide.md', DOC)
         self.allow(['docs/guide.md'])
+        self.components([])
 
     def write(self, name, text, newline='\n'):
         path = self.root / name
@@ -74,6 +75,9 @@ class SyntheticTree(unittest.TestCase):
 
     def allow(self, docs):
         self.write('site/public-inputs.json', json.dumps({'schema_version': 1, 'docs': docs}))
+
+    def components(self, entries):
+        self.write('sdk/components.json', json.dumps({'schema_version': 1, 'components': entries}))
 
     def built(self):
         return guides.build(self.root, SHA)
@@ -129,6 +133,15 @@ class BuildTests(SyntheticTree):
         only, = self.built()['sections']
         self.assertEqual((only['heading'], only['text']), ('Title', 'Lead paragraph.\n\nBody.'))
 
+    def test_comment_opener_in_a_code_span_is_text(self):
+        self.write('docs/guide.md', '# A\n\nUse `<!--` to start.\n\n## B\n\nText <!-- gone --> kept.\n\n## C\n')
+        self.assertEqual([(s['heading'], s['text']) for s in self.built()['sections']],
+                         [('A', 'Use <!-- to start.'), ('B', 'Text  kept.'), ('C', '')])
+
+    def test_unterminated_comment_is_refused(self):
+        self.write('docs/guide.md', '# A\n\n<!-- never closed\n\n## B\n')
+        self.refused('unterminated HTML comment: docs/guide.md')
+
     def test_source_sha_must_be_full_lowercase_hex(self):
         for value in ('', SHA[:12], SHA.upper(), None):
             with self.subTest(value=value), self.assertRaises(guides.GuidesError):
@@ -137,7 +150,8 @@ class BuildTests(SyntheticTree):
 
 class AllowlistTests(SyntheticTree):
     def test_blocked_and_malformed_entries_are_refused(self):
-        for name in ('docs/legal/notes.md', 'docs/design/plan.md', 'docs/guide.txt', 'README.md',
+        for name in ('docs/legal/notes.md', 'docs/design/plan.md', 'docs/Legal/notes.md', 'docs/DESIGN/plan.md',
+                     'docs/guide.txt', 'README.md',
                      'sdk/README.md', 'docs/../README.md', '/docs/guide.md', 'docs\\guide.md', 'docs/*.md'):
             with self.subTest(name=name):
                 self.allow(['docs/guide.md', name])
@@ -157,6 +171,28 @@ class AllowlistTests(SyntheticTree):
         data = self.built()
         self.assertEqual([d['doc'] for d in data['docs']], ['docs/guide.md', 'sdk/docs/extra.md'])
         self.assertEqual(data['docs'][1]['url'], 'sdk/docs/extra.md')
+
+    def test_shipped_sdk_docs_come_from_the_component_manifest(self):
+        self.write('sdk/docs/plugin-ini.md', '# plugin.ini\n\nText.\n')
+        self.write('sdk/docs/vendor.md', '# Vendor\n')
+        self.write('sdk/docs/unshipped.md', '# Unshipped\n')
+        self.components([
+            {'source': 'sdk/docs/plugin-ini.md', 'profiles': ['core'], 'origin': 'project-authored'},
+            {'source': 'sdk/docs/vendor.md', 'profiles': ['core'], 'origin': 'third-party'},
+            {'source': 'sdk/docs/unshipped.md', 'profiles': [], 'origin': 'project-authored'},
+            {'source': 'sdk/include/x.h', 'profiles': ['core'], 'origin': 'project-authored'}])
+        data = self.built()
+        self.assertEqual([(d['doc'], d['url']) for d in data['docs']], [
+            ('docs/guide.md', 'https://scubamount.github.io/sco-core/guides/guide/'),
+            ('sdk/docs/plugin-ini.md', 'sdk/docs/plugin-ini.md')])
+        self.components([{'source': 'sdk/docs/../x.md', 'profiles': ['core'], 'origin': 'project-authored'}])
+        self.refused('not a public guide input: sdk/docs/../x.md')
+        (self.root / 'sdk/components.json').unlink()
+        self.refused('sdk/components.json missing')
+
+    def test_case_mismatched_name_is_refused(self):
+        self.allow(['docs/Guide.md'])
+        self.refused('not exactly beneath the root' if (self.root / 'docs/Guide.md').exists() else 'guide input missing')
 
     def test_a_doc_without_heading_is_refused(self):
         self.write('docs/guide.md', 'No heading here.\n')
@@ -222,7 +258,9 @@ class RealTreeTests(unittest.TestCase):
         data = guides.build(ROOT, SHA)
         guides.validate(data)
         listed = json.loads((ROOT / 'site/public-inputs.json').read_text(encoding='utf-8'))['docs']
-        self.assertEqual([d['doc'] for d in data['docs']], sorted(listed))
+        self.assertEqual([d['doc'] for d in data['docs']], sorted(set(listed) | guides.sdk_guides(ROOT)))
+        self.assertLessEqual({'sdk/docs/plugin-ini.md', 'sdk/docs/plugin-rules.md', 'sdk/docs/lua.md',
+                              'sdk/docs/widgets.md', 'sdk/docs/data-packs.md'}, guides.sdk_guides(ROOT))
         self.assertFalse([s for s in data['sections'] if s['doc'].startswith(guides.BLOCKED)])
         self.assertTrue(all(len(s['text']) <= guides.TEXT_LIMIT for s in data['sections']))
         self.assertEqual(guides.encoded(data), guides.encoded(guides.build(ROOT, SHA)))

@@ -6,12 +6,15 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Added guide search to the discovery MCP server. `tools/sdk_guides.py` builds
   `sdk-guides.json` from the Markdown guides in `site/public-inputs.json` (never
-  `docs/legal/` or `docs/design/`): one record per heading with plain text bounded
+  `docs/legal/` or `docs/design/`) and the shipped `sdk/docs` guides that
+  `sdk/components.json` lists (`plugin.ini`, plugin rules, Lua, widgets, data
+  packs): one record per heading with plain text bounded
   to 4000 characters, a GitHub-style anchor and the docs-site URL, in reproducible
   bytes, with a `check` mode CI runs. The `legacy`, `game-sc` and `host-source-sc`
   packages ship it beside `sdk-catalogue.json`. With `--extended-tools`, the new
-  `search_guides` and `get_guide_section` tools rank and return guide sections from
-  that file, or from an in-memory build of `--repo-root`; the default six tools are
+  `search_guides` and `get_guide_section` tools rank guide sections by whole-word
+  terms, rarer terms first, and return them from that file, or from an in-memory
+  build of `--repo-root`; the default six tools are
   unchanged. Lets an agent answer "how do I ..." from the guides, not only the
   contract records. No ABI change; guide prose is not in-game evidence, and nothing
   here was run in game.

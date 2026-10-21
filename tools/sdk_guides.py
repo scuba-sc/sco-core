@@ -4,18 +4,25 @@
     tools/sdk_guides.py build --out FILE --source-sha SHA   # write sdk-guides.json
     tools/sdk_guides.py check [--file FILE]                 # validate the tree, or FILE against it
 
-Inputs are the site/public-inputs.json entries under docs/ or sdk/docs/ that end in .md,
-never docs/legal/ or docs/design/. Each Markdown heading starts one record: doc, title,
-heading, anchor (GitHub-style slug), level, plain text bounded to TEXT_LIMIT characters,
-truncated, and url (the docs-site page when the site generator renders the doc, else the
-repository path). Output bytes depend only on the input bytes and the supplied source SHA:
-sorted keys, ASCII escapes, LF newlines, no timestamps and no absolute paths.
+Inputs are the site/public-inputs.json entries under docs/ or sdk/docs/ that end in .md, never
+docs/legal/ or docs/design/ (compared case-insensitively), plus the SDK's own plugin-authoring
+guides: every sdk/docs/*.md that sdk/components.json lists as project-authored and shipped in a
+profile. Each Markdown heading starts one record: doc, title, heading, anchor (GitHub-style slug),
+level, plain text bounded to TEXT_LIMIT characters, truncated, and url (the docs-site page when
+the site generator renders the doc, else the repository path). Output bytes depend only on the
+input bytes and the supplied source SHA: sorted keys, ASCII escapes, LF newlines, no timestamps
+and no absolute paths.
+
+The allowlist, sdk/components.json and every guide are read only beneath the root: no symlink or
+junction component, and the real path must be exactly root/<name>, which also refuses a name whose
+case differs from the file's on a case-insensitive filesystem.
 
 The module is also executed in memory by tools/sco-core-mcp/server.py in source mode, so it
 imports nothing outside the standard library and does not depend on __file__ at import.
 """
 import argparse
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
@@ -24,12 +31,17 @@ import unicodedata
 ROOT = Path(__file__).resolve().parents[1] if '__file__' in globals() else None
 SCHEMA_VERSION = 1
 ALLOWLIST = 'site/public-inputs.json'
+COMPONENTS = 'sdk/components.json'
+SDK_DOCS = 'sdk/docs/'
 TEXT_LIMIT = 4000
 MAX_DOC_BYTES = 2 * 1024 * 1024
+MAX_COMPONENTS_BYTES = 8 * 1024 * 1024
 # The docs site: site/scripts/gen.py serves docs/<path>.md at BASE/guides/<slug>/.
 SITE = 'https://scubamount.github.io'
 BASE = '/sco-core'
-BLOCKED = ('docs/legal/', 'docs/design/')
+BLOCKED = ('docs/legal/', 'docs/design/')  # lowercase; names are casefolded before the comparison
+# Private-use placeholders that stand in for code spans while the prose rules run.
+OPEN, CLOSE = '\ue000', '\ue001'
 SECTION_KEYS = {'doc', 'title', 'heading', 'anchor', 'level', 'text', 'truncated', 'url'}
 TOP_KEYS = {'schema_version', 'sdk_version', 'source_sha', 'source', 'text_limit', 'docs', 'sections'}
 DOC_KEYS = {'doc', 'title', 'url', 'sections'}
@@ -45,7 +57,6 @@ AUTOLINK = re.compile(r'<((?:https?|mailto):[^>\s]+)>')
 # Only HTML tags Markdown docs actually use are removed, so prose such as <version> survives.
 HTML_TAG = re.compile(r'</?(?:a|b|br|code|details|div|em|i|img|kbd|li|ol|p|span|strong|sub|summary|sup|table|'
                       r'tbody|td|th|thead|tr|ul)(?:\s[^<>]*)?/?>', re.I)
-COMMENT = re.compile(r'<!--.*?-->', re.S)
 STRONG = re.compile(r'(\*\*|__)(?=\S)(.+?)(?<=\S)\1', re.S)
 EMPHASIS = re.compile(r'(?<![\w*])\*(?=\S)([^*]+?)(?<=\S)\*(?![\w*])')
 STRIKE = re.compile(r'~~(?=\S)(.+?)(?<=\S)~~', re.S)
@@ -79,34 +90,79 @@ def guide_url(doc):
     return SITE + BASE + '/' + identifier + '/'
 
 
+def is_junction(path):
+    check = getattr(os.path, 'isjunction', None)  # Python 3.12+; the real-path check covers older ones
+    return bool(check and check(path))
+
+
+def contained(root, name, limit=MAX_DOC_BYTES, what='guide input'):
+    """The bytes of root/name, refusing a symlink or junction component, a real path that is not
+    exactly root/name (case included) and a file over limit."""
+    current = root
+    for part in PurePosixPath(name).parts:
+        current = current / part
+        require(not current.is_symlink() and not is_junction(current), what + ' crosses a symlink or junction: ' + name)
+    require(current.is_file(), what + ' missing: ' + name)
+    base, real = Path(root).resolve(), current.resolve()
+    require(real.is_relative_to(base) and real.relative_to(base).as_posix() == name,
+            what + ' is not exactly beneath the root: ' + name)
+    with open(real, 'rb') as stream:
+        raw = stream.read(limit + 1)
+    require(len(raw) <= limit, what + ' over ' + str(limit // (1024 * 1024)) + ' MiB: ' + name)
+    return raw
+
+
+def json_input(root, name, limit):
+    raw = contained(root, name, limit, name)
+    try:
+        return json.loads(raw.decode('utf-8'))
+    except ValueError as error:
+        raise GuidesError(name + ' unreadable: ' + type(error).__name__) from None
+
+
+def public_name(name):
+    path = PurePosixPath(name)
+    return (str(path) == name and not path.is_absolute() and '..' not in path.parts
+            and not any(c in name for c in '\\%*?:') and path.suffix == '.md'
+            and (name.startswith('docs/') or name.startswith(SDK_DOCS))
+            and not name.casefold().startswith(BLOCKED))
+
+
+def sdk_guides(root):
+    """sdk/docs/*.md guides that sdk/components.json lists as project-authored and shipped."""
+    data = json_input(root, COMPONENTS, MAX_COMPONENTS_BYTES)
+    require(isinstance(data, dict) and isinstance(data.get('components'), list), 'invalid ' + COMPONENTS)
+    names = set()
+    for component in data['components']:
+        source = component.get('source') if isinstance(component, dict) else None
+        if not (isinstance(source, str) and source.startswith(SDK_DOCS) and source.endswith('.md')):
+            continue
+        if component.get('origin') == 'project-authored' and component.get('profiles'):
+            require(public_name(source), 'not a public guide input: ' + source)
+            names.add(source)
+    return names
+
+
+def inputs(root):
+    """Every guide input: the allowlist's entries and the shipped sdk/docs guides, sorted."""
+    return sorted(set(allowed_inputs(root)) | sdk_guides(root))
+
+
 def allowed_inputs(root):
     """The allowlisted guide inputs, refusing any entry outside docs/ or sdk/docs/ Markdown."""
-    try:
-        data = json.loads((root / ALLOWLIST).read_text(encoding='utf-8'))
-    except (OSError, ValueError) as error:
-        raise GuidesError(ALLOWLIST + ' unreadable: ' + type(error).__name__) from None
+    data = json_input(root, ALLOWLIST, MAX_DOC_BYTES)
     require(isinstance(data, dict) and data.get('schema_version') == 1 and isinstance(data.get('docs'), list),
             'invalid public-input allowlist')
     docs = data['docs']
     require(docs and all(isinstance(name, str) for name in docs) and len(docs) == len(set(docs)),
             'allowlist must contain unique explicit paths')
     for name in docs:
-        path = PurePosixPath(name)
-        require(str(path) == name and not path.is_absolute() and '..' not in path.parts
-                and not any(c in name for c in '\\%*?:') and path.suffix == '.md'
-                and (name.startswith('docs/') or name.startswith('sdk/docs/'))
-                and not name.startswith(BLOCKED), 'not a public guide input: ' + name)
+        require(public_name(name), 'not a public guide input: ' + name)
     return sorted(docs)
 
 
 def read_doc(root, name):
-    current = root
-    for part in PurePosixPath(name).parts:
-        current = current / part
-        require(not current.is_symlink(), 'guide input crosses a symlink: ' + name)
-    require(current.is_file(), 'guide input missing: ' + name)
-    raw = current.read_bytes()
-    require(len(raw) <= MAX_DOC_BYTES, 'guide input over 2 MiB: ' + name)
+    raw = contained(root, name)
     try:
         text = raw.decode('utf-8-sig')
     except UnicodeDecodeError:
@@ -123,9 +179,9 @@ def inline_text(line):
 
     def hold(match):
         spans.append(match[2].strip() or match[2])
-        return '' + str(len(spans) - 1) + ''
-    text = prose(CODE_SPAN.sub(hold, line.replace('', '').replace('', '')))
-    return re.sub('(\\d+)', lambda m: spans[int(m[1])], text)
+        return OPEN + str(len(spans) - 1) + CLOSE
+    text = prose(CODE_SPAN.sub(hold, line.replace(OPEN, '').replace(CLOSE, '')))
+    return re.sub(OPEN + r'(\d+)' + CLOSE, lambda m: spans[int(m[1])], text)
 
 
 def prose(text):
@@ -202,6 +258,22 @@ def tidy(lines):
     return text.strip('\n').strip()
 
 
+def strip_comments(line):
+    """(line without HTML comments, whether a comment is still open); `<!--` inside a code span is text."""
+    masked = CODE_SPAN.sub(lambda m: OPEN * len(m[0]), line)
+    kept, position = [], 0
+    while True:
+        start = masked.find('<!--', position)
+        if start < 0:
+            kept.append(line[position:])
+            return ''.join(kept), False
+        kept.append(line[position:start])
+        end = masked.find('-->', start + 4)
+        if end < 0:
+            return ''.join(kept), True
+        position = end + 3
+
+
 def doc_sections(name, text):
     """(title, [(level, heading, body lines)]) in document order; fenced code is body, never headings."""
     parts, current, fence, preamble, comment = [], None, None, [], False
@@ -216,9 +288,7 @@ def doc_sections(name, text):
             if '-->' not in line:
                 continue
             line, comment = line.split('-->', 1)[1], False
-        line = COMMENT.sub('', line)
-        if '<!--' in line:
-            line, comment = line.split('<!--', 1)[0], True
+        line, comment = strip_comments(line)
         opened = FENCE.match(line)
         if opened:
             fence = opened[1]
@@ -233,6 +303,7 @@ def doc_sections(name, text):
         converted = body_line(line)
         if converted is not None:
             (current[2] if current else preamble).append(converted)
+    require(not comment, 'unterminated HTML comment: ' + name)
     require(parts, 'guide input has no heading: ' + name)
     if tidy(render(preamble)):
         parts[0][2][:0] = preamble + [('md', '')]
@@ -243,7 +314,7 @@ def doc_sections(name, text):
 def sections(root):
     """(docs, sections) built from the tree beneath root."""
     docs, records = [], []
-    for name in allowed_inputs(root):
+    for name in inputs(root):
         title, parts = doc_sections(name, read_doc(root, name))
         url = guide_url(name)
         occurrences = {}
