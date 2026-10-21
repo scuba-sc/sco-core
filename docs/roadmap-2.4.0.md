@@ -1,7 +1,7 @@
 # sco-core SDK 2.4.0 roadmap
 
 SDK **2.4.0**, optional Star Citizen game pack **0.8.0**, frozen plugin ABI
-**1.1**. Release candidate 1 is published as a GitHub pre-release,
+**1.1**. Release candidate 1 is published as the repository's latest release,
 [`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1); the final signed
 `sdk-v2.4.0` release follows. This roadmap is not a release announcement.
 Contract presence, implementation, default availability, synthetic validation and

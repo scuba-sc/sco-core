@@ -5,11 +5,10 @@ plugin, then Windows game deployment. You do not need a sco-core checkout.
 
 The current SDK is **2.4.0**, with Star Citizen game pack **0.8.0** and plugin
 ABI **1.1** (unchanged since 2.3.0). It is published as **release candidate 1**,
-a GitHub pre-release under the tag `sdk-v2.4.0-rc.1`:
+the repository's latest release, tag `sdk-v2.4.0-rc.1`:
 [SDK 2.4.0 release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1).
 It is the only SDK release on the release page, and the archive names, digests
-and commands below use it. GitHub does not count a pre-release as the "latest"
-release, so link to the tag page above. The final signed `sdk-v2.4.0` release
+and commands below use it. The final signed `sdk-v2.4.0` release
 follows; until then, build against release candidate 1. Nothing new in 2.4.0
 has been run in game.
 

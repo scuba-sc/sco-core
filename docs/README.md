@@ -91,7 +91,7 @@ Client-specific instructions live in the integration guide, not in this index.
    source policy, named tests, CI and product adoption.
 2. [Changelog](../CHANGELOG.md), [SDK 2.4.0 notes](releases/sdk-v2.4.0.md) and the
    [SDK 2.4.0 release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1)
-   pre-release, the only SDK release on the release page (the final signed `sdk-v2.4.0`
+   (the repository's latest and only SDK release; the final signed `sdk-v2.4.0`
    follows): keep SDK/package, plugin ABI and game-pack version coordinates distinct.
 3. [Release checklist](legal/release-checklist.md) and
    [release decisions](legal/release-decisions/README.md): candidate versus

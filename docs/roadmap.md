@@ -6,8 +6,8 @@ release promise: there are no dates, and a feature named here exists only when i
 implementation and evidence say so in [game capability status](game/status.md) and the release notes.
 
 The current SDK is 2.4.0, published on 2026-10-21 as
-[release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1) (tag `sdk-v2.4.0-rc.1`, a
-GitHub pre-release; [release notes](releases/sdk-v2.4.0.md)). It is the only SDK release on the
+[release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1) (tag `sdk-v2.4.0-rc.1`, the
+latest release; [release notes](releases/sdk-v2.4.0.md)). It is the only SDK release on the
 release page. The final signed `sdk-v2.4.0` release follows.
 
 ## How to read status on this page
@@ -61,7 +61,7 @@ must have the right to contribute what you send.
 supported language, validate it without the game, and deploy it on a compatible host, without
 reverse engineering anything.
 
-Status: **release candidate 1 published** (`sdk-v2.4.0-rc.1`, a GitHub pre-release with the five
+Status: **release candidate 1 published** (`sdk-v2.4.0-rc.1`, the latest release, with the five
 archives); the final signed `sdk-v2.4.0` release follows. Plugin ABI 1.1 stays byte-identical. Star
 Citizen game pack 0.8.0 on verified build 4.10.197.2878. Nothing new in 2.4.0 has been run in game.
 

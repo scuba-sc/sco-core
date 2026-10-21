@@ -24,7 +24,7 @@ RELEASES = 'https://github.com/scubamount/sco-core/releases/tag/'
 # sdk_version, which may name an unpublished version.
 PUBLISHED_RELEASE = 'sdk-v2.4.0'
 # The GitHub release that holds those archives: PUBLISHED_RELEASE itself, or one of its release
-# candidates (<tag>-rc.N, a GitHub pre-release; /releases/latest never resolves to one).
+# candidates (<tag>-rc.N).
 # SDK 2.4.0 is out as release candidate 1; set this to PUBLISHED_RELEASE once the final is published.
 PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0-rc.1'
 DOWNLOADS = 'https://github.com/scubamount/sco-core/releases/download/'
@@ -269,8 +269,8 @@ def published_stage():
     if not match:
         raise ValueError('PUBLISHED_DOWNLOAD_TAG must be PUBLISHED_RELEASE or one of its -rc.N tags')
     if match[1]:
-        return ('Published pre-release',
-                'release candidate ' + match[1] + ', attested pre-release assets; the final signed release follows')
+        return ('Published release candidate',
+                'release candidate ' + match[1] + ', attested assets; the final signed release follows')
     return 'Published release', 'immutable approved assets'
 
 

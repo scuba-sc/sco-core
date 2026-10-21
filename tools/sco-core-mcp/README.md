@@ -72,8 +72,8 @@ server before relying on the new snapshot. The server does not regenerate it.
 ## Using an extracted SDK archive
 
 **SDK 2.4.0 is published as release candidate 1**
-([`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), a GitHub
-pre-release; the final signed `sdk-v2.4.0` follows). It bundles this launcher, a
+([`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
+release; the final signed `sdk-v2.4.0` follows). It bundles this launcher, a
 compiler-built `sdk-catalogue.json` and the matching guide sections
 `sdk-guides.json` in the combined `legacy` developer kit (`sco-sdk-2.4.0.zip`),
 the `game-sc` overlay and the `host-source-sc` kit.
