@@ -190,6 +190,68 @@ proof. Discovery never compiles, writes files, invokes commands or reloads
 plugins. Runtime metadata inspection, if independently authorized, uses the
 [separate default-off launcher](../tools/sco-core-mcp-runtime/README.md).
 
+### Optional: let the agent build and check
+
+The same loop can run through MCP on your own machine, with three opt-in
+development tools. First build the checker once, outside your project root (the
+`check` target builds its own copy inside the project's build tree, but
+`build_plugin_project` builds only the default targets):
+
+```sh
+cmake -S /absolute/sdk -B /absolute/checker-build
+cmake --build /absolute/checker-build --config Release --target sco-plugin-check
+```
+
+The program is `/absolute/checker-build/sco-plugin-check`, or
+`/absolute/checker-build/Release/sco-plugin-check.exe` with a Visual Studio
+generator. Then start the server with `--enable-dev-tools`, a project root that
+holds your project folder, and that checker. On Windows with Visual Studio 2022,
+add a generator and platform as well:
+
+```sh
+python3 /absolute/sdk/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/sdk/sdk-catalogue.json \
+  --repo-root /absolute/sdk --extended-tools \
+  --enable-dev-tools --project-root /absolute/project \
+  --plugin-check /absolute/checker-build/sco-plugin-check \
+  --cmake-generator "Visual Studio 17 2022" --cmake-platform x64
+```
+
+The SDK folder comes from `--repo-root` (or set `--sco-sdk`). Without
+`--plugin-check`, the server looks for `sco-plugin-check` in that SDK folder's
+`bin/` or `out/bin/`. Only a full SDK build followed by
+`cmake --install <build> --config Release --prefix out` in the SDK folder puts it
+there, as the [SDK README](../sdk/README.md) describes. Name an `.exe` or a `.py`
+wrapper; batch files are refused. Then send:
+
+```json
+{"name":"build_plugin_project","arguments":{"project":"my_probe"}}
+```
+
+```json
+{"name":"run_plugin_check","arguments":{"folder":"my_probe/build/check/my_probe"}}
+```
+
+```json
+{"name":"run_plugin_check","arguments":{"folder":"my_probe/build/check/my_probe","mode":"short"}}
+```
+
+Relative paths start at the first project root. Require `passed: true` on each
+result. The build result has a `configure` and a `build` step, each with its exit
+code and the tail of its output. A check result lists the checker's `FAIL` lines
+as `findings` and its last line as `summary`. Those two checks repeat what the
+generated `check` target does. If your project registers CTest tests,
+`test_plugin_project` with the same `project` runs them; with no tests it fails
+on purpose.
+
+The caller supplies only the folder and the mode; the operator's command line
+fixes everything else, and paths outside the project roots are refused. The
+build and the checker run your project's code on this machine, and a timeout
+kills the whole process tree. The
+[server README](../tools/sco-core-mcp/README.md#development-tools-opt-in)
+describes the security model. A passing check here is the same synthetic
+evidence as above: **not run in game**.
+
 ### Installation and lifecycle limits
 
 Installation remains an explicit owner action through the product's documented

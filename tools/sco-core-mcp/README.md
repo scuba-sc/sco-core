@@ -3,8 +3,10 @@
 Development-only, read-only discovery of the public sco-core SDK contracts through
 MCP over stdio. The server uses Python 3's standard library and a generated SDK
 catalogue. It does **not** connect to a running host or game, invoke SDK methods,
-compile plugins, execute examples, or modify the repository. It is bundled
-development tooling, not a runtime game-service component.
+execute examples, or modify the repository. It is bundled development tooling,
+not a runtime game-service component. By default it compiles nothing; three
+[development tools](#development-tools-opt-in) that build and check plugin
+projects exist only when the operator turns them on.
 
 [Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
 implements the fixed runtime tool surface. This discovery executable remains
@@ -157,7 +159,9 @@ recorded path.
 ## Tools and explicit allowlist
 
 These are the complete six default tool names (six more are
-[opt-in](#extended-tools-opt-in)). Enable them explicitly, not with a wildcard.
+[opt-in](#extended-tools-opt-in), and three
+[development tools](#development-tools-opt-in) are a separate opt-in). Enable
+them explicitly, not with a wildcard.
 The Arguments column gives the exact `inputSchema` property names, required ones
 first; any other argument name is refused:
 
@@ -223,7 +227,9 @@ request, and `no_matching_approval_record` otherwise. Each record reports its
 - A record is committed at its release tag, so a branch without it reports no
   match. That is not proof that no release exists.
 
-Every tool advertises these MCP annotations:
+Every discovery tool (the six above and the six extended tools) advertises
+these MCP annotations; the development tools advertise
+[different ones](#development-tools-opt-in):
 
 ```json
 {
@@ -423,6 +429,141 @@ term matching, not semantic search. Guides are prose, not contract records:
 check a method with `get_symbol` before relying on it. Nothing in a guide is
 evidence that code ran in game.
 
+### Development tools (opt-in)
+
+Three more tools let an agent run the developer's own loop on this machine:
+check a built plugin, and configure, build and test a CMake plugin project.
+They are **off** unless the operator starts the server with
+`--enable-dev-tools` **and** at least one `--project-root DIR`. Without the flag,
+`tools/list` is unchanged (six tools, or twelve with `--extended-tools`) and calling
+one of these names is refused as an unknown tool. With it, they follow the other
+tools in `tools/list`. Add each name to the client allowlist explicitly:
+
+| Tool | Arguments | Purpose |
+|---|---|---|
+| `run_plugin_check` | `folder`; optional: `mode` | Run `sco-plugin-check` on a built plugin folder. `mode` is `full` (default) or `short`, which adds `--short-tables` (the 1.0 host tables). |
+| `build_plugin_project` | `project` | Configure a CMake plugin project into its own `build` subfolder, then build it. |
+| `test_plugin_project` | `project` | Run `ctest` in that `build` subfolder. Run `build_plugin_project` first. |
+
+`folder` and `project` are paths: absolute, or relative to the first
+`--project-root`. They are the only things a caller supplies. There is no
+argument for a command, flag, generator, build type, target, test filter or
+environment variable, and any other argument is refused as a tool error.
+
+**Operator configuration.** Everything else is fixed when the server starts:
+
+| Flag | Default | Effect |
+|---|---|---|
+| `--enable-dev-tools` | off | Offer the three tools. Refused at start without a `--project-root`. |
+| `--project-root DIR` | none | A folder the tools may use. Repeat it for more folders. Each must exist. |
+| `--plugin-check PATH` | `bin/` or `out/bin/` of the SDK folder | The `sco-plugin-check` program. `cmake --install <build> --prefix out` in the SDK folder puts it in `out/bin/`. |
+| `--cmake PATH` | `cmake` on the server's `PATH` (`cmake.exe` on Windows) | The CMake program. |
+| `--ctest PATH` | `ctest` beside `--cmake`, else on `PATH` | The CTest program. |
+| `--cmake-generator NAME` | CMake's default | Passed as `-G` when configuring, for example `Visual Studio 17 2022`. |
+| `--cmake-platform NAME` | none | Passed as `-A` when configuring, for example `x64` with a Visual Studio generator. |
+| `--sco-sdk DIR` | `--repo-root`, or its `sdk/` | The SDK folder passed as `-DSCO_SDK`: the folder that holds `cmake/sco-plugin.cmake`. |
+| `--dev-timeout SECONDS` | 600 | Time limit for one call, 1-7200. A build's configure and build steps share it. |
+| `--dev-output-limit BYTES` | 32768 | Output tail returned per step, 256-262144. |
+
+Any of these options without `--enable-dev-tools` is refused at start, as is a
+missing project root or an out-of-range limit. Programs are looked up on every
+call, so a checker built after the server started is found. A program path that
+ends in `.py` is run with the server's own Python interpreter, which lets an
+operator use a wrapper script. Batch files are refused: Windows runs a `.bat` or
+`.cmd` program through `cmd.exe`, which would parse the caller's path as shell
+syntax. On Windows a program must be an `.exe` or a `.py` wrapper, on every
+platform a `.bat` or `.cmd` name is refused, and the `PATH` lookup asks for
+`cmake.exe` and `ctest.exe` only, never a shim. An explicit flag naming one is
+refused at start; a program found at call time gives `unavailable` with the
+reason. Each call runs exactly these command lines, without a shell:
+
+| Tool | Command line | Working folder |
+|---|---|---|
+| `run_plugin_check` | `sco-plugin-check FOLDER`, plus `--short-tables` for `mode: "short"` | `FOLDER` |
+| `build_plugin_project` | `cmake -S PROJECT -B PROJECT/build [-G GENERATOR] [-A PLATFORM] -DSCO_SDK=SDK`, then `cmake --build PROJECT/build --config Release` | `PROJECT` |
+| `test_plugin_project` | `ctest --test-dir PROJECT/build -C Release --output-on-failure --no-tests=error` | `PROJECT` |
+
+The build step runs only when configuring succeeded. Both cmake steps also set
+`MSBUILDDISABLENODEREUSE=1`, so no MSBuild node outlives the call, and
+`VSLANG=1033`, which asks MSVC for English messages where that language is
+installed; otherwise the programs inherit the server's environment. `test_plugin_project` is refused
+until `PROJECT/build/CMakeCache.txt` exists, and with `--no-tests=error` a
+project without tests fails rather than passing with nothing run.
+
+A project made by `generate_plugin_scaffold` builds its plugin into
+`build/check/<id>/` beside a copy of `plugin.ini`. Pass that folder to
+`run_plugin_check`, once with each `mode`, to repeat what the generated `check`
+target does.
+
+**Results.** Each result has `state`: `completed`, `timed_out`, `not_started`
+(the program could not be started) or `unavailable` (a program or the SDK folder
+is not configured or not found, with a `reason`; nothing was run). It also has
+`passed`, which is true only for a completed run with exit code 0; for a build,
+both steps must pass. `program`, the file name only, appears once per result. A
+run reports these fields (a build reports them for each of its `steps`):
+
+- `arguments`, exactly as passed;
+- `exit_code`, `timed_out` and `duration_seconds`;
+- `output`: at most the last `output_limit` bytes of combined stdout and stderr;
+- `output_bytes` and `output_truncated`;
+- `output_complete`: false when a descendant still held the output open 5
+  seconds after the program ended.
+
+`run_plugin_check` adds `findings`, the checker's `FAIL` lines without the
+prefix (at most 256 lines and 256 KiB, with `findings_truncated` true when more
+were dropped), and `summary`, its last `OK: N failure(s)` or
+`FAILED: N failure(s)` line. `test_plugin_project` adds `summary`, CTest's
+`N% tests passed` line. Both are read from the whole output stream, so a
+truncated tail still reports them. Results name the resolved folder or project
+path. Every result carries `provenance`, like the other tools.
+
+A result always fits the 4 MiB response cap. Output that is not UTF-8 is decoded
+with replacement characters, which take more room once escaped, so if a whole
+result would be too large the server shortens the output tails first and then
+the findings, setting `output_truncated` and `findings_truncated`. `state`,
+`exit_code`, `passed` and `summary` are always kept.
+
+**Security model.**
+
+- **Containment.** A path is first checked as text: joined to the first root and
+  normalized, it must lie inside a configured root, before the filesystem is
+  touched. It is then resolved (symlinks, junctions and `..`), and the result
+  must be an existing folder inside a root. A path outside every root, a missing
+  path and a file all get the same refusal, so a caller learns nothing about
+  other paths. NUL characters, and on Windows a `:` after the drive, are
+  refused. A project whose `build` entry resolves outside the roots is refused.
+  The roots themselves are operator-supplied and trusted; a symlinked root is
+  followed. These checks are not race-free against a project that changes during
+  the call.
+- **Fixed programs and arguments.** Programs, generator, platform, SDK folder,
+  timeout and output limit come only from the operator's command line. The
+  caller's path is passed as one resolved absolute argument, so it never starts
+  with `-`. Processes start with stdin closed and no shell, and batch files,
+  which Windows would hand to `cmd.exe`, are refused (see above).
+- **Bounded time and output.** Each process runs in its own process group: a new
+  process group and a job object on Windows, a new session on POSIX. On timeout
+  the whole tree is killed: `taskkill /F /T` and the job object on Windows,
+  `SIGKILL` to the process group on POSIX. When the program exits normally, any
+  descendant still running is killed the same way, so nothing it started
+  outlives the call. On Windows the job object is set to kill on close, so if
+  the server itself is killed or exits mid-call, the running tree ends with it.
+  On POSIX it does not: killing the server mid-call leaves that call's process
+  group running, so end it yourself (for example `kill -9 -PGID`). A descendant
+  that deliberately leaves the group or job can survive. Output beyond the limit
+  is dropped from the front.
+- **This runs code.** CMake runs the project's `CMakeLists.txt`, the build runs
+  compilers, and `sco-plugin-check` loads the plugin's native code and runs it
+  against a stand-in host. None of this is a sandbox. Grant only project roots
+  whose code you would build and run yourself. The tools advertise
+  `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false` and
+  `openWorldHint: false`. Prefer a client that asks before each call.
+- **One call at a time.** The server handles requests in order, so a build
+  blocks every other tool call until it ends or times out. The limit of 120
+  calls per 60 seconds covers these tools too.
+- **What a pass means.** A passing check is synthetic host and ABI evidence from
+  a stand-in host. It is not the real host, and nothing here loads the plugin in
+  the game: **not run in game**.
+
 ## MCP clients
 
 For clients accepting an `mcpServers` configuration, use this stdio launcher.
@@ -568,6 +709,7 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
 | Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
 | Extended tool is unknown | Restart with `--extended-tools` and explicit client permissions for the additional names. |
+| Development tool is unknown or refused | Restart with `--enable-dev-tools` and a `--project-root`. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
 | Scaffold/native metadata unavailable | Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
 | Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |
 | Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
@@ -575,12 +717,16 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | Guide sections are stale | A `sdk-guides.json` beside the catalogue (or from `--guides`) wins over `--repo-root`. Rebuild it with `tools/sdk_guides.py build`, or delete it to build from the tree, and restart. `guides.source_sha` says which commit the file came from. |
 
 Discovery cannot invoke commands, reload plugins or diagnose live game state.
+The opt-in development tools build and check plugins on this machine only; they
+never reach a host or the game.
 Runtime inspection uses the separate default-off launcher with independent host
 and security admission.
 
 ## Security boundaries and limits
 
-- **No network, subprocess execution, or file writes by the server.** Its interface
+- **No network, subprocess execution, or file writes by the server**, unless the
+  operator enables the [development tools](#development-tools-opt-in), which run
+  fixed programs on folders inside the configured project roots. Its interface
   is stdio and its discovery operations read local catalogue data and optional
   example files. The separate catalogue builder compiles/runs probes and writes
   its output; the server does neither. The only repository code it runs is

@@ -3,7 +3,8 @@
 The local [`tools/sco-core-mcp`](../tools/sco-core-mcp/README.md) server exposes
 six read-only **discovery** tools over stdio. It reads the same compiler-backed
 catalogue as the static reference site. It does not call SDK methods, run a game,
-compile examples, or provide an HTTP endpoint. GitHub Pages cannot host it.
+or provide an HTTP endpoint, and by default it compiles nothing. GitHub Pages
+cannot host it.
 No credentials, secrets, network service or orchestration prompt is required.
 
 Runtime inspection uses the separate default-off
@@ -141,6 +142,49 @@ server runs that root's scaffolder in its own process, so grant only a reviewed
 checkout. The
 [server README](../tools/sco-core-mcp/README.md#extended-tools-opt-in) gives the
 schemas and limits. The launcher above stays at the six default tools.
+
+**Opt-in development tools.** On a developer's own machine, an agent can also
+run the build-and-check loop. Add `--enable-dev-tools` and one or more
+`--project-root /absolute/path/to/projects` to `args`, and the server offers three
+more tools: `run_plugin_check`, `build_plugin_project` and
+`test_plugin_project`. Add each name you want to `tools` explicitly. In `args`,
+every flag and every value is its own array element; `"--project-root /abs"` as
+one element is refused at start. Append these elements to the existing `args`
+and `tools` arrays of the configuration above:
+
+```json
+{
+  "args": ["--enable-dev-tools",
+           "--project-root", "/absolute/path/to/projects",
+           "--plugin-check", "/absolute/path/to/sco-plugin-check"],
+  "tools": ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
+}
+```
+
+- `run_plugin_check` takes a built plugin `folder` and an optional `mode`
+  (`full` or `short`). It runs the operator's `sco-plugin-check` and returns the
+  exit code, `passed`, the `FAIL` lines and the final summary line.
+- `build_plugin_project` takes a `project` folder holding a `CMakeLists.txt`. It
+  configures and builds it into the project's own `build` subfolder.
+- `test_plugin_project` takes the same `project` and runs `ctest` in that
+  `build` subfolder.
+
+The caller supplies only that path. The operator fixes the programs (with
+`--plugin-check`, `--cmake` and `--ctest`), the generator and platform
+(`--cmake-generator`, `--cmake-platform`), the SDK folder (`--sco-sdk`), a
+timeout (`--dev-timeout`) and an output cap (`--dev-output-limit`). Programs must
+be an `.exe` (or a native program elsewhere) or a `.py` wrapper; batch files are
+refused. Paths outside every project root are refused after resolving symlinks
+and `..`. A timeout kills the whole process tree.
+
+These tools run code. CMake runs the project's build files, and the checker
+loads the plugin's native code into a stand-in host. They are not a sandbox, so
+grant only project roots whose code you would build yourself. They advertise
+`readOnlyHint: false`, so Copilot code review excludes them; never add them to a
+shared repository configuration or a hosted runner. A passing check is not
+evidence that the plugin works in the game: **not run in game**. The
+[server README](../tools/sco-core-mcp/README.md#development-tools-opt-in) gives
+the exact command lines, result fields and security model.
 
 ## Copilot code review: maintainer-owned repository setting
 

@@ -70,13 +70,15 @@ For the project overview, start with the [root README](../README.md).
    prerequisites, stdio launcher, client configuration and troubleshooting.
 2. [SDK to MCP to plugin](sdk-mcp-tutorial.md): discover a contract, request a
    scaffold, validate manifest/widgets and run the native checker.
-3. [MCP server authority](../tools/sco-core-mcp/README.md): six default and six opt-in tools
-   (including guide search with `search_guides` and `get_guide_section`), allowlist,
-   provenance, limits and separate administrator-owned runner settings.
+3. [MCP server authority](../tools/sco-core-mcp/README.md): six default tools, six opt-in
+   discovery tools (including guide search with `search_guides` and `get_guide_section`)
+   and three opt-in development tools, allowlist, provenance, limits and separate
+   administrator-owned runner settings.
 4. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
    exact source/archive inputs; development previews are not approved releases.
 
-MCP is static discovery, not a host/game connection, compiler or SDK executor.
+MCP is static discovery by default; the opt-in development tools build and
+check plugins on this machine only, never a host or the game.
 Client-specific instructions live in the integration guide, not in this index.
 
 ## Maintainer — Build, contribute, release
