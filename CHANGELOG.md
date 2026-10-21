@@ -4,6 +4,14 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- `game.input` now ships the 1,297 actions re-verified on game build 4.10.197.2878
+  (F-4.10.197.2878-050), replacing an unverified table whose ids were wrong for
+  this build (for example `attack1` is 115). Ids 1..1297 and their names come from
+  the build's own action registry, re-derived statically; 0 and ids above 1297 are
+  not actions, and no record is flagged. `SC_INPUT_ACTION_COUNT` is 1297,
+  `SC_ACTION_INVALID` is 0 (an SDK-only "no action" value), and the `FIRST` and
+  `LAST` sentinels are gone. The `sc_input_v1` table layout is unchanged. Not run
+  in game.
 - Added a community plugin directory: plugins stay in their authors' own
   repositories, and `docs/plugin-directory.md` lists them from the validated index
   `docs/plugin-directory.json` (plugin ids, https repository, author, SPDX licence,
@@ -155,7 +163,7 @@ SDK 2.4.0 packages the entries below without changing frozen plugin ABI 1.1
 (`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.3.0). Core, legacy,
 core-source and host-source-sc use 2.4.0. The candidate adds the game service tables
 `game.actor_stats` 1.1, `game.actor_stats_write` 1.0, `game.gamerules` 1.1 (with the 17-entry `list_params` tail), `game.build` 1.0, `game.input` 1.0
-(a 1,267-name action registry whose ids above 186 are build-unresolved metadata) and `game.inventory` 1.1
+(a 1,297-name action registry re-verified on 4.10.197.2878) and `game.inventory` 1.1
 (an item-port adapter with the 192-member item category enumeration, `game.inventory.read` held OFF),
 new bus events `game.mission.changed` (capability default ON; no active production
 missions backend) and `game.loadout.respawn_completed` (capability default OFF), and
@@ -182,10 +190,10 @@ readiness. Other additions retain their registry-recorded OFF or conditional gat
   17 copied names/groups/types (F-INTAKE-005), paged and count-only enumeration.
   No live values or parameter offsets; the read prefix and wrappers stay intact.
   Source build unresolved; default read backend remains unavailable. Not run in game.
-- **`game.input` 1.0 action registry** (`sc_input.h`): 1,267 named members,
-  O(1) id lookup and binary-search name lookup. LAST/INVALID share an id; tail
-  members above 186 are build-unresolved metadata. No input injection or engine
-  calls. F-4.10.197.2878-033 / F-INTAKE-010. Not run in game.
+- **`game.input` 1.0 action registry** (`sc_input.h`): 1,297 named actions,
+  ids 1..1297 on 4.10.197.2878, O(1) id lookup and binary-search name lookup.
+  No sentinel records or aliases. No input injection or engine
+  calls. F-4.10.197.2878-050. Not run in game.
 - **`game.inventory` 1.1: the item-port adapter** (`include/sc_inventory.h`, [docs](docs/game/inventory.md)).
   The service now has a production backend: it reads the local player's item-port container in place
   (no allocation, no call into the container), walks the whole attached tree depth first, and
