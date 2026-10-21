@@ -27,7 +27,7 @@ FORBIDDEN = ('/' + 'Users' + '/', 'task' + '-register', 'sco' + '-private',
 SENTINELS = ('PRIVATE_SENTINEL_73c61ae9', 'PRIVATE_FILENAME_93b4167a')
 DOWNLOADS = {gen.BASE + '/sdk-catalogue.json', gen.BASE + '/' + gen.NATIVE_DOWNLOAD}
 # Routes external checkers depend on; the release notifier polls the release-notes page.
-PINNED_ROUTES = ('guides/releases/sdk-v210', 'guides/getting-started', 'guides/api-v1', 'guides/readme')
+PINNED_ROUTES = ('guides/releases/sdk-v240', 'guides/getting-started', 'guides/api-v1', 'guides/readme')
 # Short URLs served by a static page in site/public/ that links to the guide it summarizes.
 SHORT_ROUTES = {'roadmap': 'guides/roadmap'}
 GZIP_FILE_LIMIT = 16 << 20
@@ -181,7 +181,7 @@ class SiteTests(unittest.TestCase):
             for page in docs.rglob('*.md'):
                 text = page.read_text()
                 self.assertIn('development preview', text)
-                self.assertIn(gen.RELEASES + gen.PUBLISHED_RELEASE, text)
+                self.assertIn(gen.RELEASES + gen.PUBLISHED_DOWNLOAD_TAG + ')', text)
                 for key in ('sdk_version', 'game_pack_version', 'source_sha'):
                     self.assertIn(self.catalogue[key], text)
             self.assertEqual(json.loads((output / 'public/sdk-catalogue.json').read_text()), self.catalogue)
@@ -313,10 +313,11 @@ class SiteTests(unittest.TestCase):
             self.assertEqual(portal.cards, expected)
             self.assertEqual(set(portal.tracks), {'published', 'preview'})
             self.assertEqual(portal.tracks['published']['data-tag'], scope['tag'])
-            self.assertIn(gen.RELEASES + scope['tag'], portal.track_links['published'])
+            self.assertEqual(portal.tracks['published']['data-download-tag'], gen.PUBLISHED_DOWNLOAD_TAG)
+            self.assertIn(gen.RELEASES + gen.PUBLISHED_DOWNLOAD_TAG, portal.track_links['published'])
             self.assertEqual(portal.tracks['preview']['data-source-sha'], self.catalogue['source_sha'])
             self.assertIn(gen.COMMITS + self.catalogue['source_sha'], portal.track_links['preview'])
-            downloads = gen.DOWNLOADS + scope['tag'] + '/'
+            downloads = gen.DOWNLOADS + gen.PUBLISHED_DOWNLOAD_TAG + '/'
             for card in expected:
                 section = index.split('### Verify ' + card['data-profile'] + '\n', 1)[1].split('\n```\n', 1)[0]
                 self.assertIn(downloads + 'SHA256SUMS', section)
@@ -328,6 +329,23 @@ class SiteTests(unittest.TestCase):
             release = gen.release_portal(ROOT, self.catalogue, 'sdk-v9.9.9', {n: gen.guide_id(n) for n in gen.inputs(ROOT)})
             self.assertIn('data-track="release"', release)
             self.assertNotIn('data-track="preview"', release)
+
+    def test_published_download_tag(self):
+        self.assertTrue(gen.PUBLISHED_DOWNLOAD_TAG.startswith(gen.PUBLISHED_RELEASE))
+        saved = gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG
+        try:
+            for download, status in (('sdk-v2.4.0', 'Published release'), ('sdk-v2.4.0-rc.1', 'Published pre-release'),
+                                     ('sdk-v2.4.0-rc.12', 'Published pre-release')):
+                with self.subTest(download=download):
+                    gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0', download
+                    self.assertEqual(gen.published_stage()[0], status)
+            for download in ('sdk-v2.3.0', 'sdk-v2.4.0-rc.0', 'sdk-v2.4.0-rc1', 'sdk-v2.4.0-beta.1', 'sdk-v2.4.0-rc.1x',
+                             'sdk-v2.4.01'):
+                with self.subTest(download=download), self.assertRaises(ValueError):
+                    gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0', download
+                    gen.published_stage()
+        finally:
+            gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG = saved
 
     def test_release_portal_fails_closed(self):
         good = ('<!-- release-scope:start -->\n```json\n' + json.dumps(
@@ -442,7 +460,9 @@ class SiteTests(unittest.TestCase):
         docs = ['docs/a.md', 'docs/sub/b.md', 'docs/releases/sdk-v9.9.9.md']
         root = self.allowlist_fixture({name: '# ok\n' for name in docs}, docs)
         self.assertEqual(gen.inputs(root), sorted(docs))
-        self.assertIn('docs/releases/sdk-v2.1.0.md', gen.inputs(ROOT))
+        # Only the current release's notes are published; older notes stay in the repository as history.
+        self.assertEqual([name for name in gen.inputs(ROOT) if name.startswith('docs/releases/')],
+                         ['docs/releases/' + gen.PUBLISHED_RELEASE + '.md'])
         self.assertIn('docs/host-source-sc.md', gen.inputs(ROOT))
 
     def test_allowlist_refuses_unsafe_inputs(self):

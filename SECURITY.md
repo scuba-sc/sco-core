@@ -4,12 +4,12 @@
 
 | Version | Security support |
 |---|---|
-| `sdk-v2.0.0` / plugin ABI 1.x | Supported release line for security reports and fixes. The current frozen plugin ABI is 1.1. |
-| Older SDK release lines | No separate maintenance commitment; report issues that also affect the supported line. |
+| SDK 2.4.0 (release candidate 1, `sdk-v2.4.0-rc.1`; the final `sdk-v2.4.0` when published) / plugin ABI 1.x | Supported release line for security reports and fixes. The current frozen plugin ABI is 1.1. |
+| SDK 2.3.0 and older | No separate maintenance commitment; their release downloads were withdrawn. Report issues that also affect the supported line. |
 
 SDK packaging versions and plugin ABI versions are different coordinates; support
 does not certify every game build or game-service behavior. See the
-[sdk-v2.0.0 release notes](docs/releases/sdk-v2.0.0.md) and
+[SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md) and
 [ABI compatibility rules](docs/api-v1.md#compatibility).
 
 ## Reporting a vulnerability privately

@@ -48,13 +48,15 @@ accept that version. Consult the server README for protocol and bounded-file lim
 
 ## Copilot CLI and compatible stdio clients
 
-For a reviewed SDK 2.4.0 candidate kit, use its bundled root
+For the SDK 2.4.0 release candidate 1 combined kit (`sco-sdk-2.4.0.zip` from the
+[`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1) pre-release) or
+another reviewed kit, use its bundled root
 `sdk-catalogue.json`, `tools/sco-core-mcp/server.py` and resulting SDK root in
 the configuration below. No Clang installation is needed merely to consume that
 catalogue. Compose a game overlay with its exact required core archive first;
-verify checksums and SDK/game-pack/source compatibility coordinates. The candidate
-is unreleased, and the site's changing mainline catalogue is not automatically
-a match for an older published archive. See the
+verify checksums and SDK/game-pack/source compatibility coordinates. The site's
+changing mainline catalogue is not automatically a match for a published
+archive. See the
 [standalone walkthrough](sdk-mcp-tutorial.md) for discovery, scaffolding,
 manifest/widget validation and native checking outside MCP.
 

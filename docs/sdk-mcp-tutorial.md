@@ -2,13 +2,15 @@
 
 ## Standalone developer-kit workflow
 
-**SDK 2.4.0 is an unreleased candidate.** The candidate combined kit, composed
-core-plus-game overlay and host-source kit can supply the discovery launcher,
-`sdk-catalogue.json` and `sdk-guides.json`. This is candidate packaging behavior, not a published SDK
-download or gameplay acceptance claim. Core-only profiles do not contain the
-game catalogue.
+**SDK 2.4.0 is published as release candidate 1**
+([`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), a GitHub
+pre-release; the final signed `sdk-v2.4.0` follows). Its combined kit, composed
+core-plus-game overlay and host-source kit supply the discovery launcher,
+`sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
+gameplay acceptance claim. Core-only profiles do not contain the game catalogue.
 
-Use a reviewed candidate kit supplied with its checksum/compatibility inventory,
+Use a kit downloaded from that release and checked against its `SHA256SUMS`,
+with its compatibility inventory,
 or build a catalogue from matching source as described in the
 [discovery README](../tools/sco-core-mcp/README.md). Do not silently pair an older
 published archive with the site's changing mainline catalogue.
@@ -271,7 +273,7 @@ has no promised safe in-process recovery. **Not run in game.**
 The following workflow uses a separate sc-offline checkout and downstream proof
 helpers. It is not a prerequisite for the standalone kit workflow above. Its
 commands and external fixtures require verification against that downstream
-revision; the evidence ledger below does not certify the candidate archive path.
+revision; the evidence ledger below does not certify the 2.4.0 release candidate archive path.
 
 This command-first tutorial creates **your own** `tutorial_npc` and
 `tutorial_inspector` folders from sc-offline's public-SDK consumers. These IDs do
@@ -345,7 +347,10 @@ sc-offline's `tools/check_inspector_sdk.py`, with its sha256. That pin can lag
 the newest sco-core release, so read it from your sc-offline checkout rather than
 from this page, then download that archive and its adjacent `SHA256SUMS` from the
 matching human-published release on the
-[releases page](https://github.com/scubamount/sco-core/releases).
+[releases page](https://github.com/scubamount/sco-core/releases). SDK 2.4.0 is
+published as release candidate 1, so its archives sit under the tag
+`sdk-v2.4.0-rc.1`. Releases before 2.4.0 no longer have downloads; a pin to one
+of them has to move to 2.4.0 first.
 Set absolute paths to the product source, downloaded archive/checksums and a new
 work root **outside either checkout**. Do not use host/submodule include trees.
 
@@ -353,7 +358,7 @@ work root **outside either checkout**. Do not use host/submodule include trees.
 set -eu
 PRODUCT_SOURCE=/absolute/path/to/sc-offline
 SDK_NAME=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import check_inspector_sdk as c; print(c.SDK_ROOT)' "$PRODUCT_SOURCE/tools")
-echo "download $SDK_NAME.zip from release sdk-v${SDK_NAME#sco-sdk-}"
+echo "download $SDK_NAME.zip from the release page (SDK 2.4.0: tag sdk-v2.4.0-rc.1)"
 ARCHIVE=/absolute/path/to/$SDK_NAME.zip
 SUMS=/absolute/path/to/SHA256SUMS
 WORK=/absolute/new/path/tutorial-dev

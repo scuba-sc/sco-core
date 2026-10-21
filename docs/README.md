@@ -89,11 +89,10 @@ Client-specific instructions live in the integration guide, not in this index.
 
 1. [Contributing](../CONTRIBUTING.md) and [building/testing](building.md):
    source policy, named tests, CI and product adoption.
-2. [Changelog](../CHANGELOG.md), [SDK 2.3.0 notes](releases/sdk-v2.3.0.md) (latest published),
-   [SDK 2.2.0 notes](releases/sdk-v2.2.0.md), [SDK 2.1.0 notes](releases/sdk-v2.1.0.md),
-   [SDK 2.0.0 notes](releases/sdk-v2.0.0.md) and
-   [published releases](https://github.com/scubamount/sco-core/releases/latest):
-   keep SDK/package, plugin ABI and game-pack version coordinates distinct.
+2. [Changelog](../CHANGELOG.md), [SDK 2.4.0 notes](releases/sdk-v2.4.0.md) and the
+   [SDK 2.4.0 release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1)
+   pre-release, the only SDK release on the release page (the final signed `sdk-v2.4.0`
+   follows): keep SDK/package, plugin ABI and game-pack version coordinates distinct.
 3. [Release checklist](legal/release-checklist.md) and
    [release decisions](legal/release-decisions/README.md): candidate versus
    signed approval versus actual publication; releases are maintainer acts.

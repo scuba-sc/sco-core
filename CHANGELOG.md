@@ -2,7 +2,7 @@
 
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
-## sdk-v2.4.0 (unreleased)
+## sdk-v2.4.0 (release candidate 1 published 2026-10-21 as sdk-v2.4.0-rc.1; final release pending)
 
 - GameRules `list_params` now lists the 15 parameters verified on game build
   4.10.197.2878 (F-4.10.197.2878-054); two names that do not occur on that build are

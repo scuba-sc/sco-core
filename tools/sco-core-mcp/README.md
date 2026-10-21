@@ -71,11 +71,12 @@ server before relying on the new snapshot. The server does not regenerate it.
 
 ## Using an extracted SDK archive
 
-**SDK 2.4.0 is an unreleased candidate.** Its packaging code bundles this
-launcher, a compiler-built `sdk-catalogue.json` and the matching guide sections
-`sdk-guides.json` in the combined `legacy` developer kit, the `game-sc` overlay
-and the `host-source-sc` kit. These are
-candidate package contents, not available or approved release assets.
+**SDK 2.4.0 is published as release candidate 1**
+([`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), a GitHub
+pre-release; the final signed `sdk-v2.4.0` follows). It bundles this launcher, a
+compiler-built `sdk-catalogue.json` and the matching guide sections
+`sdk-guides.json` in the combined `legacy` developer kit (`sco-sdk-2.4.0.zip`),
+the `game-sc` overlay and the `host-source-sc` kit.
 
 Use the combined kit directly, or compose the game overlay over the exact core
 kit required by its compatibility metadata. Set `--repo-root` to the resulting
@@ -83,7 +84,7 @@ SDK root, not the parent extraction directory or an uncomposed overlay. The
 `host-source-sc` archive retains repository layout. Core and core-source profiles
 remain game-neutral and contain neither this game catalogue nor its launcher.
 
-For a trusted extracted candidate, run:
+For a trusted extracted kit, run:
 
 ```sh
 python3 /absolute/sdk/tools/sco-core-mcp/server.py \
@@ -98,8 +99,9 @@ Verify the archive checksum inventory and both SDK/game-pack coordinates before
 using its catalogue; a version match does not establish matching source bytes,
 release approval, a loaded plugin or gameplay support.
 
-Earlier published archives do not contain a catalogue. Release assets remain
-immutable; users of those archives obtain one in either of two ways:
+The `core` and `core-source` archives, and archives of earlier SDK releases,
+do not contain this catalogue; users of those archives obtain one in either of
+two ways:
 
 Downloading a catalogue does not install the launcher. Use the launcher from a
 reviewed source checkout and point `--repo-root` at the extracted archive when

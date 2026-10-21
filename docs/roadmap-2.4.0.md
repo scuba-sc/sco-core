@@ -1,7 +1,9 @@
 # sco-core SDK 2.4.0 roadmap
 
 SDK **2.4.0**, optional Star Citizen game pack **0.8.0**, frozen plugin ABI
-**1.1**. This is an unreleased development candidate, not a release announcement.
+**1.1**. Release candidate 1 is published as a GitHub pre-release,
+[`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1); the final signed
+`sdk-v2.4.0` release follows. This roadmap is not a release announcement.
 Contract presence, implementation, default availability, synthetic validation and
 in-game acceptance are separate. No game behavior is certified here.
 
@@ -9,11 +11,12 @@ in-game acceptance are separate. No game behavior is certified here.
 
 This roadmap covers the SDK and its developer tooling. Engine, studio and product
 releases are separate; they are not SDK 2.4.0 completion criteria. Consumers adopt
-published, checksum-verified archives after release rather than integration branches.
+published, checksum-verified archives (today the release candidate 1 archives) rather than
+integration branches.
 
 ## Distribution profiles
 
-| Profile | Candidate archive | Purpose |
+| Profile | Release candidate 1 archive | Purpose |
 |---|---|---|
 | core | `sco-sdk-core-2.4.0.zip` | Game-neutral plugin headers, bindings, examples and tools |
 | game-sc | `sco-sdk-game-sc-0.8.0.zip` | Optional overlay over the exact compatible core archive |
@@ -46,7 +49,7 @@ distribution; each selected file still needs applicable provenance review.
 | DataCore packs | Atomic remains default; BestEffort receipts and `clone = { record = "...", mode = "deep" }`. Use `sco-dcb lint <pack>...` for syntax and `sco-dcb check <file.dcb> <pack>...` for database-backed validation. |
 
 See [contracts](contracts.md), [game capability status](game/status.md) and
-[candidate notes](releases/sdk-v2.4.0.md) for authoritative per-operation limits, and
+[release notes](releases/sdk-v2.4.0.md) for authoritative per-operation limits, and
 [stability](stability.md) for which tables are Stable or Experimental across SDK 2.x.
 
 ## MCP developer workflow
@@ -76,5 +79,6 @@ compatibility information, not an endorsement or in-game verification.
 - Require hosted checks on the exact builder commit and retain archive hashes.
 - Resolve per-profile provenance and native-index distribution decisions; historical
   approvals do not authorize new bytes.
-- Complete the maintainer candidate, signing, tagging, publication and deployed
+- Release candidate 1 is published (`sdk-v2.4.0-rc.1`, every file attested). Remaining:
+  the maintainer's signing, the final `sdk-v2.4.0` tag and publication, and the deployed
   documentation procedure. No approval or in-game result is implied by this plan.

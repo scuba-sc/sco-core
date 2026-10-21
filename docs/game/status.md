@@ -1,6 +1,6 @@
 # Status of every game.* table
 
-SDK 2.3.0 (published 2026-10-15 as `sdk-v2.3.0`) uses game pack **0.6.0**. `main` pins the verified build **4.10.197.2878** (PE timestamp `0x6accbae3`, [game pack](../game-pack.md#verified-game-builds)): the rows recorded on 4.10.196.36804 re-scan unchanged on it, and the evidence strings below keep the build each was recorded on. A package coordinate or a pin bump includes additive contracts; it does not establish in-game verification.
+SDK 2.4.0 (published 2026-10-21 as release candidate 1, `sdk-v2.4.0-rc.1`) uses game pack **0.8.0**. `main` pins the verified build **4.10.197.2878** (PE timestamp `0x6accbae3`, [game pack](../game-pack.md#verified-game-builds)): the rows recorded on 4.10.196.36804 re-scan unchanged on it, and the evidence strings below keep the build each was recorded on. A package coordinate or a pin bump includes additive contracts; it does not establish in-game verification.
 
 The dated signature evidence below was recorded at sco-core `main` `2197dfb` (2026-10-11, with `game.actors.died`), where the game pack was still **0.2.0** (0.3.0 arrived in `95a0d34` and first shipped in `sdk-v2.0.0`), against Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, its [stability](../stability.md) label, whether it is on by default, and how far it has been checked. Later sections retain their own synthetic-only and unverified limits.
 

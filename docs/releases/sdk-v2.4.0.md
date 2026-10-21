@@ -1,20 +1,35 @@
-# sco-core SDK 2.4.0 (release notes, unpublished candidate)
+# sco-core SDK 2.4.0 (release notes, release candidate 1)
 
-Prospective tag `sdk-v2.4.0`, combined archive `sco-sdk-2.4.0.zip`.
-**Status: unreleased development candidate.** This page describes development
-contracts, not a verified merge into main or an approved release. Local archives
-are separate from an official attested candidate. Nothing here authorizes
-approval, signing, tagging or publication.
-Until the maintainer publishes 2.4.0, the newest published SDK is 2.3.0
-([latest release](https://github.com/scubamount/sco-core/releases/latest)). The release workflow
-publishes the CHANGELOG section [`## sdk-v2.4.0`](../../CHANGELOG.md) as the release's notes; this
-page is the longer reference behind it.
+Final tag `sdk-v2.4.0`, combined archive `sco-sdk-2.4.0.zip`.
+**Status: release candidate 1 published.** On 2026-10-21 the five archives were published as the
+GitHub pre-release [`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
+release-candidate workflow from `main` commit `48d7055`, with every file attested. It is the only
+SDK release on the release page: the 2.0.0 to 2.3.0 release downloads were withdrawn (their tags
+remain in git). The final signed `sdk-v2.4.0` release is pending; nothing here authorizes approval,
+signing, tagging or that publication. GitHub does not count a pre-release as its "latest" release,
+so link to the tag page. The release workflow publishes the CHANGELOG section
+[`## sdk-v2.4.0`](../../CHANGELOG.md) as the final release's notes; this page is the longer
+reference behind it.
 
 <!-- release-scope:start -->
 ```json
 {"tag":"sdk-v2.4.0","sdk_version":"2.4.0","game_pack_version":"0.8.0","plugin_abi":"1.1","profiles":["core","game-sc","legacy","core-source","host-source-sc"]}
 ```
 <!-- release-scope:end -->
+
+## Release candidate 1 archives
+
+Download from [`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1) (files under
+`https://github.com/scubamount/sco-core/releases/download/sdk-v2.4.0-rc.1/<file>`). The digests are that release's
+`SHA256SUMS`; it also carries one `<archive>.spdx.json` SBOM per archive.
+
+| Archive | Profile | SHA-256 |
+|---|---|---|
+| `sco-sdk-core-2.4.0.zip` | `core` | `68ca5ef213fe9be162b974dcb798a6da2402583daf369e26b26634b23d869f7d` |
+| `sco-sdk-game-sc-0.8.0.zip` | `game-sc` (overlay on the exact core archive above) | `fafd2d2d4d86cf479c25a4623e94c7004b45e527e94dceb8354293c6a6b5a8f9` |
+| `sco-sdk-2.4.0.zip` | `legacy` (combined kit) | `124751534277b89f0516af1897919c3485923811596e159a1f683bb80b1c243b` |
+| `sco-sdk-core-source-2.4.0.zip` | `core-source` | `f2f7c35591ed96090240466910e3db408953a9a4f6e0a16a36da83bc2a34ee62` |
+| `sco-sdk-host-source-sc-2.4.0.zip` | `host-source-sc` | `5ca76ff9dac6bbaa183c6f308d610e08d9c1b0daf6ebda6458e222277406dfc6` |
 
 ## In plain words
 
@@ -77,15 +92,15 @@ are native C/C++ only; managed additions preserve layout but add no callable rou
 | `game.inventory` service table | 1.1 (new; item categories, `flags`, `total_seen`) | `sc_inventory.h` |
 | `game.mission.changed`, `game.loadout.respawn_completed` bus events | new records | `sc_game_events.h` |
 | `game.relocation`, `game.quantum` service tables | unchanged | production backends added behind the tables |
-| Star Citizen game pack | 0.8.0 (was 0.6.0 in the published SDK) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
+| Star Citizen game pack | 0.8.0 (was 0.6.0 in SDK 2.3.0) | `SCO_GAME_PACK_VERSION` in `sc_game_pack.h` |
 | Verified game build | 4.10.197.2878 (was 4.10.196.36804 in 2.3.0) | `SCO_GAME_PACK_VERIFIED_BUILD`; rows verified by sigcheck, in-game verification pending |
 
 `VERSIONS.txt` in the zip states the same lines, generated from the headers by `sdk/package.py`.
 
 ## Development contracts
 
-These contracts are present in the development tree. This table does not attest
-a main-branch merge, final-source CI, native availability or game acceptance.
+These contracts ship in release candidate 1. This table does not attest native
+availability or game acceptance.
 
 | Contract | Development version | Default | Evidence |
 |---|---|---|---|
@@ -97,12 +112,17 @@ a main-branch merge, final-source CI, native availability or game acceptance.
 
 The bus event `game.loadout.respawn_completed` is also on `main`: production capability OFF, native hook unresolved, not run in game (F-INTAKE-004). #185's in-game hold was resolved by the owner's acceptance of static evidence; inventory 1.1 is **not run in game**.
 
-### Prerequisites before a candidate
+### Steps to the final release
+
+Step 3 produced release candidate 1: the release-candidate workflow ran on `main` commit
+`48d7055` and its attested archives are the `sdk-v2.4.0-rc.1` pre-release. Step 4 remains.
 
 1. The nine required jobs succeed on the exact `main` commit that will be built.
 2. Obtain static signature evidence for the final signature implementation. The recorded 332/332 run is historical and source-bound; the current index inventory includes additional async-loadout rows. Inventory is not proof of resolution against the executable. A local `sco-sigcheck` run of the 2026-10-21 candidate source resolved 347/347 rows on 4.10.197.2878 (static only).
 3. The designated human owner/operator dispatches `release-candidate.yml` on the exact fully green main commit. Local ZIP generation is separate from that candidate and its attestations.
-4. Human acts, none of them done here: the scope decision record, the signed approval, counsel review, the tag and publication.
+4. Human acts: the provenance decisions are recorded
+   ([2.4.0 decisions](../legal/release-decisions/2026-10-21-sdk-v2.4.0-scope.md)); the signed
+   approval, counsel review, the final `sdk-v2.4.0` tag and its publication remain. None of them is done here.
 
 
 ## Coordinates and distribution
@@ -209,12 +229,15 @@ official-network and private-LAN acceptance remain unproven.
 
 ## Checking the zip
 
-After publication, the same checks as every release apply:
+Download the archives you need and `SHA256SUMS` from release candidate 1, then run the same
+checks as every release (`sha256sum --ignore-missing` skips the lines for files you did not
+download):
 
 ```sh
-sha256sum -c SHA256SUMS
+gh release download sdk-v2.4.0-rc.1 -R scubamount/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
+sha256sum --ignore-missing -c SHA256SUMS
 unzip -p sco-sdk-2.4.0.zip sco-sdk-2.4.0/VERSIONS.txt
 ```
 
-Publication follows the [maintainer release procedure](../legal/release-checklist.md#releasing);
-these notes do not authorize a candidate, a tag or a release.
+The final release follows the [maintainer release procedure](../legal/release-checklist.md#releasing);
+these notes do not authorize a tag or a release.
