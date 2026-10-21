@@ -30,8 +30,8 @@ disk, not that a feature has been seen working.
 - New: read an actor's hunger, thirst, temperature, oxygen, stun, distortion and radiation
   (`game.actor_stats`); change one stat of your own player, off by default (`game.actor_stats_write`);
   read the server's quantum-travel settings and list the 17 parameter definitions
-  (`game.gamerules` 1.1, read off, no backend); look up any of 1,267 named input actions by id or name
-  (`game.input` 1.0, metadata only; ids above 186 are build-unresolved); ask which game
+  (`game.gamerules` 1.1, read off, no backend); look up any of 1,297 named input actions by id or name
+  (`game.input` 1.0, metadata only; ids are scoped to build 4.10.197.2878); ask which game
   build is running (`game.build`); an event when an accepted mission changes
   (`game.mission.changed`, publishes nothing until a missions backend exists); an event when a loadout
   respawn completes (`game.loadout.respawn_completed`, default off, native hook unresolved); and the
@@ -92,7 +92,7 @@ a main-branch merge, final-source CI, native availability or game acceptance.
 | `game.build` | 1.0 | ON, pure metadata | `synthetic_only`; not run in game |
 | `game.actor_stats` | 1.1 (with `game.actor_stats_write` 1.0) | read ON when its rows resolve; write OFF; appended read IDs are not writable | `sigcheck_resolved` (read), `off_pending_probe` (write); not run in game |
 | `game.inventory` | 1.1: `flags` and `total_seen` after `ports[]` (a 1.0-sized caller is unchanged), the 192-member `sc_item_type` enumeration with `sc_inventory_item_type_name` and `sc_inventory_port_item_type`, and a production adapter with nine new signature rows | `game.inventory.read` OFF | `synthetic_only`; not run in game; F-4.10.197.2878-011..-016 |
-| `game.input` | 1.0: read-only action registry, 1,267 named members, lookup by id and by name; no input injection | `game.input.registry` ON, which advertises metadata availability only | `synthetic_only`; ids above 186 are build-unresolved metadata (`SC_INPUT_ACTION_BUILD_UNRESOLVED`); `LAST` and `INVALID` share one id; not run in game; F-4.10.197.2878-033, F-INTAKE-010 |
+| `game.input` | 1.0: read-only action registry, 1,297 named actions (ids 1..1297), lookup by id and by name; no input injection | `game.input.registry` ON, which advertises metadata availability only | `synthetic_only`; ids and names re-derived statically from the 4.10.197.2878 action registry, build-scoped; not run in game; F-4.10.197.2878-050 |
 | `game.gamerules` | 1.1: `list_params` appended, 17 copied name, group and type definitions; no live values; `read` is unchanged | `game.gamerules.read` OFF | `synthetic_only`; source build unresolved; not run in game; F-INTAKE-005 |
 
 The bus event `game.loadout.respawn_completed` is also on `main`: production capability OFF, native hook unresolved, not run in game (F-INTAKE-004). #185's in-game hold was resolved by the owner's acceptance of static evidence; inventory 1.1 is **not run in game**.
@@ -140,7 +140,7 @@ verification limits. In short:
 | `game.gamerules` 1.0 with C++20, C# and Lua read wrappers; 1.1 appends `list_params` | `include/sc_gamerules.h`, `include/scosdk/game/gamerules.hpp`, `sdk/csharp/Sco.Sdk/Game/GameRules.cs`, [docs](../game/gamerules.md) | headers and wrappers in game-sc and host-source-sc |
 | `game.build` 1.0: running-exe identity and the pack's verified-build pin as data | `include/sc_game_build.h`, [docs](../game/build.md) | header in game-sc and host-source-sc |
 | `game.inventory` 1.1: read-only item-port snapshot, item categories, production adapter (read held OFF) | `include/sc_inventory.h`, [docs](../game/inventory.md) | header in game-sc and host-source-sc; implementation in host-source-sc |
-| `game.input` 1.0: read-only action registry, 1,267 names | `include/sc_input.h` | header in game-sc and host-source-sc |
+| `game.input` 1.0: read-only action registry, 1,297 names | `include/sc_input.h` | header in game-sc and host-source-sc |
 | `game.mission.changed` and `game.loadout.respawn_completed` bus events | `include/sc_game_events.h`, [events](../game/events.md) | header in game-sc and host-source-sc |
 | `game.relocation` production path (new row `teleport.relocation`, product switch `SetRelocationEnabled`) | `src/game/services/relocation*.{h,cpp}`, [game services](../game-services.md) | host-source-sc |
 | `game.quantum` default production backend under the maintainer's amended rule of 2026-10-15 | `src/game/services/quantum_engine.cpp`, `quantum_owned.*`, [quantum](../quantum.md), [cvars](../game/cvars.md) | host-source-sc |
@@ -172,7 +172,7 @@ evidence. Every row is "not run in game".
 | `game.datacore_live` | OFF; explicit native read opt-in | `synthetic_only` | Guarded native reads tested on synthetic hosts; activation needs pre-engine quiescence; writes unavailable |
 | `game.entities.lookup` | OFF | `synthetic_only` | Copied lookup on a synthetic provider; native exact class-name lookup held (scope decision 2026-10-21) |
 | `game.world.raycast_filtered` | OFF | `synthetic_only` | Filtered rays with copied results on a synthetic provider; native single-hit held (scope decision 2026-10-21) |
-| `game.input.registry` | ON (metadata only) | `synthetic_only` | 1,267 named actions; ids above 186 are build-unresolved; no injection |
+| `game.input.registry` | ON (metadata only) | `synthetic_only` | 1,297 named actions, ids 1..1297 on 4.10.197.2878; no injection |
 | `game.events.loadout_respawn_completed` | OFF | `synthetic_only` | Event contract; native hook unresolved |
 | `game.build.info` | ON | `synthetic_only` | Pure metadata, no rows |
 | `game.events.mission_changed` | ON (maintainer ruling 2026-10-16, a product default) | `synthetic_only` | Fires only where a missions backend reports missions; none does today |

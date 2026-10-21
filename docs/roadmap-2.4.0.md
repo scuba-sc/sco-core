@@ -39,7 +39,7 @@ distribution; each selected file still needs applicable provenance review.
 | `game.entities` 1.2 | Copied epoch-pinned class registry, debug name lookup and finite typed component presence; no pointer export or native lookup adapter. New C#/Lua calls unsupported; managed layout parity only. |
 | `game.world.control` 1.1 | Bounded multi-hit with provider-owned acquire/query/release, validated copied records and owner skips; native adapter remains OFF. |
 | `game.actor_stats` 1.1 | 29 raw read IDs; stat units/ranges remain unverified. The separate write service retains its original allowlist and default-off admission. |
-| `game.input` 1.0 | Named action metadata; IDs above 186 remain build-unresolved, not certified input dispatch. |
+| `game.input` 1.0 | Named action metadata: 1,297 ids re-verified statically on 4.10.197.2878 (F-4.10.197.2878-050); not certified input dispatch. |
 | `game.gamerules` 1.1 | Static parameter definitions through `list_params`; live read requires a backend. |
 | `game.relocation` 1.0 | Existing public table with host backend composition and conditional offline admission. |
 | `game.datacore_live` 1.0 | Explicit host-backed pool access; no native pool adapter supplied and writes separately opt-in. |
