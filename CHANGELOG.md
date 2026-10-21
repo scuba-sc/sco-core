@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (unreleased)
 
+- Added default-OFF native DataCore counted reads, raw GUID record lookup and
+  serialized text-blob access with process-retained lifecycle exclusion. Native
+  activation requires explicit shell-enforced pre-engine quiescence and resolved
+  loader/reset/destructor identities; native writes remain unavailable. Synthetic
+  service/hook tests are not game or release acceptance.
+
 - Added a default-OFF Windows native reference-integer CVar read adapter for the
   four existing names, with current-build method identity checks, fresh admission
   and fault containment. Native production writes remain unavailable pending

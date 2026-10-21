@@ -3,8 +3,8 @@
 #include "sc_datacore_live.h"
 
 namespace sco::game::services::datacore_live {
-// Copied host-only backend. Callbacks remain live through Stop. No native pool
-// adapter is supplied; the host attests layout, fresh admission and pool lifetime.
+// Copied host-only backend. Callbacks remain live through Stop. The optional
+// native read adapter additionally requires prepared lifecycle exclusion.
 struct Backend {
     bool verified = false;
     bool (*offline)() = nullptr;

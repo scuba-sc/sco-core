@@ -1,8 +1,9 @@
 /*
  * sc_datacore_live.h: game service "game.datacore_live", version 1.0 (SDK 2.4.0, issue #193 [G22]).
  *
- * Host-backed in-memory pool access. The contract does not supply a native game
- * adapter: without a verified backend and fresh offline admission it refuses.
+ * Host-backed in-memory pool access. The optional native read adapter defaults
+ * OFF and requires host lifecycle preparation and fresh offline admission.
+ * Native writes remain unavailable.
  *
  * Game-neutral wire types in C. Additive ABI only (Rule 2).
  */
@@ -33,7 +34,7 @@ typedef enum sc_datacore_pool_type {
     SC_DC_POOL_FLOAT    = 9,
     SC_DC_POOL_DOUBLE   = 10,
     SC_DC_POOL_GUID     = 11,
-    SC_DC_POOL_STRING   = 12,
+    SC_DC_POOL_STRING   = 12, /* serialized text blob: byte elements, not string indices */
     SC_DC_POOL_COUNT    = 13
 } sc_datacore_pool_type;
 
@@ -50,8 +51,8 @@ typedef struct sc_datacore_live_record_info {
     uint32_t size;            /* sizeof(sc_datacore_live_record_info) */
     uint8_t  guid[16];        /* record GUID */
     uint32_t struct_type;     /* struct definition index */
-    uint32_t field_count;     /* number of fields */
-    uint64_t pool_offset;     /* offset in pool/table */
+    uint32_t field_count;     /* number of fields, including inherited fields */
+    uint64_t pool_offset;     /* byte offset within the serialized record table */
 } sc_datacore_live_record_info;
 
 typedef struct sc_datacore_live_v1 {

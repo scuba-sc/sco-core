@@ -301,7 +301,7 @@ SHARED_ASAN_SOURCES=(
   "$ROOT/src/game/services/audio.cpp" "$ROOT/src/game/services/world_control.cpp"
   "$ROOT/src/game/services/entity_lookup.cpp"
   "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
-  "$ROOT/src/game/pak_hooks.cpp" "${DATACORE[@]}" "${PLUGINS[@]}"
+  "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "${DATACORE[@]}" "${PLUGINS[@]}"
   "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/widgets/widgets.cpp"
   "$ROOT/src/settings/settings.cpp" "$ROOT/src/storage/storage.cpp"
   "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp"
@@ -316,7 +316,7 @@ SHARED_TSAN_SOURCES=(
   "${RUNTIME[@]}" "${HOST_IMPL[@]}"
   "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"
   "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
-  "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/hook/sco_hook.cpp" "${GAME[@]}"
+  "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "$ROOT/src/hook/sco_hook.cpp" "${GAME[@]}"
   "$ROOT/src/storage/storage.cpp" "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp"
   "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable.cpp" "$ROOT/src/net/core.cpp"
   "$ROOT/src/net/service.cpp" "$ROOT/src/net/scope.cpp" "$ROOT/src/net/control.cpp" "$ROOT/src/net/udp_posix.cpp"
@@ -337,6 +337,13 @@ parallel_compile tsan "${SHARED_TSAN_SOURCES[@]}"
 "$OUT/test_runtime"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_runtime.cpp" $(obj tsan "${RUNTIME[@]}") -o "$OUT/test_runtime_tsan"
 "$OUT/test_runtime_tsan"
+
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined \
+  "$ROOT/tests/test_datacore_live_lifecycle.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" -o "$OUT/test_datacore_live_lifecycle"
+"$OUT/test_datacore_live_lifecycle"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread \
+  "$ROOT/tests/test_datacore_live_lifecycle.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" -o "$OUT/test_datacore_live_lifecycle_tsan"
+"$OUT/test_datacore_live_lifecycle_tsan"
 
 # Capabilities and the host's sco_api table, over the same runtime, under both sanitizer sets.
 HOST_ASAN=($(obj asan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
@@ -398,7 +405,7 @@ HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signature
 
 # sco::game::pak: the CryPak adapter over a fake ICryPak and a fake loader, with a second thread on
 # the engine's functions during the load window, so both sanitizer sets.
-PAK_SRC=("$ROOT/src/game/pak_hooks.cpp" "${GAME[@]}" "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp" \
+PAK_SRC=("$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "${GAME[@]}" "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp" \
          "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_pak.cpp" $(obj asan "${PAK_SRC[@]}") -o "$OUT/test_pak"
 "$OUT/test_pak"

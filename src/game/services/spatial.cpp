@@ -27,6 +27,7 @@
 #include "quantum.h"
 #include "cvars.h"
 #include "cvars_engine.h"
+#include "datacore_live_engine.h"
 #include "offline_missions.h"
 #include "world.h"
 #include "events.h"
@@ -525,6 +526,9 @@ Result Start() {
     if (r != Result::Ok) { Stop(); return r; }
     r = StartGameRules(); // metadata available; live reads still require a verified backend
     if (r != Result::Ok) { Stop(); return r; }
+    const auto liveDataCore=datacore_live::EnginePrepared()?datacore_live::EngineBackend():datacore_live::Backend{};
+    r=static_cast<Result>(datacore_live::Start(&liveDataCore));
+    if(r!=Result::Ok){Stop();return r;}
     Log("[game] game.spatial 1.0 published: observed chains only; system identity unknown");
     Log("[game] game services published: %s 1.0, %s 1.2, %s 1.1, %s 1.0, %s 1.0, %s 1.0, %s 1.0 (+ the game.* events)", SC_SPATIAL_SERVICE_NAME,
         SC_SPAWN_SERVICE_NAME, SC_ACTORS_NAME, SC_VEHICLES_SERVICE_NAME, SC_WORLD_NAME, SC_ENTITIES_NAME,
@@ -540,6 +544,7 @@ void Stop() {
     (void)StopAudio();
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     StopGameRules();
+    datacore_live::Stop();
     StopInput();
     StopContracts();
     StopAsop();

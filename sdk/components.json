@@ -240,6 +240,88 @@
       "public_header": true
     },
     {
+      "id": "datacore-live-src-game-datacore_live_lifecycle.h",
+      "source": "src/game/datacore_live_lifecycle.h",
+      "destination": "src/game/datacore_live_lifecycle.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-datacore_live_lifecycle.cpp",
+      "source": "src/game/datacore_live_lifecycle.cpp",
+      "destination": "src/game/datacore_live_lifecycle.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-tests-test_datacore_live_lifecycle.cpp",
+      "source": "tests/test_datacore_live_lifecycle.cpp",
+      "destination": "tests/test_datacore_live_lifecycle.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-services-datacore_live_engine.h",
+      "source": "src/game/services/datacore_live_engine.h",
+      "destination": "src/game/services/datacore_live_engine.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-services-datacore_live_engine.cpp",
+      "source": "src/game/services/datacore_live_engine.cpp",
+      "destination": "src/game/services/datacore_live_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-tests-test_datacore_live_engine.cpp",
+      "source": "tests/test_datacore_live_engine.cpp",
+      "destination": "tests/test_datacore_live_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-datacore_live_sigs.cpp",
+      "source": "src/game/datacore_live_sigs.cpp",
+      "destination": "src/game/datacore_live_sigs.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "datacore-live-src-game-services-datacore_live.h",
       "source": "src/game/services/datacore_live.h",
       "destination": "src/game/services/datacore_live.h",
