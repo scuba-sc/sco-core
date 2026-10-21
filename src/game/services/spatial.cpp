@@ -522,7 +522,7 @@ Result Start() {
     if (r != Result::Ok) { Stop(); return r; }
     r = StartProductionContainerContents(); // empty until a grounded host-owned provider is configured
     if (r != Result::Ok) { Stop(); return r; }
-    r = StartAudio(); // publishes unavailable; no native audio backend is installed
+    r = StartAudio(); // publishes v1.1 unavailable; no native backend until a registration witness is grounded
     if (r != Result::Ok) { Stop(); return r; }
     r = StartGameRules(); // metadata available; live reads still require a verified backend
     if (r != Result::Ok) { Stop(); return r; }

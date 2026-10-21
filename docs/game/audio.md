@@ -53,3 +53,29 @@ The four-participant game cleanup dispatcher is exercised with distinct callback
 effects, including rejection of a fifth participant. `tests/abi_audio.c` pins
 the C11/C++ table and signatures. These are synthetic host tests, not native audio,
 Windows fault-containment, audible output or game verification.
+## v1.1: play_once
+
+`game.audio` 1.1 appends one member, `play_once(self, trigger)`, after `stop`.
+The 1.0 prefix (`resolve` at 8, `play` at 16, `stop` at 24) is unchanged; the
+table grows from 32 to 40 bytes. Callers use `sc_audio_play_once`, or
+`Audio::PlayOnce` in C++, which checks the table extent first and returns
+`UNAVAILABLE` against a 1.0-sized table.
+
+`play_once` is fire-and-forget. `OK` means only that the backend accepted the
+submission. It returns no playback token, gives no audible-output or completion
+guarantee and has no stop. If the caller is released while the backend call is
+in progress, the call can report `UNAVAILABLE` after the backend already
+accepted it; nothing is rolled back or retried.
+
+It is gated by its own capability, `game.audio.play_once` (default OFF),
+independently of `game.audio.triggers`. A provider may supply `resolve` and
+`play_once` without `play`/`stop`; `resolve` then issues tokens for one-shot use.
+A backend fault (`CRASHED`) turns `game.audio.play_once` off until the process
+restarts, surviving a service stop and start, and leaves a healthy
+`game.audio.triggers` mode working, including resolving new names.
+
+**Native status:** no native backend ships in this version. The host publishes
+the 1.1 table with `game.audio.play_once` OFF. A native backend is held until it
+can confirm the shared game object is still registered when the sound is
+submitted; that check is not yet established. Synthetic provider tests only;
+not run in game.

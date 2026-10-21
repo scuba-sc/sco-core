@@ -12,6 +12,7 @@ public:
         if (api->size < offsetof(sco_api, query_service) + sizeof(api->query_service) || !api->query_service)
             return SCO_UNAVAILABLE;
         const void* out = nullptr;
+        // Request 1.0 so a 1.0 host still opens; PlayOnce checks the table extent.
         const auto r = api->query_service(SC_AUDIO_NAME, SC_AUDIO_VERSION_1_0, &out);
         if (r != SCO_OK) return r;
         table_ = static_cast<const sc_audio_v1*>(out);
@@ -34,6 +35,9 @@ public:
         if (!table_ || table_->size < offsetof(sc_audio_v1, stop) + sizeof(table_->stop) || !table_->stop)
             return SCO_UNAVAILABLE;
         return table_->stop(self_, playback);
+    }
+    sco_result PlayOnce(uint64_t trigger) const noexcept {
+        return table_ ? sc_audio_play_once(table_, self_, trigger) : SCO_UNAVAILABLE;
     }
 private:
     const sc_audio_v1* table_ = nullptr;

@@ -17,6 +17,15 @@ What each change means for plugin authors and for products built on sco-core (sc
   CVar restoration admission; real host-stop fixtures use synthetic objects.
   No public ABI change and not run in game.
 
+- `game.audio` 1.1 appends `play_once`, a fire-and-forget trigger with its own
+  default-OFF capability `game.audio.play_once`, independent of
+  `game.audio.triggers`. The 1.0 prefix is unchanged; `sc_audio_play_once` and
+  `Audio::PlayOnce` check the table extent and refuse against 1.0 tables, and
+  the C++ wrapper still opens against a 1.0 host. A backend fault turns one-shot
+  audio off until process restart without affecting the trigger mode. No native
+  backend ships; it is held until game-object registration can be confirmed at
+  submission. Synthetic tests only; not run in game.
+
 - Expanded optional game-pack contracts: `game.audio` 1.0 provides owner-bound
   trigger/playback tokens and unload cleanup; `game.entities` 1.2 appends copied
   class registry/name/typed-component presence; `game.world.control` 1.1 appends

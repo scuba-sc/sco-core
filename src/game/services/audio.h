@@ -12,6 +12,7 @@ struct AudioBackend {
     sco_result (*resolve)(void*, const char*, uint64_t*) = nullptr;
     sco_result (*play)(void*, uint64_t, uint64_t*) = nullptr;
     sco_result (*stop)(void*, uint64_t) = nullptr;
+    sco_result (*play_once)(void*, uint64_t) = nullptr;
 };
 Result StartAudio(const AudioBackend& backend = {});
 Result StopAudio();
