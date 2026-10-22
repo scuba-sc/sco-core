@@ -13,9 +13,12 @@ launcher of one of two layouts:
 
 A block either offers the SDK developer profile (--extended-tools, twelve tools) or the
 minimal profile (no flag, six tools), and a `tools` allowlist must name exactly that
-profile's tools. The Claude Code and Codex commands and the Codex TOML table must repeat
-the same arguments. Each block is then started for real: a kit block against a kit-shaped
-folder assembled from this repository, the checkout block against the repository itself.
+profile's tools. The Claude Code and Codex commands (which quote `$SDK`, set by the guide's
+"Find the SDK folder" block) and the Codex TOML table must repeat the same arguments. Each
+block is then started for real: a kit block against a kit-shaped folder assembled from this
+repository, the checkout block against the repository itself. The failure modes and the
+verification signals the guide describes (the server path, the catalogue path, --repo-root
+one level too high or left out) are reproduced against the same folder.
 The interpreter is replaced by this interpreter, because `python3` and `py` are not present
 on every host; only the arguments are the documented ones.
 
@@ -36,7 +39,7 @@ import unittest
 
 try:
     import tomllib
-except ImportError:  # Python 3.9 and 3.10: the TOML comparison is skipped
+except ImportError:  # Python 3.9 and 3.10: codex_table() below reads the table instead
     tomllib = None
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -53,9 +56,10 @@ SERVER_NAME = 'sco-core-sdk'
 KIT_FOLDER = 'sco-sdk-2.4.0'
 # Wording the setup rewrite removed because it contradicted the rest of the setup docs.
 RETIRED_WORDING = ('enable only the six', 'enable only those six', 'four additional',
-                   'combined `legacy` developer kit', '/absolute/sdk', 'requires **only the six')
+                   'combined `legacy` developer kit', '/absolute/sdk', 'requires **only the six',
+                   'in legacy, game-sc', 'README.md:187-211')
 SETUP_DOCS = ('docs/agent-integration.md', 'tools/sco-core-mcp/README.md', 'docs/sdk-mcp-tutorial.md',
-              'docs/sdk-developer-mvp.md', 'docs/design/runtime-mcp.md')
+              'docs/sdk-developer-mvp.md', 'docs/design/runtime-mcp.md', 'docs/releases/sdk-v2.4.0.md')
 KIT_PAGE = ROOT / 'docs/sdk-developer-mvp.md'
 
 
@@ -77,6 +81,21 @@ def launchers(text):
                 (name, entry), = data[envelope].items()
                 found.append((envelope, name, entry))
     return found
+
+
+def codex_table(block):
+    """(name, {command, args}) of a Codex `[mcp_servers.<name>]` block.
+
+    It reads the one layout the guide uses (a `command` string and a multi-line `args` array of
+    strings), so that Python 3.9 and 3.10, which have no tomllib, still compare the table. With
+    tomllib present, a test checks that this reader and a real TOML parser agree.
+    """
+    match = re.fullmatch(r'\[mcp_servers\.([A-Za-z0-9_-]+)\]\ncommand = ("[^"\n]*")\n'
+                         r'args = \[\n((?:  "[^"\n]*",\n)+)\]\n', block.strip() + '\n')
+    if not match:
+        raise ValueError('Expected a [mcp_servers.<name>] table: a command, then args one element per line')
+    args = [json.loads(line.strip().rstrip(',')) for line in match.group(3).splitlines()]
+    return match.group(1), {'command': json.loads(match.group(2)), 'args': args}
 
 
 def arguments(entry):
@@ -173,6 +192,9 @@ class DocumentedBlockTests(unittest.TestCase):
             for block in fenced(self.guide, language):
                 for line in block.splitlines():
                     if re.match(r'(claude|codex) mcp add ', line):
+                        # Quoted, so a path with a space stays one argument.
+                        self.assertIn('"$SDK/tools/sco-core-mcp/server.py" --catalogue '
+                                      '"$SDK/sdk-catalogue.json" --repo-root "$SDK"', line)
                         words = shlex.split(line)
                         self.assertEqual(words[words.index('--') - 1], SERVER_NAME, line)
                         commands.append((words[0], language, words[words.index('--') + 1:]))
@@ -180,10 +202,37 @@ class DocumentedBlockTests(unittest.TestCase):
                          [('claude', 'powershell'), ('claude', 'sh'), ('codex', 'sh')])
         for tool, language, command in commands:
             expected = windows if language == 'powershell' else posix
-            self.assertEqual(command, [expected['command']] + expected['args'], tool + ' ' + language)
-        if tomllib:
-            tables = [tomllib.loads(block)['mcp_servers'][SERVER_NAME] for block in fenced(self.guide, 'toml')]
-            self.assertEqual(tables, [{'command': posix['command'], 'args': posix['args']}])
+            base = validate('mcpServers', SERVER_NAME, expected)[1]
+            self.assertEqual([word.replace('$SDK', base) for word in command],
+                             [expected['command']] + expected['args'], tool + ' ' + language)
+        # $SDK is defined by the check blocks the commands follow, in the same shell.
+        self.assertTrue(any(re.search(r'^SDK=', block, re.M) for block in fenced(self.guide, 'sh')))
+        self.assertTrue(any(re.search(r'^\$SDK = ', block, re.M) for block in fenced(self.guide, 'powershell')))
+        tables = [codex_table(block) for block in fenced(self.guide, 'toml')]
+        self.assertEqual(tables, [(SERVER_NAME, {'command': posix['command'], 'args': posix['args']})])
+
+    @unittest.skipUnless(tomllib, 'tomllib needs Python 3.11 or newer')
+    def test_codex_table_reader_agrees_with_tomllib(self):
+        blocks = fenced(self.guide, 'toml')
+        self.assertTrue(blocks)
+        for block in blocks:
+            name, table = codex_table(block)
+            self.assertEqual(tomllib.loads(block)['mcp_servers'], {name: table})
+
+    def test_messages_the_guide_quotes_are_the_servers(self):
+        server = read(ROOT / 'tools/sco-core-mcp/server.py')
+        for message in ('sco-core-mcp: catalogue refused: ', '"Unknown tool"',
+                        'Example unavailable: requires a contained regular UTF-8 file without symlinks',
+                        'unavailable beneath --repo-root'):
+            with self.subTest(message=message):
+                self.assertIn(message, server)
+        guide = ' '.join(self.guide.split())
+        for message in ('sco-core-mcp: catalogue refused: FileNotFoundError', "can't open file",
+                        'Example unavailable: requires a contained regular UTF-8 file without symlinks',
+                        'sdk/native_index.json unavailable beneath --repo-root',
+                        'stability_context.game_state', 'Unknown tool'):
+            with self.subTest(message=message):
+                self.assertIn(message, guide)
 
     def test_invalid_launchers_are_refused(self):
         envelope, name, good = next(b for b in self.blocks if b[2].get('tools') == EXTENDED_TOOLS)
@@ -251,15 +300,24 @@ class IntegrationTests(unittest.TestCase):
         for source, target in (('tools/sco-core-mcp/server.py', 'tools/sco-core-mcp/server.py'),
                                ('sdk/native_index.json', 'native_index.json'),
                                ('sdk/status_registry.json', 'status_registry.json'),
-                               ('sdk/tools/sco-new-plugin.py', 'tools/sco-new-plugin.py')):
+                               ('sdk/tools/sco-new-plugin.py', 'tools/sco-new-plugin.py'),
+                               ('sdk/examples/hello/hello.c', 'examples/hello/hello.c'),
+                               ('sdk/examples/cpp_hello/cpp_hello.cpp', 'examples/cpp_hello/cpp_hello.cpp'),
+                               ('sdk/examples/cs_hello/CsHello.cs', 'examples/cs_hello/CsHello.cs')):
+            (self.kit / target).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / source, self.kit / target)
         shutil.copy(CATALOGUE, self.kit / 'sdk-catalogue.json')
 
-    def launch(self, block, replacement, *calls, drop=(), **overrides):
-        """Run a documented block with its placeholder base path replaced by a real folder."""
+    def launch(self, block, replacement, *calls, drop=(), omit=(), **overrides):
+        """Run a documented block with its placeholder base path replaced by a real folder.
+
+        `drop` removes arguments by their documented text, `omit` removes a flag and its value.
+        """
         envelope, name, entry = block
         base = validate(envelope, name, entry)[1]
         args = [a.replace(base, replacement.as_posix()) for a in arguments(entry) if a not in drop]
+        for flag in omit:
+            del args[args.index('--' + flag):args.index('--' + flag) + 2]
         for flag, value in overrides.items():
             args[args.index('--' + flag) + 1] = Path(value).as_posix()
         result = subprocess.run([sys.executable, *args], input=messages(*calls), capture_output=True,
@@ -290,21 +348,61 @@ class IntegrationTests(unittest.TestCase):
 
     def test_kit_failure_modes_look_as_the_guide_says(self):
         block = next(b for b in self.blocks if validate(*b)[0] == 'kit' and validate(*b)[2])
+        # The kit stores examples/hello/hello.c; the catalogue records sdk/examples/hello/hello.c.
+        example = next(r['id'] for r in self.catalogue['records']
+                       if 'sdk/examples/hello/hello.c' in r.get('examples', ()))
         calls = (('list_engine_natives', {'limit': 1}),
-                 ('generate_plugin_scaffold', {'id': 'doc_probe', 'lang': 'c'}))
-        # SDK as the guide defines it: natives and the scaffold are available.
-        _, replies = self.launch(block, self.kit, *calls)
+                 ('generate_plugin_scaffold', {'id': 'doc_probe', 'lang': 'c'}),
+                 ('list_services', {}),
+                 ('get_example', {'symbol_or_id': example}))
+
+        def stability(reply):
+            context = reply['result']['structuredContent']['stability_context']
+            services = reply['result']['structuredContent']['services']
+            return context['game_state'], {s['stability'] for s in services}
+
+        # SDK as the guide defines it: every verification signal of the guide is green.
+        result, replies = self.launch(block, self.kit, *calls)
+        self.assertEqual((result.returncode, result.stderr), (0, ''), 'a healthy server prints nothing')
         for index in (3, 4):
             self.assertEqual(replies[index]['result']['structuredContent']['state'], 'available')
-        # --repo-root one level too high: the server starts, then reports unavailable with a reason.
+        game_state, labels = stability(replies[5])
+        self.assertEqual(game_state, 'read')
+        self.assertTrue(labels <= {'stable', 'experimental'}, labels)
+        served = replies[6]['result']['structuredContent']
+        self.assertEqual(served['examples'][0]['path'], 'sdk/examples/hello/hello.c')
+        self.assertTrue(served['examples'][0]['content'])
+        self.assertIs(served['paths_only'], False)
+        # --repo-root one level too high: the server starts and lists its tools, then reports
+        # unavailable with checkout paths in the reason, and the stability labels are unknown.
         result, replies = self.launch(block, self.kit, *calls, **{'repo-root': self.work})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(replies[2]['result']['tools']), 12)
+        self.assertTrue(replies[3]['result']['structuredContent']['reason'].startswith(
+            'sdk/native_index.json unavailable beneath --repo-root'))
+        self.assertTrue(replies[4]['result']['structuredContent']['reason'].startswith(
+            'sdk/tools/sco-new-plugin.py unavailable beneath --repo-root'))
         for index in (3, 4):
-            found = replies[index]['result']['structuredContent']
-            self.assertEqual(found['state'], 'unavailable')
-            self.assertTrue(found['reason'])
-        # A checkout-style catalogue path in a kit: one line on stderr, exit 1.
+            self.assertEqual(replies[index]['result']['structuredContent']['state'], 'unavailable')
+        game_state, labels = stability(replies[5])
+        self.assertEqual(game_state, 'unavailable')
+        self.assertIn('unknown', labels)
+        self.assertEqual(replies[6]['result']['structuredContent']['error'],
+                         'Example unavailable: requires a contained regular UTF-8 file without symlinks')
+        # --repo-root left out: the same signals, and get_example lists paths without contents.
+        result, replies = self.launch(block, self.kit, *calls, omit=('repo-root',))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        game_state, labels = stability(replies[5])
+        self.assertEqual((game_state, 'unknown' in labels), ('unavailable', True))
+        served = replies[6]['result']['structuredContent']
+        self.assertIs(served['paths_only'], True)
+        self.assertNotIn('content', served['examples'][0])
+        # A path to server.py that does not exist: Python itself fails, before the server starts.
+        result, replies = self.launch(block, self.work / 'not-the-sdk-folder')
+        self.assertEqual((result.returncode, replies), (2, {}))
+        self.assertIn("can't open file", result.stderr)
+        self.assertNotIn('catalogue refused', result.stderr)
+        # A checkout-style catalogue path in a kit: server.py starts, one line on stderr, exit 1.
         result, _ = self.launch(block, self.kit, catalogue=self.kit / 'dist/sdk-catalogue.json')
         self.assertEqual(result.returncode, 1)
         self.assertTrue(result.stderr.startswith('sco-core-mcp: catalogue refused: FileNotFoundError'),

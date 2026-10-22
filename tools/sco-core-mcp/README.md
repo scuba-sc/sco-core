@@ -41,55 +41,6 @@ walkthrough then uses the six static tools, owned NPC/inspector copies, an isola
 archive build, the checker and a named dynamic fixture. Runtime observations remain
 optional and default-off; static discovery never certifies gameplay or performs reload.
 
-## Run from a source checkout (maintainers)
-
-A kit already contains its catalogue; build one yourself only from a source checkout.
-
-1. Use a trusted checkout with Python 3.9 or newer, Clang, and an **x64 C11 compiler
-   environment**. Catalogue generation compiles and runs ABI probes; this is a
-   separate build step, not a capability of the MCP server. The builder refuses
-   layouts that fail its compiled x64-size checks. A successful build on another
-   architecture is layout evidence, not validation of the Windows x64 runtime.
-2. From the repository root, generate the catalogue for the validated source:
-
-   ```sh
-   python3 tools/sdk_catalogue.py build --out dist/sdk-catalogue.json --source-sha "$(git rev-parse HEAD)"
-   ```
-
-   `build` validates header inventory, signatures, extents, records, documentation,
-   and language evidence before writing. The source SHA must be a full lowercase
-   40-hex commit ID. Use source matching that commit: passing a SHA does not attest
-   that the checkout is clean. Do not label modified contracts with an unrelated SHA.
-3. To check it by hand, start the server from the repository root:
-
-   ```sh
-   python3 tools/sco-core-mcp/server.py \
-     --catalogue dist/sdk-catalogue.json \
-     --repo-root .
-   ```
-
-   These relative paths work only from the repository root. A client configuration
-   uses absolute paths: see the
-   [checkout form in the integration guide](../../docs/agent-integration.md#maintainers-source-checkout-and-your-own-catalogue).
-
-The process reads MCP messages on stdin and writes protocol responses on stdout;
-it is not an interactive shell. Use a client that supports stdio MCP. The only
-supported protocol version is **2025-11-25**. Initialization may offer that version
-as a fallback when a client requests another version; the client must accept it or
-disconnect. This is not support for older protocol semantics.
-
-`--catalogue` is required unless `SCO_CORE_CATALOGUE` supplies its path. Client
-configurations pass it explicitly to avoid dependence on inherited
-environment variables. `--repo-root` is optional: without it, `get_example` returns
-record-listed paths only, not file contents, and engine natives, the scaffold, status
-evidence and release-approval records are `unavailable`. With it, examples are read
-within that root under the restrictions below. Use absolute paths in client
-configuration; do not depend on the client's working directory.
-
-The catalogue is a source snapshot, not a live index. Rebuild it after changing
-contracts, public headers, language mappings, or their evidence, and restart the
-server before relying on the new snapshot. The server does not regenerate it.
-
 ## Using an extracted SDK archive
 
 **SDK 2.4.0 is published as release candidate 1**
@@ -102,7 +53,8 @@ kit predate its publication; see the known issue in the
 [integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 
 Use the combined kit directly, or compose the game overlay over the exact core
-kit required by its compatibility metadata. In this README **SDK** is the folder
+kit required by its compatibility metadata ([archive composition](../../sdk/README.md#zips)).
+In this README **SDK** is the folder
 that directly contains `sdk-catalogue.json` (for the combined kit,
 `<extract folder>/sco-sdk-2.4.0`). Set `--repo-root` to SDK, not to the parent
 extraction directory or an uncomposed overlay. The
@@ -163,7 +115,8 @@ two ways:
   identifier, not a signature. Every server result repeats these coordinates as
   `provenance`, so keep the hash you recorded beside any result you quote.
 - **Source build.** Check out the matching sco-core source and run the catalogue
-  build above. This needs the same compiler environment as any other build.
+  build in [Run from a source checkout](#run-from-a-source-checkout-maintainers).
+  This needs the same compiler environment as any other build.
 
 Downloading a catalogue does not install the launcher. Use the launcher from a
 reviewed source checkout and point `--repo-root` at the extracted archive when
@@ -196,6 +149,55 @@ checkout, or the `core-source`/`host-source` archives, which keep repository
 layout) is read only at recorded paths. A file missing there is reported as
 unavailable, never served from the other layout. Results still report the
 recorded path.
+
+## Run from a source checkout (maintainers)
+
+A kit already contains its catalogue; build one yourself only from a source checkout.
+
+1. Use a trusted checkout with Python 3.9 or newer, Clang, and an **x64 C11 compiler
+   environment**. Catalogue generation compiles and runs ABI probes; this is a
+   separate build step, not a capability of the MCP server. The builder refuses
+   layouts that fail its compiled x64-size checks. A successful build on another
+   architecture is layout evidence, not validation of the Windows x64 runtime.
+2. From the repository root, generate the catalogue for the validated source:
+
+   ```sh
+   python3 tools/sdk_catalogue.py build --out dist/sdk-catalogue.json --source-sha "$(git rev-parse HEAD)"
+   ```
+
+   `build` validates header inventory, signatures, extents, records, documentation,
+   and language evidence before writing. The source SHA must be a full lowercase
+   40-hex commit ID. Use source matching that commit: passing a SHA does not attest
+   that the checkout is clean. Do not label modified contracts with an unrelated SHA.
+3. To check it by hand, start the server from the repository root:
+
+   ```sh
+   python3 tools/sco-core-mcp/server.py \
+     --catalogue dist/sdk-catalogue.json \
+     --repo-root .
+   ```
+
+   These relative paths work only from the repository root. A client configuration
+   uses absolute paths: see the
+   [checkout form in the integration guide](../../docs/agent-integration.md#maintainers-source-checkout-and-your-own-catalogue).
+
+The process reads MCP messages on stdin and writes protocol responses on stdout;
+it is not an interactive shell. Use a client that supports stdio MCP. The only
+supported protocol version is **2025-11-25**. Initialization may offer that version
+as a fallback when a client requests another version; the client must accept it or
+disconnect. This is not support for older protocol semantics.
+
+`--catalogue` is required unless `SCO_CORE_CATALOGUE` supplies its path. Client
+configurations pass it explicitly to avoid dependence on inherited
+environment variables. `--repo-root` is optional: without it, `get_example` returns
+record-listed paths only, not file contents, and engine natives, the scaffold, status
+evidence and release-approval records are `unavailable`. With it, examples are read
+within that root under the restrictions below. Use absolute paths in client
+configuration; do not depend on the client's working directory.
+
+The catalogue is a source snapshot, not a live index. Rebuild it after changing
+contracts, public headers, language mappings, or their evidence, and restart the
+server before relying on the new snapshot. The server does not regenerate it.
 
 ## Tools and explicit allowlist
 
@@ -707,7 +709,8 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | Symptom | First checks |
 |---|---|
 | Python cannot start | Python 3.9 or newer. Windows: use `py` with `-3`, or an absolute `python.exe`; a `python3` alias can be the Microsoft Store stub. macOS/Linux: use `python3` or an absolute interpreter. GUI clients may inherit a different `PATH`. |
-| `catalogue refused: FileNotFoundError` | The `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
+| `can't open file '.../server.py'`, exit code 2 | Python could not find the launcher, so the path to `server.py` is wrong. SDK must be the folder that directly contains `sdk-catalogue.json`, not the extract folder above it; check it with [Find the SDK folder](../../docs/agent-integration.md#find-the-sdk-folder), and quote a path that contains a space when you type it in a shell. |
+| `catalogue refused: FileNotFoundError`, exit code 1 | `server.py` started, but the `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
 | Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
 | Extended tool is unknown | Restart with `--extended-tools` and explicit client permissions for the additional names. |

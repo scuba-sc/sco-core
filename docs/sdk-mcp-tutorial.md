@@ -159,8 +159,9 @@ it. Search the guide sections with a plain question:
 {"name":"search_guides","arguments":{"query":"How do I deploy a plugin on Windows?","limit":3}}
 ```
 
-Each hit names its guide `doc`, `heading`, `anchor` and docs-site `url`, with
-a short snippet. Read one hit in full by passing its `doc` and `anchor` back:
+Each hit names its guide `doc`, `heading`, `anchor` and `url` (a docs-site link, or a
+repository path for a guide under `sdk/docs`), with a short snippet. Read one hit in
+full by passing its `doc` and `anchor` back:
 
 ```json
 {"name":"get_guide_section","arguments":{"doc":"docs/getting-started.md","anchor":"start-your-first-plugin"}}
@@ -173,7 +174,9 @@ its `guides.source_sha` should equal the catalogue's. A section's text stops at
 not a contract record: confirm a method with `get_symbol` before relying on it.
 Nothing in a guide is evidence that code ran in game. The guides inside the release
 candidate 1 kit predate its publication and can say that 2.4.0 is not on the release
-page; the docs site supersedes them (see the known issue in
+page, and their `url` values name a previous docs-site address that no longer opens
+(use `scuba-sc.github.io` with the same path). The docs site supersedes them (see the
+known issue in
 [the setup section](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit)).
 
 ### Build and check outside MCP

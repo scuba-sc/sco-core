@@ -43,6 +43,13 @@ steps for the kit are in [Set up the discovery server from the SDK kit](../agent
   page, that 2.3.0 is the newest published SDK, and can give 2.3.0 download steps. None of
   that is current. The [docs site](https://scuba-sc.github.io/sco-core/) and `main`
   supersede the kit's text, and the final 2.4.0 kit will be built from current docs.
+  The guide links in the kit are out of date too. For a `docs/` page, the `url` that
+  `search_guides` and `get_guide_section` return names the previous docs-site address
+  (`scubamount.github.io`), which now returns 404, so "read the rest at its `url`" does
+  not work in this kit. Use `https://scuba-sc.github.io/sco-core/` with the same path
+  instead; a few older release-notes pages are not on the docs site, so read those under
+  `docs/releases/` in the repository. For a guide under `sdk/docs` the `url` is a
+  repository path, not a link.
 - **`check_compatibility` does not accept the release candidate tag.** Its `tag` argument
   takes only `sdk-vMAJOR.MINOR.PATCH`, so `sdk-v2.4.0-rc.1` is refused as not matching the
   advertised pattern. Compare with `sdk_version` and `game_pack_version` instead. In a kit
@@ -186,7 +193,7 @@ verification limits. In short:
 | Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths | `src/ipc/diagnostics_platform_win.cpp` | host-source-sc |
 | `sco-new-plugin.py` and MCP `generate_plugin_scaffold`: `--lang csharp` (NativeAOT project) and `--lang lua`; stand-in checks only, not run in game | `sdk/tools/sco-new-plugin.py`, `tools/sco-core-mcp/server.py`, [SDK README](../../sdk/README.md#generate-a-plugin-folder) | core and core-source (the C# layer it targets ships in core) |
 | MCP documentation at the current release with drift gates; tooling and Windows gate hardening | `tools/`, `docs/sdk-mcp-tutorial.md` | repository |
-| Guide search in the discovery MCP server: `search_guides` and `get_guide_section` behind `--extended-tools` (default six tools unchanged), over `sdk-guides.json` built by `tools/sdk_guides.py` from the public guides; not run in game | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | `sdk-guides.json` beside `sdk-catalogue.json` in legacy, game-sc and host-source-sc |
+| Guide search in the discovery MCP server: `search_guides` and `get_guide_section` behind `--extended-tools` (default six tools unchanged), over `sdk-guides.json` built by `tools/sdk_guides.py` from the public guides; not run in game | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | `sdk-guides.json` beside `sdk-catalogue.json` in the combined kit, game-sc and host-source-sc |
 | Discovery MCP server: three opt-in development tools behind `--enable-dev-tools` and `--project-root` (`run_plugin_check`, `build_plugin_project`, `test_plugin_project`); default and extended tool lists unchanged; not run in game | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | repository only |
 | Game status table and engine-native index regenerated | [evidence status](../game/status.md), `sdk/native_index.json` | repository; the native index stays on the docs site and static MCP only |
 

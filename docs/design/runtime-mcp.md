@@ -22,8 +22,8 @@ The six existing tools describe a compiler-backed SDK catalogue, not a running
 host. `list_services` enumerates catalogue tables; `check_compatibility` explicitly
 cannot establish plugin loading, live members or behavior
 (`TOOLS` and the `list_services` branch of `execute` in `tools/sco-core-mcp/server.py`). The current development-only,
-stdlib launcher promises no game/host connection (`tools/sco-core-mcp/README.md:3-7`;
-the introduction of `docs/agent-integration.md`). A plugin author needs a separate observation of
+stdlib launcher promises no game/host connection (the introduction of
+`tools/sco-core-mcp/README.md`; the introduction of `docs/agent-integration.md`). A plugin author needs a separate observation of
 load/refusal/fault state, publication, lifecycle and existing signature resolution.
 This is an interface gap, not a measured productivity or game-reliability claim.
 
@@ -134,7 +134,8 @@ The implementation PR must enforce all of these gates:
    same-PC-only deployment, separate rate budgets, consent and disable/restart.
    Preserve existing credentials-free catalogue-only launchers and hosted-runner
    instructions. The single proposed-design sentence in this step-0 PR changes
-   no current guarantee (`tools/sco-core-mcp/README.md:187-211`).
+   no current guarantee (`tools/sco-core-mcp/README.md`, the introduction and
+   "Security boundaries and limits").
 
 ### Required disabled-mode regression
 

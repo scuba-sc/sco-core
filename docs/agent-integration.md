@@ -33,7 +33,12 @@ served by `search_guides` and `get_guide_section`) and the READMEs inside it wer
 frozen before publication. They can say that 2.4.0 is not on the release page and
 that 2.3.0 is the newest published SDK. Both are out of date: the
 [docs site](https://scuba-sc.github.io/sco-core/) and `main` supersede them, and the
-final 2.4.0 kit will be built from current docs. See the
+final 2.4.0 kit will be built from current docs. The guide links are out of date
+too: for a `docs/` page, the `url` in a `search_guides` result names the previous
+docs-site address (`scubamount.github.io`), which now returns 404. Replace that host
+with `scuba-sc.github.io` and keep the path; a few older release-notes pages are not on
+the docs site at all, so read those under `docs/releases/` in the repository. For a guide
+under `sdk/docs` the `url` is a repository path, not a link. See the
 [release notes](releases/sdk-v2.4.0.md#known-issues-in-release-candidate-1).
 
 ### Download and verify the kit
@@ -92,9 +97,10 @@ if (Test-Path "$SDK/sdk-catalogue.json") { "SDK ok: $SDK" } else { "not the SDK 
 The SDK folder holds `sdk-catalogue.json`, `sdk-guides.json`, `native_index.json`,
 `status_registry.json`, `COMPATIBILITY.json`, `VERSION` and
 `tools/sco-core-mcp/server.py`. The kit has no `sdk/` and no `dist/` folder.
-Client configuration files do not expand `$SDK`, so write the absolute path out.
-The examples below use `/absolute/path/to/sco-sdk-2.4.0` (macOS and Linux) and
-`C:/absolute/path/to/sco-sdk-2.4.0` (Windows) for it.
+Client configuration files do not expand `$SDK`, so write the absolute path out there;
+the `claude mcp add` and `codex mcp add` commands below can use `$SDK` because your
+shell expands it. The configuration examples use `/absolute/path/to/sco-sdk-2.4.0`
+(macOS and Linux) and `C:/absolute/path/to/sco-sdk-2.4.0` (Windows) for it.
 
 ### Choose a profile
 
@@ -119,11 +125,12 @@ need all twelve.
 - Where your client has a tool allowlist, list the exact names of the profile you
   chose. Never use a wildcard. A name left out of an allowlist hides that tool from
   the agent.
-- `--repo-root` is optional. Without it the server returns no example contents,
-  engine natives, scaffold, status evidence or release-approval records (each
-  reports `unavailable`), and stability labels are `unknown`. The guide tools still
-  work when `sdk-guides.json` sits beside the catalogue. Leave `--repo-root` out only
-  when you do not want example file contents to reach your model provider.
+- `--repo-root` is optional. Without it `get_example` returns the listed example
+  paths only (`paths_only: true`, no file contents); engine natives, the scaffold,
+  status evidence and release-approval records report `unavailable`; and stability
+  labels are `unknown`. The guide tools still work when `sdk-guides.json` sits beside
+  the catalogue. Leave `--repo-root` out only when you do not want example file
+  contents to reach your model provider.
 - Three build-and-check tools are a separate opt-in
   ([development tools](#opt-in-development-tools)). Do not put them in a shared
   configuration.
@@ -143,33 +150,44 @@ These rules apply to every client below.
   Store instead of starting Python.
 - **Arguments.** Every flag and every value is its own array element:
   `"--catalogue"`, then the path, never one `"--catalogue /path"` string. Every
-  path is absolute, with forward slashes on Windows. Do not rely on the client's
-  working directory, `~`, environment variables or shell quoting.
+  path is absolute, with forward slashes on Windows. In a configuration file, do not
+  rely on the client's working directory, `~`, environment variables or shell quoting.
+  In a shell command, quote each path (see [Claude Code](#claude-code)).
 - **The arguments in order.** `SDK/tools/sco-core-mcp/server.py`, `--catalogue`,
   `SDK/sdk-catalogue.json`, `--repo-root`, `SDK`, then `--extended-tools` for the
   developer profile. Leave `--extended-tools` out for the minimal profile.
 
-**What was tested.** The server command itself was run on Windows with `py -3` from
+**What was tested.** The server command was run on Windows only, with `py -3`, from
 the release candidate 1 kit. With `--extended-tools` it served twelve tools, without
 it six, and the tool calls tried returned results. Not run in game.
 `tools/sco-core-mcp/test_integration.py` starts the server with the arguments of
 the JSON blocks on this page, using a kit-shaped folder it assembles from this
-repository. The per-client configuration files below follow each client's documented
-format. They were not each tested in that client.
+repository; it has been run on Windows only. None of the client files below was loaded
+in its client: each follows that client's documented format. The `python3` forms were
+not run on macOS or Linux.
 
 #### Claude Code
 
 User scope, so every project sees the server. Windows PowerShell:
 
 ```powershell
-claude mcp add --scope user sco-core-sdk -- py -3 C:/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py --catalogue C:/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json --repo-root C:/absolute/path/to/sco-sdk-2.4.0 --extended-tools
+claude mcp add --scope user sco-core-sdk -- py -3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK" --extended-tools
 ```
 
 macOS and Linux:
 
 ```sh
-claude mcp add --scope user sco-core-sdk -- python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json --repo-root /absolute/path/to/sco-sdk-2.4.0 --extended-tools
+claude mcp add --scope user sco-core-sdk -- python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK" --extended-tools
 ```
+
+These commands use the `$SDK` you set in [Find the SDK folder](#find-the-sdk-folder), so
+run them in that terminal session. Your shell expands it, and Claude Code stores the
+absolute path. Keep the double quotes. In a POSIX shell, an unquoted `$SDK` whose
+path contains a space (such as `.../Jane Doe/...`) breaks into two arguments, and the
+server fails with `can't open file`; PowerShell keeps `$SDK` whole, but quote it
+anyway, and always quote a path you type out. In a new terminal, set `$SDK` again
+first (the `SDK` line of that block, from the folder you extracted into), or write
+the absolute path out inside the quotes.
 
 The `--` ends Claude Code's own options; everything after it is the server command.
 For project scope, save the generic `mcpServers` object below as `.mcp.json` in the
@@ -229,8 +247,10 @@ Either register it from a shell, or edit `~/.codex/config.toml` (on Windows,
 `.codex\config.toml` under your user folder). The command, on macOS and Linux:
 
 ```sh
-codex mcp add sco-core-sdk -- python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json --repo-root /absolute/path/to/sco-sdk-2.4.0 --extended-tools
+codex mcp add sco-core-sdk -- python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK" --extended-tools
 ```
+
+It uses the same `$SDK` and the same quotes as the Claude Code commands.
 
 The equivalent `config.toml` table:
 
@@ -351,16 +371,26 @@ separate, see
    (0.8.0), and `source_sha` must equal the `source_commits` entry. A different value
    means the server is reading another catalogue, such as the site's changing
    mainline file.
-5. If the client only says that the server failed, run the exact command in a
-   terminal. A healthy server prints nothing and waits for MCP messages on stdin;
-   stop it with Ctrl+C. A bad `--catalogue` path prints one line and exits.
+5. Check `--repo-root` in the same `list_services` result, because steps 1 to 4 pass
+   even when it is wrong or missing: the server starts, lists its tools and reports
+   the right provenance. `stability_context.game_state` must be `read`, and no service
+   may show `stability` `unknown` (the `game.*` services are `stable` or
+   `experimental`). `game_state` `unavailable` with every `game.*` service `unknown`
+   means `--repo-root` is missing or is not SDK; set it to SDK. With the developer
+   profile, also call `list_engine_natives` with `{"limit": 1}`; its `state` must be
+   `available`.
+6. If the client only says that the server failed, run the exact command in a
+   terminal. A healthy server prints nothing and waits for MCP messages on stdin.
+   Stop it with Ctrl+C; a `KeyboardInterrupt` traceback after that is normal, not a
+   crash. A wrong path prints one line and exits (see the table below).
 
 Common failures:
 
 | What you see | Cause and fix |
 | --- | --- |
-| `sco-core-mcp: catalogue refused: FileNotFoundError` and the client shows the server as failed or disconnected | The `--catalogue` file does not exist. SDK is the wrong folder (the extract folder instead of `sco-sdk-2.4.0`, or a checkout's `dist/` path). Run the existence check from "Find the SDK folder". |
-| The server connects, but `get_example` fails and engine natives, the scaffold or status report `unavailable` | `--repo-root` is not the SDK folder, for example one level too high. The server starts anyway and the `reason` names the file it could not read under `--repo-root`. Set it to SDK. |
+| `python.exe: can't open file '.../tools/sco-core-mcp/server.py': [Errno 2] No such file or directory` (on macOS and Linux, `python3: can't open file ...`), exit code 2, and the client shows the server as failed | Python could not find `server.py`, so the path to it is wrong. SDK is the extract folder instead of `sco-sdk-2.4.0`, a path has a typo, the `/absolute/path/to/...` placeholder was left in, or a path with a space was not quoted in a shell command. Run the existence check from [Find the SDK folder](#find-the-sdk-folder). |
+| `sco-core-mcp: catalogue refused: FileNotFoundError`, exit code 1, and the client shows the server as failed or disconnected | `server.py` started, but the `--catalogue` file does not exist: for example a checkout's `dist/sdk-catalogue.json` path in a kit, or the extract folder in place of `sco-sdk-2.4.0`. Run the same existence check. |
+| The server connects, but `get_example` returns `Example unavailable: requires a contained regular UTF-8 file without symlinks`; `list_engine_natives` or `generate_plugin_scaffold` return `unavailable` with a `reason` such as `sdk/native_index.json unavailable beneath --repo-root`; `list_services` shows `stability_context.game_state` `unavailable` | `--repo-root` is not SDK: it is one level too high, another folder, or left out (left out, `get_example` instead returns paths only with `paths_only: true`). The server starts anyway. The messages use checkout paths (`sdk/...`); a kit has no `sdk/` folder, and those files sit at its root (`native_index.json`, `tools/sco-new-plugin.py`), so nothing is missing from the kit. Set `--repo-root` to SDK and restart; step 5 above checks it. |
 | `Unknown tool` (JSON-RPC `-32602`), or only six tools | `--extended-tools` is missing, or the client's allowlist leaves the names out. Add the flag and the six extended names, then restart. |
 | The server does not start on Windows, or the Microsoft Store opens | `python3` is not a standard Windows command. Use `py` with `-3`, or an absolute `python.exe`. |
 | The client disconnects while initializing | The client does not support protocol `2025-11-25`. Update the client. |
@@ -372,7 +402,8 @@ Common failures:
 `search_guides` answers "how do I ..." questions from the SDK guides, not only
 the contract catalogue. It takes a `query` and optionally one guide path as
 `doc`, a `limit` and a `cursor`, and returns ranked sections with a bounded
-snippet, the guide path, heading, GitHub-style `anchor` and docs-site `url`.
+snippet, the guide path, heading, GitHub-style `anchor` and `url` (a docs-site link, or
+a repository path for a guide under `sdk/docs`).
 `get_guide_section` returns one section's bounded plain text by `doc` and
 `anchor`. The sections come from `sdk-guides.json` beside the catalogue (the
 kit ships it), or are built in memory from `--repo-root` when no file is there;
