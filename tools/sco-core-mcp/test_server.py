@@ -86,7 +86,7 @@ def game_fixture():
 
 def approval(tag, sha=SYNTHETIC_SHA, status="approved-for-publication"):
     return {"schema_version": 2, "tag": tag,
-            "source": {"repo": "scubamount/sco-core", "sha": sha, "dependencies": []},
+            "source": {"repo": "scuba-sc/sco-core", "sha": sha, "dependencies": []},
             "components_manifest_sha256": "0" * 64,
             "builder": {"workflow_path": ".github/workflows/release-candidate.yml", "workflow_sha": sha,
                         "run_id": 1, "run_attempt": 1},
@@ -1753,7 +1753,7 @@ class CompatibilityReleaseTests(ServerCase):
                 self.result(client.call("check_compatibility", arguments), is_error=True)
 
 
-GUIDE_URL = "https://scubamount.github.io/sco-core/guides/"
+GUIDE_URL = "https://scuba-sc.github.io/sco-core/guides/"
 
 
 def guide_section(doc, heading, anchor, text, level=2, truncated=False):

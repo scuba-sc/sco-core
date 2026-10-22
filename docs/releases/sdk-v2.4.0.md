@@ -2,7 +2,7 @@
 
 Final tag `sdk-v2.4.0`, combined archive `sco-sdk-2.4.0.zip`.
 **Status: release candidate 1 published.** On 2026-10-21 the five archives were published as the
-release [`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
+release [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
 release-candidate workflow from `main` commit `48d7055`, with every file attested. It is the only
 SDK release on the release page: the 2.0.0 to 2.3.0 release downloads were withdrawn (their tags
 remain in git). The final signed `sdk-v2.4.0` release is pending; nothing here authorizes approval,
@@ -19,8 +19,8 @@ reference behind it.
 
 ## Release candidate 1 archives
 
-Download from [`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1) (files under
-`https://github.com/scubamount/sco-core/releases/download/sdk-v2.4.0-rc.1/<file>`). The digests are that release's
+Download from [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) (files under
+`https://github.com/scuba-sc/sco-core/releases/download/sdk-v2.4.0-rc.1/<file>`). The digests are that release's
 `SHA256SUMS`; it also carries one `<archive>.spdx.json` SBOM per archive.
 
 | Archive | Profile | SHA-256 |
@@ -234,7 +234,7 @@ checks as every release (`sha256sum --ignore-missing` skips the lines for files 
 download):
 
 ```sh
-gh release download sdk-v2.4.0-rc.1 -R scubamount/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
+gh release download sdk-v2.4.0-rc.1 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
 sha256sum --ignore-missing -c SHA256SUMS
 unzip -p sco-sdk-2.4.0.zip sco-sdk-2.4.0/VERSIONS.txt
 ```

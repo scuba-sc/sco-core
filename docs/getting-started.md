@@ -6,7 +6,7 @@ plugin, then Windows game deployment. You do not need a sco-core checkout.
 The current SDK is **2.4.0**, with Star Citizen game pack **0.8.0** and plugin
 ABI **1.1** (unchanged since 2.3.0). It is published as **release candidate 1**,
 the repository's latest release, tag `sdk-v2.4.0-rc.1`:
-[SDK 2.4.0 release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1).
+[SDK 2.4.0 release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1).
 It is the only SDK release on the release page, and the archive names, digests
 and commands below use it. The final signed `sdk-v2.4.0` release
 follows; until then, build against release candidate 1. Nothing new in 2.4.0
@@ -88,7 +88,7 @@ download/extraction in the browser and use the linked Windows CMake recipe.
 ### Download SDK 2.4.0 release candidate 1
 
 ```sh
-env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.0-rc.1 -R scubamount/sco-core -p 'sco-sdk-core-2.4.0.zip' -p SHA256SUMS
+env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.0-rc.1 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.0.zip' -p SHA256SUMS
 python3 - <<'PY'
 import hashlib
 from pathlib import Path
@@ -110,7 +110,7 @@ PY
 Expected: `sco-sdk-core-2.4.0.zip: SHA256 OK`, for the digest
 `68ca5ef213fe9be162b974dcb798a6da2402583daf369e26b26634b23d869f7d` listed above.
 In a browser, download both files from
-`https://github.com/scubamount/sco-core/releases/download/sdk-v2.4.0-rc.1/`
+`https://github.com/scuba-sc/sco-core/releases/download/sdk-v2.4.0-rc.1/`
 (`SHA256SUMS` and `sco-sdk-core-2.4.0.zip`). The release-level `SHA256SUMS`
 checks archive bytes; the similarly named file **inside** the SDK covers
 extracted files. A checksum downloaded alongside an archive is an integrity

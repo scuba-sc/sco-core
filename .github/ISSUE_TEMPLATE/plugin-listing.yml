@@ -10,7 +10,7 @@ body:
       value: |
         A listing is compatibility information, not an endorsement, and nothing in the
         directory is verified in game. Read the listing rules in
-        [docs/plugin-directory.md](https://github.com/scubamount/sco-core/blob/main/docs/plugin-directory.md#listing-rules)
+        [docs/plugin-directory.md](https://github.com/scuba-sc/sco-core/blob/main/docs/plugin-directory.md#listing-rules)
         first. Each field below becomes one field of `docs/plugin-directory.json`.
         Do not paste secrets, game files or personal data.
 

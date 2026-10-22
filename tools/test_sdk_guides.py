@@ -99,14 +99,14 @@ class BuildTests(SyntheticTree):
             (1, 'Sample guide', 'sample-guide'), (2, 'Build it', 'build-it'), (2, 'Build it', 'build-it-1'),
             (3, 'Ports & sco.net (1.0) →', 'ports--sconet-10-')])
         self.assertEqual({s['title'] for s in sections}, {'Sample guide'})
-        self.assertEqual({s['url'] for s in sections}, {'https://scubamount.github.io/sco-core/guides/guide/'})
+        self.assertEqual({s['url'] for s in sections}, {'https://scuba-sc.github.io/sco-core/guides/guide/'})
         self.assertEqual(sections[0]['text'],
                          'Intro with a link, code_span, bold\nacross lines and emphasis.')
         self.assertEqual(sections[1]['text'], 'Step | Command\nConfigure | cmake -S . -B build\n\n'
                                               '# not a heading\ncmake --build build')
         self.assertNotIn('hidden', json.dumps(data))
         self.assertEqual(data['docs'], [{'doc': 'docs/guide.md', 'title': 'Sample guide', 'sections': 4,
-                                         'url': 'https://scubamount.github.io/sco-core/guides/guide/'}])
+                                         'url': 'https://scuba-sc.github.io/sco-core/guides/guide/'}])
         guides.validate(data)
 
     def test_bytes_are_deterministic_and_line_ending_neutral(self):
@@ -183,7 +183,7 @@ class AllowlistTests(SyntheticTree):
             {'source': 'sdk/include/x.h', 'profiles': ['core'], 'origin': 'project-authored'}])
         data = self.built()
         self.assertEqual([(d['doc'], d['url']) for d in data['docs']], [
-            ('docs/guide.md', 'https://scubamount.github.io/sco-core/guides/guide/'),
+            ('docs/guide.md', 'https://scuba-sc.github.io/sco-core/guides/guide/'),
             ('sdk/docs/plugin-ini.md', 'sdk/docs/plugin-ini.md')])
         self.components([{'source': 'sdk/docs/../x.md', 'profiles': ['core'], 'origin': 'project-authored'}])
         self.refused('not a public guide input: sdk/docs/../x.md')

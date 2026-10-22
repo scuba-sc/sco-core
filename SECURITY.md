@@ -15,9 +15,9 @@ does not certify every game build or game-service behavior. See the
 ## Reporting a vulnerability privately
 
 Private vulnerability reporting is **enabled** (verified 2026-10-12).
-Submit a [private vulnerability report for scubamount/sco-core](https://github.com/scubamount/sco-core/security/advisories/new)
+Submit a [private vulnerability report for scuba-sc/sco-core](https://github.com/scuba-sc/sco-core/security/advisories/new)
 through GitHub; the maintainer coordinates reports and disclosure through
-[GitHub Security Advisories](https://github.com/scubamount/sco-core/security/advisories).
+[GitHub Security Advisories](https://github.com/scuba-sc/sco-core/security/advisories).
 Do not put exploit details, credentials, personal data, proprietary files or game
 dumps in public issues/PRs. If GitHub's private intake is temporarily unavailable,
 wait for it to be restored rather than publishing sensitive details publicly.

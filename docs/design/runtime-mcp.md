@@ -13,7 +13,7 @@ Historical step-0 decisions (placement A is superseded): The owner
 approved placement **A**, an opt-in runtime tool group inside the existing
 `tools/sco-core-mcp` stdio server and all eight defaults on **2026-10-12**;
 the runtime data-source decision is recorded below and tracked in
-[#141](https://github.com/scubamount/sco-core/issues/141). The host IPC/auth endpoint has fixture-only admission;
+[#141](https://github.com/scuba-sc/sco-core/issues/141). The host IPC/auth endpoint has fixture-only admission;
 product startup policy, protected OS audit, adapter packaging and runtime MCP registration remain follow-ups. **Not run in game.**
 
 ## Problem and scope
@@ -71,7 +71,7 @@ this diagnostics contract does not (`sdk/docs/plugin-rules.md:5-27`).
 | Limits and retention | **Decided 2026-10-12 (owner)** | Limits below and seven-day administrator-controlled audit rotation; fixture measurements gate rollout. |
 | License/package boundary | **Decided 2026-10-12 (owner)** | New diagnostics wire and adapter GPL-3.0-only unless owner grants a reviewed per-file exception. New implementation packaging membership remains to be chosen. This PR's design/test fixtures are repository-only under existing exclusions, not a fifth MIT header. |
 | Acceptance ownership | **Decided 2026-10-12 (owner)** | Owner names Windows security-fixture provisioner and manual offline tester; record build/session-scoped fixture, OS-security and manual evidence separately. Until manual acceptance: **not run in game**. |
-| Runtime data sources | **Decided 2026-10-12 (owner)** | Both a minimal snapshot published by the Star Citizen game pack and an optional diagnostics SDK plugin for plugin-authored fields. Both off by default, read-only, without personal identifiers, and exposed only through the host diagnostics endpoint; no side channel. Source implementation documented in [diagnostics-publishers.md](diagnostics-publishers.md) ([#141](https://github.com/scubamount/sco-core/issues/141)); source opt-in grants no endpoint admission. |
+| Runtime data sources | **Decided 2026-10-12 (owner)** | Both a minimal snapshot published by the Star Citizen game pack and an optional diagnostics SDK plugin for plugin-authored fields. Both off by default, read-only, without personal identifiers, and exposed only through the host diagnostics endpoint; no side channel. Source implementation documented in [diagnostics-publishers.md](diagnostics-publishers.md) ([#141](https://github.com/scuba-sc/sco-core/issues/141)); source opt-in grants no endpoint admission. |
 
 The eight defaults are approved as written; naming/provisioning, reviewed grants
 and package membership explicitly left in their content remain implementation
@@ -248,7 +248,7 @@ Unsigned peer errors are never promoted to authenticated host refusals.
 ### Observation seams and exclusions
 
 These citations refer to immutable baseline
-[`cd9a686bda4184f1befbdf0b74b503a1565540dd`](https://github.com/scubamount/sco-core/tree/cd9a686bda4184f1befbdf0b74b503a1565540dd).
+[`cd9a686bda4184f1befbdf0b74b503a1565540dd`](https://github.com/scuba-sc/sco-core/tree/cd9a686bda4184f1befbdf0b74b503a1565540dd).
 All `path:line` references in this document use that revision, not moving PR lines.
 
 | Existing source seam | Required new copy/publication; prohibited shortcut |

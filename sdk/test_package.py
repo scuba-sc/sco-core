@@ -87,7 +87,7 @@ class RealManifest(unittest.TestCase):
                     if not name.endswith(".md"):
                         continue
                     text = z.read(name).decode()
-                    refs = re.findall(r"https://github.com/scubamount/sco-core/(?:blob|tree)/([^/\s)]+)", text)
+                    refs = re.findall(r"https://github.com/scuba-sc/sco-core/(?:blob|tree)/([^/\s)]+)", text)
                     for ref in refs:
                         self.assertEqual(ref, commit, name)
                         count += 1

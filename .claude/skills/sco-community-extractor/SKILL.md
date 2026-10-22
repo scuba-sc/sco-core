@@ -10,7 +10,7 @@ description: >
 # SCO Community Native & SDK Gap Extractor (`sco-community-extractor`)
 
 ## Mission & Architecture Context
-You are analyzing a community-modified build of **`sc-offline`** and/or **`sco-core`** to help expand the upstream **`sco-core` SDK** (`https://scubamount.github.io/sco-core`).
+You are analyzing a community-modified build of **`sc-offline`** and/or **`sco-core`** to help expand the upstream **`sco-core` SDK** (`https://scuba-sc.github.io/sco-core`).
 
 In the upstream architecture:
 - **`sco-core`** is the base plain-C ABI (`include/sco_api.h`), C++20/C#/Lua SDK wrapper layer (`include/sco/`, `sdk/`), signature registry (`sco-sigcheck`), and host service provider (`sco.storage`, `sco.ui`, `sco.datacore`, `sco.ipc`, `sco.net`, and Star Citizen `game.*` services).
@@ -185,7 +185,7 @@ If you drafted or extended public-safe SDK headers/wrappers (matching the `git s
 3. Verify `git -C ../sco-clean-pr status` and `git -C ../sco-clean-pr diff` to prove no proprietary or private mod code is staged.
 4. Commit the clean contract changes, push the isolated branch to the user's fork, and open a Draft PR embedding the generated report as the PR body:
    ```bash
-   gh pr create --repo scubamount/sco-core --draft \
+   gh pr create --repo scuba-sc/sco-core --draft \
      --title "feat(sdk): <short capability summary> [community-handoff]" \
      --body-file "<YYYYMMDD>-<username>-scubamountreport.md"
    ```
@@ -196,7 +196,7 @@ If the contributor only has raw offsets, vtable slots, or anchor strings inside 
 1. Verify that `<YYYYMMDD>-<username>-scubamountreport.md` passes all Clean-Room checks in Section 6.
 2. Submit the structured report directly as an SDK-gap issue via GitHub CLI:
    ```bash
-   gh issue create --repo scubamount/sco-core \
+   gh issue create --repo scuba-sc/sco-core \
      --title "[SDK-Gap] <subsystem/capability summary> (<build_version>)" \
      --label "sdk-gap" \
      --body-file "<YYYYMMDD>-<username>-scubamountreport.md"
@@ -204,4 +204,4 @@ If the contributor only has raw offsets, vtable slots, or anchor strings inside 
 
 #### Lane C: Offline Fallback (If `gh` CLI is unauthenticated or user prefers manual handoff)
 If `gh auth status` fails or the user declines automated submission, leave `<YYYYMMDD>-<username>-scubamountreport.md` in the workspace root and tell the user:
-> **"Your report is ready at `<YYYYMMDD>-<username>-scubamountreport.md`. Please attach this `.md` file to a new issue on `scubamount/sco-core` (or send it to the SDK team) so their ingestion agent can anchor your natives and expand `sco-core`."**
+> **"Your report is ready at `<YYYYMMDD>-<username>-scubamountreport.md`. Please attach this `.md` file to a new issue on `scuba-sc/sco-core` (or send it to the SDK team) so their ingestion agent can anchor your natives and expand `sco-core`."**

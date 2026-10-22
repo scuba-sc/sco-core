@@ -1,6 +1,6 @@
 # Contributing to sco-core
 
-sco-core is the game-facing core of [sc-offline](https://github.com/scubamount/sc-offline) and the home of its plugin platform (the `sco_api` ABI, the host, the loader, sco-lua and the SDK). Most changes start in sc-offline: a feature moving its addresses here, a game patch breaking a row, or a feature exposing a command to plugins. Read sc-offline's [CONTRIBUTING.md](https://github.com/scubamount/sc-offline/blob/main/CONTRIBUTING.md) first; its rules apply here too.
+sco-core is the game-facing core of [sc-offline](https://github.com/scuba-sc/sc-offline) and the home of its plugin platform (the `sco_api` ABI, the host, the loader, sco-lua and the SDK). Most changes start in sc-offline: a feature moving its addresses here, a game patch breaking a row, or a feature exposing a command to plugins. Read sc-offline's [CONTRIBUTING.md](https://github.com/scuba-sc/sc-offline/blob/main/CONTRIBUTING.md) first; its rules apply here too.
 
 ## What fits
 

@@ -54,7 +54,7 @@ import zipfile
 SDK = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SDK)
 MANIFEST = os.path.join(SDK, "components.json")
-REPO_URL = "https://github.com/scubamount/sco-core/"
+REPO_URL = "https://github.com/scuba-sc/sco-core/"
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 ORIGINS = {"project-authored", "third-party", "generated", "interoperability-derived"}
 REQUIRED = ("id", "source", "destination", "profiles", "origin", "license")
@@ -613,7 +613,7 @@ def sbom_document(top, version, entries, records, sbom_name, sums_name, commit):
             "creationInfo": {"created": "2026-01-01T00:00:00Z", "creators": ["Tool: sco-core sdk/package.py"],
                              "comment": f"Source commit {commit}; fixed creation time for byte reproducibility."},
             "packages": [{"SPDXID": package_id, "name": top, "versionInfo": version,
-                          "downloadLocation": f"git+https://github.com/scubamount/sco-core@{commit}",
+                          "downloadLocation": f"git+https://github.com/scuba-sc/sco-core@{commit}",
                           "filesAnalyzed": True,
                           "packageVerificationCode": {"packageVerificationCodeValue": verification,
                                                       "packageVerificationCodeExcludedFiles": ["./" + sbom_name, "./" + sums_name]},

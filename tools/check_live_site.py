@@ -21,7 +21,7 @@ import urllib.request
 
 sys.dont_write_bytecode = True
 
-CATALOGUE_URL = "https://scubamount.github.io/sco-core/sdk-catalogue.json"
+CATALOGUE_URL = "https://scuba-sc.github.io/sco-core/sdk-catalogue.json"
 DEFAULT_REF = "origin/main"
 DEFAULT_MAX_BEHIND = 25
 MAX_BYTES = 8 * 1024 * 1024

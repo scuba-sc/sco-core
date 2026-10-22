@@ -72,7 +72,7 @@ server before relying on the new snapshot. The server does not regenerate it.
 ## Using an extracted SDK archive
 
 **SDK 2.4.0 is published as release candidate 1**
-([`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
+([`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
 release; the final signed `sdk-v2.4.0` follows). It bundles this launcher, a
 compiler-built `sdk-catalogue.json` and the matching guide sections
 `sdk-guides.json` in the combined `legacy` developer kit (`sco-sdk-2.4.0.zip`),
@@ -110,13 +110,13 @@ consumed; the site's current mainline snapshot is not automatically a match for
 an older release.
 
 - **Public catalogue.** Download
-  <https://scubamount.github.io/sco-core/sdk-catalogue.json> and check it before
+  <https://scuba-sc.github.io/sco-core/sdk-catalogue.json> and check it before
   use. The site is redeployed from `main`, so the file's hash and coordinates
   change with it, and this README deliberately pins neither. Record the sha256 of
   the file you download, then read its coordinates:
 
   ```sh
-  curl -fsSLO https://scubamount.github.io/sco-core/sdk-catalogue.json
+  curl -fsSLO https://scuba-sc.github.io/sco-core/sdk-catalogue.json
   sha256sum sdk-catalogue.json   # macOS: shasum -a 256
   python3 -c 'import json; c = json.load(open("sdk-catalogue.json", encoding="utf-8")); print(c["sdk_version"], c["game_pack_version"], c["source_sha"], len(c["records"]), "records", len(c["tables"]), "tables")'
   ```
@@ -124,7 +124,7 @@ an older release.
   In PowerShell:
 
   ```powershell
-  Invoke-WebRequest https://scubamount.github.io/sco-core/sdk-catalogue.json -OutFile sdk-catalogue.json
+  Invoke-WebRequest https://scuba-sc.github.io/sco-core/sdk-catalogue.json -OutFile sdk-catalogue.json
   (Get-FileHash sdk-catalogue.json -Algorithm SHA256).Hash
   py -3 -c "import json; c = json.load(open('sdk-catalogue.json', encoding='utf-8')); print(c['sdk_version'], c['game_pack_version'], c['source_sha'])"
   ```
