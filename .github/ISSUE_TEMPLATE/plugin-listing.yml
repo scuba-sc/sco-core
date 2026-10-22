@@ -1,0 +1,189 @@
+name: "Plugin listing request"
+description: >-
+  Ask for a plugin in your own public repository to be listed in the community
+  plugin directory (docs/plugin-directory.md).
+title: "[Plugin listing] <plugin name>"
+labels: ["plugin-listing"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A listing is compatibility information, not an endorsement, and nothing in the
+        directory is verified in game. Read the listing rules in
+        [docs/plugin-directory.md](https://github.com/scuba-sc/sco-core/blob/main/docs/plugin-directory.md#listing-rules)
+        first. Each field below becomes one field of `docs/plugin-directory.json`.
+        Do not paste secrets, game files or personal data.
+
+  - type: input
+    id: name
+    attributes:
+      label: "Name"
+      description: "Display name of the plugin or suite, one line."
+      placeholder: "e.g., Waypoint notebook"
+    validations:
+      required: true
+
+  - type: input
+    id: ids
+    attributes:
+      label: "Plugin ids"
+      description: >-
+        Every `plugin.ini` id this listing covers, comma-separated: `[a-z0-9_]`,
+        1-31 characters, not a reserved id (`sco`, `host`, `menu`, `game`).
+      placeholder: "e.g., waypoints, waypoints_pack"
+    validations:
+      required: true
+
+  - type: input
+    id: repository
+    attributes:
+      label: "Repository URL"
+      description: "Public source repository, an https URL readable without an account."
+      placeholder: "https://github.com/<you>/<repository>"
+    validations:
+      required: true
+
+  - type: input
+    id: author
+    attributes:
+      label: "Author"
+      description: "Author or organisation as you want to be credited."
+    validations:
+      required: true
+
+  - type: input
+    id: licence
+    attributes:
+      label: "Licence (SPDX identifier)"
+      description: >-
+        The licence your repository states, as an SPDX identifier or expression
+        (for example `GPL-3.0-only`, `MIT`, `MIT OR Apache-2.0`).
+    validations:
+      required: true
+
+  - type: dropdown
+    id: languages
+    attributes:
+      label: "Languages and plugin kinds"
+      description: "Select every kind the listing contains (at least one)."
+      multiple: true
+      options:
+        - "C"
+        - "C++"
+        - "C#"
+        - "Lua"
+        - "Data pack"
+    validations:
+      required: true
+
+  - type: input
+    id: sdk_version
+    attributes:
+      label: "SDK release built and tested against"
+      description: >-
+        The published SDK archive you built with and took the checker from, as x.y.z
+        (the release tag is `sdk-v<x.y.z>`).
+      placeholder: "e.g., 2.4.0"
+    validations:
+      required: true
+
+  - type: input
+    id: game_pack_version
+    attributes:
+      label: "Game pack version (if the plugin uses game.* services)"
+      description: >-
+        The Star Citizen game-pack version of that SDK release, as x.y.z, or `none`
+        when the plugin uses no `game.*` service.
+      placeholder: "e.g., 0.6.0 or none"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: checker_full
+    attributes:
+      label: "sco-plugin-check, full mode (default run)"
+      description: "A community listing needs a full-mode pass."
+      options:
+        - "pass"
+        - "fail (cannot be listed until it passes)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: checker_short
+    attributes:
+      label: "sco-plugin-check, short mode (--short-tables)"
+      description: >-
+        Short mode applies to native plugins only. Lua plugins and data packs choose
+        "not applicable"; it is recorded as not recorded.
+      options:
+        - "pass"
+        - "fail"
+        - "not run"
+        - "not applicable (Lua or data pack)"
+    validations:
+      required: true
+
+  - type: input
+    id: checker_date
+    attributes:
+      label: "Checker run date (UTC)"
+      placeholder: "YYYY-MM-DD"
+    validations:
+      required: true
+
+  - type: textarea
+    id: checker_output
+    attributes:
+      label: "Checker output"
+      description: >-
+        The complete output of the full-mode run, and of the short-mode run if you
+        ran it, with the command lines you used. For a Lua plugin also include the
+        output of the SDK's tools/lua-check.lua and a luac -p syntax check. Remove
+        local paths you do not want to share.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: in_game
+    attributes:
+      label: "In-game status"
+      description: >-
+        The directory never records in-game verification. Choose "not run in game" if
+        you have not run it in game, otherwise "not verified in game".
+      options:
+        - "not run in game"
+        - "not verified in game"
+    validations:
+      required: true
+
+  - type: input
+    id: description
+    attributes:
+      label: "Short description"
+      description: >-
+        What the plugin does, one line of at most 200 characters, plain text: no HTML,
+        links, backticks, square brackets or "|".
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: offline
+    attributes:
+      label: "Offline confirmation and listing rules"
+      options:
+        - label: >-
+            The plugin follows sdk/docs/plugin-rules.md, including offline-only: no
+            connection to Cloud Imperium Games' servers or online services, no
+            anti-cheat bypass, no account or entitlement tampering, no telemetry and
+            no personal data.
+          required: true
+        - label: >-
+            It was built from a published SDK archive, and its source is in the
+            public repository above, which states its licence.
+          required: true
+        - label: >-
+            The repository ships no game files: no parts of StarCitizen.exe, no dumps,
+            nothing extracted from Data.p4k.
+          required: true

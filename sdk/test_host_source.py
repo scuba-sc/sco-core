@@ -86,7 +86,10 @@ class HostSourceArchive(unittest.TestCase):
                 archive = pkg.build(m, "host-source-sc", str(Path(tmp, "dist")))
             with zipfile.ZipFile(archive) as z:
                 files = {n.split("/", 1)[1]: z.read(n) for n in z.namelist()}
-                self.assertEqual(set(files), sources | set(pkg.metadata_names(m, "host-source-sc")))
+                self.assertEqual(set(files), sources | set(pkg.metadata_names(m, "host-source-sc"))
+                                 | {"sdk-catalogue.json", "sdk-guides.json"})
+                self.assertEqual(json.loads(files["sdk-catalogue.json"])["source_sha"], pkg.source_commit())
+                self.assertEqual(json.loads(files["sdk-guides.json"])["source_sha"], pkg.source_commit())
                 sums = dict(line.split("  ", 1)[::-1] for line in files["SHA256SUMS"].decode().splitlines())
                 self.assertEqual(set(sums), set(files) - {"SHA256SUMS"})
                 for path, digest in sums.items():

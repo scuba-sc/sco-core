@@ -6,8 +6,9 @@ project(sco_sdk C CXX)
 #
 #   cmake -S . -B build && cmake --build build && cmake --install build --prefix out
 #
-# out/data/plugins/ then holds hello/, cpp_hello/, greeter/, notebook/ and my_plugin/ (plus travel_pack/
-# and quantum_pack/ when the Star Citizen extension is unpacked over the core SDK), laid out the way
+# out/data/plugins/ then holds hello/, cpp_hello/, counter_service/, counter_panel/, greeter/, notebook/
+# and my_plugin/ (plus travel_pack/ and quantum_pack/ when the Star Citizen extension is unpacked
+# over the core SDK), laid out the way
 # sc-offline reads them, and out/bin/ holds sco-plugin-check.
 
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/sco-plugin.cmake")
@@ -36,6 +37,9 @@ sco_add_plugin(hello SOURCES examples/hello/hello.c INI examples/hello/plugin.in
 sco_add_plugin(cpp_hello SOURCES examples/cpp_hello/cpp_hello.cpp INI examples/cpp_hello/plugin.ini)
 sco_add_plugin(widgets SOURCES examples/widgets/widgets.c INI examples/widgets/plugin.ini)
 sco_add_plugin(content_reader SOURCES examples/content_reader/content_reader.c INI examples/content_reader/plugin.ini)
+# The modular pair: a provider and a consumer that calls its service table.
+sco_add_plugin(counter_service SOURCES examples/counter_service/counter_service.c INI examples/counter_service/plugin.ini)
+sco_add_plugin(counter_panel SOURCES examples/counter_panel/counter_panel.c INI examples/counter_panel/plugin.ini)
 sco_add_plugin(my_plugin SOURCES template/plugin.c INI template/plugin.ini)
 # The Star Citizen extension's examples (sco-sdk-game-sc), when it is unpacked here.
 foreach(ex travel_pack quantum_pack)

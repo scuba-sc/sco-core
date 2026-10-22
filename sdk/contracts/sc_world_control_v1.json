@@ -7,11 +7,11 @@
       "symbol": "sc_world_control_v1.raycast_filtered",
       "table": "sc_world_control_v1",
       "service": "game.world.control",
-      "version_macro": "SC_WORLD_CONTROL_VERSION_1_0",
+      "version_macro": "SC_WORLD_CONTROL_VERSION_1_1",
       "source_header": "include/sc_world_control.h",
       "signature": "sco_result (*)(sco_plugin *, uint64_t, const double *, const double *, double, const uint64_t *, uint32_t, sc_world_hit *)",
       "member_extent": 16,
-      "table_size": 40,
+      "table_size": 48,
       "since": "`size >= 16`; 1.0",
       "purpose": "Zone-local ray; direction normalized, positive finite distance clamped to 20000m. At most 32 unique nonzero current own IDs, copied for call only; foreign/relinquished ID FAILED, malformed input BAD_ARG. Adequately-sized hit zeroed on failure, unknown tail untouched; success position/distance only, entity/normal/flags zero. NULL/short hit rejected before zeroing. Capability game.world.raycast_filtered remains OFF.",
       "buffer_contract": "`sco_result (*raycast_filtered)(sco_plugin* self, uint64_t zone_id, const double from[3], const double dir[3], double max_dist, const uint64_t* skip_ids, uint32_t skip_count, sc_world_hit* out_hit);`<br>Zone-local ray; direction normalized, positive finite distance clamped to 20000m. At most 32 unique nonzero current own IDs, copied for call only; foreign/relinquished ID FAILED, malformed input BAD_ARG. Adequately-sized hit zeroed on failure, unknown tail untouched; success position/distance only, entity/normal/flags zero. NULL/short hit rejected before zeroing. Capability game.world.raycast_filtered remains OFF.",
@@ -85,11 +85,11 @@
       "symbol": "sc_world_control_v1.camera_acquire",
       "table": "sc_world_control_v1",
       "service": "game.world.control",
-      "version_macro": "SC_WORLD_CONTROL_VERSION_1_0",
+      "version_macro": "SC_WORLD_CONTROL_VERSION_1_1",
       "source_header": "include/sc_world_control.h",
       "signature": "sco_result (*)(sco_plugin *, uint64_t *)",
       "member_extent": 24,
-      "table_size": 40,
+      "table_size": 48,
       "since": "`size >= 24`; 1.0",
       "purpose": "Exclusive owner-scoped camera lease; output token zero on failure. Same owner reacquire returns same token; foreign owner FAILED. Provider captures all camera/input/mode state before mutation; acquire failure atomic. UNAVAILABLE without complete verified offline adapter and cleanup hook. Capability game.world.free_camera remains OFF.",
       "buffer_contract": "`sco_result (*camera_acquire)(sco_plugin* self, uint64_t* out_lease);`<br>Exclusive owner-scoped camera lease; output token zero on failure. Same owner reacquire returns same token; foreign owner FAILED. Provider captures all camera/input/mode state before mutation; acquire failure atomic. UNAVAILABLE without complete verified offline adapter and cleanup hook. Capability game.world.free_camera remains OFF.",
@@ -163,11 +163,11 @@
       "symbol": "sc_world_control_v1.camera_step",
       "table": "sc_world_control_v1",
       "service": "game.world.control",
-      "version_macro": "SC_WORLD_CONTROL_VERSION_1_0",
+      "version_macro": "SC_WORLD_CONTROL_VERSION_1_1",
       "source_header": "include/sc_world_control.h",
       "signature": "sco_result (*)(sco_plugin *, uint64_t, const sc_world_camera_step *)",
       "member_extent": 32,
-      "table_size": 40,
+      "table_size": 48,
       "since": "`size >= 32`; 1.0",
       "purpose": "Only own active lease; copied size-prefixed step, tail ignored, reserved pad zero. Finite world translation norm <=10m and unit quaternion shortest world rotation delta <=0.25rad per call. No absolute pose or FOV. BAD_ARG invalid delta, NOT_FOUND stale/zero token, FAILED foreign owner. Provider failure attempts restoration and permanently latches restart-required.",
       "buffer_contract": "`sco_result (*camera_step)(sco_plugin* self, uint64_t lease, const sc_world_camera_step* step);`<br>Only own active lease; copied size-prefixed step, tail ignored, reserved pad zero. Finite world translation norm <=10m and unit quaternion shortest world rotation delta <=0.25rad per call. No absolute pose or FOV. BAD_ARG invalid delta, NOT_FOUND stale/zero token, FAILED foreign owner. Provider failure attempts restoration and permanently latches restart-required.",
@@ -241,11 +241,11 @@
       "symbol": "sc_world_control_v1.camera_release",
       "table": "sc_world_control_v1",
       "service": "game.world.control",
-      "version_macro": "SC_WORLD_CONTROL_VERSION_1_0",
+      "version_macro": "SC_WORLD_CONTROL_VERSION_1_1",
       "source_header": "include/sc_world_control.h",
       "signature": "sco_result (*)(sco_plugin *, uint64_t)",
       "member_extent": 40,
-      "table_size": 40,
+      "table_size": 48,
       "since": "`size >= 40`; 1.0",
       "purpose": "Restore exact pre-acquire shared camera/input/mode state before relinquishing own lease. Foreign owner FAILED; stale/zero token NOT_FOUND. Restore failure FAILED retains provider state and latches restart-required; owner cleanup/release can retry restoration, never re-enable mutations. Recovery release allowed after service stop.",
       "buffer_contract": "`sco_result (*camera_release)(sco_plugin* self, uint64_t lease);`<br>Restore exact pre-acquire shared camera/input/mode state before relinquishing own lease. Foreign owner FAILED; stale/zero token NOT_FOUND. Restore failure FAILED retains provider state and latches restart-required; owner cleanup/release can retry restoration, never re-enable mutations. Recovery release allowed after service stop.",
@@ -275,6 +275,84 @@
             {
               "path": "include/scosdk/game/world_control.hpp",
               "token": "t_->camera_release("
+            }
+          ],
+          "tests": [
+            "tests/test_world_control.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/world-control.md",
+              "token": "C# and sandboxed Lua: unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/design/world-control.md",
+              "token": "C# and sandboxed Lua: unsupported"
+            }
+          ],
+          "tests": []
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_world_control.c",
+        "tests/test_world_control.cpp"
+      ],
+      "limitations": [
+        "Synthetic provider verification only; Windows engine integration/gameplay not verified.",
+        "Production adapter deliberately absent; mutation/read-filter capabilities OFF.",
+        "Per-call bounds are not a native-plugin security sandbox."
+      ]
+    },
+    {
+      "id": "sc-world-control-v1-raycast-filtered-many",
+      "kind": "table-method",
+      "symbol": "sc_world_control_v1.raycast_filtered_many",
+      "table": "sc_world_control_v1",
+      "service": "game.world.control",
+      "version_macro": "SC_WORLD_CONTROL_VERSION_1_1",
+      "source_header": "include/sc_world_control.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, const double *, const double *, double, const uint64_t *, uint32_t, sc_world_hits *)",
+      "member_extent": 48,
+      "table_size": 48,
+      "since": "`size >= 48`; 1.1",
+      "purpose": "Synchronous scoped bounded multi-hit in the requested zone frame; capacity <=64, count-only permitted, ordered distances and explicit omitted count. Same 32 owner-validated skips and distance clamp as single ray. Grid release runs after query even on error/no hit. Malformed records or cleanup failure publish no hits; cleanup failure latches restart-required. Native capability remains OFF.",
+      "buffer_contract": "`sco_result (*raycast_filtered_many)(sco_plugin* self, uint64_t zone_id, const double from[3], const double dir[3], double max_dist, const uint64_t* skip_ids, uint32_t skip_count, sc_world_hits* out_hits);`<br>Synchronous scoped bounded multi-hit in the requested zone frame; capacity <=64, count-only permitted, ordered distances and explicit omitted count. Same 32 owner-validated skips and distance clamp as single ray. Grid release runs after query even on error/no hit. Malformed records or cleanup failure publish no hits; cleanup failure latches restart-required. Native capability remains OFF.",
+      "ownership": "Live owner required; call-only copied inputs, host-session borrowed table. No allocation or engine pointers cross boundary. Camera lease exclusive; no steal.",
+      "thread_affinity": "Game thread only; WRONG_THREAD without provider access.",
+      "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded, nonthrowing.",
+      "reentrancy": "Recursive calls refused with FAILED; no waits or async work.",
+      "results": "BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract.",
+      "absent_capability": "Absent service: query_service NOT_FOUND; present disabled operation: UNAVAILABLE.",
+      "cleanup": "Provider acquire/query/release scope lasts one call. Successful acquire is paired exactly once with release before output publication; release failure latches unavailable. No retained caller buffers or filters.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_world_control.h",
+              "token": "(*raycast_filtered_many)"
+            }
+          ],
+          "tests": [
+            "tests/abi_world_control.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/world_control.hpp",
+              "token": "t_->raycast_filtered_many("
             }
           ],
           "tests": [

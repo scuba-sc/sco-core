@@ -11,12 +11,12 @@ namespace sco::game::services {
 // its own (including portable fixtures); only the last removal releases that slot.
 // The bounded participant list is not a change to sco::kMaxReleaseHooks.
 namespace release_detail {
-inline ReleaseHook hooks[3] = {};
+inline ReleaseHook hooks[4] = {};
 inline size_t count = 0;
 inline void Dispatch(const void* owner) {
     // Match runtime release semantics: callbacks may change registrations, so take
     // a snapshot before calling anything, without retaining plugin state.
-    ReleaseHook pending[3] = {};
+    ReleaseHook pending[4] = {};
     const size_t n = count;
     for (size_t i = 0; i < n; ++i) pending[i] = hooks[i];
     for (size_t i = 0; i < n; ++i) pending[i](owner);
@@ -28,7 +28,7 @@ inline Result AddGameReleaseHook(ReleaseHook hook) {
     if (!hook) return Result::BadArg;
     using namespace release_detail;
     for (size_t i = 0; i < count; ++i) if (hooks[i] == hook) return Result::Ok;
-    if (count == 3) return Result::TooMany;
+    if (count == 4) return Result::TooMany;
     if (!count) {
         const auto r = AddReleaseHook(Dispatch);
         if (r != Result::Ok) return r; // no participant admitted without cleanup

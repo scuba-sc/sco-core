@@ -569,7 +569,7 @@ class Negative(unittest.TestCase):
             "approved_at": "2026-10-11T00:00:00Z",
             "expires_at": "2099-01-01T00:00:00Z",
             "approver": {"identity": "maintainer", "key_fingerprint": "SHA256:" + "A" * 43},
-            "source": {"repository": "scubamount/sco-core", "commit": "a" * 40,
+            "source": {"repository": "scuba-sc/sco-core", "commit": "a" * 40,
                        "components_sha256": "b" * 64, "dependencies": []},
             "build": {"workflow_commit": "a" * 40, "run_id": 1, "run_attempt": 1,
                       "artifact_ids": [1], "evidence_sha256": "b" * 64},
@@ -611,7 +611,7 @@ class Negative(unittest.TestCase):
     def test_a_valid_record_is_accepted(self):
         s = self.scratch()
         approved = audit.git_head(s.dir)
-        rec = self.base_record(source={"repository": "scubamount/sco-core", "commit": approved,
+        rec = self.base_record(source={"repository": "scuba-sc/sco-core", "commit": approved,
                                        "components_sha256": "b" * 64, "dependencies": []})
         path = "docs/legal/release-decisions/sdk-v9.9.9.json"
         s.add(path, json.dumps(rec).encode())
@@ -628,7 +628,7 @@ class Negative(unittest.TestCase):
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "sco-sdk-9.9.9.zip"), "wb") as f:
             f.write(b"zip!")
-        rec = self.base_record(source={"repository": "scubamount/sco-core", "commit": approved,
+        rec = self.base_record(source={"repository": "scuba-sc/sco-core", "commit": approved,
                                        "components_sha256": "b" * 64, "dependencies": []})
         path = "docs/legal/release-decisions/sdk-v9.9.9.json"
         s.add(path, json.dumps(rec).encode())
@@ -650,9 +650,14 @@ class Negative(unittest.TestCase):
         self.refused_release(self.base_record(artifacts=[]), "fewer than minItems 1")
 
     def test_malformed_commit(self):
-        self.refused_release(self.base_record(source={"repository": "scubamount/sco-core", "commit": "zz",
+        self.refused_release(self.base_record(source={"repository": "scuba-sc/sco-core", "commit": "zz",
                                                        "components_sha256": "b" * 64, "dependencies": []}),
                              "does not match pattern")
+
+    def test_repository_name_from_before_the_move_is_refused(self):
+        self.refused_release(self.base_record(source={"repository": "scubamount/sco-core", "commit": "a" * 40,
+                                                       "components_sha256": "b" * 64, "dependencies": []}),
+                             'is not the const "scuba-sc/sco-core"')
 
     def test_empty_approver_identity(self):
         self.refused_release(self.base_record(approver={"identity": "", "key_fingerprint": "SHA256:" + "A" * 43}),
@@ -742,7 +747,7 @@ class Negative(unittest.TestCase):
                    GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
         approved = audit.git_head(s.dir)
         path = "docs/legal/release-decisions/sdk-v9.9.9.json"
-        s.add(path, json.dumps(self.base_record(source={"repository": "scubamount/sco-core",
+        s.add(path, json.dumps(self.base_record(source={"repository": "scuba-sc/sco-core",
                                                         "commit": approved,
                                                         "components_sha256": "b" * 64,
                                                         "dependencies": []})).encode())

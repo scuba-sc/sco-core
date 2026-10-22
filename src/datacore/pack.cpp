@@ -791,9 +791,6 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
                 if (rep.reason.empty()) rep.reason = (r.line ? Fmt("line %u: ", r.line) : Fmt("operation %zu: ", k + 1)) + r.status.message;
             }
         }
-        rep.receipt.applied_records = static_cast<uint32_t>(rep.applied);
-        rep.receipt.skipped_records = static_cast<uint32_t>(rep.skipped);
-        rep.receipt.total_records = static_cast<uint32_t>(rep.applied + rep.skipped);
         if (pack.atomic && rep.skipped) {
             rep.state = PackState::Refused;
             rep.applied = 0;
@@ -824,7 +821,15 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
             r.skipped = r.ops.size();
             r.applied = 0;
             r.reason = "nothing applied: " + res.status.message;
+            r.receipt.errors.push_back(r.reason);
         }
+    }
+    // A receipt describes committed work, not successful operations in a trial
+    // later rolled back by pack atomicity or final emission validation.
+    for (PackReport& r : res.packs) {
+        r.receipt.applied_records = static_cast<uint32_t>(r.applied);
+        r.receipt.skipped_records = static_cast<uint32_t>(r.skipped);
+        r.receipt.total_records = static_cast<uint32_t>(r.applied + r.skipped);
     }
     return res;
 }

@@ -101,8 +101,8 @@
       "service": "game.gamerules",
       "id": "sc-gamerules-v1-list-params",
       "since": "`size >= 24`; 1.1",
-      "purpose": "Enumerate copied static GameRules parameter definitions by offset; records carry names, groups and types but no values or engine offsets.",
-      "buffer_contract": "`sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate copied static GameRules parameter definitions by offset; records carry names, groups and types but no values or engine offsets.",
+      "purpose": "Enumerate the 15 static GameRules parameter definitions (names verified on 4.10.197.2878, F-4.10.197.2878-054) by offset; records carry names, groups and types but no values or engine offsets.",
+      "buffer_contract": "`sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate the 15 static GameRules parameter definitions (names verified on 4.10.197.2878, F-4.10.197.2878-054) by offset; records carry names, groups and types but no values or engine offsets.",
       "ownership": "Caller owns all output slots; size and unknown tails remain untouched. No pointers retained.",
       "thread_affinity": "Game thread only; live self required.",
       "callback_context": "No plugin callbacks.",
@@ -111,7 +111,7 @@
       "absent_capability": "Static metadata does not require game.gamerules.read or a live backend.",
       "cleanup": "StopGameRules withdraws the table and disables cached list_params pointers.",
       "limitations": [
-        "Source build unresolved; metadata is not proof of a live parameter layout.",
+        "Names are build-scoped to 4.10.197.2878 (F-4.10.197.2878-054); INT/FLOAT types are not verified; metadata is not proof of a live parameter layout.",
         "Not run in game.",
         "C++/C#/Lua list_params wrappers are unsupported; existing read wrappers unchanged."
       ],

@@ -1339,6 +1339,13 @@ static void TestStore(const fs::path& sdk) {
         assert(select(2, st.commit()) == "bad_arg", "commit with none open")
         -- SQL with parameters
         assert(st.exec("CREATE TABLE visits(place TEXT, at INTEGER, speed REAL, note TEXT)"))
+        local tables, kinds = st.tables()
+        assert(#tables == 1 and tables[1] == "visits" and kinds[1] == 1)
+        local columns, types, flags = st.columns("visits")
+        assert(#columns == 4 and columns[1] == "place" and types[1] == "TEXT" and flags[1] == 0)
+        assert(columns[4] == "note" and types[4] == "TEXT")
+        assert(#assert(st.columns("no_such_table")) == 0)
+        assert(select(2, st.tables(0)) == "bad_arg")
         assert(st.exec("INSERT INTO visits VALUES (?, ?, ?, ?)", { "Lorville", 1, 2.5, n = 4 }) == 1)
         assert(st.exec("INSERT INTO visits VALUES (?, ?, ?, ?)", { "Area18", 2, 0.5, "rain" }) == 1)
         assert(st.exec("INSERT INTO visits VALUES (:p, :a, 0, NULL)", { "Orison", true }) == 1)

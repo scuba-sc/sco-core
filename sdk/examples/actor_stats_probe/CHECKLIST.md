@@ -3,7 +3,7 @@
 This is the maintainer's run that turns `game.actor_stats` from "rows resolved" into "verified in
 game", and decides whether `game.actor_stats.write` may ever default on. **Nothing below has been
 run yet.** Record every result, with the build and the date, before any capability changes state
-(rule 8).
+(evidence before claims).
 
 ## Before you start
 
@@ -56,7 +56,7 @@ write logs `adjust|set <stat> <n> -> result <r> (mode <m>, ...); read back <stat
 | W5 | `actor_stats_probe.adjust stun <a small step>` | the stun effect shows, or the value moves without the effect: record which |
 | W6 | `actor_stats_probe.adjust body_rad <a small step>` | the radiation effect shows: record which |
 | W7 | Unset `SCO_ACTOR_STATS_WRITE` and restart | the log says `game.actor_stats.write is off`; every write answers 1 (UNAVAILABLE) |
-| W8 | Connect to anything that is not an offline session (if you can do so safely; otherwise skip and note it) | writes answer 1 (UNAVAILABLE), with no admission |
+| W8 | Repeat W1 before the host has admitted the offline session (offline only: never connect to an online server for this test) | writes answer 1 (UNAVAILABLE), with no admission |
 
 ## Record
 

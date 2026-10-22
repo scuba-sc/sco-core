@@ -10,6 +10,9 @@
 #include "sco/datacore_service.h"
 #include "host_testing.h"
 #include "admission.h"
+#if defined(SCO_GAME_SERVICES)
+#include "services/datacore_live_engine.h"
+#endif
 #include <atomic>
 #include <mutex>
 #include <limits>
@@ -65,8 +68,8 @@ std::shared_ptr<const vfs::Table> Mounts() {
     return dataActive.load() ? dataMounts : nullptr;
 }
 void StopData() {
+    if (pakOwned) { pak::Disable(); if(pak::Enabled()) return; pakOwned=false; }
     if (!dataActive.exchange(false)) return;
-    if (pakOwned) { pak::Disable(); pakOwned = false; }
     // A producer already inside service::Load must finish before service withdrawal.
     // It only posts game-thread work, never waits for that work while holding this lock.
     std::lock_guard<std::mutex> hold(dataMutex);
@@ -109,6 +112,11 @@ Result Prepare(const Options& o) {
                                 !o.maxDataCoreBytes || o.maxDataCoreBytes > vfs::kMaxFileSize)))
         return Result::BadArg;
     phase = Phase::Preparing; // also prevents admission callback reentry
+    if (o.nativeDataCoreReads && (!o.preEngineQuiesced || !o.platform.dataCore ||
+        o.dataCoreHook!=DataCoreHook::Required || !o.platform.gameServices)) { phase=Phase::Idle; return Result::BadArg; }
+#if !defined(SCO_GAME_SERVICES)
+    if(o.nativeDataCoreReads) {phase=Phase::Idle;return Result::Unavailable;}
+#endif
     try { options = o; } catch (...) { phase = Phase::Idle; return Result::Failed; }
     if (!Admitted()) { phase = Phase::Idle; return Result::Unavailable; }
     if (!o.image || !o.image->base || !o.image->size || !o.image->text.base ||
@@ -125,6 +133,11 @@ Result Prepare(const Options& o) {
         }
         const Result d = PrepareData();
         if (d != Result::Ok) { phase = Phase::Failed; return d; }
+#if defined(SCO_GAME_SERVICES)
+        if(options.nativeDataCoreReads && !services::datacore_live::PrepareProductionEngine(options.preEngineQuiesced)) {
+            StopData();phase=Phase::Failed;return Result::Unavailable;
+        }
+#endif
         detail::SetFreshInspector(options.inspect);
         phase = Phase::Prepared;
         return Result::Ok;
@@ -168,10 +181,19 @@ Result Stop() {
     if (p == Phase::Stopping) return Result::Ok;
     if (p != Phase::Running) return Result::Unavailable;
     if (sco::detail::InCallout()) return Result::Unavailable;
+    const bool cleanupAdmitted = FreshAdmissionAllowed();
     detail::SetFreshAdmissionEnabled(false); // retained workers must pass through before teardown
     phase = Phase::Stopping;
+    struct CvarCleanupScope {
+        explicit CvarCleanupScope(bool admitted) { detail::SetCvarCleanupEnabled(admitted); }
+        ~CvarCleanupScope() { detail::SetCvarCleanupEnabled(false); }
+    } cleanup(cleanupAdmitted);
     // Stop transport/producer access first, but keep DataCore tables available for unload.
-    if (pakOwned) { pak::Disable(); pakOwned = false; }
+    if (pakOwned) {
+        pak::Disable();
+        if(pak::Enabled()) {phase=Phase::Running;return Result::Failed;}
+        pakOwned=false;
+    }
     { std::lock_guard<std::mutex> hold(dataMutex); dataInputs.reset(); dataMounts.reset(); }
     app::Stop(); // service withdrawal AFTER plugin unload, as in app's lifecycle
     dataActive = false;

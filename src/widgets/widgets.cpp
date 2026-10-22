@@ -33,7 +33,7 @@ uint64_t g_snapshot_builds = 0;
 std::vector<Entry> g_panels;
 constexpr uint32_t kFeatures = SCO_WIDGETS_FEATURE_UPDATE_NODES | SCO_WIDGETS_FEATURE_REMOVE_NODES |
     SCO_WIDGETS_FEATURE_SEVERITY | SCO_WIDGETS_FEATURE_TOOLTIP | SCO_WIDGETS_FEATURE_PAGING |
-    SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER;
+    SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS;
 auto Find(const std::string& id) {
     return std::find_if(g_panels.begin(), g_panels.end(), [&](const Entry& e) { return e.panel.id == id; });
 }
@@ -128,6 +128,32 @@ Result CopyTail(const sco_widget_node_1_1& x, Node& out) {
     out.extended = true;
     return Result::Ok;
 }
+// 1.2 node tail, after CopyTail filled the 1.1 part of out.
+Result CopyTail12(const sco_widget_node_1_2& x, Node& out) {
+    for (const auto pad : x._reserved) if (pad) return Result::BadArg;
+    out.tag.clear();
+    if (x.tag && *x.tag) {
+        const std::string_view tag(x.tag);
+        if (tag.size() > SCO_WIDGETS_MAX_TAG) return Result::BadArg;
+        for (const unsigned char c : tag)
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                  c == '.' || c == '_' || c == '-')) return Result::BadArg;
+        out.tag = tag;
+    }
+    return Result::Ok;
+}
+// True when every non-empty tag appears once. tree keeps [0, begin) and [end, size);
+// fragment supplies the rest (Set passes the whole tree with begin == end == 0).
+bool TagsUnique(const std::vector<Node>& tree, size_t begin, size_t end, const std::vector<Node>& fragment) {
+    std::vector<std::string> tags;
+    for (size_t i = 0; i < tree.size(); ++i) {
+        if (i >= begin && i < end) continue;
+        if (!tree[i].tag.empty()) tags.push_back(tree[i].tag);
+    }
+    for (const auto& node : fragment) if (!node.tag.empty()) tags.push_back(node.tag);
+    std::sort(tags.begin(), tags.end());
+    return std::adjacent_find(tags.begin(), tags.end()) == tags.end();
+}
 Result CheckArray(const sco_widget_node* nodes, uint32_t count, uint32_t stride) {
     if (!nodes || !count || stride < sizeof(sco_widget_node) || stride % alignof(sco_widget_node) ||
         reinterpret_cast<uintptr_t>(nodes) % alignof(sco_widget_node) ||
@@ -156,6 +182,10 @@ Result ParseNodes(const sco_widget_node* nodes, uint32_t count, uint32_t stride,
         if (size >= sizeof(sco_widget_node_1_1)) {
             sco_widget_node_1_1 x; std::memcpy(&x, p, sizeof(x));
             if (auto r = CopyTail(x, node); r != Result::Ok) return r;
+            if (size >= sizeof(sco_widget_node_1_2)) {
+                sco_widget_node_1_2 y; std::memcpy(&y, p, sizeof(y));
+                if (auto r = CopyTail12(y, node); r != Result::Ok) return r;
+            }
         }
         if (n.kind == SCO_WIDGET_ROW || n.kind == SCO_WIDGET_COLUMN) ancestors.push_back(n.id);
         out.push_back(std::move(node));
@@ -207,6 +237,7 @@ sco_result Set(sco_plugin* self, const char* id, const char* title, const sco_wi
         if (total > SCO_WIDGETS_MAX_TOTAL_NODES) return Result::TooMany;
         e.panel.owner = pid; e.owner = self; e.fn = fn; e.ctx = ctx;
         if (auto r = ParseNodes(nodes, count, stride, {0}, false, {}, e.panel.nodes); r != Result::Ok) return r;
+        if (!TagsUnique(e.panel.nodes, 0, 0, {})) return Result::BadArg;
         Changed(e);
         auto it = Find(e.panel.id);
         if (it == g_panels.end()) g_panels.push_back(std::move(e)); else *it = std::move(e);
@@ -261,6 +292,7 @@ sco_result UpdateNodes(sco_plugin* self, const char* id, const sco_widget_node* 
         };
         std::vector<Node> fragment;
         if (auto r = ParseNodes(nodes, count, stride, {head.parent}, true, taken, fragment); r != Result::Ok) return r;
+        if (!TagsUnique(tree, begin, end, fragment)) return Result::BadArg;
         // Capacity first: the splice below then only moves nodes and cannot throw.
         tree.reserve(total);
         tree.erase(tree.begin() + static_cast<std::ptrdiff_t>(begin), tree.begin() + static_cast<std::ptrdiff_t>(end));
@@ -304,11 +336,11 @@ sco_result Capabilities(sco_plugin* self, uint32_t* caps) {
         std::lock_guard<std::mutex> hold(g_lock);
         if (auto r = Live(self); r != Result::Ok) return r;
         if (!caps || caps[SCO_WIDGETS_CAP_COUNT] < 2) return Result::BadArg;
-        const uint32_t known[SCO_WIDGETS_CAPS_1_1]{
-            SCO_WIDGETS_CAPS_1_1, kFeatures, SCO_WIDGETS_MAX_PANELS, SCO_WIDGETS_MAX_NODES,
+        const uint32_t known[SCO_WIDGETS_CAPS_1_2]{
+            SCO_WIDGETS_CAPS_1_2, kFeatures, SCO_WIDGETS_MAX_PANELS, SCO_WIDGETS_MAX_NODES,
             SCO_WIDGETS_MAX_TOTAL_NODES, SCO_WIDGETS_MAX_ITEMS, SCO_WIDGETS_MAX_COLUMNS,
-            SCO_WIDGETS_MAX_TEXT, SCO_WIDGETS_MAX_EVENTS};
-        const uint32_t n = std::min(caps[SCO_WIDGETS_CAP_COUNT], SCO_WIDGETS_CAPS_1_1);
+            SCO_WIDGETS_MAX_TEXT, SCO_WIDGETS_MAX_EVENTS, SCO_WIDGETS_MAX_TAG};
+        const uint32_t n = std::min(caps[SCO_WIDGETS_CAP_COUNT], SCO_WIDGETS_CAPS_1_2);
         for (uint32_t i = 1; i < n; ++i) caps[i] = known[i];
         caps[SCO_WIDGETS_CAP_COUNT] = n;
         return Result::Ok;
@@ -368,7 +400,7 @@ Result Start() {
     if (detail::RuntimeStopping()) return Result::Unavailable;
     auto r = AddReleaseHook(OnRelease);
     if (r != Result::Ok) return r;
-    r = host::ProvideHostService(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_1, &kTable);
+    r = host::ProvideHostService(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_2, &kTable);
     if (r != Result::Ok) { RemoveReleaseHook(OnRelease); return r; }
     g_started = true; return Result::Ok;
 }

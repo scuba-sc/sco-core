@@ -16,6 +16,14 @@ struct WorldControlProvider {
     sco_result (*begin)() = nullptr;
     sco_result (*step)(const sc_world_camera_step*) = nullptr;
     sco_result (*restore)() = nullptr;
+    // Host-only scope, never exported. Successful acquire must produce a nonnull
+    // scope; release is called exactly once even when query/validation fails.
+    // Failed release retains the scope/backing context until process restart;
+    // the controller and provider cannot be replaced or unloaded after failure.
+    sco_result (*ray_acquire)(uint64_t, void**) = nullptr;
+    sco_result (*ray_query)(void*, const double*, const double*, double,
+                           const uint64_t*, uint32_t, sc_world_hits*) = nullptr;
+    sco_result (*ray_release)(void*) = nullptr;
 };
 class WorldControl {
 public:
@@ -26,6 +34,8 @@ public:
     sco_result Ray(sco_plugin*, uint64_t, const double*, const double*, double,
                    const uint64_t*, uint32_t, sc_world_hit*);
     sco_result Acquire(sco_plugin*, uint64_t*);
+    sco_result Rays(sco_plugin*, uint64_t, const double*, const double*, double,
+                    const uint64_t*, uint32_t, sc_world_hits*);
     sco_result Step(sco_plugin*, uint64_t, const sc_world_camera_step*);
     sco_result Release(sco_plugin*, uint64_t);
     sco_result ReleaseOwner(const void*);
@@ -39,5 +49,6 @@ private:
     bool cleanup_ready_, stopped_ = false, failed_ = false, busy_ = false;
     const void* owner_ = nullptr;
     uint64_t lease_ = 0, next_ = 1;
+    void* fault_scope_ = nullptr;
 };
 }

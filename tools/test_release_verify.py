@@ -38,7 +38,7 @@ class ReleaseVerifyTests(unittest.TestCase):
         self.signers = Path(self.temp.name) / "allowed-signers"
         self.record = {
             "schema_version": 2, "tag": "sdk-v9.9.9",
-            "source": {"repo": "scubamount/sco-core", "sha": self.sha, "dependencies": []},
+            "source": {"repo": "scuba-sc/sco-core", "sha": self.sha, "dependencies": []},
             "components_manifest_sha256": hashlib.sha256(
                 (self.root / "sdk/components.json").read_bytes()).hexdigest(),
             "builder": {"workflow_path": ".github/workflows/build.yml", "workflow_sha": self.sha,

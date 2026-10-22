@@ -15,7 +15,7 @@ capability stays OFF until an in-game run confirms it.
 
 ## Grounding
 
-Enumeration recipe (findings F-4.10.196.36804-007..-009, corrected and extended on 4.10.197.2878 by
+Enumeration recipe (findings F-4.10.196.36804-009, corrected and extended on 4.10.197.2878 by
 F-4.10.197.2878-011..-016; static analysis only, not run in game):
 
 - The item ports belong to an item-port container, which is a **component** fetched from the
@@ -99,7 +99,7 @@ differs. It resets when the service restarts.
 ## What is not established
 
 - Stack counts and any quantity field: not exposed.
-- Per-class item names: not established (the item type name map exists but is not exposed).
+- Per-class item names: not established. The public category-name helpers describe item types, not per-class names.
 - The implementation of the item descriptor accessor is not located; the adapter calls through the
   item's table, as the game's own node does, and has no signature row for it.
 - Whether the player entity the shared player lookup returns has the layout the adapter reads (it is

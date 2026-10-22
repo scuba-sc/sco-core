@@ -67,6 +67,8 @@ namespace Sco.Sdk.Tests
         private static readonly List<string> Logs = new();
         private static readonly nint Version = Marshal.StringToCoTaskMemUTF8("fake-host 1.0");   // static, never freed
         private static uint* _smallTable;   // a service table whose size covers only itself
+        private static ScoStorageV1* _storageTable;
+        private static int _schemaCalls;
         private static void* _self;
         private static int _failures;
 
@@ -149,9 +151,39 @@ namespace Sco.Sdk.Tests
         private static ScoResult QueryService(byte* name, uint minVersion, void** o)
         {
             *o = null;
+            if (S(name) == Abi.StorageName && _storageTable != null)
+            {
+                *o = _storageTable;
+                return ScoResult.Ok;
+            }
             if (GameQuery(S(name), o)) return ScoResult.Ok;
             if (S(name) != "other.small") return ScoResult.NotFound;
             *o = _smallTable;
+            return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult NextTable(void* self, byte* after, byte* name, uint* size, uint* kind)
+        {
+            ++_schemaCalls;
+            if (self != _self) return ScoResult.BadArg;
+            if (after != null) return ScoResult.NotFound;
+            if (*size < 7) { *size = 7; return ScoResult.TooMany; }
+            "visits\0"u8.CopyTo(new Span<byte>(name, 7));
+            *size = 7; *kind = Abi.StorageKindTable;
+            return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult NextColumn(void* self, byte* table, uint* index, byte* name, uint* nameSize,
+                                             byte* type, uint* typeSize, uint* flags)
+        {
+            ++_schemaCalls;
+            if (self != _self) return ScoResult.BadArg;
+            if (S(table) != "visits" || *index != 0) return ScoResult.NotFound;
+            "place\0"u8.CopyTo(new Span<byte>(name, (int)*nameSize));
+            "TEXT\0"u8.CopyTo(new Span<byte>(type, (int)*typeSize));
+            *nameSize = 6; *typeSize = 5; *flags = Abi.StorageColumnNotNull; ++*index;
             return ScoResult.Ok;
         }
 
@@ -308,6 +340,28 @@ namespace Sco.Sdk.Tests
             Expect(p.Query("other.small", 0x10000, out ServiceRef<ScoStorageV1> small) == ScoResult.Ok && !small.Covers(8),
                    "the size check refuses a function past the provider's size");
             Expect(p.Query("nobody", 0x10000, out ServiceRef<ScoStorageV1> none) == ScoResult.NotFound && !none.IsValid, "query not found");
+
+            ScoStorageV1 storageTable = default;
+            storageTable.size = (uint)sizeof(ScoStorageV1);
+            storageTable.next_table = &NextTable;
+            storageTable.next_column = &NextColumn;
+            _storageTable = &storageTable;
+            var storage = new Storage();
+            Expect(storage.Open(p) == ScoResult.Ok, "storage 1.1 opens");
+            Expect(storage.NextTable(null, out string tableName, out uint kind) == ScoResult.Ok &&
+                   tableName == "visits" && kind == Abi.StorageKindTable, "storage schema table copied");
+            uint columnIndex = 0;
+            Expect(storage.NextColumn("visits", ref columnIndex, out string columnName, out string columnType,
+                   out uint flags) == ScoResult.Ok && columnIndex == 1 && columnName == "place" &&
+                   columnType == "TEXT" && flags == Abi.StorageColumnNotNull, "storage schema column copied");
+            Expect(storage.NextColumn("visits", ref columnIndex, out _, out _, out _) == ScoResult.NotFound &&
+                   columnIndex == 1, "storage schema end preserves index");
+            int schemaCalls = _schemaCalls;
+            storageTable.size = 128;
+            Expect(storage.NextTable(null, out _, out _) == ScoResult.Unavailable &&
+                   storage.NextColumn("visits", ref columnIndex, out _, out _, out _) == ScoResult.Unavailable &&
+                   _schemaCalls == schemaCalls, "storage 1.0 extent refuses schema tail before call");
+            _storageTable = null;
 
             GameTests(p);
 

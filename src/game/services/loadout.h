@@ -24,7 +24,18 @@ struct LoadoutBackend {
     bool weapons = false;
     bool respawnCompleted = false;
 };
-Result StartLoadout(const LoadoutBackend* backend = nullptr);
+struct LoadoutAsyncBackend {
+    bool verified = false;
+    bool (*admit)(uint64_t* session) = nullptr;
+    bool (*begin)(uint32_t slot, const char* name, uint64_t* token,
+                  sc_loadout_status* terminal) = nullptr;
+    bool (*poll)(uint64_t token, bool* complete, sc_loadout_status* result) = nullptr;
+    void (*discard)(uint64_t token) = nullptr;
+};
+Result StartLoadout(const LoadoutBackend* backend = nullptr, const LoadoutAsyncBackend* async = nullptr);
+void TickLoadout(uint32_t now);
+void ReleaseLoadoutOwner(const void* owner);
+const LoadoutAsyncBackend* ProductionLoadoutBackend();
 void StopLoadout();
 // Host producer seam for the verified adapter's native hook: records one occurrence and never runs
 // plugin code. Safe from any thread (one generation-tagged atomic state). Returns

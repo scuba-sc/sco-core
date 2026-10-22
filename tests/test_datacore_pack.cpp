@@ -264,6 +264,8 @@ static void TestAtomicity() {
     PackResult r = ApplyPacks(s, std::vector<Pack>{ atomic, other });
     Bytes f = Applied(base, r);
     CHECK(r.packs[0].state == PackState::Refused && r.packs[0].applied == 0 && r.packs[0].skipped == 3);
+    CHECK(r.packs[0].receipt.applied_records == 0);
+    CHECK(r.packs[0].receipt.skipped_records == 3 && r.packs[0].receipt.total_records == 3);
     CHECK(r.packs[0].reason.rfind("line 8: record \"ShipA\" field \"nope\": no property \"nope\" in Ship", 0) == 0);
     CHECK(r.packs[0].ops[0].status.ok() && r.packs[0].ops[1].status.category == Refusal::FieldNotFound);
     CHECK(Val(f, "ShipA", "speed") == "100.0" && Val(f, "ShipB", "speed") == "101.0" && Val(f, "ShipB", "mass") == "7.0");
@@ -272,6 +274,7 @@ static void TestAtomicity() {
     r = ApplyPacks(s, std::vector<Pack>{ loose });
     f = Applied(base, r);
     CHECK(r.packs[0].state == PackState::Partial && r.packs[0].applied == 2 && r.packs[0].skipped == 1);
+    CHECK(r.packs[0].receipt.applied_records == 2 && r.packs[0].receipt.skipped_records == 1);
     CHECK(Val(f, "ShipA", "speed") == "3.0" && Val(f, "ShipB", "speed") == "4.0");
     CHECK(Summary(r).rfind("[datacore] 1 pack: loose 2/3 applied (1 skipped: line 9: ", 0) == 0);
 
@@ -301,6 +304,16 @@ pointer = "@n"
     // No new Part was added: the mapping count is unchanged.
     Schema re;
     CHECK(re.Parse(f) && re.structInfo[dcb::kPart].instances == s.structInfo[dcb::kPart].instances);
+
+    // Final emission must not leave a successful receipt when the base schema
+    // is invalid, even for an otherwise valid empty pack.
+    Schema invalid;
+    CHECK(!invalid.Parse(Bytes{}));
+    r = ApplyPacks(invalid, std::vector<Pack>{Parse("format = 1\n")});
+    CHECK(!r.status && r.splices.empty() && r.packs[0].state == PackState::Refused);
+    CHECK(r.packs[0].receipt.applied_records == r.packs[0].applied);
+    CHECK(r.packs[0].receipt.skipped_records == r.packs[0].skipped);
+    CHECK(r.packs[0].receipt.errors.size() == 1 && r.packs[0].receipt.errors[0] == r.packs[0].reason);
 }
 
 // Every patcher refusal a pack can reach, by category (Limit needs a 4 GiB pool and Revalidation a

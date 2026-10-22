@@ -8,6 +8,7 @@
 // Not in sco_core (sco-sigcheck and the signature tests don't need hooks): library sco_pak.
 #include "sco/caps.h"
 #include "sco/game/pak.h"
+#include "datacore_live_lifecycle.h"
 #include "sco/hook.h"
 #include "sco/log.h"
 #include <array>
@@ -519,6 +520,8 @@ void CallOnLoad(void (*fn)(const LoadReport&), const LoadReport& report) {
 __attribute__((no_sanitize("function")))
 #endif
 uintptr_t LoaderHook(uintptr_t loader, uintptr_t path, uintptr_t a3, uintptr_t a4, uintptr_t a5) {
+    datacore_live::LifecycleGate::ExclusiveLease lifecycle;
+    datacore_live::ProcessLifecycleGate().EnterLifecycleOrTerminate(lifecycle);
     LoaderFn orig;
     bool window;
     {
@@ -654,6 +657,9 @@ Result Enable(const Options& options, const Targets& targets) {
 }
 
 void Disable() {
+    datacore_live::LifecycleGate::ExclusiveLease lifecycle;
+    if (datacore_live::ProcessLifecycleGate().EnterExclusive(lifecycle) !=
+        datacore_live::LifecycleGate::Status::Acquired) return;
     std::lock_guard<std::mutex> hold(g_mu);
     if (!g_enabled) return;
     if (g_scope == Scope::AllFiles) {
@@ -667,9 +673,11 @@ void Disable() {
         return;
     }
     const hook::Error e = hook::RemoveDetour(g_targets.loader);
-    if (e != hook::Error::None && e != hook::Error::NotHooked)
+    if (e != hook::Error::None && e != hook::Error::NotHooked) {
         Log("[!] [pak] removing the loader detour: %s", hook::ErrorName(e));
-    // A load in progress restores its slots when it returns (LoaderHook); none is left otherwise.
+        return; // Retain installed/enabled state so Disable can retry.
+    }
+    // The lifecycle lease drains an admitted loader before removing its hook.
     g_enabled = false;
     caps::Set("vfs.pak", false, "disabled");
 }

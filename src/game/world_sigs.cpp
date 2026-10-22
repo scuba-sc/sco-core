@@ -316,6 +316,31 @@ SigResult ResolveCVar(const Image& img) {
 
 // ---- capabilities ----------------------------------------------------------------------------
 
+SigResult ResolveReferenceIntTable(const Image& img) {
+    const auto* getter=Sig("cvars.reference_int_get");
+    const auto* setter=Sig("cvars.reference_int_set");
+    if(!getter || !setter || !img.base || img.rdata.size<0x78) return SigFail("integer methods unavailable");
+    uint8_t* found=nullptr;
+    for(size_t off=0;off+0x78<=img.rdata.size;off+=sizeof(uintptr_t)) {
+        auto* table=img.rdata.base+off;
+        if(SlotTarget(img,table+0x10)!=getter || SlotTarget(img,table+0x30)!=setter) continue;
+        const auto* f=SlotTarget(img,table+0x58); const auto* n=SlotTarget(img,table+0x70);
+        if(!f || !n || !rows::InText(img,f,4) || !rows::InText(img,n,5) ||
+           !BytesMatch(f,"8B 41 18 C3") || !BytesMatch(n,"48 8B 41 08 C3")) continue;
+        if(found) return SigFail("multiple reference integer tables");
+        found=table;
+    }
+    return found ? SigOk(found) : SigFail("reference integer table not found");
+}
+
+template<size_t Slot>
+SigResult ResolveReferenceIntMethod(const Image& img) {
+    const auto* table=Sig("cvars.reference_int_vtable");
+    if(!table) return SigFail("reference integer table unavailable");
+    const auto* method=SlotTarget(img,table+Slot);
+    return method ? SigOk(method) : SigFail("integer method outside image");
+}
+
 constexpr const char* kFreeCam[] = { "build.free_cam_on", "build.free_cam_off", "build.free_cam_flag" };
 constexpr const char* kGroundRay[] = {
     "build.ray_tag", "build.ground_ray", "build.phys_world", "build.release_grid",
@@ -329,6 +354,10 @@ constexpr const char* kMissionStart[] = { "missions.create", "missions.settings"
 constexpr const char* kMissionLoad[] = { "missions.load_all" };
 constexpr const char* kMissionScripts[] = { "missions.load_all", "missions.subsumption", "missions.file_change", "missions.xml_system" };
 constexpr const char* kConsole[] = { "cvars.console" };
+constexpr const char* kReferenceInt[] = {
+    "cvars.console", "cvars.lookup", "cvars.reference_int_vtable", "cvars.reference_int_get",
+    "cvars.reference_int_set", "cvars.reference_int_flags", "cvars.reference_int_name",
+};
 constexpr const char* kQuantumCVars[] = {
     "cvars.quantum_travel_allowed", "cvars.quantum_boost_allowed", "cvars.ignore_blocked_boost",
     "cvars.ignore_blocked_travel", "cvars.qdrive_logging", "cvars.target_lock_angular", "cvars.target_lock_linear",
@@ -348,6 +377,7 @@ constexpr Capability kCaps[] = {
     { "missions.load_all",    kMissionLoad,    std::size(kMissionLoad) },
     { "missions.scripts",     kMissionScripts, std::size(kMissionScripts) },
     { "cvars.console",        kConsole,        std::size(kConsole) },
+    { "cvars.reference_int",  kReferenceInt,   std::size(kReferenceInt) },
     { "cvars.qdrive_kept_on", kQuantumCVars,   std::size(kQuantumCVars) },
     { "quantum.boost",        kQuantumBoost,   std::size(kQuantumBoost) },
 };
@@ -385,6 +415,12 @@ extern const SigDef kWorldSignatures[] = {
     { "missions.xml_system",       nullptr, 0, 0, rows::ResolveRip<kXmlSystem>,   { "missions.file_change" } },
     { "missions.create",           nullptr, 0, 0, ResolveCreateMission,   {} },
     { "cvars.console",                nullptr, 0, 0, ResolveConsole, {} },
+    { "cvars.lookup", "48 89 54 24 10 53 48 83 EC 20 83 3D ?? ?? ?? ?? 00 48 8B D9 74 20 48 8D 0D ?? ?? ?? ?? E8", 0, 0, nullptr, {} },
+    { "cvars.reference_int_get", "48 8B 41 48 8B 00 C3", 0, 0, nullptr, {} },
+    { "cvars.reference_int_set", "48 89 5C 24 08 48 89 74 24 10 57 48 81 EC A0 00 00 00 48 8B 41 48 8B F2 48 8B D9 3B 10 75 09 F7 41 18 00 00 20 00 74 4E", 0, 0, nullptr, {} },
+    { "cvars.reference_int_vtable", nullptr, 0, 0, ResolveReferenceIntTable, {"cvars.reference_int_get", "cvars.reference_int_set"} },
+    { "cvars.reference_int_flags", nullptr, 0, 0, ResolveReferenceIntMethod<0x58>, {"cvars.reference_int_vtable"} },
+    { "cvars.reference_int_name", nullptr, 0, 0, ResolveReferenceIntMethod<0x70>, {"cvars.reference_int_vtable"} },
     { "cvars.quantum_travel_allowed", nullptr, 0, 0, ResolveCVar<0>, {} },
     { "cvars.quantum_boost_allowed",  nullptr, 0, 0, ResolveCVar<1>, {} },
     { "cvars.ignore_blocked_boost",   nullptr, 0, 0, ResolveCVar<2>, {} },

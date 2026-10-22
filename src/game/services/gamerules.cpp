@@ -5,26 +5,45 @@
 #include "../../api/internal.h"
 #include <algorithm>
 #include <cstring>
+#if defined(_WIN32) && defined(_MSC_VER)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 namespace sco::game::services {
 namespace {
 GameRulesBackend g_backend;
 bool g_bound = false;
+bool g_faulted = false;
+bool g_reading = false;
+int ReadCpp(sc_gamerules_state* out) {
+    try { return g_backend.read(g_backend.ctx, out) ? 1 : 0; }
+    catch (...) { return -1; }
+}
+int ReadGuarded(sc_gamerules_state* out) {
+#if defined(_WIN32) && defined(_MSC_VER)
+    __try { return ReadCpp(out); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return -1; }
+#else
+    return ReadCpp(out);
+#endif
+}
 sc_gamerules_v1 g_table = {sizeof(sc_gamerules_v1), 0, nullptr, nullptr};
-// Static parameter definitions: the members of the client's SGameRulesCvars type (F-INTAKE-005;
-// source build unresolved), flattened in declaration order. Names, groups and types only; no
-// values, offsets or pointers, and nothing here reads game memory.
+// Static parameter definitions: the 15 GameRules console variables whose names occur on the
+// verified build 4.10.197.2878 as g_gameRules.<group>.<name> (F-4.10.197.2878-054), in fixed
+// registry order. Names, groups and types only; no values, offsets or pointers, and nothing here
+// reads game memory. The INT/FLOAT types are not verified on a captured build. Not run in game.
 #define SC_GR_PARAM(type, group, name) {sizeof(sc_gamerules_param_info), type, name, group}
 constexpr sc_gamerules_param_info kParams[] = {
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "control", "capturableDebug"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "control", "phaseDebug"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "control", "objectiveDebug"),
-    SC_GR_PARAM(SC_GAMERULES_PARAM_FLOAT, "control", "terminalsDisabledTime"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "state", "log"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "scoring", "enabled"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "scoring", "log"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "damagehandling", "log"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "damagehandling", "disableCollisionFilter"),
-    SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "accessibility", "QTEMode"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "", "showRaceCheckpoints"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_INT, "", "showRaceInfo"),
     SC_GR_PARAM(SC_GAMERULES_PARAM_FLOAT, "", "overrideRespawnTimer"),
@@ -37,12 +56,21 @@ constexpr sc_gamerules_param_info kParams[] = {
 constexpr uint32_t kParamCount = static_cast<uint32_t>(sizeof(kParams) / sizeof(kParams[0]));
 static_assert(kParamCount <= 0xFFFFu, "registry stays small");
 sco_result Read(sco_plugin* self, sc_gamerules_state* out) {
-    (void)self;
-    if (!g_bound || !g_backend.read || !out || out->size < sizeof(sc_gamerules_state))
+    if (!OnGameThread()) return SCO_WRONG_THREAD;
+    if (!self || !host::PluginId(self) || detail::Released(self)) return SCO_BAD_ARG;
+    if (detail::RuntimeStopping()) return SCO_UNAVAILABLE;
+    if (g_faulted || g_reading || !g_bound || !g_backend.read || !out || out->size < sizeof(sc_gamerules_state))
         return SCO_UNAVAILABLE;
     const uint32_t size = out->size;
-    if (!g_backend.read(g_backend.ctx, out)) return SCO_UNAVAILABLE;
-    out->size = size;
+    sc_gamerules_state value{};
+    value.size = size;
+    g_reading = true;
+    const int result = ReadGuarded(&value);
+    g_reading = false;
+    if (result < 0) { g_faulted = true; return SCO_FAILED; }
+    if (!result) return SCO_UNAVAILABLE;
+    value.size = size;
+    *out = value;
     return SCO_OK;
 }
 // Every check that can fail runs before the first write, so a failure leaves all outputs alone.
@@ -80,6 +108,8 @@ sco_result ListParams(sco_plugin* self, uint32_t offset, sc_gamerules_param_info
 }
 }  // namespace
 Result StartGameRules(const GameRulesBackend& backend) {
+    if (!OnGameThread()) return Result::WrongThread;
+    if (g_reading) return Result::Unavailable;
     if (g_table.read) return Result::Failed;
     g_bound = backend.read != nullptr;
     g_backend = backend;
@@ -94,6 +124,7 @@ Result StartGameRules(const GameRulesBackend& backend) {
     return r;
 }
 void StopGameRules() {
+    if (!OnGameThread() || g_reading) return;
     if (!g_table.read) return;
     host::WithdrawGameService(SC_GAMERULES_SERVICE_NAME);
     caps::Set("game.gamerules.params", false, "gamerules stopped");

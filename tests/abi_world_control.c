@@ -6,7 +6,12 @@
 #else
 #define PIN(x) _Static_assert(x, #x)
 #endif
-PIN(sizeof(sc_world_control_v1) == 40);
+PIN(sizeof(sc_world_control_v1) == 48);
+PIN(offsetof(sc_world_control_v1, raycast_filtered_many) == 40);
+PIN(sizeof(sc_world_hits) == 4624);
+PIN(offsetof(sc_world_hits, hits) == 16);
+PIN(SC_WORLD_CONTROL_VERSION_1_1 == 0x00010001u);
+PIN(SC_WORLD_CONTROL_MAX_HITS == 64u);
 PIN(offsetof(sc_world_control_v1, size) == 0);
 PIN(offsetof(sc_world_control_v1, _pad) == 4);
 PIN(offsetof(sc_world_control_v1, raycast_filtered) == 8);

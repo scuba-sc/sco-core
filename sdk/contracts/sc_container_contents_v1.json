@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "records": [{
+    "kind": "table-method",
+    "symbol": "sc_container_contents_v1.snapshot",
+    "table": "sc_container_contents_v1",
+    "source_header": "include/sc_container_contents.h",
+    "signature": "sco_result (*)(sco_plugin *, uint64_t, sc_container_snapshot *)",
+    "version_macro": "SC_CONTAINER_CONTENTS_VERSION_1_0",
+    "member_extent": 16,
+    "table_size": 16,
+    "service": "game.inventory.contents",
+    "id": "sc-container-contents-v1-snapshot",
+    "since": "`size >= 16`; 1.0",
+    "purpose": "Copy at most 64 stored-item records for a session-local container into caller-owned storage; count is capacity in and copied count out, total_seen reports omitted items and generation identifies the provider snapshot. Quantity is positive; volume is meaningful only with VOLUME_KNOWN. No engine pointers or mutation cross the ABI.",
+    "buffer_contract": "`sco_result (*snapshot)(sco_plugin* self, uint64_t container_id, sc_container_snapshot* out);`<br>Copy at most 64 stored-item records for a session-local container into caller-owned storage; count is capacity in and copied count out, total_seen reports omitted items and generation identifies the provider snapshot. Quantity is positive; volume is meaningful only with VOLUME_KNOWN. No engine pointers or mutation cross the ABI.",
+    "ownership": "Caller owns output; provider receives service-owned scratch storage only. IDs are session-local, no pointers retained.",
+    "thread_affinity": "Game thread only.",
+    "callback_context": "No plugin callback.",
+    "reentrancy": "Recursive provider reads fail with FAILED.",
+    "results": "OK snapshot; BAD_ARG invalid handle, id, output size or capacity; WRONG_THREAD off game thread; NOT_FOUND unknown container; UNAVAILABLE unbound or stopping; FAILED malformed provider or exception. Known output prefix is cleared on failure, future caller tail untouched.",
+    "absent_capability": "game.inventory.contents.read defaults OFF; no native engine adapter. Synthetic evidence only, not run in game.",
+    "cleanup": "Service stop withdraws table and drops host-owned backend references. Read-only, no engine state to restore.",
+    "limitations": ["No native game adapter or in-game evidence.", "No mutation, paging, persistent identifiers or C#/Lua route."],
+    "tests": ["tests/abi_container_contents.c", "tests/test_container_contents.cpp"],
+    "examples": [],
+    "language_mappings": {
+      "c": {"status":"direct","evidence":[{"path":"include/sc_container_contents.h","token":"(*snapshot)"}],"tests":["tests/abi_container_contents.c"]},
+      "cpp": {"status":"typed-wrapper","evidence":[{"path":"include/scosdk/game/container_contents.hpp","token":"table_->snapshot(owner_, container, &out)"}],"tests":["tests/test_container_contents.cpp"]},
+      "csharp": {"status":"unsupported","evidence":[{"path":"docs/game/container-contents.md","token":"No C#"}],"tests":[]},
+      "lua": {"status":"unsupported","evidence":[{"path":"docs/game/container-contents.md","token":"No C#"}],"tests":[]}
+    }
+  }]
+}

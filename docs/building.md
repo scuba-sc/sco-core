@@ -34,7 +34,7 @@ In order, it:
 4. builds the fake plugins from `tests/fixtures/plugins/native/fake_plugin.c` into `tests/out/plugins/` and runs `test_plugins` (ASan+UBSan), then `test_ui` under ASan+UBSan and ThreadSanitizer,
 5. builds Lua and sco-lua and runs `test_lua` (ASan+UBSan), which also loads `sdk/examples/greeter` through the real loader,
 6. runs `test_app` (ASan+UBSan): the host kit with built-in plugins, two fake plugins, `greeter` and `travel_pack`,
-7. builds `hello` as a shared library into `tests/out/sim/plugins/` next to copies of `greeter` and `travel_pack`, builds `sco-host-sim` (ASan+UBSan) and runs `sco-host-sim tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"`, which must exit 0 and answer `Hello, Pilot One`.
+7. builds `hello` as a shared library into `tests/out/sim/plugins/` next to copies of `greeter` and `travel_pack`, builds `sco-host-sim` (ASan+UBSan) and runs `sco-host-sim tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"`, which must exit 0 and answer `Hello, Pilot One`. It also builds `counter_service` and `counter_panel` there and runs the sim again with `--invoke counter_panel.bump`, which must answer `counter is 1` through `counter_service`'s table.
 
 Each test binary ends with `N passed, M failed` and exits non-zero on any failure; the script stops at the first failure. Output goes to `tests/out/` (ignored by git).
 
@@ -155,7 +155,7 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 | `test_plugins` | `plugin.ini`, discovery, the content index and the native loader against the fake plugins in `<build>/tests/out/plugins/` |
 | `test_lua` | sco-lua through the real loader and host table, including `sdk/examples/greeter`, and `sco.store` over a real `sco.storage` with `sdk/examples/notebook` |
 | `test_app` | The host kit (`sco::app`) and built-in plugins: load order, `game.ready`, tick, a faulting built-in contained, `game.exit` before unload, unload order, restart |
-| `host_sim_examples` | `sco-host-sim <build>/tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply (`tests/host_sim.cmake`) |
+| `host_sim_examples` | `sco-host-sim <build>/tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello`, `cpp_hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply; then `--invoke counter_panel.bump` over the same folder, where `counter_panel` calls `counter_service`'s table and must answer `counter is 1` (`tests/host_sim.cmake`) |
 
 On Windows `test_plugins` loads real DLLs with `LoadLibraryExW` and runs the real `__try/__except` crash guard. The TSan runs and the `x86_64-pc-windows-msvc` cross-compile of the ABI pin stay in `tools/test.sh`.
 
@@ -207,7 +207,7 @@ Workflow actions are pinned to commit SHAs. The release workflow defaults to `co
 
 ## Releases
 
-The SDK is released as `sco-sdk-<version>.zip` under a tag `sdk-v<version>` (`sdk-v1.1.0` was the first; [SDK 2.0.0](releases/sdk-v2.0.0.md) was published on 2026-10-12). Get current downloads from the [latest published release](https://github.com/scubamount/sco-core/releases/latest). The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
+The SDK is released as `sco-sdk-<version>.zip` under a tag `sdk-v<version>`; a release candidate is published first under `sdk-v<version>-rc.<n>`. The current SDK is 2.4.0, published as [release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) (`sdk-v2.4.0-rc.1`), the only release on the release page; the final signed `sdk-v2.4.0` follows. It is the repository's latest release. The `sdk-v2.0.0` to `sdk-v2.3.0` tags remain in git, but their release downloads were withdrawn. The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
 
 Follow the [maintainer release procedure](legal/release-checklist.md#releasing), not a tag-first packaging recipe: prepare the version and notes, build a candidate on the checked main commit, review its exact payload and provenance, commit the schema-2 approval manifest and its maintainer SSH signature, then tag that approval commit. The [`release`](../.github/workflows/release.yml) workflow promotes those approved bytes without rebuilding and publishes only after verifying a complete draft round trip. [Signed approval requirements](legal/release-checklist.md#signed-approval-record) and [`tools/release_verify.py`](../tools/release_verify.py) define the approval and independent signer-trust checks; a successful candidate run alone is not approval to publish.
 

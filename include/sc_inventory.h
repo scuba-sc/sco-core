@@ -14,10 +14,10 @@
 #define SC_INVENTORY_FLAG_TRUNCATED 0x1u /* ports exist that were not written: total_seen > count */
 #define SC_INVENTORY_FLAG_LIMITED   0x2u /* the walk's own limits (depth, container budget, a cycle or an
                                             unreadable nested container) cut the tree: total_seen is a lower bound */
-/* One item attached to one port of the queried entity, as of the snapshot. Names are not
- * exposed in 1.0: item_class_id holds the item type id, an ordinal of the game's item-type
- * enumeration (a coarse category, build-scoped). Per-class item names are not yet established;
- * an item-type-id name map exists but is not exposed in 1.0 (docs/game/inventory.md). */
+/* One item attached to one port of the queried entity, as of the snapshot. item_class_id holds
+ * the item type id, an ordinal of the game's item-type enumeration (a coarse category,
+ * build-scoped): sc_item_type and sc_inventory_item_type_name below name it. Per-class item
+ * names are not yet established (docs/game/inventory.md). */
 typedef struct sc_inventory_port {
     uint32_t size;
     uint32_t valid;            /* 1 = port exists and holds an item; else fields below are 0 */
@@ -25,9 +25,7 @@ typedef struct sc_inventory_port {
     uint64_t entity_id;        /* the item's entity id, session-scoped (game.entities keys) */
 } sc_inventory_port;
 
-/* 192-member item category enumeration (EItemType) verified on Star Citizen 4.10.197.2878
- * (F-4.10.197.2878-014; see sc-reconstructed decompiled/types/enum-EItemType-intake-00604.md).
- * Note: ordinals are build-scoped; earlier builds (e.g. pre-197) shift tail entries by -3..-5. */
+/* 192-member item category enumeration (EItemType) verified on Star Citizen 4.10.197.2878 (F-4.10.197.2878-014). Ordinals are build-scoped. */
 typedef enum sc_item_type {
     SC_ITEM_TYPE_UNKNOWN = 0xFFFFFFFFu,
     SC_ITEM_TYPE_AI_MODULE = 0,
