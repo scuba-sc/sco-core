@@ -688,6 +688,62 @@ static void TestExpectedOldBytes() {
     CHECK(Info(t3->Mounts(), "badold")->state == MountState::Inert && Info(t3->Mounts(), "other")->state == MountState::Applied);
 }
 
+struct ThrowingBase : sco::vfs::BaseIo {
+    bool throwStdSeek = false;
+    bool throwStdRead = false;
+    bool throwUnknownSeek = false;
+    bool throwUnknownRead = false;
+
+    bool Seek(uint64_t) override {
+        if (throwStdSeek) throw std::runtime_error("IO seek error");
+        if (throwUnknownSeek) throw 42;
+        return true;
+    }
+    size_t Read(void*, size_t) override {
+        if (throwStdRead) throw std::runtime_error("IO read error");
+        if (throwUnknownRead) throw 42;
+        return 0;
+    }
+};
+
+static void TestEntryExceptions() {
+    // std::exception during Seek
+    auto t1 = Table::Build({ SpliceMount("file.dat", 0, "m1", { S(0, 0, B("a")) }) });
+    ThrowingBase stdSeekBase;
+    stdSeekBase.throwStdSeek = true;
+    CHECK(t1->Open("file.dat", stdSeekBase, 100) == nullptr);
+    const auto info1 = t1->Mounts();
+    CHECK(Info(info1, "m1")->state == MountState::Inert);
+    CHECK(Info(info1, "m1")->reason == "composition failed: IO seek error");
+
+    // std::exception during Read (header read inside Open)
+    auto t1r = Table::Build({ SpliceMount("file1r.dat", 0, "m1r", { S(0, 0, B("a")) }) });
+    ThrowingBase stdReadBase;
+    stdReadBase.throwStdRead = true;
+    CHECK(t1r->Open("file1r.dat", stdReadBase, 100) == nullptr);
+    const auto info1r = t1r->Mounts();
+    CHECK(Info(info1r, "m1r")->state == MountState::Inert);
+    CHECK(Info(info1r, "m1r")->reason == "composition failed: IO read error");
+
+    // non-std exception during Seek
+    auto t2 = Table::Build({ SpliceMount("file2.dat", 0, "m2", { S(0, 0, B("b")) }) });
+    ThrowingBase unkSeekBase;
+    unkSeekBase.throwUnknownSeek = true;
+    CHECK(t2->Open("file2.dat", unkSeekBase, 100) == nullptr);
+    const auto info2 = t2->Mounts();
+    CHECK(Info(info2, "m2")->state == MountState::Inert);
+    CHECK(Info(info2, "m2")->reason == "composition failed");
+
+    // non-std exception during Read
+    auto t2r = Table::Build({ SpliceMount("file2r.dat", 0, "m2r", { S(0, 0, B("b")) }) });
+    ThrowingBase unkReadBase;
+    unkReadBase.throwUnknownRead = true;
+    CHECK(t2r->Open("file2r.dat", unkReadBase, 100) == nullptr);
+    const auto info2r = t2r->Mounts();
+    CHECK(Info(info2r, "m2r")->state == MountState::Inert);
+    CHECK(Info(info2r, "m2r")->reason == "composition failed");
+}
+
 // One composition per path and base identity; a different base composes again.
 static void TestCache() {
     const Bytes base = Base(300, 6);
@@ -990,6 +1046,7 @@ int main() {
     TestLargeFiles();
     TestPaths();
     TestExpectedOldBytes();
+    TestEntryExceptions();
     TestCache();
     TestMerge();
     TestLimits();
