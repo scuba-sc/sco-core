@@ -55,6 +55,10 @@ repeats that release's `SHA256SUMS`.
 Raw unzip does not validate an overlay's compatibility. If you do not need to
 manage the core/overlay descriptors separately, use the combined archive.
 
+To use the SDK with an AI agent through MCP, download `sco-sdk-2.4.0.zip` instead of
+the core archive, which has no catalogue, guides or server, and follow
+[Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+
 ## 2. Install prerequisites
 
 - **All command-line steps below:** Python 3, CMake 3.20+, a C11/C++20
@@ -217,5 +221,6 @@ To disable a plugin, place an empty file named `disabled` inside its folder.
 - [Game services](game-services.md) and [evidence status](game/status.md): optional
   game-pack capabilities, distinct from the neutral core SDK.
 - [Agent and IDE integration](agent-integration.md): read-only MCP discovery for
-  agent-assisted development. It does not compile, run plugins or connect to the game.
+  agent-assisted development, with a kit-first setup. By default it does not compile,
+  run plugins or connect to the game; opt-in tools can build and check on your machine.
 - [Curated audience index](README.md): host integration, game-pack work and maintenance.

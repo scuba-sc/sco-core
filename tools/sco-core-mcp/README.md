@@ -1,17 +1,18 @@
 # sco-core SDK discovery MCP server
 
 Development-only, read-only discovery of the public sco-core SDK contracts through
-MCP over stdio. The server uses Python 3's standard library and a generated SDK
-catalogue. It does **not** connect to a running host or game, invoke SDK methods,
-execute examples, or modify the repository. It is bundled development tooling,
-not a runtime game-service component. By default it compiles nothing; three
+MCP over stdio. The server uses only the standard library of Python 3.9 or newer
+and a generated SDK catalogue. It does **not** connect to a running host or game,
+invoke SDK methods, execute examples, or modify the repository. It is bundled
+development tooling, not a runtime game-service component. By default it compiles nothing; three
 [development tools](#development-tools-opt-in) that build and check plugin
 projects exist only when the operator turns them on.
 
 [Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
 implements the fixed runtime tool surface. This discovery executable remains
-credentials-free and catalogue-only, with its original six tools/dependencies by
-default; six more read-only tools are [opt-in](#extended-tools-opt-in).
+credentials-free and catalogue-only, with six tools by default (the minimal
+profile) and six more read-only tools [opt-in](#extended-tools-opt-in) (the SDK
+developer profile, twelve tools).
 The separate launcher supersedes the historical same-server placement in the
 [runtime design](../../docs/design/runtime-mcp.md). Discovery never imports or
 enables runtime inspection. No live runtime/game acceptance is claimed.
@@ -20,16 +21,31 @@ The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes
 that evidence; it does not replace the contract's reading rules or remaining gaps.
 
+## Connect a client
+
+To connect Claude Code, Codex, Cursor, VS Code or Copilot CLI to the SDK kit, follow
+[Set up the discovery server from the SDK kit](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+It downloads and verifies the kit, defines SDK (the folder that directly contains
+`sdk-catalogue.json`), gives each client's configuration and says how to verify the
+connection. This README does not repeat those configurations. Two profiles are used
+in every example: **SDK developer profile (recommended)**, with `--extended-tools`
+and 12 read-only tools, and **minimal profile**, without `--extended-tools` and with
+6 tools.
+
 ## Copyable SDK consumer tutorial
 
-[SDK → MCP → tutorial-owned plugin](../../docs/sdk-mcp-tutorial.md) uses this
-static six-tool launcher, owned NPC/inspector copies, an isolated archive build,
-the checker and a named dynamic fixture. Runtime observations remain optional
-and default-off; static discovery never certifies gameplay or performs reload.
+[SDK → MCP → tutorial-owned plugin](../../docs/sdk-mcp-tutorial.md) first walks the
+standalone kit workflow with the SDK developer profile: scaffold, manifest and widget
+validation, native index, guides, and an optional build and check. Its downstream
+walkthrough then uses the six static tools, owned NPC/inspector copies, an isolated
+archive build, the checker and a named dynamic fixture. Runtime observations remain
+optional and default-off; static discovery never certifies gameplay or performs reload.
 
-## Build the catalogue and run
+## Run from a source checkout (maintainers)
 
-1. Use a trusted checkout with Python 3, Clang, and an **x64 C11 compiler
+A kit already contains its catalogue; build one yourself only from a source checkout.
+
+1. Use a trusted checkout with Python 3.9 or newer, Clang, and an **x64 C11 compiler
    environment**. Catalogue generation compiles and runs ABI probes; this is a
    separate build step, not a capability of the MCP server. The builder refuses
    layouts that fail its compiled x64-size checks. A successful build on another
@@ -44,13 +60,17 @@ and default-off; static discovery never certifies gameplay or performs reload.
    and language evidence before writing. The source SHA must be a full lowercase
    40-hex commit ID. Use source matching that commit: passing a SHA does not attest
    that the checkout is clean. Do not label modified contracts with an unrelated SHA.
-3. Start the server, or let your MCP client launch this command:
+3. To check it by hand, start the server from the repository root:
 
    ```sh
    python3 tools/sco-core-mcp/server.py \
      --catalogue dist/sdk-catalogue.json \
      --repo-root .
    ```
+
+   These relative paths work only from the repository root. A client configuration
+   uses absolute paths: see the
+   [checkout form in the integration guide](../../docs/agent-integration.md#maintainers-source-checkout-and-your-own-catalogue).
 
 The process reads MCP messages on stdin and writes protocol responses on stdout;
 it is not an interactive shell. Use a client that supports stdio MCP. The only
@@ -59,11 +79,12 @@ as a fallback when a client requests another version; the client must accept it 
 disconnect. This is not support for older protocol semantics.
 
 `--catalogue` is required unless `SCO_CORE_CATALOGUE` supplies its path. Client
-configurations below pass it explicitly to avoid dependence on inherited
+configurations pass it explicitly to avoid dependence on inherited
 environment variables. `--repo-root` is optional: without it, `get_example` returns
-record-listed paths only, not file contents. With it, examples are read within that
-root under the restrictions below. Use absolute paths in client configuration;
-do not depend on the client's working directory.
+record-listed paths only, not file contents, and engine natives, the scaffold, status
+evidence and release-approval records are `unavailable`. With it, examples are read
+within that root under the restrictions below. Use absolute paths in client
+configuration; do not depend on the client's working directory.
 
 The catalogue is a source snapshot, not a live index. Rebuild it after changing
 contracts, public headers, language mappings, or their evidence, and restart the
@@ -75,39 +96,44 @@ server before relying on the new snapshot. The server does not regenerate it.
 ([`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
 release; the final signed `sdk-v2.4.0` follows). It bundles this launcher, a
 compiler-built `sdk-catalogue.json` and the matching guide sections
-`sdk-guides.json` in the combined `legacy` developer kit (`sco-sdk-2.4.0.zip`),
-the `game-sc` overlay and the `host-source-sc` kit.
+`sdk-guides.json` in the combined kit (`sco-sdk-2.4.0.zip`), the `game-sc` overlay
+and the `host-source-sc` kit. The guides and READMEs inside the release candidate 1
+kit predate its publication; see the known issue in the
+[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 
 Use the combined kit directly, or compose the game overlay over the exact core
-kit required by its compatibility metadata. Set `--repo-root` to the resulting
-SDK root, not the parent extraction directory or an uncomposed overlay. The
+kit required by its compatibility metadata. In this README **SDK** is the folder
+that directly contains `sdk-catalogue.json` (for the combined kit,
+`<extract folder>/sco-sdk-2.4.0`). Set `--repo-root` to SDK, not to the parent
+extraction directory or an uncomposed overlay. The
 `host-source-sc` archive retains repository layout. Core and core-source profiles
 remain game-neutral and contain neither this game catalogue nor its launcher.
 
-For a trusted extracted kit, run:
+For a trusted extracted kit, this command (SDK developer profile; drop
+`--extended-tools` for the minimal profile) is what a client launches:
 
 ```sh
-python3 /absolute/sdk/tools/sco-core-mcp/server.py \
-  --catalogue /absolute/sdk/sdk-catalogue.json \
-  --repo-root /absolute/sdk
+python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
+  --repo-root /absolute/path/to/sco-sdk-2.4.0 \
+  --extended-tools
 ```
 
 On Windows use `py -3` instead of `python3`, with drive-qualified paths such as
-`C:/absolute/sdk`. Add `--extended-tools` to grant the six additional discovery
-tools; the guide tools read the kit's `sdk-guides.json` beside its catalogue. Compiler probes run during packaging, not when the client connects.
-Verify the archive checksum inventory and both SDK/game-pack coordinates before
-using its catalogue; a version match does not establish matching source bytes,
-release approval, a loaded plugin or gameplay support.
+`C:/absolute/path/to/sco-sdk-2.4.0`. `--extended-tools` grants the six additional
+discovery tools; the guide tools read the kit's `sdk-guides.json` beside its
+catalogue. Compiler probes run during packaging, not when the client connects.
+Verify the zip against the release `SHA256SUMS`, and compare the first result's
+`provenance` (`sdk_version`, `game_pack_version`, `source_sha`) with the kit's
+`COMPATIBILITY.json`, before relying on its catalogue; a version match does not
+establish matching source bytes, release approval, a loaded plugin or gameplay
+support. The
+[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit)
+has the download, checksum and client steps.
 
 The `core` and `core-source` archives, and archives of earlier SDK releases,
 do not contain this catalogue; users of those archives obtain one in either of
 two ways:
-
-Downloading a catalogue does not install the launcher. Use the launcher from a
-reviewed source checkout and point `--repo-root` at the extracted archive when
-you want its example contents. The catalogue must describe the contracts being
-consumed; the site's current mainline snapshot is not automatically a match for
-an older release.
 
 - **Public catalogue.** Download
   <https://scuba-sc.github.io/sco-core/sdk-catalogue.json> and check it before
@@ -139,17 +165,30 @@ an older release.
 - **Source build.** Check out the matching sco-core source and run the catalogue
   build above. This needs the same compiler environment as any other build.
 
-Then pass `--repo-root` the archive's single top-level directory (for example the
+Downloading a catalogue does not install the launcher. Use the launcher from a
+reviewed source checkout and point `--repo-root` at the extracted archive when
+you want its example contents. The catalogue must describe the contracts being
+consumed; the site's current mainline snapshot is not automatically a match for
+an older release. A core archive has neither `sdk-guides.json` nor
+`tools/sdk_guides.py`, so with a catalogue downloaded from the site the guide tools
+return a tool error. They need the kit's `sdk-guides.json` beside the catalogue, or
+a source checkout as `--repo-root`.
+
+Pass `--repo-root` the archive's single top-level directory (for example the
 extracted `sco-sdk-core-<version>`), not its parent:
 
 ```sh
-python3 tools/sco-core-mcp/server.py \
+python3 /absolute/path/to/sco-core/tools/sco-core-mcp/server.py \
   --catalogue /absolute/path/to/sdk-catalogue.json \
   --repo-root /absolute/path/to/sco-sdk-core-<version>
 ```
 
 Catalogue example paths are repository-relative (`sdk/examples/hello/hello.c`),
-while the core and legacy archives store `examples/hello/hello.c`. `get_example`
+while the core archive and the combined kit store `examples/hello/hello.c`. The
+other files the server reads from the root follow the same rule:
+`sdk/status_registry.json`, `sdk/native_index.json` and
+`sdk/tools/sco-new-plugin.py` are `status_registry.json`, `native_index.json` and
+`tools/sco-new-plugin.py` at the root of the combined kit. `get_example`
 always tries the recorded path first. When it is absent **and** the root has no
 `sdk` entry, the leading `sdk/` is dropped and the remainder is opened under the
 same containment and no-symlink rules. A root that has an `sdk` entry (a
@@ -160,10 +199,10 @@ recorded path.
 
 ## Tools and explicit allowlist
 
-These are the complete six default tool names (six more are
-[opt-in](#extended-tools-opt-in), and three
-[development tools](#development-tools-opt-in) are a separate opt-in). Enable
-them explicitly, not with a wildcard.
+These are the complete six default tool names, the minimal profile. Six more are
+[opt-in](#extended-tools-opt-in) and make up the SDK developer profile (twelve
+tools); three [development tools](#development-tools-opt-in) are a separate
+opt-in. Enable the names of your profile explicitly, not with a wildcard.
 The Arguments column gives the exact `inputSchema` property names, required ones
 first; any other argument name is refused:
 
@@ -200,9 +239,12 @@ the result only when supplied, so existing callers see the same fields:
 | `min_version` | `MAJOR.MINOR`; requires `service` | `version_satisfies`: equal major and catalogue minor at least the requested minor (the `query_service` rule) |
 | `member_extent` | integer bytes 1-65535; requires `service` | `extent_within_catalogue_size`: the extent fits the catalogue table size |
 
-The input schema advertises the patterns and `dependentRequired`. Arguments
-outside it, a malformed value, `min_version`/`member_extent` without `service`,
-or an unknown service are refused as tool errors. `service_table` describes the
+The `tag` pattern has no pre-release suffix, so the release candidate tag
+`sdk-v2.4.0-rc.1` is refused as not matching the advertised pattern; compare
+`sdk_version` and `game_pack_version` instead. The input schema advertises the
+patterns and `dependentRequired`. Arguments outside it, a malformed value,
+`min_version`/`member_extent` without `service`, or an unknown service are refused
+as tool errors. `service_table` describes the
 catalogue's compiled header snapshot: a runtime provider table can still be older
 or shorter, so check `table->size` and a non-NULL pointer before calling.
 
@@ -248,11 +290,12 @@ methods mentioned in the returned contracts read-only or safe to invoke.
 ### Extended tools (opt-in)
 
 Start the server with `--extended-tools` to add six more read-only tools after
-the six above. Without the flag, `tools/list` is exactly the six, and calling an
-extended name is refused as an unknown tool, so existing allowlists and the
-launcher in [the integration guide](../../docs/agent-integration.md) are
-unchanged. If you enable the flag, add these names to the client allowlist
-explicitly:
+the six above: the SDK developer profile, twelve tools. Without the flag,
+`tools/list` is exactly the six, and calling an extended name is refused as an
+unknown tool, so a minimal-profile allowlist is unchanged. If you enable the flag,
+add these names to the client allowlist explicitly.
+[The integration guide](../../docs/agent-integration.md#choose-a-profile) says what the
+flag lets the server run:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
@@ -263,9 +306,9 @@ explicitly:
 | `search_guides` | `query`; optional: `doc`, `limit`, `cursor` | Rank sections of the SDK guides by the query's whole-word terms (heading and title above body text, rarer terms above common ones) and return bounded snippets with doc, heading, anchor and url. |
 | `get_guide_section` | `doc`, `anchor` | Return one guide section's bounded plain text, by the doc and anchor `search_guides` returned. |
 
-**Engine natives.** Both native tools read `sdk/native_index.json` beneath
-`--repo-root` once, at start. The file has the same no-symlink containment as
-examples and a **4 MiB** limit. Without a root, or with a missing, symlinked or
+**Engine natives.** Both native tools read `sdk/native_index.json` (`native_index.json`
+in a kit) beneath `--repo-root` once, at start. The file has the same no-symlink
+containment as examples and a **4 MiB** limit. Without a root, or with a missing, symlinked or
 malformed index, `state` is `unavailable` with a `reason`, and no entries are
 returned. The whole index is refused if any of these holds:
 
@@ -370,8 +413,9 @@ The output is exactly what `render_plugin(spec)` returns for the same spec; the
 tests compare the two.
 
 The generator is code from `--repo-root`. On the first call the server reads
-`sdk/tools/sco-new-plugin.py`, with the examples' no-symlink containment and the
-256 KiB limit, and executes those source bytes in the existing server process. It does not
+`sdk/tools/sco-new-plugin.py` (`tools/sco-new-plugin.py` in a kit), with the examples'
+no-symlink containment and the 256 KiB limit, and executes those source bytes in the
+existing server process. It does not
 start a subprocess or write `__pycache__`. Without a root, or when the file is
 missing, a symlink or fails to load, `state` is `unavailable` with a `reason` and
 `files` is empty. The result is not bound to the catalogue `source_sha`.
@@ -568,71 +612,25 @@ the findings, setting `output_truncated` and `findings_truncated`. `state`,
 
 ## MCP clients
 
-For clients accepting an `mcpServers` configuration, use this stdio launcher.
-Replace `/absolute/path/to/sco-core` with the checkout's actual absolute path on
-**the machine running the client**:
+Client configuration lives in one place, the
+[integration guide](../../docs/agent-integration.md#register-the-server-in-your-client):
+the kit-first launcher for Claude Code, Codex, Cursor, VS Code and Copilot CLI, in
+Windows and macOS/Linux forms, and
+[how to verify the connection](../../docs/agent-integration.md#verify-the-connection).
+Rules that hold for every client:
 
-```json
-{
-  "mcpServers": {
-    "sco-core-sdk": {
-      "command": "python3",
-      "args": [
-        "/absolute/path/to/sco-core/tools/sco-core-mcp/server.py",
-        "--catalogue",
-        "/absolute/path/to/sco-core/dist/sdk-catalogue.json",
-        "--repo-root",
-        "/absolute/path/to/sco-core"
-      ]
-    }
-  }
-}
-```
-
-### Windows
-
-A standard Windows Python install puts the `py` launcher (and usually `python`)
-on `PATH`, but not `python3`, so a copied `"command": "python3"` fails to start.
-Use `py` with `-3`, or the absolute path to `python.exe`. Write paths with
-forward slashes, which Python accepts and JSON needs no escaping for:
-
-```json
-{
-  "mcpServers": {
-    "sco-core-sdk": {
-      "command": "py",
-      "args": [
-        "-3",
-        "C:/absolute/path/to/sco-core/tools/sco-core-mcp/server.py",
-        "--catalogue",
-        "C:/absolute/path/to/sco-core/dist/sdk-catalogue.json",
-        "--repo-root",
-        "C:/absolute/path/to/sco-core"
-      ]
-    }
-  }
-}
-```
-
-Claude Code registers the same launcher from PowerShell, at user scope, with the
-opt-in tools enabled:
-
-```powershell
-claude mcp add --scope user sco-core-sdk -- py -3 C:/absolute/path/to/sco-core/tools/sco-core-mcp/server.py --catalogue C:/absolute/path/to/sco-core/dist/sdk-catalogue.json --repo-root C:/absolute/path/to/sco-core --extended-tools
-```
-
-Build the catalogue first in the same checkout. In PowerShell, with a Clang on
-`PATH` that targets x64 (a MinGW-w64 or LLVM distribution works; set `CLANG` or
-pass `--clang` otherwise):
-
-```powershell
-py -3 tools/sdk_catalogue.py build --out dist/sdk-catalogue.json --source-sha (git rev-parse HEAD)
-```
-
-Configuration location and tool-permission controls vary by client. Where the
-client supports an allowlist, enable only the six names above. Build the catalogue
-**before** starting the client. No API keys, tokens, or secrets are needed. To
-avoid sharing example contents, remove `--repo-root` and its following path.
+- Use absolute paths, with each flag and each value as its own argument. Do not depend
+  on the client's working directory.
+- On Windows use `py` with `-3` as the first argument, or an absolute `python.exe`. A
+  standard Windows Python install has `py` but not `python3`, and a `python3` alias can
+  be the Microsoft Store stub.
+- The profile decides the tools. With `--extended-tools` the client allowlist names the
+  twelve tools; without it, the six above. Never use a wildcard.
+- Removing `--repo-root` and its path disables `get_example` contents, the engine-native
+  tools, the scaffold, status and stability evidence and release-approval lookups. The
+  guide tools still work when `sdk-guides.json` sits beside the catalogue. Do it only to
+  keep example contents from the client or its model provider.
+- No API keys, tokens, or secrets are needed.
 
 ## Copilot CLI and IDE integration
 
@@ -649,9 +647,11 @@ configuration**. GitHub's repository configuration is shared by Copilot cloud ag
 and Copilot code review; it is not a committed `.github/mcp.json` file. See
 [GitHub's MCP configuration documentation](https://docs.github.com/copilot/how-tos/copilot-on-github/customize-copilot/configure-mcp-servers).
 
-Paste the following JSON with the six-name explicit allowlist. Replace the path
-placeholder with the absolute checkout path **inside Copilot's runner**, not a
-path on your workstation:
+Paste the following JSON, the minimal profile with its six-name explicit allowlist
+(the same checkout block as in the
+[integration guide](../../docs/agent-integration.md#maintainers-source-checkout-and-your-own-catalogue)).
+Replace the path placeholder with the absolute checkout path **inside Copilot's
+runner**, not a path on your workstation:
 
 ```json
 {
@@ -681,8 +681,8 @@ path on your workstation:
 
 Prepare the runner before enabling this configuration:
 
-1. Check out the repository in Copilot's setup environment and make Python 3,
-   Clang, and an x64 C11 compilation environment available.
+1. Check out the repository in Copilot's setup environment and make Python 3.9 or
+   newer, Clang, and an x64 C11 compilation environment available.
 2. In the setup steps, run the catalogue build command above from the checkout
    root. The generated `dist/sdk-catalogue.json` must exist **before the MCP client
    starts the server**, in the same checkout referenced by the JSON paths. A build
@@ -706,17 +706,18 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 
 | Symptom | First checks |
 |---|---|
-| Python cannot start | Windows: use `py` with `-3`, or an absolute `python.exe`. macOS/Linux: use `python3` or an absolute interpreter. GUI clients may inherit a different `PATH`. |
-| Missing/refused catalogue | Generate it before connecting or select the matching kit JSON. Check absolute paths, UTF-8, schema and source/version coordinates. |
+| Python cannot start | Python 3.9 or newer. Windows: use `py` with `-3`, or an absolute `python.exe`; a `python3` alias can be the Microsoft Store stub. macOS/Linux: use `python3` or an absolute interpreter. GUI clients may inherit a different `PATH`. |
+| `catalogue refused: FileNotFoundError` | The `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
 | Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
 | Extended tool is unknown | Restart with `--extended-tools` and explicit client permissions for the additional names. |
 | Development tool is unknown or refused | Restart with `--enable-dev-tools` and a `--project-root`. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
-| Scaffold/native metadata unavailable | Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
+| Scaffold/native metadata unavailable | `--repo-root` must be SDK, not its parent folder: the server starts either way. Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
 | Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |
 | Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
 | Catalogue is stale | Rebuild matching reviewed source and restart. Root metadata/generator code are separate inputs, not authenticated by catalogue SHA. |
 | Guide sections are stale | A `sdk-guides.json` beside the catalogue (or from `--guides`) wins over `--repo-root`. Rebuild it with `tools/sdk_guides.py build`, or delete it to build from the tree, and restart. `guides.source_sha` says which commit the file came from. |
+| Guide text says 2.4.0 is not on the release page, or `check_compatibility` refuses the tag `sdk-v2.4.0-rc.1` | Known issues in release candidate 1: its guides and READMEs predate publication, and the tag pattern has no pre-release suffix. The docs site supersedes the kit's text; compare `sdk_version` and `game_pack_version`. |
 
 Discovery cannot invoke commands, reload plugins or diagnose live game state.
 The opt-in development tools build and check plugins on this machine only; they

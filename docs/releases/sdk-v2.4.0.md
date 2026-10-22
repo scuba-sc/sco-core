@@ -31,6 +31,24 @@ Download from [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/
 | `sco-sdk-core-source-2.4.0.zip` | `core-source` | `f2f7c35591ed96090240466910e3db408953a9a4f6e0a16a36da83bc2a34ee62` |
 | `sco-sdk-host-source-sc-2.4.0.zip` | `host-source-sc` | `5ca76ff9dac6bbaa183c6f308d610e08d9c1b0daf6ebda6458e222277406dfc6` |
 
+## Known issues in release candidate 1
+
+Release candidate assets are immutable, so neither issue is fixed in them. The setup
+steps for the kit are in [Set up the discovery server from the SDK kit](../agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+
+- **The kit's bundled guides and embedded READMEs predate publication.** `sdk-guides.json`
+  (served by the MCP tools `search_guides` and `get_guide_section`) and the README files
+  inside the kit were frozen before release candidate 1 was published. They can say that
+  2.4.0 is an unreleased development candidate, that its archives are not on the release
+  page, that 2.3.0 is the newest published SDK, and can give 2.3.0 download steps. None of
+  that is current. The [docs site](https://scuba-sc.github.io/sco-core/) and `main`
+  supersede the kit's text, and the final 2.4.0 kit will be built from current docs.
+- **`check_compatibility` does not accept the release candidate tag.** Its `tag` argument
+  takes only `sdk-vMAJOR.MINOR.PATCH`, so `sdk-v2.4.0-rc.1` is refused as not matching the
+  advertised pattern. Compare with `sdk_version` and `game_pack_version` instead. In a kit
+  the `release` section of the result also reports `unavailable` or
+  `no_matching_approval_record`, because the release approval records are not shipped.
+
 ## In plain words
 
 This release adds new read-only views of the game for plugins, keeps the plugin interface exactly

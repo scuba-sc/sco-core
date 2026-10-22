@@ -6,17 +6,28 @@ also carries discovery tooling when composed over its exact required core kit.
 The host-source kit keeps repository layout for building a compatible host.
 
 The kit contains `sdk-catalogue.json`, `sdk-guides.json`, `tools/sco-core-mcp/server.py`,
-native/status metadata, `tools/sco-new-plugin.py`, checker source and CMake integration. Configure
-your agent with Python and these absolute arguments:
+native/status metadata, `tools/sco-new-plugin.py`, checker source and CMake integration.
+[Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit) covers
+download and checksum, each client (Claude Code, Codex, Cursor, VS Code, Copilot CLI),
+Windows and macOS/Linux launchers and how to verify the connection. For a client that
+reads an `mcpServers` object, the entry is the following. SDK is the folder that
+directly contains `sdk-catalogue.json`, `sco-sdk-2.4.0` for the combined kit; use absolute
+paths, and on Windows `py` with `-3` as the first argument. Leave out `--extended-tools`
+for the minimal profile of six tools.
 
 ```json
 {
   "mcpServers": {
-    "sco-sdk": {
-      "command": "python",
-      "args": ["/absolute/sdk/tools/sco-core-mcp/server.py",
-               "--catalogue", "/absolute/sdk/sdk-catalogue.json",
-               "--repo-root", "/absolute/sdk", "--extended-tools"]
+    "sco-core-sdk": {
+      "command": "python3",
+      "args": [
+        "/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py",
+        "--catalogue",
+        "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
+        "--repo-root",
+        "/absolute/path/to/sco-sdk-2.4.0",
+        "--extended-tools"
+      ]
     }
   }
 }
@@ -32,12 +43,12 @@ guide sections in `sdk-guides.json`; guide prose is not a contract record.
 The agent writes the returned files into its own new project and runs:
 
 ```sh
-cmake -S project -B project/build -DSCO_SDK=/absolute/sdk
+cmake -S project -B project/build -DSCO_SDK=/absolute/path/to/sco-sdk-2.4.0
 cmake --build project/build --config Debug --target check
 ```
 
 For `lang: "csharp"` there is no `CMakeLists.txt`: publish with
-`dotnet publish project -c Release -r win-x64 -o project/out/<id> -p:ScoSdk=/absolute/sdk`
+`dotnet publish project -c Release -r win-x64 -o project/out/<id> -p:ScoSdk=/absolute/path/to/sco-sdk-2.4.0`
 and run `sco-plugin-check` on `project/out/<id>` with and without `--short-tables`
 (the generated `README.md` has the steps). For `lang: "lua"` the `check` target
 checks the manifest and entry only.
