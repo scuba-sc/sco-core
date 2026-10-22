@@ -170,6 +170,11 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
         })()`);
         await wait(`document.documentElement.dataset.theme === ${JSON.stringify(theme)}
           && ${active}?.count === ${width <= 800 ? 3000 : 12000} && ${active}?.received > 0`);
+
+        // A resize within the same particle-count tier still needs its native
+        // ResizeObserver delivery before backing dimensions can be measured.
+        await evaluate(`${field}.getBoundingClientRect();
+          new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
         const layout = await evaluate(`(() => {
           const visible = element => {
             const box = element?.getBoundingClientRect();

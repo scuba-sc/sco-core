@@ -30,6 +30,7 @@ export function initParticleField(root: HTMLElement): () => void {
 	const front = frontCanvas && frontContext ? { canvas: frontCanvas, ctx: frontContext } : null;
 	if (frontCanvas && !front) { frontCanvas.width = 1; frontCanvas.height = 1; }
 	const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	let reducedMotion = motion.matches;
 	let disposed = false;
 	let suspended = false;
 	let failed = false;
@@ -57,15 +58,15 @@ export function initParticleField(root: HTMLElement): () => void {
 	let requestedAt = -Infinity;
 	let paintedAt = -Infinity;
 
-	const eligible = () => !disposed && !suspended && !failed && !motion.matches &&
+	const eligible = () => !disposed && !suspended && !failed && !reducedMotion &&
 		!userPaused && !document.hidden && visible;
 	const clearWatchdog = () => {
 		if (watchdog !== undefined) clearTimeout(watchdog);
 		watchdog = undefined;
 	};
 	const updateState = () => {
-		root.dataset.state = failed ? 'unavailable' : motion.matches || !hasFrame ? 'static' : running ? 'running' : 'paused';
-		toggle.hidden = failed || suspended || motion.matches || !hasFrame;
+		root.dataset.state = failed ? 'unavailable' : reducedMotion || !hasFrame ? 'static' : running ? 'running' : 'paused';
+		toggle.hidden = failed || suspended || reducedMotion || !hasFrame;
 		toggle.textContent = running ? 'Pause animation' : 'Resume animation';
 		toggle.setAttribute('aria-pressed', String(!running));
 	};
@@ -239,7 +240,7 @@ export function initParticleField(root: HTMLElement): () => void {
 	};
 	const reconcile = () => {
 		if (disposed || suspended) return;
-		if (motion.matches) {
+		if (reducedMotion) {
 			stop();
 			terminateWorker();
 			if (!failed) paintStill();
@@ -292,8 +293,12 @@ export function initParticleField(root: HTMLElement): () => void {
 		reconcile();
 	};
 	const onVisibility = () => reconcile();
-	const onMotion = () => reconcile();
+	const onMotion = (event: MediaQueryListEvent) => {
+		reducedMotion = event.matches;
+		reconcile();
+	};
 	const attach = () => {
+		reducedMotion = motion.matches;
 		toggle.addEventListener('click', onToggle);
 		document.addEventListener('visibilitychange', onVisibility);
 		window.addEventListener('resize', resize);
