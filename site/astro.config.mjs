@@ -13,6 +13,7 @@ export default defineConfig({
     title: 'sco-core SDK',
     description: 'Public SDK contracts and engineering guides',
     customCss: ['./src/styles/portal.css'],
+    components: { Search: './src/components/Search.astro', Hero: './src/components/LandingHero.astro' },
     sidebar,
     // Starlight builds its default local Pagefind search index; no remote provider.
   })],

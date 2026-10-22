@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Invoked inside the real browser by test_navigation.mjs. Pagefind's browser
 // worker is exercised; Node's unsupported non-worker fallback is not a proxy.
-export async function testSearch(catalogue) {
+export async function testSearch(catalogue, normalizeTaskQuery) {
   const pagefind = await import('/sco-core/pagefind/pagefind.js');
   const cases = [
     ['sco.storage', 'services/sco-storage'],
@@ -11,13 +11,20 @@ export async function testSearch(catalogue) {
     ['open SQL cursor', 'reference/sco-storage-v1-query'],
     ['find service table', 'reference/sco-api-query-service'],
     ['spawn NPC', 'reference/sc-actors-v1-spawn-npc'],
+    ['spawn a ship', 'reference/sc-spawn-service-v1-spawn-near-player', 3],
+    ['spwan ship', 'reference/sc-spawn-service-v1-spawn-near-player', 3],
+    ['how do I spawn a ship', 'reference/sc-spawn-service-v1-spawn-near-player', 3],
+    ['read inventory', 'reference/sc-inventory-v1-snapshot', 3],
+    ['read inventroy', 'reference/sc-inventory-v1-snapshot', 3],
+    ['how can I read inventory', 'reference/sc-inventory-v1-snapshot', 3],
+    ['read container contents', 'reference/sc-container-contents-v1-snapshot', 3],
   ];
   const reports = [];
-  for (const [query, route] of cases) {
-    const results = await pagefind.search(query);
-    const entries = await Promise.all(results.results.slice(0, 20).map(r => r.data()));
+  for (const [query, route, limit = 20] of cases) {
+    const results = await pagefind.search(normalizeTaskQuery(query));
+    const entries = await Promise.all(results.results.slice(0, limit).map(r => r.data()));
     if (!entries.some(r => new URL(r.url, location.origin).pathname === `/sco-core/${route}/`)) {
-      throw Error(`${query}: intended entry absent from first 20 results: ${entries.map(r => r.url)}`);
+      throw Error(`${query}: intended entry absent from first ${limit} results: ${entries.map(r => r.url)}`);
     }
     const html = await (await fetch(`/sco-core/${route}/`)).text();
     if (!html.includes(catalogue.source_sha) || !html.includes('development preview')) {
