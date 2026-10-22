@@ -10,7 +10,7 @@ native/status metadata, `tools/sco-new-plugin.py`, checker source and CMake inte
 [Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit) covers
 download and checksum, each client (Claude Code, Codex, Cursor, VS Code, Copilot CLI),
 Windows and macOS/Linux launchers and how to verify the connection. For a client that
-reads an `mcpServers` object, the entry is the following. SDK is the folder that
+reads an `mcpServers` object, the entry is the following. The SDK folder is the folder that
 directly contains `sdk-catalogue.json`, `sco-sdk-2.4.0` for the combined kit; use absolute
 paths, and on Windows `py` with `-3` as the first argument. Leave out `--extended-tools`
 for the minimal profile of six tools.

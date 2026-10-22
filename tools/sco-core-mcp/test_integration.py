@@ -199,7 +199,8 @@ class DocumentedBlockTests(unittest.TestCase):
                         self.assertEqual(words[words.index('--') - 1], SERVER_NAME, line)
                         commands.append((words[0], language, words[words.index('--') + 1:]))
         self.assertEqual(sorted((tool, language) for tool, language, _ in commands),
-                         [('claude', 'powershell'), ('claude', 'sh'), ('codex', 'sh')])
+                         [('claude', 'powershell'), ('claude', 'sh'),
+                          ('codex', 'powershell'), ('codex', 'sh')])
         for tool, language, command in commands:
             expected = windows if language == 'powershell' else posix
             base = validate('mcpServers', SERVER_NAME, expected)[1]
@@ -223,16 +224,27 @@ class DocumentedBlockTests(unittest.TestCase):
         server = read(ROOT / 'tools/sco-core-mcp/server.py')
         for message in ('sco-core-mcp: catalogue refused: ', '"Unknown tool"',
                         'Example unavailable: requires a contained regular UTF-8 file without symlinks',
-                        'unavailable beneath --repo-root'):
+                        'unavailable beneath --repo-root', '--catalogue or SCO_CORE_CATALOGUE is required'):
             with self.subTest(message=message):
                 self.assertIn(message, server)
         guide = ' '.join(self.guide.split())
         for message in ('sco-core-mcp: catalogue refused: FileNotFoundError', "can't open file",
                         'Example unavailable: requires a contained regular UTF-8 file without symlinks',
                         'sdk/native_index.json unavailable beneath --repo-root',
-                        'stability_context.game_state', 'Unknown tool'):
+                        'stability_context.game_state', 'Unknown tool',
+                        'server.py: error: unrecognized arguments: ...',
+                        'server.py: error: --catalogue or SCO_CORE_CATALOGUE is required',
+                        'server.py: error: argument --repo-root: expected one argument'):
             with self.subTest(message=message):
                 self.assertIn(message, guide)
+
+    def test_tested_statement_claims_no_more_than_was_run(self):
+        guide = ' '.join(self.guide.split())
+        for claim in ('None of the client files below, and neither the `claude mcp add` nor the '
+                      '`codex mcp add` command, was run in its client',
+                      'The `python3` forms were not run on macOS or Linux'):
+            with self.subTest(claim=claim):
+                self.assertIn(claim, guide)
 
     def test_invalid_launchers_are_refused(self):
         envelope, name, good = next(b for b in self.blocks if b[2].get('tools') == EXTENDED_TOOLS)
@@ -308,10 +320,11 @@ class IntegrationTests(unittest.TestCase):
             shutil.copy(ROOT / source, self.kit / target)
         shutil.copy(CATALOGUE, self.kit / 'sdk-catalogue.json')
 
-    def launch(self, block, replacement, *calls, drop=(), omit=(), **overrides):
+    def launch(self, block, replacement, *calls, drop=(), omit=(), join=(), novalue=(), **overrides):
         """Run a documented block with its placeholder base path replaced by a real folder.
 
-        `drop` removes arguments by their documented text, `omit` removes a flag and its value.
+        `drop` removes arguments by their documented text, `omit` removes a flag and its value,
+        `join` makes a flag and its value one element, `novalue` removes only the value.
         """
         envelope, name, entry = block
         base = validate(envelope, name, entry)[1]
@@ -320,8 +333,15 @@ class IntegrationTests(unittest.TestCase):
             del args[args.index('--' + flag):args.index('--' + flag) + 2]
         for flag, value in overrides.items():
             args[args.index('--' + flag) + 1] = Path(value).as_posix()
+        for flag in join:
+            index = args.index('--' + flag)
+            args[index:index + 2] = [args[index] + ' ' + args[index + 1]]
+        for flag in novalue:
+            del args[args.index('--' + flag) + 1]
+        # SCO_CORE_CATALOGUE would make a missing --catalogue succeed; the guide's case is without it.
+        env = {key: value for key, value in os.environ.items() if key != 'SCO_CORE_CATALOGUE'}
         result = subprocess.run([sys.executable, *args], input=messages(*calls), capture_output=True,
-                                text=True, encoding='utf-8', timeout=30, cwd=self.work)
+                                text=True, encoding='utf-8', timeout=30, cwd=self.work, env=env)
         replies = {}
         for line in result.stdout.splitlines():
             reply = json.loads(line)
@@ -412,6 +432,20 @@ class IntegrationTests(unittest.TestCase):
                                  drop=('--extended-tools',))
         self.assertEqual([t['name'] for t in replies[2]['result']['tools']], MINIMAL_TOOLS)
         self.assertEqual(replies[3]['error'], {'code': -32602, 'message': 'Unknown tool'})
+
+    def test_malformed_arguments_look_as_the_guide_says(self):
+        block = next(b for b in self.blocks if validate(*b)[0] == 'kit' and validate(*b)[2])
+        cases = (({'join': ('catalogue',)}, 'server.py: error: unrecognized arguments: --catalogue '),
+                 ({'omit': ('catalogue',)}, 'server.py: error: --catalogue or SCO_CORE_CATALOGUE is required'),
+                 ({'novalue': ('repo-root',)}, 'server.py: error: argument --repo-root: expected one argument'))
+        for change, message in cases:
+            with self.subTest(change=change):
+                result, replies = self.launch(block, self.kit, **change)
+                self.assertEqual((result.returncode, replies), (2, {}))
+                lines = result.stderr.rstrip().splitlines()
+                self.assertTrue(lines[0].startswith('usage: '), result.stderr)
+                self.assertTrue(lines[-1].startswith(message), result.stderr)
+                self.assertGreater(len(lines), 1, 'a usage block, not one line')
 
 
 if __name__ == '__main__':

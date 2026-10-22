@@ -25,7 +25,7 @@ that evidence; it does not replace the contract's reading rules or remaining gap
 
 To connect Claude Code, Codex, Cursor, VS Code or Copilot CLI to the SDK kit, follow
 [Set up the discovery server from the SDK kit](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
-It downloads and verifies the kit, defines SDK (the folder that directly contains
+It downloads and verifies the kit, defines the SDK folder (the folder that directly contains
 `sdk-catalogue.json`), gives each client's configuration and says how to verify the
 connection. This README does not repeat those configurations. Two profiles are used
 in every example: **SDK developer profile (recommended)**, with `--extended-tools`
@@ -54,9 +54,9 @@ kit predate its publication; see the known issue in the
 
 Use the combined kit directly, or compose the game overlay over the exact core
 kit required by its compatibility metadata ([archive composition](../../sdk/README.md#zips)).
-In this README **SDK** is the folder
+In this README the **SDK folder** is the folder
 that directly contains `sdk-catalogue.json` (for the combined kit,
-`<extract folder>/sco-sdk-2.4.0`). Set `--repo-root` to SDK, not to the parent
+`<extract folder>/sco-sdk-2.4.0`). Set `--repo-root` to the SDK folder, not to the parent
 extraction directory or an uncomposed overlay. The
 `host-source-sc` archive retains repository layout. Core and core-source profiles
 remain game-neutral and contain neither this game catalogue nor its launcher.
@@ -709,13 +709,13 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | Symptom | First checks |
 |---|---|
 | Python cannot start | Python 3.9 or newer. Windows: use `py` with `-3`, or an absolute `python.exe`; a `python3` alias can be the Microsoft Store stub. macOS/Linux: use `python3` or an absolute interpreter. GUI clients may inherit a different `PATH`. |
-| `can't open file '.../server.py'`, exit code 2 | Python could not find the launcher, so the path to `server.py` is wrong. SDK must be the folder that directly contains `sdk-catalogue.json`, not the extract folder above it; check it with [Find the SDK folder](../../docs/agent-integration.md#find-the-sdk-folder), and quote a path that contains a space when you type it in a shell. |
+| `can't open file '.../server.py'`, exit code 2 | Python could not find the launcher, so the path to `server.py` is wrong. Use the SDK folder, the one that directly contains `sdk-catalogue.json`, not the extract folder above it; check it with [Find the SDK folder](../../docs/agent-integration.md#find-the-sdk-folder), and quote a path that contains a space when you type it in a shell. |
 | `catalogue refused: FileNotFoundError`, exit code 1 | `server.py` started, but the `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
 | Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
 | Extended tool is unknown | Restart with `--extended-tools` and explicit client permissions for the additional names. |
 | Development tool is unknown or refused | Restart with `--enable-dev-tools` and a `--project-root`. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
-| Scaffold/native metadata unavailable | `--repo-root` must be SDK, not its parent folder: the server starts either way. Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
+| Scaffold/native metadata unavailable | `--repo-root` must be the SDK folder, not its parent folder: the server starts either way. Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
 | Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |
 | Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
 | Catalogue is stale | Rebuild matching reviewed source and restart. Root metadata/generator code are separate inputs, not authenticated by catalogue SHA. |
@@ -736,14 +736,19 @@ and security admission.
   is stdio and its discovery operations read local catalogue data and optional
   example files. The separate catalogue builder compiles/runs probes and writes
   its output; the server does neither. The only repository code it runs is
-  `sdk/tools/sco-new-plugin.py`, on the first `generate_plugin_scaffold` call, and
-  `tools/sdk_guides.py`, on the first guide call when no `sdk-guides.json` is
-  found; both only with `--extended-tools` and a `--repo-root`, in-process. Treat
-  that root as code you would run yourself.
+  `sdk/tools/sco-new-plugin.py` (`tools/sco-new-plugin.py` in a kit, which has no
+  `sdk/` folder; see [Using an extracted SDK archive](#using-an-extracted-sdk-archive)),
+  on the first `generate_plugin_scaffold` call, and `tools/sdk_guides.py` (a checkout
+  only: a kit has no such file and ships `sdk-guides.json`), on the first guide call when
+  no `sdk-guides.json` is found; both only with `--extended-tools` and a `--repo-root`,
+  in-process. Treat that root as code you would run yourself.
 - **Not arbitrary file access.** `get_example` reads only paths listed in the
   selected catalogue record's `examples`, beneath the configured repository root.
   The only other files read under that root are `sdk/status_registry.json` (at
-  most 1 MiB), or `docs/game/status.md` when there is no registry (each read once,
+  most 1 MiB; at the kit root without the `sdk/` prefix, as are `sdk/native_index.json`
+  and `sdk/tools/sco-new-plugin.py` below, see
+  [Using an extracted SDK archive](#using-an-extracted-sdk-archive)),
+  or `docs/game/status.md` when there is no registry (each read once,
   at start), the `sdk-v*.json`/`.json.sig` records in `docs/legal/release-decisions/`
   (per `check_compatibility` call) and, with `--extended-tools` only,
   `sdk/native_index.json` (at most 4 MiB, once at start),
@@ -820,8 +825,9 @@ behavioral guarantees, or changes the runtime's capability gates.
 
 `get_symbol` and `get_capability_status` return an `evidence_state` object for the
 selected record. The server computes it from the schema 1 catalogue and, for
-game-pack records, from `sdk/status_registry.json` under `--repo-root`, or from
-`docs/game/status.md` when there is no registry. The catalogue
+game-pack records, from `sdk/status_registry.json` under `--repo-root`
+(`status_registry.json` at the root of a kit), or from `docs/game/status.md` when there
+is no registry. The catalogue
 is unchanged and still `schema_version` 1, so its consumers (including the docs
 site generator) are unaffected. Each state is reported only where a
 machine-readable or strictly parsed source exists; otherwise it is `unknown`.
@@ -838,7 +844,8 @@ Neutral `sco.*` records, `sco_api` and the entrypoints carry no game fields:
 sigcheck and gameplay are `not_applicable`, and there is no `service_status`.
 
 Game-pack records also carry `service_status`. It is **service-scoped**. When
-`sdk/status_registry.json` exists, its rows are the capabilities of the `service`
+`sdk/status_registry.json` (`status_registry.json` in a kit) exists, its rows are the
+capabilities of the `service`
 entry whose `service` and header file name both match the record's catalogue
 table. Otherwise they are the rows of the
 `| Table | Version | Stability | Capability | Default | Evidence |` table in
