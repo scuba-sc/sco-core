@@ -28,7 +28,6 @@
 #include <chrono>
 #include <cstdio>
 #include <system_error>
-#include <unordered_set>
 #include <utility>
 
 namespace fs = std::filesystem;
@@ -389,41 +388,28 @@ Result Reload(std::string_view id, std::string* why) {
     // Discover resolved requires to provider ids in `after`; do not reinterpret capabilities
     // or host services as plugin dependencies. Only loaded dependents join the cascade.
     std::vector<plugins::Plugin*> group{ p };
-    std::unordered_set<plugins::Plugin*> inGroup{ p };
-    for (size_t i = 0; i < group.size(); ++i) {
-        const std::string& targetFolder = group[i]->folder;
-        for (auto& q : g_list) {
+    for (size_t i = 0; i < group.size(); ++i)
+        for (auto& q : g_list)
             if (q.state == plugins::State::Loaded &&
-                inGroup.find(&q) == inGroup.end() &&
-                std::find(q.after.begin(), q.after.end(), targetFolder) != q.after.end()) {
-                inGroup.insert(&q);
-                group.push_back(&q);
-            }
-        }
-    }
+                std::find(q.after.begin(), q.after.end(), group[i]->folder) != q.after.end() &&
+                std::find(group.begin(), group.end(), &q) == group.end()) group.push_back(&q);
 
     // Stable topological order over this group, independent of previous reloads' loadOrder.
     std::vector<plugins::Plugin*> ordered;
     ordered.reserve(group.size());
-    std::unordered_set<plugins::Plugin*> inOrdered;
-    inOrdered.reserve(group.size());
     while (ordered.size() < group.size()) {
         plugins::Plugin* next = nullptr;
         for (auto& q : g_list) {
-            if (inGroup.find(&q) == inGroup.end() || inOrdered.find(&q) != inOrdered.end()) continue;
+            if (std::find(group.begin(), group.end(), &q) == group.end() ||
+                std::find(ordered.begin(), ordered.end(), &q) != ordered.end()) continue;
             bool ready = true;
-            for (auto* provider : group) {
+            for (const auto* provider : group)
                 if (std::find(q.after.begin(), q.after.end(), provider->folder) != q.after.end() &&
-                    inOrdered.find(provider) == inOrdered.end()) {
-                    ready = false;
-                    break;
-                }
-            }
+                    std::find(ordered.begin(), ordered.end(), provider) == ordered.end()) ready = false;
             if (ready) { next = &q; break; }
         }
         if (!next) { w = "requires cycle in reload group"; return Result::Failed; }
         ordered.push_back(next);
-        inOrdered.insert(next);
     }
     group = std::move(ordered);
     for (const auto* q : group) {
