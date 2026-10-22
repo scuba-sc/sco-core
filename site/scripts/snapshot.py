@@ -23,7 +23,7 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE_URL = 'https://github.com/scubamount/sco-core/blob/'
+SOURCE_URL = 'https://github.com/scuba-sc/sco-core/blob/'
 
 
 def require(condition, message):
@@ -183,7 +183,7 @@ def validate_catalogue(source, sha, catalogue, package):
                 ('size', 'table_size'), ('source_header', 'source_header'), ('service', 'service'),
                 ('version_macro', 'version_macro'))), 'catalogue table metadata differs from contracts')
             require(record['symbol'].split('.')[-1] in table['members'], 'catalogue table member missing')
-    for ref in re.findall(r'https://github\.com/scubamount/sco-core/(?:blob|tree)/([^/\s)]+)',
+    for ref in re.findall(r'https://github\.com/scuba-sc/sco-core/(?:blob|tree)/([^/\s)]+)',
                           json.dumps(catalogue)):
         require(ref == sha, 'floating or unrelated source link')
     return records

@@ -74,8 +74,8 @@ class PluginDirectoryTest(unittest.TestCase):
 
     def test_first_party_lists_only_the_public_repositories(self):
         repositories = {e["repository"] for e in self.directory["first_party"]}
-        self.assertEqual(repositories, {"https://github.com/scubamount/sc-offline",
-                                        "https://github.com/scubamount/sc-mp"})
+        self.assertEqual(repositories, {"https://github.com/scuba-sc/sc-offline",
+                                        "https://github.com/scuba-sc/sc-mp"})
         for entry in self.directory["first_party"]:
             self.assertIn(entry["in_game"], ("not-run", "not-verified"))
 

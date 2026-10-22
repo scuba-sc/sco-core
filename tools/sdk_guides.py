@@ -37,7 +37,7 @@ TEXT_LIMIT = 4000
 MAX_DOC_BYTES = 2 * 1024 * 1024
 MAX_COMPONENTS_BYTES = 8 * 1024 * 1024
 # The docs site: site/scripts/gen.py serves docs/<path>.md at BASE/guides/<slug>/.
-SITE = 'https://scubamount.github.io'
+SITE = 'https://scuba-sc.github.io'
 BASE = '/sco-core'
 BLOCKED = ('docs/legal/', 'docs/design/')  # lowercase; names are casefolded before the comparison
 # Private-use placeholders that stand in for code spans while the prose rules run.

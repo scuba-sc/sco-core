@@ -4,7 +4,7 @@ Astro Starlight renders the SDK contract catalogue and explicitly selected publi
 engineering guides. Starlight's built-in Pagefind search runs locally against the
 static build; no hosted search service is configured.
 
-The workflow publishes to `https://scubamount.github.io/sco-core/` through the
+The workflow publishes to `https://scuba-sc.github.io/sco-core/` through the
 existing `docs-site` workflow and GitHub Pages' workflow build mode. Pull requests
 build and validate a reviewable `sco-docs-site` artifact with read-only permissions;
 they never publish. Only a push to `main`, or a manual workflow dispatch targeting

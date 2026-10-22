@@ -6,7 +6,7 @@ release promise: there are no dates, and a feature named here exists only when i
 implementation and evidence say so in [game capability status](game/status.md) and the release notes.
 
 The current SDK is 2.4.0, published on 2026-10-21 as
-[release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1) (tag `sdk-v2.4.0-rc.1`, the
+[release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) (tag `sdk-v2.4.0-rc.1`, the
 latest release; [release notes](releases/sdk-v2.4.0.md)). It is the only SDK release on the
 release page. The final signed `sdk-v2.4.0` release follows.
 
@@ -38,7 +38,7 @@ sco-core instead of a game build, and a game patch is fixed once here instead of
 | Host services | Storage (SQLite), widgets and UI, settings, DataCore files and packs, local IPC, private-session messages. |
 | Game pack | Optional `game.*` service tables for Star Citizen on the verified build. See [game services](game-services.md). |
 | Agent and IDE discovery | A read-only stdio MCP server that ships with the SDK: search the API, read contracts and examples, check compatibility, validate a manifest, and generate a plugin scaffold. See [agent integration](agent-integration.md) and the [SDK and MCP tutorial](sdk-mcp-tutorial.md). |
-| Out-of-game testing | `sco-plugin-check` runs a plugin against a rule-enforcing host without the game. The [scuba-engine](https://github.com/scubamount/scuba-engine) studio hosts plugins against mock game services. |
+| Out-of-game testing | `sco-plugin-check` runs a plugin against a rule-enforcing host without the game. The [scuba-engine](https://github.com/scuba-sc/scuba-engine) studio hosts plugins against mock game services. |
 
 ### Start contributing today
 
@@ -123,7 +123,7 @@ without starting over later:
   approves, signs, tags and publishes, and the docs site switches to 2.4.0. Nothing on this page is
   that approval.
 
-Progress on each of these is counted on the [one-page roadmap](https://scubamount.github.io/sco-core/roadmap/).
+Progress on each of these is counted on the [one-page roadmap](https://scuba-sc.github.io/sco-core/roadmap/).
 
 ## 3. Milestone 2: products and studio on the 2.4.0 SDK
 

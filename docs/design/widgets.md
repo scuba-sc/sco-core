@@ -1,7 +1,7 @@
 # Renderer-neutral retained widgets
 
 Status: C/C++ and Lua implementation; C# route deferred. Follow-up to
-[SDK gap #139](https://github.com/scubamount/sco-core/issues/139). This is a new
+[SDK gap #139](https://github.com/scuba-sc/sco-core/issues/139). This is a new
 host-owned `sco.widgets` **1.0** service, not a change to frozen `sco_api` 1.1.
 Plugins include `sco_widgets.h` or `scosdk/widgets.hpp`; neither includes renderer
 headers. The legacy `sco.ui` draw-context route remains supported separately.

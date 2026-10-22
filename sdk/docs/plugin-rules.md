@@ -1,6 +1,6 @@
 # Plugin rules
 
-sc-offline is an offline mod: while it runs, the game never connects to Cloud Imperium Games' servers. Plugins follow the same scope as sc-offline's own code ([CONTRIBUTING](https://github.com/scubamount/sc-offline/blob/main/CONTRIBUTING.md#what-fits-this-project)). Offline play stays the default.
+sc-offline is an offline mod: while it runs, the game never connects to Cloud Imperium Games' servers. Plugins follow the same scope as sc-offline's own code ([CONTRIBUTING](https://github.com/scuba-sc/sc-offline/blob/main/CONTRIBUTING.md#what-fits-this-project)). Offline play stays the default.
 
 ## What a plugin may connect to
 

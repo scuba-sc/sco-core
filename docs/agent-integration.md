@@ -49,7 +49,7 @@ accept that version. Consult the server README for protocol and bounded-file lim
 ## Copilot CLI and compatible stdio clients
 
 For the SDK 2.4.0 release candidate 1 combined kit (`sco-sdk-2.4.0.zip` from the
-[`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1) release) or
+[`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) release) or
 another reviewed kit, use its bundled root
 `sdk-catalogue.json`, `tools/sco-core-mcp/server.py` and resulting SDK root in
 the configuration below. No Clang installation is needed merely to consume that

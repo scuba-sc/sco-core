@@ -3,7 +3,7 @@
 ## Standalone developer-kit workflow
 
 **SDK 2.4.0 is published as release candidate 1**
-([`sdk-v2.4.0-rc.1`](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
+([`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
 release; the final signed `sdk-v2.4.0` follows). Its combined kit, composed
 core-plus-game overlay and host-source kit supply the discovery launcher,
 `sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
@@ -347,7 +347,7 @@ sc-offline's `tools/check_inspector_sdk.py`, with its sha256. That pin can lag
 the newest sco-core release, so read it from your sc-offline checkout rather than
 from this page, then download that archive and its adjacent `SHA256SUMS` from the
 matching human-published release on the
-[releases page](https://github.com/scubamount/sco-core/releases). SDK 2.4.0 is
+[releases page](https://github.com/scuba-sc/sco-core/releases). SDK 2.4.0 is
 published as release candidate 1, so its archives sit under the tag
 `sdk-v2.4.0-rc.1`. Releases before 2.4.0 no longer have downloads; a pin to one
 of them has to move to 2.4.0 first.
@@ -462,5 +462,5 @@ unknown is not false, stale is not current. Never publish identifiers, addresses
 secrets, raw pointers or file paths in runtime snapshots.
 
 Record archive digest, source SHA, host/plugin/game versions and acceptance results
-separately in the product [status ledger](https://github.com/scubamount/sc-offline/blob/main/docs/status.md).
+separately in the product [status ledger](https://github.com/scuba-sc/sc-offline/blob/main/docs/status.md).
 Only the owner decides gameplay acceptance and human release.

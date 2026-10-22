@@ -118,7 +118,7 @@ class SnapshotTests(unittest.TestCase):
             'version': lambda c: c.update(sdk_version='99.0.0'),
             'signature': lambda c: c['records'][0].update(signature='void (*)(void)'),
             'example': lambda c: c['records'][0].update(examples=['sdk/examples/absent/no.c']),
-            'link': lambda c: c.update(note='https://github.com/scubamount/sco-core/blob/main/include/sco_api.h'),
+            'link': lambda c: c.update(note='https://github.com/scuba-sc/sco-core/blob/main/include/sco_api.h'),
             'member': lambda c: c['tables']['sco_api']['members'].append('nonexistent'),
             'table-version': lambda c: c['tables']['sco_api'].update(version=1),
         }

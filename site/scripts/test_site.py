@@ -667,7 +667,7 @@ class SiteTests(unittest.TestCase):
                 self.assertIn('sco-tier--' + tier + '">' + tier + ' · ' + about.split(':', 1)[0], text)
             self.assertEqual(re.findall(r'<script[^>]*>', text), ['<script>'])
             body = text[text.index('Every signature row'):]
-            self.assertNotRegex(body, r'https?://(?!github\.com/scubamount/sco-core/blob/[0-9a-f]{40}/)')
+            self.assertNotRegex(body, r'https?://(?!github\.com/scuba-sc/sco-core/blob/[0-9a-f]{40}/)')
             self.assertIn('tableOfContents: false', text)
 
     def test_native_index_fails_closed(self):

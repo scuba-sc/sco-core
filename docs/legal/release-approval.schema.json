@@ -74,7 +74,7 @@
           ],
           "properties": {
             "repository": {
-              "const": "scubamount/sco-core"
+              "const": "scuba-sc/sco-core"
             },
             "commit": {
               "type": "string",
@@ -315,7 +315,7 @@
           ],
           "properties": {
             "repo": {
-              "const": "scubamount/sco-core"
+              "const": "scuba-sc/sco-core"
             },
             "sha": {
               "type": "string",

@@ -56,7 +56,7 @@ Required fields:
 |---|---|
 | `schema_version` | Integer `2` |
 | `tag` | SDK tag, exactly the caller's `--tag` |
-| `source.repo`, `source.sha` | `scubamount/sco-core` and the full lowercase 40-hex commit used to build the candidate; equal to the published `--source-sha` or its ancestor with only `docs/legal/release-decisions/` changed |
+| `source.repo`, `source.sha` | `scuba-sc/sco-core` and the full lowercase 40-hex commit used to build the candidate; equal to the published `--source-sha` or its ancestor with only `docs/legal/release-decisions/` changed |
 | `source.dependencies` | Array of `{path, sha}` for every recursive submodule, rooted at the source checkout; exact equality with pinned gitlinks, including nested dependencies |
 | `components_manifest_sha256` | SHA-256 of the exact `sdk/components.json` blob at `source.sha` |
 | `builder.workflow_path`, `builder.workflow_sha` | Regular `.github/workflows/*.yml` or `*.yaml` file at the pinned workflow commit; this commit may differ from the source checkout commit |
@@ -65,6 +65,12 @@ Required fields:
 | `profiles` | Exactly the historical `["core", "game-sc", "legacy"]` or the five-profile `["core", "game-sc", "legacy", "core-source", "host-source-sc"]`, in that order; SDK 2.1.0 preparation uses the latter |
 | `distribution.status` | Only `approved-for-publication` passes; `internal-only` and `hold` are explicit refusals |
 | `approved_by`, `approved_at` | Nonblank maintainer identity and RFC 3339 UTC timestamp (`Z` or `+00:00`); no future approvals; maximum age seven days by default |
+
+`source.repo` is `scuba-sc/sco-core`, the repository's name since it moved from the `scubamount`
+account to the `scuba-sc` organization. The signed `sdk-v2.0.0.json` was written before the move and
+names `scubamount/sco-core`. It stays exactly as signed, and nothing in CI or the test suite
+validates it against the current schema. To re-verify it with `tools/release_verify.py`, use a
+checkout at its own tag, which carries the schema it was written for.
 
 The manifest is an inventory, not a replacement for the repository, ZIP, licence and legal gates
 above. Each archive keeps its own packager-generated `VERSIONS.txt` and `SHA256SUMS` metadata;
@@ -202,7 +208,7 @@ Synthetic example (every value fake: `a`*40 commits, `b`*64 hashes, identity `ma
  "approved_at": "2026-10-20T12:00:00Z",
  "expires_at": "2026-11-20T12:00:00Z",
  "approver": {"identity": "maintainer", "key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"},
- "source": {"repository": "scubamount/sco-core", "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "source": {"repository": "scuba-sc/sco-core", "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "components_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             "dependencies": []},
  "build": {"workflow_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "run_id": 1, "run_attempt": 1,

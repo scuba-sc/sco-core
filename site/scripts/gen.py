@@ -17,8 +17,8 @@ from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = '/sco-core'
-SOURCE_ROOT = 'https://github.com/scubamount/sco-core/blob/'
-RELEASES = 'https://github.com/scubamount/sco-core/releases/tag/'
+SOURCE_ROOT = 'https://github.com/scuba-sc/sco-core/blob/'
+RELEASES = 'https://github.com/scuba-sc/sco-core/releases/tag/'
 # Most recent SDK release verified as published: its notes docs/releases/<tag>.md declare the
 # archives the portal offers. A preview links here instead of deriving a tag from its own
 # sdk_version, which may name an unpublished version.
@@ -27,8 +27,8 @@ PUBLISHED_RELEASE = 'sdk-v2.4.0'
 # candidates (<tag>-rc.N).
 # SDK 2.4.0 is out as release candidate 1; set this to PUBLISHED_RELEASE once the final is published.
 PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0-rc.1'
-DOWNLOADS = 'https://github.com/scubamount/sco-core/releases/download/'
-COMMITS = 'https://github.com/scubamount/sco-core/commit/'
+DOWNLOADS = 'https://github.com/scuba-sc/sco-core/releases/download/'
+COMMITS = 'https://github.com/scuba-sc/sco-core/commit/'
 # The same delimited block tools/doc_release_gate.py checks against packaging.
 SCOPE_START = '<!-- release-scope:start -->'
 SCOPE_END = '<!-- release-scope:end -->'

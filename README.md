@@ -1,14 +1,14 @@
 # sco-core
 
-[![test](https://github.com/scubamount/sco-core/actions/workflows/test.yml/badge.svg)](https://github.com/scubamount/sco-core/actions/workflows/test.yml)
-[![cmake](https://github.com/scubamount/sco-core/actions/workflows/cmake.yml/badge.svg)](https://github.com/scubamount/sco-core/actions/workflows/cmake.yml)
-[![sdk](https://github.com/scubamount/sco-core/actions/workflows/sdk.yml/badge.svg)](https://github.com/scubamount/sco-core/actions/workflows/sdk.yml)
+[![test](https://github.com/scuba-sc/sco-core/actions/workflows/test.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/test.yml)
+[![cmake](https://github.com/scuba-sc/sco-core/actions/workflows/cmake.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/cmake.yml)
+[![sdk](https://github.com/scuba-sc/sco-core/actions/workflows/sdk.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/sdk.yml)
 
-The mod framework and SDK under [sc-offline](https://github.com/scubamount/sc-offline), the Star Citizen offline mod.
+The mod framework and SDK under [sc-offline](https://github.com/scuba-sc/sc-offline), the Star Citizen offline mod.
 
 sco-core puts the game's internals (addresses, file formats, engine calls) behind one versioned plain-C plugin interface. Mods target sco-core, not a game build, so when a patch breaks something it gets fixed once here instead of in every mod.
 
-**SDK reference:** <https://scubamount.github.io/sco-core/>
+**SDK reference:** <https://scuba-sc.github.io/sco-core/>
 
 ## Who it is for
 
@@ -26,7 +26,7 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 ## Quick start: write a plugin
 
 The current SDK is **2.4.0**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** (unchanged
-since 2.3.0), published as [release candidate 1](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.4.0-rc.1)
+since 2.3.0), published as [release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1)
 (tag `sdk-v2.4.0-rc.1`, the repository's latest release; the final signed `sdk-v2.4.0` follows). Download
 `sco-sdk-2.4.0.zip` (or `sco-sdk-core-2.4.0.zip`) and `SHA256SUMS` from that release page and
 check the digest as in [Start your first plugin](docs/getting-started.md), or build an archive
@@ -41,12 +41,12 @@ cmake --install build --config Release --prefix out
 out/bin/sco-plugin-check out/data/plugins/hello --invoke hello.wave "Pilot One"
 ```
 
-`sco-plugin-check` runs your plugin against a host that enforces the plugin rules, without the game. Next: [SDK README](sdk/README.md) and the [SDK reference site](https://scubamount.github.io/sco-core/).
+`sco-plugin-check` runs your plugin against a host that enforces the plugin rules, without the game. Next: [SDK README](sdk/README.md) and the [SDK reference site](https://scuba-sc.github.io/sco-core/).
 
 ## Quick start: build and test the core
 
 ```sh
-git clone https://github.com/scubamount/sco-core.git && cd sco-core
+git clone https://github.com/scuba-sc/sco-core.git && cd sco-core
 cmake -S . -B build && cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```

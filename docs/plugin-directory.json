@@ -22,7 +22,7 @@
       "name": "sc-offline plugin suite",
       "ids": ["build", "contracts", "creative", "crew", "discord", "inspector", "inspector_lua", "loadout", "loadout_lists",
               "mining", "npc", "picker_catalog", "quantum", "quantum_drive", "spawn", "teleport", "titanlink", "voxel_bridge"],
-      "repository": "https://github.com/scubamount/sc-offline",
+      "repository": "https://github.com/scuba-sc/sc-offline",
       "author": "scubamount",
       "licence": "GPL-3.0-only",
       "languages": ["cpp", "lua", "data"],
@@ -38,7 +38,7 @@
     {
       "name": "sc-mp private multiplayer co-presence",
       "ids": ["multiplayer"],
-      "repository": "https://github.com/scubamount/sc-mp",
+      "repository": "https://github.com/scuba-sc/sc-mp",
       "author": "scubamount",
       "licence": "GPL-3.0-only",
       "languages": ["cpp"],

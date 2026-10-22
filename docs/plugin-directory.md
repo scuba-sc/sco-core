@@ -35,8 +35,8 @@ that the plugin follows the offline-only [plugin rules](../sdk/docs/plugin-rules
 
 | Plugin | Description | Plugin ids | Author | Licence | Languages | SDK tested | Game pack | sco-plugin-check | Offline | In game | Listed |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| [sc-offline plugin suite](https://github.com/scubamount/sc-offline) | sc-offline's plugins and shipped data packs: build placement, creative, crew, inspector, loadout, mining, NPCs, quantum, spawn, teleport, picker catalogs and optional local bridges. First-party product plugins, built in-tree with the host from a pinned sco-core commit (SDK baseline 2.3.0), not from a published SDK archive. Some ship disabled (Discord presence is blocked pending review); per-feature in-game status is on the repository's own status page. | `build`, `contracts`, `creative`, `crew`, `discord`, `inspector`, `inspector_lua`, `loadout`, `loadout_lists`, `mining`, `npc`, `picker_catalog`, `quantum`, `quantum_drive`, `spawn`, `teleport`, `titanlink`, `voxel_bridge` | scubamount | `GPL-3.0-only` | C++, Lua, data pack | 2.3.0 | 0.6.0 | not recorded | confirmed | not verified in game | 2026-10-21 |
-| [sc-mp private multiplayer co-presence](https://github.com/scubamount/sc-mp) | Private co-presence for players running sc-offline, over sco.net: each game shows remote players as ghost entities it spawns itself. First-party; the repository's CI runs sco-plugin-check on the plugin, but no dated result is recorded here. | `multiplayer` | scubamount | `GPL-3.0-only` | C++ | 2.4.0 | 0.8.0 | not recorded | confirmed | not run in game | 2026-10-21 |
+| [sc-offline plugin suite](https://github.com/scuba-sc/sc-offline) | sc-offline's plugins and shipped data packs: build placement, creative, crew, inspector, loadout, mining, NPCs, quantum, spawn, teleport, picker catalogs and optional local bridges. First-party product plugins, built in-tree with the host from a pinned sco-core commit (SDK baseline 2.3.0), not from a published SDK archive. Some ship disabled (Discord presence is blocked pending review); per-feature in-game status is on the repository's own status page. | `build`, `contracts`, `creative`, `crew`, `discord`, `inspector`, `inspector_lua`, `loadout`, `loadout_lists`, `mining`, `npc`, `picker_catalog`, `quantum`, `quantum_drive`, `spawn`, `teleport`, `titanlink`, `voxel_bridge` | scubamount | `GPL-3.0-only` | C++, Lua, data pack | 2.3.0 | 0.6.0 | not recorded | confirmed | not verified in game | 2026-10-21 |
+| [sc-mp private multiplayer co-presence](https://github.com/scuba-sc/sc-mp) | Private co-presence for players running sc-offline, over sco.net: each game shows remote players as ghost entities it spawns itself. First-party; the repository's CI runs sco-plugin-check on the plugin, but no dated result is recorded here. | `multiplayer` | scubamount | `GPL-3.0-only` | C++ | 2.4.0 | 0.8.0 | not recorded | confirmed | not run in game | 2026-10-21 |
 
 ### Community
 
@@ -55,7 +55,7 @@ so).
 A community plugin is listed when all of these hold:
 
 1. **Built from a published SDK archive.** Use a release archive from the
-   [SDK releases](https://github.com/scubamount/sco-core/releases), checksum-verified as in
+   [SDK releases](https://github.com/scuba-sc/sco-core/releases), checksum-verified as in
    [Start your first plugin](getting-started.md), not an integration branch or a source checkout.
    *SDK tested* names that release.
 2. **Passes `sco-plugin-check` in full mode** on the built plugin folder, with the checker from
@@ -83,7 +83,7 @@ A community plugin is listed when all of these hold:
 
 ## Request a listing
 
-Open a [plugin listing request](https://github.com/scubamount/sco-core/issues/new?template=plugin-listing.yml).
+Open a [plugin listing request](https://github.com/scuba-sc/sco-core/issues/new?template=plugin-listing.yml).
 The form ([source](../.github/ISSUE_TEMPLATE/plugin-listing.yml)) asks for exactly the fields of
 the index plus the checker output you ran:
 
