@@ -69,26 +69,31 @@ def walk(node):
 
 
 def find_clang():
+    """CLANG, then PATH, then (Windows only) the standard LLVM and WinGet LLVM-MinGW installs.
+
+    Non-Windows hosts behave exactly as before: CLANG, then `clang` on PATH, else None.
+    """
     explicit = os.environ.get('CLANG')
     if explicit:
         return explicit
-    which = shutil.which('clang') or shutil.which('clang.exe')
-    if which:
-        return which
-    if sys.platform == 'win32':
-        candidates = [
-            Path('C:/Program Files/LLVM/bin/clang.exe'),
-            Path('C:/Program Files (x86)/LLVM/bin/clang.exe'),
-        ]
-        local_app = os.environ.get('LOCALAPPDATA')
-        if local_app:
-            winget_root = Path(local_app) / 'Microsoft/WinGet/Packages'
-            if winget_root.is_dir():
-                candidates.extend(winget_root.glob('*LLVM*/*/bin/clang.exe'))
-        for c in candidates:
-            if c.is_file():
-                return str(c)
+    found = shutil.which('clang')
+    if found or sys.platform != 'win32':
+        return found
+    candidates = []
+    for var in ('ProgramFiles', 'ProgramFiles(x86)'):
+        base = os.environ.get(var)
+        if base:
+            candidates.append(Path(base) / 'LLVM/bin/clang.exe')
+    local_app = os.environ.get('LOCALAPPDATA')
+    if local_app:
+        packages = Path(local_app) / 'Microsoft/WinGet/Packages'
+        if packages.is_dir():
+            candidates.extend(sorted(packages.glob('*LLVM*/*/bin/clang.exe'), reverse=True))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
     return None
+
 
 def header_inventory(root, clang=None):
     """AST membership/types, compiled extents/versions, and reused root ABI probe.
@@ -143,7 +148,7 @@ def header_inventory(root, clang=None):
                     versions = [m for m in own_macros if re.search(r'_VERSION(?:_\d+_\d+)?$', m)]
                     require(versions, 'no version macro for ' + name)
                     version_macro = sorted(versions, key=lambda m: [int(x) for x in re.findall(r'\d+', m)] or [0])[-1]
-                    prefix = re.sub(r'_v\d+$', '', name).upper()
+                    prefix = re.sub(r'_v\d+(?:_\d+)?$', '', name).upper()
                     names = [m for m in own_macros if m in {prefix + '_NAME', prefix + '_SERVICE_NAME'}]
                     require(len(names) == 1, 'ambiguous service name macro for ' + name)
                     name_macro = names[0]
@@ -270,7 +275,7 @@ def language_check(root, record, language, mapping):
                 'unsupported language claimed as supported: ' + symbol + ' / lua direct FFI')
         # The game adapter is read-only. self-taking last_error/state are queries,
         # not exceptions authorizing mutation; native table discovery is not Lua FFI.
-        mutation = record['source_header'].startswith('include/sc_') and 'sco_plugin *' in record['signature'] and member not in {'last_error', 'state'}
+        mutation = record['source_header'].startswith('include/sc_') and 'sco_plugin *' in record['signature'] and member not in {'last_error', 'state'} and (record['table'], member) != ('sc_gamerules_v1', 'read')
         require(not mutation and record['kind'] != 'entrypoint',
                 'unsupported language claimed as supported: ' + symbol + ' / lua')
     require(not positive or supported_evidence,

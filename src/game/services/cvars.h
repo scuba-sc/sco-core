@@ -13,6 +13,9 @@ struct CvarsPort {
     sco_result (*read_bool)(void*, uint32_t, uint32_t*) = nullptr;
     bool write_verified = false; // independent from read verification
     sco_result (*write_bool)(void*, uint32_t, uint32_t) = nullptr;
+    // Optional host cleanup path; success includes native readback verification.
+    // It must recheck actual admission and cannot authorize ordinary service calls.
+    sco_result (*restore_bool)(void*, uint32_t, uint32_t) = nullptr;
 };
 Result SetCvarsPort(const CvarsPort& port); // game thread, stopped only
 Result StartCvars();

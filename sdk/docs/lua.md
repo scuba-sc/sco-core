@@ -2,7 +2,7 @@
 
 A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`) and its scripts. sc-offline's bundled `sco-lua` runtime runs the entry script once at load, in a sandbox. The script registers commands and subscribes to events; those callbacks run on the game thread.
 
-> **SDK 2.0.0** (plugin ABI 1.1; `sdk-v2.0.0`). This page matches the `sco-lua` runtime in sco-core (`plugins/lua/`), whose tests run [`examples/greeter`](../examples/greeter) and [`examples/notebook`](../examples/notebook). Version 1 only grows.
+> **SDK 2.4.0** (release candidate 1, tag `sdk-v2.4.0-rc.1`), unchanged plugin ABI 1.1. This page describes the `plugins/lua/` runtime and its operation-specific limits, not release availability or game-service readiness. Its tests exercise [`examples/greeter`](../examples/greeter) and [`examples/notebook`](../examples/notebook).
 
 ## The sandbox
 
@@ -266,6 +266,8 @@ st.sql("SELECT place FROM visits", nil, function(row) print(row.place) end)   --
 | `sco.store.put(key, value)` | `true` |
 | `sco.store.delete(key)` | `true` when it removed a value, `false` when there was none |
 | `sco.store.keys([prefix [, after [, limit]]])` | A list of keys that start with `prefix` and sort after `after`, in byte order; at most `limit` (1-1000, default 1000). For the next page pass the last key as `after` |
+| `sco.store.tables([limit])` | Parallel lists of own table/view names and kinds (1 table, 2 view), in byte order; excludes `sco_kv` and `sqlite_%`; limit 1-1000, default 1000 |
+| `sco.store.columns(table[, limit])` | Parallel lists of column names, declared types and flags (1 NOTNULL, 2 primary key), in declaration order; same limits |
 | `sco.store.begin()`, `commit()`, `rollback()` | `true`. One transaction at a time, over key-value and SQL alike; until `commit` nothing is kept, and an unload or crash rolls it back |
 | `sco.store.exec(sql [, params])` | The number of rows an `INSERT`, `UPDATE` or `DELETE` changed (other statements: not meaningful) |
 | `sco.store.sql(sql [, params])` | A list of rows, each `{ column = value, ... }`; at most 1000 rows, more is `too_many` (add a `LIMIT`) |
@@ -357,6 +359,16 @@ Present only when the Star Citizen game pack publishes [`game.creative`](../../d
 
 On failure it returns `nil, err, message` (`err` as for `sco.store`: `"unavailable"`, ...; `message` from the game pack's `last_error`).
 
+## `sco.game.gamerules`
+
+Present only when the Star Citizen game pack publishes [`game.gamerules`](../../docs/game/gamerules.md) (check `if sco.game and sco.game.gamerules then`); `lua-check.lua` has no stand-in for it. Read-only: scripts see the server GameRules parameters the client received, and cannot change them. The capability `game.gamerules.read` is OFF by default, so on a stock product `read()` answers `nil, "unavailable"`.
+
+| Function | Returns |
+|---|---|
+| `sco.game.gamerules.read()` | A table `{ valid, generation, enforce_group_qt, quantum_travel_allowed, quantum_boost_allowed, travel_target_threshold_angle, target_lock_angular_player, target_lock_angular_ai, target_lock_linear_player, target_lock_linear_ai, boost_group_distance_threshold }`: the first, third, fourth and fifth are booleans, `generation` an integer (an opaque counter, not a session id) and the rest numbers. `valid` is `false` until the client has received a parameter set; every other field is then zero |
+
+On failure it returns `nil, err` (`err` as for `sco.store`: `"unavailable"`, ...). There is no message: the table has no `last_error`.
+
 ## `sco.game.entities`
 
 Present only when the Star Citizen game pack publishes [`game.entities`](../../docs/api-v1.md#gameentities-11-game-pack) (check `if sco.game and sco.game.entities then`); `lua-check.lua` has no stand-in for it. Read-only: a Lua plugin owns no entities, so there is no spawn, despawn, move or watch.
@@ -412,12 +424,9 @@ lua5.4 tools/lua-check.lua examples/greeter --cap teleport --invoke greeter.gree
 
 `lua-check.lua` runs the script with the sandbox's globals and a stand-in `sco` table that checks the rules above, fires `game.ready`, three ticks and `game.exit`, and runs every command without arguments plus the one named by `--invoke`. It has no instruction budget and no game.
 
-## Renderer-neutral widgets: deferred route
+## Widget extension limits
 
-`sco.widgets` 1.0 is not exposed by the Lua sandbox: **unsupported/deferred**.
-The C/C++ native route is documented in [widgets](widgets.md). Legacy Lua hotkey
-bindings are not a widget API, and scripts cannot use renderer contexts or raw
-service-table FFI. [#143](https://github.com/scubamount/sco-core/issues/143), a
-follow-up to [#139](https://github.com/scubamount/sco-core/issues/139), tracks bounded
-tree parsing, callback registry/budget handling and unload/generation tests.
-The C# neutral route is separately deferred in #142.
+The bounded Lua 1.0 set/remove route is implemented. Lua does not accept stable
+tags, expose native FFI or provide typed 1.1 subtree/paging methods. C# also has
+a base typed route; raw interop is not typed stable-tag parity. See
+[widgets](widgets.md) for operation-specific support and callback lifetimes.

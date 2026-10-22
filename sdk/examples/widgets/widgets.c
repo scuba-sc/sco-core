@@ -45,6 +45,7 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* host, sco_plugin* self) {
     sco_widget_node nodes[10];
     const char* choices[] = {"Example Alpha", "Example Beta"};
     const char* cells[] = {"Name", "Value", "Example Alpha", "42"};
+    sco_widget_node_1_2 named;
     sco_command command;
     sco_result r;
     api = host; me = self; widgets = NULL; events = 0;
@@ -59,7 +60,7 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* host, sco_plugin* self) {
     /* Missing optional UI is not a failed plugin: its command still works. */
     if (api->size < offsetof(sco_api, query_service) + sizeof(api->query_service) ||
         !api->query_service ||
-        api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_0, &service) != SCO_OK ||
+        api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_1, &service) != SCO_OK ||
         !service) return SCO_OK;
     widgets = (const sco_widgets_v1*)service;
     if (widgets->size < offsetof(sco_widgets_v1, remove_panel) + sizeof(widgets->remove_panel) ||
@@ -81,10 +82,28 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* host, sco_plugin* self) {
     nodes[8].text = "Example text";
     nodes[9].kind = SCO_WIDGET_TABLE; nodes[9].parent = 1; nodes[9].label = "Values";
     nodes[9].items = cells; nodes[9].item_count = 4; nodes[9].columns = 2;
-    return widgets->set_panel(me, "widgets.main", "Widgets", nodes, 10,
-                              sizeof(nodes[0]), on_event, NULL);
+    r = widgets->set_panel(me, "widgets.main", "Widgets", nodes, 10,
+                           sizeof(nodes[0]), on_event, NULL);
+    if (r != SCO_OK) return r;
+    /* New automation tags are optional; older 1.1 hosts still get the complete base panel. */
+    if (widgets->size < offsetof(sco_widgets_v1, capabilities) + sizeof(widgets->capabilities) ||
+        !widgets->capabilities) return SCO_OK;
+    uint32_t caps[SCO_WIDGETS_CAPS_1_2] = {0};
+    caps[SCO_WIDGETS_CAP_COUNT] = SCO_WIDGETS_CAPS_1_2;
+    r = widgets->capabilities(me, caps);
+    if (r != SCO_OK || caps[SCO_WIDGETS_CAP_COUNT] < SCO_WIDGETS_CAPS_1_2 ||
+        !(caps[SCO_WIDGETS_CAP_FEATURES] & SCO_WIDGETS_FEATURE_STABLE_TAGS)) return SCO_OK;
+    memset(&named, 0, sizeof named);
+    named.base.base.size = sizeof named;
+    named.base.base.kind = SCO_WIDGET_LABEL;
+    named.base.base.id = 1;
+    named.base.base.label = "Named widget anchor";
+    named.tag = "widgets.sample.anchor";
+    return widgets->set_panel(me, "widgets.named", "Named widgets", (const sco_widget_node*)&named, 1,
+                              sizeof named, NULL, NULL);
 }
 SCO_EXPORT void sco_plugin_unload(void) {
     if (widgets) (void)widgets->remove_panel(me, "widgets.main");
+    if (widgets) (void)widgets->remove_panel(me, "widgets.named");
     widgets = NULL;
 }

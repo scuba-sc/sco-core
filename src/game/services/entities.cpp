@@ -20,6 +20,7 @@
 // 20 s after the player has spawned, logging what that run has to confirm ("[game] game.entities
 // diag: ..." lines in mod.log); it changes nothing else.
 #include "entities.h"
+#include "entity_lookup.h"
 #include "prefabs.h"
 #include "owned.h"
 #include "actors.h"
@@ -1029,10 +1030,27 @@ sco_result SvcPrefabSpawn(sco_plugin* self, const char* path, uint64_t zone,
 }
 const sc_prefabs_v1 kPrefabs{sizeof(sc_prefabs_v1), 0, SvcPrefabSpawn};
 
+EntityLookup g_lookup({nullptr, OnGameThread}); // native registry/component adapter absent
+sco_result LookupClasses(uint64_t epoch, uint32_t offset, sc_entity_class_page* out) {
+    const auto r=g_lookup.Classes(epoch,offset,out);
+    return r==SCO_OK ? r : Fail(nullptr,static_cast<Result>(r),"class lookup unavailable or invalid");
+}
+sco_result LookupClass(const char* name, sc_entity_class_record* out) {
+    const auto r=g_lookup.Class(name,out);
+    return r==SCO_OK ? r : Fail(nullptr,static_cast<Result>(r),"class lookup unavailable or invalid");
+}
+sco_result LookupName(const char* name,uint64_t* out) {
+    const auto r=g_lookup.Name(name,out);
+    return r==SCO_OK ? r : Fail(nullptr,static_cast<Result>(r),"name lookup unavailable or invalid");
+}
+sco_result LookupComponent(uint64_t id,uint32_t kind,sc_entity_component_record* out) {
+    const auto r=g_lookup.Component(id,kind,out);
+    return r==SCO_OK ? r : Fail(nullptr,static_cast<Result>(r),"component lookup unavailable or invalid");
+}
 const sc_entities_v1 kEntities = {
     sizeof(sc_entities_v1), 0,        SvcAlive, SvcClassOf, SvcGetTransform, SvcSetTransform,
     SvcSpawn,               SvcDespawn, SvcWatch, SvcUnwatch, SvcQueryRadius,  SvcLastError,
-    SvcKeep,
+    SvcKeep, LookupClasses, LookupClass, LookupName, LookupComponent,
 };
 
 void LogCap(const char* cap, bool ready, const char* why) {
@@ -1052,6 +1070,8 @@ bool EntitiesOwnedBy(const void* owner, uint64_t id) { return OwnedBy(owner, id)
 
 Result StartEntities() {
     if (g_started) return Result::Ok;
+    g_lookup=EntityLookup({nullptr,OnGameThread});
+    caps::Set("game.entities.lookup",false,"no verified registry/name/component adapter");
     char env[8] = "";
     GetEnvironmentVariableA("SCO_ENTITIES_DIAG", env, sizeof(env));
     g_diag = env[0] == '1';
@@ -1067,7 +1087,7 @@ Result StartEntities() {
         std::lock_guard<std::mutex> hold(g_collectLock);
         g_collected.reserve(kMaxCollect);
     }
-    Result r = host::ProvideGameService(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_1, &kEntities);
+    Result r = host::ProvideGameService(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_2, &kEntities);
     if (r == Result::Ok) {
         r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
         if (r != Result::Ok) host::WithdrawGameService(SC_ENTITIES_NAME);
@@ -1106,6 +1126,8 @@ Result StartEntities() {
 
 void StopEntities() {
     if (!g_started) return;
+    g_lookup.Stop();
+    caps::Set("game.entities.lookup",false,"stopped");
     StopOwned();
     if (g_prefabsPublished) host::WithdrawGameService(SC_PREFABS_NAME);
     g_prefabsPublished = false;

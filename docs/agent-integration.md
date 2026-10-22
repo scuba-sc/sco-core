@@ -3,7 +3,8 @@
 The local [`tools/sco-core-mcp`](../tools/sco-core-mcp/README.md) server exposes
 six read-only **discovery** tools over stdio. It reads the same compiler-backed
 catalogue as the static reference site. It does not call SDK methods, run a game,
-compile examples, or provide an HTTP endpoint. GitHub Pages cannot host it.
+or provide an HTTP endpoint, and by default it compiles nothing. GitHub Pages
+cannot host it.
 No credentials, secrets, network service or orchestration prompt is required.
 
 Runtime inspection uses the separate default-off
@@ -27,6 +28,18 @@ Clang is required for compiler-backed AST extraction. The tool uses `CLANG` if
 set, otherwise `clang` on `PATH`; pass `--clang /absolute/path/to/clang` to the
 `build` command to override either.
 
+The opt-in guide tools need no file in a checkout: without `sdk-guides.json`
+beside the catalogue they build fresh sections from `--repo-root` on first use.
+To pin them to a commit instead, build the file beside the catalogue (standard
+library only, no compiler):
+
+```sh
+python3 tools/sdk_guides.py build --out dist/sdk-guides.json --source-sha "$(git rev-parse HEAD)"
+```
+
+A built file wins over `--repo-root`: after editing a guide, rebuild it (or
+delete it) and restart the client, or the server keeps serving the old sections.
+
 Use source bytes matching that full commit; a supplied SHA does not certify a
 clean checkout. Generation is separate from discovery and compiles/runs probes.
 After contracts or mappings change, rebuild the catalogue and restart the client.
@@ -34,6 +47,23 @@ The server does not rebuild it. It negotiates MCP **2025-11-25**; the client mus
 accept that version. Consult the server README for protocol and bounded-file limits.
 
 ## Copilot CLI and compatible stdio clients
+
+For the SDK 2.4.0 release candidate 1 combined kit (`sco-sdk-2.4.0.zip` from the
+[`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) release) or
+another reviewed kit, use its bundled root
+`sdk-catalogue.json`, `tools/sco-core-mcp/server.py` and resulting SDK root in
+the configuration below. No Clang installation is needed merely to consume that
+catalogue. Compose a game overlay with its exact required core archive first;
+verify checksums and SDK/game-pack/source compatibility coordinates. The site's
+changing mainline catalogue is not automatically a match for a published
+archive. See the
+[standalone walkthrough](sdk-mcp-tutorial.md) for discovery, scaffolding,
+manifest/widget validation and native checking outside MCP.
+
+On macOS/Linux use `python3`, or an absolute Python executable when a GUI client
+has a different `PATH`. On Windows use `py` with `-3` first or an absolute
+`python.exe`. JSON paths are literal arguments, not shell commands: do not rely
+on working directories, shell expansion or embedded quoting.
 
 Copilot CLI supports `/mcp add` and a persistent `~/.copilot/mcp-config.json`
 (or the configured `COPILOT_HOME`). See [GitHub's CLI MCP guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).
@@ -67,6 +97,13 @@ workstation's path. Build the catalogue there first.
 }
 ```
 
+On Windows, `python3` is usually not on `PATH`: use `"command": "py"` with `"-3"`
+as the first argument, and `C:/...` paths. The
+[server README](../tools/sco-core-mcp/README.md#windows) has the full Windows
+launcher, a Claude Code registration command and the PowerShell catalogue build.
+Its tool tables list every tool's exact argument names (for example
+`symbol_or_id`, not `symbol`).
+
 A session-specific file can be passed to Copilot CLI with
 `--additional-mcp-config @/absolute/path/to/mcp.json`; a repository
 `.github/mcp.json` is an **optional maintainer choice**, not installed here.
@@ -80,11 +117,25 @@ then review the exposed tools and enable only those six. The envelope under
 copy an entire client config into another client.
 
 **Opt-in extended tools.** Add `--extended-tools` to `args` and the server offers
-four more read-only tools after the six. They are `list_engine_natives`,
-`get_engine_native`, `validate_manifest_and_widgets` and
-`generate_plugin_scaffold`. Add each name you want to `tools` explicitly.
+six more read-only tools after the six. They are `list_engine_natives`,
+`get_engine_native`, `validate_manifest_and_widgets`,
+`generate_plugin_scaffold`, `search_guides` and `get_guide_section`. Add each
+name you want to `tools` explicitly.
 
-`generate_plugin_scaffold` takes an `id`, a `lang` (`c` or `cpp`), an optional
+`search_guides` answers "how do I ..." questions from the SDK guides, not only
+the contract catalogue. It takes a `query` and optionally one guide path as
+`doc`, a `limit` and a `cursor`, and returns ranked sections with a bounded
+snippet, the guide path, heading, GitHub-style `anchor` and docs-site `url`.
+`get_guide_section` returns one section's bounded plain text by `doc` and
+`anchor`. The sections come from `sdk-guides.json` beside the catalogue (the
+candidate kits ship it), or are built in memory from `--repo-root` when no file
+is there; with neither, the tools return a tool error. The guides are the
+allowlisted public docs and the SDK's shipped `sdk/docs` guides (such as
+`plugin.ini`, Lua and widgets). Ranking is whole-word term matching that favours
+rarer terms, and guide prose is not a contract record or evidence that anything
+ran in game: confirm a method with `get_symbol`.
+
+`generate_plugin_scaffold` takes an `id`, a `lang` (`c`, `cpp`, `csharp` or `lua`), an optional
 `with_menu` and an optional `services` list. It returns the files
 `sdk/tools/sco-new-plugin.py` would generate, as relative path to text. It writes
 and builds nothing; save the files into an empty folder and build them with the
@@ -93,6 +144,49 @@ server runs that root's scaffolder in its own process, so grant only a reviewed
 checkout. The
 [server README](../tools/sco-core-mcp/README.md#extended-tools-opt-in) gives the
 schemas and limits. The launcher above stays at the six default tools.
+
+**Opt-in development tools.** On a developer's own machine, an agent can also
+run the build-and-check loop. Add `--enable-dev-tools` and one or more
+`--project-root /absolute/path/to/projects` to `args`, and the server offers three
+more tools: `run_plugin_check`, `build_plugin_project` and
+`test_plugin_project`. Add each name you want to `tools` explicitly. In `args`,
+every flag and every value is its own array element; `"--project-root /abs"` as
+one element is refused at start. Append these elements to the existing `args`
+and `tools` arrays of the configuration above:
+
+```json
+{
+  "args": ["--enable-dev-tools",
+           "--project-root", "/absolute/path/to/projects",
+           "--plugin-check", "/absolute/path/to/sco-plugin-check"],
+  "tools": ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
+}
+```
+
+- `run_plugin_check` takes a built plugin `folder` and an optional `mode`
+  (`full` or `short`). It runs the operator's `sco-plugin-check` and returns the
+  exit code, `passed`, the `FAIL` lines and the final summary line.
+- `build_plugin_project` takes a `project` folder holding a `CMakeLists.txt`. It
+  configures and builds it into the project's own `build` subfolder.
+- `test_plugin_project` takes the same `project` and runs `ctest` in that
+  `build` subfolder.
+
+The caller supplies only that path. The operator fixes the programs (with
+`--plugin-check`, `--cmake` and `--ctest`), the generator and platform
+(`--cmake-generator`, `--cmake-platform`), the SDK folder (`--sco-sdk`), a
+timeout (`--dev-timeout`) and an output cap (`--dev-output-limit`). Programs must
+be an `.exe` (or a native program elsewhere) or a `.py` wrapper; batch files are
+refused. Paths outside every project root are refused after resolving symlinks
+and `..`. A timeout kills the whole process tree.
+
+These tools run code. CMake runs the project's build files, and the checker
+loads the plugin's native code into a stand-in host. They are not a sandbox, so
+grant only project roots whose code you would build yourself. They advertise
+`readOnlyHint: false`, so Copilot code review excludes them; never add them to a
+shared repository configuration or a hosted runner. A passing check is not
+evidence that the plugin works in the game: **not run in game**. The
+[server README](../tools/sco-core-mcp/README.md#development-tools-opt-in) gives
+the exact command lines, result fields and security model.
 
 ## Copilot code review: maintainer-owned repository setting
 

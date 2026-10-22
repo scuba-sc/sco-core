@@ -26,6 +26,15 @@ public:
             return SCO_UNAVAILABLE;
         return t_->raycast_filtered(self_, zone, from, dir, distance, skips, count, &hit);
     }
+    sco_result RaycastFilteredMany(uint64_t zone, const double (&from)[3], const double (&dir)[3],
+        double distance, const uint64_t* skips, uint32_t count, sc_world_hits& hits) const noexcept {
+        const auto capacity = hits.count;
+        std::memset(&hits, 0, sizeof(hits)); hits.size = sizeof(hits);
+        if (!t_ || t_->size < offsetof(sc_world_control_v1, raycast_filtered_many) + sizeof(t_->raycast_filtered_many) || !t_->raycast_filtered_many)
+            return SCO_UNAVAILABLE;
+        hits.count = capacity;
+        return t_->raycast_filtered_many(self_, zone, from, dir, distance, skips, count, &hits);
+    }
     sco_result CameraAcquire(uint64_t& lease) const noexcept {
         lease = 0;
         if (!t_ || t_->size < offsetof(sc_world_control_v1, camera_acquire) + sizeof(t_->camera_acquire) || !t_->camera_acquire)

@@ -2,7 +2,16 @@
 
 Per-plugin persistent storage: a key-value store and SQL, over SQLite, in place of the loose text files plugins and features keep under `data/` today. Each plugin gets its own database file, which no other plugin can open; a crash at any moment leaves the last committed state.
 
-It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned services](api-v1.md#host-owned-services)) named `sco.storage`, version 1.0, found with the ordinary `query_service` of sco_api 1.1. `sco_api.h` is unchanged; the table is declared in [`include/sco_storage.h`](../include/sco_storage.h) (plain C) and pinned by [`tests/abi_storage.c`](../tests/abi_storage.c).
+It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned services](api-v1.md#host-owned-services)) named `sco.storage`, version 1.1, found with the ordinary `query_service` of sco_api 1.1. The 128-byte 1.0 prefix is unchanged; the 144-byte table adds schema introspection at its tail. `sco_api.h` is unchanged; the table is declared in [`include/sco_storage.h`](../include/sco_storage.h) (plain C) and pinned by [`tests/abi_storage.c`](../tests/abi_storage.c).
+
+`next_table` enumerates this plugin's user tables and views in byte order, excluding
+`sco_kv` and SQLite bookkeeping objects. `next_column` copies column names, declared
+types and NOTNULL/primary-key flags in declaration order. Both use caller-owned
+buffers and size handshakes; neither exposes database paths, row values or another
+plugin's schema. Check the table extent and function pointer before calling either
+tail method. C# exposes `Storage.NextTable`/`NextColumn`; Lua exposes
+`sco.store.tables`/`columns`. C++ callers can use the public C table directly; typed
+C++ schema wrappers are not supplied.
 
 ## Contents
 

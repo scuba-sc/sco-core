@@ -1,17 +1,56 @@
 #!/usr/bin/env python3
 """Synthetic refusal tests for the compiler-backed SDK catalogue gate."""
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import sdk_catalogue as catalogue
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA = '0123456789abcdef0123456789abcdef01234567'
+
+
+class FindClangTests(unittest.TestCase):
+    def test_clang_env_wins(self):
+        with mock.patch.dict(os.environ, {'CLANG': 'custom-clang'}):
+            self.assertEqual(catalogue.find_clang(), 'custom-clang')
+
+    def test_path_beats_install_locations(self):
+        with mock.patch.dict(os.environ, {}, clear=False), mock.patch.object(
+                catalogue.shutil, 'which', return_value='/on/path/clang'):
+            os.environ.pop('CLANG', None)
+            self.assertEqual(catalogue.find_clang(), '/on/path/clang')
+
+    def test_non_windows_does_not_search_install_locations(self):
+        with tempfile.TemporaryDirectory() as local:
+            exe = Path(local) / 'Microsoft/WinGet/Packages/X.LLVM-MinGW/p/bin/clang.exe'
+            exe.parent.mkdir(parents=True)
+            exe.write_text('')
+            env = {'LOCALAPPDATA': local}
+            with mock.patch.dict(os.environ, env), mock.patch.object(
+                    catalogue.shutil, 'which', return_value=None), mock.patch.object(
+                    catalogue.sys, 'platform', 'linux'):
+                os.environ.pop('CLANG', None)
+                self.assertIsNone(catalogue.find_clang())
+
+    def test_windows_falls_back_to_winget_llvm(self):
+        with tempfile.TemporaryDirectory() as local:
+            exe = Path(local) / 'Microsoft/WinGet/Packages/X.LLVM-MinGW/p/bin/clang.exe'
+            exe.parent.mkdir(parents=True)
+            exe.write_text('')
+            env = {'LOCALAPPDATA': local, 'ProgramFiles': str(Path(local) / 'none'),
+                   'ProgramFiles(x86)': str(Path(local) / 'none')}
+            with mock.patch.dict(os.environ, env), mock.patch.object(
+                    catalogue.shutil, 'which', return_value=None), mock.patch.object(
+                    catalogue.sys, 'platform', 'win32'):
+                os.environ.pop('CLANG', None)
+                self.assertEqual(Path(catalogue.find_clang()), exe)
 
 
 class CatalogueTests(unittest.TestCase):
@@ -54,9 +93,9 @@ class CatalogueTests(unittest.TestCase):
     def test_baseline_matches_header_count(self):
         records, extracted = catalogue.validate(self.root)
         self.assertEqual(len(records), len(extracted['methods']))
-        self.assertEqual(len(records), 193)
-        self.assertEqual(len(extracted['tables']), 40)
-        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 190)
+        self.assertEqual(len(records), 218)
+        self.assertEqual(len(extracted['tables']), 45)
+        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 215)
         wave3 = {
             'sc_mining_v1': (['request', 'state'], 'tests/abi_catalogue_mining.c', 'tests/test_mining.cpp'),
             'sc_private_session_v1': (['request_host', 'request_join', 'leave', 'get_state'],
@@ -233,7 +272,7 @@ class CatalogueTests(unittest.TestCase):
         result = json.loads(outputs[0].read_bytes())
         self.assertEqual(result['source_sha'], SHA)
         self.assertEqual(result['sdk_version'], (self.root / 'sdk/VERSION').read_text().strip())
-        self.assertEqual(result['game_pack_version'], '0.6.0')
+        self.assertEqual(result['game_pack_version'], '0.8.0')
         self.assertNotIn(str(self.root), outputs[0].read_text())
         self.assertEqual(set(result), {'schema_version', 'sdk_version', 'game_pack_version',
                                        'source_sha', 'contract_context', 'tables', 'records'})

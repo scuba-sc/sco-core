@@ -45,7 +45,7 @@ static void TestSystemQuit() {
     CHECK(sco::SigLookup("system.quit")->state == S::Ok && sco::Sig("system.quit") == f);
     sco::game::QuitHook h;
     CHECK(sco::game::QuitFunction(h) && h.fn == f && h.stolenBytes == 15);
-    CHECK(sco::game::kQuitStolenBytes == 15);
+    static_assert(sco::game::kQuitStolenBytes == 15, "quit hook stolen extent");
     CHECK(!sco::Sig("teleport.to_camera"));   // the other game rows don't find this image
 
     QuitImage(img, true, 0x0B);   // one prologue byte, inside the stolen bytes
@@ -289,7 +289,7 @@ static void TestActorsRows() {
     CHECK(sco::game::RegisterGameSignatures());
     size_t n = 0;
     const sco::game::actors::Capability* caps = sco::game::actors::Capabilities(n);
-    CHECK(caps && n == 11);
+    CHECK(caps && n == 12);
     for (size_t c = 0; c < n; ++c)
         for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
     size_t rows = 0;
@@ -301,7 +301,7 @@ static void TestActorsRows() {
         ++rows;
         CHECK(ActorsRow(id));
     }
-    CHECK(rows == 34);
+    CHECK(rows == 38);
 }
 
 static bool WorldRow(const char* id) {
@@ -317,7 +317,7 @@ static void TestWorldRows() {
     CHECK(sco::game::RegisterGameSignatures());
     size_t n = 0;
     const sco::game::world::Capability* caps = sco::game::world::Capabilities(n);
-    CHECK(caps && n == 10);
+    CHECK(caps && n == 11);
     for (size_t c = 0; c < n; ++c)
         for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
     size_t rows = 0;
@@ -329,7 +329,7 @@ static void TestWorldRows() {
         ++rows;
         CHECK(WorldRow(id));
     }
-    CHECK(rows == 36);
+    CHECK(rows == 42);
 }
 
 static void TestMiningRows() {
@@ -468,7 +468,8 @@ static void TestEntitiesRows() {
     }
     CHECK(rows == 6);
     // Both hooks and the walk stay unconfirmed until the in-game run (docs/design/game-world-spikes.md).
-    CHECK(!sco::game::entities::kQueryRadiusConfirmed && !sco::game::entities::kWatchConfirmed);
+    static_assert(!sco::game::entities::kQueryRadiusConfirmed && !sco::game::entities::kWatchConfirmed,
+                  "unconfirmed entity reads stay off");
 }
 
 static const char* Refused(const char* type) {

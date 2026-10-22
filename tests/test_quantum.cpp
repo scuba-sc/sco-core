@@ -23,7 +23,11 @@ bool Observe(void* ctx, QuantumObservation* out) {
 bool Apply(void* ctx, bool enabled, bool held) {
     auto& f = *static_cast<Fixture*>(ctx); ++f.changes; f.enabled = enabled; f.held = held; return !f.fail;
 }
-template<int N> void NoopRelease(const void*) {}
+template<int N> void NoopRelease(const void*) {
+    // Keep distinct hook identities under MSVC identical-COMDAT folding.
+    static volatile int identity = N;
+    (void)identity;
+}
 int main(int argc, char**) {
     sco::SetGameThread();
     const auto* api = sco::host::BuildApi({"quantum-test"});

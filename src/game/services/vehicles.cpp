@@ -322,9 +322,18 @@ uint64_t DecodeOccupant(const Seat& s, uint64_t shipId) {
     static const char* const kLayoutName[] = { "", "an entity handle", "a component pointer", "a raw entity id" };
     uint64_t id = 0;
     int layout = 0;
-    if ((!g_layout || g_layout == 3) && (id = OccupantAsRawId(s.raw, shipId, s.id)))      layout = 3;
-    if (!id && (!g_layout || g_layout == 1) && (id = OccupantAsHandle(s.seat, shipId, s.id))) layout = 1;
-    if (!id && (!g_layout || g_layout == 2) && (id = OccupantAsComponent(s.raw, shipId, s.id))) layout = 2;
+    if (!g_layout || g_layout == 3) {
+        id = OccupantAsRawId(s.raw, shipId, s.id);
+        if (id) layout = 3;
+    }
+    if (!id && (!g_layout || g_layout == 1)) {
+        id = OccupantAsHandle(s.seat, shipId, s.id);
+        if (id) layout = 1;
+    }
+    if (!id && (!g_layout || g_layout == 2)) {
+        id = OccupantAsComponent(s.raw, shipId, s.id);
+        if (id) layout = 2;
+    }
     if (id && !g_layout) {
         g_layout = layout;
         Log("[game] vehicles: seat occupant field read as %s", kLayoutName[layout]);

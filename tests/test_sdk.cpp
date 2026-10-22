@@ -455,6 +455,7 @@ int main() {
     TestGameWorld(api);
     TestGameHangar(api);
     TestGameReputation(api);
+    TestGameRules(api);
     TestGameEvents(api);
 #endif
 

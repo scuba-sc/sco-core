@@ -25,6 +25,15 @@ The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come fr
 | `event.seat_enter` / `event.seat_exit` | `CSCActorResultStateLinked::Enter` / `::Exit`: one label load each and .pdata; prologues checked |
 
 
+## game.loadout.respawn_completed (no native row yet)
+
+The loadout owner provides an occurrence-only event, deferred to the game-thread
+tick after a fresh offline admission check. Its capability
+`game.events.loadout_respawn_completed` defaults OFF; native dispatch site and
+calling convention remain unverified (F-INTAKE-004 / T-3). The host producer seam
+is tested with the real event bus and a native subscriber; not run in game.
+See [loadout lifecycle](loadout.md) for coalescing and Stop behavior.
+
 ## game.mission.changed (no rows)
 
 `game.events.mission_changed` gates on no signature rows. It polls the game.missions service's accepted-mission statuses

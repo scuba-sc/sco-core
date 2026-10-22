@@ -20,6 +20,20 @@ constexpr int    kPackFormat = 1;                 // `format = 1`: the file form
 constexpr size_t kMaxPackBytes = 4 * 1024 * 1024; // per .toml file
 constexpr size_t kMaxPackOps = 65536;             // operations per file ([[instance]] set entries count)
 
+// ---- applying policy & receipts ----------------------------------------------------------------
+
+enum class PackApplyPolicy : uint32_t {
+    Atomic = 0,      // Default: all-or-nothing
+    BestEffort = 1   // Opt-in: applies valid records, records per-record failures
+};
+
+struct PackApplyReceipt {
+    uint32_t applied_records = 0;
+    uint32_t skipped_records = 0;
+    uint32_t total_records = 0;
+    std::vector<std::string> errors;
+};
+
 // What a pointer is set to: `pointer = "@id"` (an instance this pack added), `pointer = "null"`, or
 // `pointer = { record = "...", field = "..." }` (an existing instance).
 struct PackPointer {
@@ -55,6 +69,7 @@ struct Pack {
     std::string plugin;        // the owning plugin id; its position in plugin order is the pack's priority
     std::string name;          // "datacore/drive.toml"; "pending" for a saved sco.datacore patch
     bool        atomic = true; // `atomic = false` opts out of per-pack atomicity
+    PackApplyPolicy policy = PackApplyPolicy::Atomic; // PackApplyPolicy::BestEffort when policy = "best_effort" or atomic = false
     std::vector<PackOp> ops;   // file order
 };
 
@@ -97,10 +112,12 @@ struct PackOpReport {
 struct PackReport {
     std::string plugin, name;
     bool        atomic = true;
+    PackApplyPolicy policy = PackApplyPolicy::Atomic;
     PackState   state = PackState::Applied;
     size_t      applied = 0, skipped = 0;
     std::string reason;                  // Refused, Partial: the first failure ("line 12: ...")
     std::vector<PackOpReport> ops;       // one per patcher operation, in order
+    PackApplyReceipt receipt;            // structured receipt for caller
 };
 
 struct PackResult {

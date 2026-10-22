@@ -10,9 +10,25 @@
 #include "sco/datacore_service.h"
 #include "host_testing.h"
 #include "admission.h"
+#if defined(SCO_GAME_SERVICES)
+#include "services/datacore_live_engine.h"
+#endif
 #include <atomic>
 #include <mutex>
 #include <limits>
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <netfw.h>
+#include <oleauto.h>
+#undef min
+#undef max
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "oleaut32.lib")
+#endif
 
 namespace sco::game::host {
 namespace {
@@ -52,8 +68,8 @@ std::shared_ptr<const vfs::Table> Mounts() {
     return dataActive.load() ? dataMounts : nullptr;
 }
 void StopData() {
+    if (pakOwned) { pak::Disable(); if(pak::Enabled()) return; pakOwned=false; }
     if (!dataActive.exchange(false)) return;
-    if (pakOwned) { pak::Disable(); pakOwned = false; }
     // A producer already inside service::Load must finish before service withdrawal.
     // It only posts game-thread work, never waits for that work while holding this lock.
     std::lock_guard<std::mutex> hold(dataMutex);
@@ -96,6 +112,11 @@ Result Prepare(const Options& o) {
                                 !o.maxDataCoreBytes || o.maxDataCoreBytes > vfs::kMaxFileSize)))
         return Result::BadArg;
     phase = Phase::Preparing; // also prevents admission callback reentry
+    if (o.nativeDataCoreReads && (!o.preEngineQuiesced || !o.platform.dataCore ||
+        o.dataCoreHook!=DataCoreHook::Required || !o.platform.gameServices)) { phase=Phase::Idle; return Result::BadArg; }
+#if !defined(SCO_GAME_SERVICES)
+    if(o.nativeDataCoreReads) {phase=Phase::Idle;return Result::Unavailable;}
+#endif
     try { options = o; } catch (...) { phase = Phase::Idle; return Result::Failed; }
     if (!Admitted()) { phase = Phase::Idle; return Result::Unavailable; }
     if (!o.image || !o.image->base || !o.image->size || !o.image->text.base ||
@@ -112,6 +133,11 @@ Result Prepare(const Options& o) {
         }
         const Result d = PrepareData();
         if (d != Result::Ok) { phase = Phase::Failed; return d; }
+#if defined(SCO_GAME_SERVICES)
+        if(options.nativeDataCoreReads && !services::datacore_live::PrepareProductionEngine(options.preEngineQuiesced)) {
+            StopData();phase=Phase::Failed;return Result::Unavailable;
+        }
+#endif
         detail::SetFreshInspector(options.inspect);
         phase = Phase::Prepared;
         return Result::Ok;
@@ -155,10 +181,19 @@ Result Stop() {
     if (p == Phase::Stopping) return Result::Ok;
     if (p != Phase::Running) return Result::Unavailable;
     if (sco::detail::InCallout()) return Result::Unavailable;
+    const bool cleanupAdmitted = FreshAdmissionAllowed();
     detail::SetFreshAdmissionEnabled(false); // retained workers must pass through before teardown
     phase = Phase::Stopping;
+    struct CvarCleanupScope {
+        explicit CvarCleanupScope(bool admitted) { detail::SetCvarCleanupEnabled(admitted); }
+        ~CvarCleanupScope() { detail::SetCvarCleanupEnabled(false); }
+    } cleanup(cleanupAdmitted);
     // Stop transport/producer access first, but keep DataCore tables available for unload.
-    if (pakOwned) { pak::Disable(); pakOwned = false; }
+    if (pakOwned) {
+        pak::Disable();
+        if(pak::Enabled()) {phase=Phase::Running;return Result::Failed;}
+        pakOwned=false;
+    }
     { std::lock_guard<std::mutex> hold(dataMutex); dataInputs.reset(); dataMounts.reset(); }
     app::Stop(); // service withdrawal AFTER plugin unload, as in app's lifecycle
     dataActive = false;
@@ -200,4 +235,75 @@ vfs::Result TransformDataCore(vfs::BaseIo& base, uint64_t size, std::vector<vfs:
 }
 }
 Snapshot Status() { return {phase.load(), resolved.load(), quitInstalled.load(), dataActive.load()}; }
+
+#if defined(_WIN32)
+Check InspectWindowsFirewallRule(const wchar_t* ruleName, const wchar_t* imagePath) noexcept {
+    if (!ruleName || !ruleName[0]) return Check::Unknown;
+    // INetFwPolicy2 query requires COM initialization
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    const bool needUninit = SUCCEEDED(hr);
+
+    INetFwPolicy2* pPolicy = nullptr;
+    hr = CoCreateInstance(__uuidof(NetFwPolicy2), nullptr, CLSCTX_INPROC_SERVER,
+                            __uuidof(INetFwPolicy2), reinterpret_cast<void**>(&pPolicy));
+    if (FAILED(hr) || !pPolicy) {
+        if (needUninit) CoUninitialize();
+        return Check::Unknown;
+    }
+
+    INetFwRules* pRules = nullptr;
+    hr = pPolicy->get_Rules(&pRules);
+    if (FAILED(hr) || !pRules) {
+        pPolicy->Release();
+        if (needUninit) CoUninitialize();
+        return Check::Unknown;
+    }
+
+    BSTR bstrName = SysAllocString(ruleName);
+    INetFwRule* pRule = nullptr;
+    hr = pRules->Item(bstrName, &pRule);
+    SysFreeString(bstrName);
+
+    Check result = Check::Unknown;
+    if (SUCCEEDED(hr) && pRule) {
+        VARIANT_BOOL vbEnabled = VARIANT_FALSE;
+        NET_FW_ACTION action = NET_FW_ACTION_ALLOW;
+        NET_FW_RULE_DIRECTION dir = NET_FW_RULE_DIR_IN;
+
+        if (SUCCEEDED(pRule->get_Enabled(&vbEnabled)) &&
+            SUCCEEDED(pRule->get_Action(&action)) &&
+            SUCCEEDED(pRule->get_Direction(&dir))) {
+            if (vbEnabled == VARIANT_TRUE && action == NET_FW_ACTION_BLOCK && dir == NET_FW_RULE_DIR_OUT) {
+                // If an image path was specified, confirm it matches the rule's application
+                if (imagePath && imagePath[0]) {
+                    BSTR bstrApp = nullptr;
+                    if (SUCCEEDED(pRule->get_ApplicationName(&bstrApp)) && bstrApp) {
+                        if (_wcsicmp(bstrApp, imagePath) == 0) {
+                            result = Check::Clear;
+                        } else {
+                            result = Check::Present; // Rule exists for different image
+                        }
+                        SysFreeString(bstrApp);
+                    } else {
+                        result = Check::Clear; // Rule without image restriction blocks all
+                    }
+                } else {
+                    result = Check::Clear;
+                }
+            } else {
+                result = Check::Present; // Rule exists but is not an active outbound block
+            }
+        }
+        pRule->Release();
+    } else {
+        result = Check::Unknown; // Rule not found
+    }
+
+    pRules->Release();
+    pPolicy->Release();
+    if (needUninit) CoUninitialize();
+    return result;
+}
+#endif
+
 } // namespace sco::game::host

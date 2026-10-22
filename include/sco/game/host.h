@@ -36,6 +36,10 @@ struct Options {
     DataCoreHook dataCoreHook = DataCoreHook::Required;
     uint64_t maxDataCoreBytes = 512ull << 20; // bounded base read for Data/Game2.dcb
     app::Platform platform;          // image/registerSignatures MUST be null: owned here
+    // Native live reads are OFF by default. The shell must keep engine execution
+    // quiesced before Prepare and until it returns; late Prepare is insufficient.
+    bool nativeDataCoreReads = false;
+    bool preEngineQuiesced = false;
 };
 // Serialized host entries, outside loader lock/runtime callouts. Prepare may precede the game
 // thread; Start binds the game thread via app::Start. Unknown/online/EAC/unblocked-network/wrong
@@ -61,4 +65,12 @@ Snapshot Status();
 // True only during Start/Running and fresh inspect() positively clears every G1
 // condition. Inspector/backing state must remain process-retained; no plugin code.
 bool FreshAdmissionAllowed() noexcept;
+
+#if defined(_WIN32)
+// Read-only inspection of Windows Firewall policy (INetFwPolicy2 COM API).
+// Verifies whether an active outbound block rule with ruleName exists for the current or specified image.
+// Never modifies firewall rules, never requires elevation, fails closed (returns Check::Unknown on any COM/policy failure).
+Check InspectWindowsFirewallRule(const wchar_t* ruleName, const wchar_t* imagePath = nullptr) noexcept;
+#endif
+
 } // namespace sco::game::host

@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 
 HERE = Path(__file__).resolve().parent
@@ -35,7 +36,8 @@ TOOLS = {
 }
 ORIGINAL_ORDER = ["search_api", "get_symbol", "list_services", "get_example", "get_capability_status", "check_compatibility"]
 EXTENDED_ORDER = ORIGINAL_ORDER + ["list_engine_natives", "get_engine_native", "validate_manifest_and_widgets",
-                                   "generate_plugin_scaffold"]
+                                   "generate_plugin_scaffold", "search_guides", "get_guide_section"]
+DEV_ORDER = ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
 SCAFFOLDER = ROOT / "sdk" / "tools" / "sco-new-plugin.py"
 PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source_sha"}
 
@@ -48,15 +50,24 @@ SYNTHETIC_SHA = "a" * 40
 OTHER_SHA = "b" * 40
 GAME_STATUS = """# Synthetic status
 
+| Table | Version | Stability | Capability | Default | Evidence |
+|---|---|---|---|---|---|
+| `game.sample` ([`sc_sample.h`](../../include/sc_sample.h)) | 1.1 | Stable | `game.sample.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
+| | | | `game.sample.watch` | OFF | OFF pending in-game confirmation |
+| | | | sample field | none | BLOCKED |
+| | | | `game.sample.claim` | ON | verified in game (2099-01-01) |
+| `game.other` ([`sc_other.h`](../../include/sc_other.h)) | 1.0 | Experimental | `game.other.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
+| sample rows ([`status.md`](status.md)) | row | - | `sample.row` | ON | row resolved on 1.2.3.4 (sigcheck) |
+
+Trailing prose.
+"""
+# The five-column table SDK 2.3.0 and earlier archives carry: still read, stability unknown.
+GAME_STATUS_V1 = """# Synthetic status
+
 | Table | Version | Capability | Default | Evidence |
 |---|---|---|---|---|
 | `game.sample` ([`sc_sample.h`](../../include/sc_sample.h)) | 1.1 | `game.sample.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
 | | | `game.sample.watch` | OFF | OFF pending in-game confirmation |
-| | | sample field | none | BLOCKED |
-| | | `game.sample.claim` | ON | verified in game (2099-01-01) |
-| `game.other` ([`sc_other.h`](../../include/sc_other.h)) | 1.0 | `game.other.read` | ON | row resolved on 1.2.3.4 (sigcheck) |
-
-Trailing prose.
 """
 
 
@@ -75,7 +86,7 @@ def game_fixture():
 
 def approval(tag, sha=SYNTHETIC_SHA, status="approved-for-publication"):
     return {"schema_version": 2, "tag": tag,
-            "source": {"repo": "scubamount/sco-core", "sha": sha, "dependencies": []},
+            "source": {"repo": "scuba-sc/sco-core", "sha": sha, "dependencies": []},
             "components_manifest_sha256": "0" * 64,
             "builder": {"workflow_path": ".github/workflows/release-candidate.yml", "workflow_sha": sha,
                         "run_id": 1, "run_attempt": 1},
@@ -83,11 +94,15 @@ def approval(tag, sha=SYNTHETIC_SHA, status="approved-for-publication"):
             "approved_by": "synthetic-approver", "approved_at": "2099-01-01T00:00:00Z"}
 
 
+def server_exe():
+    return ".exe" if os.name == "nt" else ""
+
+
 class Client:
     """One real child process; bounded reads without platform-specific selectors."""
 
-    def __init__(self, catalogue=CATALOGUE, repo_root=None, use_env=False, extended=False):
-        command = [sys.executable, str(SERVER)] + (["--extended-tools"] if extended else [])
+    def __init__(self, catalogue=CATALOGUE, repo_root=None, use_env=False, extended=False, extra=()):
+        command = [sys.executable, str(SERVER)] + (["--extended-tools"] if extended else []) + [str(a) for a in extra]
         environment = os.environ.copy()
         environment.pop("SCO_CORE_CATALOGUE", None)
         if use_env:
@@ -254,8 +269,8 @@ class ServerCase(unittest.TestCase):
         if not SERVER.is_file():
             raise unittest.SkipTest("server.py has not been written yet")
 
-    def start(self, catalogue=CATALOGUE, repo_root=None, use_env=False, ready=True, extended=False):
-        client = Client(catalogue, repo_root, use_env, extended)
+    def start(self, catalogue=CATALOGUE, repo_root=None, use_env=False, ready=True, extended=False, extra=()):
+        client = Client(catalogue, repo_root, use_env, extended, extra)
         self.addCleanup(client.close)
         if ready:
             response = client.initialize()
@@ -482,9 +497,12 @@ class ToolTests(ServerCase):
     def test_list_services_summarizes_real_tables(self):
         data = self.result(self.start().call("list_services"))
         expected = [{"table": name, "service": table["service"], "version": table["version"],
-                     "size": table["size"], "member_count": len(table["members"])}
+                     "size": table["size"], "member_count": len(table["members"]), "stability": "stable"}
                     for name, table in sorted(fixture()["tables"].items())]
         self.assertEqual(data["services"], expected)
+        context = data["stability_context"]
+        self.assertEqual((context["document"], context["game_state"]), ("docs/stability.md", "unavailable"))
+        self.assertIn("--repo-root", context["reason"])
 
     def test_examples_without_root_are_paths_only(self):
         data = self.result(self.start().call("get_example", {"symbol_or_id": "sample-read"}))
@@ -959,13 +977,72 @@ class EvidenceStateTests(ServerCase):
     def test_malformed_status_table_refuses_all_rows(self):
         for status in [GAME_STATUS.replace("| sample field | none | BLOCKED |", "| sample field | BLOCKED |"),
                        GAME_STATUS.replace("| OFF | OFF pending", "| MAYBE | OFF pending"),
-                       GAME_STATUS.replace("|---|---|---|---|---|", ""),
-                       GAME_STATUS + "\n| Table | Version | Capability | Default | Evidence |\n"]:
+                       GAME_STATUS.replace("|---|---|---|---|---|---|", ""),
+                       GAME_STATUS + "\n| Table | Version | Capability | Default | Evidence |\n",
+                       GAME_STATUS.replace("| 1.1 | Stable |", "| 1.1 | |"),
+                       GAME_STATUS.replace("| 1.1 | Stable |", "| 1.1 | Beta |"),
+                       GAME_STATUS.replace("| | | | sample field |", "| | | Stable | sample field |"),
+                       GAME_STATUS.replace("| `game.sample.watch` |", "| | `game.sample.watch` |"),
+                       GAME_STATUS_V1.replace("| `game.sample.watch` |", "| Stable | `game.sample.watch` |")]:
             with self.subTest(status=status[-80:]):
                 data, root, catalogue = self.game_root(status)
                 state = self.evidence("game-sample-read", data, catalogue, root)
                 self.assertEqual((state["service_status"]["state"], state["service_status"]["rows"]), ("unavailable", []))
                 self.assertEqual(state["sigcheck_receipt"]["state"], "unknown")
+
+    def stability(self, data, catalogue, repo_root, symbol="game-sample-read"):
+        client = self.start(catalogue=catalogue, repo_root=repo_root)
+        services = self.result(client.call("list_services"), data=data)
+        capability = self.result(client.call("get_capability_status", {"symbol_or_id": symbol}), data=data)
+        return ({item["table"]: item["stability"] for item in services["services"]}, services["stability_context"],
+                capability)
+
+    def test_stability_labels_come_from_the_status_table(self):
+        data, root, catalogue = self.game_root()
+        labels, context, capability = self.stability(data, catalogue, root)
+        self.assertEqual(labels, {"sco_api": "stable", "sco_sample_v1": "stable", "sc_sample_v1": "stable"})
+        self.assertEqual((context["game_source"], context["game_state"]), ("docs/game/status.md", "read"))
+        self.assertEqual(capability["stability"], "stable")
+        self.assertEqual(capability["evidence_state"]["service_status"]["stability"], "stable")
+        self.assertEqual(capability["stability_context"], context)
+        data, root, catalogue = self.game_root(GAME_STATUS.replace("| 1.1 | Stable |", "| 1.1 | Experimental |"))
+        labels, _, capability = self.stability(data, catalogue, root)
+        self.assertEqual((labels["sc_sample_v1"], capability["stability"]), ("experimental", "experimental"))
+
+    def test_neutral_records_are_stable_and_unlabelled_game_tables_unknown(self):
+        data, _, catalogue = self.game_root()
+        labels, context, capability = self.stability(data, catalogue, None)
+        self.assertEqual(labels, {"sco_api": "stable", "sco_sample_v1": "stable", "sc_sample_v1": "unknown"})
+        self.assertEqual(context["game_state"], "unavailable")
+        self.assertEqual(capability["stability"], "unknown")
+        for symbol in ("sample-read", "plugin-load"):
+            with self.subTest(symbol=symbol):
+                self.assertEqual(self.stability(data, catalogue, None, symbol)[2]["stability"], "stable")
+        data, root, catalogue = self.game_root(GAME_STATUS.replace("| 1.1 | Stable |", "| 1.1 | Beta |"))
+        labels, context, capability = self.stability(data, catalogue, root)
+        self.assertEqual((labels["sc_sample_v1"], context["game_state"], capability["stability"]),
+                         ("unknown", "unavailable", "unknown"))
+        self.assertIn("refused", context["reason"])
+
+    def test_second_table_of_a_service_shares_its_label(self):
+        data = game_fixture()
+        data["tables"]["sc_sample_v1_2"] = dict(data["tables"]["sc_sample_v1"], context="Synthetic second table.")
+        root, catalogue = self.temporary_catalogue(data)
+        (root / "docs/game").mkdir(parents=True)
+        (root / "docs/game/status.md").write_text(GAME_STATUS, encoding="utf-8")
+        labels = self.stability(data, catalogue, root)[0]
+        self.assertEqual((labels["sc_sample_v1"], labels["sc_sample_v1_2"]), ("stable", "stable"))
+
+    def test_five_column_status_table_is_still_read_without_stability(self):
+        data, root, catalogue = self.game_root(GAME_STATUS_V1)
+        labels, context, capability = self.stability(data, catalogue, root)
+        status = capability["evidence_state"]["service_status"]
+        self.assertEqual((status["state"], status["documented_version"], len(status["rows"])), ("rows_found", "1.1", 2))
+        self.assertEqual([row["evidence_level"] for row in status["rows"]],
+                         ["row_resolved_sigcheck", "off_pending_in_game_confirmation"])
+        self.assertIsNone(status["stability"])
+        self.assertEqual((labels["sc_sample_v1"], context["game_state"], capability["stability"]),
+                         ("unknown", "read", "unknown"))
 
     def test_symlinked_status_document_is_refused(self):
         data, root, catalogue = self.game_root(write=False)
@@ -975,8 +1052,9 @@ class EvidenceStateTests(ServerCase):
         self.assertEqual(self.evidence("game-sample-read", data, catalogue, root)["service_status"]["state"], "unavailable")
 
 
-SYNTHETIC_REGISTRY = {"schema_version": 1, "about": "Synthetic registry.", "services": [
+SYNTHETIC_REGISTRY = {"schema_version": 2, "about": "Synthetic registry.", "services": [
     {"id": "game.sample", "kind": "service", "service": "game.sample", "header": "include/sc_sample.h", "version": "1.1",
+     "stability": "stable", "stable_since": "sdk-v2.4.0",
      "capabilities": [
          {"name": "game.sample.read", "methods": ["read"], "default": "ON", "evidence_level": "sigcheck_resolved",
           "game_build": "1.2.3.4", "evidence": "row resolved on 1.2.3.4 (sigcheck)", "sig_rows": ["sample.row"],
@@ -989,8 +1067,23 @@ SYNTHETIC_REGISTRY = {"schema_version": 1, "about": "Synthetic registry.", "serv
          {"name": "game.sample.synthetic", "methods": [], "default": "OFF", "evidence_level": "synthetic_only",
           "evidence": "Synthetic fixtures only"}]},
     {"id": "game.events", "kind": "event_bus", "service": "game.*", "header": "include/sc_sample.h", "version": "bus",
+     "stability": "stable", "stable_since": "sdk-v2.4.0",
      "capabilities": [{"name": "game.events.sample", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved",
-                       "evidence": "row resolved on 1.2.3.4 (sigcheck)"}]}]}
+                       "evidence": "row resolved on 1.2.3.4 (sigcheck)"}]},
+    {"id": "game.sample.rows", "kind": "signature_rows", "service": "game.sample", "doc": "docs/game/status.md",
+     "title": "sample rows", "version": "row",
+     "capabilities": [{"name": "sample.row", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved",
+                       "game_build": "1.2.3.4", "evidence": "row resolved on 1.2.3.4 (sigcheck)"}]}]}
+
+
+def unlabelled_registry():
+    """The schema_version 1 registry of SDK 2.3.0 and earlier archives: no stability labels."""
+    registry = copy.deepcopy(SYNTHETIC_REGISTRY)
+    registry["schema_version"] = 1
+    for entry in registry["services"]:
+        entry.pop("stability", None)
+        entry.pop("stable_since", None)
+    return registry
 
 
 class RegistryEvidenceTests(ServerCase):
@@ -1028,6 +1121,26 @@ class RegistryEvidenceTests(ServerCase):
                          ("1.2.3.4", ["sample.row"], "B1"))
         self.assertEqual(state["gameplay_receipt"]["state"], "unknown")
         self.assertNotIn("in_game_verified", json.dumps(state))
+        self.assertEqual(status["stability"], "stable")
+
+    def test_registry_stability_reaches_both_tools(self):
+        for label, expected in (("stable", "stable"), ("experimental", "experimental"), (None, "unknown")):
+            with self.subTest(label=label):
+                registry = copy.deepcopy(SYNTHETIC_REGISTRY)
+                if label is None:
+                    registry = unlabelled_registry()
+                elif label == "experimental":
+                    registry["services"][0]["stability"] = label
+                    registry["services"][0].pop("stable_since")
+                data, root, catalogue = self.registry_root(registry)
+                client = self.start(catalogue=catalogue, repo_root=root)
+                services = self.result(client.call("list_services"), data=data)
+                capability = self.result(client.call("get_capability_status", {"symbol_or_id": "game-sample-read"}), data=data)
+                listed = {item["table"]: item["stability"] for item in services["services"]}
+                self.assertEqual((listed["sc_sample_v1"], listed["sco_api"]), (expected, "stable"))
+                self.assertEqual(capability["stability"], expected)
+                self.assertEqual(capability["evidence_state"]["service_status"]["stability"], label)
+                self.assertEqual(services["stability_context"]["game_source"], "sdk/status_registry.json")
 
     def test_absent_registry_falls_back_to_status_document(self):
         status = self.state(*self.registry_root(registry=None))["service_status"]
@@ -1046,11 +1159,19 @@ class RegistryEvidenceTests(ServerCase):
             registry = copy.deepcopy(SYNTHETIC_REGISTRY)
             change(registry)
             return registry
-        cases = ["{", json.dumps({**SYNTHETIC_REGISTRY, "schema_version": 2}),
+        cases = ["{", json.dumps({**SYNTHETIC_REGISTRY, "schema_version": 3}),
+                 json.dumps({**SYNTHETIC_REGISTRY, "schema_version": 1}),
+                 mutate(lambda r: r["services"][0].pop("stability")),
+                 mutate(lambda r: r["services"][0].pop("stable_since")),
+                 mutate(lambda r: r["services"][0].update(stable_since="2.4.0")),
+                 mutate(lambda r: r["services"][1].update(stability="experimental")),
+                 mutate(lambda r: r["services"][2].update(stability="stable")),
                  mutate(lambda r: r["services"][0]["capabilities"][0].update(address="0x1")),
                  mutate(lambda r: r["services"][0]["capabilities"][0].update(evidence_level="verified")),
                  mutate(lambda r: r["services"][0]["capabilities"][0].update(default=["ON"])),
                  mutate(lambda r: r["services"][0].pop("header")),
+                 mutate(lambda r: r["services"][0].update(stability="beta")),
+                 mutate(lambda r: r["services"][0].update(stability=["stable"])),
                  mutate(lambda r: r["services"].append(copy.deepcopy(r["services"][0])))]
         for registry in cases:
             with self.subTest(registry=str(registry)[:60]):
@@ -1058,6 +1179,15 @@ class RegistryEvidenceTests(ServerCase):
                 status = state["service_status"]
                 self.assertEqual((status["state"], status["source"], status["rows"]), ("unavailable", "sdk/status_registry.json", []))
                 self.assertIn("sdk/status_registry.json", status["reason"])
+
+    def test_unlabelled_schema_1_registry_is_still_read(self):
+        status = self.state(*self.registry_root(unlabelled_registry()))["service_status"]
+        self.assertEqual((status["state"], status["source"], len(status["rows"])), ("rows_found", "sdk/status_registry.json", 5))
+        self.assertIsNone(status["stability"])
+        labelled = unlabelled_registry()
+        labelled["services"][0]["stability"] = "stable"
+        status = self.state(*self.registry_root(labelled))["service_status"]
+        self.assertEqual((status["state"], status["rows"]), ("unavailable", []))
 
     def test_symlinked_registry_is_refused(self):
         data, root, catalogue = self.registry_root(registry=None)
@@ -1399,6 +1529,10 @@ SCAFFOLD_SPECS = [
     {"id": "hud_probe", "lang": "cpp", "services": ["game.actors@1.1"]},
     {"id": "hud_probe", "lang": "cpp", "with_menu": True, "services": ["sco.widgets"]},
     {"id": "plain", "lang": "cpp", "with_menu": False, "services": []},
+    {"id": "cs_probe", "lang": "csharp", "with_menu": True, "services": ["game.actors@1.1", "sco.widgets"]},
+    {"id": "cs_plain", "lang": "csharp"},
+    {"id": "lua_probe", "lang": "lua", "with_menu": True, "services": ["sco.widgets"]},
+    {"id": "lua_plain", "lang": "lua"},
 ]
 
 
@@ -1429,6 +1563,20 @@ class ScaffoldTests(ServerCase):
                 self.assertEqual((result["state"], result["source"], result["written"], result["spec"]),
                                  ("available", "sdk/tools/sco-new-plugin.py", False, spec))
                 self.assertEqual(result["files"], self.expected(spec))
+                self.assertIn("run in game", result["conclusions"][-1])
+                use = result["conclusions"][1]
+                self.assertIn({"csharp": "dotnet publish", "lua": "lua-check.lua"}.get(spec["lang"], "--target check"), use)
+
+    def test_new_languages_files(self):
+        client = self.start(repo_root=ROOT, extended=True)
+        files = self.scaffold(client, {"id": "cs_probe", "lang": "csharp", "with_menu": True})["files"]
+        self.assertEqual(sorted(files), ["CsProbePlugin.cs", "README.md", "cs_probe.csproj", "plugin.ini"])
+        self.assertIn("<PublishAot>true</PublishAot>", files["cs_probe.csproj"])
+        self.assertIn("kind = native", files["plugin.ini"])
+        files = self.scaffold(client, {"id": "lua_probe", "lang": "lua"})["files"]
+        self.assertEqual(sorted(files), ["CMakeLists.txt", "main.lua", "plugin.ini"])
+        self.assertIn("kind = lua", files["plugin.ini"])
+        self.assertIn('name = "lua_probe.ping"', files["main.lua"])
 
     def test_copied_scaffolder_matches_and_nothing_is_written(self):
         root, catalogue = self.scaffold_root(SCAFFOLDER.read_text(encoding="utf-8"))
@@ -1471,7 +1619,8 @@ class ScaffoldTests(ServerCase):
     def test_strict_schema_and_spec_refusals(self):
         client = self.start(repo_root=ROOT, extended=True)
         base = {"id": "my_radar", "lang": "c"}
-        for arguments in [{"id": "my_radar"}, {"lang": "c"}, {**base, "lang": "lua"}, {**base, "id": "My-Radar"},
+        for arguments in [{"id": "my_radar"}, {"lang": "c"}, {**base, "lang": "rust"}, {**base, "lang": "C#"},
+                          {**base, "id": "My-Radar"},
                           {**base, "id": "x" * 32}, {**base, "id": 7}, {**base, "with_menu": "yes"}, {**base, "with_menu": 1},
                           {**base, "services": "game.actors"}, {**base, "services": [1]}, {**base, "services": ["Game.Actors"]},
                           {**base, "services": ["game..actors"]}, {**base, "services": ["game.actors@1"]},
@@ -1481,7 +1630,10 @@ class ScaffoldTests(ServerCase):
                 self.assertNotIn("files", self.scaffold(client, arguments, is_error=True))
         for arguments, message in [({**base, "id": "game"}, "reserved"),
                                    ({**base, "services": ["game.actors", "game.actors@1.1"]}, "listed twice"),
-                                   ({**base, "services": ["a" * 64]}, "1-63 characters")]:
+                                   ({**base, "services": ["a" * 64]}, "1-63 characters"),
+                                   ({**base, "lang": "csharp", "id": "host"}, "reserved"),
+                                   ({**base, "lang": "lua", "services": ["game.actors"]}, "lang lua can't look up services"),
+                                   ({**base, "lang": "lua", "services": ["sco.widgets"]}, "lang lua can't look up services")]:
             with self.subTest(arguments=arguments):
                 refused = self.scaffold(client, arguments, is_error=True)
                 self.assertIn("Spec refused by sco-new-plugin", refused["error"])
@@ -1604,6 +1756,182 @@ class CompatibilityReleaseTests(ServerCase):
                 self.result(client.call("check_compatibility", arguments), is_error=True)
 
 
+GUIDE_URL = "https://scuba-sc.github.io/sco-core/guides/"
+
+
+def guide_section(doc, heading, anchor, text, level=2, truncated=False):
+    title = "Synthetic " + doc.rsplit("/", 1)[-1]
+    return {"doc": doc, "title": title, "heading": heading, "anchor": anchor, "level": level, "text": text,
+            "truncated": truncated, "url": GUIDE_URL + doc.rsplit("/", 1)[-1][:-3] + "/"}
+
+
+GUIDE_SECTIONS = [
+    guide_section("docs/alpha.md", "Synthetic alpha.md", "synthetic-alphamd", "Overview. Deploy notes live below.", 1),
+    guide_section("docs/alpha.md", "Deploy a plugin", "deploy-a-plugin", "Copy the plugin folder. " + "filler " * 120 + "deploy"),
+    guide_section("docs/alpha.md", "Storage", "storage", "Keys and SQL. The plugin deploy step is elsewhere."),
+    guide_section("docs/beta.md", "Synthetic beta.md", "synthetic-betamd", "Beta overview about widgets.", 1),
+    guide_section("docs/beta.md", "Widgets", "widgets", "Build a panel. Deploy is not covered here.", truncated=True),
+]
+
+
+def guides_document(sections=None, source_sha=None):
+    sections = GUIDE_SECTIONS if sections is None else sections
+    source_sha = fixture()["source_sha"] if source_sha is None else source_sha
+    docs = []
+    for section in sections:
+        if not docs or docs[-1]["doc"] != section["doc"]:
+            docs.append({"doc": section["doc"], "title": section["title"], "url": section["url"], "sections": 0})
+        docs[-1]["sections"] += 1
+    return {"schema_version": 1, "sdk_version": "9.9.9", "source_sha": source_sha, "source": "site/public-inputs.json",
+            "text_limit": 4000, "docs": docs, "sections": sections}
+
+
+class GuideTests(ServerCase):
+    def guide_client(self, document=None, text=None, repo_root=None):
+        root, catalogue = self.temporary_catalogue(fixture())
+        (root / "sdk-guides.json").write_text(text if text is not None else json.dumps(document or guides_document()),
+                                              encoding="utf-8")
+        return self.start(catalogue=catalogue, repo_root=repo_root, extended=True)
+
+    def test_search_ranks_heading_above_text_and_pages(self):
+        client = self.guide_client()
+        first = self.result(client.call("search_guides", {"query": "How do I deploy a plugin?", "limit": 2}))
+        self.assertEqual(first["query_terms"], ["deploy", "plugin"])
+        self.assertEqual([(s["doc"], s["anchor"]) for s in first["sections"]],
+                         [("docs/alpha.md", "deploy-a-plugin"), ("docs/alpha.md", "storage")])
+        self.assertEqual((first["total_matches"], first["cursor"], first["next_cursor"]), (4, "0", "2"))
+        top = first["sections"][0]
+        self.assertEqual(set(top), {"doc", "title", "heading", "anchor", "level", "url", "matched_terms", "score",
+                                    "truncated", "snippet"})
+        self.assertEqual((top["matched_terms"], top["url"]), (2, GUIDE_URL + "alpha/"))
+        self.assertLessEqual(len(top["snippet"]), 330)
+        self.assertEqual(first["guides"], {"mode": "file", "source": "sdk-guides.json beside the catalogue",
+                                           "source_sha": fixture()["source_sha"], "matches_catalogue_source_sha": True})
+        self.assertTrue(any("nothing in them is evidence that code ran in game" in line for line in first["conclusions"]))
+        second = self.result(client.call("search_guides", {"query": "How do I deploy a plugin?", "limit": 2,
+                                                             "cursor": first["next_cursor"]}))
+        self.assertEqual([s["anchor"] for s in second["sections"]], ["synthetic-alphamd", "widgets"])
+        self.assertIsNone(second["next_cursor"])
+        again = self.result(client.call("search_guides", {"query": "How do I deploy a plugin?", "limit": 2}))
+        self.assertEqual(again, first)
+
+    def test_doc_filter_and_detail(self):
+        client = self.guide_client()
+        found = self.result(client.call("search_guides", {"query": "widgets", "doc": "docs/beta.md"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["widgets", "synthetic-betamd"])
+        self.assertIs(found["sections"][0]["truncated"], True)
+        detail = self.result(client.call("get_guide_section", {"doc": "docs/alpha.md", "anchor": "storage"}))
+        self.assertEqual(detail["section"], GUIDE_SECTIONS[2])
+        self.assertEqual(detail["guides"]["mode"], "file")
+        nothing = self.result(client.call("search_guides", {"query": "zzzz"}))
+        self.assertEqual((nothing["sections"], nothing["total_matches"], nothing["next_cursor"]), ([], 0, None))
+        for name, arguments, token in (
+                ("search_guides", {"query": "deploy", "doc": "docs/missing.md"}, "known docs: docs/alpha.md, docs/beta.md"),
+                ("get_guide_section", {"doc": "docs/alpha.md", "anchor": "missing"}, "Unknown guide section"),
+                ("search_guides", {"query": "..."}, "no searchable words")):
+            with self.subTest(arguments=arguments):
+                self.assertIn(token, self.result(client.call(name, arguments), is_error=True)["error"])
+
+    def test_terms_match_whole_words_not_substrings(self):
+        sections = [guide_section("docs/alpha.md", "Build it", "build-it", "Guide build steps, because the user asked.", 1),
+                    guide_section("docs/alpha.md", "UI", "ui", "The ui service and its API."),
+                    guide_section("docs/beta.md", "Deployment", "deployment", "Ship sco.net plugins.", 1)]
+        client = self.guide_client(guides_document(sections))
+        found = self.result(client.call("search_guides", {"query": "ui"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["ui"])
+        found = self.result(client.call("search_guides", {"query": "How do I use the C API?"}))
+        self.assertEqual((found["query_terms"], [s["anchor"] for s in found["sections"]]), (["use", "api"], ["ui"]))
+        found = self.result(client.call("search_guides", {"query": "deploy"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["deployment"])
+        found = self.result(client.call("search_guides", {"query": "net"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["deployment"])
+        self.assertEqual(self.result(client.call("search_guides", {"query": "use"}))["total_matches"], 0)
+
+    def test_rarer_terms_outrank_common_ones(self):
+        sections = [guide_section("docs/alpha.md", "Write", "write", "Text.", 1),
+                    guide_section("docs/alpha.md", "Write more", "write-more", "Text."),
+                    guide_section("docs/beta.md", "Lua", "lua", "Text.", 1)]
+        found = self.result(self.guide_client(guides_document(sections)).call("search_guides", {"query": "write lua"}))
+        self.assertEqual([s["anchor"] for s in found["sections"]], ["lua", "write", "write-more"])
+
+    def test_stopword_only_queries_still_search(self):
+        found = self.result(self.guide_client().call("search_guides", {"query": "how to"}))
+        self.assertEqual(found["query_terms"], ["how", "to"])
+
+    def test_argument_refusals(self):
+        client = self.guide_client()
+        for name, arguments in (("search_guides", {}), ("search_guides", {"query": "x", "limit": 0}),
+                                ("search_guides", {"query": "x", "limit": 26}), ("search_guides", {"query": "x", "cursor": "01"}),
+                                ("search_guides", {"query": "x" * 257}), ("search_guides", {"query": "x", "extra": 1}),
+                                ("get_guide_section", {"doc": "docs/alpha.md"}), ("get_guide_section", {"doc": "", "anchor": "x"})):
+            with self.subTest(name=name, arguments=arguments):
+                self.result(client.call(name, arguments), is_error=True)
+
+    def test_missing_guides_is_a_tool_error(self):
+        client = self.start(extended=True)
+        for name, arguments in (("search_guides", {"query": "deploy"}), ("get_guide_section", {"doc": "d", "anchor": "a"})):
+            with self.subTest(name=name):
+                error = self.result(client.call(name, arguments), is_error=True)["error"]
+                self.assertIn("SDK guides unavailable", error)
+                self.assertIn("sdk-guides.json", error)
+
+    def test_refused_file_is_reported_not_bypassed(self):
+        broken = guides_document()
+        broken["sections"] = list(broken["sections"])
+        broken["sections"][1] = dict(broken["sections"][1], text="x" * 4001)
+        for text, token in ((json.dumps(broken), "invalid section text"), ("{", "refused"),
+                            (json.dumps(dict(guides_document(), schema_version=2)), "schema_version"),
+                            (json.dumps(dict(guides_document(), extra=1)), "unexpected top-level keys")):
+            with self.subTest(token=token):
+                client = self.guide_client(text=text, repo_root=ROOT)
+                error = self.result(client.call("search_guides", {"query": "deploy"}), is_error=True)["error"]
+                self.assertIn("sdk-guides.json beside the catalogue refused", error)
+                self.assertIn(token, error)
+
+    def test_other_source_sha_is_reported(self):
+        client = self.guide_client(guides_document(source_sha=OTHER_SHA))
+        context = self.result(client.call("search_guides", {"query": "deploy"}))["guides"]
+        self.assertEqual((context["source_sha"], context["matches_catalogue_source_sha"]), (OTHER_SHA, False))
+
+    def test_explicit_guides_file(self):
+        root, catalogue = self.temporary_catalogue(fixture())
+        path = root / "elsewhere.json"
+        path.write_text(json.dumps(guides_document()), encoding="utf-8")
+        client = self.start(catalogue=catalogue, extended=True, extra=["--guides", str(path)])
+        found = self.result(client.call("search_guides", {"query": "storage"}))
+        self.assertEqual((found["sections"][0]["anchor"], found["guides"]["source"]), ("storage", "--guides file"))
+        missing = self.start(catalogue=catalogue, extended=True, extra=["--guides", str(root / "absent.json")])
+        error = self.result(missing.call("search_guides", {"query": "storage"}), is_error=True)["error"]
+        self.assertIn("--guides file unreadable", error)
+        self.assertNotIn(str(root), error)
+
+    def test_source_mode_builds_the_repository_guides_in_memory(self):
+        sys.path.insert(0, str(ROOT / "tools"))
+        try:
+            import sdk_guides
+        finally:
+            sys.path.remove(str(ROOT / "tools"))
+        _, sections = sdk_guides.sections(ROOT)
+        _, catalogue = self.temporary_catalogue(fixture())
+        client = self.start(catalogue=catalogue, repo_root=ROOT, extended=True)
+        found = self.result(client.call("search_guides", {"query": "first plugin", "doc": "docs/getting-started.md"}))
+        self.assertTrue(found["sections"])
+        self.assertEqual(found["guides"], {"mode": "source", "source_sha": None, "matches_catalogue_source_sha": None,
+                                           "source": "tools/sdk_guides.py beneath --repo-root, built in memory on first use"})
+        first = found["sections"][0]
+        detail = self.result(client.call("get_guide_section", {"doc": first["doc"], "anchor": first["anchor"]}))
+        self.assertIn(detail["section"], sections)
+        found = self.result(client.call("search_guides", {"query": "How do I write plugin.ini?"}))
+        self.assertEqual((found["sections"][0]["doc"], found["sections"][0]["url"]),
+                         ("sdk/docs/plugin-ini.md", "sdk/docs/plugin-ini.md"))
+
+    def test_source_mode_without_builder_is_unavailable(self):
+        root, catalogue = self.temporary_catalogue(fixture())
+        client = self.start(catalogue=catalogue, repo_root=root, extended=True)
+        error = self.result(client.call("search_guides", {"query": "deploy"}), is_error=True)["error"]
+        self.assertIn("tools/sdk_guides.py unavailable beneath --repo-root", error)
+
+
 class BuildIntegrationTests(ServerCase):
     def test_actual_build_catalogue_mcp_transcript(self):
         override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")
@@ -1640,11 +1968,21 @@ class BuildIntegrationTests(ServerCase):
             self.skipTest("No build catalogue; build one or set SCO_CORE_MCP_TEST_CATALOGUE")
         data = json.loads(path.read_text(encoding="utf-8"))
         client = self.start(catalogue=path, repo_root=ROOT)
+        registry = json.loads((ROOT / "sdk/status_registry.json").read_text(encoding="utf-8"))
+        labels = {e["service"]: e["stability"] for e in registry["services"] if e["kind"] == "service"}
+        services = self.result(client.call("list_services"), data=data)
+        for item in services["services"]:
+            with self.subTest(table=item["table"]):
+                game = data["tables"][item["table"]]["source_header"].startswith("include/sc_")
+                self.assertEqual(item["stability"], labels.get(item["service"], "unknown") if game else "stable")
         # One record per service keeps the session under the 120-call rate limit.
         for record in {r["service"]: r for r in data["records"]}.values():
-            state = self.result(client.call("get_capability_status", {"symbol_or_id": record["id"]}), data=data)["evidence_state"]
+            capability = self.result(client.call("get_capability_status", {"symbol_or_id": record["id"]}), data=data)
+            state = capability["evidence_state"]
             with self.subTest(symbol=record["symbol"]):
                 game = record["source_header"].startswith("include/sc_")
+                self.assertIn(capability["stability"], {"stable", "experimental"} if not game or record["service"] in labels
+                              else {"unknown"})
                 self.assertEqual(state["scope"], "game-pack" if game else "neutral")
                 self.assertNotEqual(state["gameplay_receipt"]["state"], "verified")
                 if game:
@@ -1664,6 +2002,521 @@ class BuildIntegrationTests(ServerCase):
                 self.assertEqual(release["signature_verification"], "not_performed")
                 self.assertEqual(release["records"][0]["signature_file"],
                                  "present" if record_path.with_name(record_path.name + ".sig").is_file() else "absent")
+
+    def test_actual_guides_beside_the_build_catalogue(self):
+        """sdk-guides.json beside the build catalogue (CI builds both), else the in-memory source build."""
+        override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")
+        path = Path(override) if override else ROOT / "dist/sdk-catalogue.json"
+        if not path.is_file():
+            self.skipTest("No build catalogue; build one or set SCO_CORE_MCP_TEST_CATALOGUE")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        beside = path.with_name("sdk-guides.json")
+        client = self.start(catalogue=path, repo_root=ROOT, extended=True)
+        found = self.result(client.call("search_guides", {"query": "start your first plugin", "limit": 25}), data=data)
+        self.assertIn("docs/getting-started.md", {section["doc"] for section in found["sections"]})
+        if beside.is_file():
+            guides = json.loads(beside.read_text(encoding="utf-8"))
+            self.assertEqual(found["guides"]["mode"], "file")
+            self.assertEqual(found["guides"]["source_sha"], guides["source_sha"])
+            self.assertIs(found["guides"]["matches_catalogue_source_sha"], guides["source_sha"] == data["source_sha"])
+        else:
+            self.assertEqual(found["guides"]["mode"], "source")
+
+
+# Synthetic stand-ins for the operator's programs: Python scripts the server runs with its own
+# interpreter, so nothing is compiled. Each records its arguments next to its output.
+FAKE_CHECK = r'''
+import os, subprocess, sys, time
+folder = sys.argv[1]
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "check-ran.log"), "a") as log:
+    log.write(folder + "\n")
+marker = lambda name: os.path.exists(os.path.join(folder, name))
+print(folder)
+print("  args " + " ".join(sys.argv[2:]), flush=True)
+if marker("hang"):
+    subprocess.Popen([sys.executable, "-c", "import sys, time; time.sleep(4); open(sys.argv[1], 'w').write('survived')",
+                      os.path.join(folder, "survived")])
+    print("hanging", flush=True)
+    time.sleep(60)
+if marker("noisy"):
+    print("FAIL early finding")
+    for number in range(5000):
+        print("line %05d of synthetic output" % number)
+    print("FAILED: 1 failure(s)")
+    sys.exit(1)
+if marker("latin"):  # FAIL lines that are not UTF-8: each byte decodes to U+FFFD, six bytes once escaped
+    for number in range(300):
+        sys.stdout.buffer.write(b"FAIL " + b"\xe9" * 4000 + b"\n")
+    sys.stdout.buffer.write(b"FAILED: 300 failure(s)\n")
+    sys.stdout.flush()
+    sys.exit(1)
+if marker("linger"):  # exits at once, leaving a descendant that would write a file later
+    subprocess.Popen([sys.executable, "-c", "import sys, time; time.sleep(3); open(sys.argv[1], 'w').write('lingered')",
+                      os.path.join(folder, "lingered")])
+    print("OK: 0 failure(s)", flush=True)
+    sys.exit(0)
+if marker("bad"):
+    print("FAIL plugin.ini: missing key 'entry'")
+    print("FAIL id 'bad' does not match folder 'other'")
+    print("FAILED: 2 failure(s)")
+    sys.exit(1)
+print("OK: 0 failure(s)")
+'''
+FAKE_CMAKE = r'''
+import json, os, sys, time
+args = sys.argv[1:]
+def record(build, name):
+    with open(os.path.join(build, name), "w") as stream:
+        json.dump({"args": args, "nodereuse": os.environ.get("MSBUILDDISABLENODEREUSE")}, stream)
+if args[0] == "-S":
+    source, build = args[1], args[3]
+    os.makedirs(build, exist_ok=True)
+    record(build, "configure-args.json")
+    print("-- Configuring done")
+    if os.path.exists(os.path.join(source, "fail-configure")):
+        print("CMake Error: synthetic configure failure")
+        sys.exit(1)
+    open(os.path.join(build, "CMakeCache.txt"), "w").close()
+    print("-- Generating done")
+    sys.exit(0)
+if args[0] == "--build":
+    build = args[1]
+    source = os.path.dirname(build)
+    record(build, "build-args.json")
+    if os.path.exists(os.path.join(source, "hang-build")):
+        print("building slowly", flush=True)
+        time.sleep(60)
+    if os.path.exists(os.path.join(source, "fail-build")):
+        print("error: synthetic compile failure")
+        sys.exit(1)
+    print("Build succeeded")
+    sys.exit(0)
+sys.exit(2)
+'''
+FAKE_CTEST = r'''
+import json, os, sys
+args = sys.argv[1:]
+build = args[1]
+with open(os.path.join(build, "ctest-args.json"), "w") as stream:
+    json.dump(args, stream)
+if os.path.exists(os.path.join(os.path.dirname(build), "fail-test")):
+    print("50% tests passed, 1 tests failed out of 2")
+    sys.exit(8)
+print("100% tests passed, 0 tests failed out of 2")
+'''
+DEV_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}
+REFUSED = "inside a --project-root"
+
+
+class DevToolTests(ServerCase):
+    """Opt-in run_plugin_check, build_plugin_project and test_plugin_project, with synthetic programs."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="sco_mcp_dev_")
+        self.addCleanup(temporary.cleanup)
+        base = Path(temporary.name)
+        self.tools, self.root, self.outside = base / "tools", base / "projects", base / "outside"
+        for folder in (self.tools, self.root, self.outside, self.tools / "sdk" / "cmake"):
+            folder.mkdir(parents=True, exist_ok=True)
+        (self.tools / "sdk" / "cmake" / "sco-plugin.cmake").write_text("# synthetic\n", encoding="utf-8")
+        for name, text in (("check.py", FAKE_CHECK), ("cmake.py", FAKE_CMAKE), ("ctest.py", FAKE_CTEST)):
+            (self.tools / name).write_text(text, encoding="utf-8")
+        (self.outside / "plugin").mkdir()
+        (self.outside / "plugin" / "plugin.ini").write_text("id = plugin\n", encoding="utf-8")
+        (self.outside / "CMakeLists.txt").write_text("# outside\n", encoding="utf-8")
+
+    def options(self, timeout=None, limit=None, checker=True, cmake=True, sdk=True):
+        options = ["--enable-dev-tools", "--project-root", self.root, "--cmake-generator", "Fake Generator",
+                   "--cmake-platform", "x64"]
+        options += ["--plugin-check", self.tools / "check.py"] if checker else []
+        options += ["--cmake", self.tools / "cmake.py"] if cmake else []
+        options += ["--sco-sdk", self.tools / "sdk"] if sdk else []
+        options += ["--dev-timeout", timeout] if timeout is not None else []
+        options += ["--dev-output-limit", limit] if limit is not None else []
+        return options
+
+    def client(self, **kwargs):
+        return self.start(extra=self.options(**kwargs))
+
+    def folder(self, name, *markers):
+        folder = self.root / name
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "plugin.ini").write_text("id = %s\n" % name, encoding="utf-8")
+        for marker in markers:
+            (folder / marker).write_text("", encoding="utf-8")
+        return folder
+
+    def project(self, name, *markers):
+        project = self.folder(name, *markers)
+        (project / "CMakeLists.txt").write_text("# synthetic\n", encoding="utf-8")
+        return project
+
+    def symlink(self, link, target):
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError) as error:
+            self.skipTest("cannot create a directory symlink here: " + type(error).__name__)
+
+    def refused(self, client, name, arguments, token=REFUSED):
+        result = self.result(client.call(name, arguments), is_error=True)
+        self.assertIn(token, result["error"])
+        return result
+
+    def test_disabled_by_default_and_tool_lists(self):
+        for extended, order in ((False, ORIGINAL_ORDER), (True, EXTENDED_ORDER)):
+            client = self.start(extended=extended)
+            self.assertEqual([tool["name"] for tool in client.request("tools/list")["result"]["tools"]], order)
+            for name in DEV_ORDER:
+                with self.subTest(extended=extended, name=name):
+                    self.rpc_error(client.call(name, {"folder": str(self.root)}), -32602)
+        for extended, order in ((False, ORIGINAL_ORDER), (True, EXTENDED_ORDER)):
+            tools = self.start(extended=extended, extra=self.options()).request("tools/list")["result"]["tools"]
+            self.assertEqual([tool["name"] for tool in tools], order + DEV_ORDER)
+            for tool in tools[len(order):]:
+                self.assertEqual(tool["annotations"], DEV_ANNOTATIONS)
+                self.assertIs(tool["inputSchema"]["additionalProperties"], False)
+
+    def test_startup_refusals(self):
+        missing = self.root / "missing"
+        for options in (["--enable-dev-tools"], ["--project-root", self.root], ["--cmake", self.tools / "cmake.py"],
+                        ["--enable-dev-tools", "--project-root", missing],
+                        ["--enable-dev-tools", "--project-root", self.tools / "check.py"],
+                        self.options(timeout=0), self.options(limit=10)):
+            with self.subTest(options=[str(option) for option in options]):
+                run = subprocess.run([sys.executable, str(SERVER), "--catalogue", str(CATALOGUE)] + [str(o) for o in options],
+                                     stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertEqual(run.stdout, b"")
+
+    def test_plugin_check_pass_fail_and_short_mode(self):
+        client = self.client()
+        good, bad = self.folder("good"), self.folder("bad", "bad")
+        result = self.result(client.call("run_plugin_check", {"folder": str(good)}))
+        self.assertEqual((result["state"], result["exit_code"], result["passed"]), ("completed", 0, True))
+        self.assertEqual((result["mode"], result["arguments"], result["findings"]), ("full", [str(good.resolve())], []))
+        self.assertEqual((result["summary"], result["program"]), ("OK: 0 failure(s)", "check.py"))
+        self.assertFalse(result["output_truncated"])
+        self.assertTrue(any("not run in game" in line for line in result["conclusions"]))
+        short = self.result(client.call("run_plugin_check", {"folder": str(good), "mode": "short"}))
+        self.assertEqual(short["arguments"], [str(good.resolve()), "--short-tables"])
+        self.assertIn("args --short-tables", short["output"])
+        failed = self.result(client.call("run_plugin_check", {"folder": "bad"}))  # relative: from the first root
+        self.assertEqual((failed["exit_code"], failed["passed"], failed["summary"]), (1, False, "FAILED: 2 failure(s)"))
+        self.assertEqual(failed["findings"], ["plugin.ini: missing key 'entry'", "id 'bad' does not match folder 'other'"])
+        self.assertEqual(failed["folder"], str(bad.resolve()))
+
+    def test_paths_outside_the_roots_are_refused_before_running(self):
+        client = self.client()
+        self.folder("inner")
+        (self.root / "file.txt").write_text("", encoding="utf-8")
+        outside = self.outside / "plugin"
+        for folder in (str(outside), "../outside/plugin", "inner/../../outside/plugin", str(self.root / ".." / "outside" / "plugin"),
+                       "missing", "file.txt", "inner\x00", str(self.tools)):
+            with self.subTest(folder=folder):
+                self.refused(client, "run_plugin_check", {"folder": folder})
+                self.assertFalse((self.tools / "check-ran.log").exists())
+        for name in ("build_plugin_project", "test_plugin_project"):
+            with self.subTest(name=name):
+                self.refused(client, name, {"project": str(self.outside)})
+                self.refused(client, name, {"project": "../outside"})
+        self.assertFalse((self.outside / "build").exists())
+
+    def test_symlink_escape_is_refused(self):
+        self.symlink(self.root / "escape", self.outside / "plugin")
+        self.symlink(self.root / "projlink", self.outside)
+        inner = self.folder("inner")
+        self.symlink(self.root / "alias", inner)
+        client = self.client()
+        self.refused(client, "run_plugin_check", {"folder": "escape"})
+        self.refused(client, "build_plugin_project", {"project": "projlink"})
+        self.assertFalse((self.tools / "check-ran.log").exists())
+        # A link that stays inside a root is followed; the result names the resolved folder.
+        followed = self.result(client.call("run_plugin_check", {"folder": "alias"}))
+        self.assertEqual((followed["passed"], followed["folder"]), (True, str(inner.resolve())))
+        project = self.project("proj")
+        self.symlink(project / "build", self.outside)
+        self.refused(client, "build_plugin_project", {"project": "proj"}, "build entry")
+        self.assertFalse((self.outside / "configure-args.json").exists())
+
+    def test_timeout_kills_the_process_tree(self):
+        folder = self.folder("slow", "hang")
+        client = self.client(timeout=2)
+        started = time.monotonic()
+        result = self.result(client.call("run_plugin_check", {"folder": "slow"}))
+        self.assertLess(time.monotonic() - started, 30)
+        self.assertEqual((result["state"], result["timed_out"], result["passed"]), ("timed_out", True, False))
+        self.assertNotEqual(result["exit_code"], 0)
+        self.assertIn("hanging", result["output"])  # the grandchild had been started
+        time.sleep(max(0.0, started + 7 - time.monotonic()))
+        self.assertFalse((folder / "survived").exists(), "a grandchild outlived the timeout")
+
+    def test_output_is_capped_but_findings_cover_the_whole_stream(self):
+        self.folder("noisy", "noisy")
+        result = self.result(self.client(limit=1024).call("run_plugin_check", {"folder": "noisy"}))
+        self.assertEqual((result["exit_code"], result["passed"], result["output_limit"]), (1, False, 1024))
+        self.assertTrue(result["output_truncated"])
+        self.assertGreater(result["output_bytes"], 100000)
+        self.assertLessEqual(len(result["output"].encode("utf-8")), 1024)
+        self.assertIn("FAILED: 1 failure(s)", result["output"])
+        self.assertNotIn("FAIL early finding", result["output"])
+        self.assertEqual((result["findings"], result["summary"]), (["early finding"], "FAILED: 1 failure(s)"))
+
+    def test_build_and_test_use_fixed_arguments(self):
+        project = self.project("demo").resolve()
+        client = self.client()
+        self.refused(client, "test_plugin_project", {"project": "demo"}, "not configured")
+        built = self.result(client.call("build_plugin_project", {"project": "demo"}))
+        self.assertEqual((built["state"], built["exit_code"], built["passed"]), ("completed", 0, True))
+        self.assertEqual([step["step"] for step in built["steps"]], ["configure", "build"])
+        build = project / "build"
+        configure = json.loads((build / "configure-args.json").read_text(encoding="utf-8"))
+        self.assertEqual(configure, {"args": ["-S", str(project), "-B", str(build), "-G", "Fake Generator", "-A", "x64",
+                                              "-DSCO_SDK=" + str(self.tools / "sdk")], "nodereuse": "1"})
+        self.assertEqual(json.loads((build / "build-args.json").read_text(encoding="utf-8"))["args"],
+                         ["--build", str(build.resolve()), "--config", "Release"])
+        self.assertIn("Build succeeded", built["steps"][1]["output"])
+        tested = self.result(client.call("test_plugin_project", {"project": str(project)}))
+        self.assertEqual((tested["exit_code"], tested["passed"], tested["program"]), (0, True, "ctest.py"))
+        self.assertEqual(tested["summary"], "100% tests passed, 0 tests failed out of 2")
+        self.assertEqual(json.loads((build / "ctest-args.json").read_text(encoding="utf-8")),
+                         ["--test-dir", str(build.resolve()), "-C", "Release", "--output-on-failure", "--no-tests=error"])
+
+    def test_build_and_test_failures(self):
+        client = self.client()
+        self.project("noconf", "fail-configure")
+        configure = self.result(client.call("build_plugin_project", {"project": "noconf"}))
+        self.assertEqual(([s["step"] for s in configure["steps"]], configure["exit_code"], configure["passed"]),
+                         (["configure"], 1, False))
+        self.project("nobuild", "fail-build")
+        build = self.result(client.call("build_plugin_project", {"project": "nobuild"}))
+        self.assertEqual((len(build["steps"]), build["exit_code"], build["passed"]), (2, 1, False))
+        self.assertIn("synthetic compile failure", build["steps"][1]["output"])
+        self.project("notest", "fail-test")
+        self.assertTrue(self.result(client.call("build_plugin_project", {"project": "notest"}))["passed"])
+        tested = self.result(client.call("test_plugin_project", {"project": "notest"}))
+        self.assertEqual((tested["exit_code"], tested["passed"]), (8, False))
+        self.assertEqual(tested["summary"], "50% tests passed, 1 tests failed out of 2")
+        self.folder("nolists")
+        self.refused(client, "build_plugin_project", {"project": "nolists"}, "CMakeLists.txt")
+
+    def test_build_timeout(self):
+        self.project("stuck", "hang-build")
+        result = self.result(self.client(timeout=2).call("build_plugin_project", {"project": "stuck"}))
+        self.assertEqual((result["state"], result["passed"]), ("timed_out", False))
+        self.assertEqual([step["state"] for step in result["steps"]], ["completed", "timed_out"])
+
+    def test_unconfigured_programs_are_unavailable(self):
+        self.folder("good")
+        self.project("demo")
+        client = self.client(checker=False, cmake=False, sdk=False)
+        checked = self.result(client.call("run_plugin_check", {"folder": "good"}))
+        self.assertEqual((checked["state"], checked["passed"]), ("unavailable", False))
+        self.assertIn("--plugin-check", checked["reason"])
+        built = self.result(client.call("build_plugin_project", {"project": "demo"}))
+        self.assertEqual((built["state"], built["passed"], built["steps"]), ("unavailable", False, []))
+        self.assertFalse((self.root / "demo" / "build").exists())
+
+    def test_arguments_are_strict(self):
+        client = self.client()
+        self.folder("good")
+        for name, arguments in (("run_plugin_check", {"folder": "good", "mode": "fast"}),
+                                ("run_plugin_check", {"folder": "good", "args": ["--invoke", "x"]}),
+                                ("run_plugin_check", {"folder": 1}),
+                                ("run_plugin_check", {}),
+                                ("build_plugin_project", {"project": "good", "generator": "Ninja"}),
+                                ("test_plugin_project", {"project": ""})):
+            with self.subTest(name=name, arguments=arguments):
+                self.result(client.call(name, arguments), is_error=True)
+        self.assertFalse((self.tools / "check-ran.log").exists())
+
+    def test_batch_programs_are_refused(self):
+        # Windows runs .bat/.cmd through cmd.exe, which would parse the caller's folder path as shell syntax.
+        for name, flag in (("check.cmd", "--plugin-check"), ("cmake.BAT", "--cmake"), ("ctest.Cmd", "--ctest")):
+            program = self.tools / name
+            program.write_text("@echo off\n", encoding="utf-8")
+            with self.subTest(flag=flag):
+                run = subprocess.run([sys.executable, str(SERVER), "--catalogue", str(CATALOGUE), "--enable-dev-tools",
+                                      "--project-root", str(self.root), flag, str(program)],
+                                     stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertEqual(run.stdout, b"")
+                self.assertIn(b"batch file", run.stderr)
+        server = importlib.import_module("server")
+        self.assertIsNone(server.program_refusal(str(self.tools / "check.py"), "--plugin-check"))
+        self.assertIsNotNone(server.program_refusal(str(self.tools / "check.cmd. "), "--plugin-check"))
+        if os.name == "nt":
+            self.assertIsNotNone(server.program_refusal(str(self.tools / "check.txt"), "--plugin-check"))
+            self.assertIsNone(server.program_refusal(str(self.tools / "cmake.EXE"), "--cmake"))
+        # A program found at call time (cmake on PATH here) is checked too, and nothing runs.
+        self.project("demo")
+        dev = server.DevTools([str(self.root)], sco_sdk=str(self.tools / "sdk"))
+        original = server.shutil.which
+        server.shutil.which = lambda name: str(self.tools / "cmake.BAT")
+        try:
+            built = dev.build_plugin_project({"project": "demo"})
+        finally:
+            server.shutil.which = original
+        self.assertEqual((built["state"], built["passed"], built["steps"]), ("unavailable", False, []))
+        self.assertIn("batch file", built["reason"])
+        self.assertTrue(any(line.startswith("Nothing was run") for line in built["conclusions"]))
+        self.assertFalse((self.root / "demo" / "build").exists())
+
+    def test_program_that_cannot_start_is_not_started(self):
+        self.folder("good")
+        broken = self.tools / ("broken" + server_exe())
+        broken.write_text("not a program\n", encoding="utf-8")  # no execute bit; not a PE image
+        client = self.start(extra=["--enable-dev-tools", "--project-root", self.root, "--plugin-check", broken])
+        result = self.result(client.call("run_plugin_check", {"folder": "good"}))
+        self.assertEqual((result["state"], result["passed"], result["exit_code"]), ("not_started", False, None))
+        self.assertIn("could not be started", result["reason"])
+
+    def test_several_project_roots(self):
+        second = self.root.parent / "second"
+        (second / "only2").mkdir(parents=True)
+        (second / "only2" / "plugin.ini").write_text("id = only2\n", encoding="utf-8")
+        client = self.start(extra=self.options() + ["--project-root", second])
+        accepted = self.result(client.call("run_plugin_check", {"folder": str(second / "only2")}))
+        self.assertEqual((accepted["passed"], accepted["folder"]), (True, str((second / "only2").resolve())))
+        self.refused(client, "run_plugin_check", {"folder": "only2"})  # relative paths resolve from the first root
+        self.refused(client, "run_plugin_check", {"folder": "../second/../outside/plugin"})
+        self.assertEqual((self.tools / "check-ran.log").read_text(encoding="utf-8").splitlines(),
+                         [str((second / "only2").resolve())])
+
+    @unittest.skipUnless(os.name == "nt", "Windows path forms")
+    def test_windows_stream_device_and_unc_paths_are_refused(self):
+        self.folder("inner")
+        client = self.client()
+        for folder in ("inner:x", "inner::$DATA", "\\\\?\\" + str(self.root / "inner"), "\\\\localhost\\c$",
+                       "\\\\.\\" + str(self.root / "inner"), "C:inner"):
+            with self.subTest(folder=folder):
+                self.refused(client, "run_plugin_check", {"folder": folder})
+        self.assertFalse((self.tools / "check-ran.log").exists())
+
+    def test_non_utf8_findings_fit_the_response_cap(self):
+        self.folder("latin", "latin")
+        server = importlib.import_module("server")
+        for limit in (None, 256 * 1024):
+            with self.subTest(limit=limit):
+                response = self.client(limit=limit).call("run_plugin_check", {"folder": "latin"})
+                result = self.result(response)  # not the "Result exceeds 4 MiB" error
+                self.assertEqual((result["state"], result["exit_code"], result["passed"]), ("completed", 1, False))
+                self.assertEqual(result["summary"], "FAILED: 300 failure(s)")
+                self.assertTrue(result["findings"])
+                self.assertTrue(result["findings_truncated"])
+                self.assertTrue(result["output_truncated"])
+                self.assertTrue(all(set(finding) == {"\ufffd"} for finding in result["findings"]))
+                self.assertLessEqual(len(server.encoded(result)), server.DEV_RESULT_BUDGET + 4096)
+
+    def test_descendants_do_not_outlive_a_normal_exit(self):
+        folder = self.folder("linger", "linger")
+        started = time.monotonic()
+        result = self.result(self.client().call("run_plugin_check", {"folder": "linger"}))
+        self.assertEqual((result["state"], result["passed"], result["output_complete"]), ("completed", True, True))
+        self.assertLess(time.monotonic() - started, 3)
+        time.sleep(max(0.0, started + 6 - time.monotonic()))
+        self.assertFalse((folder / "lingered").exists(), "a descendant outlived the call")
+
+    @unittest.skipUnless(os.name == "nt", "the kill-on-close job object is Windows-only; POSIX is documented")
+    def test_killing_the_server_ends_a_running_check(self):
+        folder = self.folder("slow", "hang")
+        client = self.client(timeout=60)
+        client.send({"jsonrpc": "2.0", "id": 99, "method": "tools/call",
+                     "params": {"name": "run_plugin_check", "arguments": {"folder": "slow"}}})
+        deadline = time.monotonic() + 10
+        while not (self.tools / "check-ran.log").exists() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        time.sleep(1)  # the checker has started its 4 s grandchild
+        client.process.kill()
+        client.process.wait(timeout=10)
+        time.sleep(6)
+        self.assertFalse((folder / "survived").exists(), "the tree outlived the server")
+
+
+README = HERE / "README.md"
+AGENT_GUIDE = ROOT / "docs" / "agent-integration.md"
+TOOL_TABLE = "| Tool | Arguments | Purpose |"
+TOOL_ROW = re.compile(r"^\|\s*`([a-z_]+)`\s*\|([^|]*)\|[^|]*\|\s*$")
+
+
+def documented_tools(text):
+    """{tool: (required, optional)} from the rows of README tables headed TOOL_TABLE.
+
+    The Arguments cell lists required names, then `optional:` and the optional names, or `none`.
+    """
+    tools, problems, in_table = {}, [], False
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.strip() == TOOL_TABLE:
+            in_table = True
+            continue
+        in_table = in_table and line.startswith("|")
+        match = TOOL_ROW.match(line) if in_table else None
+        if not match:
+            if in_table and not re.match(r"^\|[-| ]+\|\s*$", line):
+                problems.append(f"README line {number}: unreadable tool table row")
+            continue
+        name, cell = match.groups()
+        required, _, optional = cell.partition("optional:")
+        names = [re.findall(r"`([^`]+)`", part) for part in (required, optional)]
+        if not any(names) and cell.strip() != "none":
+            problems.append(f"README line {number}: {name} has no argument names and is not `none`")
+        if name in tools:
+            problems.append(f"README line {number}: {name} is documented twice")
+        tools[name] = (names[0], names[1])
+    return tools, problems
+
+
+def documentation_refusals(text, listed):
+    """Each difference between the README tool tables and a tools/list result, as one line."""
+    documented, refusals = documented_tools(text)
+    order = [tool["name"] for tool in listed]
+    if list(documented) != order:
+        refusals.append(f"README tool tables list {list(documented)}, tools/list returns {order}")
+    for tool in listed:
+        if tool["name"] not in documented:
+            continue
+        schema = tool["inputSchema"]
+        required = list(schema.get("required", []))
+        optional = [key for key in schema.get("properties", {}) if key not in required]
+        doc_required, doc_optional = documented[tool["name"]]
+        if (sorted(doc_required), sorted(doc_optional)) != (sorted(required), sorted(optional)):
+            refusals.append(f"README documents {tool['name']} arguments {doc_required} optional "
+                            f"{doc_optional}; tools/list has {required} optional {optional}")
+    return refusals
+
+
+class DocumentationTests(ServerCase):
+    """The README's tool tables and argument names are the server's actual tools/list."""
+
+    def listed(self):
+        root = tempfile.TemporaryDirectory(prefix="sco_mcp_test_")
+        self.addCleanup(root.cleanup)
+        return self.start(extended=True, extra=["--enable-dev-tools", "--project-root", root.name]).request(
+            "tools/list")["result"]["tools"]
+
+    def test_readme_tool_tables_match_tools_list(self):
+        self.assertEqual(documentation_refusals(README.read_text(encoding="utf-8"), self.listed()), [])
+
+    def test_agent_guide_names_every_tool(self):
+        guide = AGENT_GUIDE.read_text(encoding="utf-8")
+        for name in EXTENDED_ORDER + DEV_ORDER:
+            with self.subTest(name=name):
+                self.assertIn(f"`{name}`" if name not in ORIGINAL_ORDER else f'"{name}"', guide)
+
+    def test_stale_or_missing_documentation_is_refused(self):
+        listed, readme = self.listed(), README.read_text(encoding="utf-8")
+        stale = readme.replace("| `get_symbol` | `symbol_or_id` |", "| `get_symbol` | `symbol` |")
+        self.assertNotEqual(stale, readme)
+        for text, token in (
+                (stale, "README documents get_symbol arguments ['symbol']"),
+                (readme.replace("`id`, `lang`; optional: `with_menu`, `services`", "`id`; optional: `lang`"),
+                 "generate_plugin_scaffold"),
+                (readme.replace("| `get_engine_native` | `id_or_hash` |", "| `get_engine_native` | none |"),
+                 "get_engine_native arguments []"),
+                ("\n".join(line for line in readme.splitlines() if "| `list_services` |" not in line),
+                 "README tool tables list")):
+            with self.subTest(token=token):
+                refusals = documentation_refusals(text, listed)
+                self.assertTrue(any(token in line for line in refusals), refusals)
 
 
 if __name__ == "__main__":

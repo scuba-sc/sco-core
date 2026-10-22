@@ -45,6 +45,11 @@ int main(int argc, char** argv) {
     const bool quit = argc > 1 && std::strcmp(argv[1], "quit") == 0;
     const bool missingQuit = argc > 1 && std::strcmp(argv[1], "missing-quit") == 0;
     gh::Options o;
+    CHECK(!o.nativeDataCoreReads && !o.preEngineQuiesced);
+    auto native=o;
+    native.nativeDataCoreReads=true;
+    CHECK(gh::Prepare(native)==sco::Result::BadArg);
+    CHECK(gh::Status().phase==gh::Phase::Idle);
     o.inspect = Inspect;
     o.quit = missingQuit ? gh::QuitPolicy::Required : gh::QuitPolicy::External; // synthetic host supplies the exact BeforeQuit path
     o.platform.builtins = &builtin;

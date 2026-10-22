@@ -17,10 +17,17 @@
 #include "asop_service.h"
 #include "contracts_service.h"
 #include "hangar.h"
+#include "inventory_host.h"
+#include "container_contents.h"
+#include "audio.h"
 #include "reputation.h"
 #include "loadout.h"
+#include "input.h"
+#include "gamerules.h"
 #include "quantum.h"
 #include "cvars.h"
+#include "cvars_engine.h"
+#include "datacore_live_engine.h"
 #include "offline_missions.h"
 #include "world.h"
 #include "events.h"
@@ -437,7 +444,7 @@ Result Start() {
         WithdrawSpatial();
         return r;
     }
-    r = StartLoadout(); // no verified engine backend at production start
+    r = StartLoadout(nullptr, ProductionLoadoutBackend()); // synchronous 1.1 stays unavailable
     if (r != Result::Ok) {
         StopCreative(); StopEntities(); StopEvents(); StopWorld();
         StopVehicles(); StopActors(); StopSpawn();
@@ -452,7 +459,8 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
-    r = StartCvars(); // default cvar port remains unavailable
+    r = ConfigureProductionCvars();
+    if(r==Result::Ok) r = StartCvars(); // native access requires explicit opt-in and resolved identities
     if (r != Result::Ok) {
         StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
         StopWorld(); StopVehicles(); StopActors(); StopSpawn();
@@ -508,7 +516,19 @@ Result Start() {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
         return r;
     }
+    (void)StartInventory(); // game.inventory.read held OFF; a failed publish leaves the pack up
     g_started = true;
+    r = StartInput();
+    if (r != Result::Ok) { Stop(); return r; }
+    r = StartProductionContainerContents(); // empty until a grounded host-owned provider is configured
+    if (r != Result::Ok) { Stop(); return r; }
+    r = StartAudio(); // publishes v1.1 unavailable; no native backend until a registration witness is grounded
+    if (r != Result::Ok) { Stop(); return r; }
+    r = StartGameRules(); // metadata available; live reads still require a verified backend
+    if (r != Result::Ok) { Stop(); return r; }
+    const auto liveDataCore=datacore_live::EnginePrepared()?datacore_live::EngineBackend():datacore_live::Backend{};
+    r=static_cast<Result>(datacore_live::Start(&liveDataCore));
+    if(r!=Result::Ok){Stop();return r;}
     Log("[game] game.spatial 1.0 published: observed chains only; system identity unknown");
     Log("[game] game services published: %s 1.0, %s 1.2, %s 1.1, %s 1.0, %s 1.0, %s 1.0, %s 1.0 (+ the game.* events)", SC_SPATIAL_SERVICE_NAME,
         SC_SPAWN_SERVICE_NAME, SC_ACTORS_NAME, SC_VEHICLES_SERVICE_NAME, SC_WORLD_NAME, SC_ENTITIES_NAME,
@@ -519,7 +539,13 @@ Result Start() {
 void Stop() {
     StopGameBuild();
     if (!g_started) return;
+    StopInventory();
+    StopContainerContents();
+    (void)StopAudio();
     Unsubscribe(host::GameOwner(), "tick", OnTick);
+    StopGameRules();
+    datacore_live::Stop();
+    StopInput();
     StopContracts();
     StopAsop();
     StopReputation();

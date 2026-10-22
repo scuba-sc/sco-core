@@ -292,6 +292,48 @@ static void TestGameReputation(const sco_api* api) {
     CHECK(sco::host::WithdrawGameService(SC_REPUTATION_SERVICE_NAME) == sco::Result::Ok);
 }
 
+// ---- scosdk/game/gamerules.hpp over a stand-in game.gamerules ------------------------------------
+
+static sco_plugin* g_gruleSelf = nullptr;
+static uint32_t g_gruleValid = 1;
+static sco_result GruleRead(sco_plugin* self, sc_gamerules_state* out) {
+    if (self != g_gruleSelf || !out || out->size < sizeof(sc_gamerules_state)) return SCO_BAD_ARG;
+    out->valid = g_gruleValid;
+    out->generation = 7;
+    out->enforce_group_qt = 1;
+    out->quantum_boost_allowed = 1;
+    out->travel_target_threshold_angle = 45.0f;
+    out->boost_group_distance_threshold = 2500.0f;
+    return SCO_OK;
+}
+
+static void TestGameRules(const sco_api* api) {
+    g_gruleSelf = sco::host::NewPlugin("grulestest");
+    sdk::game::GameRules none;
+    sc_gamerules_state state = {};
+    state.valid = 1;
+    CHECK(none.Open(api, g_gruleSelf) == SCO_NOT_FOUND && !none);
+    CHECK(none.Read(state) == SCO_UNAVAILABLE && state.size == sizeof(state) && state.valid == 0);
+    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, GruleRead, nullptr };
+    CHECK(sco::host::ProvideGameService(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_SERVICE_VERSION, &kFake) == sco::Result::Ok);
+    sdk::game::GameRules rules;
+    CHECK(rules.Open(api, g_gruleSelf) == SCO_OK && rules && rules.Table() == &kFake);
+    CHECK(rules.Read(state) == SCO_OK && state.size == sizeof(state) && state.valid == 1 && state.generation == 7);
+    CHECK(state.enforce_group_qt == 1 && state.quantum_travel_allowed == 0 && state.quantum_boost_allowed == 1);
+    CHECK(state.travel_target_threshold_angle == 45.0f && state.boost_group_distance_threshold == 2500.0f);
+    g_gruleValid = 0;
+    CHECK(rules.Read(state) == SCO_OK && state.valid == 0);   // no parameter set received yet: the caller checks valid
+    g_gruleValid = 1;
+    kFake.size = offsetof(sc_gamerules_v1, read) + sizeof(kFake.read) - 1;   // a partial pointer is not the member
+    CHECK(rules.Read(state) == SCO_UNAVAILABLE && state.valid == 0 && state.size == sizeof(state));
+    kFake.size = sizeof(kFake);
+    kFake.read = nullptr;
+    CHECK(rules.Read(state) == SCO_UNAVAILABLE);
+    kFake.read = GruleRead;
+    CHECK(rules.Read(state) == SCO_OK);
+    CHECK(sco::host::WithdrawGameService(SC_GAMERULES_SERVICE_NAME) == sco::Result::Ok);
+}
+
 // ---- scosdk/game/events.hpp: the helpers copy the payload and refuse a short one ------------------
 
 static void TestGameEvents(const sco_api* api) {

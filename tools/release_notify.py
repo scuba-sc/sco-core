@@ -59,7 +59,7 @@ TRUSTED_RUNS = {(".github/workflows/release.yml", "push"),
 MAX_BODY = 8 * 1024 * 1024
 MAX_RECORD = 1024 * 1024
 TIMEOUT = 20
-USER_AGENT = "sco-core-release-notify (+https://github.com/scubamount/sco-core)"
+USER_AGENT = "sco-core-release-notify (+https://github.com/scuba-sc/sco-core)"
 
 
 class Refusal(Exception):

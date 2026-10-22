@@ -2,7 +2,240 @@
 
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
-## Unreleased
+## sdk-v2.4.0 (release candidate 1 published 2026-10-21 as sdk-v2.4.0-rc.1; final release pending)
+
+- GameRules `list_params` now lists the 15 parameters verified on game build
+  4.10.197.2878 (F-4.10.197.2878-054); two names that do not occur on that build are
+  removed. Native adapter facts (DataCore owner layout, CVar interface slots, item-port
+  slots) cite their banked findings (F-4.10.197.2878-051..-053). Not run in game.
+- `game.input` now ships the 1,297 actions re-verified on game build 4.10.197.2878
+  (F-4.10.197.2878-050), replacing an unverified table whose ids were wrong for
+  this build (for example `attack1` is 115). Ids 1..1297 and their names come from
+  the build's own action registry, re-derived statically; 0 and ids above 1297 are
+  not actions, and no record is flagged. `SC_INPUT_ACTION_COUNT` is 1297,
+  `SC_ACTION_INVALID` is 0 (an SDK-only "no action" value), and the `FIRST` and
+  `LAST` sentinels are gone. The `sc_input_v1` table layout is unchanged. Not run
+  in game.
+- Added a community plugin directory: plugins stay in their authors' own
+  repositories, and `docs/plugin-directory.md` lists them from the validated index
+  `docs/plugin-directory.json` (plugin ids, https repository, author, SPDX licence,
+  languages, SDK and game-pack version tested, last `sco-plugin-check` full/short
+  result and date, offline confirmation, in-game status). `tools/plugin_directory.py
+  --check` validates the index and the rendered tables in CI; a new issue form
+  collects listing requests. It starts with the first-party sc-offline and sc-mp
+  plugins and no community entries. A listing is compatibility information, not an
+  endorsement; no plugin ABI change and nothing listed is verified in game.
+- The discovery MCP server (`tools/sco-core-mcp/server.py`) gains three opt-in
+  development tools: `run_plugin_check` runs `sco-plugin-check` on a built plugin
+  folder (`full` or `short` tables), and `build_plugin_project` and
+  `test_plugin_project` configure, build and test a CMake plugin project in its
+  own `build` folder. They are off unless the operator passes
+  `--enable-dev-tools` and at least one `--project-root`. Callers supply only a
+  folder inside a project root; the operator fixes the programs, generator, SDK
+  folder, timeout and output cap, and batch-file programs are refused. A timeout
+  kills the whole process tree, descendants do not outlive a call, and a result
+  is trimmed to fit the response cap rather than dropped. The
+  default and `--extended-tools` lists are unchanged. No ABI change. Tested with
+  synthetic stand-in programs; not run in game.
+- Added guide search to the discovery MCP server. `tools/sdk_guides.py` builds
+  `sdk-guides.json` from the Markdown guides in `site/public-inputs.json` (never
+  `docs/legal/` or `docs/design/`) and the shipped `sdk/docs` guides that
+  `sdk/components.json` lists (`plugin.ini`, plugin rules, Lua, widgets, data
+  packs): one record per heading with plain text bounded
+  to 4000 characters, a GitHub-style anchor and the docs-site URL, in reproducible
+  bytes, with a `check` mode CI runs. The `legacy`, `game-sc` and `host-source-sc`
+  packages ship it beside `sdk-catalogue.json`. With `--extended-tools`, the new
+  `search_guides` and `get_guide_section` tools rank guide sections by whole-word
+  terms, rarer terms first, and return them from that file, or from an in-memory
+  build of `--repo-root`; the default six tools are
+  unchanged. Lets an agent answer "how do I ..." from the guides, not only the
+  contract records. No ABI change; guide prose is not in-game evidence, and nothing
+  here was run in game.
+- `tools/sco-new-plugin.py` and the MCP `generate_plugin_scaffold` tool also
+  generate C# and Lua plugins. `--lang csharp` writes a NativeAOT class library
+  (`<id>.csproj` referencing the kit's `csharp/Sco.Sdk` through `ScoSdk` or
+  `SCO_SDK`, `<Name>Plugin.cs`, `plugin.ini` with `api = 1.0`, and a `README.md`
+  with the `dotnet publish` line); `--lang lua` writes `plugin.ini`
+  (`kind = lua`), `main.lua` and a `CMakeLists.txt` whose `check` target runs
+  `sco-plugin-check`. Id, service and text validation is the same for every
+  language; Lua refuses `--services` (the sandbox has no service lookup) apart
+  from `sco.widgets` with `--with-menu`. `sdk/test_new_plugin.py` and
+  `sdk/test-zip.sh` (with `SCO_SDK_CSHARP=1`) publish generated C# plugins and
+  check them with `sco-plugin-check`, with and without `--short-tables`; Lua
+  plugins are checked by `sco-plugin-check` and `tools/lua-check.lua`. No ABI
+  change. Stand-in hosts only; not run in game.
+- Added a plugin design guide (`docs/plugin-design.md`): one feature per plugin,
+  sharing through versioned size-first service tables, `requires` ordering, normal
+  `UNAVAILABLE`/`NOT_FOUND` results, game-thread rules, clean unload and
+  anti-patterns. New neutral C example pair in the core SDK: `counter_service`
+  publishes `counter_service.counter` 1.0 and `counter_panel` requires it and calls it
+  only when a command runs, answering `unavailable` with a reason when it is absent.
+  Both degrade on a 1.0 `sco_api` instead of failing to load, so both pass
+  `sco-plugin-check` as is and with `--short-tables`. The archive test checks each
+  folder alone both ways; CTest `host_sim_examples` loads both through the real
+  neutral host. The SDK now compiles 8 external C/C++ examples in the installed-header
+  proof (core). No ABI change. Not run in game.
+- Added the [stability promise](docs/stability.md), shipped in the core SDK
+  archives. Plugin ABI 1.x only grows, and every `sco.*` host service table is
+  Stable: never removed or changed incompatibly within SDK 2.x, growing only at
+  its tail behind a new minor version macro. Every game-pack registry entry with
+  a table or events (the `game.*` tables, `teleport.spatial`, `spawn.entities`
+  and the `game.*` event bus) now carries a required `stability` label: a new
+  label is Stable when at least one capability has evidence level
+  `sigcheck_resolved`, `off_pending_probe` or `in_game_verified`, otherwise
+  Experimental. That gives 13 Stable and 20 Experimental service tables, and a
+  Stable event bus; the two signature-row groups are not service tables and
+  carry no label. A Stable entry records `stable_since` (`sdk-v2.4.0` today);
+  once that release is out the label cannot be withdrawn within SDK 2.x. An
+  Experimental table may later be replaced by a new table under a distinct
+  service name; the old name then stays published, marked deprecated, for at
+  least one further SDK minor release. `sdk/status_registry.json` moves to
+  `schema_version` 2. `tools/status_registry.py` enforces the labels and renders
+  a Stability column in `docs/game/status.md`; the MCP server's `list_services`
+  and `get_capability_status` return `stability` and still read the older
+  five-column status table and `schema_version` 1 registry. Stability is
+  separate from availability and evidence. No ABI or service table change; not
+  run in game.
+
+- Added default-OFF native DataCore counted reads, raw GUID record lookup and
+  serialized text-blob access with process-retained lifecycle exclusion. Native
+  activation requires explicit shell-enforced pre-engine quiescence and resolved
+  loader/reset/destructor identities; native writes remain unavailable. Synthetic
+  service/hook tests are not game or release acceptance.
+
+- Added a default-OFF Windows native reference-integer CVar read adapter for the
+  four existing names, with current-build method identity checks, fresh admission
+  and fault containment. Native production writes remain unavailable pending
+  object/backing lifetime evidence; a production-path regression test pins that a
+  native CVar write is refused. Host cleanup has separate freshly checked
+  CVar restoration admission; real host-stop fixtures use synthetic objects.
+  No public ABI change and not run in game.
+
+- `game.audio` 1.1 appends `play_once`, a fire-and-forget trigger with its own
+  default-OFF capability `game.audio.play_once`, independent of
+  `game.audio.triggers`. The 1.0 prefix is unchanged; `sc_audio_play_once` and
+  `Audio::PlayOnce` check the table extent and refuse against 1.0 tables, and
+  the C++ wrapper still opens against a 1.0 host. A backend fault turns one-shot
+  audio off until process restart without affecting the trigger mode. No native
+  backend ships; it is held until game-object registration can be confirmed at
+  submission. Synthetic tests only; not run in game.
+
+- Scope decision (maintainer, 2026-10-21): four narrowed native backends ship
+  fail-closed in 2.4.0: filtered single-hit rays (`game.world.control`), exact
+  class-name entity lookup (`game.entities`), value-change GameRules reads
+  (`game.gamerules`) and fire-and-forget audio (`game.audio` `play_once`). Their
+  contracts and synthetic providers ship; natively they answer unavailable and
+  install nothing, because the evidence does not yet show the game objects involved
+  stay valid for the whole call. Grounding them is the first work after 2.4.0.
+
+- Expanded optional game-pack contracts: `game.audio` 1.0 provides owner-bound
+  trigger/playback tokens and unload cleanup; `game.entities` 1.2 appends copied
+  class registry/name/typed-component presence; `game.world.control` 1.1 appends
+  bounded synchronous multi-hit with provider-owned grid cleanup. Bound synthetic
+  tests exercise policy and failure paths; no native adapters are supplied and
+  production capabilities stay OFF. Native C/C++ routes; new managed entity slots
+  are layout-only. Frozen plugin ABI1.1 unchanged; not run in game.
+
+- `sco.widgets` 1.2 adds copied, per-panel unique automation tags through a
+  pointer-sized node tail; 80-byte and 104-byte nodes remain supported.
+  `sco.storage` 1.1 adds bounded owner-scoped table/view and column metadata
+  enumeration, with extent-checked C# and Lua adapters. Frozen plugin ABI 1.1
+  is unchanged. Native synthetic and managed validation only; not run in game.
+
+- Game developer kits bundle source-matched compiler-backed API discovery data,
+  stdio MCP discovery and optional native-index/manifest/scaffold tools. Archive
+  consumers no longer need a source checkout or moving website catalogue for
+  discovery. Runtime execution remains a separate host/studio operation.
+
+- Combined candidate: `game.actor_stats` 1.1 reads 29 raw stats without expanding
+  stat-write 1.0 authority. `game.inventory.contents` 1.0 adds bounded copied
+  stored-item snapshots, a host-owned provider seam and a public C consumer.
+  No native container reader is supplied; production capability remains OFF.
+  Game-pack candidate 0.8.0; not run in game.
+
+- Local candidate integration preserves asynchronous loadout jobs alongside host
+  injection and respawn events, refuses released DataCore owners, and contains
+  GameRules backend faults and invalid owner/thread calls. Native synthetic
+  regression fixtures only; not run in game. Publication remains held.
+
+- DataCore pack receipts now report final committed counts after atomic rollback
+  or emission failure, rather than successful operations in a discarded trial.
+
+See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).
+
+SDK 2.4.0 packages the entries below without changing frozen plugin ABI 1.1
+(`include/sco_api.h` and `tests/abi_v1.c` are byte-identical to 2.3.0). Core, legacy,
+core-source and host-source-sc use 2.4.0. The candidate adds the game service tables
+`game.actor_stats` 1.1, `game.actor_stats_write` 1.0, `game.gamerules` 1.1 (with the 15-entry `list_params` tail), `game.build` 1.0, `game.input` 1.0
+(a 1,297-name action registry re-verified on 4.10.197.2878) and `game.inventory` 1.1
+(an item-port adapter with the 192-member item category enumeration, `game.inventory.read` held OFF),
+new bus events `game.mission.changed` (capability default ON; no active production
+missions backend) and `game.loadout.respawn_completed` (capability default OFF), and
+production engine backends behind `game.relocation` and `game.quantum`, so under the
+[game-pack policy](docs/game-pack.md) (a release that adds or grows a game service raises the
+minor) the game pack and the optional game-sc overlay move to **0.8.0**
+(`SCO_GAME_PACK_VERSION`, was 0.6.0; `sco-sdk-game-sc-0.8.0.zip`). The game pack's verified build is
+4.10.197.2878: every signature row resolves in a static `sco-sigcheck` run on that build's
+`StarCitizen.exe`. **Nothing below has run in the game.** Evidence is host-side builds, synthetic
+fixtures and static signature checks. The Windows-only engine code is built by hosted CI, not
+locally. `game.actor_stats.read`, `game.build.info`, `game.events.mission_changed` and
+`game.relocation` (under its conditions) default ON. `game.input.registry` and
+`game.gamerules.params` also default ON for static metadata, not native gameplay
+readiness. Other additions retain their registry-recorded OFF or conditional gates.
+
+- **Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths** (`src/ipc/diagnostics_platform_win.cpp`). Fixes a length type mismatch in the Windows diagnostics transport. Built by hosted CI only.
+- **MCP documentation at the current release, with drift gates.** `tools/sco-core-mcp/README.md` and `docs/sdk-mcp-tutorial.md` follow the release coordinates, and `tools/doc_release_gate.py` fails when either lags.
+- **Docs: public roadmap and direction page** (`docs/roadmap.md`) and a one-page progress view at `/roadmap/` on the docs site (`site/public/roadmap/index.html`, percentages counted from listed gates), linked from the README and the docs index.
+- **Tooling:** `tools/ip_audit.py` names the SBOM instead of a local path; Windows gate checks compare pinned files byte-exactly and print POSIX paths; `sdk_catalogue` and `sigcheck` find LLVM/Clang on Windows when it is not on PATH; `docs/net-wire.md` documents unknown control types and headless hosts.
+- **Loadout completion bus event**: additive occurrence-only payload and
+  subscription name `game.loadout.respawn_completed` (F-INTAKE-004 / T-3).
+  Deferred to the game-thread tick, gated by verified offline provider attestation;
+  native hook unresolved and production capability OFF. Not run in game.
+- **`game.gamerules` 1.1 parameter definitions**: additive `list_params` tail,
+  15 names/groups/types, paged and count-only enumeration. The names are the
+  GameRules console variables verified on 4.10.197.2878 (F-4.10.197.2878-054); the
+  INT/FLOAT types are not verified. No live values or parameter offsets; the read
+  prefix and wrappers stay intact. Default read backend remains unavailable. Not run in game.
+- **`game.input` 1.0 action registry** (`sc_input.h`): 1,297 named actions,
+  ids 1..1297 on 4.10.197.2878, O(1) id lookup and binary-search name lookup.
+  No sentinel records or aliases. No input injection or engine
+  calls. F-4.10.197.2878-050. Not run in game.
+- **`game.inventory` 1.1: the item-port adapter** (`include/sc_inventory.h`, [docs](docs/game/inventory.md)).
+  The service now has a production backend: it reads the local player's item-port container in place
+  (no allocation, no call into the container), walks the whole attached tree depth first, and
+  fails closed behind signature-row checks (nine new `inventory.*` rows) and bounds checks. Additive
+  ABI: `sc_inventory_snapshot` gains `flags` and `total_seen` after `ports[]` (`SC_INVENTORY_FLAG_TRUNCATED`,
+  `SC_INVENTORY_FLAG_LIMITED`), written only when `out->size` covers them; a 1.0 caller passing
+  `SC_INVENTORY_SNAPSHOT_SIZE_1_0` is accepted unchanged. `generation` is computed by comparing
+  snapshots. In addition, 192 item categories are published as the `sc_item_type` enumeration (#190 [G19])
+  with `sc_inventory_item_type_name` and `sc_inventory_port_item_type` helpers.
+  `game.inventory.read` stays default OFF (`SCO_INVENTORY_READ=1` or the product switch,
+  and every row must be OK); evidence `synthetic_only`. Not run in game. F-4.10.197.2878-011..-016.
+
+- **DataCore pack `BestEffort` partial-apply policy & pre-flight validator (`#192 [G21]`)**:
+  `datacore.pack` keeps `Atomic` as default and introduces an explicit opt-in `PackApplyPolicy::BestEffort`
+  (`policy = "best_effort"`) returning structured per-record receipts (`PackApplyReceipt`).
+  `sco-dcb lint <pack.toml>` checks syntax without game data;
+  `sco-dcb check Game2.dcb <pack.toml>` validates operations against a database.
+  These are offline file checks, not live-game evidence.
+
+- **DataCore pack deep-clone directive (`#191 [G20]`)**:
+  Adds `mode = "deep"` to pack clone definitions (`clone = { record = "...", mode = "deep" }`) to duplicate
+  referenced arrays and nested struct instances in DataCore packs, preventing shared-pointer mutation bugs.
+
+- **Host provider sockets for relocation & loadout**:
+  Adds the host-only C-linkage sockets `sco_game_set_relocation_backend` (`src/game/services/relocation.h`) and
+  `sco_game_set_loadout_backend` (`src/game/services/loadout.h`) allowing host shells to supply custom simulation
+  and equipment backends. They are host-source seams, not plugin-facing tables, so the public headers
+  `sc_relocation.h` and `sc_loadout.h` and the SDK contract catalogue are unchanged. Admission is
+  `host::FreshAdmissionAllowed()` (refused until the host composition enables it, re-checked live), a
+  setter on an already started service returns `SCO_UNAVAILABLE` and installs nothing, and the relocation
+  socket takes the provider's `player`, `target`, `apply` and `pose` callbacks (`now` optional).
+
+- **Read-only Windows Firewall admission inspection**:
+  Adds `InspectWindowsFirewallRule` (`include/sco/game/host.h`) via `INetFwPolicy2` COM API to query active
+  outbound block rules as an official G1 offline admission signal without elevation.
+
 - **New game bus event: `game.mission.changed`** (`include/sc_game_events.h`,
   [docs](docs/game/events.md)). Publishes state/phase/objective changes of the missions
   `game.missions` accepted, from the tick, closing the last gap of the events audit
@@ -13,6 +246,7 @@ What each change means for plugin authors and for products built on sco-core (sc
   Not run in game; backend adapters are synthetic today, so the poll returns zero.
   Design: F-S-003.
 
+- **`game.gamerules` 1.0 gets its C++20, C# and Lua read wrappers** ([docs](docs/game/gamerules.md#language-routes), `include/sc_gamerules.h` and the frozen plugin ABI unchanged). C++: `scosdk/game/gamerules.hpp` (`sco::sdk::game::GameRules`, `Open` then `Read`). C#: `Sco.Sdk.Game.GameRules` with `ScGamerulesState`. Lua: `sco.game.gamerules.read()`, a table of `valid`, `generation`, the three server gates and the six thresholds, or `nil, err`. All three are read-only, zero the snapshot and set its `size` before the call, check the table extent and a non-null member, and carry no message because the table has no `last_error`; with the capability `game.gamerules.read` OFF (the default, no backend bound) they answer unavailable. The catalogue now records `typed-wrapper` for cpp, csharp and lua. `sco-plugin-check` serves no game service tables, so it has no stand-in to extend. Tests: `tests/test_sdk.cpp`, `tests/test_language_routes.cpp`, `tests/test_lua.cpp` and the C# fake-host test. Not run in game.
 - **New SDK example: `actor_stats_probe`** (`sdk/examples/actor_stats_probe/`, Star Citizen extension). The in-game test for `game.actor_stats` and `game.actor_stats_write`: it logs all nine named stats of your player once a second (changed values marked), and with writes armed in its own panel or by command it adjusts or sets one stat and logs the value read back. `CHECKLIST.md` is the maintainer's step list (eat/drink, cold/hot surfaces, helmet off, stun, distortion, radiation, and the write persistence checks). Checked with `sco-plugin-check` against the stand-in host (full and 1.0 short tables) and the MCP manifest/widget validator; not run in game.
 - **New game service table: `game.actor_stats_write` 1.0** (`include/sc_actor_stats_write.h`, [docs](docs/game/actor-stats.md#writes-gameactor_stats_write)). `adjust` and `set` change one named stat of your own player through the game's own stat-adjust function, so the game's clamping, per-stat enable switches and consequences apply, and hand back the value read right after the write; `mode` says whether the game would apply a change (authoritative, local only, or discarded) without writing. The game applies a change only where the entity has authority or the stat's definition allows a local change; the new row `actor.stat_authority` pins that gate inside the adjust function, and a write the game would discard answers UNAVAILABLE instead of a silent OK. The capability `game.actor_stats.write` is OFF by default: it needs the new product switch `sco::game::services::SetActorStatWritesEnabled(true)` (or `SCO_ACTOR_STATS_WRITE=1` for a maintainer test; a switch flipped off the game thread is picked up on the next call), its rows and `game.actor_stats.read`, and every write asks for fresh offline admission first. Your own player only; steps bounded by `SC_ACTOR_STATS_WRITE_MAX_STEP`; nothing restored on unload (gameplay state, not settings). Rows `actor.adjust_stat` and `actor.stat_authority` resolve on 4.10.197.2878 in a local `sco-sigcheck` run (321/321). Grounded on F-4.10.197.2878-010. ABI pinned by `tests/abi_game_actor_stats_write.c` (C, C++, -fshort-enums). No frozen ABI change. Which mode your player has offline, and whether a local-only write persists, is not known: not run in game.
 - **New game service table: `game.actor_stats` 1.0** (`include/sc_actor_stats.h`, [docs](docs/game/actor-stats.md)). Reads an actor's status stats by name: hunger, thirst, body and suit temperature, oxygen, stun, distortion, body and suit radiation (`sc_actor_stat`), for your player or a streamed-in NPC. Game thread only, read-only, one float copied out; an actor without a record of a stat answers NOT_FOUND, never a silent 0. It reuses the `actor.status_accessor` and `actor.get_stat` rows behind `game.actors.health` and adds two: `actor.stat_names` follows the game's own stat-name function and checks every index the game pack uses still carries its name (a reordered enum fails the row and turns the capability off instead of reading the wrong stat), and `actor.stat_array` checks GetStat's record-array read. Grounded on F-4.10.197.2878-006. Both rows resolve on 4.10.197.2878 in a local `sco-sigcheck` run (319/319). The capability `game.actor_stats.read` is ON when its rows resolve (evidence level: rows resolved). ABI pinned by `tests/abi_game_actor_stats.c` (C, C++, -fshort-enums). No frozen ABI change. Units, range and direction of each stat are not pinned: not run in game.

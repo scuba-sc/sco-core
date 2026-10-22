@@ -183,7 +183,7 @@ static void TestService() {
     CHECK(sco::storage::Start(Opts()) == Result::BadArg);                                 // already
     g_st = QueryStorage(SCO_STORAGE_VERSION_1_0, &r);
     CHECK(r == SCO_OK && g_st == sco::storage::Table() && g_st->size == sizeof(sco_storage_v1));
-    CHECK(QueryStorage(0x00010001, &r) == nullptr && r == SCO_UNAVAILABLE);   // 1.0 is older
+    CHECK(QueryStorage(SCO_STORAGE_VERSION_1_1, &r) == g_st && r == SCO_OK);   // additive schema introspection
     CHECK(QueryStorage(0x00020000, &r) == nullptr && r == SCO_UNAVAILABLE);
     CHECK(sco::storage::DatabasePath("alpha") == g_root / "storage" / "alpha.db");
     // A pointer the host didn't hand out is refused before anything is opened.
@@ -316,6 +316,47 @@ static void TestSql(sco_plugin* a) {
     // A constraint is a failure of a statement that ran.
     CHECK(g_st->exec(a, "INSERT INTO ships VALUES (?, ?, ?, ?, ?)", row, 5, nullptr) == SCO_FAILED);
     CHECK(LastError(a).find("UNIQUE") != std::string::npos);
+    // 1.1 introspection of the plugin's own schema (the host sco_kv table is never listed).
+    CHECK(Exec(a, "CREATE VIEW heavy AS SELECT name FROM ships WHERE mass > 20") == SCO_OK);
+    {
+        std::vector<std::pair<std::string, uint32_t>> tables;
+        std::string cursor;
+        for (;;) {
+            char name[256];
+            uint32_t size = sizeof name, kind = 0;
+            const sco_result r = g_st->next_table(a, cursor.empty() ? nullptr : cursor.c_str(), name, &size, &kind);
+            if (r == SCO_NOT_FOUND) break;
+            CHECK(r == SCO_OK);
+            cursor = name;
+            tables.emplace_back(name, kind);
+        }
+        bool sawShips = false, sawHeavy = false, sawKv = false;
+        for (const auto& entry : tables) {
+            if (entry.first == "ships") sawShips = entry.second == SCO_STORAGE_KIND_TABLE;
+            if (entry.first == "heavy") sawHeavy = entry.second == SCO_STORAGE_KIND_VIEW;
+            if (entry.first == "sco_kv") sawKv = true;
+        }
+        CHECK(sawShips && sawHeavy && !sawKv);
+        for (size_t i = 1; i < tables.size(); ++i) CHECK(tables[i - 1].first < tables[i].first);
+        char cname[256], ctype[256];
+        uint32_t csize = sizeof cname, tsize = sizeof ctype, flags = 0xffff, index = 0;
+        CHECK(g_st->next_column(a, "ships", &index, cname, &csize, ctype, &tsize, &flags) == SCO_OK &&
+              std::strcmp(cname, "id") == 0 && std::strcmp(ctype, "INTEGER") == 0 &&
+              (flags & SCO_STORAGE_COLUMN_PK) && !(flags & SCO_STORAGE_COLUMN_NOTNULL) && index == 1);
+        csize = sizeof cname; tsize = sizeof ctype; flags = 0xffff;
+        CHECK(g_st->next_column(a, "ships", &index, cname, &csize, ctype, &tsize, &flags) == SCO_OK &&
+              std::strcmp(cname, "name") == 0 && index == 2);
+        csize = sizeof cname; tsize = sizeof ctype;
+        index = 5;
+        CHECK(g_st->next_column(a, "ships", &index, cname, &csize, ctype, &tsize, &flags) == SCO_NOT_FOUND &&
+              index == 5);
+        index = 0; csize = sizeof cname; tsize = sizeof ctype;
+        CHECK(g_st->next_column(a, "no_such_object", &index, cname, &csize, ctype, &tsize, &flags) == SCO_NOT_FOUND);
+        csize = sizeof cname;
+        CHECK(g_st->next_table(a, nullptr, nullptr, &csize, &flags) == SCO_BAD_ARG);
+        csize = sizeof cname; tsize = sizeof ctype; index = 0;
+        CHECK(g_st->next_column(a, "ships", nullptr, cname, &csize, ctype, &tsize, &flags) == SCO_BAD_ARG);
+    }
     CHECK(Exec(a, "SELEC 1") == SCO_BAD_ARG && LastError(a).find("syntax error") != std::string::npos);
     CHECK(Exec(a, "SELECT 1; SELECT 2") == SCO_BAD_ARG && LastError(a) == "one statement per call");
     CHECK(Exec(a, "SELECT 1; -- trailing comment") == SCO_OK);

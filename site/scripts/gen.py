@@ -17,13 +17,18 @@ from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = '/sco-core'
-SOURCE_ROOT = 'https://github.com/scubamount/sco-core/blob/'
-RELEASES = 'https://github.com/scubamount/sco-core/releases/tag/'
-# Most recent SDK release verified as published. A preview links here instead of
-# deriving a tag from its own sdk_version, which may name an unpublished version.
-PUBLISHED_RELEASE = 'sdk-v2.3.0'
-DOWNLOADS = 'https://github.com/scubamount/sco-core/releases/download/'
-COMMITS = 'https://github.com/scubamount/sco-core/commit/'
+SOURCE_ROOT = 'https://github.com/scuba-sc/sco-core/blob/'
+RELEASES = 'https://github.com/scuba-sc/sco-core/releases/tag/'
+# Most recent SDK release verified as published: its notes docs/releases/<tag>.md declare the
+# archives the portal offers. A preview links here instead of deriving a tag from its own
+# sdk_version, which may name an unpublished version.
+PUBLISHED_RELEASE = 'sdk-v2.4.0'
+# The GitHub release that holds those archives: PUBLISHED_RELEASE itself, or one of its release
+# candidates (<tag>-rc.N).
+# SDK 2.4.0 is out as release candidate 1; set this to PUBLISHED_RELEASE once the final is published.
+PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0-rc.1'
+DOWNLOADS = 'https://github.com/scuba-sc/sco-core/releases/download/'
+COMMITS = 'https://github.com/scuba-sc/sco-core/commit/'
 # The same delimited block tools/doc_release_gate.py checks against packaging.
 SCOPE_START = '<!-- release-scope:start -->'
 SCOPE_END = '<!-- release-scope:end -->'
@@ -64,9 +69,12 @@ HUBS = (
 # Editorial one-line summaries for hub cards; navigation text, not contract claims.
 HUB_DOCS = {
     'start': (
+        ('docs/roadmap.md', 'Where the SDK stands, what 2.4.0 delivers, what comes after, and how to contribute.'),
         ('docs/getting-started.md', 'One path from a published SDK archive to a checked C plugin deployed on Windows.'),
         ('docs/README.md', 'Curated guides grouped by audience.'),
         ('docs/plugins.md', 'Plugin folders, `plugin.ini`, discovery, loading and data packs.'),
+        ('docs/plugin-design.md', 'Design principles for modular plugins, with a provider and consumer example pair.'),
+        ('docs/plugin-directory.md', 'Community plugins in their own repositories, with reported SDK compatibility.'),
         ('docs/framework.md', 'How the runtime, plugin system, services and SDK sit under each product.'),
     ),
     'sdks': (
@@ -76,6 +84,7 @@ HUB_DOCS = {
     'reference': (
         ('docs/api-v1.md', 'The plain-C root plugin ABI: exports, root table, capabilities, commands, events and threads.'),
         ('docs/contracts.md', 'How to read the per-method service contract catalogue.'),
+        ('docs/stability.md', 'What stays compatible across SDK 2.x: Stable and Experimental service tables.'),
         ('docs/game-services.md', 'Services the Star Citizen game pack publishes under the reserved owner `game`.'),
         ('docs/game/status.md', 'Status of every `game.*` table.'),
         ('docs/storage.md', 'Per-plugin key-value and SQL storage over SQLite.'),
@@ -87,10 +96,9 @@ HUB_DOCS = {
     ),
     'integration': (
         ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
+        ('docs/sdk-mcp-tutorial.md', 'Discover a contract, request a scaffold, validate manifest/widgets and run a native checker.'),
         ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),
-        ('docs/releases/sdk-v2.3.0.md', 'Release notes, scope and archives of SDK 2.3.0.'),
-        ('docs/releases/sdk-v2.2.0.md', 'Release notes, scope and archives of SDK 2.2.0.'),
-        ('docs/releases/sdk-v2.1.0.md', 'Release notes, scope and archives of SDK 2.1.0.'),
+        ('docs/releases/sdk-v2.4.0.md', 'Release notes, scope and archives of SDK 2.4.0 (release candidate 1).'),
         ('docs/reference-snapshots.md', 'Snapshots that bind reference content to SDK inputs.'),
     ),
 }
@@ -255,15 +263,27 @@ def rewrite_links(text, source, sha, doc_routes):
     return LINK.sub(replace, text)
 
 
+def published_stage():
+    """(status label, asset note) of PUBLISHED_DOWNLOAD_TAG: the final release or one of its candidates."""
+    match = re.fullmatch(re.escape(PUBLISHED_RELEASE) + r'(?:-rc\.([1-9][0-9]*))?', PUBLISHED_DOWNLOAD_TAG)
+    if not match:
+        raise ValueError('PUBLISHED_DOWNLOAD_TAG must be PUBLISHED_RELEASE or one of its -rc.N tags')
+    if match[1]:
+        return ('Published release candidate',
+                'release candidate ' + match[1] + ', attested assets; the final signed release follows')
+    return 'Published release', 'immutable approved assets'
+
+
 def banner(catalogue, release_tag):
     label = 'release ' + release_tag if release_tag else 'development preview'
-    published = release_tag or PUBLISHED_RELEASE
+    published = release_tag or PUBLISHED_DOWNLOAD_TAG
+    stage = 'immutable approved assets' if release_tag else published_stage()[1]
     return (':::caution[Catalogue snapshot — ' + label + ']\n'
             + 'SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
             + '** · source `' + catalogue['source_sha'] + '`\n'
             + 'Published release: [' + published + '](' + RELEASES + quote(published, safe='') + ')'
-            + (' (immutable approved assets).\n' if release_tag
-               else ' (immutable approved assets; this development preview is not an approved release).\n')
+            + (' (' + stage + ').\n' if release_tag
+               else ' (' + stage + '; this development preview is not an approved release).\n')
             + 'Source-backed inventory is not a runtime or in-game verification claim.\n:::\n\n')
 
 
@@ -349,7 +369,8 @@ def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
     scope = release_scope((root / notes).read_text(encoding='utf-8'), PUBLISHED_RELEASE)
     cards = published_profiles(root, scope)
     sha = catalogue['source_sha']
-    tag = quote(scope['tag'], safe='')
+    status, stage = published_stage()
+    tag = quote(PUBLISHED_DOWNLOAD_TAG, safe='')
 
     def facts(pairs):
         return ('<dl class="sco-facts">' + ''.join('<dt>' + esc(k) + '</dt><dd>' + v + '</dd>' for k, v in pairs)
@@ -357,13 +378,14 @@ def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
 
     published = [
         '<section class="sco-track" data-track="published" data-tag="' + esc(scope['tag'])
-        + '" aria-labelledby="track-published">',
-        '<span class="sco-status sco-status--published">Published release</span>',
-        '<h3 id="track-published"><a href="' + esc(RELEASES + tag) + '">' + esc(scope['tag']) + '</a></h3>',
+        + '" data-download-tag="' + esc(PUBLISHED_DOWNLOAD_TAG) + '" aria-labelledby="track-published">',
+        '<span class="sco-status sco-status--published">' + esc(status) + '</span>',
+        '<h3 id="track-published"><a href="' + esc(RELEASES + tag) + '">' + esc(PUBLISHED_DOWNLOAD_TAG)
+        + '</a></h3>',
         facts([('SDK', esc(scope['sdk_version'])), ('Game pack', esc(scope['game_pack_version'])),
                ('Plugin ABI', esc(scope['plugin_abi'])), ('Archives', str(len(cards)) + ' profiles')]),
-        '<p class="sco-track__note">Immutable approved assets. <a href="' + esc(route(doc_routes[notes]))
-        + '">Release notes</a></p>',
+        '<p class="sco-track__note">' + esc(stage[0].upper() + stage[1:]) + '. <a href="'
+        + esc(route(doc_routes[notes])) + '">Release notes</a></p>',
         '</section>']
     if release_tag:
         label, title = 'Release build', release_tag
@@ -383,7 +405,8 @@ def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
     out = ['\n## Releases', '<div class="sco-tracks not-content">', *published, *preview, '</div>',
            libraries,
            '\n## Choose an archive',
-           'Archives published in ' + scope['tag'] + '. Profiles and versions come from its release-scope declaration.\n',
+           'Archives published in ' + PUBLISHED_DOWNLOAD_TAG + '. Profiles and versions come from the '
+           'release-scope declaration in the ' + scope['tag'] + ' release notes.\n',
            *profile_cards(cards, sha, doc_routes)]
     out += ['\n## Verify a download',
             'Each archive\'s SHA-256 digest is listed in the release\'s [SHA256SUMS](' + DOWNLOADS + tag
@@ -667,7 +690,7 @@ def hub_body(key, blurb, catalogue, doc_routes, titles, services, natives, profi
     out = [blurb + '\n']
     if key == 'start':
         out += ['## Guides', guides, '\n## SDK profiles',
-                'Archives published in ' + PUBLISHED_RELEASE + '. Each card links to its guide and to the checksum '
+                'Archives published in ' + PUBLISHED_DOWNLOAD_TAG + '. Each card links to its guide and to the checksum '
                 'steps on the [home page](' + route('index') + '#verify-a-download).\n', *profiles]
     elif key == 'sdks':
         languages = cards([(route('languages/' + language), LANGUAGE_LABELS[language] + ' language mappings',
@@ -837,7 +860,8 @@ def generate(root, catalogue, output, release_tag=None):
     libraries = '\n## Libraries\n\n' + hub_cards(groups)
     home = ['Public SDK contracts generated from a compiler-validated catalogue. '
             'Engineering guides are selected by an explicit public-input allowlist.\n',
-            '[Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json)',
+            '[Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json) · [Roadmap and direction]('
+            + route(doc_routes['docs/roadmap.md']) + ')',
             release_portal(root, catalogue, release_tag, doc_routes, libraries)]
     home += ['\n## Reading rules', catalogue['contract_context']['reading_rules'],
              '\n## Remaining gaps', rewrite_links(catalogue['contract_context']['remaining_gaps'], catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes)]

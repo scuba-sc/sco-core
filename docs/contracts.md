@@ -6,6 +6,8 @@ one versioned format. This document's method cells are checked against those
 records: update both together; CI refuses disagreement. Common reading rules,
 per-service narrative and remaining gaps stay authoritative here and are carried
 into the built catalogue, not copied into another editable prose source.
+Which tables are Stable or Experimental across SDK 2.x, separately from
+availability and evidence, is in [Stability](stability.md).
 
 ```sh
 python3 tools/sdk_catalogue.py check
@@ -75,8 +77,9 @@ no service tables and are excluded. Callback contracts are included with the met
 that registers or invokes them. This scope is not a claim to cover every exported
 symbol in a built binary.
 
-The mechanically enumerated inventory is **164 table methods across 30 tables,
-plus 3 plugin entrypoints: 167 method rows**. The inventory below is the checklist;
+The mechanically enumerated inventory is **215 table methods across 45 C table
+representations, plus 3 plugin entrypoints: 218 method rows**. Multiple minor-version
+representations can describe one service. The inventory below is the checklist;
 each method has exactly one row in its table's section, in header field order.
 
 Sources are the linked public headers, ABI layout pins, implementations and
@@ -194,7 +197,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_economy_v1` | 3 | 32 | 1.0 |
 | `sc_missions_v1` | 7 | 64 | 1.0 |
 | `sco_api` | 15 | 128 | 1.1 |
-| `sco_storage_v1` | 15 | 128 | 1.0 |
+| `sco_storage_v1` | 17 | 144 | 1.1 |
 | `sco_datacore_v1` | 10 | 88 | 1.1 |
 | `sco_ipc_v1` | 9 | 80 | 1.0 |
 | `sco_net_v1` | 7 | 64 | 1.0 |
@@ -202,7 +205,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sco_content_v1` | 2 | 24 | 1.0 |
 | `sco_ui_v1` | 9 | 80 | 1.0 |
 | `sco_ui_surfaces_v1` | 4 | 40 | 1.0 |
-| `sco_widgets_v1` | 5 | 48 | 1.1 |
+| `sco_widgets_v1` | 5 | 48 | 1.2 |
 | `sco_diagnostics_publisher_v1` | 1 | 16 | 1.0 |
 | `sc_relocation_v1` | 3 | 32 | 1.0 |
 | `sc_spatial_v1` | 6 | 56 | 1.0 |
@@ -215,20 +218,25 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_reputation_v1` | 2 | 24 | 1.0 |
 | `sc_asop_v1` | 3 | 32 | 1.0 |
 | `sc_contracts_v1` | 2 | 24 | 1.0 |
-| `sc_loadout_v1` | 1 | 16 | 1.1 |
+| `sc_loadout_v1` | 1 | 16 | 1.2 |
+| `sc_loadout_v1_2` | 4 | 40 | 1.2 |
+| `sc_datacore_live_v1` | 5 | 48 | 1.0 |
 | `sc_quantum_v1` | 4 | 40 | 1.0 |
-| `sc_gamerules_v1` | 1 | 16 | 1.0 |
-| `sc_inventory_v1` | 1 | 16 | 1.0 |
+| `sc_gamerules_v1` | 2 | 24 | 1.1 |
+| `sc_input_v1` | 3 | 32 | 1.0 |
+| `sc_inventory_v1` | 1 | 16 | 1.1 |
+| `sc_container_contents_v1` | 1 | 16 | 1.0 |
 | `sc_game_build_v1` | 1 | 16 | 1.0 |
 | `sc_mining_v1` | 2 | 24 | 1.0 |
 | `sc_private_session_v1` | 4 | 40 | 1.0 |
-| `sc_actor_stats_v1` | 1 | 16 | 1.0 |
+| `sc_actor_stats_v1` | 1 | 16 | 1.1 |
 | `sc_actor_stats_write_v1` | 3 | 32 | 1.0 |
 | `sc_cvars_v1` | 1 | 16 | 1.0 |
 | `sc_cvars_write_v1` | 2 | 24 | 1.0 |
 | `sc_world_v1` | 4 | 40 | 1.1 |
-| `sc_world_control_v1` | 4 | 40 | 1.0 |
-| `sc_entities_v1` | 11 | 96 | 1.1 |
+| `sc_world_control_v1` | 5 | 48 | 1.1 |
+| `sc_audio_v1` | 4 | 40 | 1.1 |
+| `sc_entities_v1` | 15 | 128 | 1.2 |
 | `sc_prefabs_v1` | 1 | 16 | 1.0 |
 | `sc_owned_v1` | 6 | 56 | 1.0 |
 | Native plugin entrypoints | 3 | `sco_plugin_info`: 32 | API 1.1 |
@@ -315,6 +323,8 @@ For SQL restrictions and persistence settings see [storage](storage.md).
 | `sco_storage_v1.column_name` | `size >= 112`; 1.0 | `sco_result (*column_name)(sco_plugin* self, uint64_t cursor, uint32_t index, char* out, uint32_t* inout_size);`<br>The column's name, NUL-terminated, with the size handshake. | Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI. | Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified. | Common storage failures; NOT_FOUND unknown/non-owned cursor; BAD_ARG invalid buffer/index; TOO_MANY required bytes. Does not require a current row. | No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 | `sco_storage_v1.close` | `size >= 120`; 1.0 | `sco_result (*close)(sco_plugin* self, uint64_t cursor);`<br>Closes a cursor. SCO_NOT_FOUND: this plugin holds no cursor by that id. | Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI. | Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified. | Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract. | No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 | `sco_storage_v1.last_error` | `size >= 128`; 1.0 | `sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);`<br>The message of this plugin's last failed call ("" if none), NUL-terminated, with the size handshake. | Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI. | Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified. | Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract. | No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
+| `sco_storage_v1.next_table` | `size >= 136`; 1.1 | `sco_result (*next_table)(sco_plugin* self, const char* after, char* out, uint32_t* inout_size, uint32_t* out_kind);`<br>The first user table or view whose name sorts after "after" (NULL: from the start), in byte order, copied NUL-terminated with the size handshake; its kind goes to out_kind (SCO_STORAGE_KIND_*). The host bookkeeping table sco_kv and SQLite's own sqlite_% objects are never listed. SCO_NOT_FOUND: no more objects; BAD_ARG: malformed after, NULL out/out_kind. | Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI. | Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified. | Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract. | No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
+| `sco_storage_v1.next_column` | `size >= 144`; 1.1 | `sco_result (*next_column)(sco_plugin* self, const char* table, uint32_t* inout_index, char* name, uint32_t* name_size, char* type, uint32_t* type_size, uint32_t* out_flags);`<br>The column at declaration position *inout_index of one own table or view (views report their result columns): name and declared type copy NUL-terminated with two size handshakes; out_flags gets the SCO_STORAGE_COLUMN_* bitmask (a column without a declared type gets ""). On success *inout_index advances to the next position. SCO_NOT_FOUND: no such object, or *inout_index is past the last column (outputs untouched). BAD_ARG: NULL inout pointers, malformed table name. | Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI. | Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified. | Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract. | No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. |
 
 ## sco.content: `sco_content_v1`
 
@@ -441,7 +451,7 @@ the value, for every plugin's changes. See [settings](api-v1.md#scosettings-10).
 
 ## sco.widgets: `sco_widgets_v1`
 
-Renderer-neutral retained panels, host-owned service 1.1. Source: `include/sco_widgets.h`,
+Renderer-neutral retained panels, host-owned service 1.2. Source: `include/sco_widgets.h`,
 `src/widgets/widgets.cpp`; design: [widgets](design/widgets.md). This does not change
 the frozen sco_api ABI or the legacy sco.ui draw-context/hotkey route. Limits:
 64 panels, 256 nodes/panel, 4096 live nodes, 256 items/node, 16 table columns.
@@ -449,8 +459,8 @@ Strings are copied UTF-8, plain text; callbacks and context are borrowed. All
 methods/events are game-thread only. Events update retained state then dispatch
 under the owner guard; replacing/removing a panel invalidates pending generations.
 C is direct; C++ has `scosdk/widgets.hpp`; Lua has bounded `sco.widgets` tables
-and registry-rooted typed callbacks. C# is unsupported/deferred in
-[#142](https://github.com/scubamount/sco-core/issues/142), a follow-up to #139.
+and registry-rooted typed callbacks. C# also supports bounded 1.0 set/remove panels
+and rooted callbacks; this does not imply typed support for later node extensions.
 The optional ImGui adapter is host-only; plugins never include it.
 
 1.1 appends `update_nodes`, `remove_nodes` and `capabilities` (table 24 -> 48 bytes) and
@@ -461,6 +471,14 @@ hold a 1.1 node receive 1.1 events, including `SCO_WIDGET_EVENT_PAGE`; other pan
 32-byte events. Render snapshots are rebuilt at most once per panel render pass, after a
 change. C# and Lua sco.widgets 1.1 routes are unsupported. Pins: `tests/abi_widgets.c`; host tests:
 `tests/test_widgets11.cpp`.
+
+1.2 adds a node extension, not a table member: `sco_widget_node_1_2` is 128 bytes,
+with `const char* tag` at offset 104 and zero reserved words at offset 112.
+The host copies panel-unique ASCII tags matching `[A-Za-z0-9._-]{1..63}`.
+Check the complete `capabilities` member and `SCO_WIDGETS_FEATURE_STABLE_TAGS`
+before relying on tags. The table remains 48 bytes; 80/104-byte nodes stay valid.
+C# declares raw `ScoWidgetNode12` interop, but its typed node submission stays
+1.0-only; Lua does not accept a `tag` field.
 
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
@@ -783,6 +801,30 @@ are OFF: no guessed engine adapter. Synthetic policy is not gameplay proof.
 | `sc_world_control_v1.camera_step` | `size >= 32`; 1.0 | `sco_result (*camera_step)(sco_plugin* self, uint64_t lease, const sc_world_camera_step* step);`<br>Only own active lease; copied size-prefixed step, tail ignored, reserved pad zero. Finite world translation norm <=10m and unit quaternion shortest world rotation delta <=0.25rad per call. No absolute pose or FOV. BAD_ARG invalid delta, NOT_FOUND stale/zero token, FAILED foreign owner. Provider failure attempts restoration and permanently latches restart-required. | Live owner required; call-only copied inputs, host-session borrowed table. No allocation or engine pointers cross boundary. Camera lease exclusive; no steal. | Game thread only; WRONG_THREAD without provider access. | BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract. | No persisted ray filter. Ordinary owner unload/service stop restores camera before dropping lease; failure retains backing state and requires restart. Fault-retained native provider cleanup not promised. |
 | `sc_world_control_v1.camera_release` | `size >= 40`; 1.0 | `sco_result (*camera_release)(sco_plugin* self, uint64_t lease);`<br>Restore exact pre-acquire shared camera/input/mode state before relinquishing own lease. Foreign owner FAILED; stale/zero token NOT_FOUND. Restore failure FAILED retains provider state and latches restart-required; owner cleanup/release can retry restoration, never re-enable mutations. Recovery release allowed after service stop. | Live owner required; call-only copied inputs, host-session borrowed table. No allocation or engine pointers cross boundary. Camera lease exclusive; no steal. | Game thread only; WRONG_THREAD without provider access. | BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract. | No persisted ray filter. Ordinary owner unload/service stop restores camera before dropping lease; failure retains backing state and requires restart. Fault-retained native provider cleanup not promised. |
 
+| `sc_world_control_v1.raycast_filtered_many` | `size >= 48`; 1.1 | `sco_result (*raycast_filtered_many)(sco_plugin* self, uint64_t zone_id, const double from[3], const double dir[3], double max_dist, const uint64_t* skip_ids, uint32_t skip_count, sc_world_hits* out_hits);`<br>Synchronous scoped bounded multi-hit in the requested zone frame; capacity <=64, count-only permitted, ordered distances and explicit omitted count. Same 32 owner-validated skips and distance clamp as single ray. Grid release runs after query even on error/no hit. Malformed records or cleanup failure publish no hits; cleanup failure latches restart-required. Native capability remains OFF. | Live owner required; call-only copied inputs, host-session borrowed table. No allocation or engine pointers cross boundary. Camera lease exclusive; no steal. | Game thread only; WRONG_THREAD without provider access. | BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract. | Provider acquire/query/release scope lasts one call. Successful acquire is paired exactly once with release before output publication; release failure latches unavailable. No retained caller buffers or filters. |
+
+### Entity lookup1.2 appended methods
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_entities_v1.list_classes` | `size >= 104`; 1.2 | `sco_result (*list_classes)(uint64_t epoch, uint32_t offset, sc_entity_class_page* out);`<br>Copy an epoch-pinned sorted bounded class registry page; capacity <=64, zero counts only. Stale epoch NOT_FOUND; malformed or incomplete backend snapshot refused. | Caller-owned copied outputs; host session identities only, no native pointers or allocation across ABI. | Game thread only. | OK copied observation; BAD_ARG invalid name/kind/output/capacity; WRONG_THREAD; NOT_FOUND stale epoch or absent item; FAILED malformed/ambiguous provider; UNAVAILABLE unbound/stopped. Known output prefix zeroed on failure, size/tail preserved. | No retained plugin resource. Stop invalidates admission and epochs; requery session/streaming observations before use. |
+| `sc_entities_v1.find_class` | `size >= 112`; 1.2 | `sco_result (*find_class)(const char* name, sc_entity_class_record* out);`<br>Find an exact case-sensitive class name in the complete copied registry; return a host session class identity, never a native pointer. | Caller-owned copied outputs; host session identities only, no native pointers or allocation across ABI. | Game thread only. | OK copied observation; BAD_ARG invalid name/kind/output/capacity; WRONG_THREAD; NOT_FOUND stale epoch or absent item; FAILED malformed/ambiguous provider; UNAVAILABLE unbound/stopped. Known output prefix zeroed on failure, size/tail preserved. | No retained plugin resource. Stop invalidates admission and epochs; requery session/streaming observations before use. |
+| `sc_entities_v1.find_by_name` | `size >= 120`; 1.2 | `sco_result (*find_by_name)(const char* name, uint64_t* out_entity_id);`<br>Debug-grade ASCII case-insensitive entity name lookup; ambiguous matches FAILED, missing NOT_FOUND, output zero on failure. | Caller-owned copied outputs; host session identities only, no native pointers or allocation across ABI. | Game thread only. | OK copied observation; BAD_ARG invalid name/kind/output/capacity; WRONG_THREAD; NOT_FOUND stale epoch or absent item; FAILED malformed/ambiguous provider; UNAVAILABLE unbound/stopped. Known output prefix zeroed on failure, size/tail preserved. | No retained plugin resource. Stop invalidates admission and epochs; requery session/streaming observations before use. |
+| `sc_entities_v1.component` | `size >= 128`; 1.2 | `sco_result (*component)(uint64_t entity_id, uint32_t kind, sc_entity_component_record* out);`<br>Copy validated ACTOR or INVENTORY component presence for a streamed entity with generation; no arbitrary payload, address or persistent component token. | Caller-owned copied outputs; host session identities only, no native pointers or allocation across ABI. | Game thread only. | OK copied observation; BAD_ARG invalid name/kind/output/capacity; WRONG_THREAD; NOT_FOUND stale epoch or absent item; FAILED malformed/ambiguous provider; UNAVAILABLE unbound/stopped. Known output prefix zeroed on failure, size/tail preserved. | No retained plugin resource. Stop invalidates admission and epochs; requery session/streaming observations before use. |
+
+## game.audio: `sc_audio_v1`
+
+Owner-bound trigger and playback tokens, native C/C++ only. Production has no
+native backend; synthetic host proof is not audible or in-game verification.
+See [audio ownership and cleanup](game/audio.md).
+
+| Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
+|---|---|---|---|---|---|---|
+| `sc_audio_v1.resolve` | `size >= 16`; 1.0 | `sco_result (*resolve)(sco_plugin* self, const char* name, uint64_t* out_trigger);`<br>Resolve an exact bounded name to an owner-bound session trigger token; unknown names return NOT_FOUND and zero output without playback. | Live caller owns trigger and playback tokens. No native pointers or cross-boundary allocation; tokens never reused within process. | Game thread only. | OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure. | Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery. |
+| `sc_audio_v1.play` | `size >= 24`; 1.0 | `sco_result (*play)(sco_plugin* self, uint64_t trigger, uint64_t* out_playback);`<br>Accept an isolated playback for an owned trigger and return a distinct owner-bound playback token; acceptance is not audible output or completion. | Live caller owns trigger and playback tokens. No native pointers or cross-boundary allocation; tokens never reused within process. | Game thread only. | OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure. | Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery. |
+| `sc_audio_v1.stop` | `size >= 32`; 1.0 | `sco_result (*stop)(sco_plugin* self, uint64_t playback);`<br>Stop one owned playback; failure retains backing state and blocks new effects pending restart, while cleanup may retry. | Live caller owns trigger and playback tokens. No native pointers or cross-boundary allocation; tokens never reused within process. | Game thread only. | OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure. | Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery. |
+| `sc_audio_v1.play_once` | `size >= 40`; 1.1 | `sco_result (*play_once)(sco_plugin* self, uint64_t trigger);`<br>Submit one fire-and-forget trigger request; no playback token, no audible-output or completion guarantee, no stop. | Live caller owns the trigger token from resolve. No playback token is issued; no native pointers or cross-boundary allocation. | Game thread only. | OK accepted submission only; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind trigger; FAILED foreign owner, backend refusal or recursion; CRASHED backend fault (play_once then OFF until restart); UNAVAILABLE unbound, revoked, stopped, restart-required, a 1.0-sized table, or owner released during an accepted call (no rollback, do not retry). | Nothing to clean up per call: no playback is tracked. Owner unload needs no stop; an accepted submission cannot be cancelled. |
+
 ## sco.diagnostics.publisher — `sco_diagnostics_publisher_v1` 1.0
 
 Default-off host-selected source ingress, not an observation endpoint. Fixed
@@ -828,12 +870,13 @@ containment is not certified. **Not verified on Windows or in game.**
 | `sc_game_spatial_v1.find_zone` | `size >= 32`; 1.0 | `int (*find_zone)(const char* name, sc_game_zone* out);`<br>Exact case-sensitive nonempty name of at most 95 bytes; copy the unique observed match only. Ambiguous, absent or possibly truncated names refuse. Does not discover unseen zones. out->size must be at least sizeof(sc_game_zone); preserve size and unknown caller tail. Outputs unchanged on 0. | Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer. | Game thread only; non-reentrant; no callbacks. | 1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0. | Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission. |
 | `sc_game_spatial_v1.list_zones` | `size >= 40`; 1.0 | `int (*list_zones)(uint64_t epoch, uint32_t offset, sc_game_zone* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_more, uint64_t* out_epoch);`<br>Copied page sorted by zone ID from at most 256 explicitly observed zones, never exhaustive world discovery. epoch=0 selects current set; nonzero epoch must match. Tick refresh, additions/changes, invalidation and stop expire epochs. cap at most 64; stride is aligned to 8 bytes and in [144,4096]; every offered slot has size at least 144. cap=0 allows NULL out and counts remaining entries. offset may equal total. out_count is copied elements; out_more is remaining after this page; out_epoch pins later pages. Validate all slots before writing; preserve caller size and unknown tails. Outputs unchanged on 0. | Caller-owned copied records/buffers; opaque session IDs and epoch tokens, never pointers. Fixed 256-record storage; bounded temporary trees may allocate. No retained caller inputs or allocation transfer. | Game thread only; non-reentrant; no callbacks. | 1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0. | Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission. |
 
-## `sc_loadout_v1` — `game.loadout` 1.1
+## `sc_loadout_v1` — synchronous prefix of `game.loadout` 1.2
 
 Typed local-player loadout only, not account inventory. The game pack publishes a
 session-lifetime table even while its mutation capability is false. Current production
-composition installs **no verified engine backend**: every valid request returns
-UNAVAILABLE without engine access. See [loadout](game/loadout.md) for acceptance blockers.
+composition installs no synchronous equip backend: valid synchronous `apply`
+requests return UNAVAILABLE. The separate opt-in asynchronous route is described
+below. See [loadout](game/loadout.md) for acceptance blockers.
 C/C++ native routes only; C# and sandboxed Lua mutation are unsupported.
 
 | Method | Since | Buffer / call contract | Ownership | Thread affinity | Results | Cleanup |
@@ -843,7 +886,9 @@ C/C++ native routes only; C# and sandboxed Lua mutation are unsupported.
 
 ## `sc_quantum_v1` — game.quantum 1.0
 
-See [offline quantum](quantum.md). Production engine bridge unavailable; synthetic control-state evidence only.
+See [offline quantum](quantum.md). A Windows production adapter exists under the
+maintainer's amended rule; availability depends on configuration, resolved rows
+and fresh offline admission. Evidence remains synthetic, not in-game verification.
 
 | Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
 |---|---|---|---|---|---|---|
@@ -851,7 +896,7 @@ See [offline quantum](quantum.md). Production engine bridge unavailable; synthet
 | `sc_quantum_v1.hold` | `size >= 24`; 1.0 | `sco_result (*hold)(sco_plugin* self, uint32_t milliseconds);`<br>Refresh the owned hold lease for 1..1000 milliseconds from the latest game tick. No drive or any block refuses holding. Expiry is serviced by the next game tick. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
 | `sc_quantum_v1.release` | `size >= 32`; 1.0 | `sco_result (*release)(sco_plugin* self);`<br>Cancel holding while retaining enable and ownership. Repeated own release is idempotent. Unclaimed or foreign release is NOT_FOUND. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
 | `sc_quantum_v1.state` | `size >= 40`; 1.0 | `sco_result (*state)(sco_plugin* self, sc_quantum_state* out);`<br>Caller sets out->size to at least 32. Copy only the known prefix: enabled/held, phase, block, integer-millionth progress and opaque session generation. Unavailable observations return idle/zero and a block; early refusals leave output unchanged. | Game pack owns one bounded controller lease and hooks; output copied to caller. No allocation or engine pointer transfer. | Game thread only; WRONG_THREAD before state access. No recursive calls during bridge operations. | OK, BAD_ARG invalid/released self or bounds, WRONG_THREAD, UNAVAILABLE absent bridge/drive/offline admission/stopped session, NOT_FOUND non-owner hold/release, FAILED competing owner or restart-required fault. | Release cancels hold; disable/unload clears ownership; tick expires hold or cancels on lost admission. Stop withdraws and rolls back owned hooks. Uncertain bridge cleanup retains backing state/hooks and requires restart. |
-## `sc_actor_stats_v1` — `game.actor_stats` 1.0
+## `sc_actor_stats_v1` — `game.actor_stats` 1.1
 
 Source: [`sc_actor_stats.h`](../include/sc_actor_stats.h), [stats, rows and what an in-game run must confirm](game/actor-stats.md).
 Read-only. Stats are named by `sc_actor_stat`; the game pack keeps each name on the game's stat index with the `actor.stat_names` row. Not run in game.
@@ -859,7 +904,7 @@ C/C++ supported; C# and Lua unsupported.
 
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
-| `sc_actor_stats_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(uint64_t id, uint32_t stat, float* out_value);`<br>Read one named stat (sc_actor_stat) of the actor whose entity id is id: your player or a streamed-in NPC. *out_value is the game's own float in the game's own units; 0 on failure. An actor without a record of that stat answers NOT_FOUND, never a silent 0. | Copied scalar inputs; one float copied to the caller. No allocation, no engine pointer transfer, nothing retained. | Game thread only; WRONG_THREAD elsewhere before any game access. | OK value copied; BAD_ARG id 0, out_value NULL or stat not a 1.0 stat; NOT_FOUND id not streamed in, not an actor, or no record of that stat; UNAVAILABLE game.actor_stats.read not ready; FAILED game fault or non-finite value; WRONG_THREAD off the game thread. | Read-only: nothing to restore. game.actors' stop withdraws the table and clears the capability. |
+| `sc_actor_stats_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(uint64_t id, uint32_t stat, float* out_value);`<br>Read one named stat (sc_actor_stat) of the actor whose entity id is id: your player or a streamed-in NPC. *out_value is the game's own float in the game's own units; 0 on failure. An actor without a record of that stat answers NOT_FOUND, never a silent 0. | Copied scalar inputs; one float copied to the caller. No allocation, no engine pointer transfer, nothing retained. | Game thread only; WRONG_THREAD elsewhere before any game access. | OK value copied; BAD_ARG id 0, out_value NULL or stat unsupported by this service minor; NOT_FOUND id not streamed in, not an actor, or no record of that stat; UNAVAILABLE game.actor_stats.read not ready; FAILED game fault or non-finite value; WRONG_THREAD off the game thread. | Read-only: nothing to restore. game.actors' stop withdraws the table and clears the capability. |
 
 ## `sc_actor_stats_write_v1` — `game.actor_stats_write` 1.0
 
@@ -880,21 +925,46 @@ Running exe identity + the game pack's verified-build pin. See [game.build](game
 |---|---|---|---|---|---|---|
 | `sc_game_build_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(sco_plugin* self, sc_game_build_info* out);`<br>Copy the running game build identity into out (caller sets out->size): the exe's PE TimeDateStamp and SizeOfImage, the game pack version triple, the four-part build the pack verified, that build's PE timestamp, and pin_matches (1 when the running timestamp equals the verified one). Constant for the process lifetime; no engine state is read beyond the module header. | All values copied from constants and the module header; provider retains nothing, allocates nothing. | Game thread only (published with the game pack). | OK identity copied, UNAVAILABLE out null or out->size too small, BAD_ARG invalid self. | StopGameBuild withdraws the service; no state to restore. |
 
-## `sc_inventory_v1` — game.inventory 1.0
+## `sc_inventory_v1` — game.inventory 1.1
 
-Read-only local-player item-port snapshot. See [game.inventory](game/inventory.md). Backend-unbound default publishes UNAVAILABLE; synthetic evidence only, nothing run in game.
+Read-only local-player item-port snapshot. See [game.inventory](game/inventory.md). Default OFF and answers UNAVAILABLE unless the product switch is on and every signature row is OK; synthetic evidence only, nothing run in game. 1.1 appends `flags` and `total_seen` to the snapshot (size-gated; the 1.0 size is still accepted).
 
 | Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
 |---|---|---|---|---|---|---|
-| `sc_inventory_v1.snapshot` | `size >= 16`; 1.0 | `sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). Read-only: per valid port, the attached item's opaque class type id and its session-scoped entity id (joins game.entities); generation advances on port-set change. Values are the client's view of server state at snapshot time; nothing can be written through this ABI. | Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size too small, or no local player; BAD_ARG invalid self. | StopGameInventory withdraws the service; read-only, no engine state to restore. |
+| `sc_inventory_v1.snapshot` | `size >= 16`; 1.0; flags and total_seen 1.1 | `sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). The ports are the whole attached tree, depth first: each port, then the ports of the container attached to it, empty ports included. Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. With out->size >= sizeof(sc_inventory_snapshot) (1.1) it also sets flags (TRUNCATED: ports beyond the cap exist; LIMITED: the walk's own limits cut the tree) and total_seen; a 1.0 caller passing the 1.0 size never sees them. Values are the client's view of server state at snapshot time; nothing can be written through this ABI. | Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size below the 1.0 snapshot size, no local player, no item-port container on the player, or the adapter's guards failed; BAD_ARG invalid self. | StopGameInventory withdraws the service; read-only, no engine state to restore. |
 
-## `sc_gamerules_v1` — game.gamerules 1.0
+## `sc_container_contents_v1` — game.inventory.contents 1.0
+
+Stored-item quantities and optional volume are copied through a bounded host-owned
+read provider. Independent of equipped item ports; unknown is not empty. Game
+thread only, valid plugin handle; production remains OFF without a native adapter.
+See [container contents](game/container-contents.md). Not run in game.
+
+| Method | Since | Buffer contract | Ownership | Thread affinity | Results | Cleanup |
+|---|---|---|---|---|---|---|
+| `sc_container_contents_v1.snapshot` | `size >= 16`; 1.0 | `sco_result (*snapshot)(sco_plugin* self, uint64_t container_id, sc_container_snapshot* out);`<br>Copy at most 64 stored-item records for a session-local container into caller-owned storage; count is capacity in and copied count out, total_seen reports omitted items and generation identifies the provider snapshot. Quantity is positive; volume is meaningful only with VOLUME_KNOWN. No engine pointers or mutation cross the ABI. | Caller owns output; provider receives service-owned scratch storage only. IDs are session-local, no pointers retained. | Game thread only. | OK snapshot; BAD_ARG invalid handle, id, output size or capacity; WRONG_THREAD off game thread; NOT_FOUND unknown container; UNAVAILABLE unbound or stopping; FAILED malformed provider or exception. Known output prefix is cleared on failure, future caller tail untouched. | Service stop withdraws table and drops host-owned backend references. Read-only, no engine state to restore. |
+
+## `sc_input_v1` — game.input 1.0
+
+Static action vocabulary only: 1,297 actions, ids 1..1297, build-scoped to 4.10.197.2878
+(F-4.10.197.2878-050).
+No engine calls, input injection or key binding access. See [input](game/input.md).
+
+| Method | Since | Buffer / purpose | Ownership | Thread / callbacks | Results / absent capability | Cleanup / limitations |
+|---|---|---|---|---|---|---|
+| `sc_input_v1.count` | `size >= 16`; 1.0 | `sco_result (*count)(sco_plugin* self, uint32_t* out);`<br>Copy the number of named actions: 1,297 on 4.10.197.2878, whose valid ids are exactly 1..count; there are no sentinel records. | Caller owns outputs; metadata is copied, and no engine pointer is returned or retained. | Game thread only; self must be live. | OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name. | StopInput withdraws the service and rejects calls through a retained table. |
+| `sc_input_v1.by_id` | `size >= 24`; 1.0 | `sco_result (*by_id)(sco_plugin* self, uint32_t id, sc_input_action_info* out);`<br>Copy action metadata for a numeric id in 1..count; 0 (SC_ACTION_INVALID) and ids above count are not actions. | Caller owns outputs; metadata is copied, and no engine pointer is returned or retained. | Game thread only; self must be live. | OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name. | StopInput withdraws the service and rejects calls through a retained table. |
+| `sc_input_v1.by_name` | `size >= 32`; 1.0 | `sco_result (*by_name)(sco_plugin* self, const char* name, sc_input_action_info* out);`<br>Copy action metadata for an exact case-sensitive action name; each action has exactly one name. | Caller owns outputs; metadata is copied, and no engine pointer is returned or retained. | Game thread only; self must be live. | OK copied; BAD_ARG invalid self, null output or malformed input; WRONG_THREAD off the game thread; UNAVAILABLE after Stop; NOT_FOUND unknown id or name. | StopInput withdraws the service and rejects calls through a retained table. |
+
+## `sc_gamerules_v1` — game.gamerules 1.1
 
 Read-only server GameRules parameters. See [game.gamerules](game/gamerules.md). Backend-unbound default publishes UNAVAILABLE; synthetic evidence only, nothing run in game.
 
 | Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
 |---|---|---|---|---|---|---|
 | `sc_gamerules_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(sco_plugin* self, sc_gamerules_state* out);`<br>Copy the client's current server GameRules parameter snapshot into out (caller sets out->size). Read-only: values are what the server sent and the client applied for the current session; they cannot be written through this ABI. generation changes when a new parameter set is applied. | Provider owns the snapshot storage; a plain copy crosses to the caller. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null or out->size too small, BAD_ARG invalid self. | StopGameRules withdraws the service and clears the bound backend; no engine state to restore (read-only). |
+
+| `sc_gamerules_v1.list_params` | `size >= 24`; 1.1 | `sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate the 15 static GameRules parameter definitions (names verified on 4.10.197.2878, F-4.10.197.2878-054) by offset; records carry names, groups and types but no values or engine offsets. | Caller owns all output slots; size and unknown tails remain untouched. No pointers retained. | Game thread only; live self required. | OK page copied or count-only query; BAD_ARG invalid slot size, pointers, offset, cap or stride; WRONG_THREAD; UNAVAILABLE after stop. | StopGameRules withdraws the table and disables cached list_params pointers. |
 
 ## `sc_cvars_v1` — `game.cvars` 1.0
 
@@ -982,6 +1052,32 @@ Request strings are declared UTF-8; byte bounds/NUL checks do not certify Unicod
 | `sc_private_session_v1.request_join` | `size >= 24`; 1.0 | `sco_result (*request_join)(sco_plugin* self, const sc_private_session_join_request_v1* request);`<br>Complete 48-byte request; consent=1 only after fresh explicit local UI Join, reserved pad zero. Numeric IPv4 address 1..15 bytes, passphrase 12..256 bytes, player name 1..64 bytes and nonzero port; no embedded NUL. Strings declared UTF-8. Unknown request tail ignored. Host enforces private-address allowlist and admission. | Host owns one session and its requesting owner; request strings are borrowed for the call and copied into host storage. Plugins receive no socket/bind/allowlist authority. Caller owns copied state. | Game thread only; WRONG_THREAD before state access. | OK host operation accepted, not authenticated connection; BAD_ARG malformed/bounds/released self; FAILED absent consent or broker failure; WRONG_THREAD; UNAVAILABLE disabled/stopping/reentrant, failed admission or occupied session; TOO_MANY four-attempts-per-second host-wide limit. | Requesting-owner unload, explicit leave, admission loss or host stop leaves session. Stop withdraws service. Credentials are volatile backend state, not plugin-controlled persistent storage. |
 | `sc_private_session_v1.leave` | `size >= 32`; 1.0 | `sco_result (*leave)(sco_plugin* self);`<br>Leave only the requesting owner session; no owner is an idempotent OK. Another owner cannot leave it. No output buffer. | Host owns one session and its requesting owner; request strings are borrowed for the call and copied into host storage. Plugins receive no socket/bind/allowlist authority. Caller owns copied state. | Game thread only; WRONG_THREAD before state access. | OK left/already idle; BAD_ARG invalid/released self; WRONG_THREAD; UNAVAILABLE foreign owner, absent broker, runtime stopping or reentrant call. | Requesting-owner unload, explicit leave, admission loss or host stop leaves session. Stop withdraws service. Credentials are volatile backend state, not plugin-controlled persistent storage. |
 | `sc_private_session_v1.get_state` | `size >= 40`; 1.0 | `sco_result (*get_state)(sc_private_session_state_v1* out);`<br>out.size must cover 16 bytes; copy session state, peer count and configured host max_peers (0 for joiner/idle unknown). No owner handle is required. Output size becomes 16; unknown tail untouched. Admission loss leaves the session and returns UNAVAILABLE without copying output. | Host owns one session and its requesting owner; request strings are borrowed for the call and copied into host storage. Plugins receive no socket/bind/allowlist authority. Caller owns copied state. | Game thread only; WRONG_THREAD before state access. | OK copied state; BAD_ARG null/short output; WRONG_THREAD; UNAVAILABLE absent broker, runtime stopping, reentrant call or admission loss. | Requesting-owner unload, explicit leave, admission loss or host stop leaves session. Stop withdraws service. Credentials are volatile backend state, not plugin-controlled persistent storage. |
+
+
+## `sc_loadout_v1_2` - game.loadout 1.2
+
+Bounded owner-scoped asynchronous jobs; the synchronous1.1 prefix is unchanged.
+No native success without attachment readback; not run in game.
+
+| Method | Size / since | Buffer contract | Ownership | Thread | Results | Cleanup |
+|---|---|---|---|---|---|---|
+| `sc_loadout_v1_2.apply` | `size >= 16`; 1.2 | `sco_result (*apply)(sco_plugin* self, const sc_loadout_request* request, sc_loadout_report* report);`<br>Frozen synchronous prefix. Same behavior as sc_loadout_v1.apply; async production does not make this method available. | Caller-owned full records; copied typed requests, owner-scoped process-unique job ids. One retained job per plugin, eight total. Local player only; no account inventory or XML. | Game thread only; non-reentrant. No plugin callbacks. | OK on accepted submit, observed status or cancellation; BAD_ARG for malformed extent/input/self, TOO_MANY for retained-job capacity, NOT_FOUND for foreign or unknown id, UNAVAILABLE for missing verified provider or admission, FAILED for terminal backend fault. | Owner unload and stop cancel jobs. Session/admission loss or 120000ms timeout fails pending work. No retry or rollback. Fault disables mutation until process restart and retains uncertain native resources. |
+| `sc_loadout_v1_2.submit` | `size >= 24`; 1.2 | `sco_result (*submit)(sco_plugin* self, const sc_loadout_request* request, uint64_t* out_job);`<br>Validate and copy 1..16 unique logical slots and bounded class names into one owner-scoped asynchronous job. Eight jobs total, one per plugin. Admission is not equip completion. | Caller-owned full records; copied typed requests, owner-scoped process-unique job ids. One retained job per plugin, eight total. Local player only; no account inventory or XML. | Game thread only; non-reentrant. No plugin callbacks. | OK on accepted submit, observed status or cancellation; BAD_ARG for malformed extent/input/self, TOO_MANY for retained-job capacity, NOT_FOUND for foreign or unknown id, UNAVAILABLE for missing verified provider or admission, FAILED for terminal backend fault. | Owner unload and stop cancel jobs. Session/admission loss or 120000ms timeout fails pending work. No retry or rollback. Fault disables mutation until process restart and retains uncertain native resources. |
+| `sc_loadout_v1_2.status` | `size >= 32`; 1.2 | `sco_result (*status)(sco_plugin* self, uint64_t job, sc_loadout_job_report* report);`<br>Copy the owner-scoped 160-byte job report without advancing native work. Completed prefix and applied count describe observed per-slot results; pending slots remain UNAVAILABLE. | Caller-owned full records; copied typed requests, owner-scoped process-unique job ids. One retained job per plugin, eight total. Local player only; no account inventory or XML. | Game thread only; non-reentrant. No plugin callbacks. | OK on accepted submit, observed status or cancellation; BAD_ARG for malformed extent/input/self, TOO_MANY for retained-job capacity, NOT_FOUND for foreign or unknown id, UNAVAILABLE for missing verified provider or admission, FAILED for terminal backend fault. | Owner unload and stop cancel jobs. Session/admission loss or 120000ms timeout fails pending work. No retry or rollback. Fault disables mutation until process restart and retains uncertain native resources. |
+| `sc_loadout_v1_2.cancel` | `size >= 40`; 1.2 | `sco_result (*cancel)(sco_plugin* self, uint64_t job);`<br>Forget the owned job and release unfinished native resources. Cancellation does not undo confirmed equipment or replay a partially applied operation. | Caller-owned full records; copied typed requests, owner-scoped process-unique job ids. One retained job per plugin, eight total. Local player only; no account inventory or XML. | Game thread only; non-reentrant. No plugin callbacks. | OK on accepted submit, observed status or cancellation; BAD_ARG for malformed extent/input/self, TOO_MANY for retained-job capacity, NOT_FOUND for foreign or unknown id, UNAVAILABLE for missing verified provider or admission, FAILED for terminal backend fault. | Owner unload and stop cancel jobs. Session/admission loss or 120000ms timeout fails pending work. No retry or rollback. Fault disables mutation until process restart and retains uncertain native resources. |
+
+## `sc_datacore_live_v1` - game.datacore_live 1.0
+
+Explicit verified host backend only; no native pool adapter supplied. Writes default OFF.
+C++/C#/Lua typed wrappers unsupported. Not run in game.
+
+| Method | Size / since | Buffer contract | Ownership | Thread | Results | Cleanup |
+|---|---|---|---|---|---|---|
+| `sc_datacore_live_v1.is_ready` | `size >= 16`; 1.0 | `sco_result (*is_ready)(sco_plugin* self);`<br>Check verified backend admission and current pool lifetime. | Caller owns all buffers and output records. No engine pointer or caller buffer is retained. | Game thread only; self must be live. | OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault. | Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart. |
+| `sc_datacore_live_v1.get_pool_stats` | `size >= 24`; 1.0 | `sco_result (*get_pool_stats)(sco_plugin* self, uint32_t pool_type, sc_datacore_pool_stats* out_stats);`<br>Copy scalar pool statistics into a full-size caller record. | Caller owns all buffers and output records. No engine pointer or caller buffer is retained. | Game thread only; self must be live. | OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault. | Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart. |
+| `sc_datacore_live_v1.find_record` | `size >= 32`; 1.0 | `sco_result (*find_record)(sco_plugin* self, const uint8_t guid[16], sc_datacore_live_record_info* out_record);`<br>Find a live record by its sixteen-byte identifier. | Caller owns all buffers and output records. No engine pointer or caller buffer is retained. | Game thread only; self must be live. | OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault. | Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart. |
+| `sc_datacore_live_v1.read_pool` | `size >= 40`; 1.0 | `sco_result (*read_pool)(sco_plugin* self, uint32_t pool_type, uint64_t offset, void* out_buffer, size_t buffer_size, size_t* out_read);`<br>Copy bounded bytes from a host-validated scalar pool range. | Caller owns all buffers and output records. No engine pointer or caller buffer is retained. | Game thread only; self must be live. | OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault. | Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart. |
+| `sc_datacore_live_v1.write_pool` | `size >= 48`; 1.0 | `sco_result (*write_pool)(sco_plugin* self, uint32_t pool_type, uint64_t offset, const void* in_buffer, size_t buffer_size, size_t* out_written);`<br>Write a host-validated pool range only with separate host write permission. | Caller owns all buffers and output records. No engine pointer or caller buffer is retained. | Game thread only; self must be live. | OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault. | Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart. |
 
 
 ## Explicit remaining gaps

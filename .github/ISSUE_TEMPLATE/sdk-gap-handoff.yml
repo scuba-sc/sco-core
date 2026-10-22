@@ -1,0 +1,148 @@
+---
+name: "SDK Gap & Community Native Handoff"
+description: >-
+  Report missing SDK services, mapped engine natives, vtable slots, or
+  anchor strings (Human or AI Agent via sco-community-extractor).
+title: "[SDK-Gap] <subsystem/capability summary> (<build_version>)"
+labels: ["sdk-gap", "community-handoff"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Clean-Room SDK Gap & Native Handoff
+        > **Using an AI coding agent (Claude Code, Cursor, Codex, OmO)?**
+        > Run the bundled skill:
+        > `.claude/skills/sco-community-extractor/SKILL.md`
+        > It will audit your `plugins/*` and `src/*`, keep your private code
+        > untouched, and submit this issue via `gh issue create`.
+
+  - type: input
+    id: contributor_username
+    attributes:
+      label: "Contributor Username / Handle"
+      description: "Your GitHub or Discord handle for provenance attribution."
+      placeholder: "e.g., sam-tech"
+    validations:
+      required: true
+
+  - type: input
+    id: build_version
+    attributes:
+      label: "Target Game Build Version"
+      description: "Exact 4-part version from `LIVE/build_manifest.id`."
+      placeholder: "e.g., 4.10.197.2878"
+    validations:
+      required: true
+
+  - type: input
+    id: branch_and_cl
+    attributes:
+      label: "Branch & P4 Changelist"
+      description: "Branch name and changelist from `LIVE/build_manifest.id`."
+      placeholder: "e.g., sc-alpha-4.10.x / CL 12913470"
+    validations:
+      required: true
+
+  - type: input
+    id: exe_sha256
+    attributes:
+      label: "StarCitizen.exe SHA-256"
+      description: >-
+        64-character hex SHA-256 of the target binary (or `UNKNOWN`).
+      placeholder: "64-hex sha256 or UNKNOWN"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: verification_state
+    attributes:
+      label: "Highest Verification State Achieved"
+      description: >-
+        Select the highest verification level achieved across the findings.
+      options:
+        - "VERIFIED_IN_GAME (Executing cleanly in live offline runtime)"
+        - "RESOLVED_STATIC_ONLY (Static disassembly/decompilation or xref)"
+        - "EXPERIMENTAL_UNVERIFIED (Heuristic pattern or untested hook)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gap_classification
+    attributes:
+      label: "Proposed SDK Gap Classification"
+      description: "How should this land in `sco-core`?"
+      options:
+        - "Type 1: Existing Service Extension (new method/field)"
+        - "Type 2: New Service / Host Provider Socket (new contract)"
+        - "Type 3: Signature / Anchor Registry Row Only (offset update)"
+        - "Multiple / Unsure (let sco-mod-intake classify)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: anchor_strings
+    attributes:
+      label: "Deterministic Anchor Strings, CVars & Xrefs"
+      description: |
+        List exact string literals, CVar names, log format strings, or
+        RTTI/DataCore class names located in or near the target functions so
+        `pe-string-xref.mjs` can deterministically re-anchor findings in <2s.
+      placeholder: |
+        - Anchor String: `"CActor::SetHealth"` -> Xref in RVA `0x...`
+        - CVar: `"g_playerRespawnTimer"` -> Registered in `sub_...`
+        - DataCore Record / Struct Name: `EntityComponentPowerConnection`
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: extracted_primitives
+    attributes:
+      label: "Extracted Natives, VTable Slots, Offsets & Struct Layouts"
+      description: |
+        Provide the Markdown table or structured breakdown of extracted
+        primitives (separating `plugins/*` workarounds from `src/*` host
+        adapters). Include RVA/vtable slot, signature, and verification tag.
+      value: |
+        | Subsystem | Type | Slot / Sig | Anchor | Tag |
+        | :--- | :--- | :--- | :--- | :--- |
+        | `System` | `vt[14]` | `bool(*)(void*)` | `"Str"` | `VERIFIED` |
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_sdk_contract
+    attributes:
+      label: "Proposed C11 / C++20 SDK Contract Shape (Optional)"
+      description: |
+        If you sketched the desired `sco-core` header interface, paste the
+        proposed C11/C++20 contract or full handoff report block here.
+      placeholder: |
+        ```c
+        // Proposed C11 interface in include/sco/...
+        ```
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: clean_room_attestation
+    attributes:
+      label: "Clean-Room & Provenance Attestation"
+      description: "All boxes must be checked before intake can process."
+      options:
+        - label: >-
+            All claims are tagged honestly (`VERIFIED_IN_GAME`,
+            `RESOLVED_STATIC_ONLY`, or `EXPERIMENTAL_UNVERIFIED`).
+          required: true
+        - label: >-
+            No proprietary binary blobs, raw PE segments, bulk DataCore GUID
+            dumps, player DNA blobs, or encryption keys are embedded.
+          required: true
+        - label: >-
+            Offline-only scope is strictly respected (no live server,
+            account, telemetry, or anti-cheat circumvention).
+          required: true
+        - label: >-
+            No private/proprietary downstream menu or builder logic is
+            included—only shared engine/SDK interoperability facts.
+          required: true

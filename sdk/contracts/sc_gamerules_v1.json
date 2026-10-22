@@ -7,9 +7,9 @@
       "table": "sc_gamerules_v1",
       "source_header": "include/sc_gamerules.h",
       "signature": "sco_result (*)(sco_plugin *, sc_gamerules_state *)",
-      "version_macro": "SC_GAMERULES_SERVICE_VERSION",
+      "version_macro": "SC_GAMERULES_VERSION_1_1",
       "member_extent": 16,
-      "table_size": 16,
+      "table_size": 24,
       "service": "game.gamerules",
       "id": "sc-gamerules-v1-read",
       "since": "`size >= 16`; 1.0",
@@ -26,10 +26,14 @@
         "No backend bound in the default production configuration; nothing has run in game.",
         "Snapshot freshness follows provider binding; no push notification of parameter changes in 1.0.",
         "Parameter set covers the quantum-travel gate fields observed in the corpus (F-4.10.196.36804-007/-008); the wider GameRules schema is not exposed in 1.0.",
-        "No C# or Lua route."
+        "C++ (scosdk/game/gamerules.hpp), C# (Sco.Sdk.Game.GameRules) and Lua (sco.game.gamerules.read) wrap read only; the table has no last_error, so a failed wrapper call carries a result name and no message."
       ],
       "tests": [
-        "tests/abi_game_gamerules.c"
+        "tests/abi_game_gamerules.c",
+        "tests/test_language_routes.cpp",
+        "tests/test_lua.cpp",
+        "tests/test_sdk.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs"
       ],
       "examples": [],
       "language_mappings": {
@@ -46,23 +50,105 @@
           ]
         },
         "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/gamerules.hpp",
+              "token": "return t_->read(self_, &out);"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_gamerules.c",
+            "tests/test_sdk.cpp",
+            "tests/test_language_routes.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/GameRules.cs",
+              "token": "ScoResult r = !Covers(8) || _t->read == null ? ScoResult.Unavailable : _t->read(Self, &s);"
+            }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs"
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "const sco_result r = GAME_MEMBER(g, sc_gamerules_v1, read) ? g->read(self, &s) : SCO_UNAVAILABLE;"
+            }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_gamerules_v1.list_params",
+      "table": "sc_gamerules_v1",
+      "source_header": "include/sc_gamerules.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t, sc_gamerules_param_info *, uint32_t, uint32_t, uint32_t *, uint32_t *)",
+      "version_macro": "SC_GAMERULES_VERSION_1_1",
+      "member_extent": 24,
+      "table_size": 24,
+      "service": "game.gamerules",
+      "id": "sc-gamerules-v1-list-params",
+      "since": "`size >= 24`; 1.1",
+      "purpose": "Enumerate the 15 static GameRules parameter definitions (names verified on 4.10.197.2878, F-4.10.197.2878-054) by offset; records carry names, groups and types but no values or engine offsets.",
+      "buffer_contract": "`sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate the 15 static GameRules parameter definitions (names verified on 4.10.197.2878, F-4.10.197.2878-054) by offset; records carry names, groups and types but no values or engine offsets.",
+      "ownership": "Caller owns all output slots; size and unknown tails remain untouched. No pointers retained.",
+      "thread_affinity": "Game thread only; live self required.",
+      "callback_context": "No plugin callbacks.",
+      "reentrancy": "No engine calls or callbacks; read-only metadata lookup.",
+      "results": "OK page copied or count-only query; BAD_ARG invalid slot size, pointers, offset, cap or stride; WRONG_THREAD; UNAVAILABLE after stop.",
+      "absent_capability": "Static metadata does not require game.gamerules.read or a live backend.",
+      "cleanup": "StopGameRules withdraws the table and disables cached list_params pointers.",
+      "limitations": [
+        "Names are build-scoped to 4.10.197.2878 (F-4.10.197.2878-054); INT/FLOAT types are not verified; metadata is not proof of a live parameter layout.",
+        "Not run in game.",
+        "C++/C#/Lua list_params wrappers are unsupported; existing read wrappers unchanged."
+      ],
+      "tests": [
+        "tests/test_gamerules_params.cpp",
+        "tests/abi_game_gamerules.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
           "status": "direct",
           "evidence": [
             {
               "path": "include/sc_gamerules.h",
-              "token": "(*read)"
+              "token": "(*list_params)"
             }
           ],
           "tests": [
             "tests/abi_game_gamerules.c"
           ]
         },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/gamerules.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
         "csharp": {
           "status": "unsupported",
           "evidence": [
             {
               "path": "docs/game/gamerules.md",
-              "token": "C# and Lua game.gamerules routes are"
+              "token": "unsupported"
             }
           ],
           "tests": []
@@ -72,7 +158,7 @@
           "evidence": [
             {
               "path": "docs/game/gamerules.md",
-              "token": "C# and Lua game.gamerules routes are"
+              "token": "unsupported"
             }
           ],
           "tests": []

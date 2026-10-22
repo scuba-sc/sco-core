@@ -104,6 +104,24 @@ inline sco_result CheckWidgetTail(const sco_widget_node_1_1& n, const char*& why
     return SCO_OK;
 }
 
+// 1.2 tail, checked after CheckWidgetTail validated the 1.1 part.
+inline sco_result CheckWidgetTail12(const sco_widget_node_1_2& n, const char*& why) noexcept {
+    auto fail = [&](sco_result r, const char* text) { why = text; return r; };
+    if (n._reserved[0] || n._reserved[1] || n._reserved[2])
+        return fail(SCO_BAD_ARG, "nonzero reserved field");
+    if (!n.tag || !*n.tag) return SCO_OK;
+    std::size_t length = 0;
+    while (n.tag[length] && length <= SCO_WIDGETS_MAX_TAG) ++length;
+    if (length > SCO_WIDGETS_MAX_TAG) return fail(SCO_BAD_ARG, "tag longer than 63 bytes");
+    for (std::size_t i = 0; i < length; ++i) {
+        const unsigned char c = static_cast<unsigned char>(n.tag[i]);
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                        c == '.' || c == '_' || c == '-';
+        if (!ok) return fail(SCO_BAD_ARG, "tag outside [A-Za-z0-9._-]");
+    }
+    return SCO_OK;
+}
+
 // One node, in the order the host checks it, so the result codes agree.
 inline sco_result CheckWidgetNode(const sco_widget_node& n, const char*& why) noexcept {
     auto fail = [&](sco_result r, const char* text) { why = text; return r; };
@@ -189,6 +207,11 @@ inline sco_result CheckWidgetTree(const sco_widget_node* nodes, uint32_t count, 
             sco_widget_node_1_1 extended;
             std::memcpy(&extended, p, sizeof(extended));
             if (const sco_result r = CheckWidgetTail(extended, why); r != SCO_OK) return r;
+            if (size >= sizeof(sco_widget_node_1_2)) {
+                sco_widget_node_1_2 tagged;
+                std::memcpy(&tagged, p, sizeof(tagged));
+                if (const sco_result r = CheckWidgetTail12(tagged, why); r != SCO_OK) return r;
+            }
         }
         ids[i] = n.id;
         if (WidgetContainer(n.kind)) open[depth++] = n.id;

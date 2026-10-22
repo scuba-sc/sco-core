@@ -26,6 +26,11 @@ PIN(sizeof(void*) == 8);
 
 /* ---- name, version, limits ---- */
 PIN(SCO_STORAGE_VERSION_1_0 == 0x00010000u);
+PIN(SCO_STORAGE_VERSION_1_1 == 0x00010001u);
+PIN(SCO_STORAGE_KIND_TABLE == 1u);
+PIN(SCO_STORAGE_KIND_VIEW == 2u);
+PIN(SCO_STORAGE_COLUMN_NOTNULL == 0x01u);
+PIN(SCO_STORAGE_COLUMN_PK == 0x02u);
 PIN(SCO_STORAGE_MAX_KEY == 255u);
 PIN(SCO_STORAGE_MAX_VALUE == 1048576u);
 PIN(SCO_STORAGE_MAX_CURSORS == 64u);
@@ -50,7 +55,10 @@ AT(sco_sql_value, v.f, 8);
 AT(sco_sql_value, v.p, 8);
 
 /* ---- sco_storage_v1 ---- */
-SIZE(sco_storage_v1, 128);
+/* 1.1 tail: next_table@128, next_column@136. */
+SIZE(sco_storage_v1, 144);
+AT(sco_storage_v1, next_table, 128);
+AT(sco_storage_v1, next_column, 136);
 AT(sco_storage_v1, size, 0);
 AT(sco_storage_v1, _pad, 4);
 AT(sco_storage_v1, put, 8);
@@ -86,9 +94,12 @@ static void pin_storage_signatures(const sco_storage_v1* s) {
     sco_result (*name)(sco_plugin*, uint64_t, uint32_t, char*, uint32_t*) = s->column_name;
     sco_result (*close_fn)(sco_plugin*, uint64_t) = s->close;
     sco_result (*last_error)(sco_plugin*, char*, uint32_t*) = s->last_error;
+    sco_result (*next_table)(sco_plugin*, const char*, char*, uint32_t*, uint32_t*) = s->next_table;
+    sco_result (*next_column)(sco_plugin*, const char*, uint32_t*, char*, uint32_t*, char*, uint32_t*,
+                              uint32_t*) = s->next_column;
     (void)put; (void)get; (void)del; (void)next_key; (void)begin; (void)commit; (void)rollback;
     (void)exec; (void)query; (void)step; (void)count; (void)column; (void)name; (void)close_fn;
-    (void)last_error;
+    (void)last_error; (void)next_table; (void)next_column;
 }
 
 /* Keeps the pins referenced so -Wunused does not fire. */

@@ -18,9 +18,9 @@ The Star Citizen game pack publishes its services under the reserved owner `game
 
 Not a table: the capability `game.mining` (the row `mining.cell`, [mining](game/mining.md)) tells a product that the game's biome builder cell function was found; the natural-mining feature that hooks it stays in the product.
 | `game.creative` | 1.0 | [`sc_creative.h`](../include/sc_creative.h) | 0.2.0 | The local player's god mode, fly (noclip) and its speed, infinite ammo for carried weapons and for the ship you're aboard: `set_god_mode(self, on)`, `set_fly_mode`, `set_fly_speed`, `set_infinite_ammo`, `set_infinite_ship_ammo`, `state`, `last_error`. A toggle belongs to the plugin that switched it on and goes off on ordinary owner release (including unload or non-retained `crashed` cleanup). Restart-required retained-provider faults skip this resource hook and do not switch it off. Capabilities `game.creative.god_mode`, `.fly`, `.ammo`, `.ship_ammo` ([API](api-v1.md#gamecreative-10-game-pack), [rows](game/creative.md)). Wrappers: `scosdk/game/creative.hpp`, C# `Sco.Sdk.Game.Creative`, Lua `sco.game.creative.state` (read-only) |
-| `game.gamerules` | 1.0 | [`sc_gamerules.h`](../include/sc_gamerules.h) | Unreleased | Read-only server GameRules parameters: quantum travel, quantum boost, and group-QT allowances, speed/fuel thresholds, and law-zone policy. Capability `game.gamerules.read` defaults OFF, synthetic only, not run in game. [GameRules](#gamerules-gamegamerules-10) |
-| `game.build` | 1.0 | [`sc_game_build.h`](../include/sc_game_build.h) | Unreleased | Running executable identity and compatibility verification: PE timestamp, product version, build manifest, and `pin_matches`. Refuses gracefully on binary drift (`SCO_BUILD_DRIFT`). Capability `game.build.read` defaults OFF. [Build Identity](#build-identity-gamebuild-10) |
-| `game.inventory` | 1.0 | [`sc_inventory.h`](../include/sc_inventory.h) | Unreleased | Read-only snapshot of the local player's item ports: per-port validity, opaque item class type id, session-scoped entity id (joins `game.entities`), and change generation. 128-port capacity. Server authority untouched (read-only). Capability `game.inventory.read` defaults OFF, synthetic only. [Inventory Snapshot](#inventory-snapshot-gameinventory-10) |
+| `game.gamerules` | 1.0 | [`sc_gamerules.h`](../include/sc_gamerules.h) | Unreleased | Read-only view of the server GameRules parameters the client received: quantum travel and boost allowed, group-QT enforcement, travel-target and target-lock thresholds, a `generation` counter and a `valid` flag (check it first). Capability `game.gamerules.read` defaults **OFF**; with no backend bound (the default) `read` answers `SCO_UNAVAILABLE`. Synthetic evidence only, not run in game ([API](api-v1.md#gamegamerules-10-game-pack), [rows and backend](game/gamerules.md)). Wrappers: `scosdk/game/gamerules.hpp`, C# `Sco.Sdk.Game.GameRules`, Lua `sco.game.gamerules.read` |
+| `game.build` | 1.0 | [`sc_game_build.h`](../include/sc_game_build.h) | Unreleased | The running `StarCitizen.exe`'s PE `TimeDateStamp` and `SizeOfImage`, the game pack's version triple, the four-part build the pack verified and its PE timestamp, and `pin_matches` (running timestamp equals the verified one). Pure metadata, no signature rows; capability `game.build.info` is **ON** whenever the pack publishes it. `read` copies a struct and has no drift error: a plugin gates on `pin_matches`. Not run in game ([API](api-v1.md#gamebuild-10-game-pack), [docs](game/build.md)). C# and Lua routes unsupported in 1.0 |
+| `game.inventory` | 1.0 | [`sc_inventory.h`](../include/sc_inventory.h) | Unreleased | Read-only snapshot of the local player's item ports (up to 128): per port `valid`, `item_class_id` (the item *type* id, a coarse category such as helmet or sidearm, not a per-class id) and the item's session-scoped `entity_id` (joins `game.entities`), plus a `generation` counter. Capability `game.inventory.read` defaults **OFF**; unbound answers `SCO_UNAVAILABLE`. 1.0 is this contract only; names and stack counts are not exposed. Static analysis and synthetic tests only, not run in game ([API](api-v1.md#gameinventory-10-game-pack), [docs](game/inventory.md)). C# and Lua routes unsupported in 1.0 |
 
 `teleport.spatial` and `spawn.entities` keep their names and tables for all of 1.x: sc-offline's `teleport` and `spawn` built-ins published them before the game pack did, and a plugin can't tell the difference. New game services are named `game.<name>`.
 
@@ -131,62 +131,11 @@ The game pack puts low-volume events on the kernel event bus (design decision 8;
 | `game.actors.died` | `sc_game_actor_died { entity_id, killer_id }` (unknown ID and killer are 0) | `game.events.actor_died` | all-actor view of the same `event.player_death` hook; ID captured before original code runs | on when its rows and hook are OK; gameplay unverified |
 | `game.zone.changed` | `sc_game_zone_changed { old_zone_id, new_zone_id }` | `game.events.zone_changed` | the host's tick reads your zone id every 100 ms on the `teleport.*` rows (no hook); not published while you aren't spawned | on when the `teleport.*` rows are OK |
 | `game.vehicle.boarded` / `game.vehicle.exited` | `sc_game_vehicle_seat { seat_index, vehicle_entity_id }` (reserved) | `game.events.vehicle_seat` | hooks on `CSCActorResultStateLinked::Enter` / `::Exit` (`event.seat_enter`, `event.seat_exit`) | **off**: log-only until an in-game run confirms the payload |
-| `game.mission.changed` | `sc_game_mission_changed { mission_id, state, phase }` | `game.events.mission_changed` | polled diff on mission service state; fires when player accepts, completes, or transitions mission phase | on when mission rows are OK; gameplay unverified |
+| `game.mission.changed` | `sc_game_mission_changed { mission_id, old_state, new_state, new_phase, new_objective, session }` | `game.events.mission_changed` | no rows: polls the `game.missions` status reads on the tick and publishes when a mission's state, phase or completed-objective count changed (a notification, not a stream: intermediate states can be missed); only fires where a bound, admitted `game.missions` backend reports active missions | **on** by owner ruling (2026-10-16), a product default and not a verified claim; synthetic only, not run in game ([events](game/events.md#gamemissionchanged-no-rows)) |
 
 `game.player.spawned` waits up to 10 s for your player to be readable before it gives up (a spawn record arrives before the actor is fully set up); a spawn is not a zone change (the spawn's zone is the baseline for `game.zone.changed`). Zone and entity ids are session handles.
 
 **Vehicle seat probe.** The seat hooks install when their rows are OK and only log, because nothing in the exe says which actor a seat transition belongs to or that the link is a vehicle seat (it may be a chair or a bed). Each Enter and Exit logs `[game] vehicle_seat probe: Enter|Exit: state=0x… host=0x… localActor=0x… parents: <id> '<name>' > …` (your player's chain of parent entities, up to 4; at most 100 lines a session). Board a pilot seat, a turret, a station chair and a bed, and read which lines say which. That decides the actor filter and the vehicle test; then the capability goes on.
-
-## GameRules (`game.gamerules` 1.0)
-
-`game.gamerules` 1.0 ([`sc_gamerules.h`](../include/sc_gamerules.h)) provides a read-only snapshot of server-gated
-GameRules parameters (`sc_gamerules_snapshot`). In Star Citizen, mechanics such as Quantum Travel, Quantum Boost,
-and landing pad clearances are controlled by the server GameRules module. Without reading these parameters, offline
-mods or plugins cannot determine whether QT or boost is permitted by the current zone or game mode.
-
-**Parameters exposed:**
-- Quantum travel allowed (`qt_allowed`)
-- Quantum boost allowed (`boost_allowed`)
-- Group quantum travel allowed (`group_qt_allowed`)
-- Quantum fuel burn rate multiplier (`fuel_burn_mult`)
-- Altitude thresholds and law zone status flags
-
-**When the capability is on:** `game.gamerules.read` defaults OFF. Unbound provider answers `SCO_UNAVAILABLE`.
-Rows are label-anchored on `IGameRulesParamsModule` in `src/game/gamerules_sigs.cpp`, resolving across both
-4.10.196 and 4.10.197. Synthetic evidence only; not verified in game.
-
-## Build Identity (`game.build` 1.0)
-
-`game.build` 1.0 ([`sc_game_build.h`](../include/sc_game_build.h)) exposes verified executable identity and drift detection
-for plugins. Plugins often need to know whether the running client matches the verified game pack pin before
-attempting memory reads or hook subscriptions.
-
-**Fields exposed (`sc_game_build_info`):**
-- Executable PE compile timestamp (`pe_timestamp`)
-- Client product version string (e.g. `"4.10.197.2878"`)
-- Verified build pin match flag (`pin_matches`)
-- Drift refusal: returns `SCO_BUILD_DRIFT` if running against an unverified or drifted client binary
-
-Capability `game.build.read` defaults OFF; safe read-only query over mapped PE headers.
-
-## Inventory Snapshot (`game.inventory` 1.0)
-
-`game.inventory` 1.0 ([`sc_inventory.h`](../include/sc_inventory.h)) exposes a read-only item-port snapshot
-of the local player entity (`sc_inventory_snapshot`). It closes corpus gaps F-S-001 (equipment expansion) and
-F-S-005 (loadout readback) at the read-surface layer.
-
-**Snapshot layout:**
-- 128 port slots (`sc_inventory_port`):
-  - `valid`: boolean whether an item is attached to the port
-  - `item_class_id`: 32-bit opaque class type ID (identifies item type)
-  - `entity_id`: 32-bit session-scoped entity ID (joins with `game.entities`)
-- `generation`: 64-bit monotonically increasing change counter for cache validation
-
-**Accessors:** grounded over an 8-session campaign (D055-D064) on the game's own runtime accessors: entity
-vtable `+0x898` port-range accessor, port `+0x60` `IsValid` / `+0x40` `GetItem`, item `+0x6e8` `GetTypeDesc`.
-Server authority is untouched: nothing writes or equips items through this surface.
-Capability `game.inventory.read` defaults OFF; unbound answers `SCO_UNAVAILABLE`. Layout pinned by
-`tests/abi_game_inventory.c` (C11/C++20).
 
 ## Internal game-pack helpers
 

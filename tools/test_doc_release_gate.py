@@ -35,6 +35,12 @@ def getting_started(version, game_pack):
             f"cmake -S sco-sdk-core-{version} -B sdk-build\n```\n")
 
 
+def mcp_doc(version, game_pack):
+    return (f"# MCP\n\nCheck the hash of the catalogue you download; its `sdk_version` must be "
+            f"your archive's `VERSION`.\n\n```sh\ngh release download sdk-v{version}\n```\n\n"
+            f"Extract `sco-sdk-core-{version}` and pair it with game-pack {game_pack}.\n")
+
+
 class Fixture:
     def __init__(self, root, version="2.1.0", game_pack="0.4.0", profiles=FIVE):
         self.root = Path(root)
@@ -54,6 +60,7 @@ class Fixture:
                 "docs/getting-started.md", "docs/api.md", "docs/host-source-sc.md",
                 f"docs/releases/sdk-v{version}.md"]}),
             "docs/api.md": SYMBOL_CITATIONS,
+            **{name: mcp_doc(version, game_pack) for name in gate.MCP_DOCS},
             "README.md": "# sco-core\n\nSee `QueryService` in `src/api/sco_services.cpp`.\n",
             "sdk/README.md": "# SDK\n\nStart from `sdk/examples/cpp_hello/cpp_hello.cpp`.\n",
             f"docs/releases/sdk-v{version}.md":
@@ -297,6 +304,51 @@ class DocReleaseGateTests(unittest.TestCase):
     def test_listed_public_doc_missing_refused(self):
         (self.repo.root / "docs/api.md").unlink()
         self.assert_refused("docs/api.md")
+
+    def test_mcp_docs_stale_versions_refused(self):
+        doc = gate.MCP_DOCS[0]
+        for stale, token in (
+                ("gh release download sdk-v2.0.0", "quotes version 2.0.0, not the declared 2.1.0"),
+                ("Unzip sco-sdk-core-2.0.0.zip.", "quotes version 2.0.0"),
+                ("Unzip sco-sdk-game-sc-0.3.0.zip.", "quotes version 0.3.0, not the declared 0.4.0"),
+                ("The snapshot current for SDK 2.0.0 is below.", "quotes version 2.0.0"),
+                ("Use SDK `2.0.0` here.", "quotes version 2.0.0"),
+                ("With `sdk_version` `2.0.0`.", "quotes version 2.0.0"),
+                ('{"sdk_version": "2.0.0"}', "quotes version 2.0.0"),
+                ("Use game-pack `0.3.0`.", "quotes version 0.3.0"),
+                ("`game_pack_version` `0.3.0`", "quotes version 0.3.0")):
+            with self.subTest(stale=stale):
+                self.repo.set(doc, mcp_doc("2.1.0", "0.4.0") + "\n" + stale + "\n")
+                err = self.assert_refused(token)
+                self.assertTrue(any(f"{doc} line 11 " in line for line in err), err)
+
+    def test_mcp_docs_snapshot_identity_refused(self):
+        doc = gate.MCP_DOCS[2]
+        for pinned, token in (("sha256 `" + "29bb" * 16 + "`", "pins a sha256 digest"),
+                              ("source_sha `" + "77c3" * 10 + "`", "pins a source SHA"),
+                              ("It has 167 records and 30 tables.", "'167 records'"),
+                              ("There are 317 engine natives.", "'317 engine natives'"),
+                              ("The live build has 35 services.", "'35 services'")):
+            with self.subTest(pinned=pinned):
+                self.repo.set(doc, mcp_doc("2.1.0", "0.4.0") + pinned + "\n")
+                self.assert_refused(token)
+
+    def test_mcp_docs_current_and_historical_sections_pass(self):
+        self.repo.set(gate.MCP_DOCS[1], mcp_doc("2.1.0", "0.4.0")
+                      + "\nExtract `sco-sdk-game-sc-0.4.0`; tool runs at most 120 per 60 seconds.\n"
+                      + "\n## Previous release\n\nSDK 2.0.0 shipped sco-sdk-2.0.0.zip, sha256 "
+                      + "ab" * 32 + ", with 160 records.\n")
+        self.assert_passes()
+
+    def test_mcp_doc_missing_refused(self):
+        (self.repo.root / gate.MCP_DOCS[3]).unlink()
+        self.assert_refused(f"{gate.MCP_DOCS[3]} is missing or unreadable")
+
+    def test_repository_mcp_docs_are_current(self):
+        version = (REPO_ROOT / "sdk/VERSION").read_text().strip()
+        notes = f"docs/releases/sdk-v{version}.md"
+        scope = gate.parse_scope(gate.read_text(REPO_ROOT, notes), notes)
+        self.assertEqual(gate.mcp_doc_refusals(REPO_ROOT, scope), [])
 
     def test_repository_public_docs_cite_no_source_lines(self):
         notes = f"docs/releases/sdk-v{(REPO_ROOT / 'sdk/VERSION').read_text().strip()}.md"

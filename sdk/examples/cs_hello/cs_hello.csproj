@@ -28,6 +28,17 @@
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
   </PropertyGroup>
 
+  <!-- Fast NativeAOT compilation in CI / development when SCO_FAST_AOT is set -->
+  <PropertyGroup Condition="'$(SCO_FAST_AOT)' == '1' or '$(CI_FAST_AOT)' == 'true'">
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <IlcFoldIdenticalMethodBodies>false</IlcFoldIdenticalMethodBodies>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <StripSymbols>false</StripSymbols>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <UseSharedCompilation>false</UseSharedCompilation>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../csharp/Sco.Sdk/Sco.Sdk.csproj" />
   </ItemGroup>
