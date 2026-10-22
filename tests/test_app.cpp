@@ -906,6 +906,8 @@ static void TestReloadCascade(const fs::path& out) {
     makeLua("b_user", "m11.svc");
     makeLua("z_user", "m11");
     makeLua("unrelated", "");
+    makeLua("cyc_rel_a", "cyc_rel_b");
+    makeLua("cyc_rel_b", "cyc_rel_a");
     makeLua("off_user", "m11");
     WriteText(root / "off_user" / "disabled", "");
     const std::string busyScript =
@@ -944,6 +946,18 @@ static void TestReloadCascade(const fs::path& out) {
           Find("b_user")->loadOrder < Find("svc_provider")->loadOrder &&
           Find("svc_provider")->loadOrder < Find("z_user")->loadOrder &&
           Find("z_user")->loadOrder < Find("a_leaf")->loadOrder);
+
+    // Reloading a member of a mutual cycle fails with "requires cycle in reload group"
+    auto* cycA = const_cast<P::Plugin*>(Find("cyc_rel_a"));
+    auto* cycB = const_cast<P::Plugin*>(Find("cyc_rel_b"));
+    cycA->state = State::Loaded;
+    cycB->state = State::Loaded;
+    cycA->after.push_back("cyc_rel_b");
+    cycB->after.push_back("cyc_rel_a");
+    CHECK(sco::app::Reload("cyc_rel_a", &why) == sco::Result::Failed &&
+          why == "requires cycle in reload group");
+    cycA->after.clear(); cycB->after.clear();
+    cycA->state = State::Off; cycB->state = State::Off;
     CHECK(StateOf("off_user") == State::Disabled && !Find("off_user")->self);
 
     // A dependent's callout is on the stack: refuse the entire group before even making copies.
