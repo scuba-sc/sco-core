@@ -764,7 +764,10 @@ class ArchiveLayoutTests(ServerCase):
 
     def test_archive_fallback_refuses_symlinked_directory(self):
         data, root, catalogue = self.layout()
-        shutil.rmtree(root / "examples")
+        if sys.platform == "win32":
+            subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(root / "examples")], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            shutil.rmtree(root / "examples")
         (root / "examples").symlink_to(self.outside() / "examples", target_is_directory=True)
         self.get_example(data, root, catalogue, is_error=True)
 
