@@ -120,11 +120,11 @@ candidate, permitted snapshot integration into the canonical release inventory,
 and exact-hash maintainer approval remain owed. Neither this sidecar nor the
 site artifact is automatically included in SDK ZIPs or approved for publication.
 
-See [agent integration](../docs/agent-integration.md) for the explicit six-tool
-client launcher and the [MCP walkthrough](../docs/sdk-mcp-tutorial.md) for optional
+See [agent integration](../docs/agent-integration.md) for the kit-first client
+setup and the [MCP walkthrough](../docs/sdk-mcp-tutorial.md) for optional
 scaffold/validation calls and native checker steps. Both guides belong to the
-Host integration & AI agents hub; candidate-kit instructions do not announce a
-published release. `python3 tools/sco-core-mcp/test_integration.py` provides the
+Host integration & AI agents hub; neither announces or approves a release.
+`python3 tools/sco-core-mcp/test_integration.py` provides the
 local initialization/annotations proof. Administrator settings, runner setup and
 an observed Copilot code-review tool call remain owed. No Pages deployment,
 Copilot settings, setup workflow, release tag, signing or runtime ABI is changed.

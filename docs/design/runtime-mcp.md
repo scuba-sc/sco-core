@@ -22,8 +22,8 @@ The six existing tools describe a compiler-backed SDK catalogue, not a running
 host. `list_services` enumerates catalogue tables; `check_compatibility` explicitly
 cannot establish plugin loading, live members or behavior
 (`TOOLS` and the `list_services` branch of `execute` in `tools/sco-core-mcp/server.py`). The current development-only,
-stdlib launcher promises no game/host connection (`tools/sco-core-mcp/README.md:3-7`;
-`docs/agent-integration.md:3-7`). A plugin author needs a separate observation of
+stdlib launcher promises no game/host connection (the introduction of
+`tools/sco-core-mcp/README.md`; the introduction of `docs/agent-integration.md`). A plugin author needs a separate observation of
 load/refusal/fault state, publication, lifecycle and existing signature resolution.
 This is an interface gap, not a measured productivity or game-reliability claim.
 
@@ -44,7 +44,8 @@ checks (`README.md:21-24`); diagnostics must never upgrade that evidence.
   entitlement changes, host-type/network-context forcing or telemetry.
 - No remote control, LAN/VPN diagnostics, tunnels, SSH-forwarded stdio, hosted
   agent/cloud-review access to a workstation host. Hosted catalogue discovery
-  remains a different use case (`docs/agent-integration.md:74-110`).
+  remains a different use case (the client setup and repository-setting sections of
+  `docs/agent-integration.md`).
 - **No gameplay data in v1: metadata only.** No entity/player census, position,
   health, peer roster, proprietary bytes/assets, patterns, addresses, memory read,
   file tail, executable/module dump or SDK/game method execution.
@@ -83,7 +84,7 @@ or runtime acceptance evidence.
 
 ## Current launcher placement
 
-The discovery launcher remains catalogue-only: six tools by default and four
+The discovery launcher remains catalogue-only: six tools by default and six
 additional read-only tools with `--extended-tools`. It does not import or enable
 runtime inspection. Runtime inspection uses the separate
 [`sco-core-mcp-runtime` launcher](../../tools/sco-core-mcp-runtime/README.md).
@@ -133,7 +134,8 @@ The implementation PR must enforce all of these gates:
    same-PC-only deployment, separate rate budgets, consent and disable/restart.
    Preserve existing credentials-free catalogue-only launchers and hosted-runner
    instructions. The single proposed-design sentence in this step-0 PR changes
-   no current guarantee (`tools/sco-core-mcp/README.md:187-211`).
+   no current guarantee (`tools/sco-core-mcp/README.md`, the introduction and
+   "Security boundaries and limits").
 
 ### Required disabled-mode regression
 
@@ -476,7 +478,7 @@ or instructions despite pattern filters; withhold uncertainty and count
 host-rendered strings. Neither authenticated bytes nor read-only annotations
 make prose instructions. Local clients may send results to remote model providers:
 obtain explicit disclosure consent; add no telemetry. The current guide already
-warns about that disclosure distinction (`docs/agent-integration.md:126-136`).
+warns about that disclosure distinction (the introduction of `docs/agent-integration.md`).
 
 Audit every admitted/refused read, authentication failure, open/close, rate/audit
 failure: session/request correlation, opcode, sanitized filter IDs, outcome,

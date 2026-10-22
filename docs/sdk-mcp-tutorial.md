@@ -9,10 +9,11 @@ core-plus-game overlay and host-source kit supply the discovery launcher,
 `sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
 gameplay acceptance claim. Core-only profiles do not contain the game catalogue.
 
-Use a kit downloaded from that release and checked against its `SHA256SUMS`,
-with its compatibility inventory,
-or build a catalogue from matching source as described in the
-[discovery README](../tools/sco-core-mcp/README.md). Do not silently pair an older
+Use the combined kit (`sco-sdk-2.4.0.zip`) downloaded from that release and checked
+against its `SHA256SUMS`, as described in
+[Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit), with its
+compatibility inventory, or build a catalogue from matching source as described in
+the [discovery README](../tools/sco-core-mcp/README.md). Do not silently pair an older
 published archive with the site's changing mainline catalogue.
 
 Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client supporting
@@ -23,25 +24,31 @@ consume a bundled one.
 
 ### Connect the client
 
-Use absolute paths on the machine running the client:
+Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit): download and
+verify `sco-sdk-2.4.0.zip`, find the SDK folder (the folder that directly contains
+`sdk-catalogue.json`; for the combined kit, `<extract folder>/sco-sdk-2.4.0`), choose a
+profile, register `sco-core-sdk` in your client and verify the connection. This
+tutorial uses the **SDK developer profile**: `--extended-tools`, 12 read-only tools.
+The scaffold, validation, native and guide steps below need the six extended tools; the
+**minimal profile** (no `--extended-tools`, 6 tools) covers only the discovery steps.
+
+To start the server by hand, with absolute paths on the machine running the client:
 
 ```sh
-python3 /absolute/sdk/tools/sco-core-mcp/server.py \
-  --catalogue /absolute/sdk/sdk-catalogue.json \
-  --repo-root /absolute/sdk --extended-tools
+python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
+  --repo-root /absolute/path/to/sco-sdk-2.4.0 --extended-tools
 ```
 
 This command waits for MCP messages on stdin; it is not a shell prompt. On
 Windows use `py -3` with drive-qualified paths, for example
-`C:/absolute/sdk/tools/sco-core-mcp/server.py`. On macOS/Linux use `python3`,
-or an absolute Python executable if the client does not inherit shell `PATH`.
+`C:/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py`. On macOS/Linux use
+`python3`, or an absolute Python executable if the client does not inherit shell `PATH`.
 
-The [integration guide](agent-integration.md) explains client configuration and
-explicit allowlists. Without `--extended-tools` there are exactly six discovery
-tools. With it there are twelve; no runtime tools are added. Grant the six additional
-names deliberately. A root permits bounded example/metadata reads and lets the
-scaffold tool, and the guide tools when no `sdk-guides.json` is present, execute
-that root's reviewed generator code in-process.
+No runtime tools are added by `--extended-tools`; grant the six additional names
+deliberately. A root permits bounded example/metadata reads and lets the scaffold
+tool, and the guide tools when no `sdk-guides.json` is present, execute that root's
+reviewed generator code in-process.
 
 ### Discover one contract
 
@@ -152,8 +159,9 @@ it. Search the guide sections with a plain question:
 {"name":"search_guides","arguments":{"query":"How do I deploy a plugin on Windows?","limit":3}}
 ```
 
-Each hit names its guide `doc`, `heading`, `anchor` and docs-site `url`, with
-a short snippet. Read one hit in full by passing its `doc` and `anchor` back:
+Each hit names its guide `doc`, `heading`, `anchor` and `url` (a docs-site link, or a
+repository path for a guide under `sdk/docs`), with a short snippet. Read one hit in
+full by passing its `doc` and `anchor` back:
 
 ```json
 {"name":"get_guide_section","arguments":{"doc":"docs/getting-started.md","anchor":"start-your-first-plugin"}}
@@ -164,7 +172,12 @@ more hits. The kit's `sdk-guides.json` beside its catalogue answers these calls;
 its `guides.source_sha` should equal the catalogue's. A section's text stops at
 4000 characters (`truncated: true`); read the rest at its `url`. Guide prose is
 not a contract record: confirm a method with `get_symbol` before relying on it.
-Nothing in a guide is evidence that code ran in game.
+Nothing in a guide is evidence that code ran in game. The guides inside the release
+candidate 1 kit predate its publication and can say that 2.4.0 is not on the release
+page, and their `url` values name a previous docs-site address that no longer opens
+(use `scuba-sc.github.io` with the same path). The docs site supersedes them (see the
+known issue in
+[the setup section](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit)).
 
 ### Build and check outside MCP
 
@@ -172,7 +185,7 @@ With the returned files saved under `/absolute/project/my_probe`:
 
 ```sh
 cmake -S /absolute/project/my_probe -B /absolute/project/my_probe/build \
-  -DSCO_SDK=/absolute/sdk
+  -DSCO_SDK=/absolute/path/to/sco-sdk-2.4.0
 cmake --build /absolute/project/my_probe/build --config Debug --target check
 ```
 
@@ -200,7 +213,7 @@ development tools. First build the checker once, outside your project root (the
 `build_plugin_project` builds only the default targets):
 
 ```sh
-cmake -S /absolute/sdk -B /absolute/checker-build
+cmake -S /absolute/path/to/sco-sdk-2.4.0 -B /absolute/checker-build
 cmake --build /absolute/checker-build --config Release --target sco-plugin-check
 ```
 
@@ -211,13 +224,19 @@ holds your project folder, and that checker. On Windows with Visual Studio 2022,
 add a generator and platform as well:
 
 ```sh
-python3 /absolute/sdk/tools/sco-core-mcp/server.py \
-  --catalogue /absolute/sdk/sdk-catalogue.json \
-  --repo-root /absolute/sdk --extended-tools \
+python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
+  --repo-root /absolute/path/to/sco-sdk-2.4.0 --extended-tools \
   --enable-dev-tools --project-root /absolute/project \
   --plugin-check /absolute/checker-build/sco-plugin-check \
   --cmake-generator "Visual Studio 17 2022" --cmake-platform x64
 ```
+
+In a client configuration each flag and each value is its own `args` element, and
+`Visual Studio 17 2022` is one element without the shell quotes. On Windows use
+`py` with `-3` first and an `.exe` checker, for example
+`C:/absolute/checker-build/Release/sco-plugin-check.exe`. The
+[integration guide](agent-integration.md#opt-in-development-tools) shows the elements.
 
 The SDK folder comes from `--repo-root` (or set `--sco-sdk`). Without
 `--plugin-check`, the server looks for `sco-plugin-check` in that SDK folder's
@@ -288,7 +307,7 @@ stale/session negatives and Windows/MSVC/in-game install/reload are **NOT RUN**
 for this tutorial revision. The commands below are reproducible acceptance steps,
 not claimed results.
 
-Prerequisites: Python 3, CMake 3.20+, C/C++20 compiler; Clang and an x64 C11
+Prerequisites: Python 3.9 or newer, CMake 3.20+, C/C++20 compiler; Clang and an x64 C11
 compilation environment for catalogue generation. Windows x64/MSVC builds the
 actual game DLL; macOS/Linux modules are development artifacts only. Native
 plugins execute trusted code; the checker is not a sandbox.
@@ -443,8 +462,10 @@ command invocation or gameplay mutation.
 
 ## Optional runtime observations — default OFF, separate acceptance
 
-The tutorial requires **only the six static discovery tools**. Runtime MCP is an
-optional independently implemented/reviewed feature under
+The historical walkthrough above uses **only the six static discovery tools** (the
+minimal profile); the standalone workflow at the top uses the twelve of the SDK
+developer profile. Runtime MCP is an optional independently implemented/reviewed
+feature under
 [runtime MCP design](design/runtime-mcp.md); do not enable it to make the example
 compile. The default launcher advertises no `runtime_*` names. Consult `tools/list`
 and the separate charter before granting a runtime allowlist; never use `*`.

@@ -47,6 +47,12 @@ public headers of a profile).
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
 
+The combined `sco-sdk-<version>.zip`, the `game-sc` overlay and the `host-source-sc`
+archive also ship `sdk-catalogue.json`, `sdk-guides.json` and the discovery launcher
+`tools/sco-core-mcp/server.py`. The `core` and `core-source` archives do not. To use the
+SDK with an AI agent, set the combined kit up as described in
+[SDK discovery in agents and IDEs](../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+
 All generated metadata in the extension has a `.game-sc` suffix; composition preserves both
 inventories and SBOMs. The packer computes the required base digest from the canonical core
 archive produced from the same source checkout. A core archive with the same version but
