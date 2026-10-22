@@ -4,6 +4,36 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (release candidate 1 published 2026-10-21 as sdk-v2.4.0-rc.1; final release pending)
 
+- The documentation home page gains a responsive deepwater landing with the
+  sco-core SDK title, plugin/API actions, language mappings and four library links.
+  A local worker draws its decorative particle field; Pause/Resume holds and
+  continues the current phase, reduced motion keeps a static frame, and hidden
+  or offscreen fields stop recurring work. The static background and documentation
+  links remain usable without JavaScript or when the worker is unavailable.
+  The enlarged galaxy stays clipped to the hero, with sparse foreground stars
+  and thin trails for depth. Reversible scroll fades and parallax use native CSS
+  timelines; focused sections and reduced-motion content remain fully visible.
+  Cached orbital rotations reduce repeated per-frame trigonometry while retaining
+  the deterministic loop. Both canvas planes share one worker snapshot.
+  Starlight search, the mobile theme selector and the full existing home body
+  remain available. No remote assets or new dependencies.
+
+- The documentation home page now leads with plugin setup, API browsing, and
+  language mappings, followed by the four library hubs. A compact sidebar,
+  clearer typography, charcoal and warm-neutral themes, and responsive card
+  layouts make the site easier to read in narrow panes. Search, stable routes,
+  source and release metadata, and evidence qualifications are preserved. The
+  redesign uses system fonts with no remote assets or new dependencies.
+
+- Documentation search now recognizes task phrases such as "spawn a ship" and
+  "read inventory", including small task-word typos, while preserving exact
+  symbols and quoted queries. Type filters narrow results to one category at a time:
+  APIs, guides, languages, services or overview pages; **All categories** resets that selection.
+  The local Pagefind UI stays lazily loaded, with loading/retry feedback and
+  keyboard navigation. Brief interface feedback respects reduced motion; prose
+  and results remain still. Search terms point to canonical contracts and their
+  evidence labels, and do not establish API aliases or in-game support.
+
 - GameRules `list_params` now lists the 15 parameters verified on game build
   4.10.197.2878 (F-4.10.197.2878-054); two names that do not occur on that build are
   removed. Native adapter facts (DataCore owner layout, CVar interface slots, item-port

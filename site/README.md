@@ -1,8 +1,51 @@
 # Public documentation site proof
 
 Astro Starlight renders the SDK contract catalogue and explicitly selected public
-engineering guides. Starlight's built-in Pagefind search runs locally against the
-static build; no hosted search service is configured.
+engineering guides. A small Starlight Search override keeps the native dialog and
+lazy Pagefind UI, with task-query normalization and category controls. Search runs
+locally against the static build; no hosted search service is configured.
+
+The home page opens with a full-width deepwater landing: **sco-core SDK**, the
+original public-contract tagline, **Start a plugin**, **Browse API**, and four
+language mapping links. Four thinly ruled library links lead to the documentation
+hubs. The original snapshot banner, library summaries, release and archive details
+continue below the hero, including source, preview status and evidence limits.
+Documentation sidebar groups start collapsed; Starlight expands the group
+containing the current page.
+
+The landing uses a deepwater background, white system typography and teal
+bracket/core details in both themes. The documentation body and built-in Starlight
+header keep the existing charcoal and warm-neutral themes. Search retains its
+native dialog and shortcuts; the native theme selector also stays available in
+the mobile splash header. The home-only Hero override falls back to Starlight's
+default Hero on other hero routes, including 404. Responsive text, actions and
+hubs use normal flow rather than a scaled fixed-size composition. See
+[the design contract](DESIGN.md) for typography, focus states and layout.
+
+The decorative home canvases run a local worker particle field with a simple
+**Pause animation** / **Resume animation** control. Pause holds the current phase;
+reduced motion keeps a static frame. The control is hidden until a frame is ready
+and remains hidden for reduced motion or worker failure. The static CSS background
+and all server-rendered links remain usable with JavaScript off or initialization
+unavailable. Hidden/offscreen fields stop recurring work; pagehide and
+back/forward-cache restoration manage the worker lifecycle. The runtime caps
+particles at 12,000 desktop and 3,000 mobile, bounds pixel density and transferred
+buffers, allows at most one worker request in flight, and limits updates to 30fps.
+The enlarged galaxy is clipped to the hero. Most stars remain behind the copy;
+a sparse foreground layer and thin, short trails cross some text to suggest
+depth. Both canvases share one simulation snapshot, ignore pointer events and
+cannot spill over lower sections. Cached particle rotations reduce repeated
+per-frame trigonometry; the deterministic ten-second loop is preserved.
+These bounds are not a speed benchmark. There is no telemetry panel, GSAP, video,
+remote asset, font download or new dependency. Documentation and search results
+stay still; existing brief control feedback respects reduced motion.
+
+Native CSS scroll timelines fade and recede the home hero, moving its two
+particle planes at different depths. Home body blocks fade near viewport edges
+and stay opaque through the central reading area. Reverse scrolling restores
+them; focused or targeted sections remain fully visible. Reduced motion and
+browsers without scroll-timeline support show still, visible content. These
+home-only effects add no scroll listener or recurring JavaScript loop.
 
 The workflow publishes to `https://scuba-sc.github.io/sco-core/` through the
 existing `docs-site` workflow and GitHub Pages' workflow build mode. Pull requests
@@ -78,21 +121,47 @@ sentinel test can build with the same locked dependencies.
 
 ## Search, navigation and snapshot acceptance
 
+Search accepts task phrases such as **spawn a ship**, **read inventory** and
+**read container contents**, alongside exact symbols and service names. Visible
+weighted task terms point to their canonical contract pages. A bounded local
+normalizer removes task filler and corrects one-edit typos in recognized task
+vocabulary, including transposed letters such as **spwan ship** and
+**read inventroy**. Exact symbols, quoted searches and unknown terms are kept
+intact. The editable query and normalization hint let the reader see what was
+searched; this is a discovery aid, not an API alias or availability claim.
+
+The labelled **Type** dropdown narrows results to **APIs**, **Guides**, **Languages**,
+**Services** or **Overview**. Choose one category at a time; **All categories** clears the category selection without clearing the
+query. The Type dropdown and reset wrap above results in narrow panes. Loading and retry messages
+cover search initialization, and an empty result state keeps the input and filters
+available. All search assets and queries stay local to the built site.
+
 `python3 site/scripts/test_site.py --built site/dist` also drives a fresh headless
 Chrome/Chromium through Node's built-in WebSocket/CDP (no added npm package).
 Set `CHROME_BIN` when the browser is not in a standard location. A missing browser
 is an explicit skipped check, not keyboard/search acceptance. The runner checks:
 
-- Seven service, C-symbol, wrapper-token and editorial task-phrase queries against
-  the actual Pagefind browser worker, JavaScript, WASM and compressed index. Each
-  expected entry must occur in the first 20 hits and identify the same source,
-  preview, examples, capability absence and catalogue language status.
-- Search shortcut focus, Tab to a result, Enter navigation and Escape closure;
-  real long tables/code at desktop and narrow widths without document overflow.
-  The runner holds Starlight's idle-scheduled Pagefind initialization beyond
-  document load on both navigations, then waits for the real search input before
-  sending each shortcut. Document load alone does not make that input focusable.
-  For an additional slow-CPU probe, set `SCO_DOCS_CPU_THROTTLE=6` (CDP slowdown).
+- Home layout at 360, 390, 430, 600, 820, 1024, 1366, 1440 and 1920px in both
+  themes, with one semantic page title, working local links, mobile theme/search
+  controls and no document overflow. Landing checks exercise the actual local
+  worker, pause/resume, reduced motion, suspension, failures and page lifecycle;
+  markup alone does not establish runtime behavior.
+- Service, C-symbol, wrapper-token and editorial task-phrase queries against the
+  actual Pagefind browser worker, JavaScript, WASM and compressed index. The existing
+  seven query cases retain their first-20 acceptance, source, preview, examples,
+  capability absence and catalogue language-status checks. Task queries entered
+  through the shipped search UI, including the ship/inventory typos above, must
+  place the expected canonical contract in the first three results.
+- Every Type filter must return only that category, with representative matches.
+  Switching categories replaces the previous selection; deselecting searches all.
+  Reset restores all categories, and an empty query result keeps usable controls.
+  Normalization checks preserve exact symbols, quotes and unknown terms.
+- Search shortcut focus, Tab/Enter navigation, Escape closure, focus containment
+  and restoration, rapid query/filter changes and reopening. A cold first opening
+  with deferred idle initialization must focus the input after Pagefind loads.
+  Real long tables/code must fit desktop and narrow widths without document
+  overflow. For an additional slow-CPU probe, set `SCO_DOCS_CPU_THROTTLE=6`
+  (CDP slowdown).
 - No nonlocal page/search requests or script exceptions, all generated/built
   deep links/anchors, ID route stability under record reordering, and refusal of
   retired task-search targets and duplicate IDs. Task phrases are editorial
@@ -140,7 +209,8 @@ locked dependency's package name, version and declared license, including option
 platform packages. It describes upstream license declarations, not a blanket
 legal conclusion. Dependencies are build tooling, not vendored repository files
 or SDK archive payload. Repository-authored site code is GPL-3.0-only; built
-upstream assets retain their upstream licenses. No site files enter SDK zips.
+upstream assets and the adapted Starlight Search component retain their upstream
+licenses and attribution in `THIRD_PARTY_NOTICES.md`. No site files enter SDK zips.
 Regenerate the inventory with `python3 site/scripts/licenses.py` after an approved
 lockfile change; the tests reject inventory drift.
 

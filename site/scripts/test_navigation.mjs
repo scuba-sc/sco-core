@@ -6,6 +6,19 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { normalizeTaskQuery } from '../src/search/query.mjs';
+import { testLanding } from './test_landing.mjs';
+
+for (const [query, expected] of [
+  ['spawn a ship', 'spawn a ship'], ['spwan ship', 'spawn a ship'],
+  ['read inventroy', 'read inventory'], ['read inventry', 'read inventory'],
+  ['how do I spawn a ship', 'spawn a ship'], ['how can I read inventory', 'read inventory'],
+  ['please read the container contents', 'read container contents'],
+  ...['"spawn a ship"', 'sco_api.run_on_game_thread', 'TaskTrampoline', 'C++', 'C#',
+    'read hyperspace', 'spwnn ship', 'spawn ship tomorrow', 'teleport player', 'open SQL cursor',
+    'schedule game thread task', ''].map(query => [query, query]),
+]) assert.equal(normalizeTaskQuery(query), expected, query);
+console.log('PASS task normalization: bounded typos and conversational phrases; symbols, quotes and unknown terms unchanged');
 
 const candidates = [process.env.CHROME_BIN, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   'google-chrome', 'chromium', 'chromium-browser'].filter(Boolean);
@@ -28,10 +41,25 @@ if (!chrome) {
 }
 const root = path.resolve(process.argv[2] ?? 'site/dist');
 const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'sco-docs-browser-'));
+let failSearchIndex = false;
+let particleWorkerFailure = null;
 const server = http.createServer(async (req, res) => {
   try {
-    const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    const requestURL = new URL(req.url, 'http://localhost');
+    const name = decodeURIComponent(requestURL.pathname);
     assert(name.startsWith('/sco-core/'));
+    if (failSearchIndex && name.endsWith('/pagefind/pagefind.js')) {
+      res.writeHead(503).end('Search temporarily unavailable');
+      return;
+    }
+    if (particleWorkerFailure && /particle-field\.worker.*\.js$/.test(name)
+        && !requestURL.searchParams.has('sco-test-original')) {
+      res.setHeader('Content-Type', 'text/javascript');
+      res.end(particleWorkerFailure === 'startup' ? 'throw new Error("Injected worker startup failure");'
+        : 'import ' + JSON.stringify(name + '?sco-test-original')
+          + '; setTimeout(() => { throw new Error("Injected worker runtime failure"); }, 120);');
+      return;
+    }
     let file = path.resolve(root, name.slice('/sco-core/'.length));
     assert(file === root || file.startsWith(root + path.sep));
     if ((await fs.stat(file)).isDirectory()) file = path.join(file, 'index.html');
@@ -74,7 +102,8 @@ try {
       clearTimeout(timer); pending.delete(message.id);
       if (message.error) reject(Error(JSON.stringify(message.error))); else resolve(message.result);
     }
-    if (message.method === 'Runtime.exceptionThrown') failures.push(message.params.exceptionDetails.text);
+    if (message.method === 'Runtime.exceptionThrown') failures.push(
+      message.params.exceptionDetails.exception?.description ?? message.params.exceptionDetails.text);
     if (message.method === 'Network.requestWillBeSent') {
       const url = message.params.request.url;
       if (/^https?:/.test(url) && !url.startsWith(origin + '/')) failures.push('Nonlocal request: ' + url);
@@ -101,7 +130,7 @@ try {
     throw Error('Condition timeout: ' + expression);
   };
   const key = async (key, code, modifiers = 0) => {
-    const windowsVirtualKeyCode = { Enter: 13, Tab: 9, Escape: 27, k: 75 }[key];
+    const windowsVirtualKeyCode = { Enter: 13, Tab: 9, Escape: 27, k: 75, a: 65 }[key];
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key, code, modifiers, windowsVirtualKeyCode });
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers, windowsVirtualKeyCode });
   };
@@ -139,32 +168,36 @@ try {
       await wait("typeof window.__releaseSearchIdle === 'function'");
       assert.equal(await evaluate("!!document.querySelector('site-search input')"), false,
         'The cold-load regression must hold Pagefind initialization beyond document load');
-      await evaluate('window.__releaseSearchIdle()');
     }
-    // Starlight focuses the input synchronously when opening. Document load and
-    // custom-element registration do not await its idle-scheduled Pagefind import.
+  };
+  const openSearch = async () => {
+    await evaluate("document.querySelector('[data-open-modal]').focus()");
+    await key('k', 'KeyK', process.platform === 'darwin' ? 4 : 2);
     await wait("!!document.querySelector('site-search .pagefind-ui__search-input')");
+    await wait("!!document.querySelector('dialog[open]') && document.activeElement.matches('.pagefind-ui__search-input')");
+    if (deferSearchIdle) await evaluate('window.__releaseSearchIdle()');
   };
   await call('Page.navigate', { url: origin + '/sco-core/' });
   await searchReady();
-  await key('k', 'KeyK', process.platform === 'darwin' ? 4 : 2);
-  await wait("!!document.querySelector('dialog[open]') && document.activeElement.tagName === 'INPUT'");
+  await openSearch();
   await call('Input.insertText', { text: 'schedule game thread task' });
   await wait("!!document.querySelector('.pagefind-ui__result-link')");
-  await key('Tab', 'Tab'); // Clear control, then first result.
-  await key('Tab', 'Tab');
+  for (let tab = 0; tab < 16; tab++) {
+    await key('Tab', 'Tab');
+    assert(await evaluate("document.querySelector('dialog').contains(document.activeElement)"), 'Tab escaped search dialog');
+    if (await evaluate("document.activeElement.matches('.pagefind-ui__result-link')")) break;
+  }
   assert((await evaluate('document.activeElement.href')).endsWith('/reference/sco-api-run-on-game-thread/'));
   await key('Enter', 'Enter');
   await wait("location.pathname.endsWith('/reference/sco-api-run-on-game-thread/') && document.readyState === 'complete'");
   console.log('PASS keyboard: shortcut opens/focuses search; Tab reaches result; Enter follows stable route');
   await searchReady();
   if (deferSearchIdle) console.log('PASS cold search initialization held beyond load on both navigations');
-  await key('k', 'KeyK', process.platform === 'darwin' ? 4 : 2);
-  await wait("!!document.querySelector('dialog[open]')");
+  await openSearch();
   await key('Escape', 'Escape');
   await wait("!document.querySelector('dialog[open]')");
-  await wait("!document.querySelector('dialog').contains(document.activeElement)");
-  console.log('PASS Escape closes search and returns focus outside the closed dialog');
+  await wait("document.activeElement.matches('[data-open-modal]')");
+  console.log('PASS Escape closes search and restores the invoking control');
   for (const width of [1280, 390]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
     assert(await evaluate('document.documentElement.scrollWidth <= innerWidth'), `page overflow at ${width}px`);
@@ -172,9 +205,119 @@ try {
   }
   const catalogue = JSON.parse(await fs.readFile(path.join(root, 'sdk-catalogue.json')));
   const searchTest = await fs.readFile(new URL('./test_search.mjs', import.meta.url), 'utf8');
-  const reports = await evaluate(`(async()=>{ ${searchTest.replace('export async function', 'async function')};
-    return await testSearch(${JSON.stringify(catalogue)}); })()`);
+  const querySource = await fs.readFile(new URL('../src/search/query.mjs', import.meta.url), 'utf8');
+  const reports = await evaluate(`(async()=>{ ${querySource.replace('export function', 'function')};
+    ${searchTest.replace('export async function', 'async function')};
+    return await testSearch(${JSON.stringify(catalogue)}, normalizeTaskQuery); })()`);
   reports.forEach(report => console.log(report));
+
+  await openSearch();
+  const resultPaths = "[...document.querySelectorAll('.pagefind-ui__result-inner > .pagefind-ui__result-title > a')].map(a => new URL(a.href).pathname)";
+  const expectedPaths = (query, type) => evaluate(`(async () => {
+    const pagefind = await import('/sco-core/pagefind/pagefind.js');
+    const result = await pagefind.search(${JSON.stringify(normalizeTaskQuery(query))},
+      { filters: ${JSON.stringify(type ? { Type: type } : {})} });
+    return await Promise.all(result.results.slice(0, 5).map(async r => new URL((await r.data()).url, location.origin).pathname));
+  })()`);
+  const enterQuery = async query => {
+    await evaluate("document.querySelector('.pagefind-ui__search-input').focus()");
+    await key('a', 'KeyA', process.platform === 'darwin' ? 4 : 2);
+    await call('Input.insertText', { text: query });
+  };
+  const settledQuery = async (query, expected) => {
+    await wait(`document.querySelector('.pagefind-ui__message')?.textContent.includes(${JSON.stringify(query)})
+      && !document.querySelector('.pagefind-ui__message').textContent.includes('Searching')
+      && JSON.stringify(${resultPaths}) === ${JSON.stringify(JSON.stringify(expected))}`);
+  };
+  for (const [query, route] of [
+    ['spawn a ship', 'sc-spawn-service-v1-spawn-near-player'],
+    ['spwan ship', 'sc-spawn-service-v1-spawn-near-player'],
+    ['how do I spawn a ship', 'sc-spawn-service-v1-spawn-near-player'],
+    ['read inventory', 'sc-inventory-v1-snapshot'],
+    ['read inventroy', 'sc-inventory-v1-snapshot'],
+    ['how can I read inventory', 'sc-inventory-v1-snapshot'],
+    ['read container contents', 'sc-container-contents-v1-snapshot'],
+  ]) {
+    const expected = await expectedPaths(query);
+    await enterQuery(query);
+    await settledQuery(query, expected);
+    assert((await evaluate(resultPaths)).slice(0, 3).includes(`/sco-core/reference/${route}/`), `${query}: UI canonical result missing from top three`);
+    if (normalizeTaskQuery(query) !== query) {
+      assert((await evaluate("document.querySelector('[data-search-correction]').textContent")).includes(normalizeTaskQuery(query)));
+      assert.equal(await evaluate("document.querySelector('.pagefind-ui__search-input').value"), query, 'Correction changed the editable original query');
+    }
+  }
+  console.log('PASS real search input: seven task/typo phrases rank their grounded API within the first three results');
+
+  const selectType = type => evaluate(`(() => {
+    const select = document.querySelector('#sco-search-type');
+    select.value = ${JSON.stringify(type)};
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  for (const [type, query] of [
+    ['APIs', 'inventory'], ['Guides', 'plugin'], ['Languages', 'language mappings'],
+    ['Overview', 'plugin'], ['Services', 'inventory'],
+  ]) {
+    await enterQuery(query);
+    await settledQuery(query, await expectedPaths(query));
+    const expected = await expectedPaths(query, type);
+    assert(expected.length, `${type} has no representative result`);
+    await selectType(type);
+    await settledQuery(query, expected);
+    assert.equal(await evaluate("document.querySelector('#sco-search-type').value"), type);
+    const html = await Promise.all(expected.map(route => fetch(origin + route).then(response => response.text())));
+    assert(html.every(page => page.includes(`data-pagefind-filter="Type:${type}"`)), `${type} leaked other categories`);
+    await evaluate("document.querySelector('[data-search-reset]').click()");
+    await settledQuery(query, await expectedPaths(query));
+    assert.equal(await evaluate("document.querySelector('#sco-search-type').value"), '');
+  }
+  assert(await evaluate("[...document.querySelectorAll('.pagefind-ui__filter-panel')].every(panel => getComputedStyle(panel).display === 'none')"), 'Native Type select must replace facet-count checkboxes');
+  console.log('PASS all five category filters show matching pages; All categories restores unfiltered results');
+
+  await enterQuery('inventory');
+  await selectType('Guides');
+  await settledQuery('inventory', await expectedPaths('inventory', 'Guides'));
+  await selectType('APIs');
+  await settledQuery('inventory', await expectedPaths('inventory', 'APIs'));
+  assert.equal(await evaluate("document.querySelector('#sco-search-type').value"), 'APIs');
+  await selectType('');
+  await settledQuery('inventory', await expectedPaths('inventory'));
+  assert.equal(await evaluate("document.querySelector('#sco-search-type').value"), '');
+  console.log('PASS choosing a category replaces the previous category; clearing it searches all');
+
+  await enterQuery('spawn a ship');
+  await selectType('Guides');
+  await enterQuery('read inventroy');
+  await evaluate("document.querySelector('[data-search-reset]').click(); const type = document.querySelector('#sco-search-type'); type.value = 'APIs'; type.dispatchEvent(new Event('change', { bubbles: true }))");
+  await settledQuery('read inventroy', await expectedPaths('read inventroy', 'APIs'));
+  assert.equal(await evaluate("document.querySelector('#sco-search-type').value"), 'APIs');
+  assert((await evaluate(resultPaths)).slice(0, 3).includes('/sco-core/reference/sc-inventory-v1-snapshot/'));
+  await evaluate("document.querySelector('[data-search-reset]').click()");
+  await settledQuery('read inventroy', await expectedPaths('read inventroy'));
+  await enterQuery('"qzxzzvneverdocumentedalias"');
+  await settledQuery('"qzxzzvneverdocumentedalias"', []);
+  assert((await evaluate("document.querySelector('.pagefind-ui__message').textContent")).includes('Try fewer words'));
+  await key('Escape', 'Escape');
+  await wait("!document.querySelector('dialog[open]') && document.activeElement.matches('[data-open-modal]')");
+  await openSearch();
+  await enterQuery('spwan ship');
+  await settledQuery('spwan ship', await expectedPaths('spwan ship'));
+  assert(await evaluate(`(() => {
+    const correction = document.querySelector('[data-search-correction]');
+    const tools = document.querySelector('.sco-search-tools');
+    const firstResult = document.querySelector('.pagefind-ui__results');
+    return !correction.hidden && correction.getBoundingClientRect().top < firstResult.getBoundingClientRect().top
+      && tools.getBoundingClientRect().top >= 0 && tools.getBoundingClientRect().bottom <= innerHeight;
+  })()`), 'Search guidance/reset must stay visible before results');
+  for (let tab = 0; tab < 32; tab++) {
+    await key('Tab', 'Tab');
+    // Native dialogs may send Tab to browser chrome; background page controls
+    // must remain unreachable while the document itself still has focus.
+    assert(await evaluate("document.querySelector('dialog').contains(document.activeElement) || !document.hasFocus()"), 'Tab focused the background page');
+  }
+  await key('Escape', 'Escape');
+  await wait("document.activeElement.matches('[data-open-modal]')");
+  console.log('PASS rapid query/filter changes, useful empty state, reopening and full Tab focus containment');
 
   const natives = JSON.parse(await fs.readFile(path.join(root, 'native-index.json')));
   const target = natives.entries[Math.floor(natives.entries.length * 0.8)];
@@ -215,6 +358,29 @@ try {
   assert.equal(await evaluate('document.querySelectorAll("tr.is-target").length'), 0);
   console.log('PASS native index: query and hash deep links scroll to and mark one row; tier and text filters '
     + 'match the JSON; hash links stay on the page; unknown hash reported; no overflow at 1280px and 390px');
+  failSearchIndex = true;
+  await call('Page.navigate', { url: origin + '/sco-core/' });
+  await searchReady();
+  await evaluate("document.querySelector('[data-open-modal]').focus()");
+  await key('k', 'KeyK', process.platform === 'darwin' ? 4 : 2);
+  await wait("document.querySelector('[data-search-status]')?.textContent.includes('could not load') && !document.querySelector('[data-search-retry]').hidden");
+  assert.equal(await evaluate("!!document.querySelector('.pagefind-ui__search-input')"), false);
+  failSearchIndex = false;
+  await evaluate("document.querySelector('[data-search-retry]').click()");
+  await wait("!document.querySelector('dialog[open]') && document.readyState === 'complete'");
+  await searchReady();
+  await openSearch();
+  await enterQuery('read inventory');
+  await settledQuery('read inventory', await expectedPaths('read inventory'));
+  await key('Escape', 'Escape');
+  console.log('PASS missing local index gives a visible reload/retry; retry restores usable focused search');
+  try {
+    await testLanding({ call, evaluate, wait, origin, root,
+      setParticleWorkerFailure: value => { particleWorkerFailure = value; } });
+  } catch (error) {
+    if (failures.length) console.error('Browser exceptions/requests: ' + JSON.stringify(failures));
+    throw error;
+  }
   assert.deepEqual(failures, []);
   console.log('PASS long reference tables/code at 1280px and 390px; zero script exceptions or nonlocal requests');
 } finally {

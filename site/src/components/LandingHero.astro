@@ -1,0 +1,110 @@
+---
+import DefaultHero from '@astrojs/starlight/components/Hero.astro';
+import '../styles/landing.css';
+
+const { entry } = Astro.locals.starlightRoute;
+// Starlight normalizes the root index entry to an empty route ID.
+const isHome = entry.id === '' || entry.id === 'index';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (path: string) => `${base}/${path}/`;
+const languages = [
+	['c', 'C'],
+	['cpp', 'C++'],
+	['csharp', 'C#'],
+	['lua', 'Lua'],
+];
+const hubs = [
+	{ key: 'start', index: '01', task: 'Start', title: 'Start & SDK profiles' },
+	{ key: 'sdks', index: '02', task: 'Build', title: 'Language SDKs & cookbooks' },
+	{ key: 'reference', index: '03', task: 'Explore', title: 'Native & service reference' },
+	{ key: 'integration', index: '04', task: 'Integrate', title: 'Host integration & AI agents' },
+];
+---
+
+{
+	isHome ? (
+		<section class="sco-landing" data-sco-landing data-sco-field data-state="static" data-od-id="sco-landing" aria-labelledby="_top">
+			<canvas class="sco-landing__particles" data-sco-particles aria-hidden="true" />
+			<div class="sco-landing__veil" aria-hidden="true" />
+			<canvas class="sco-landing__particles sco-landing__particles--front" data-sco-particles-front aria-hidden="true" />
+			<div class="sco-landing__inner">
+				<div class="sco-landing__topline">
+					<div class="sco-landing__brand">
+						<svg class="sco-landing__mark" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+							<rect class="sco-landing__mark-frame" x=".5" y=".5" width="39" height="39" rx="10" />
+							<path class="sco-landing__mark-brackets" d="M15 11H10V29H15M25 11H30V29H25" />
+							<rect class="sco-landing__mark-core" x="17" y="17" width="6" height="6" rx="1" />
+						</svg>
+						<span>sco-core</span>
+					</div>
+					<p class="sco-landing__section-label">SDK / Documentation</p>
+				</div>
+
+				<div class="sco-landing__copy">
+					<p class="sco-landing__eyebrow">The public SDK contract catalogue</p>
+					<h1 id="_top" data-page-title>sco-core <span>SDK</span></h1>
+					<p class="sco-landing__tagline">Public contracts for Star Citizen offline plugins</p>
+					<nav class="sco-landing__actions" aria-label="Developer tasks">
+						<a class="sco-landing__action sco-landing__action--primary" href={href('guides/getting-started')}>
+							Start a plugin <span aria-hidden="true">→</span>
+						</a>
+						<a class="sco-landing__action sco-landing__action--secondary" href={href('hubs/reference')}>
+							Browse API <span aria-hidden="true">→</span>
+						</a>
+					</nav>
+					<nav aria-label="Language mappings">
+						<ul class="sco-landing__languages">
+							{languages.map(([key, label]) => <li><a href={href(`languages/${key}`)}>{label}</a></li>)}
+						</ul>
+					</nav>
+				</div>
+
+				<div class="sco-landing__field-controls">
+					<button class="sco-landing__field-toggle" type="button" data-sco-field-toggle aria-pressed="false" hidden>
+						Pause animation
+					</button>
+				</div>
+
+				<nav class="sco-landing__hub-nav" aria-label="Documentation hubs">
+					<ul class="sco-landing__hubs">
+						{hubs.map((hub) => (
+							<li class="sco-landing__hub">
+								<div class="sco-landing__hub-label" aria-hidden="true">
+									<span>{hub.index} / {hub.task}</span><span>↗</span>
+								</div>
+								<a href={href(`hubs/${hub.key}`)}>{hub.title}</a>
+							</li>
+						))}
+					</ul>
+				</nav>
+				<div class="sco-landing__footer">
+					<p>Independent project · Offline use only</p>
+					<p>One interface. Your next plugin.</p>
+				</div>
+			</div>
+		</section>
+	) : <DefaultHero {...Astro.props} />
+}
+
+<script>
+	import { initParticleField } from '../landing/particle-field';
+
+	let activeRoot: HTMLElement | null = null;
+	let cleanup: (() => void) | undefined;
+
+	function initializeField() {
+		const root = document.querySelector<HTMLElement>('[data-sco-landing][data-sco-field]');
+		if (root === activeRoot) return;
+		cleanup?.();
+		activeRoot = root;
+		cleanup = root ? initParticleField(root) : undefined;
+	}
+
+	initializeField();
+	document.addEventListener('astro:page-load', initializeField);
+	document.addEventListener('astro:before-swap', () => {
+		cleanup?.();
+		cleanup = undefined;
+		activeRoot = null;
+	});
+</script>

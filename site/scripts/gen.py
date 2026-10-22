@@ -51,7 +51,11 @@ TASK_TERMS = {
     'sco-storage-v1-query': 'open SQL cursor',
     'sco-api-query-service': 'find service table',
     'sc-actors-v1-spawn-npc': 'spawn NPC',
+    'sc-spawn-service-v1-spawn-near-player': 'spawn a ship; spawn a vehicle; spawn an item near the player',
+    'sc-inventory-v1-snapshot': 'read inventory; read player inventory; inspect attached item ports',
+    'sc-container-contents-v1-snapshot': 'read container contents; list stored items in a container',
 }
+PAGE_TYPES = {'APIs', 'Services', 'Languages', 'Guides', 'Overview'}
 # Four library hubs: sidebar groups, landing pages at hubs/<key>/ and the home cards.
 # Every allowlisted doc sits in exactly one hub, and generation refuses a doc that
 # has none, so a new public input cannot drop out of navigation. Grouping only
@@ -274,17 +278,18 @@ def published_stage():
     return 'Published release', 'immutable approved assets'
 
 
-def banner(catalogue, release_tag):
+def banner(catalogue, release_tag, category):
     label = 'release ' + release_tag if release_tag else 'development preview'
     published = release_tag or PUBLISHED_DOWNLOAD_TAG
     stage = 'immutable approved assets' if release_tag else published_stage()[1]
-    return (':::caution[Catalogue snapshot — ' + label + ']\n'
+    return ('<div data-pagefind-ignore="index">\n\n:::caution[Catalogue snapshot — ' + label + ']\n'
             + 'SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
             + '** · source `' + catalogue['source_sha'] + '`\n'
             + 'Published release: [' + published + '](' + RELEASES + quote(published, safe='') + ')'
             + (' (' + stage + ').\n' if release_tag
                else ' (' + stage + '; this development preview is not an approved release).\n')
-            + 'Source-backed inventory is not a runtime or in-game verification claim.\n:::\n\n')
+            + '<span data-pagefind-filter="Type:' + esc(category) + '">Source-backed inventory is not a runtime '
+            + 'or in-game verification claim.</span>\n:::\n\n</div>\n\n')
 
 
 def release_scope(text, tag):
@@ -359,10 +364,8 @@ def profile_cards(cards, sha, doc_routes):
     return out
 
 
-def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
-    """Home-page release tracks, profile cards and checksum commands, all from repository facts.
-
-    libraries is Markdown placed between the release tracks and the archive cards."""
+def release_portal(root, catalogue, release_tag, doc_routes):
+    """Home-page release tracks, profile cards and checksum commands, all from repository facts."""
     notes = 'docs/releases/' + PUBLISHED_RELEASE + '.md'
     if notes not in doc_routes:
         raise ValueError('Published release notes must be an allowlisted input: ' + notes)
@@ -377,7 +380,7 @@ def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
                 + '</dl>')
 
     published = [
-        '<section class="sco-track" data-track="published" data-tag="' + esc(scope['tag'])
+        '<section class="sco-track" data-od-id="release-published" data-track="published" data-tag="' + esc(scope['tag'])
         + '" data-download-tag="' + esc(PUBLISHED_DOWNLOAD_TAG) + '" aria-labelledby="track-published">',
         '<span class="sco-status sco-status--published">' + esc(status) + '</span>',
         '<h3 id="track-published"><a href="' + esc(RELEASES + tag) + '">' + esc(PUBLISHED_DOWNLOAD_TAG)
@@ -394,7 +397,7 @@ def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
         label, title = 'Mainline development preview', 'This documentation build'
         note = 'Not an approved release. Pages describe this source commit.'
     preview = [
-        '<section class="sco-track" data-track="' + ('release' if release_tag else 'preview')
+        '<section class="sco-track" data-od-id="release-build" data-track="' + ('release' if release_tag else 'preview')
         + '" data-source-sha="' + esc(sha) + '" aria-labelledby="track-build">',
         '<span class="sco-status sco-status--' + ('published' if release_tag else 'preview') + '">' + esc(label) + '</span>',
         '<h3 id="track-build">' + esc(title) + '</h3>',
@@ -403,7 +406,6 @@ def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
         '<p class="sco-track__note">' + esc(note) + '</p>',
         '</section>']
     out = ['\n## Releases', '<div class="sco-tracks not-content">', *published, *preview, '</div>',
-           libraries,
            '\n## Choose an archive',
            'Archives published in ' + PUBLISHED_DOWNLOAD_TAG + '. Profiles and versions come from the '
            'release-scope declaration in the ' + scope['tag'] + ' release notes.\n',
@@ -430,12 +432,16 @@ def release_portal(root, catalogue, release_tag, doc_routes, libraries=''):
     return '\n'.join(out)
 
 
-def page(title, body, catalogue, release_tag, toc=True):
+def page(title, body, catalogue, release_tag, category, toc=True, hero=None):
+    if category not in PAGE_TYPES:
+        raise ValueError('Unknown search page type: ' + category)
     title = plain_title(title)
     return ('---\ntitle: ' + json.dumps(title, ensure_ascii=False)
             + '\ndescription: ' + json.dumps('sco-core public engineering documentation: ' + title)
             + ('' if toc else '\ntableOfContents: false')
-            + '\n---\n\n' + banner(catalogue, release_tag) + body.rstrip() + '\n')
+            + ('\ntemplate: splash\nhero: ' + json.dumps(hero, ensure_ascii=False) if hero else '')
+            + '\n---\n\n'
+            + banner(catalogue, release_tag, category) + body.rstrip() + '\n')
 
 
 def hub_docs(docs):
@@ -464,7 +470,7 @@ def sidebar(doc_routes, titles, services, natives):
         if key == 'reference':
             items.append({'label': 'Service tables', 'collapsed': True, 'items': [
                 {'label': service, 'slug': 'services/' + service_id(service)} for service in services]})
-        groups.append({'label': label, 'items': items})
+        groups.append({'label': label, 'collapsed': True, 'items': items})
     return groups
 
 
@@ -784,7 +790,7 @@ def render_record(record, catalogue, doc_routes):
         if not record[key]:
             out.append('None identified in the catalogue; this is not proof none can exist.')
     if record['id'] in TASK_TERMS:
-        out += ['\n## Find by task', TASK_TERMS[record['id']],
+        out += ['\n## Find by task', '<p data-pagefind-weight="10">' + esc(TASK_TERMS[record['id']]) + '</p>',
                 'This is a search phrase for the existing contract, not an additional API alias.']
     out.append('\nABI pins prove layout, not semantic behavior or a live game session.')
     # Evidence tokens include wrapper names and Lua adapters, making those terms
@@ -817,7 +823,8 @@ def generate(root, catalogue, output, release_tag=None):
         raise ValueError('Service route collision')
     pages = {}
     for record in records:
-        pages['reference/' + record['id']] = page(record['symbol'], render_record(record, catalogue, doc_routes), catalogue, release_tag)
+        pages['reference/' + record['id']] = page(record['symbol'], render_record(record, catalogue, doc_routes),
+                                                  catalogue, release_tag, 'APIs')
     for service in services:
         parts = ['Methods and entrypoints for **' + service + '**.\n']
         for name, table in sorted(catalogue['tables'].items()):
@@ -827,7 +834,7 @@ def generate(root, catalogue, output, release_tag=None):
             parts.append(rewrite_links(catalogue['contract_context']['entrypoint_context'], catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes))
         parts += ['\n## Contract records']
         parts += ['- [' + r['symbol'] + '](' + route('reference/' + r['id']) + ')' for r in records if r['service'] == service]
-        pages['services/' + service_id(service)] = page(service, '\n'.join(parts), catalogue, release_tag)
+        pages['services/' + service_id(service)] = page(service, '\n'.join(parts), catalogue, release_tag, 'Services')
     for language in LANGUAGES:
         parts = ['Static language view. Status is authoritative catalogue metadata, '
                  'not a runtime support filter. Unsupported entries remain explicit.\n',
@@ -835,7 +842,8 @@ def generate(root, catalogue, output, release_tag=None):
         parts += ['| [' + r['symbol'] + '](' + route('reference/' + r['id']) + ') | '
                   + cell(r['service']) + ' | **' + r['language_mappings'][language]['status'] + '** |'
                   for r in records]
-        pages['languages/' + language] = page(language + ' language mappings', '\n'.join(parts), catalogue, release_tag)
+        pages['languages/' + language] = page(language + ' language mappings', '\n'.join(parts),
+                                             catalogue, release_tag, 'Languages')
     titles = {}
     for name in docs:
         text = (root / name).read_text(encoding='utf-8')
@@ -845,7 +853,7 @@ def generate(root, catalogue, output, release_tag=None):
         text = rewrite_links(text, name, catalogue['source_sha'], doc_routes)
         if doc_routes[name] in pages:
             raise ValueError('Generated route collision: ' + name)
-        pages[doc_routes[name]] = page(titles[name], text, catalogue, release_tag)
+        pages[doc_routes[name]] = page(titles[name], text, catalogue, release_tag, 'Guides')
     groups = sidebar(doc_routes, titles, services, natives)
     notes = 'docs/releases/' + PUBLISHED_RELEASE + '.md'
     profiles = profile_cards(published_profiles(root, release_scope((root / notes).read_text(encoding='utf-8'),
@@ -853,19 +861,25 @@ def generate(root, catalogue, output, release_tag=None):
                              catalogue['source_sha'], doc_routes)
     for key, label, blurb in HUBS:
         pages['hubs/' + key] = page(label, hub_body(key, blurb, catalogue, doc_routes, titles, services,
-                                                     natives, profiles), catalogue, release_tag)
+                                                     natives, profiles), catalogue, release_tag, 'Overview')
     # No table of contents: the row table takes the wider content column (portal.css).
-    pages['natives'] = page(NATIVE_TITLE, natives_body(natives, catalogue['source_sha']), catalogue, release_tag,
+    pages['natives'] = page(NATIVE_TITLE, natives_body(natives, catalogue['source_sha']), catalogue, release_tag, 'APIs',
                             toc=False)
     libraries = '\n## Libraries\n\n' + hub_cards(groups)
     home = ['Public SDK contracts generated from a compiler-validated catalogue. '
             'Engineering guides are selected by an explicit public-input allowlist.\n',
             '[Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json) · [Roadmap and direction]('
             + route(doc_routes['docs/roadmap.md']) + ')',
-            release_portal(root, catalogue, release_tag, doc_routes, libraries)]
+            libraries,
+            release_portal(root, catalogue, release_tag, doc_routes)]
     home += ['\n## Reading rules', catalogue['contract_context']['reading_rules'],
              '\n## Remaining gaps', rewrite_links(catalogue['contract_context']['remaining_gaps'], catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes)]
-    pages['index'] = page('sco-core SDK documentation', '\n'.join(home), catalogue, release_tag)
+    hero = {'title': 'sco-core SDK', 'tagline': 'Public contracts for Star Citizen offline plugins',
+            'actions': [
+                {'text': 'Start a plugin', 'link': route(doc_routes['docs/getting-started.md']),
+                 'icon': 'right-arrow'},
+                {'text': 'Browse API', 'link': route('hubs/reference'), 'variant': 'secondary'}]}
+    pages['index'] = page('sco-core SDK', '\n'.join(home), catalogue, release_tag, 'Overview', hero=hero)
     # Only the generated content directory is replaced. No recursive repository
     # publication, and stale pages cannot survive a removed record or input.
     content = output / 'src/content/docs'

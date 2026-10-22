@@ -187,6 +187,67 @@ class SiteTests(unittest.TestCase):
             self.assertEqual(json.loads((output / 'public/sdk-catalogue.json').read_text()), self.catalogue)
             print('Verified records:', len(records), 'services:', len(services))
 
+    def test_task_search_phrases_are_visible_and_weighted(self):
+        expected = {
+            'sco-api-run-on-game-thread': 'schedule game thread task',
+            'sco-storage-v1-query': 'open SQL cursor',
+            'sco-api-query-service': 'find service table',
+            'sc-actors-v1-spawn-npc': 'spawn NPC',
+            'sc-spawn-service-v1-spawn-near-player': 'spawn a ship',
+            'sc-inventory-v1-snapshot': 'read inventory',
+            'sc-container-contents-v1-snapshot': 'read container contents',
+        }
+        self.assertEqual(set(gen.TASK_TERMS), set(expected))
+        routes = {name: gen.guide_id(name) for name in gen.inputs(ROOT)}
+        records = {record['id']: record for record in self.catalogue['records']}
+        for identifier, phrase in expected.items():
+            with self.subTest(identifier=identifier):
+                text = gen.render_record(records[identifier], self.catalogue, routes)
+                weighted = re.findall(r'<p data-pagefind-weight="([0-9]+)">([^<]+)</p>', text)
+                self.assertEqual(len(weighted), 1)
+                self.assertGreater(int(weighted[0][0]), 1)
+                self.assertIn(phrase, html.unescape(weighted[0][1]))
+                self.assertNotIn('teleport', weighted[0][1].lower())
+                self.assertIn('not an additional API alias', text)
+                self.assertIn('ABI pins prove layout, not semantic behavior or a live game session.', text)
+                for limitation in records[identifier]['limitations']:
+                    self.assertIn(gen.rewrite_links(limitation, self.catalogue['contract_context']['source'],
+                                                   self.catalogue['source_sha'], routes), text)
+
+    def test_search_categories_cover_every_generated_page(self):
+        categories = {'reference': 'APIs', 'services': 'Services', 'languages': 'Languages',
+                      'guides': 'Guides', 'hubs': 'Overview', 'natives.md': 'APIs', 'index.md': 'Overview'}
+        seen = set()
+        with tempfile.TemporaryDirectory(prefix='site-search-types-') as work:
+            output = Path(work)
+            self.generate(ROOT, output)
+            docs = output / 'src/content/docs'
+            for path in docs.rglob('*.md'):
+                relative = path.relative_to(docs)
+                with self.subTest(page=relative.as_posix()):
+                    expected = categories[relative.parts[0]]
+                    text = path.read_text()
+                    self.assertEqual(re.findall(r'data-pagefind-filter="([^"]+)"', text), ['Type:' + expected])
+                    self.assertIn('<span data-pagefind-filter="Type:' + expected + '">Source-backed inventory '
+                                  'is not a runtime or in-game verification claim.</span>', text)
+                    seen.add(expected)
+        self.assertEqual(seen, {'APIs', 'Services', 'Languages', 'Guides', 'Overview'})
+        with self.assertRaisesRegex(ValueError, 'Unknown search page type'):
+            gen.page('Title', 'Body', self.catalogue, None, 'Unsupported')
+
+    def test_snapshot_notice_is_visible_but_not_searchable(self):
+        notice = gen.banner(self.catalogue, None, 'APIs')
+        self.assertTrue(notice.startswith('<div data-pagefind-ignore="index">\n\n:::caution['))
+        self.assertTrue(notice.endswith('\n:::\n\n</div>\n\n'))
+        self.assertIn('data-pagefind-filter="Type:APIs"', notice)
+        self.assertIn('development preview', notice)
+        self.assertIn(self.catalogue['source_sha'], notice)
+        self.assertIn('not a runtime or in-game verification claim', notice)
+        self.assertNotRegex(notice, r'\bhidden\b|aria-hidden|display\s*:\s*none')
+        page = gen.page('Title', 'Indexed contract purpose', self.catalogue, None, 'APIs')
+        self.assertIn(notice + 'Indexed contract purpose', page)
+        self.assertEqual(page.count('data-pagefind-ignore'), 1)
+
     def test_mapping_status_is_authoritative(self):
         record = deepcopy(self.catalogue['records'][0])
         for language in record['language_mappings']:
@@ -247,7 +308,8 @@ class SiteTests(unittest.TestCase):
             (output / 'scripts').mkdir()
             shutil.copyfile(ROOT / 'site/scripts/sanitize_search.py', output / 'scripts/sanitize_search.py')
             shutil.copyfile(ROOT / 'site/src/content.config.ts', output / 'src/content.config.ts')
-            shutil.copytree(ROOT / 'site/src/styles', output / 'src/styles')
+            for name in ('styles', 'components', 'search', 'landing'):
+                shutil.copytree(ROOT / 'site/src' / name, output / 'src' / name)
             self.generate(root, output)
             shutil.copyfile(ROOT / 'site/public/favicon.svg', output / 'public/favicon.svg')
             check_leaks(output / 'src/content/docs', FORBIDDEN + SENTINELS)
@@ -270,6 +332,35 @@ class SiteTests(unittest.TestCase):
                 self.fail('Node available but dependencies missing; run npm ci in site first')
             else:
                 print('Sentinel generated content clean; built sentinel check skipped: Node unavailable')
+
+    def test_home_task_links_and_hierarchy(self):
+        with tempfile.TemporaryDirectory(prefix='site-home-') as work:
+            output = Path(work)
+            self.generate(ROOT, output)
+            home = (output / 'src/content/docs/index.md').read_text()
+            self.assertIn('title: "sco-core SDK"', home)
+            self.assertIn('\ntemplate: splash\n', home)
+            hero = json.loads(re.search(r'^hero: (.+)$', home, re.M)[1])
+            self.assertEqual(hero['title'], 'sco-core SDK')
+            self.assertEqual(hero['tagline'], 'Public contracts for Star Citizen offline plugins')
+            self.assertEqual([(action['link'], action['text']) for action in hero['actions']], [
+                (gen.route('guides/getting-started'), 'Start a plugin'),
+                (gen.route('hubs/reference'), 'Browse API')])
+            self.assertNotIn('sco-intro', home)
+            self.assertIsNone(re.search(r'^# ', home, re.M))
+            snapshot_start = home.index(':::caution[Catalogue snapshot')
+            self.assertLess(snapshot_start, home.index('## Libraries'))
+            self.assertLess(home.index('data-hub="integration"'), home.index('## Releases'))
+            self.assertLess(home.index('## Verify a download'), home.index('## Reading rules'))
+            self.assertLess(home.index('## Reading rules'), home.index('## Remaining gaps'))
+            for rule in self.catalogue['contract_context']['reading_rules'].splitlines():
+                self.assertIn(rule, home)
+            routes = {name: gen.guide_id(name) for name in gen.inputs(ROOT)}
+            self.assertIn(gen.rewrite_links(self.catalogue['contract_context']['remaining_gaps'],
+                                           self.catalogue['contract_context']['source'],
+                                           self.catalogue['source_sha'], routes), home)
+            self.assertNotIn('template: splash', (output / 'src/content/docs/guides/getting-started.md').read_text())
+            check_markdown_links(output / 'src/content/docs', output / 'public')
 
     def test_home_portal_matches_release_scope(self):
         notes = (ROOT / 'docs/releases' / (gen.PUBLISHED_RELEASE + '.md')).read_text()
@@ -421,15 +512,17 @@ class SiteTests(unittest.TestCase):
             self.assertEqual(routes, {p.relative_to(docs).as_posix() for p in docs.rglob('*.md')})
 
     def test_retired_search_target_and_duplicate_record_refused(self):
-        for kind in ('retired', 'duplicate'):
+        for identifier in gen.TASK_TERMS:
             bad = deepcopy(self.catalogue)
-            if kind == 'retired':
-                bad['records'] = [r for r in bad['records'] if r['id'] != 'sco-api-query-service']
-            else:
-                bad['records'].append(deepcopy(bad['records'][0]))
+            bad['records'] = [r for r in bad['records'] if r['id'] != identifier]
             with tempfile.TemporaryDirectory(prefix='site-invalid-') as work:
-                with self.subTest(kind=kind), self.assertRaises(ValueError):
+                with self.subTest(retired=identifier), self.assertRaisesRegex(ValueError, 'retired or missing record'):
                     gen.generate(ROOT, bad, Path(work))
+        bad = deepcopy(self.catalogue)
+        bad['records'].append(deepcopy(bad['records'][0]))
+        with tempfile.TemporaryDirectory(prefix='site-invalid-') as work:
+            with self.assertRaisesRegex(ValueError, 'duplicate or unsafe record'):
+                gen.generate(ROOT, bad, Path(work))
 
     def test_actual_search_and_keyboard_navigation(self):
         if BUILT is None:
@@ -437,7 +530,7 @@ class SiteTests(unittest.TestCase):
         self.assertIsNotNone(shutil.which('node'), 'Node required for browser navigation')
         result = subprocess.run(['node', str(ROOT / 'site/scripts/test_navigation.mjs'), str(BUILT),
                                  '--defer-search-idle'],
-                                capture_output=True, text=True, timeout=60)
+                                capture_output=True, text=True, timeout=180)
         if result.returncode == 77:
             self.skipTest(result.stderr.strip())
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -608,6 +701,7 @@ class SiteTests(unittest.TestCase):
             self.assertEqual([group['label'] for group in groups[1:]],
                              ['Start & SDK profiles', 'Language SDKs & cookbooks', 'Native & service reference',
                               'Host integration & AI agents'])
+            self.assertTrue(all(group.get('collapsed') is True for group in groups[1:]))
 
             def items(entries):
                 for entry in entries:
@@ -633,7 +727,7 @@ class SiteTests(unittest.TestCase):
             self.assertIn('title: "Plugin API v1 reference (sco_api.h)"', api)
             home = (docs / 'index.md').read_text()
             self.assertEqual(re.findall(r'data-hub="([a-z]+)"', home), [key for key, _, _ in gen.HUBS])
-            self.assertLess(home.index('data-track="published"'), home.index('data-hub="start"'))
+            self.assertLess(home.index('data-hub="integration"'), home.index('data-track="published"'))
             self.assertLess(home.index('data-hub="integration"'), home.index('data-profile='))
             start = (docs / 'hubs/start.md').read_text()
             self.assertEqual(len(re.findall(r'<li class="sco-profile"', start)),
