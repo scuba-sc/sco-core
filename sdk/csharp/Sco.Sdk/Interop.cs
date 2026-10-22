@@ -63,9 +63,12 @@ namespace Sco.Sdk
 
         public const string StorageName = "sco.storage";  // SCO_STORAGE_NAME
         public const uint StorageVersion1_0 = 0x00010000u;
+        public const uint StorageVersion1_1 = 0x00010001u;
         public const uint StorageMaxKey = 255u;
         public const uint StorageMaxValue = 1u << 20;
         public const uint StorageMaxCursors = 64u;
+        public const uint StorageKindTable = 1u, StorageKindView = 2u;
+        public const uint StorageColumnNotNull = 1u, StorageColumnPrimaryKey = 2u;
 
         public const string UiName = "sco.ui";            // SCO_UI_NAME
         public const uint UiVersion1_0 = 0x00010000u;
@@ -200,7 +203,7 @@ namespace Sco.Sdk.Interop
         public ScoSqlUnion v;
     }
 
-    /// <summary>sco_storage_v1, the table of the host service "sco.storage": 128 bytes.</summary>
+    /// <summary>sco_storage_v1, the table of the host service "sco.storage": 1.0: 128 bytes; 1.1 adds next_table/next_column (144). Check the size covers a member before calling it.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct ScoStorageV1
     {
@@ -221,6 +224,8 @@ namespace Sco.Sdk.Interop
         public delegate* unmanaged[Cdecl]<void*, ulong, uint, byte*, uint*, ScoResult> column_name;
         public delegate* unmanaged[Cdecl]<void*, ulong, ScoResult> close;
         public delegate* unmanaged[Cdecl]<void*, byte*, uint*, ScoResult> last_error;
+        public delegate* unmanaged[Cdecl]<void*, byte*, byte*, uint*, uint*, ScoResult> next_table;
+        public delegate* unmanaged[Cdecl]<void*, byte*, uint*, byte*, uint*, byte*, uint*, uint*, ScoResult> next_column;
     }
 
     /// <summary>sco_ui_v1, the table of the host service "sco.ui": 80 bytes.</summary>

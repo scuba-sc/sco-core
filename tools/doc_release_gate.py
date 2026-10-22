@@ -40,7 +40,7 @@ This runs before candidate generation; it never changes tools/release_verify.py 
 """
 import argparse
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import sys
 
@@ -227,6 +227,7 @@ def public_docs(root, notes_path):
     docs = data.get("docs") if isinstance(data, dict) else None
     if (not isinstance(docs, list) or not docs
             or not all(isinstance(d, str) and d and not Path(d).is_absolute()
+                       and not PurePosixPath(d).is_absolute()
                        and ".." not in Path(d).parts for d in docs)):
         raise Refusal(f"{PUBLIC_INPUTS} must list docs as nonempty repository-relative paths")
     return list(dict.fromkeys([*docs, notes_path, GETTING_STARTED, *READMES]))
@@ -275,24 +276,25 @@ def workflow_profiles(root):
 
 
 def approval_refusals(path, scope):
+    display_path = path.as_posix()
     if not path.is_file():
-        return [f"approval record {path} not found"]
+        return [f"approval record {display_path} not found"]
     if not Path(str(path) + ".sig").is_file():
-        return [f"approval record {path} has no detached .sig signature"]
+        return [f"approval record {display_path} has no detached .sig signature"]
     try:
-        record = load_json_strict(path.read_bytes(), f"approval record {path}")
+        record = load_json_strict(path.read_bytes(), f"approval record {display_path}")
     except OSError:
-        return [f"approval record {path} is unreadable"]
+        return [f"approval record {display_path} is unreadable"]
     except Refusal as exc:
         return [str(exc)]
     if not isinstance(record, dict):
-        return [f"approval record {path} is not a JSON object"]
+        return [f"approval record {display_path} is not a JSON object"]
     refusals = []
     # Schema version 2 names the tag `tag`; version 1 names it `release_tag`.
     if record.get("tag", record.get("release_tag")) != scope["tag"]:
-        refusals.append(f"approval record {path} is not for {scope['tag']}")
+        refusals.append(f"approval record {display_path} is not for {scope['tag']}")
     if record.get("profiles") != scope["profiles"]:
-        refusals.append(f"approval record {path} profiles differ from the declared release scope")
+        refusals.append(f"approval record {display_path} profiles differ from the declared release scope")
     return refusals
 
 

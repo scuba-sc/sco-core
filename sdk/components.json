@@ -51,6 +51,11 @@
     "site"
   ],
   "excluded": [
+    {"path":"tools/test_sdk_mvp_host.mjs","why":"Repository cross-product native host MCP acceptance harness; requires separately built studio."},
+    {"path":"tools/test_sdk_mvp.py","why":"Repository archive-only developer workflow acceptance runner."},
+    {"path":"tools/sco-core-mcp/runtime_schema/","why":"Runtime protocol design fixtures; separate runtime package, not discovery dependencies."},
+    {"path":"tools/sco-core-mcp/test_integration.py","why":"Repository-only discovery integration tests."},
+    {"path":"tools/sco-core-mcp/test_runtime_schema.py","why":"Repository-only runtime schema tests."},
     {
       "path": "tools/sco-core-mcp-runtime/",
       "why": "Separately built default-off local runtime development package; not a plugin SDK component."
@@ -58,10 +63,6 @@
     {
       "path": "tools/test_content_gate.py",
       "why": "Repository-only G14 catalogue/package closure probe; source kits use test_content directly."
-    },
-    {
-      "path": "tools/sco-core-mcp/",
-      "why": "Repository-only, read-only SDK catalogue discovery aid; not a runtime component or SDK package."
     },
     {
       "path": "site/",
@@ -80,6 +81,14 @@
       "why": "Repository catalogue refusal tests; not part of the kernel source kit."
     },
     {
+      "path": "tools/sdk_guides.py",
+      "why": "Repository guide-section builder; developer profiles ship its generated sdk-guides.json, not the builder."
+    },
+    {
+      "path": "tools/test_sdk_guides.py",
+      "why": "Repository guide-section builder tests; not part of the kernel source kit."
+    },
+    {
       "path": "sdk/status_registry.json",
       "why": "Repository source of the docs/game/status.md service table; the packaged page carries the rendered table."
     },
@@ -90,6 +99,14 @@
     {
       "path": "tools/test_status_registry.py",
       "why": "Repository status registry refusal and drift tests; not part of the kernel source kit."
+    },
+    {
+      "path": "tools/plugin_directory.py",
+      "why": "Repository community plugin directory validator and docs/plugin-directory.md table generator; not part of any SDK profile."
+    },
+    {
+      "path": "tools/test_plugin_directory.py",
+      "why": "Repository plugin directory refusal and drift tests; not part of any SDK profile."
     },
     {
       "path": "sdk/native_index.json",
@@ -198,17 +215,283 @@
     {
       "path": "tools/test_g9_owned_contract.py",
       "why": "Repository-only targeted G9 contract, layout, catalogue and package gate."
+    },
+    {
+      "path": "tools/sco-core-mcp/test_server.py",
+      "why": "Repository tests for the shipped discovery launcher."
+    },
+    {
+      "path": "tools/sco-core-mcp/fixtures/",
+      "why": "Synthetic repository-only MCP test fixtures."
+    },
+    {
+      "path": "tools/sco-core-mcp/tutorial.py",
+      "why": "Repository tutorial driver; extracted kits use the shipped discovery server."
     }
   ],
   "components": [
-    {"id":"wave2.tests.test_gamerules_params.cpp","source":"tests/test_gamerules_params.cpp","destination":"tests/test_gamerules_params.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
-    {"id":"wave2.include.sc_input.h","source":"include/sc_input.h","destination":"include/sc_input.h","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
-    {"id":"wave2.src.game.services.input.cpp","source":"src/game/services/input.cpp","destination":"src/game/services/input.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
-    {"id":"wave2.src.game.services.input.h","source":"src/game/services/input.h","destination":"src/game/services/input.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
-    {"id":"wave2.tests.test_input.cpp","source":"tests/test_input.cpp","destination":"tests/test_input.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
-    {"id":"wave2.tests.abi_game_input.c","source":"tests/abi_game_input.c","destination":"tests/abi_game_input.c","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
-    {"id":"wave2.docs.game.input.md","source":"docs/game/input.md","destination":"docs/game/input.md","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
-    {"id":"wave2.sdk.contracts.sc_input_v1.json","source":"sdk/contracts/sc_input_v1.json","destination":"contracts/sc_input_v1.json","profiles":["game-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
+{"id":"source.src.game.services.entity_lookup.h","source":"src/game/services/entity_lookup.h","destination":"src/game/services/entity_lookup.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+{"id":"source.src.game.services.entity_lookup.cpp","source":"src/game/services/entity_lookup.cpp","destination":"src/game/services/entity_lookup.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+{"id":"source.tests.test_entity_lookup.cpp","source":"tests/test_entity_lookup.cpp","destination":"tests/test_entity_lookup.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+{"id":"include.sc_audio.h","source":"include/sc_audio.h","destination":"include/sc_audio.h","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
+{"id":"include.scosdk.game.audio.hpp","source":"include/scosdk/game/audio.hpp","destination":"include/scosdk/game/audio.hpp","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
+{"id":"contract.audio","source":"sdk/contracts/sc_audio_v1.json","destination":"contracts/sc_audio_v1.json","profiles":["game-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
+{"id":"docs.audio","source":"docs/game/audio.md","destination":"docs/game/audio.md","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
+{"id":"source.audio.cpp","source":"src/game/services/audio.cpp","destination":"src/game/services/audio.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+{"id":"source.audio.h","source":"src/game/services/audio.h","destination":"src/game/services/audio.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+{"id":"test.audio","source":"tests/test_audio.cpp","destination":"tests/test_audio.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+{"id":"abi.audio","source":"tests/abi_audio.c","destination":"tests/abi_audio.c","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"game-contract"},
+    {"id":"docs.sdk-developer-mvp","source":"docs/sdk-developer-mvp.md","destination":"docs/sdk-developer-mvp.md","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {
+      "id": "datacore-live-include-sc_datacore_live.h",
+      "source": "include/sc_datacore_live.h",
+      "destination": "include/sc_datacore_live.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": true
+    },
+    {
+      "id": "datacore-live-src-game-datacore_live_lifecycle.h",
+      "source": "src/game/datacore_live_lifecycle.h",
+      "destination": "src/game/datacore_live_lifecycle.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-datacore_live_lifecycle.cpp",
+      "source": "src/game/datacore_live_lifecycle.cpp",
+      "destination": "src/game/datacore_live_lifecycle.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-tests-test_datacore_live_lifecycle.cpp",
+      "source": "tests/test_datacore_live_lifecycle.cpp",
+      "destination": "tests/test_datacore_live_lifecycle.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-services-datacore_live_engine.h",
+      "source": "src/game/services/datacore_live_engine.h",
+      "destination": "src/game/services/datacore_live_engine.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-services-datacore_live_engine.cpp",
+      "source": "src/game/services/datacore_live_engine.cpp",
+      "destination": "src/game/services/datacore_live_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-tests-test_datacore_live_engine.cpp",
+      "source": "tests/test_datacore_live_engine.cpp",
+      "destination": "tests/test_datacore_live_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-datacore_live_sigs.cpp",
+      "source": "src/game/datacore_live_sigs.cpp",
+      "destination": "src/game/datacore_live_sigs.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-services-datacore_live.h",
+      "source": "src/game/services/datacore_live.h",
+      "destination": "src/game/services/datacore_live.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-src-game-services-datacore_live.cpp",
+      "source": "src/game/services/datacore_live.cpp",
+      "destination": "src/game/services/datacore_live.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-tests-abi_datacore_live.c",
+      "source": "tests/abi_datacore_live.c",
+      "destination": "tests/abi_datacore_live.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-tests-test_datacore_live.cpp",
+      "source": "tests/test_datacore_live.cpp",
+      "destination": "tests/test_datacore_live.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "datacore-live-docs-game-datacore-live.md",
+      "source": "docs/game/datacore-live.md",
+      "destination": "docs/game/datacore-live.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "wave2.tests.test_gamerules_params.cpp",
+      "source": "tests/test_gamerules_params.cpp",
+      "destination": "tests/test_gamerules_params.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "wave2.include.sc_input.h",
+      "source": "include/sc_input.h",
+      "destination": "include/sc_input.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "wave2.src.game.services.input.cpp",
+      "source": "src/game/services/input.cpp",
+      "destination": "src/game/services/input.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "wave2.src.game.services.input.h",
+      "source": "src/game/services/input.h",
+      "destination": "src/game/services/input.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "wave2.tests.test_input.cpp",
+      "source": "tests/test_input.cpp",
+      "destination": "tests/test_input.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "wave2.tests.abi_game_input.c",
+      "source": "tests/abi_game_input.c",
+      "destination": "tests/abi_game_input.c",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "wave2.docs.game.input.md",
+      "source": "docs/game/input.md",
+      "destination": "docs/game/input.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "wave2.sdk.contracts.sc_input_v1.json",
+      "source": "sdk/contracts/sc_input_v1.json",
+      "destination": "contracts/sc_input_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
     {
       "id": "host-source-sc-include-sco-game-asop_host.h",
       "source": "include/sco/game/asop_host.h",
@@ -450,6 +733,66 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-cvars_engine.h",
+      "source": "src/game/services/cvars_engine.h",
+      "destination": "src/game/services/cvars_engine.h",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-cvars_engine.cpp",
+      "source": "src/game/services/cvars_engine.cpp",
+      "destination": "src/game/services/cvars_engine.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-cvars_production.cpp",
+      "source": "src/game/services/cvars_production.cpp",
+      "destination": "src/game/services/cvars_production.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_cvars_engine.cpp",
+      "source": "tests/test_cvars_engine.cpp",
+      "destination": "tests/test_cvars_engine.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_cvars_production.cpp",
+      "source": "tests/test_cvars_production.cpp",
+      "destination": "tests/test_cvars_production.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_cvars_host_stop.cpp",
+      "source": "tests/test_cvars_host_stop.cpp",
+      "destination": "tests/test_cvars_host_stop.cpp",
+      "profiles": ["host-source-sc"],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-src-game-services-loadout.cpp",
       "source": "src/game/services/loadout.cpp",
       "destination": "src/game/services/loadout.cpp",
@@ -465,6 +808,30 @@
       "id": "host-source-sc-src-game-services-loadout.h",
       "source": "src/game/services/loadout.h",
       "destination": "src/game/services/loadout.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-loadout_engine.cpp",
+      "source": "src/game/services/loadout_engine.cpp",
+      "destination": "src/game/services/loadout_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-game_contracts-loadout-test_engine.cpp",
+      "source": "tests/game_contracts/loadout/test_engine.cpp",
+      "destination": "tests/game_contracts/loadout/test_engine.cpp",
       "profiles": [
         "host-source-sc"
       ],
@@ -770,6 +1137,17 @@
       "id": "source.tests.test_diagnostics_json.cpp",
       "source": "tests/test_diagnostics_json.cpp",
       "destination": "tests/test_diagnostics_json.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": false
+    },
+    {
+      "id": "source.tests.test_diagnostics_audit.cpp",
+      "source": "tests/test_diagnostics_audit.cpp",
+      "destination": "tests/test_diagnostics_audit.cpp",
       "profiles": [
         "core-source"
       ],
@@ -2872,6 +3250,105 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "examples.counter_service.CMakeLists.txt",
+      "source": "sdk/examples/counter_service/CMakeLists.txt",
+      "destination": "examples/counter_service/CMakeLists.txt",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.counter_service.README.md",
+      "source": "sdk/examples/counter_service/README.md",
+      "destination": "examples/counter_service/README.md",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.counter_service.counter_service.c",
+      "source": "sdk/examples/counter_service/counter_service.c",
+      "destination": "examples/counter_service/counter_service.c",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.counter_service.counter_service.h",
+      "source": "sdk/examples/counter_service/counter_service.h",
+      "destination": "examples/counter_service/counter_service.h",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.counter_service.plugin.ini",
+      "source": "sdk/examples/counter_service/plugin.ini",
+      "destination": "examples/counter_service/plugin.ini",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.counter_panel.CMakeLists.txt",
+      "source": "sdk/examples/counter_panel/CMakeLists.txt",
+      "destination": "examples/counter_panel/CMakeLists.txt",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.counter_panel.README.md",
+      "source": "sdk/examples/counter_panel/README.md",
+      "destination": "examples/counter_panel/README.md",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.counter_panel.counter_panel.c",
+      "source": "sdk/examples/counter_panel/counter_panel.c",
+      "destination": "examples/counter_panel/counter_panel.c",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "examples.counter_panel.plugin.ini",
+      "source": "sdk/examples/counter_panel/plugin.ini",
+      "destination": "examples/counter_panel/plugin.ini",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "examples.widgets_lua.CMakeLists.txt",
       "source": "sdk/examples/widgets_lua/CMakeLists.txt",
       "destination": "examples/widgets_lua/CMakeLists.txt",
@@ -3176,6 +3653,17 @@
       "id": "docs.api-v1.md",
       "source": "docs/api-v1.md",
       "destination": "docs/api-v1.md",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "docs.stability.md",
+      "source": "docs/stability.md",
+      "destination": "docs/stability.md",
       "profiles": [
         "core",
         "core-source"
@@ -7528,6 +8016,164 @@
       "public_header": true
     },
     {
+      "id": "example.container_reader.c",
+      "source": "sdk/examples/container_reader/container_reader.c",
+      "destination": "examples/container_reader/container_reader.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "example.container_reader.cmake",
+      "source": "sdk/examples/container_reader/CMakeLists.txt",
+      "destination": "examples/container_reader/CMakeLists.txt",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "example.container_reader.ini",
+      "source": "sdk/examples/container_reader/plugin.ini",
+      "destination": "examples/container_reader/plugin.ini",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "example.container_reader.readme",
+      "source": "sdk/examples/container_reader/README.md",
+      "destination": "examples/container_reader/README.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "include.sc_container_contents.h",
+      "source": "include/sc_container_contents.h",
+      "destination": "include/sc_container_contents.h",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "include.scosdk.game.container_contents.hpp",
+      "source": "include/scosdk/game/container_contents.hpp",
+      "destination": "include/scosdk/game/container_contents.hpp",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "contract.container_contents",
+      "source": "sdk/contracts/sc_container_contents_v1.json",
+      "destination": "contracts/sc_container_contents_v1.json",
+      "profiles": [
+        "game-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "docs.container_contents",
+      "source": "docs/game/container-contents.md",
+      "destination": "docs/game/container-contents.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.container_contents.cpp",
+      "source": "src/game/services/container_contents.cpp",
+      "destination": "src/game/services/container_contents.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "source.container_contents.h",
+      "source": "src/game/services/container_contents.h",
+      "destination": "src/game/services/container_contents.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "test.actor_condition_map",
+      "source": "tests/test_actor_condition_map.cpp",
+      "destination": "tests/test_actor_condition_map.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
+      "id": "test.actor_condition_write_boundary",
+      "source": "tests/test_actor_condition_write_boundary.cpp",
+      "destination": "tests/test_actor_condition_write_boundary.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
+      "id": "test.container_contents",
+      "source": "tests/test_container_contents.cpp",
+      "destination": "tests/test_container_contents.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
+      "id": "abi.container_contents",
+      "source": "tests/abi_container_contents.c",
+      "destination": "tests/abi_container_contents.c",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "game-contract"
+    },
+    {
       "id": "include.sc_inventory.h",
       "source": "include/sc_inventory.h",
       "destination": "include/sc_inventory.h",
@@ -7568,7 +8214,7 @@
         "game-sc",
         "host-source-sc"
       ],
-      "origin": "project-authored",
+      "origin": "interoperability-derived",
       "license": "GPL-3.0-only",
       "group": "game-contract"
     },
@@ -7705,7 +8351,7 @@
       "profiles": [
         "host-source-sc"
       ],
-      "origin": "project-authored",
+      "origin": "interoperability-derived",
       "license": "GPL-3.0-only",
       "group": "host-source-sc",
       "public_header": false
@@ -8430,10 +9076,54 @@
       "profiles": [
         "host-source-sc"
       ],
-      "origin": "project-authored",
+      "origin": "interoperability-derived",
       "license": "GPL-3.0-only",
       "group": "host-source-sc",
       "public_header": false
+    },
+    {
+      "id": "developer.tools.sco-core-mcp.server.py",
+      "source": "tools/sco-core-mcp/server.py",
+      "destination": "tools/sco-core-mcp/server.py",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "developer.tools.sco-core-mcp.README.md",
+      "source": "tools/sco-core-mcp/README.md",
+      "destination": "tools/sco-core-mcp/README.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "developer.sdk.native_index.json",
+      "source": "sdk/native_index.json",
+      "destination": "native_index.json",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "developer.sdk.status_registry.json",
+      "source": "sdk/status_registry.json",
+      "destination": "status_registry.json",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
     }
   ]
 }

@@ -4,7 +4,6 @@
 // render-snapshot coalescing. Headless: no renderer, GPU or game.
 #include "sco/widgets.h"
 #include "sco/host.h"
-#include "../src/api/internal.h"
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -70,6 +69,69 @@ static std::vector<uint32_t> Parents() {
     return out;
 }
 
+static sco_widget_node_1_2 Node12(uint32_t kind, uint32_t id, const char* tag = nullptr, uint32_t parent = 0) {
+    sco_widget_node_1_2 n{};
+    n.base = Node11(kind, id, parent);
+    n.base.base.size = sizeof(n);
+    n.tag = tag;
+    return n;
+}
+static sco_result Set12(const std::vector<sco_widget_node_1_2>& v, const char* id = "alpha.main") {
+    return table->set_panel(alpha, id, "Title", reinterpret_cast<const sco_widget_node*>(v.data()),
+                             static_cast<uint32_t>(v.size()), sizeof(sco_widget_node_1_2), nullptr, nullptr);
+}
+static std::vector<std::string> TagList() {
+    std::vector<std::string> out;
+    for (const auto& p : W::Panels()) if (p.id == "alpha.main") for (const auto& n : p.nodes) out.push_back(n.tag);
+    return out;
+}
+// 1.2 stable tags: round-trip, panel uniqueness (set and merged update), validation,
+// and byte-for-byte 1.1 clients on the same host.
+static void TestStableTags() {
+    static const std::string longest(63, 't');
+    std::vector<sco_widget_node_1_2> tree(3);
+    tree[0] = Node12(SCO_WIDGET_ROW, 1);
+    tree[1] = Node12(SCO_WIDGET_BUTTON, 2, "open.bay", 1);
+    tree[2] = Node12(SCO_WIDGET_BUTTON, 3, longest.c_str(), 1);
+    CHECK(Set12(tree) == SCO_OK);
+    auto tags = TagList();
+    CHECK(tags.size() == 3 && tags[0].empty() && tags[1] == "open.bay" && tags[2] == longest);
+    tree[2] = Node12(SCO_WIDGET_BUTTON, 3, "open.bay", 1);
+    CHECK(Set12(tree) == SCO_BAD_ARG);   // duplicate inside one tree
+    CHECK(TagList()[2] == longest);      // panel untouched
+    tree[2] = Node12(SCO_WIDGET_BUTTON, 3, "bad tag!", 1);
+    CHECK(Set12(tree) == SCO_BAD_ARG);   // charset
+    const std::string tooLong(64, 't');
+    tree[2] = Node12(SCO_WIDGET_BUTTON, 3, tooLong.c_str(), 1);
+    CHECK(Set12(tree) == SCO_BAD_ARG);   // 64 bytes
+    tree[2] = Node12(SCO_WIDGET_BUTTON, 3, nullptr, 1);
+    CHECK(Set12(tree) == SCO_OK);
+    CHECK(TagList()[2].empty());
+    // Merged update: a fragment tag clashing with a kept node outside the subtree.
+    tree[2] = Node12(SCO_WIDGET_BUTTON, 3, longest.c_str(), 1);
+    CHECK(Set12(tree) == SCO_OK);
+    std::vector<sco_widget_node_1_2> frag(1);
+    frag[0] = Node12(SCO_WIDGET_BUTTON, 2, longest.c_str(), 1);
+    CHECK(table->update_nodes(alpha, "alpha.main", reinterpret_cast<const sco_widget_node*>(frag.data()),
+                              1, sizeof(frag[0])) == SCO_BAD_ARG);
+    CHECK(TagList()[1] == "open.bay" && TagList()[2] == longest);
+    frag[0] = Node12(SCO_WIDGET_BUTTON, 2, "shut.bay", 1);
+    CHECK(table->update_nodes(alpha, "alpha.main", reinterpret_cast<const sco_widget_node*>(frag.data()),
+                              1, sizeof(frag[0])) == SCO_OK);
+    CHECK(TagList()[1] == "shut.bay");
+    // A 1.1 plugin on the same host: 104-byte nodes keep working and carry no tag.
+    std::vector<sco_widget_node_1_1> legacy(2);
+    legacy[0] = Node11(SCO_WIDGET_ROW, 1);
+    legacy[1] = Node11(SCO_WIDGET_BUTTON, 2, 1);
+    CHECK(table->set_panel(alpha, "alpha.main", "Title", reinterpret_cast<const sco_widget_node*>(legacy.data()),
+                           2, sizeof(sco_widget_node_1_1), nullptr, nullptr) == SCO_OK);
+    CHECK(TagList().size() == 2 && TagList()[1].empty());
+    // Malformed tails are refused: nonzero pad.
+    std::vector<sco_widget_node_1_2> dirty(1);
+    dirty[0] = Node12(SCO_WIDGET_LABEL, 1, "ok.tag");
+    dirty[0]._reserved[1] = 1;
+    CHECK(Set12(dirty, "alpha.dirty") == SCO_BAD_ARG);
+}
 struct Received10 { std::vector<Event10> events; };
 static void On10(const char* id, const Event10* event, void* ctx) {
     CHECK(std::strcmp(id, "alpha.old") == 0);
@@ -102,17 +164,17 @@ static void TestTable(const sco_api* api) {
     table = W::Table();
     CHECK(table->size == sizeof(sco_widgets_v1) && table->size == 48);
     CHECK(table->update_nodes && table->remove_nodes && table->capabilities);
-    CHECK(api->query_service(SCO_WIDGETS_NAME, 0x00010002u, &out) == SCO_UNAVAILABLE);
+    CHECK(api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_2, &out) == SCO_OK && out == W::Table());
 }
 static void TestCapabilities() {
     uint32_t caps[12]{};
     caps[SCO_WIDGETS_CAP_COUNT] = 12;
-    CHECK(table->capabilities(alpha, caps) == SCO_OK && caps[SCO_WIDGETS_CAP_COUNT] == SCO_WIDGETS_CAPS_1_1);
-    CHECK(caps[SCO_WIDGETS_CAP_FEATURES] == 0x7fu);
+    CHECK(table->capabilities(alpha, caps) == SCO_OK && caps[SCO_WIDGETS_CAP_COUNT] == SCO_WIDGETS_CAPS_1_2);
+    CHECK(caps[SCO_WIDGETS_CAP_FEATURES] == 0xffu);
     CHECK(caps[SCO_WIDGETS_CAP_MAX_PANELS] == SCO_WIDGETS_MAX_PANELS && caps[SCO_WIDGETS_CAP_MAX_NODES] == SCO_WIDGETS_MAX_NODES);
     CHECK(caps[SCO_WIDGETS_CAP_MAX_TOTAL_NODES] == SCO_WIDGETS_MAX_TOTAL_NODES && caps[SCO_WIDGETS_CAP_MAX_ITEMS] == SCO_WIDGETS_MAX_ITEMS);
     CHECK(caps[SCO_WIDGETS_CAP_MAX_COLUMNS] == SCO_WIDGETS_MAX_COLUMNS && caps[SCO_WIDGETS_CAP_MAX_TEXT] == SCO_WIDGETS_MAX_TEXT);
-    CHECK(caps[SCO_WIDGETS_CAP_MAX_EVENTS] == SCO_WIDGETS_MAX_EVENTS && caps[9] == 0 && caps[11] == 0);
+    CHECK(caps[SCO_WIDGETS_CAP_MAX_EVENTS] == SCO_WIDGETS_MAX_EVENTS && caps[SCO_WIDGETS_CAP_MAX_TAG] == SCO_WIDGETS_MAX_TAG && caps[10] == 0 && caps[11] == 0);
     uint32_t shortCaps[4]{4, 0xdead, 0xdead, 0xdead};
     CHECK(table->capabilities(alpha, shortCaps) == SCO_OK && shortCaps[0] == 4 && shortCaps[3] == SCO_WIDGETS_MAX_NODES);
     uint32_t tiny[2]{1, 0xdead};
@@ -348,6 +410,7 @@ int main() {
     TestUpdateNodes();
     TestRemoveNodes();
     TestNodeExtension();
+    TestStableTags();
     TestEventsAndPaging();
     TestCoalescing();
     W::Stop();

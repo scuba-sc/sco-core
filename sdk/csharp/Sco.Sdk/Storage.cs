@@ -143,6 +143,42 @@ namespace Sco.Sdk
 
         // ---- transactions ------------------------------------------------------------------
 
+        /// <summary>1.1 next_table: the first own table/view sorting after <paramref name="after"/>
+        /// (null from the start); sco_kv and sqlite_% objects are never listed.</summary>
+        public ScoResult NextTable(string? after, out string table, out uint kind)
+        {
+            table = ""; kind = 0;
+            if (_t == null || _t->size < (uint)((byte*)&_t->next_table - (byte*)_t + sizeof(nint)) || _t->next_table == null)
+                return ScoResult.Unavailable;
+            byte[]? a = Utf8.Z(after);
+            byte[] name = new byte[256];
+            uint size = (uint)name.Length, k = 0;
+            fixed (byte* ap = a) fixed (byte* np = name)
+            {
+                var r = _t->next_table(Self, ap, np, &size, &k);
+                if (r == ScoResult.Ok) { table = Utf8.FromBytes(name); kind = k; }
+                return r;
+            }
+        }
+
+        /// <summary>1.1 next_column: the column at declaration position <paramref name="index"/> of an
+        /// own table/view; on success index advances to the next position.</summary>
+        public ScoResult NextColumn(string table, ref uint index, out string name, out string type, out uint flags)
+        {
+            name = ""; type = ""; flags = 0;
+            if (_t == null || _t->size < (uint)((byte*)&_t->next_column - (byte*)_t + sizeof(nint)) || _t->next_column == null)
+                return ScoResult.Unavailable;
+            byte[] t = Utf8.Z(table)!;
+            byte[] n = new byte[256], y = new byte[256];
+            uint ns = (uint)n.Length, ys = (uint)y.Length, f = 0, idx = index;
+            fixed (byte* tp = t) fixed (byte* np = n) fixed (byte* yp = y)
+            {
+                var r = _t->next_column(Self, tp, &idx, np, &ns, yp, &ys, &f);
+                if (r == ScoResult.Ok) { index = idx; name = Utf8.FromBytes(n); type = Utf8.FromBytes(y); flags = f; }
+                return r;
+            }
+        }
+
         public ScoResult Begin() => _t == null || _t->size < (uint)((byte*)&_t->rollback - (byte*)_t + sizeof(nint)) || _t->begin == null || _t->rollback == null ? ScoResult.Unavailable : _t->begin(Self);
         public ScoResult Commit() => _t == null || _t->size < (uint)((byte*)&_t->commit - (byte*)_t + sizeof(nint)) || _t->commit == null ? ScoResult.Unavailable : _t->commit(Self);
         public ScoResult Rollback() => _t == null || _t->size < (uint)((byte*)&_t->rollback - (byte*)_t + sizeof(nint)) || _t->rollback == null ? ScoResult.Unavailable : _t->rollback(Self);

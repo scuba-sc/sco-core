@@ -164,6 +164,18 @@ clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$
 clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_game_creative.c"
 echo "abi_game_creative: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 
+"$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_container_contents.c"
+"$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_container_contents.c"
+"$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_container_contents.c"
+echo "abi_container_contents: C11, C++20 and short-enum layouts pinned"
+for contract in audio world_control; do
+  "$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_${contract}.c"
+  "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_${contract}.c"
+  "$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_${contract}.c"
+  clang --target=x86_64-pc-windows-msvc -ffreestanding -std=c11 "${ABI[@]}" "$ROOT/tests/abi_${contract}.c"
+  clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_${contract}.c"
+done
+
 # SDK sources (sdk/): the template and native example compile against sco_api.h alone, so a
 # header change that breaks them fails here. The full build from the packaged zip, with MSVC on
 # Windows and the plugin checks, is sdk/test-zip.sh (CI: .github/workflows/sdk.yml).
@@ -285,8 +297,11 @@ SHARED_ASAN_SOURCES=(
   "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_log_status.cpp" "$ROOT/src/sco_pe_file.cpp"
   "${GAME[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
   "$ROOT/src/game/services/input.cpp" "$ROOT/src/game/services/gamerules.cpp"
+  "$ROOT/src/game/services/container_contents.cpp"
+  "$ROOT/src/game/services/audio.cpp" "$ROOT/src/game/services/world_control.cpp"
+  "$ROOT/src/game/services/entity_lookup.cpp"
   "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
-  "$ROOT/src/game/pak_hooks.cpp" "${DATACORE[@]}" "${PLUGINS[@]}"
+  "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "${DATACORE[@]}" "${PLUGINS[@]}"
   "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/widgets/widgets.cpp"
   "$ROOT/src/settings/settings.cpp" "$ROOT/src/storage/storage.cpp"
   "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp"
@@ -301,7 +316,7 @@ SHARED_TSAN_SOURCES=(
   "${RUNTIME[@]}" "${HOST_IMPL[@]}"
   "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"
   "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
-  "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/hook/sco_hook.cpp" "${GAME[@]}"
+  "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "$ROOT/src/hook/sco_hook.cpp" "${GAME[@]}"
   "$ROOT/src/storage/storage.cpp" "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp"
   "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable.cpp" "$ROOT/src/net/core.cpp"
   "$ROOT/src/net/service.cpp" "$ROOT/src/net/scope.cpp" "$ROOT/src/net/control.cpp" "$ROOT/src/net/udp_posix.cpp"
@@ -323,6 +338,13 @@ parallel_compile tsan "${SHARED_TSAN_SOURCES[@]}"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_runtime.cpp" $(obj tsan "${RUNTIME[@]}") -o "$OUT/test_runtime_tsan"
 "$OUT/test_runtime_tsan"
 
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined \
+  "$ROOT/tests/test_datacore_live_lifecycle.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" -o "$OUT/test_datacore_live_lifecycle"
+"$OUT/test_datacore_live_lifecycle"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread \
+  "$ROOT/tests/test_datacore_live_lifecycle.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" -o "$OUT/test_datacore_live_lifecycle_tsan"
+"$OUT/test_datacore_live_lifecycle_tsan"
+
 # Capabilities and the host's sco_api table, over the same runtime, under both sanitizer sets.
 HOST_ASAN=($(obj asan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
 HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
@@ -333,12 +355,30 @@ HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signature
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_gamerules_params.cpp" \
   $(obj asan "$ROOT/src/game/services/gamerules.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_gamerules_params"
 "$OUT/test_gamerules_params"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_container_contents.cpp" \
+  $(obj asan "$ROOT/src/game/services/container_contents.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_container_contents"
+"$OUT/test_container_contents"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_audio.cpp" \
+  $(obj asan "$ROOT/src/game/services/audio.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_audio"
+"$OUT/test_audio"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_entity_lookup.cpp" \
+  $(obj asan "$ROOT/src/game/services/entity_lookup.cpp") -o "$OUT/test_entity_lookup"
+"$OUT/test_entity_lookup"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_world_control.cpp" \
+  $(obj asan "$ROOT/src/game/services/world_control.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_world_control"
+"$OUT/test_world_control"
+"$CXX" "${FLAGS[@]}" "$ROOT/tests/test_actor_condition_map.cpp" -o "$OUT/test_actor_condition_map"
+"$OUT/test_actor_condition_map"
 "$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_game_input.c"
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_game_input.c"
 "$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_game_input.c"
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_host.cpp" "${HOST_ASAN[@]}" -o "$OUT/test_host"
 "$OUT/test_host"
+
+"$CXX" "${FLAGS[@]}" -I "$ROOT/src" -fsanitize=address,undefined "$ROOT/tests/test_diagnostics_audit.cpp" \
+  $(obj asan "$ROOT/src/ipc/diagnostics_audit.cpp") -o "$OUT/test_diagnostics_audit"
+"$OUT/test_diagnostics_audit"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_host.cpp" "${HOST_TSAN[@]}" -o "$OUT/test_host_tsan"
 
 # The death hook's one-owner rule (game.actors.died for every death, game.player.died only for your
@@ -369,7 +409,7 @@ HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signature
 
 # sco::game::pak: the CryPak adapter over a fake ICryPak and a fake loader, with a second thread on
 # the engine's functions during the load window, so both sanitizer sets.
-PAK_SRC=("$ROOT/src/game/pak_hooks.cpp" "${GAME[@]}" "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp" \
+PAK_SRC=("$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "${GAME[@]}" "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp" \
          "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_pak.cpp" $(obj asan "${PAK_SRC[@]}") -o "$OUT/test_pak"
 "$OUT/test_pak"
@@ -629,6 +669,12 @@ rm -rf "$OUT/sim"
 mkdir -p "$SIM/hello"
 "$CC" -std=c11 -O1 -Wall -Wextra -Werror -I "$ROOT/include" "${SHARED[@]}" "$ROOT/sdk/examples/hello/hello.c" -o "$SIM/hello/hello.so"
 sed 's/^entry = hello\.dll/entry = hello.so/' "$ROOT/sdk/examples/hello/plugin.ini" > "$SIM/hello/plugin.ini"
+# The modular pair: counter_panel requires counter_service.counter and calls its table.
+for ex in counter_service counter_panel; do
+  mkdir -p "$SIM/$ex"
+  "$CC" -std=c11 -O1 -Wall -Wextra -Werror -I "$ROOT/include" "${SHARED[@]}" "$ROOT/sdk/examples/$ex/$ex.c" -o "$SIM/$ex/$ex.so"
+  sed "s/^entry = $ex\.dll/entry = $ex.so/" "$ROOT/sdk/examples/$ex/plugin.ini" > "$SIM/$ex/plugin.ini"
+done
 cp -R "$ROOT/sdk/examples/greeter" "$ROOT/sdk/examples/travel_pack" "$ROOT/sdk/examples/quantum_pack" "$SIM/"
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -I "$ROOT/plugins/lua" -isystem "$LUA_SRC" "$ROOT/tools/sco-host-sim.cpp" \
@@ -639,4 +685,11 @@ fi
 cat "$OUT/sim.log"
 grep -qF '[sim] invoke hello.wave -> OK "Hello, Pilot One"' "$OUT/sim.log" || { echo "sco-host-sim: no reply from hello.wave"; exit 1; }
 grep -qF '[sim] datacore quantum_pack datacore/eos.toml: OK' "$OUT/sim.log" || { echo "sco-host-sim: the sample datacore pack wasn't linted"; exit 1; }
-echo "sco-host-sim: SDK examples load, tick, answer and unload"
+if ! "$OUT/sco-host-sim" "$SIM" --ticks 1 --invoke counter_panel.bump > "$OUT/sim-counter.log"; then
+  cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter pair failed"; exit 1
+fi
+grep -qF '[sim] invoke counter_panel.bump -> OK "counter is 1"' "$OUT/sim-counter.log" || { cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter_panel did not reach counter_service's table"; exit 1; }
+provider_at=$(grep -nF '[plugin] loaded counter_service ' "$OUT/sim-counter.log" | head -n 1 | cut -d: -f1)
+consumer_at=$(grep -nF '[plugin] loaded counter_panel ' "$OUT/sim-counter.log" | head -n 1 | cut -d: -f1)
+[ -n "$provider_at" ] && [ -n "$consumer_at" ] && [ "$provider_at" -lt "$consumer_at" ] || { cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter_panel loaded before its provider"; exit 1; }
+echo "sco-host-sim: SDK examples load, tick, answer and unload; counter_panel calls counter_service across plugins"

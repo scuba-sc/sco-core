@@ -13,7 +13,7 @@ Historical step-0 decisions (placement A is superseded): The owner
 approved placement **A**, an opt-in runtime tool group inside the existing
 `tools/sco-core-mcp` stdio server and all eight defaults on **2026-10-12**;
 the runtime data-source decision is recorded below and tracked in
-[#141](https://github.com/scubamount/sco-core/issues/141). The host IPC/auth endpoint has fixture-only admission;
+[#141](https://github.com/scuba-sc/sco-core/issues/141). The host IPC/auth endpoint has fixture-only admission;
 product startup policy, protected OS audit, adapter packaging and runtime MCP registration remain follow-ups. **Not run in game.**
 
 ## Problem and scope
@@ -22,8 +22,8 @@ The six existing tools describe a compiler-backed SDK catalogue, not a running
 host. `list_services` enumerates catalogue tables; `check_compatibility` explicitly
 cannot establish plugin loading, live members or behavior
 (`TOOLS` and the `list_services` branch of `execute` in `tools/sco-core-mcp/server.py`). The current development-only,
-stdlib launcher promises no game/host connection (`tools/sco-core-mcp/README.md:3-7`;
-`docs/agent-integration.md:3-7`). A plugin author needs a separate observation of
+stdlib launcher promises no game/host connection (the introduction of
+`tools/sco-core-mcp/README.md`; the introduction of `docs/agent-integration.md`). A plugin author needs a separate observation of
 load/refusal/fault state, publication, lifecycle and existing signature resolution.
 This is an interface gap, not a measured productivity or game-reliability claim.
 
@@ -44,7 +44,8 @@ checks (`README.md:21-24`); diagnostics must never upgrade that evidence.
   entitlement changes, host-type/network-context forcing or telemetry.
 - No remote control, LAN/VPN diagnostics, tunnels, SSH-forwarded stdio, hosted
   agent/cloud-review access to a workstation host. Hosted catalogue discovery
-  remains a different use case (`docs/agent-integration.md:74-110`).
+  remains a different use case (the client setup and repository-setting sections of
+  `docs/agent-integration.md`).
 - **No gameplay data in v1: metadata only.** No entity/player census, position,
   health, peer roster, proprietary bytes/assets, patterns, addresses, memory read,
   file tail, executable/module dump or SDK/game method execution.
@@ -71,7 +72,7 @@ this diagnostics contract does not (`sdk/docs/plugin-rules.md:5-27`).
 | Limits and retention | **Decided 2026-10-12 (owner)** | Limits below and seven-day administrator-controlled audit rotation; fixture measurements gate rollout. |
 | License/package boundary | **Decided 2026-10-12 (owner)** | New diagnostics wire and adapter GPL-3.0-only unless owner grants a reviewed per-file exception. New implementation packaging membership remains to be chosen. This PR's design/test fixtures are repository-only under existing exclusions, not a fifth MIT header. |
 | Acceptance ownership | **Decided 2026-10-12 (owner)** | Owner names Windows security-fixture provisioner and manual offline tester; record build/session-scoped fixture, OS-security and manual evidence separately. Until manual acceptance: **not run in game**. |
-| Runtime data sources | **Decided 2026-10-12 (owner)** | Both a minimal snapshot published by the Star Citizen game pack and an optional diagnostics SDK plugin for plugin-authored fields. Both off by default, read-only, without personal identifiers, and exposed only through the host diagnostics endpoint; no side channel. Source implementation documented in [diagnostics-publishers.md](diagnostics-publishers.md) ([#141](https://github.com/scubamount/sco-core/issues/141)); source opt-in grants no endpoint admission. |
+| Runtime data sources | **Decided 2026-10-12 (owner)** | Both a minimal snapshot published by the Star Citizen game pack and an optional diagnostics SDK plugin for plugin-authored fields. Both off by default, read-only, without personal identifiers, and exposed only through the host diagnostics endpoint; no side channel. Source implementation documented in [diagnostics-publishers.md](diagnostics-publishers.md) ([#141](https://github.com/scuba-sc/sco-core/issues/141)); source opt-in grants no endpoint admission. |
 
 The eight defaults are approved as written; naming/provisioning, reviewed grants
 and package membership explicitly left in their content remain implementation
@@ -81,7 +82,22 @@ plugin-authored fields require a separately reviewed versioned contract.
 Protocol numbers and schema v1 below remain design contracts, not new exports
 or runtime acceptance evidence.
 
-## Historical placement A (superseded by current separate-launcher task)
+## Current launcher placement
+
+The discovery launcher remains catalogue-only: six tools by default and six
+additional read-only tools with `--extended-tools`. It does not import or enable
+runtime inspection. Runtime inspection uses the separate
+[`sco-core-mcp-runtime` launcher](../../tools/sco-core-mcp-runtime/README.md).
+That launcher advertises zero tools while disabled and exactly six runtime tools
+after explicit `--enable-runtime`, disclosure consent, the complete startup
+allowlist and pinned adapter/credential admission. It does not implement the
+historical environment-variable opt-in described below.
+
+Host opt-in is independent through `Platform::runtimeInspection` and the host's
+offline, disclosure and protected-audit admission. Implemented registration is
+not Windows runtime or game acceptance; consult the runtime acceptance ledger.
+
+## Historical placement A (superseded by the separate launcher)
 
 One client registration allows contract/runtime comparison without embedding MCP
 parsing in the game. This convenience must not silently expand the current
@@ -118,7 +134,8 @@ The implementation PR must enforce all of these gates:
    same-PC-only deployment, separate rate budgets, consent and disable/restart.
    Preserve existing credentials-free catalogue-only launchers and hosted-runner
    instructions. The single proposed-design sentence in this step-0 PR changes
-   no current guarantee (`tools/sco-core-mcp/README.md:187-211`).
+   no current guarantee (`tools/sco-core-mcp/README.md`, the introduction and
+   "Security boundaries and limits").
 
 ### Required disabled-mode regression
 
@@ -233,7 +250,7 @@ Unsigned peer errors are never promoted to authenticated host refusals.
 ### Observation seams and exclusions
 
 These citations refer to immutable baseline
-[`cd9a686bda4184f1befbdf0b74b503a1565540dd`](https://github.com/scubamount/sco-core/tree/cd9a686bda4184f1befbdf0b74b503a1565540dd).
+[`cd9a686bda4184f1befbdf0b74b503a1565540dd`](https://github.com/scuba-sc/sco-core/tree/cd9a686bda4184f1befbdf0b74b503a1565540dd).
 All `path:line` references in this document use that revision, not moving PR lines.
 
 | Existing source seam | Required new copy/publication; prohibited shortcut |
@@ -415,14 +432,12 @@ opt-in is a sanitized startup error; absent in disabled mode is irrelevant.
 
 ## Opt-in, offline admission and no-host behavior
 
-Proposed host option on `Platform` plus product `runtime_inspection=off` developer
-setting is **new work**; no offline/diagnostics field exists in the current
-`Platform` (`include/sco/app.h`). Require positive trusted-product offline
-authorization before channel, secret or capture creation. Unknown/online/disallowed
-means disabled; do not contact servers, interrogate/bypass anti-cheat or infer
-posture from signatures, plugin enablement or `gameServices`. Product ownership
-and revocation facts must be named before implementation rollout, as required
-by the approved default. If trustworthy policy
+`Platform::runtimeInspection` exists and is independently default off. Trusted
+product settings, positive offline admission and revocation facts remain product
+integration responsibilities; the launcher installs no universal product INI key.
+Require positive trusted-product authorization before channel, secret or capture
+creation. Unknown, online or disallowed state refuses admission. Signatures,
+plugin enablement and `gameServices` are not authorization. If trustworthy policy
 cannot be supplied, leave inspection unavailable.
 
 Revocation closes admission/mapping before plugin teardown, invalidates keys,
@@ -463,7 +478,7 @@ or instructions despite pattern filters; withhold uncertainty and count
 host-rendered strings. Neither authenticated bytes nor read-only annotations
 make prose instructions. Local clients may send results to remote model providers:
 obtain explicit disclosure consent; add no telemetry. The current guide already
-warns about that disclosure distinction (`docs/agent-integration.md:126-136`).
+warns about that disclosure distinction (the introduction of `docs/agent-integration.md`).
 
 Audit every admitted/refused read, authentication failure, open/close, rate/audit
 failure: session/request correlation, opcode, sanitized filter IDs, outcome,
@@ -496,9 +511,9 @@ flowchart LR
     Operator[Local human operator] -->|startup opt-in and disclosure consent| Launcher
     Operator -->|host opt-in and offline policy| Product
     subgraph Untrusted[Untrusted client side]
-        Client[Same-PC MCP client and agent] -->|stdio JSON-RPC| Launcher[Existing sco-core-mcp server]
-        Launcher --> Discovery[Unchanged six catalogue tools]
-        Launcher -->|conditional import only when enabled| Runtime[Six proposed runtime tools and native peer]
+        Client[Same-PC MCP client and agent] -->|separate stdio configuration| Launcher[Separate default-off runtime launcher]
+        Client -->|discovery stdio configuration| Discovery[Catalogue-only discovery launcher]
+        Launcher -->|peer loaded only when enabled| Runtime[Six fixed runtime tools and pinned native peer]
     end
     Discovery --> Catalogue[Reviewed static catalogue]
     subgraph Trusted[Trusted offline product and host]
@@ -528,7 +543,11 @@ flowchart LR
 | Online or remote use | Two human opt-ins plus trusted positive offline admission; no socket/listener/tunnel/remote deploy; revoke before teardown. Product verdict is policy assertion, not anti-cheat detection. |
 | Compromised native host/plugin or administrator | Outside integrity/confidentiality guarantee; native full rights documented, no recovery or sandbox claim. |
 
-## Phased PR plan and acceptance
+## Historical phased PR plan and acceptance
+
+This table preserves implementation-wave planning, not current launcher setup
+or a new execution receipt. Current placement is defined above; outstanding
+Windows and manual acceptance belongs to the [acceptance ledger](../runtime-acceptance.md).
 
 All phases remain game-neutral/buildable with `SCO_GAME_SC=OFF`; product adapters
 supply optional game-pack metadata, not game types in the kernel. Each follow-up
@@ -568,10 +587,12 @@ Windows runtime or gameplay acceptance.
 
 ## Licence and provenance
 
-Project-authored design, schema and synthetic vectors use GPL-3.0-only and remain
-repository-only under `sdk/components.json:57-60`'s existing MCP exclusion.
-`docs/legal/provenance.json` records the new path scopes and generated REUSE
-mapping. No proprietary extracts or third-party implementation are introduced.
+Project-authored design, schema, synthetic vectors and runtime implementation use
+GPL-3.0-only. Runtime packaging is separate local development packaging, not a
+plugin SDK profile. Discovery and native/status metadata have explicit developer-kit
+component entries; older exclusion descriptions do not define their membership.
+`sdk/components.json` defines package selection and `docs/legal/provenance.json`
+records provenance. Selection does not supply publication approval.
 Existing MIT `sc_ipc.h` is reused under its own grant (its SPDX licence header in `include/sc_ipc.h`);
 that grant covers only the four named headers, not a new diagnostics wire/adapter
 (`IP_POLICY.md:9-20`). Owner must resolve future per-file grants and package

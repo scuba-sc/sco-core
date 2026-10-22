@@ -13,8 +13,9 @@
 #
 # Needs python3, cmake, a C and C++20 compiler and Lua 5.4 (lua5.4). SCO_SDK_NO_LUA=1 skips the Lua
 # example's run (the Windows CI job, which has no Lua); the job that packages runs it.
-# SCO_SDK_CSHARP=1 also runs the C# SDK's test and publishes cs_hello with NativeAOT (needs the
-# .NET 8 SDK, and on Windows Visual Studio's linker), then checks it like the C examples.
+# SCO_SDK_CSHARP=1 also runs the C# SDK's test and publishes cs_hello and a generated C# scaffold
+# with NativeAOT (needs the .NET 8 SDK, and on Windows Visual Studio's linker), then checks them
+# like the C examples.
 #
 # SCO_SDK_WIDGETS_ONLY=1 <core.zip> builds/checks only widgets + sco-plugin-check from that archive.
 # Exit 0 = the selected archive check passed (all examples unless narrowed above).
@@ -109,20 +110,35 @@ verify_zip() {   # verify_zip <zip>: unpack into its own folder; its SHA256SUMS 
 }
 verify_zip 1 "$ZIP"
 ROOT=$VERIFIED
-# The source profile uses repository layout, not the plugin-example install layout.
+# Source profiles use repository layout, not the plugin-example install layout.
 if [ -d "$ROOT/src/host" ]; then
   [ $# -eq 1 ] || { echo "a source kit is not an overlay"; exit 1; }
-  for path in src/game src/datacore include/sco/game plugins/lua/sco_lua_game.c third_party/tomlplusplus; do
-    [ ! -e "$ROOT/$path" ] || { echo "source kit contains excluded implementation: $path"; exit 1; }
-  done
-  "$PY" "$SDK/package.py" --profile core-source --check-installed-headers "$ROOT"
+  PROFILE=$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["profile"])' "$ROOT/COMPATIBILITY.json")
+  case "$PROFILE" in
+    core-source)
+      GAME_SC=OFF
+      for path in src/game src/datacore include/sco/game plugins/lua/sco_lua_game.c third_party/tomlplusplus; do
+        [ ! -e "$ROOT/$path" ] || { echo "core-source kit contains excluded implementation: $path"; exit 1; }
+      done
+      ;;
+    host-source-sc)
+      GAME_SC=ON
+      [ -e "$ROOT/include/sc_game_pack.h" ] || { echo "host-source-sc kit is missing the game-pack header"; exit 1; }
+      ;;
+    *) echo "unknown source kit profile: $PROFILE"; exit 1 ;;
+  esac
+  "$PY" "$SDK/package.py" --profile "$PROFILE" --check-installed-headers "$ROOT"
   cmake -S "$ROOT" -B "$WORK/build" -DCMAKE_BUILD_TYPE=Debug \
-    -DSCO_GAME_SC=OFF -DSCO_BUILD_TESTS=ON
+    -DSCO_GAME_SC="$GAME_SC" -DSCO_BUILD_TESTS=ON
   cmake --build "$WORK/build" --config Debug --parallel
-  # Focused exercise of host/runtime and the no-git, frozen-header path.
-  ctest --test-dir "$WORK/build" -C Debug --output-on-failure \
-    -R '^(abi_freeze|test_host|test_runtime|test_plugins|host_sim_examples)$'
-  echo "sdk source zip: kernel built and synthetic host tests passed without game implementation"
+  if [ "$PROFILE" = core-source ]; then
+    ctest --test-dir "$WORK/build" -C Debug --output-on-failure \
+      -R '^(abi_freeze|test_host|test_runtime|test_plugins|host_sim_examples)$'
+  else
+    ctest --test-dir "$WORK/build" -C Debug --output-on-failure \
+      -R '^(abi_freeze|test_host|test_runtime|test_plugins|host_sim_examples|test_datacore_pack|gamerules_params)$'
+  fi
+  echo "sdk source zip: $PROFILE built and synthetic host tests passed"
   exit 0
 fi
 if [ $# -ge 2 ]; then
@@ -252,6 +268,24 @@ grep -q 'invoke  hello.wave -> ok "Hello, Pilot One"' "$WORK/hello.txt"
 grep -q 'invoke  cpp_hello.wave -> ok "Hello, Pilot One"' "$WORK/cpp_hello.txt"
 grep -q 'invoke  cpp_hello.ticks -> ok "3 ticks"' "$WORK/cpp_hello.txt"
 grep -q 'service cpp_hello.greeter 1.0' "$WORK/cpp_hello.txt"
+# The modular pair, one folder at a time: the checker never connects one plugin's service to
+# another, so the provider publishes its table and the consumer, alone, takes its documented
+# absent-provider path (unavailable with a reason, not a failure). CTest host_sim_examples runs both
+# together through the real host.
+"$CHECK" "$P/counter_service" | tee "$WORK/counter_service.txt"
+grep -q 'service counter_service.counter 1.0' "$WORK/counter_service.txt"
+grep -q 'invoke  counter_service.value -> ok "counter is 0"' "$WORK/counter_service.txt"
+"$CHECK" "$P/counter_panel" | tee "$WORK/counter_panel.txt"
+grep -q 'needs   counter_service.counter' "$WORK/counter_panel.txt"
+grep -q 'invoke  counter_panel.bump -> unavailable "counter_service.counter is not installed"' "$WORK/counter_panel.txt"
+grep -q 'invoke  counter_panel.show -> unavailable "counter_service.counter is not installed"' "$WORK/counter_panel.txt"
+# On a 1.0 sco_api both degrade instead of failing: the provider publishes nothing but keeps its
+# command, and the consumer names the host, not the provider, as the reason.
+"$CHECK" "$P/counter_service" --short-tables | tee "$WORK/counter_service-short.txt"
+grep -q 'this host has no provide_service (sco_api 1.0): counter_service.counter is not published' "$WORK/counter_service-short.txt"
+grep -q 'invoke  counter_service.value -> ok "counter is 0"' "$WORK/counter_service-short.txt"
+"$CHECK" "$P/counter_panel" --short-tables | tee "$WORK/counter_panel-short.txt"
+grep -q 'invoke  counter_panel.bump -> unavailable "this host has no query_service (sco_api 1.0)"' "$WORK/counter_panel-short.txt"
 "$CHECK" "$P/my_plugin" | tee "$WORK/template.txt"
 grep -q 'invoke  my_plugin.ping -> ok "pong"' "$WORK/template.txt"
 if [ $GAME = 1 ]; then
@@ -305,6 +339,20 @@ PY
   grep -q 'invoke  cs_hello.ticks -> ok "3 ticks"' "$WORK/cs_hello.txt"
   grep -q 'service cs_hello.greeter 1.0' "$WORK/cs_hello.txt"
   echo "C#: cs_hello ($RID, NativeAOT) checked"
+  # The C# scaffold: tools/sco-new-plugin.py --lang csharp, published against this kit (-p:ScoSdk).
+  "$PY" "$ROOT/tools/sco-new-plugin.py" --id scaf_cs --lang csharp --with-menu --services game.actors \
+    --out "$WORK/scaf_cs" > /dev/null
+  dotnet publish "$WORK/scaf_cs/scaf_cs.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]}" -p:ScoSdk="$ROOT" \
+    -o "$WORK/scaf_cs_publish"
+  mkdir -p "$WORK/cs/scaf_cs"
+  cp "$WORK/scaf_cs_publish/scaf_cs.${LIB##*.}" "$WORK/cs/scaf_cs/scaf_cs.dll"
+  cp "$WORK/scaf_cs_publish/plugin.ini" "$WORK/cs/scaf_cs/"
+  "$CHECK" "$WORK/cs/scaf_cs" | tee "$WORK/scaf_cs.txt"
+  grep -q 'invoke  scaf_cs.ping -> ok "pong (0 of 1 services)"' "$WORK/scaf_cs.txt"
+  grep -q 'widgets panel scaf_cs.main' "$WORK/scaf_cs.txt"
+  "$CHECK" "$WORK/cs/scaf_cs" --short-tables | tee "$WORK/scaf_cs.txt"
+  grep -q 'invoke  scaf_cs.ping -> ok "pong (0 of 1 services)"' "$WORK/scaf_cs.txt"
+  echo "C#: the generated C# scaffold ($RID, NativeAOT) checked"
 else
   echo "C#: skipped (SCO_SDK_CSHARP=1 runs it)"
 fi
@@ -362,6 +410,11 @@ mode = enum(easy, hard) default hard")
 grep -q '^  setting speed (int)$' "$WORK/case.txt" && grep -q '^  setting mode (enum)$' "$WORK/case.txt" || { cat "$WORK/case.txt"; echo "sco-plugin-check didn't list the settings"; exit 1; }
 echo "sco-plugin-check: 15 bad plugin.ini refused, requires naming services and plugin ids, unknown keys, a 3000-byte line and a [settings] section accepted"
 
+# The Lua scaffold (tools/sco-new-plugin.py --lang lua): plugin.ini with the host's rules here, the
+# script with lua-check below.
+"$PY" "$ROOT/tools/sco-new-plugin.py" --id scaf_lua --lang lua --with-menu --out "$CASES/scaf_lua" > /dev/null
+"$CHECK" "$CASES/scaf_lua"
+
 if [ "${SCO_SDK_NO_LUA:-0}" = 1 ]; then
   echo "lua-check: skipped (SCO_SDK_NO_LUA=1)"
 else
@@ -394,12 +447,18 @@ EOF
   grep -q 'invoke  notebook.add -> ok "note 1 saved"' "$WORK/notebook.txt"
   grep -q 'invoke  notebook.list -> ok "1 note: buy fuel"' "$WORK/notebook.txt"
   grep -q 'invoke  notebook.clear -> ok "removed 1 note"' "$WORK/notebook.txt"
+  "$LUA" "$ROOT/tools/lua-check.lua" "$CASES/scaf_lua" | tee "$WORK/scaf_lua.txt"
+  grep -q 'invoke  scaf_lua.ping -> ok "pong"' "$WORK/scaf_lua.txt"
 fi
 
 # A copied template must build outside the SDK folder with -DSCO_SDK.
 cp -R "$ROOT/template" "$WORK/mine"
 cmake -S "$WORK/mine" -B "$WORK/mine/build" -DSCO_SDK="$ROOT" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$WORK/mine/build" --config Release
+# counter_panel builds from its own folder too: its include of the provider's header
+# (../counter_service/counter_service.h) resolves inside the unpacked SDK.
+cmake -S "$ROOT/examples/counter_panel" -B "$WORK/counter_panel-build" -DCMAKE_BUILD_TYPE=Release
+cmake --build "$WORK/counter_panel-build" --config Release
 
 # The Lua and data-pack examples configure and install on their own too: project(... NONE), so
 # no compiler is enabled and the 64-bit check must not fire. greeter builds in its own folder,

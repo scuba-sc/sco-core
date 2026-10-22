@@ -54,6 +54,7 @@ Fly mode (`spawn.request_fly_mode`) and Clear NPCs' RemoveEntity slot (`npc.remo
 | `npc.direct_remove` | `npc.remove_entity_call` and the three npc rows | Clear NPCs' fallback when RemoveEntity doesn't finish |
 | `ammo.setter` | `teleport.entity_system`, `ammo.set_ammo` | infinite ammo |
 | `loadout.loader` | `loadout.load_player_loadout`, `loadout.game` | gear menu, outfits |
+| `loadout.async` | `loadout.attach_entity`, `loadout.port_by_name`, `loadout.port_handle`, `loadout.port_container` | opt-in asynchronous loadout adapter; not run in game |
 
 ## Offsets sc-offline uses that no row checks
 

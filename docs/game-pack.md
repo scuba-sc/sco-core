@@ -14,6 +14,11 @@ The game pack has its own version line ([design decision 2](design/game-services
 
 A game patch that moves rows gets a game-pack patch release; a release that adds or grows a game service raises the minor (0.1.0 carried `teleport.spatial` alone, 0.2.0 carries every service in [game services](game-services.md)). The SDK zip states all three in its `VERSIONS.txt`, generated from `sdk/VERSION`, `sco_api.h` and `include/sc_game_pack.h`; this page's list of builds is the long form.
 
+Game pack 0.8.0, published in SDK 2.4.0 release candidate 1 (`sdk-v2.4.0-rc.1`), adds
+`game.inventory.contents` 1.0. Signature rows and verified-build identity are unchanged;
+the new service has no production native adapter and defaults OFF. This is not an
+in-game verification claim.
+
 ## Verified game builds
 
 Every row OK in `sco-sigcheck` on the build's `StarCitizen.exe`. The full reports are kept outside the repository (`sc-baseline/<build>/` on the maintainer's machine); nothing extracted from the game is committed.

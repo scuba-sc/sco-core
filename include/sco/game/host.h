@@ -36,6 +36,10 @@ struct Options {
     DataCoreHook dataCoreHook = DataCoreHook::Required;
     uint64_t maxDataCoreBytes = 512ull << 20; // bounded base read for Data/Game2.dcb
     app::Platform platform;          // image/registerSignatures MUST be null: owned here
+    // Native live reads are OFF by default. The shell must keep engine execution
+    // quiesced before Prepare and until it returns; late Prepare is insufficient.
+    bool nativeDataCoreReads = false;
+    bool preEngineQuiesced = false;
 };
 // Serialized host entries, outside loader lock/runtime callouts. Prepare may precede the game
 // thread; Start binds the game thread via app::Start. Unknown/online/EAC/unblocked-network/wrong

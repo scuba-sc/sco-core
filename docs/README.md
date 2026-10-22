@@ -2,6 +2,7 @@
 
 Curated guides by audience, not an exhaustive inventory of historical records.
 For the project overview, start with the [root README](../README.md).
+For where the SDK is going and how to contribute, read the [roadmap](roadmap.md).
 
 ## New plugin author — Start a plugin
 
@@ -12,11 +13,19 @@ For the project overview, start with the [root README](../README.md).
    and [plugin rules](../sdk/docs/plugin-rules.md): packaging, manifests and trust.
 3. Your language: [C ABI](api-v1.md), [C++](sdk-cpp.md), [C#](sdk-csharp.md),
    [Lua](../sdk/docs/lua.md) or [data packs](../sdk/docs/data-packs.md).
+4. [Designing modular plugins](plugin-design.md): one feature per plugin, versioned
+   service tables, `requires`, clean unload and anti-patterns, with a provider and
+   consumer example pair.
+5. [Community plugin directory](plugin-directory.md): plugins in their authors' own
+   repositories with reported SDK compatibility, the listing rules and how to request a
+   listing. Not an endorsement; nothing there is verified in game.
 
 ## Plugin API consumer — Use the API safely
 
 1. [Plugin API v1](api-v1.md): exports/root table, ABI compatibility, whole-member
    and non-null checks, capabilities, commands, events, raw handlers and threads.
+   [Stability](stability.md) says which service tables are Stable or Experimental
+   across SDK 2.x, separately from availability and evidence.
 2. [Public contract catalogue and reading rules](contracts.md), backed by
    [machine-readable records](../sdk/contracts): per-method semantics, buffers,
    failures, ownership, callback/service lifetime and unspecified guarantees.
@@ -61,25 +70,32 @@ For the project overview, start with the [root README](../README.md).
 
 ## Agent / IDE user — Discover the SDK via MCP
 
-1. [Agent and IDE integration](agent-integration.md): compiler/catalogue
-   prerequisites, stdio launcher, client configuration and troubleshooting.
-2. [MCP server authority](../tools/sco-core-mcp/README.md): six read-only tools,
-   allowlist, provenance, limits and separate administrator-owned runner settings.
-3. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
+1. [Agent and IDE integration](agent-integration.md): kit-first setup (download
+   and verify the kit, the two tool profiles, Claude Code, Codex, Cursor, VS Code and
+   Copilot CLI configuration, verification and common failures), then the
+   source-checkout form for maintainers.
+2. [SDK to MCP to plugin](sdk-mcp-tutorial.md): discover a contract, request a
+   scaffold, validate manifest/widgets and run the native checker.
+3. [MCP server authority](../tools/sco-core-mcp/README.md): six default tools (minimal
+   profile), six opt-in discovery tools (the SDK developer profile of twelve, including
+   guide search with `search_guides` and `get_guide_section`)
+   and three opt-in development tools, allowlist, provenance, limits and separate
+   administrator-owned runner settings.
+4. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
    exact source/archive inputs; development previews are not approved releases.
 
-MCP is static discovery, not a host/game connection, compiler or SDK executor.
+MCP is static discovery by default; the opt-in development tools build and
+check plugins on this machine only, never a host or the game.
 Client-specific instructions live in the integration guide, not in this index.
 
 ## Maintainer — Build, contribute, release
 
 1. [Contributing](../CONTRIBUTING.md) and [building/testing](building.md):
    source policy, named tests, CI and product adoption.
-2. [Changelog](../CHANGELOG.md), [SDK 2.3.0 notes](releases/sdk-v2.3.0.md) (latest published),
-   [SDK 2.2.0 notes](releases/sdk-v2.2.0.md), [SDK 2.1.0 notes](releases/sdk-v2.1.0.md),
-   [SDK 2.0.0 notes](releases/sdk-v2.0.0.md) and
-   [published releases](https://github.com/scubamount/sco-core/releases/latest):
-   keep SDK/package, plugin ABI and game-pack version coordinates distinct.
+2. [Changelog](../CHANGELOG.md), [SDK 2.4.0 notes](releases/sdk-v2.4.0.md) and the
+   [SDK 2.4.0 release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1)
+   (the repository's latest and only SDK release; the final signed `sdk-v2.4.0`
+   follows): keep SDK/package, plugin ABI and game-pack version coordinates distinct.
 3. [Release checklist](legal/release-checklist.md) and
    [release decisions](legal/release-decisions/README.md): candidate versus
    signed approval versus actual publication; releases are maintainer acts.
@@ -87,8 +103,9 @@ Client-specific instructions live in the integration guide, not in this index.
    checks and existing Pages publication workflow.
 5. [IP policy](../IP_POLICY.md), [third-party notices](../THIRD_PARTY_NOTICES.md)
    and [dependency inventory](legal/third-party-inventory.md).
-6. [Design: opt-in runtime MCP](design/runtime-mcp.md): owner-approved decisions
-   (2026-10-12), not implemented; metadata-only runtime group and security/fixture acceptance.
+6. [Design: opt-in runtime MCP](design/runtime-mcp.md): separate implemented
+   default-off metadata launcher, historical decisions and outstanding
+   Windows/manual acceptance.
 
 ### Historical designs and evidence
 

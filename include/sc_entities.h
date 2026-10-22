@@ -61,6 +61,39 @@ extern "C" {
 #define SC_ENTITIES_NAME        "game.entities"
 #define SC_ENTITIES_VERSION_1_0 0x00010000u
 #define SC_ENTITIES_VERSION_1_1 0x00010001u /* + keep */
+#define SC_ENTITIES_VERSION_1_2 0x00010002u /* + copied lookup observations */
+#define SC_ENTITIES_MAX_CLASSES 64u
+#define SC_ENTITY_COMPONENT_ACTOR 1u
+#define SC_ENTITY_COMPONENT_INVENTORY 2u
+
+/* Host-managed class identity, not a truncated native class key or pointer.
+ * All records are caller-owned historical copies; epoch expires on registry
+ * change, tick or session stop. Names are exact, NUL-terminated, <=95 bytes.
+ * Unknown tail bytes are untouched; known prefix zeroed on failure. */
+typedef struct sc_entity_class_record {
+    uint32_t size;
+    uint32_t _pad;
+    uint64_t epoch;
+    uint64_t class_id;
+    char name[96];
+} sc_entity_class_record;
+typedef struct sc_entity_class_page {
+    uint32_t size;
+    uint32_t count; /* capacity in, copied count out, <=64; zero counts only */
+    uint32_t more;
+    uint32_t _pad;
+    uint64_t epoch;
+    sc_entity_class_record records[SC_ENTITIES_MAX_CLASSES];
+} sc_entity_class_page;
+/* Presence observation only, not component data or a native address. Requery
+ * before use; generation changes on stream-out/reload. Only the two explicit
+ * kinds above are admitted. No arbitrary type name, field or memory reader. */
+typedef struct sc_entity_component_record {
+    uint32_t size;
+    uint32_t kind;
+    uint64_t entity_id;
+    uint64_t generation;
+} sc_entity_component_record;
 
 /* Entities spawned through game.entities and not yet despawned, all plugins together. */
 #define SC_ENTITIES_MAX_OWNED 1024u
@@ -162,6 +195,19 @@ typedef struct sc_entities_v1 {
      * instead). SCO_UNAVAILABLE: no "game.entities.spawn". Call it right
      * after spawn succeeds: the id is final at once, the entity needn't have streamed in. */
     sco_result (*keep)(sco_plugin* self, uint64_t entity_id);
+    /* 1.2. Copied full registry bounded to64 entries, NOT observed class_of
+     * names. epoch=0 starts; nonzero requires exact current epoch. Overflow
+     * reports more; offset indexes sorted class_id order. No partial writes on
+     * malformed provider snapshot; stale epoch NOT_FOUND, absent UNAVAILABLE. */
+    sco_result (*list_classes)(uint64_t epoch, uint32_t offset, sc_entity_class_page* out);
+    /* Exact case-sensitive class name; unknown NOT_FOUND. */
+    sco_result (*find_class)(const char* name, sc_entity_class_record* out);
+    /* Debug-grade instance name lookup, ASCII case-insensitive. Ambiguous
+     * names FAILED rather than choosing a traversal-dependent result. */
+    sco_result (*find_by_name)(const char* name, uint64_t* out_entity_id);
+    /* Validated typed presence for a streamed entity. No component pointer or
+     * persistent token. NOT_FOUND absent entity/component, BAD_ARG bad kind. */
+    sco_result (*component)(uint64_t entity_id, uint32_t kind, sc_entity_component_record* out);
 } sc_entities_v1;
 
 #ifdef __cplusplus

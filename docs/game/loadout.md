@@ -1,15 +1,56 @@
-# Typed offline local-player loadout (`game.loadout` 1.1)
+# Typed offline local-player loadout (`game.loadout` 1.2)
+
+## Asynchronous extension (1.2)
+
+The owner approved an asynchronous API on 2026-10-18 because native item creation
+and equip requests complete later. The frozen `sc_loadout_v1` and all 1.0/1.1
+records keep their exact layout and behavior. Query `SC_LOADOUT_VERSION_1_2` and
+check each full pointer extent before using the `sc_loadout_v1_2` tail:
+`submit(self, request, out_job)`, `status(self, job, out_report)`, `cancel(self, job)`.
+C++ exposes `Loadout::Submit`, `Status` and `Cancel`. C# and Lua async mutation are
+unsupported. No service discovery or signature match alone authorizes mutation.
+
+Submit validates and copies 1..16 distinct slots with fixed class names, then
+returns an owner-scoped process-unique id. One retained job per plugin, eight
+total. It does not call an equip function while borrowing the request. Game-thread
+ticks process one slot at a time in input order; later weapon attachments observe
+the previously completed parent weapon. Status returns a completed prefix and
+per-slot results. PENDING is never reported as APPLIED. COMPLETE means processing
+finished, including per-slot refusals; check applied count and every slot result.
+
+Timeout after 120 seconds, changed local-player session, admission loss or a
+provider fault ends the job as FAILED. No retry or rollback occurs. Cancel forgets
+the job and releases unfinished native resources; already confirmed equipment
+stays equipped. Unload/host stop cancel retained jobs. Status never advances a job
+or performs an engine mutation. A provider fault disables both mutation routes
+until process restart and retains uncertain native resources rather than invoking
+more callbacks. Unknown/online/EAC-present admission refuses before mutation.
+
+The Windows async adapter is explicitly opt-in with `SCO_LOADOUT_ASYNC=1` and only
+configures when all required signature rows resolve. It uses the existing local
+spawn boundary, waits for that exact entity to become live, calls the typed port
+attachment once and confirms the same entity in the same owned port on a later
+tick. The parent may not change while a spawn is pending. Port walks are bounded
+and reject duplicate names; visor has no grounded separate port and returns
+UNSUPPORTED. No XML loader or inventory-service request fallback is used.
+
+Cancellation removes a spawned, not-yet-attached candidate. Once attachment was
+attempted, uncertain state is retained rather than deleting possible equipment.
+No removal/rollback of prior equipment is promised. The native adapter itself is
+executed in a Windows synthetic-object fixture, including delayed spawn, exact
+attachment arguments, confirmation, missing class and admission-loss cleanup.
+This is native-boundary evidence, not in-game port or gameplay certification.
 
 **Synthetic/native-boundary checked; not run in game.** Production publishes the
 table when Windows game services start, but `game.loadout.apply` stays **false**.
-The game pack has no verified typed per-slot equip implementation yet. Signature
+The synchronous route has no verified typed per-slot equip implementation. Signature
 resolution or a successful query is not permission to mutate a player.
 
 Version 1.1 adds slot vocabulary only: weapon and multitool slots 8..21 (see
 [Slots](#slots)). Records are unchanged, `SC_LOADOUT_SERVICE_VERSION` stays 1.0 while
-1.1 is published (`SC_LOADOUT_VERSION_1_1`), and a 1.0 query is still answered. The new
+1.2 is published, and 1.0/1.1 queries are still answered. The
 capability `game.loadout.weapons` defaults **OFF**, and production still installs no
-backend, so every slot, body or weapon, answers UNAVAILABLE in game.
+synchronous backend, so synchronous apply answers UNAVAILABLE for every slot.
 
 ## Inputs and outputs
 
@@ -97,15 +138,18 @@ each adapter call, not a streaming ticket or global inventory snapshot.
 
 ## Thread, lifetime and faults
 
-Game thread only (command/tick/queued game-thread task); caller data lives until
-return. Bounded stack copies only, no retained input, work queue or cancellation.
+Synchronous `apply` is game-thread only (command/tick/queued game-thread task);
+caller data lives until return. That route uses bounded stack copies, with no
+retained input, work queue or cancellation. The 1.2 asynchronous route instead
+retains validated copied job state and exposes status/cancel.
 The host owns publication and withdraws after consumers unload. Borrowed tables must
 not be called after terminal shutdown. Recursive apply returns UNAVAILABLE without
 a nested engine call; backend Start is refused and Stop ignored during apply.
 
 Internal `LoadoutBackend` is game-pack/host code, **not a public plugin installation
 API**. It supplies verified typed equip and live fail-closed offline admission;
-current production calls `StartLoadout()` without it. Callbacks live through Stop.
+current production passes no synchronous backend. Async callbacks use the separate
+LoadoutAsyncBackend and retain copied job state. Callbacks live through Stop.
 Portable guards catch C++ exceptions. Windows MSVC guard frames additionally use
 SEH, not locally exercised. A callback fault or invalid callback result disables
 apply for the rest of the process; restart is required even after Stop/Start.
@@ -124,7 +168,7 @@ the producer; an event whose capability is off never fires, so subscribing is ha
   subscribe by name with `sco_api` `subscribe`; the independent native fixture does.
 - Payload `sc_game_loadout_respawn_completed` (`sc_game_events.h`, 8 bytes): `size` and
   `_pad` only. **Occurrence only.** It names no entity, zone, slot or item and is not a
-  per-slot confirmation; use `apply` reports for those. Check `size` before reading any
+per-slot confirmation; use synchronous or asynchronous per-slot reports for those. Check `size` before reading any
   field a later minor appends.
 - Callbacks run on the game thread from the host tick, a frame or so after the occurrence.
   Occurrences recorded within one tick coalesce into one event. The pointer is valid only

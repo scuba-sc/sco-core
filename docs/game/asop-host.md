@@ -2,8 +2,8 @@
 
 Layer: Star Citizen game pack, host-source-only. Link `sco_asop_host` from a tagged
 source dependency and include `sco/game/asop_host.h`. This header is not a plugin
-header and is excluded, with `src/game/asop_host/`, from every SDK profile by the
-existing game implementation exclusions. No plugin service, raw pointer or patch
+header. It and `src/game/asop_host/` are selected only for `host-source-sc`, not
+the public plugin or neutral core/core-source profiles. No plugin service, raw pointer or patch
 right is added. The frozen ABI is unchanged.
 
 `Config` is disabled by default. The host must positively establish offline
@@ -72,7 +72,8 @@ and lift-watch loops and synchronous handoff. Raw engine translation units also
 receive a development-only syntax probe using Windows/SEH declaration stand-ins;
 that probe is **not** Windows ABI, SEH, linker or engine evidence. All new source
 and fixture files are GPL-3.0-only and match the explicit provenance directory row;
-the manifest's existing `src/game/` and `include/sco/game/` exclusions cover every
-new implementation/host header, with no plugin-header or source-kit grant.
+the manifest selects the host header, implementation and fixtures for
+`host-source-sc`. Package membership supplies no new licence grant, provenance
+approval or gameplay acceptance.
 
 **Windows engine loading and gameplay NOT VERIFIED.**

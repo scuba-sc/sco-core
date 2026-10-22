@@ -1,5 +1,32 @@
 # Entities rows
 
+## Copied lookup extension1.2
+
+1.2 appends class registry pages, exact class lookup, debug-grade instance-name
+lookup and typed component presence. Existing1.0/1.1 members retain their offsets.
+The new native C++ methods guard complete member extents on older providers.
+1.2 tails: C# and Lua unsupported; existing earlier language routes are unchanged.
+
+Registry snapshots contain at most64complete copied classes, not just classes
+observed through class_of. Provider overflow must refuse TOO_MANY rather than
+claim an observed subset is complete. Pages sort by host-issued class_id; epoch
+pins later pages and expires on registry/tick/session changes. Class names are
+exact case-sensitive printable ASCII up to95bytes. Missing/stale records return
+NOT_FOUND. Duplicate IDs/names or malformed later records publish no partial page.
+
+Instance names are debug-grade ASCII case-insensitive; ambiguous matches return
+FAILED instead of promising a stable traversal winner. Component lookup accepts
+only ACTOR and INVENTORY discriminators and copies entity/kind/generation presence.
+It is not an arbitrary component-memory reader or a cross-call native handle.
+Requery before using a streaming observation; generation is not a permanent key.
+
+Production lookup capability is OFF: the table publishes unbound callbacks that
+refuse UNAVAILABLE until independently grounded native admission exists. No new
+native row, offset or hook is invented. `tests/test_entity_lookup.cpp` exercises
+bound synthetic providers, epoch mismatch, duplicate/malformed snapshots, name
+folding/ambiguity, typed presence, future tails, physical short tables and callback
+stop invalidation. C/C++ ABI pins retain old offsets. Not run in game.
+
 Which capabilities are on, and how far each has been checked: [status](status.md) (`game.entities.query_radius` and `.watch` are off until an in-game run).
 
 The addresses `game.entities` uses, from Appendix B of [game world spikes](../design/game-world-spikes.md) (B3 and B9). Rows are in [`src/game/entities_sigs.cpp`](../../src/game/entities_sigs.cpp), the accessor constants and capability groups in [`include/sco/game/entities.h`](../../include/sco/game/entities.h). Checked against 4.10.196.36804.

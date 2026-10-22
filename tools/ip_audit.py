@@ -433,6 +433,9 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         fails = []
         expected = {pkg.destination(m, profile, c): c for c in chosen}
         generated = set(pkg.metadata_names(m, profile))
+        if profile in ("game-sc", "legacy", "host-source-sc"):
+            generated.add("sdk-catalogue.json")
+            generated.add("sdk-guides.json")
         for rel in names:
             if rel not in expected and rel not in generated:
                 fails.append(f"{rel}: in the archive but not selected by {COMPONENTS} for {profile}")
@@ -590,12 +593,12 @@ def write_sbom(path, archive, profile, top, names, content, expected, entries, r
     doc = {
         "spdxVersion": "SPDX-2.3", "dataLicense": "CC0-1.0", "SPDXID": "SPDXRef-DOCUMENT",
         "name": f"{top} ({profile})",
-        "documentNamespace": f"https://github.com/scubamount/sco-core/sbom/{top}-{zsha}",
+        "documentNamespace": f"https://github.com/scuba-sc/sco-core/sbom/{top}-{zsha}",
         "creationInfo": {"created": "2026-01-01T00:00:00Z", "creators": ["Tool: sco-core tools/ip_audit.py"],
                          "comment": f"Built from commit {commit}. The fixed creation time keeps the SBOM reproducible; the commit and archive hash bind it."},
         "packages": [{"SPDXID": pkg_id, "name": top, "versionInfo": top.rsplit("-", 1)[-1],
-                      "packageFileName": os.path.basename(archive), "supplier": "Organization: sco-core (scubamount)",
-                      "downloadLocation": f"git+https://github.com/scubamount/sco-core@{commit}",
+                      "packageFileName": os.path.basename(archive), "supplier": "Organization: sco-core (scuba-sc)",
+                      "downloadLocation": f"git+https://github.com/scuba-sc/sco-core@{commit}",
                       "filesAnalyzed": True, "packageVerificationCode": {"packageVerificationCodeValue": verification},
                       "checksums": [{"algorithm": "SHA256", "checksumValue": zsha}],
                       "licenseConcluded": "NOASSERTION", "licenseDeclared": "NOASSERTION", "copyrightText": "NOASSERTION",
