@@ -699,8 +699,9 @@ Prepare the runner before enabling this configuration:
 
 GitHub warns that configured MCP tools may be used autonomously without asking
 for approval, and recommends specific read-only tool allowlists. Copilot code
-review requires `annotations.readOnlyHint: true` on tools it uses. All six tools
-set that annotation, but annotations and an allowlist are not a sandbox for the
+review requires `annotations.readOnlyHint: true` on tools it uses. All twelve
+discovery tools, the six in this allowlist and the six extended ones, set that
+annotation, but annotations and an allowlist are not a sandbox for the
 client itself. Do not add a wildcard or assume this restricts the client's other
 tools. Consult the linked GitHub documentation for current UI and runner behavior.
 

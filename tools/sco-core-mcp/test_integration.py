@@ -240,9 +240,15 @@ class DocumentedBlockTests(unittest.TestCase):
 
     def test_tested_statement_claims_no_more_than_was_run(self):
         guide = ' '.join(self.guide.split())
-        for claim in ('None of the client files below, and neither the `claude mcp add` nor the '
-                      '`codex mcp add` command, was run in its client',
-                      'The `python3` forms were not run on macOS or Linux'):
+        for claim in ('`claude mcp add --scope user` registered the server (Claude Code 2.1.306), '
+                      '`claude mcp list` showed it connected',
+                      'and `claude mcp remove` removed it; `codex mcp add` and `codex mcp remove` '
+                      '(Codex CLI 0.118.0) wrote and removed the entry in Codex\'s `config.toml`, but Codex '
+                      'did not start the server or call a tool',
+                      'No agent called a tool through any client, and none of the other client files below '
+                      'was run in its client',
+                      'The `python3` forms, and Ctrl+D as the way to stop the server, were not run on '
+                      'macOS or Linux'):
             with self.subTest(claim=claim):
                 self.assertIn(claim, guide)
 

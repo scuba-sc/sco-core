@@ -47,9 +47,9 @@ steps for the kit are in [Set up the discovery server from the SDK kit](../agent
   `search_guides` and `get_guide_section` return names the previous docs-site address
   (`scubamount.github.io`), which now returns 404, so "read the rest at its `url`" does
   not work in this kit. Use `https://scuba-sc.github.io/sco-core/` with the same path
-  instead; a few older release-notes pages are not on the docs site, so read those under
-  `docs/releases/` in the repository. For a guide under `sdk/docs` the `url` is a
-  repository path, not a link.
+  instead. The docs site publishes release notes for 2.4.0 only, so for the 2.1.0, 2.2.0
+  and 2.3.0 notes read `docs/releases/` in the repository. For a guide under `sdk/docs`
+  the `url` is a repository path, not a link.
 - **`check_compatibility` does not accept the release candidate tag.** Its `tag` argument
   takes only `sdk-vMAJOR.MINOR.PATCH`, so `sdk-v2.4.0-rc.1` is refused as not matching the
   advertised pattern. Compare with `sdk_version` and `game_pack_version` instead. In a kit
