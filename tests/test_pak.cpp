@@ -6,6 +6,7 @@
 //   tools/test.sh
 #include "sco/caps.h"
 #include "sco/game/pak.h"
+#include "../src/game/datacore_live_lifecycle.h"
 #include "sco/hook.h"
 #include "sco/log.h"
 #include "sco/vfs.h"
@@ -524,6 +525,15 @@ int main() {
     g_targets.cryPak = &g_cryPak;
 
     TestEnableRefusals();
+    CHECK(pak::Enable(Opts(),g_targets)==sco::Result::Ok);
+    unsigned nesting=0;
+    g_scenario=[&] {
+        sco::game::datacore_live::LifecycleGate::ReadLease read;
+        CHECK(!sco::game::datacore_live::ProcessLifecycleGate().EnterRead(read));
+        if(nesting++==0) CHECK(CallLoader(g_targets.loader)==1);
+    };
+    CHECK(CallLoader(g_targets.loader)==1 && nesting==2);
+    pak::Disable();
     TestServedLoad();
     TestPassThrough();
     TestBigFile();

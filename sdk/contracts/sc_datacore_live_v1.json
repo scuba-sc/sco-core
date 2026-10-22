@@ -1,0 +1,385 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_datacore_live_v1.is_ready",
+      "table": "sc_datacore_live_v1",
+      "source_header": "include/sc_datacore_live.h",
+      "signature": "sco_result (*)(sco_plugin *)",
+      "version_macro": "SC_DATACORE_LIVE_SERVICE_VERSION_1_0",
+      "member_extent": 16,
+      "table_size": 48,
+      "service": "game.datacore_live",
+      "id": "sc-datacore-live-v1-is-ready",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Check verified backend admission and current pool lifetime.",
+      "buffer_contract": "`sco_result (*is_ready)(sco_plugin* self);`<br>Check verified backend admission and current pool lifetime.",
+      "ownership": "Caller owns all buffers and output records. No engine pointer or caller buffer is retained.",
+      "thread_affinity": "Game thread only; self must be live.",
+      "callback_context": "No plugin callbacks; synchronous host backend calls only.",
+      "reentrancy": "Recursive backend access returns UNAVAILABLE.",
+      "results": "OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault.",
+      "absent_capability": "No native backend is supplied. Verified callbacks, fresh offline admission and ready lifetime are required; writes additionally default OFF.",
+      "cleanup": "Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart.",
+      "limitations": [
+        "No native game pool adapter is supplied.",
+        "Not run in game.",
+        "C++/C#/Lua typed wrappers are unsupported; C table access is supported."
+      ],
+      "tests": [
+        "tests/test_datacore_live.cpp",
+        "tests/abi_datacore_live.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_datacore_live.h",
+              "token": "(*is_ready)"
+            }
+          ],
+          "tests": [
+            "tests/abi_datacore_live.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_datacore_live_v1.get_pool_stats",
+      "table": "sc_datacore_live_v1",
+      "source_header": "include/sc_datacore_live.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t, sc_datacore_pool_stats *)",
+      "version_macro": "SC_DATACORE_LIVE_SERVICE_VERSION_1_0",
+      "member_extent": 24,
+      "table_size": 48,
+      "service": "game.datacore_live",
+      "id": "sc-datacore-live-v1-get-pool-stats",
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Copy scalar pool statistics into a full-size caller record.",
+      "buffer_contract": "`sco_result (*get_pool_stats)(sco_plugin* self, uint32_t pool_type, sc_datacore_pool_stats* out_stats);`<br>Copy scalar pool statistics into a full-size caller record.",
+      "ownership": "Caller owns all buffers and output records. No engine pointer or caller buffer is retained.",
+      "thread_affinity": "Game thread only; self must be live.",
+      "callback_context": "No plugin callbacks; synchronous host backend calls only.",
+      "reentrancy": "Recursive backend access returns UNAVAILABLE.",
+      "results": "OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault.",
+      "absent_capability": "No native backend is supplied. Verified callbacks, fresh offline admission and ready lifetime are required; writes additionally default OFF.",
+      "cleanup": "Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart.",
+      "limitations": [
+        "No native game pool adapter is supplied.",
+        "Not run in game.",
+        "C++/C#/Lua typed wrappers are unsupported; C table access is supported."
+      ],
+      "tests": [
+        "tests/test_datacore_live.cpp",
+        "tests/abi_datacore_live.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_datacore_live.h",
+              "token": "(*get_pool_stats)"
+            }
+          ],
+          "tests": [
+            "tests/abi_datacore_live.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_datacore_live_v1.find_record",
+      "table": "sc_datacore_live_v1",
+      "source_header": "include/sc_datacore_live.h",
+      "signature": "sco_result (*)(sco_plugin *, const uint8_t *, sc_datacore_live_record_info *)",
+      "version_macro": "SC_DATACORE_LIVE_SERVICE_VERSION_1_0",
+      "member_extent": 32,
+      "table_size": 48,
+      "service": "game.datacore_live",
+      "id": "sc-datacore-live-v1-find-record",
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Find a live record by its sixteen-byte identifier.",
+      "buffer_contract": "`sco_result (*find_record)(sco_plugin* self, const uint8_t guid[16], sc_datacore_live_record_info* out_record);`<br>Find a live record by its sixteen-byte identifier.",
+      "ownership": "Caller owns all buffers and output records. No engine pointer or caller buffer is retained.",
+      "thread_affinity": "Game thread only; self must be live.",
+      "callback_context": "No plugin callbacks; synchronous host backend calls only.",
+      "reentrancy": "Recursive backend access returns UNAVAILABLE.",
+      "results": "OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault.",
+      "absent_capability": "No native backend is supplied. Verified callbacks, fresh offline admission and ready lifetime are required; writes additionally default OFF.",
+      "cleanup": "Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart.",
+      "limitations": [
+        "No native game pool adapter is supplied.",
+        "Not run in game.",
+        "C++/C#/Lua typed wrappers are unsupported; C table access is supported."
+      ],
+      "tests": [
+        "tests/test_datacore_live.cpp",
+        "tests/abi_datacore_live.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_datacore_live.h",
+              "token": "(*find_record)"
+            }
+          ],
+          "tests": [
+            "tests/abi_datacore_live.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_datacore_live_v1.read_pool",
+      "table": "sc_datacore_live_v1",
+      "source_header": "include/sc_datacore_live.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t, uint64_t, void *, size_t, size_t *)",
+      "version_macro": "SC_DATACORE_LIVE_SERVICE_VERSION_1_0",
+      "member_extent": 40,
+      "table_size": 48,
+      "service": "game.datacore_live",
+      "id": "sc-datacore-live-v1-read-pool",
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Copy bounded bytes from a host-validated scalar pool range.",
+      "buffer_contract": "`sco_result (*read_pool)(sco_plugin* self, uint32_t pool_type, uint64_t offset, void* out_buffer, size_t buffer_size, size_t* out_read);`<br>Copy bounded bytes from a host-validated scalar pool range.",
+      "ownership": "Caller owns all buffers and output records. No engine pointer or caller buffer is retained.",
+      "thread_affinity": "Game thread only; self must be live.",
+      "callback_context": "No plugin callbacks; synchronous host backend calls only.",
+      "reentrancy": "Recursive backend access returns UNAVAILABLE.",
+      "results": "OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault.",
+      "absent_capability": "No native backend is supplied. Verified callbacks, fresh offline admission and ready lifetime are required; writes additionally default OFF.",
+      "cleanup": "Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart.",
+      "limitations": [
+        "No native game pool adapter is supplied.",
+        "Not run in game.",
+        "C++/C#/Lua typed wrappers are unsupported; C table access is supported."
+      ],
+      "tests": [
+        "tests/test_datacore_live.cpp",
+        "tests/abi_datacore_live.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_datacore_live.h",
+              "token": "(*read_pool)"
+            }
+          ],
+          "tests": [
+            "tests/abi_datacore_live.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_datacore_live_v1.write_pool",
+      "table": "sc_datacore_live_v1",
+      "source_header": "include/sc_datacore_live.h",
+      "signature": "sco_result (*)(sco_plugin *, uint32_t, uint64_t, const void *, size_t, size_t *)",
+      "version_macro": "SC_DATACORE_LIVE_SERVICE_VERSION_1_0",
+      "member_extent": 48,
+      "table_size": 48,
+      "service": "game.datacore_live",
+      "id": "sc-datacore-live-v1-write-pool",
+      "since": "`size >= 48`; 1.0",
+      "purpose": "Write a host-validated pool range only with separate host write permission.",
+      "buffer_contract": "`sco_result (*write_pool)(sco_plugin* self, uint32_t pool_type, uint64_t offset, const void* in_buffer, size_t buffer_size, size_t* out_written);`<br>Write a host-validated pool range only with separate host write permission.",
+      "ownership": "Caller owns all buffers and output records. No engine pointer or caller buffer is retained.",
+      "thread_affinity": "Game thread only; self must be live.",
+      "callback_context": "No plugin callbacks; synchronous host backend calls only.",
+      "reentrancy": "Recursive backend access returns UNAVAILABLE.",
+      "results": "OK completed; BAD_ARG invalid owner, type, extent or range; WRONG_THREAD off game thread; UNAVAILABLE absent backend, admission, lifetime or write permission; NOT_FOUND missing record; FAILED backend fault.",
+      "absent_capability": "No native backend is supplied. Verified callbacks, fresh offline admission and ready lifetime are required; writes additionally default OFF.",
+      "cleanup": "Stop withdraws the table and clears callbacks and write permission. Backend faults latch unavailable until process restart.",
+      "limitations": [
+        "No native game pool adapter is supplied.",
+        "Not run in game.",
+        "C++/C#/Lua typed wrappers are unsupported; C table access is supported."
+      ],
+      "tests": [
+        "tests/test_datacore_live.cpp",
+        "tests/abi_datacore_live.c"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_datacore_live.h",
+              "token": "(*write_pool)"
+            }
+          ],
+          "tests": [
+            "tests/abi_datacore_live.c"
+          ]
+        },
+        "cpp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/datacore-live.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    }
+  ]
+}

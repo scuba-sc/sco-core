@@ -86,9 +86,11 @@ sco_result RestoreOwned(const void* owner) {
     if (g_calling) { LatchFault(); return SCO_FAILED; }
     CallScope scope;
     for (uint32_t i = 0; i != 4; ++i) if (g_leases[i].owner && (!owner || g_leases[i].owner == owner)) {
-        const auto r = g_port.write_bool(g_port.ctx, i, g_leases[i].prior);
+        const auto restore = g_port.restore_bool ? g_port.restore_bool : g_port.write_bool;
+        const auto r = restore(g_port.ctx, i, g_leases[i].prior);
         if (r != SCO_OK) { LatchFault(); return r; }
         if (g_faulted) return SCO_FAILED;
+        if (g_port.restore_bool) { g_leases[i] = {}; continue; }
         uint32_t observed = 2;
         const auto read = g_port.read_bool(g_port.ctx, i, &observed);
         if (read != SCO_OK || observed != g_leases[i].prior) {
@@ -106,8 +108,8 @@ sco_result Restore(sco_plugin* self) {
 }
 const sc_cvars_write_v1 kWrite{sizeof(sc_cvars_write_v1), 0, Set, Restore};
 void OnSessionExit(const char*, const void*, void*) {
-    RestoreOwned(nullptr);
     g_session = false;
+    RestoreOwned(nullptr);
     caps::Set("game.cvars.read", false, "session ended");
     caps::Set("game.cvars.write", false, "session ended");
 }

@@ -632,8 +632,8 @@ Rows are in [entities rows](game/entities.md). Wrappers: C++ [`scosdk/game/entit
 The additive 1.1 `list_params` tail copies static parameter definitions (name,
 group, type), not values. It remains available without a live-read backend.
 `game.input` 1.0 ([`sc_input.h`](../include/sc_input.h)) similarly publishes static
-action metadata through count/id/name lookups; the tail vocabulary has unresolved
-build attribution. See [input](game/input.md). Neither registry dispatches input
+action metadata through count/id/name lookups; its 1,297 ids are scoped to build
+4.10.197.2878. See [input](game/input.md). Neither registry dispatches input
 or writes game state. Not run in game.
 
 ### `game.build` 1.0 (game pack)

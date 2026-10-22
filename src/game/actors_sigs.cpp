@@ -406,6 +406,39 @@ SigResult ResolveLoadoutLoader(const Image& img) {
 
 constexpr RipSpec kLoadoutGame{ "loadout.load_player_loadout", 0x18, 3, 7 };
 
+// Current-build mutation/read primitives independently checked by native P3.
+// No detour; these rows only locate existing game functions. A missing/ambiguous
+// pattern leaves async loadout unavailable, never falls back to the XML loader.
+constexpr FnSpec kLoadoutAttach{
+    "48 89 5C 24 18 44 89 4C 24 20 48 89 4C 24 08 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 D0 48 81 EC 30 01 00 00 4C 8B E9 49 8B F0 48 8B 0D ?? ?? ?? ??",
+    nullptr, 0, nullptr};
+constexpr FnSpec kLoadoutPort{
+    "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B EA 48 8B F9 48 85 D2 74 3A 48 8B 99 88 00 00 00 48 3B 99 90 00 00 00 74 2A 90",
+    nullptr, 0, nullptr};
+constexpr FnSpec kLoadoutHandle{
+    "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 30 48 8D 05 ?? ?? ?? ?? 48 8B FA 48 89 44 24 40 48 8D 99 40 04 00 00 48 8B F1 E8 ?? ?? ?? ?? 44 8B 40 18",
+    nullptr, 0, nullptr};
+const char* CheckLoadoutContainer(const Image& img, const uint8_t* at) {
+    if (!rows::InText(img, at + 0xc2, 1) || at[0xbb] != 0x4c || at[0xbc] != 0x8d || at[0xbd] != 0x05)
+        return "attached-container type-name instruction changed";
+    const uint8_t* name = RipTarget(at + 0xbb, 3, 7);
+    const uint8_t* expected = FindCString(img.rdata, "IItemPortContainer");
+    return expected && name == expected ? nullptr : "attached-container type-name changed";
+}
+SigResult ResolveLoadoutContainer(const Image& img) {
+    uint8_t* matches[4]{};
+    const int count = FindPattern(img.text,
+        "40 53 57 48 83 EC 38 48 8D 05 ?? ?? ?? ?? 48 8B F9 48 89 44 24 50 48 8D 99 40 04 00 00 E8 ?? ?? ?? ?? 8B 50 18 39 53 08 75 05 FE 43 0C EB 2D BA 01 00 00 00",
+        matches, 4);
+    if (count > 4) return Ambiguous(count);
+    const uint8_t* found = nullptr;
+    for (int i = 0; i < count; ++i) if (!CheckLoadoutContainer(img, matches[i])) {
+        if (found) return Ambiguous(2);
+        found = matches[i];
+    }
+    return found ? SigOk(found) : SigFail("attached-container typed getter missing");
+}
+
 // ---- capabilities ----------------------------------------------------------------------------------
 
 constexpr const char* kHelpers[] = {
@@ -429,6 +462,9 @@ constexpr const char* kDirectRemoveRows[] = {
 };
 constexpr const char* kAmmo[] = { "teleport.entity_system", "ammo.set_ammo" };
 constexpr const char* kLoadout[] = { "loadout.load_player_loadout", "loadout.game" };
+constexpr const char* kLoadoutAsync[] = {
+    "loadout.attach_entity", "loadout.port_by_name", "loadout.port_handle", "loadout.port_container"
+};
 
 constexpr Capability kCaps[] = {
     { "spawn.helpers",       kHelpers,          std::size(kHelpers) },
@@ -442,6 +478,7 @@ constexpr Capability kCaps[] = {
     { "npc.direct_remove",   kDirectRemoveRows, std::size(kDirectRemoveRows) },
     { "ammo.setter",         kAmmo,             std::size(kAmmo) },
     { "loadout.loader",      kLoadout,          std::size(kLoadout) },
+    { "loadout.async",       kLoadoutAsync,     std::size(kLoadoutAsync) },
 };
 
 }  // namespace
@@ -497,6 +534,10 @@ extern const SigDef kActorsSignatures[] = {
     // gear menu and outfits
     { "loadout.load_player_loadout",nullptr, 0, 0, ResolveLoadoutLoader,             {} },
     { "loadout.game",               nullptr, 0, 0, ResolveRip<kLoadoutGame>,         { "loadout.load_player_loadout" } },
+    { "loadout.attach_entity",      nullptr, 0, 0, ResolveFn<kLoadoutAttach>, {} },
+    { "loadout.port_by_name",       nullptr, 0, 0, ResolveFn<kLoadoutPort>, {} },
+    { "loadout.port_handle",        nullptr, 0, 0, ResolveFn<kLoadoutHandle>, {} },
+    { "loadout.port_container",     nullptr, 0, 0, ResolveLoadoutContainer, {} },
 };
 extern const size_t kActorsSignatureCount = std::size(kActorsSignatures);
 

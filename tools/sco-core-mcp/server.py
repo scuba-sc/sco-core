@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
-"""Read-only, tools-only MCP 2025-11-25 server for SDK catalogue schema 1.
+"""Tools-only MCP 2025-11-25 server for SDK catalogue schema 1; read-only unless --enable-dev-tools.
 
-No SDK invocation, subprocesses, network access, or filesystem writes. Stdout is
-reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr. Besides
-the catalogue and record-listed examples, only sdk/status_registry.json (else
-docs/game/status.md), docs/legal/release-decisions/ and, with --extended-tools,
-sdk/native_index.json and sdk/tools/sco-new-plugin.py are read, and only beneath
---repo-root. The scaffolder is the one piece of repository code this process runs:
-with --extended-tools, on the first generate_plugin_scaffold call, in-process.
+By default: no SDK invocation, subprocesses, network access, or filesystem writes.
+Stdout is reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr.
+Besides the catalogue and record-listed examples, only sdk/status_registry.json
+(else docs/game/status.md), docs/legal/release-decisions/ and, with
+--extended-tools, sdk/native_index.json and sdk/tools/sco-new-plugin.py are read,
+and only beneath --repo-root. With --extended-tools the guide tools also read
+sdk-guides.json beside the catalogue (or --guides); without one, they build the
+guide sections in memory from --repo-root's tools/sdk_guides.py and the public docs
+it allowlists. Those two generators are the only repository code this process runs:
+with --extended-tools, on the first call that needs them, in-process.
+
+The one exception is opt-in: with --enable-dev-tools and at least one
+--project-root, three more tools run operator-configured programs (sco-plugin-check,
+cmake, ctest) with fixed arguments on a folder inside a project root, with a
+timeout, an output cap and a process-tree kill. Callers never supply commands,
+flags or environment, and batch files (.bat, .cmd) are never run.
 """
 import argparse
-from collections import deque
+from collections import Counter, deque
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -19,8 +28,12 @@ import math
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shutil
+import signal
 import stat
+import subprocess
 import sys
+import threading
 import time
 
 PROTOCOL_VERSION = "2025-11-25"
@@ -54,7 +67,12 @@ REGISTRY_KINDS = {"service", "event_bus", "signature_rows"}
 REGISTRY_DEFAULTS = {"ON", "OFF", "none"}
 REGISTRY_LEVELS = {"sigcheck_resolved", "in_game_verified", "off_pending_probe",
                    "synthetic_only", "blocked", "undocumented"}
-REGISTRY_ENTRY_KEYS = {"id", "kind", "service", "header", "doc", "title", "version", "capabilities"}
+# schema_version 1: before stability labels. 2: "stability" on service and event_bus entries,
+# "stable_since" with a stable label, neither on signature_rows entries.
+REGISTRY_ENTRY_KEYS = {1: {"id", "kind", "service", "header", "doc", "title", "version", "capabilities"}}
+REGISTRY_ENTRY_KEYS[2] = REGISTRY_ENTRY_KEYS[1] | {"stability", "stable_since"}
+REGISTRY_STABILITY = {"stable", "experimental"}
+REGISTRY_STABLE_SINCE = re.compile(r"sdk-v[0-9]+\.[0-9]+\.[0-9]+")
 REGISTRY_CAP_KEYS = {"name", "display", "methods", "default", "evidence_level", "evidence", "game_build",
                      "sig_rows", "spike_ref", "evidence_source"}
 NATIVE_INDEX = ("sdk", "native_index.json")
@@ -64,18 +82,53 @@ NATIVE_ENTRY_KEYS = {"id", "subsystem", "hash", "tier", "source"}
 NATIVE_HASH = re.compile(r"_0x[0-9A-F]{16}")
 SCAFFOLDER = ("sdk", "tools", "sco-new-plugin.py")
 SCAFFOLD_SERVICE = r"^[a-z0-9_]+(\.[a-z0-9_]+)*(@[0-9]{1,5}\.[0-9]{1,5})?$"
-SCAFFOLD_CONCLUSIONS = [
-    "files maps each relative path to the text sdk/tools/sco-new-plugin.py's render_plugin returns for this spec; nothing was written, built or checked.",
-    "To use them, write the files into a missing or empty folder, then: cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder> and cmake --build DIR/build --target check.",
-    "The generator is read from --repo-root and run in this server process; it is not bound to the catalogue source_sha.",
-    "The plugin declares api = 1.0 and looks services up as optional; nothing generated here has been loaded by a host or run in game."]
+SCAFFOLD_LANGS = ("c", "cpp", "csharp", "lua")
+SCAFFOLD_USE = {
+    "c": "cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder> and cmake --build DIR/build --target check.",
+    "csharp": "dotnet publish DIR -c Release -r win-x64 -o DIR/out/<id> -p:ScoSdk=<SDK folder>, then sco-plugin-check DIR/out/<id>, "
+              "with and without --short-tables (README.md in the files).",
+    "lua": "cmake -S DIR -B DIR/build -DSCO_SDK=<SDK folder> and cmake --build DIR/build --target check; "
+           "with Lua 5.4, lua5.4 <SDK folder>/tools/lua-check.lua DIR runs the script against a stand-in.",
+}
+
+
+def scaffold_conclusions(lang):
+    return [
+        "files maps each relative path to the text sdk/tools/sco-new-plugin.py's render_plugin returns for this spec; nothing was written, built or checked.",
+        "To use them, write the files into a missing or empty folder, then: " + SCAFFOLD_USE.get(lang, SCAFFOLD_USE["c"]),
+        "The generator is read from --repo-root and run in this server process; it is not bound to the catalogue source_sha.",
+        "The plugin declares api = 1.0 and treats every service as optional; nothing generated here has been loaded by a host or run in game."]
 NATIVE_CONCLUSIONS = [
     "hash is _0x plus 16 hex digits of sha256('sco-core:native:' + id): a stable symbolic name, not an address. The index records no pattern, mask, offset or address.",
     "tier comes from sdk/status_registry.json sig_rows: tier 2 means no registry capability names the row, not that the row is unused.",
     "A registered row is not evidence that it resolves on any game build or that anything ran in game.",
     "Read from --repo-root at server start; not bound to the catalogue source_sha."]
-GAME_STATUS_HEADER = "| Table | Version | Capability | Default | Evidence |"
-GAME_STATUS_SEPARATOR = "|---|---|---|---|---|"
+GUIDES_FILE = "sdk-guides.json"
+GUIDES_BUILDER = ("tools", "sdk_guides.py")
+MAX_GUIDES = 16 * 1024 * 1024
+GUIDE_KEYS = {"schema_version", "sdk_version", "source_sha", "source", "text_limit", "docs", "sections"}
+GUIDE_DOC_KEYS = {"doc", "title", "url", "sections"}
+GUIDE_SECTION_KEYS = {"doc", "title", "heading", "anchor", "level", "text", "truncated", "url"}
+GUIDE_SNIPPET = 320
+GUIDE_STOPWORDS = frozenset(
+    "a an and are as at be by can do does for from how i in is it me my of on or should the this to "
+    "what when where which why with you your".split())
+GUIDE_WORD = re.compile(r"[\w.+#-]+")
+GUIDE_CONCLUSIONS = [
+    "Sections are the Markdown guides listed in site/public-inputs.json and the SDK's shipped sdk/docs guides, as plain "
+    "text bounded to text_limit characters; a truncated section continues in the guide at url.",
+    "anchor is the GitHub-style heading slug in the repository file; url is the docs-site page (or the repository path "
+    "for sdk/docs guides), whose heading anchors may differ.",
+    "Ranking is whole-word term matching (a term of four or more characters also matches words it starts), heading and "
+    "title above body text, not semantic search.",
+    "Guides are prose, not contract records (use get_symbol), and nothing in them is evidence that code ran in game."]
+GAME_STATUS_HEADER = "| Table | Version | Stability | Capability | Default | Evidence |"
+GAME_STATUS_SEPARATOR = "|---|---|---|---|---|---|"
+# The table before stability labels (SDK 2.3.0 and earlier archives): read, stability unknown.
+GAME_STATUS_HEADER_V1 = "| Table | Version | Capability | Default | Evidence |"
+GAME_STATUS_SEPARATOR_V1 = "|---|---|---|---|---|"
+# "-" is a signature-row group's cell: not a service table, no label.
+GAME_STATUS_STABILITY = {"Stable": "stable", "Experimental": "experimental", "-": None}
 GAME_STATUS_TABLE = re.compile(r"`([^`]+)` \(\[`([^`/]+)`\]\([^)\s]+\)\)")
 SIGCHECK_LEVEL = re.compile(r"row resolved on ([0-9][0-9.]*) \(sigcheck\)")
 RELEASE_CONCLUSIONS = [
@@ -89,6 +142,15 @@ STATUS_CAVEAT = (
     "an enabled capability does not prove an operation worked in game. "
     "Consult docs/game/status.md and the contract context. No works flag is inferred."
 )
+STABILITY_CONCLUSIONS = [
+    "stable: the table is never removed or changed incompatibly within SDK 2.x; it grows only at its tail behind a new minor version macro. "
+    "Once a released SDK has carried the label it stays stable for the rest of SDK 2.x, whatever later evidence says. "
+    "experimental: a later SDK minor may replace it with a new table under a distinct service name and its own header; the old name then "
+    "stays published, marked deprecated, for at least one further SDK minor release. See docs/stability.md.",
+    "The sco_api root table, plugin entry points and every sco.* host table are stable by that promise. A game-pack table's label (any include/sc_*.h table) is read "
+    "from sdk/status_registry.json (else docs/game/status.md) beneath --repo-root at server start, not bound to the catalogue source_sha.",
+    "unknown: no --repo-root, the status source is unavailable, refused or predates stability labels, or it has no entry for the table.",
+    "Stability is not availability or evidence: a stable table's capability can be OFF or answer SCO_UNAVAILABLE, and nothing here was run in game."]
 
 
 def string_schema(maximum=512):
@@ -111,10 +173,12 @@ TOOLS = [
          {"query": string_schema(), "language": LANGUAGE, "service": string_schema(),
           "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10}}, ("query",)),
     tool("get_symbol", "Return the complete contract, table narrative and catalogue reading context.", SYMBOL, ("symbol_or_id",)),
-    tool("list_services", "List catalogue table names, services, packed table versions, x64 sizes and member counts."),
+    tool("list_services", "List catalogue table names, services, packed table versions, x64 sizes, member counts and stability labels "
+         "(stable/experimental/unknown)."),
     tool("get_example", "Return record-listed examples only; without a repository root return paths only.",
          {**SYMBOL, "language": LANGUAGE}, ("symbol_or_id",)),
-    tool("get_capability_status", "Read language exposure, absent-capability contracts and recorded evidence state, not running-game status.", SYMBOL, ("symbol_or_id",)),
+    tool("get_capability_status", "Read language exposure, absent-capability contracts, recorded evidence state and the table's stability label, "
+         "not running-game status.", SYMBOL, ("symbol_or_id",)),
     tool("check_compatibility", "Compare exact SDK/game-pack/source coordinates with catalogue metadata, optionally read a release approval record "
          "(no signature verification) and compare a service's minimum version and member extent with the catalogue table; not runtime certification.",
          {"sdk_version": string_schema(), "game_pack_version": string_schema(),
@@ -152,14 +216,73 @@ EXTENDED_TOOLS = [
          {"plugin_ini": string_schema(32768), "folder": {**string_schema(255), "pattern": r"^[^/\\]+$"},
           "widgets": {"type": "array", "minItems": 1, "maxItems": 256, "items": WIDGET_NODE}}, ("plugin_ini",)),
     tool("generate_plugin_scaffold", "Return, as {relative path: text}, the plugin folder sdk/tools/sco-new-plugin.py beneath --repo-root "
-         "would generate for this spec; writes, builds and runs nothing.",
+         "would generate for this spec (c, cpp or csharp native plugin, or lua script; lua takes no services "
+         "beyond sco.widgets with with_menu); writes, builds and runs nothing.",
          {"id": {**string_schema(31), "pattern": r"^[a-z0-9_]{1,31}$"},
-          "lang": {"type": "string", "enum": ["c", "cpp"]},
+          "lang": {"type": "string", "enum": list(SCAFFOLD_LANGS)},
           "with_menu": {"type": "boolean", "default": False},
           "services": {"type": "array", "minItems": 0, "maxItems": 16,
                        "items": {**string_schema(75), "pattern": SCAFFOLD_SERVICE}}}, ("id", "lang")),
+    tool("search_guides", "Rank sections of the SDK guides (sdk-guides.json: the public docs allowlist and the shipped sdk/docs "
+         "guides) by the query's whole-word terms, heading and title above body text, optionally within one doc; returns "
+         "bounded snippets with doc, heading, anchor and url, one page per call. Guide prose is not a contract record or "
+         "in-game evidence.",
+         {"query": string_schema(256), "doc": string_schema(256),
+          "limit": {"type": "integer", "minimum": 1, "maximum": 25, "default": 5},
+          "cursor": {**string_schema(6), "pattern": r"^(0|[1-9][0-9]{0,5})$"}}, ("query",)),
+    tool("get_guide_section", "Return one SDK guide section's bounded plain text by the doc and anchor search_guides returned.",
+         {"doc": string_schema(256), "anchor": string_schema(256)}, ("doc", "anchor")),
 ]
-TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS}
+# Opt-in with --enable-dev-tools plus --project-root. These run programs on this machine, including the
+# plugin's and the project's own code, so they do not claim to be read-only.
+DEV_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": True,
+                   "idempotentHint": False, "openWorldHint": False}
+DEV_PATH = string_schema(1024)
+
+
+def dev_tool(name, description, properties, required):
+    definition = tool(name, description, properties, required)
+    definition["annotations"] = dict(DEV_ANNOTATIONS)
+    return definition
+
+
+DEV_TOOLS = [
+    dev_tool("run_plugin_check", "Run the operator-configured sco-plugin-check on a built plugin folder inside a --project-root "
+             "(mode short adds --short-tables, as a 1.0 host serves); returns exit code, pass/fail and FAIL lines. "
+             "Loads and runs the plugin's code against a stand-in host; not run in game.",
+             {"folder": DEV_PATH, "mode": {"type": "string", "enum": ["full", "short"], "default": "full"}}, ("folder",)),
+    dev_tool("build_plugin_project", "Configure and build a CMake plugin project inside a --project-root with the operator's cmake, "
+             "generator and SCO_SDK, into the project's build subfolder; fixed arguments, bounded output tail.",
+             {"project": DEV_PATH}, ("project",)),
+    dev_tool("test_plugin_project", "Run ctest in the build subfolder of a plugin project inside a --project-root with fixed "
+             "arguments; bounded output tail. Build it first with build_plugin_project.",
+             {"project": DEV_PATH}, ("project",)),
+]
+TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS + DEV_TOOLS}
+DEV_TIMEOUT = 600
+DEV_TIMEOUT_RANGE = (1, 7200)
+DEV_OUTPUT = 32 * 1024
+DEV_OUTPUT_RANGE = (256, 256 * 1024)
+DEV_FINDINGS = 256
+DEV_LINE = 2048
+DEV_BUILD_CONFIG = "Release"
+DEV_EXE = ".exe" if os.name == "nt" else ""
+CHECK_SUMMARY = re.compile(r"^(OK|FAILED): [0-9]+ failure\(s\)$")
+CTEST_SUMMARY = re.compile(r"^[0-9]+% tests passed, [0-9]+ tests? failed out of [0-9]+$")
+DEV_FINDINGS_BYTES = 256 * 1024
+# The result goes out twice (structuredContent and its JSON text copy, where escaping can double each byte),
+# so one dev result is kept to a third of the response cap, less room for provenance and framing.
+DEV_RESULT_BUDGET = (MAX_RESPONSE - 64 * 1024) // 3
+DEV_CONCLUSIONS = [
+    "Ran on this machine: an operator-configured program with fixed arguments; the caller supplied only a folder inside a --project-root.",
+    "The project's CMakeLists.txt and the plugin's own code run with the server's privileges; treat each project root as code you would run yourself.",
+    "output is at most the last output_limit bytes of combined stdout and stderr (less if the result had to be trimmed to fit "
+    "the response cap); findings and summary are collected from the whole stream.",
+    "sco-plugin-check is a stand-in host, not the real host. Nothing here loaded the plugin in the game: not run in game."]
+DEV_UNAVAILABLE_CONCLUSIONS = [
+    "Nothing was run: the program or SDK folder this tool needs is not configured or not found; see reason.",
+    "Nothing here loaded the plugin in the game: not run in game."]
+BATCH_SUFFIXES = (".bat", ".cmd")
 
 
 class ToolError(ValueError):
@@ -291,7 +414,7 @@ def validate_arguments(name, arguments):
         elif type(value) is not int or not spec["minimum"] <= value <= spec["maximum"]:
             raise ToolError(key + " must be an integer within the advertised range")
         if "enum" in spec and value not in spec["enum"]:
-            raise ToolError(key + " is not an advertised language")
+            raise ToolError(key + (" is not an advertised language" if key == "language" else " is not an advertised value"))
         if "pattern" in spec and not re.fullmatch(spec["pattern"], value):
             raise ToolError(key + " does not match the advertised pattern")
     for key, needed in schema.get("dependentRequired", {}).items():
@@ -359,10 +482,10 @@ def read_example(root, parts, limit=MAX_EXAMPLE):
         raw = stream.read(limit + 1)
     if len(raw) > limit:
         raise ToolError("Example exceeds %d KiB" % (limit // 1024))
-    return raw.decode("utf-8")
+    return raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
 
 
-def read_recorded_example(root, parts):
+def read_recorded_example(root, parts, limit=MAX_EXAMPLE):
     """Read a catalogue example from a repository checkout or extracted SDK archive.
 
     Catalogue paths are repository-relative (sdk/examples/...), while the core and
@@ -374,11 +497,11 @@ def read_recorded_example(root, parts):
     from a second layout.
     """
     try:
-        return read_example(root, parts)
+        return read_example(root, parts, limit)
     except FileNotFoundError:
         if len(parts) < 2 or parts[0] != "sdk" or os.path.lexists(os.path.join(root, "sdk")):
             raise
-    return read_example(root, parts[1:])
+    return read_example(root, parts[1:], limit)
 
 
 def list_contained_directory(root, parts):
@@ -399,17 +522,22 @@ def list_contained_directory(root, parts):
 
 
 def parse_game_status(text, tables):
-    """Strictly parse the five-column service table of docs/game/status.md.
+    """Strictly parse the service table of docs/game/status.md.
 
-    Rows are attributed to a catalogue table only when the backticked service
-    and the linked header both match it. Any malformed row refuses the whole
-    table, so evidence is reported unknown rather than half-read.
+    The current table has six columns (Stability after Version); the five-column
+    table of older archives is still read, with stability None. Rows are attributed
+    to a catalogue table only when the backticked service and the linked header both
+    match it. Any malformed row refuses the whole table, so evidence is reported
+    unknown rather than half-read.
     """
     lines = [line.strip() for line in text.splitlines()]
-    starts = [index for index, line in enumerate(lines) if line == GAME_STATUS_HEADER]
+    starts = [(index, line == GAME_STATUS_HEADER) for index, line in enumerate(lines)
+              if line in (GAME_STATUS_HEADER, GAME_STATUS_HEADER_V1)]
     require(len(starts) == 1, "service table header not found exactly once")
-    start = starts[0] + 1
-    require(start < len(lines) and lines[start] == GAME_STATUS_SEPARATOR, "service table separator missing")
+    start, labelled = starts[0][0] + 1, starts[0][1]
+    separator = GAME_STATUS_SEPARATOR if labelled else GAME_STATUS_SEPARATOR_V1
+    require(start < len(lines) and lines[start] == separator, "service table separator missing")
+    width = 6 if labelled else 5
     by_service = {table["service"]: (name, table) for name, table in tables.items()}
     groups, current, started = {}, None, False
     for line in lines[start + 1:]:
@@ -417,10 +545,14 @@ def parse_game_status(text, tables):
             break
         require(line.endswith("|"), "unterminated service table row")
         cells = [cell.strip() for cell in line[1:-1].split("|")]
-        require(len(cells) == 5, "service table row does not have five cells")
-        table_cell, version, capability, default, evidence = cells
+        require(len(cells) == width, "service table row does not have %d cells" % width)
+        if labelled:
+            table_cell, version, label, capability, default, evidence = cells
+        else:
+            (table_cell, version, capability, default, evidence), label = cells, None
         if table_cell:
             require(version, "service table row has no version")
+            require(not labelled or label in GAME_STATUS_STABILITY, "service table row has no Stable, Experimental or - label")
             match = GAME_STATUS_TABLE.fullmatch(table_cell)
             current, started = None, True
             if match and match[1] in by_service:
@@ -430,9 +562,10 @@ def parse_game_status(text, tables):
                     current = name
                     catalogue_version = "%d.%d" % (table["version"] >> 16, table["version"] & 0xFFFF)
                     groups[name] = {"documented_version": version,
-                                    "version_matches_catalogue": version == catalogue_version, "rows": []}
+                                    "version_matches_catalogue": version == catalogue_version,
+                                    "stability": GAME_STATUS_STABILITY.get(label), "rows": []}
         else:
-            require(started and not version, "continuation row without a table")
+            require(started and not version and not label, "continuation row without a table")
         require(capability and evidence and default in {"ON", "OFF", "none"}, "unrecognized service table row")
         if current is None:
             continue
@@ -490,15 +623,27 @@ def parse_status_registry(text, tables):
     """
     data = parse_json(text)
     require(isinstance(data, dict) and set(data) == {"schema_version", "about", "services"}, "unexpected top-level keys")
-    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "unsupported schema_version; expected 1")
+    schema = data["schema_version"]
+    require(type(schema) is int and schema in REGISTRY_ENTRY_KEYS, "unsupported schema_version; expected 1 or 2")
     entries = data["services"]
     require(isinstance(entries, list) and len(entries) <= 512, "services must be a list of at most 512 entries")
     by_service = {table["service"]: (name, table) for name, table in tables.items()}
     groups = {}
     for entry in entries:
-        require(isinstance(entry, dict) and set(entry) <= REGISTRY_ENTRY_KEYS, "entry has unknown keys")
+        require(isinstance(entry, dict) and set(entry) <= REGISTRY_ENTRY_KEYS[schema], "entry has unknown keys")
         require(isinstance(entry.get("kind"), str) and entry["kind"] in REGISTRY_KINDS, "unknown entry kind")
         require(all(nonempty(entry.get(key)) for key in ("id", "service", "version")), "entry needs id, service and version")
+        if schema >= 2:
+            # Shape only; tools/status_registry.py applies the evidence rule and the ratchet in the repository.
+            if entry["kind"] == "signature_rows":
+                require("stability" not in entry and "stable_since" not in entry, "signature_rows entry has a stability label")
+            else:
+                require(isinstance(entry.get("stability"), str) and entry["stability"] in REGISTRY_STABILITY,
+                        "stability is not stable or experimental")
+                since = entry.get("stable_since")
+                require((since is None) == (entry["stability"] != "stable")
+                        and (since is None or (isinstance(since, str) and REGISTRY_STABLE_SINCE.fullmatch(since))),
+                        "stable_since must name sdk-vX.Y.Z exactly when stability is stable")
         capabilities = entry.get("capabilities")
         require(isinstance(capabilities, list) and 1 <= len(capabilities) <= 256, "entry needs 1-256 capabilities")
         rows = [registry_row(cap) for cap in capabilities]
@@ -513,7 +658,8 @@ def parse_status_registry(text, tables):
         require(name not in groups, "registry repeats a service")
         catalogue_version = "%d.%d" % (table["version"] >> 16, table["version"] & 0xFFFF)
         groups[name] = {"documented_version": entry["version"],
-                        "version_matches_catalogue": entry["version"] == catalogue_version, "rows": rows}
+                        "version_matches_catalogue": entry["version"] == catalogue_version,
+                        "stability": entry.get("stability"), "rows": rows}
     return groups
 
 
@@ -543,6 +689,80 @@ def parse_native_index(text):
         require(entry["id"] not in by_key and entry["hash"] not in by_key, "duplicate id or hash")
         by_key[entry["id"]] = by_key[entry["hash"]] = entry
     return data, by_key
+
+
+def parse_guides(data):
+    """Strictly check an sdk-guides.json document (tools/sdk_guides.py validate, restated for the
+    archive, which ships this server without the builder). source_sha is null only for a document
+    built in memory from --repo-root. Any malformed section refuses the whole document."""
+    require(isinstance(data, dict) and set(data) == GUIDE_KEYS, "unexpected top-level keys")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "unsupported schema_version; expected 1")
+    require(data["source_sha"] is None or (isinstance(data["source_sha"], str) and re.fullmatch(SHA_PATTERN, data["source_sha"])),
+            "invalid source_sha")
+    require(nonempty(data["sdk_version"]) and len(data["sdk_version"]) <= 128 and data["source"] == "site/public-inputs.json",
+            "invalid sdk_version or source")
+    limit = data["text_limit"]
+    require(type(limit) is int and 1 <= limit <= 65536, "invalid text_limit")
+    require(isinstance(data["docs"], list) and len(data["docs"]) <= 1024
+            and isinstance(data["sections"], list) and len(data["sections"]) <= 20000, "invalid docs or sections")
+    counts = {}
+    for doc in data["docs"]:
+        require(isinstance(doc, dict) and set(doc) == GUIDE_DOC_KEYS and type(doc["sections"]) is int
+                and all(nonempty(doc[key]) and len(doc[key]) <= 512 for key in ("doc", "title", "url"))
+                and doc["doc"] not in counts, "invalid docs entry")
+        counts[doc["doc"]] = doc["sections"]
+    by_key, found = {}, {}
+    for section in data["sections"]:
+        require(isinstance(section, dict) and set(section) == GUIDE_SECTION_KEYS, "section has unknown keys")
+        require(all(nonempty(section[key]) and len(section[key]) <= 512 for key in ("doc", "title", "heading", "anchor", "url"))
+                and isinstance(section["text"], str) and len(section["text"]) <= limit, "invalid section text")
+        require(type(section["level"]) is int and 1 <= section["level"] <= 6 and type(section["truncated"]) is bool,
+                "invalid section level or truncated flag")
+        key = (section["doc"], section["anchor"])
+        require(section["doc"] in counts and key not in by_key, "duplicate or undeclared section")
+        by_key[key] = section
+        found[section["doc"]] = found.get(section["doc"], 0) + 1
+    require(found == {name: count for name, count in counts.items() if count}, "docs section counts disagree with sections")
+    return data, by_key
+
+
+def guide_sequence(text):
+    """Casefolded whole words in order (the query tokenizer)."""
+    return [word for word in (word.strip(".-") for word in GUIDE_WORD.findall(text.casefold())) if word]
+
+
+def guide_terms(query):
+    """Query words without common question words or single characters, unless nothing else is left."""
+    words = list(dict.fromkeys(guide_sequence(query)))
+    kept = [word for word in words if word not in GUIDE_STOPWORDS] or words
+    return [word for word in kept if len(word) > 1] or kept
+
+
+def guide_index(text):
+    """(word counts, padded word sequence): whole words, plus the parts of dotted or hyphenated ones."""
+    sequence = guide_sequence(text)
+    counts = Counter(sequence)
+    counts.update(part for word in sequence if "." in word or "-" in word
+                  for part in re.split(r"[.-]+", word) if part)
+    return counts, " " + " ".join(sequence) + " "
+
+
+def guide_hits(counts, term):
+    """Whole-word occurrences of term; a term of four or more characters also counts words it starts."""
+    if len(term) < 4:
+        return counts.get(term, 0)
+    return sum(count for word, count in counts.items() if word.startswith(term))
+
+
+def guide_snippet(text, terms):
+    """A bounded, whitespace-collapsed window of text around the first term it contains."""
+    folded = text.casefold()
+    found = (re.search(r"(?<![\w])" + re.escape(term) + (r"" if len(term) >= 4 else r"(?![\w])"), folded) for term in terms)
+    positions = [match.start() for match in found if match]
+    start = max(0, min(positions) - GUIDE_SNIPPET // 4) if positions else 0
+    end = min(len(text), start + GUIDE_SNIPPET)
+    snippet = " ".join(text[start:end].split())
+    return ("..." if start else "") + snippet + ("..." if end < len(text) else "")
 
 
 # ---- plugin.ini: sdk/tools/sco-plugin-check.c read_manifest/setting_line, rule for rule, on bytes ----
@@ -996,6 +1216,419 @@ VALIDATION_CONCLUSIONS = [
     "Pure validation of the supplied text: no file is read or written and nothing is executed."]
 
 
+# ---- opt-in development tools: operator programs, fixed arguments, folders inside --project-root ----
+_KERNEL32 = None
+
+
+def _kernel32():
+    """kernel32 with typed job-object calls; loaded only when a development tool first runs on Windows."""
+    global _KERNEL32
+    if _KERNEL32 is None:
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        for name, argtypes, restype in (
+                ("CreateJobObjectW", (wintypes.LPVOID, wintypes.LPCWSTR), wintypes.HANDLE),
+                ("OpenProcess", (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD), wintypes.HANDLE),
+                ("SetInformationJobObject", (wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD),
+                 wintypes.BOOL),
+                ("AssignProcessToJobObject", (wintypes.HANDLE, wintypes.HANDLE), wintypes.BOOL),
+                ("TerminateJobObject", (wintypes.HANDLE, wintypes.UINT), wintypes.BOOL),
+                ("CloseHandle", (wintypes.HANDLE,), wintypes.BOOL)):
+            function = getattr(kernel32, name)
+            function.argtypes, function.restype = argtypes, restype
+        _KERNEL32 = kernel32
+    return _KERNEL32
+
+
+def _kill_on_close(kernel32, job):
+    """JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: closing the last job handle, including when this server dies, ends the tree."""
+    import ctypes
+    from ctypes import wintypes
+
+    class Basic(ctypes.Structure):
+        _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                    ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD)]
+
+    class Extended(ctypes.Structure):
+        _fields_ = [("BasicLimitInformation", Basic), ("IoInfo", ctypes.c_uint64 * 6),
+                    ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                    ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+    limits = Extended()
+    limits.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    # 9 = JobObjectExtendedLimitInformation
+    return bool(kernel32.SetInformationJobObject(job, 9, ctypes.byref(limits), ctypes.sizeof(limits)))
+
+
+def _job_for(pid):
+    """A Windows job object holding the process, so a timeout also ends descendants that outlive their parent.
+
+    The job kills its processes when its handle closes: after each run (so nothing started by the
+    program outlives the call) and when this server exits or is killed mid-call.
+    """
+    try:
+        kernel32 = _kernel32()
+        job = kernel32.CreateJobObjectW(None, None)
+        if not job:
+            return None
+        _kill_on_close(kernel32, job)
+        handle = kernel32.OpenProcess(0x0100 | 0x0001, False, pid)  # PROCESS_SET_QUOTA | PROCESS_TERMINATE
+        assigned = bool(handle) and bool(kernel32.AssignProcessToJobObject(job, handle))
+        if handle:
+            kernel32.CloseHandle(handle)
+        if not assigned:
+            kernel32.CloseHandle(job)
+            return None
+        return job
+    except (OSError, AttributeError):
+        return None
+
+
+def kill_tree(process, job):
+    """Kill the process and its descendants: taskkill /T and the job object on Windows, the process group elsewhere."""
+    if os.name == "nt":
+        taskkill = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "taskkill.exe")
+        try:
+            subprocess.run([taskkill, "/F", "/T", "/PID", str(process.pid)], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15,
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        if job:
+            _kernel32().TerminateJobObject(job, 1)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    try:
+        process.kill()
+    except OSError:
+        pass
+
+
+def run_bounded(argv, cwd, timeout, limit, env=None, summary=None, finding_prefix=None):
+    """Run argv without a shell, stdin closed, in its own process group; bounded time and output.
+
+    Returns the exit code, the last `limit` bytes of combined stdout/stderr, and, read from the
+    whole stream, lines starting with finding_prefix and the last line matching summary.
+    """
+    flags = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
+             if os.name == "nt" else {"start_new_session": True})
+    started = time.monotonic()
+    try:
+        process = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, **flags)
+    except OSError as error:
+        return {"state": "not_started", "reason": "the program could not be started: " + type(error).__name__,
+                "exit_code": None, "timed_out": False}
+    job = _job_for(process.pid) if os.name == "nt" else None
+    lock = threading.Lock()
+    tail, pending = bytearray(), bytearray()
+    seen = {"bytes": 0, "findings": [], "finding_bytes": 0, "findings_truncated": False, "summary": None}
+
+    def take(line):
+        text = bytes(line[:DEV_LINE]).decode("utf-8", errors="replace").rstrip("\r")
+        if finding_prefix and text.startswith(finding_prefix):
+            finding = text[len(finding_prefix):]
+            size = len(encoded(finding))
+            if len(seen["findings"]) < DEV_FINDINGS and seen["finding_bytes"] + size <= DEV_FINDINGS_BYTES:
+                seen["findings"].append(finding)
+                seen["finding_bytes"] += size
+            else:
+                seen["findings_truncated"] = True
+        if summary and summary.match(text.strip()):
+            seen["summary"] = text.strip()
+
+    def read():
+        while True:
+            try:
+                chunk = process.stdout.read1(65536)
+            except (OSError, ValueError):
+                break
+            if not chunk:
+                break
+            with lock:
+                seen["bytes"] += len(chunk)
+                tail.extend(chunk)
+                if len(tail) > limit:
+                    del tail[:len(tail) - limit]
+                pending.extend(chunk)
+                while True:
+                    end = pending.find(b"\n")
+                    if end < 0:
+                        break
+                    take(pending[:end])
+                    del pending[:end + 1]
+                if len(pending) > 2 * DEV_LINE:  # one very long line: keep its head only
+                    del pending[DEV_LINE:]
+        with lock:
+            if pending:
+                take(pending)
+                pending.clear()
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    timed_out = False
+    try:
+        exit_code = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        kill_tree(process, job)
+        try:
+            exit_code = process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            exit_code = None
+    finally:
+        # Nothing the program started may outlive the call: closing the kill-on-close job ends any
+        # remaining descendants on Windows; elsewhere the process group (its own session) is killed.
+        if job:
+            _kernel32().CloseHandle(job)
+        elif os.name != "nt":
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except OSError:
+                pass
+    reader.join(timeout=5)
+    complete = not reader.is_alive()
+    if complete:
+        process.stdout.close()
+    with lock:
+        output = bytes(tail).decode("utf-8", errors="replace").replace("\r\n", "\n")
+        result = {"state": "timed_out" if timed_out else "completed", "exit_code": exit_code, "timed_out": timed_out,
+                  "duration_seconds": round(time.monotonic() - started, 3), "output": output,
+                  "output_bytes": seen["bytes"], "output_truncated": seen["bytes"] > len(tail),
+                  "output_complete": complete, "output_limit": limit}
+        if finding_prefix:
+            result["findings"] = list(seen["findings"])
+            result["findings_truncated"] = seen["findings_truncated"]
+        if summary:
+            result["summary"] = seen["summary"]
+    return result
+
+
+def within(path, root):
+    path, root = os.path.normcase(str(path)), os.path.normcase(str(root))
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:  # different drives, or a mix of absolute and relative
+        return False
+
+
+def launch(program):
+    """argv prefix for an operator-configured program; a .py wrapper runs with this interpreter."""
+    return [sys.executable, program] if program.lower().endswith(".py") else [program]
+
+
+def program_refusal(program, what):
+    """Why an operator program may not run, or None.
+
+    Windows runs a .bat or .cmd file through cmd.exe, which would parse the caller's folder path as
+    shell syntax, so batch files are refused everywhere. On Windows only .exe programs and .py
+    wrappers (run with this interpreter) are accepted.
+    """
+    name = os.path.basename(program).lower().rstrip(". ")
+    if name.endswith(BATCH_SUFFIXES) or (os.name == "nt" and not name.endswith((".exe", ".py"))):
+        return (what + " must name an .exe program or a .py wrapper, not a batch file or script "
+                "(Windows runs .bat and .cmd through cmd.exe)")
+    return None
+
+
+def fit_result(result):
+    """Trim output tails, then findings, until the result fits DEV_RESULT_BUDGET; never drop the result."""
+    runs = result.get("steps") or [result]
+    while len(encoded(result)) > DEV_RESULT_BUDGET:
+        longest = max(runs, key=lambda run: len(run.get("output", "")))
+        if len(longest.get("output", "")) > 64:
+            longest["output"] = longest["output"][len(longest["output"]) // 2:]
+            longest["output_truncated"] = True
+        elif result.get("findings"):
+            result["findings"] = result["findings"][:len(result["findings"]) // 2]
+            result["findings_truncated"] = True
+        else:
+            break
+    return result
+
+
+class DevTools:
+    """Operator configuration for the opt-in development tools. Callers supply only a folder and a mode."""
+
+    def __init__(self, project_roots, repo_root=None, plugin_check=None, cmake=None, ctest=None, generator=None,
+                 platform=None, sco_sdk=None, timeout=DEV_TIMEOUT, output_limit=DEV_OUTPUT):
+        require(project_roots, "--enable-dev-tools needs at least one --project-root")
+        self.roots = []
+        for root in project_roots:
+            configured = Path(os.path.abspath(root))
+            resolved = configured.resolve(strict=True)
+            require(resolved.is_dir(), "--project-root is not a directory: " + str(configured))
+            self.roots.append((configured, resolved))
+        require(type(timeout) is int and DEV_TIMEOUT_RANGE[0] <= timeout <= DEV_TIMEOUT_RANGE[1],
+                "--dev-timeout must be %d-%d seconds" % DEV_TIMEOUT_RANGE)
+        require(type(output_limit) is int and DEV_OUTPUT_RANGE[0] <= output_limit <= DEV_OUTPUT_RANGE[1],
+                "--dev-output-limit must be %d-%d bytes" % DEV_OUTPUT_RANGE)
+        for name, value in (("--cmake-generator", generator), ("--cmake-platform", platform)):
+            require(value is None or (nonempty(value) and len(value) <= 128 and "\x00" not in value), name + " must be short text")
+        self.timeout, self.output_limit = timeout, output_limit
+        self.generator, self.platform = generator, platform
+        self.repo_root = Path(os.path.abspath(repo_root)) if repo_root else None
+        self.plugin_check = os.path.abspath(plugin_check) if plugin_check else None
+        self.cmake = os.path.abspath(cmake) if cmake else None
+        self.ctest = os.path.abspath(ctest) if ctest else None
+        self.sco_sdk = Path(os.path.abspath(sco_sdk)) if sco_sdk else None
+        for flag, program in (("--plugin-check", self.plugin_check), ("--cmake", self.cmake), ("--ctest", self.ctest)):
+            refusal = program and program_refusal(program, flag)
+            require(not refusal, refusal)
+
+    @staticmethod
+    def found(program, what):
+        """(program, None) if it may run, else (None, the reason): checked again for every program found at call time."""
+        refusal = program_refusal(program, what)
+        return (None, refusal) if refusal else (program, None)
+
+    # Programs are found at call time, so a checker built after the server started is picked up.
+    def sdk(self):
+        if self.sco_sdk is not None:
+            candidates = [self.sco_sdk]
+        elif self.repo_root is not None:
+            candidates = [self.repo_root, self.repo_root / "sdk"]
+        else:
+            return None, "No --sco-sdk or --repo-root: the SDK folder passed as SCO_SDK is not configured"
+        for candidate in candidates:
+            if (candidate / "cmake" / "sco-plugin.cmake").is_file():
+                return str(candidate), None
+        return None, "No cmake/sco-plugin.cmake in the configured SDK folder (--sco-sdk, else --repo-root or its sdk/)"
+
+    def checker(self):
+        if self.plugin_check is not None:
+            if os.path.isfile(self.plugin_check):
+                return self.found(self.plugin_check, "--plugin-check")
+            return None, "--plugin-check names no file"
+        sdk, _ = self.sdk()
+        if sdk is not None:
+            for folder in ("bin", os.path.join("out", "bin")):
+                candidate = os.path.join(sdk, folder, "sco-plugin-check" + DEV_EXE)
+                if os.path.isfile(candidate):
+                    return candidate, None
+        return None, ("No --plugin-check, and no built sco-plugin-check in the SDK folder's bin/ or out/bin/ "
+                      "(cmake --install <build> --prefix out installs it there)")
+
+    def cmake_program(self):
+        if self.cmake is not None:
+            return self.found(self.cmake, "--cmake") if os.path.isfile(self.cmake) else (None, "--cmake names no file")
+        found = shutil.which("cmake" + DEV_EXE)  # cmake.exe on Windows: never a cmake.cmd shim from PATHEXT
+        return self.found(found, "cmake on PATH") if found else (None, "No --cmake and no cmake on the server's PATH")
+
+    def ctest_program(self):
+        if self.ctest is not None:
+            return self.found(self.ctest, "--ctest") if os.path.isfile(self.ctest) else (None, "--ctest names no file")
+        cmake, _ = self.cmake_program()
+        if cmake is not None:
+            sibling = Path(cmake).with_name("ctest" + Path(cmake).suffix)
+            if sibling.is_file():
+                return self.found(str(sibling), "ctest beside cmake")
+        found = shutil.which("ctest" + DEV_EXE)
+        return (self.found(found, "ctest on PATH") if found
+                else (None, "No --ctest, no ctest beside cmake and none on the server's PATH"))
+
+    def contained(self, value, what):
+        """Resolve a caller path; refuse it unless it is an existing folder inside a project root.
+
+        A relative path is taken from the first --project-root. The path is checked lexically before
+        the filesystem is touched, then again after resolving symlinks, junctions and .. components.
+        Outside, missing and not-a-folder get the same refusal, so nothing is learned about other paths.
+        """
+        refusal = what + " must be an existing folder inside a --project-root (after resolving symlinks and ..)"
+        # Windows: a colon only as the drive of an absolute path (no streams, devices or drive-relative C:x).
+        if "\x00" in value or (os.name == "nt" and ":" in value and not re.match(r"[A-Za-z]:[\\/][^:]*$", value)):
+            raise ToolError(refusal)
+        candidate = os.path.normpath(os.path.join(str(self.roots[0][0]), value))
+        if not any(within(candidate, root) for pair in self.roots for root in pair):
+            raise ToolError(refusal)
+        try:
+            resolved = Path(candidate).resolve(strict=True)
+            inside = any(within(resolved, root) for _, root in self.roots) and resolved.is_dir()
+        except (OSError, RuntimeError, ValueError):
+            inside = False
+        if not inside:
+            raise ToolError(refusal)
+        return resolved
+
+    def project(self, value):
+        project = self.contained(value, "project")
+        if not (project / "CMakeLists.txt").is_file():
+            raise ToolError("project has no CMakeLists.txt")
+        build = project / "build"
+        if os.path.lexists(build):
+            try:
+                resolved = build.resolve(strict=True)
+                inside = any(within(resolved, root) for _, root in self.roots) and resolved.is_dir()
+            except (OSError, RuntimeError, ValueError):
+                inside = False
+            if not inside:
+                raise ToolError("project's build entry must be a folder inside a --project-root")
+            build = resolved
+        return project, build
+
+    def run(self, program, arguments, cwd, timeout=None, **kwargs):
+        return run_bounded(launch(program) + arguments, str(cwd), self.timeout if timeout is None else timeout,
+                           self.output_limit, **kwargs)
+
+    def run_plugin_check(self, args):
+        folder, mode = self.contained(args["folder"], "folder"), args.get("mode", "full")
+        result = {"tool": "sco-plugin-check", "folder": str(folder), "mode": mode, "passed": False,
+                  "conclusions": DEV_CONCLUSIONS}
+        program, reason = self.checker()
+        if program is None:
+            return result | {"state": "unavailable", "reason": reason, "conclusions": DEV_UNAVAILABLE_CONCLUSIONS}
+        arguments = [str(folder)] + (["--short-tables"] if mode == "short" else [])
+        run = self.run(program, arguments, folder, summary=CHECK_SUMMARY, finding_prefix="FAIL ")
+        return fit_result(result | {"program": Path(program).name, "arguments": arguments} | run | {
+            "passed": run["state"] == "completed" and run["exit_code"] == 0})
+
+    def build_plugin_project(self, args):
+        project, build = self.project(args["project"])
+        result = {"tool": "cmake", "project": str(project), "build_dir": str(build), "config": DEV_BUILD_CONFIG,
+                  "passed": False, "steps": [], "conclusions": DEV_CONCLUSIONS}
+        cmake, reason = self.cmake_program()
+        sdk, sdk_reason = self.sdk()
+        if cmake is None or sdk is None:
+            return result | {"state": "unavailable", "reason": reason or sdk_reason, "exit_code": None,
+                             "conclusions": DEV_UNAVAILABLE_CONCLUSIONS}
+        configure = (["-S", str(project), "-B", str(build)] + (["-G", self.generator] if self.generator else [])
+                     + (["-A", self.platform] if self.platform else []) + ["-DSCO_SDK=" + sdk])
+        # No MSBuild node outlives the call; VSLANG=1033 asks MSVC for English (ASCII) messages where installed.
+        environment = dict(os.environ, MSBUILDDISABLENODEREUSE="1", VSLANG="1033")
+        deadline = time.monotonic() + self.timeout
+        steps = [{"step": "configure", "arguments": configure} | self.run(cmake, configure, project, env=environment)]
+        if steps[0]["state"] == "completed" and steps[0]["exit_code"] == 0:
+            arguments = ["--build", str(build), "--config", DEV_BUILD_CONFIG]
+            remaining = max(deadline - time.monotonic(), 0.001)
+            steps.append({"step": "build", "arguments": arguments}
+                         | self.run(cmake, arguments, project, timeout=remaining, env=environment))
+        last = steps[-1]
+        return fit_result(result | {
+            "program": Path(cmake).name, "state": last["state"], "exit_code": last["exit_code"], "steps": steps,
+            "passed": len(steps) == 2 and all(s["state"] == "completed" and s["exit_code"] == 0 for s in steps)})
+
+    def test_plugin_project(self, args):
+        project, build = self.project(args["project"])
+        result = {"tool": "ctest", "project": str(project), "build_dir": str(build), "config": DEV_BUILD_CONFIG,
+                  "passed": False, "conclusions": DEV_CONCLUSIONS}
+        if not (build / "CMakeCache.txt").is_file():
+            raise ToolError("project is not configured: no build/CMakeCache.txt; run build_plugin_project first")
+        ctest, reason = self.ctest_program()
+        if ctest is None:
+            return result | {"state": "unavailable", "reason": reason, "conclusions": DEV_UNAVAILABLE_CONCLUSIONS}
+        arguments = ["--test-dir", str(build), "-C", DEV_BUILD_CONFIG, "--output-on-failure", "--no-tests=error"]
+        run = self.run(ctest, arguments, project, summary=CTEST_SUMMARY)
+        return fit_result(result | {"program": Path(ctest).name, "arguments": arguments} | run | {
+            "passed": run["state"] == "completed" and run["exit_code"] == 0})
+
+
 def aliases(record):
     # Schema 1 has no aliases field: derive searchable names from source evidence,
     # retaining the full original mapping evidence in get_symbol.
@@ -1007,9 +1640,15 @@ def aliases(record):
 
 
 class Server:
-    def __init__(self, catalogue, repo_root=None, extended_tools=False):
+    def __init__(self, catalogue, repo_root=None, extended_tools=False, guides_path=None, guides_explicit=False,
+                 dev_tools=None):
         self.catalogue = catalogue
-        self.tools = TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS
+        # sdk-guides.json beside the catalogue (archive mode) or an explicit --guides file.
+        self.guides_path, self.guides_explicit = guides_path, guides_explicit
+        self.guides = None
+        self.guide_words = None
+        self.tools = (TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS) + (DEV_TOOLS if dev_tools else [])
+        self.dev = dev_tools
         self.enabled = {definition["name"] for definition in self.tools}
         self.provenance = {key: catalogue[key] for key in PROVENANCE_KEYS}
         self.repo_root = Path(os.path.abspath(repo_root)) if repo_root is not None else None
@@ -1036,7 +1675,7 @@ class Server:
             return None, "No --repo-root: sdk/tools/sco-new-plugin.py is not loaded"
         source_name = "/".join(SCAFFOLDER)
         try:
-            source = read_example(self.repo_root, SCAFFOLDER)
+            source = read_recorded_example(self.repo_root, SCAFFOLDER)
         except (OSError, UnicodeError, ToolError):
             return None, source_name + " unavailable beneath --repo-root (missing, symlink, not a regular file or over 256 KiB)"
         module = importlib.util.module_from_spec(importlib.machinery.ModuleSpec("sco_new_plugin", None, origin=source_name))
@@ -1053,7 +1692,7 @@ class Server:
         if self.scaffolder is None:
             self.scaffolder = self.load_scaffolder()
         loaded, reason = self.scaffolder
-        result = {"source": "/".join(SCAFFOLDER), "written": False, "conclusions": SCAFFOLD_CONCLUSIONS}
+        result = {"source": "/".join(SCAFFOLDER), "written": False, "conclusions": scaffold_conclusions(args.get("lang"))}
         if loaded is None:
             return result | {"state": "unavailable", "reason": reason, "files": {}}
         render, spec_error = loaded
@@ -1062,6 +1701,116 @@ class Server:
         except spec_error as error:
             raise ToolError("Spec refused by sco-new-plugin: " + str(error)) from None
         return result | {"state": "available", "spec": args, "files": files}
+
+    def load_guides(self):
+        """Return ((document, sections by (doc, anchor), context), None) or (None, reason).
+
+        sdk-guides.json beside the catalogue, or the --guides file, is preferred; one that
+        exists but is refused is reported, not bypassed. Without one, --repo-root's
+        tools/sdk_guides.py is read with the examples' no-symlink containment and executed
+        from those bytes, in-process, to build the sections in memory from that root.
+        """
+        path = self.guides_path
+        if path is not None and (self.guides_explicit or os.path.lexists(path)):
+            name = "--guides file" if self.guides_explicit else GUIDES_FILE + " beside the catalogue"
+            try:
+                descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+                with os.fdopen(descriptor, "rb") as stream:
+                    if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                        return None, name + " is not a regular file"
+                    raw = stream.read(MAX_GUIDES + 1)
+            except OSError as error:
+                return None, name + " unreadable: " + type(error).__name__
+            if len(raw) > MAX_GUIDES:
+                return None, name + " exceeds 16 MiB"
+            try:
+                data, by_key = parse_guides(parse_json(raw.decode("utf-8")))
+            except (ValueError, UnicodeError, TypeError, RecursionError) as error:
+                return None, name + " refused: " + str(error)
+            context = {"mode": "file", "source": name, "source_sha": data["source_sha"],
+                       "matches_catalogue_source_sha": data["source_sha"] == self.catalogue["source_sha"]}
+            return (data, by_key, context), None
+        if self.repo_root is None:
+            return None, ("no " + GUIDES_FILE + " beside the catalogue and no --repo-root; build it with "
+                          "tools/sdk_guides.py build, or use an SDK kit that ships it")
+        source_name = "/".join(GUIDES_BUILDER)
+        try:
+            source = read_example(self.repo_root, GUIDES_BUILDER)
+        except (OSError, UnicodeError, ToolError):
+            return None, (source_name + " unavailable beneath --repo-root (missing, symlink, not a regular file or over 256 KiB), "
+                          "and no " + GUIDES_FILE + " beside the catalogue")
+        module = importlib.util.module_from_spec(importlib.machinery.ModuleSpec("sco_sdk_guides", None, origin=source_name))
+        try:
+            exec(compile(source, source_name, "exec"), module.__dict__)
+            docs, sections = module.sections(self.repo_root)
+            sdk_version = read_example(self.repo_root, ("sdk", "VERSION")).strip()
+            data, by_key = parse_guides({"schema_version": 1, "sdk_version": sdk_version, "source_sha": None,
+                                         "source": module.ALLOWLIST, "text_limit": module.TEXT_LIMIT,
+                                         "docs": docs, "sections": sections})
+        except OSError as error:  # Filesystem messages can carry absolute host paths.
+            return None, source_name + " could not read its inputs: " + type(error).__name__
+        except Exception as error:  # Repository code: report any failure as unavailable, keep serving.
+            return None, source_name + " failed: " + type(error).__name__ + ": " + str(error)[:300]
+        context = {"mode": "source", "source": source_name + " beneath --repo-root, built in memory on first use",
+                   "source_sha": None, "matches_catalogue_source_sha": None}
+        return (data, by_key, context), None
+
+    def guide_data(self):
+        if self.guides is None:
+            self.guides = self.load_guides()
+        loaded, reason = self.guides
+        if loaded is None:
+            raise ToolError("SDK guides unavailable: " + reason)
+        return loaded
+
+    def search_guides(self, args):
+        data, _, context = self.guide_data()
+        if "doc" in args and not any(doc["doc"] == args["doc"] for doc in data["docs"]):
+            raise ToolError("Unknown doc; known docs: " + ", ".join(sorted(doc["doc"] for doc in data["docs"])))
+        terms = guide_terms(args["query"])
+        if not terms:
+            raise ToolError("query has no searchable words")
+        if self.guide_words is None:
+            self.guide_words = [(guide_index(section["heading"]), guide_index(section["title"] + " " + section["doc"])[0],
+                                 guide_index(section["text"])) for section in data["sections"]]
+        phrase = " " + " ".join(terms) + " "
+        weights = []
+        for (heading, _), title, (text, _) in self.guide_words:
+            weights.append([(6 if guide_hits(heading, term) else 0) + (3 if guide_hits(title, term) else 0)
+                            + min(guide_hits(text, term), 5) for term in terms])
+        # A term found in fewer sections counts for more (inverse section frequency over all guides).
+        rarity = [math.log(1 + len(weights) / max(1, sum(1 for row in weights if row[index])))
+                  for index in range(len(terms))]
+        hits = []
+        for order, (section, words, row) in enumerate(zip(data["sections"], self.guide_words, weights)):
+            if "doc" in args and section["doc"] != args["doc"]:
+                continue
+            matched = sum(1 for weight in row if weight)
+            if not matched:
+                continue
+            score = sum(weight * factor for weight, factor in zip(row, rarity))
+            if len(terms) > 1:
+                (_, heading_sequence), _, (_, text_sequence) = words
+                score += ((8 if phrase in heading_sequence else 0) + (4 if phrase in text_sequence else 0)) * min(rarity)
+            score = round(score, 3)
+            hits.append((-score, -matched, order, section, matched, score))
+        hits.sort(key=lambda hit: hit[:3])
+        start, limit = int(args.get("cursor", "0")), args.get("limit", 5)
+        page = [{"doc": section["doc"], "title": section["title"], "heading": section["heading"],
+                 "anchor": section["anchor"], "level": section["level"], "url": section["url"],
+                 "matched_terms": matched, "score": score, "truncated": section["truncated"],
+                 "snippet": guide_snippet(section["text"], terms)}
+                for _, _, _, section, matched, score in hits[start:start + limit]]
+        return {"query_terms": terms, "sections": page, "total_matches": len(hits), "limit": limit,
+                "cursor": str(start), "next_cursor": str(start + limit) if start + limit < len(hits) else None,
+                "guides": context, "conclusions": GUIDE_CONCLUSIONS}
+
+    def guide_section(self, args):
+        _, by_key, context = self.guide_data()
+        section = by_key.get((args["doc"], args["anchor"]))
+        if section is None:
+            raise ToolError("Unknown guide section; pass a doc and anchor that search_guides returned")
+        return {"section": section, "guides": context, "conclusions": GUIDE_CONCLUSIONS}
 
     def load_game_status(self):
         """Return (rows by catalogue table, source, None) or (None, source, reason).
@@ -1072,7 +1821,7 @@ class Server:
         if self.repo_root is None:
             return None, GAME_STATUS, "No --repo-root: sdk/status_registry.json and docs/game/status.md are not read"
         try:
-            text = read_example(self.repo_root, STATUS_REGISTRY, MAX_REGISTRY)
+            text = read_recorded_example(self.repo_root, STATUS_REGISTRY, MAX_REGISTRY)
         except FileNotFoundError:
             text = None
         except (OSError, UnicodeError, ToolError):
@@ -1096,7 +1845,7 @@ class Server:
         if self.repo_root is None:
             return None, None, "No --repo-root: sdk/native_index.json is not read"
         try:
-            text = read_example(self.repo_root, NATIVE_INDEX, MAX_NATIVE_INDEX)
+            text = read_recorded_example(self.repo_root, NATIVE_INDEX, MAX_NATIVE_INDEX)
         except (OSError, UnicodeError, ToolError):
             return None, None, "sdk/native_index.json unavailable beneath --repo-root (missing, symlink, not a regular file or over 4 MiB)"
         try:
@@ -1131,6 +1880,28 @@ class Server:
         else:
             state["service_status"] = {**base, "state": "rows_found", **self.game_status[record["table"]]}
         return state
+
+    def stability(self, table, source_header):
+        """stable, experimental or unknown for a catalogue table; table is None for a record without one."""
+        if not source_header.startswith("include/sc_"):
+            return "stable"
+        if self.game_status is None or table not in self.catalogue["tables"]:
+            return "unknown"
+        # A label belongs to the service: a second catalogue table of the same service and header
+        # (game.loadout's sc_loadout_v1 and sc_loadout_v1_2) shares the label status rows attribute to the other.
+        service = self.catalogue["tables"][table]["service"]
+        names = [table] + sorted(name for name, other in self.catalogue["tables"].items()
+                                 if name != table and other["service"] == service and other["source_header"] == source_header)
+        labels = [self.game_status[name].get("stability") for name in names if name in self.game_status]
+        return next((label for label in labels if label), "unknown")
+
+    def stability_context(self):
+        context = {"document": "docs/stability.md", "game_source": "/".join(self.game_status_source),
+                   "game_state": "unavailable" if self.game_status is None else "read",
+                   "conclusions": STABILITY_CONCLUSIONS}
+        if self.game_status is None:
+            context["reason"] = self.game_status_reason
+        return context
 
     def release_record(self, name):
         """Shape-check one approval record; never verifies its signature."""
@@ -1261,8 +2032,10 @@ class Server:
             return {"records": hits[:limit], "total_matches": len(hits), "limit": limit}
         if name == "list_services":
             return {"services": [{"table": name, "service": table["service"], "version": table["version"],
-                                  "size": table["size"], "member_count": len(table["members"])}
-                                 for name, table in sorted(self.catalogue["tables"].items())]}
+                                  "size": table["size"], "member_count": len(table["members"]),
+                                  "stability": self.stability(name, table["source_header"])}
+                                 for name, table in sorted(self.catalogue["tables"].items())],
+                    "stability_context": self.stability_context()}
         if name == "check_compatibility":
             coordinates = {k: self.catalogue[k] for k in PROVENANCE_KEYS[1:]}
             result = {"requested": args, "catalogue_coordinates": coordinates,
@@ -1304,6 +2077,12 @@ class Server:
             return result | {"entry": entry, "tier_meaning": self.natives["tiers"][str(entry["tier"])]}
         if name == "generate_plugin_scaffold":
             return self.scaffold(args)
+        if name == "search_guides":
+            return self.search_guides(args)
+        if name == "get_guide_section":
+            return self.guide_section(args)
+        if name in ("run_plugin_check", "build_plugin_project", "test_plugin_project"):
+            return getattr(self.dev, name)(args)
         if name == "validate_manifest_and_widgets":
             result = {"manifest": check_manifest(args["plugin_ini"], args.get("folder"))}
             if "widgets" in args:
@@ -1318,7 +2097,9 @@ class Server:
                     "contract_context": self.catalogue["contract_context"], "evidence_state": self.evidence_state(record)}
         if name == "get_capability_status":
             return ({key: record[key] for key in ("language_mappings", "absent_capability", "limitations")}
-                    | {"status_caveat": STATUS_CAVEAT, "evidence_state": self.evidence_state(record)})
+                    | {"status_caveat": STATUS_CAVEAT, "evidence_state": self.evidence_state(record),
+                       "stability": self.stability(record["table"], record["source_header"]),
+                       "stability_context": self.stability_context()})
         examples = record["examples"]
         if len(examples) > MAX_EXAMPLES:
             raise ToolError("Example result exceeds 16 files")
@@ -1421,11 +2202,46 @@ def main():
     parser.add_argument("--catalogue", default=os.environ.get("SCO_CORE_CATALOGUE"))
     parser.add_argument("--repo-root")
     parser.add_argument("--extended-tools", action="store_true",
-                        help="also offer list_engine_natives, get_engine_native, validate_manifest_and_widgets "
-                             "and generate_plugin_scaffold")
+                        help="also offer list_engine_natives, get_engine_native, validate_manifest_and_widgets, "
+                             "generate_plugin_scaffold, search_guides and get_guide_section")
+    parser.add_argument("--guides", help="sdk-guides.json for the guide tools (default: sdk-guides.json beside the "
+                                         "catalogue, else built in memory from --repo-root)")
+    development = parser.add_argument_group(
+        "development tools", "run_plugin_check, build_plugin_project and test_plugin_project run programs on this "
+        "machine; they are offered only with --enable-dev-tools and at least one --project-root")
+    development.add_argument("--enable-dev-tools", action="store_true")
+    development.add_argument("--project-root", action="append", default=[],
+                             help="a folder whose plugin folders and projects the tools may use (repeatable)")
+    development.add_argument("--plugin-check", help="sco-plugin-check program (default: the SDK folder's bin/ or out/bin/)")
+    development.add_argument("--cmake", help="cmake program (default: cmake on PATH)")
+    development.add_argument("--ctest", help="ctest program (default: ctest beside cmake, else on PATH)")
+    development.add_argument("--cmake-generator", help="passed as -G when configuring (default: cmake's own)")
+    development.add_argument("--cmake-platform", help="passed as -A when configuring, e.g. x64 (default: none)")
+    development.add_argument("--sco-sdk", help="SDK folder passed as -DSCO_SDK (default: --repo-root, else its sdk/)")
+    development.add_argument("--dev-timeout", type=int, default=DEV_TIMEOUT,
+                             help="seconds per call before the process tree is killed (default %d)" % DEV_TIMEOUT)
+    development.add_argument("--dev-output-limit", type=int, default=DEV_OUTPUT,
+                             help="bytes of output tail returned per step (default %d)" % DEV_OUTPUT)
     args = parser.parse_args()
     if not args.catalogue:
         parser.error("--catalogue or SCO_CORE_CATALOGUE is required")
+    guides = args.guides or os.path.join(os.path.dirname(os.path.abspath(args.catalogue)), GUIDES_FILE)
+    dev_options = ("project_root", "plugin_check", "cmake", "ctest", "cmake_generator", "cmake_platform", "sco_sdk")
+    if not args.enable_dev_tools and (any(getattr(args, name) for name in dev_options)
+                                      or args.dev_timeout != DEV_TIMEOUT or args.dev_output_limit != DEV_OUTPUT):
+        parser.error("development tool options need --enable-dev-tools")
+    if args.enable_dev_tools and not args.project_root:
+        parser.error("--enable-dev-tools needs at least one --project-root")
+    dev_tools = None
+    if args.enable_dev_tools:
+        try:
+            dev_tools = DevTools(args.project_root, args.repo_root, args.plugin_check, args.cmake, args.ctest,
+                                 args.cmake_generator, args.cmake_platform, args.sco_sdk, args.dev_timeout,
+                                 args.dev_output_limit)
+        except (OSError, ValueError, RuntimeError) as error:
+            print("sco-core-mcp: development tools refused: " + type(error).__name__ +
+                  (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
+            return 1
     try:
         catalogue = load_catalogue(args.catalogue)
     except (OSError, ValueError, RecursionError) as error:
@@ -1433,7 +2249,8 @@ def main():
               (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
         return 1
     try:
-        Server(catalogue, args.repo_root, args.extended_tools).serve(sys.stdin.buffer, sys.stdout.buffer)
+        Server(catalogue, args.repo_root, args.extended_tools, guides, args.guides is not None, dev_tools).serve(
+            sys.stdin.buffer, sys.stdout.buffer)
     except BrokenPipeError:
         return 0
     return 0

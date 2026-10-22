@@ -2,10 +2,19 @@
 
 ## Contract and boundary
 
-`game.world.control` 1.0 is an independent 40-byte size-prefixed table in
+`game.world.control` 1.1 is an independent 48-byte size-prefixed table in
 `sc_world_control.h`, not a reinterpretation/growth of `game.world` 1.0. The
 existing read table and frozen `sco_api` 1.1 remain unchanged. This is game-pack
 policy; neither implementation nor declarations enter the game-neutral kernel.
+The original 40-byte 1.0 prefix keeps all four offsets. The appended
+`raycast_filtered_many` uses a fixed bounded copied result with at most64 hits;
+callers advertise capacity through count, including0 for count-only. Success
+reports copied count and omitted count, in nondecreasing distance order.
+One synchronous host scope acquires, queries and releases before publishing.
+No-hit and query errors still release; cleanup failure publishes no hits and
+latches restart-required. Invalid later records cannot expose an earlier partial
+result. Optional known normal/entity fields are validated; single-ray behavior
+continues to report position/distance only. Native multi-hit readiness remains OFF.
 
 C: direct public table. C++: `scosdk/game/world_control.hpp`, full-member-extent
 and null checks per call, failed reopen clears the borrowed table.

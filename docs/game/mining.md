@@ -4,7 +4,7 @@ One row behind sc-offline's natural-mining built-in, in [`src/game/mining_sigs.c
 
 | Capability | Rows |
 |---|---|
-| `game.mining` | `mining.cell` |
+| Legacy mining row readiness, not public activation | `mining.cell` |
 
 ## Row and checks
 
@@ -31,7 +31,10 @@ The constants the hook uses are in `mining.h` (`kCellBuilderType`, `kCellSpawnGa
 
 The first module also read three context bytes (server, editor, online) and required the offline server context. Rows for them are not added: the product already knows it is offline, and the row set must not make a way to force that context. sc-offline's built-in checks its own offline state.
 
-Hooking, and applying `flags |= 0x8`, stay in the product.
+The game-pack `game.mining` provider is the sole native-detour owner. Products
+consume that service and must not install a competing hook. Public activation
+remains default OFF/unavailable pending native acceptance; resolving `mining.cell`
+does not activate it. See the [public service](mining-service.md).
 
 ## Uniqueness in 4.10.196.36804
 

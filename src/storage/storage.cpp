@@ -760,12 +760,86 @@ sco_result LastError(sco_plugin* self, char* out, uint32_t* io) {
     });
 }
 
+sco_result NextTable(sco_plugin* self, const char* after, char* out, uint32_t* io, uint32_t* out_kind) {
+    return Guard([&] {
+        uint32_t capacity = 0;
+        std::string a, name, type;
+        if (!out_kind) return Result::BadArg;
+        if (!TakeBuffer(out, io, capacity)) return Result::BadArg;
+        if (after && !CopyKey(after, a)) return Result::BadArg;
+        {
+            Call call;
+            const Result r = Enter(self, call);
+            if (r != Result::Ok) return r;
+            Db& d = *call.db;
+            std::string sql = "SELECT name, type FROM sqlite_master WHERE type IN ('table','view')"
+                              " AND substr(name, 1, 7) <> 'sqlite_' AND name <> 'sco_kv'";
+            if (after) sql += " AND name > ?1";
+            sql += " ORDER BY name LIMIT 1";
+            HostStmt q(d, sql.c_str());
+            if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
+            if (after) BindText(q.s, 1, a);
+            const int rc = sqlite3_step(q.s);
+            if (rc == SQLITE_DONE) return Result::NotFound;
+            if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
+            const unsigned char* nm = sqlite3_column_text(q.s, 0);
+            if (!nm) return Fail(d, SQLITE_NOMEM, Result::TooMany);
+            name.assign(reinterpret_cast<const char*>(nm), static_cast<size_t>(sqlite3_column_bytes(q.s, 0)));
+            const unsigned char* tp = sqlite3_column_text(q.s, 1);
+            if (tp) type.assign(reinterpret_cast<const char*>(tp), static_cast<size_t>(sqlite3_column_bytes(q.s, 1)));
+        }
+        *io = capacity;
+        const Result r = CopyOut(name.data(), name.size(), true, out, io);
+        if (r == Result::Ok) *out_kind = type == "view" ? SCO_STORAGE_KIND_VIEW : SCO_STORAGE_KIND_TABLE;
+        return r;
+    });
+}
+sco_result NextColumn(sco_plugin* self, const char* table, uint32_t* inout_index,
+                      char* name_out, uint32_t* name_io, char* type_out, uint32_t* type_io,
+                      uint32_t* out_flags) {
+    return Guard([&] {
+        uint32_t ncap = 0, tcap = 0;
+        std::string t, name, type;
+        if (!inout_index || !out_flags) return Result::BadArg;
+        if (!TakeBuffer(name_out, name_io, ncap) || !TakeBuffer(type_out, type_io, tcap)) return Result::BadArg;
+        if (!table || !CopyKey(table, t) || t.empty()) return Result::BadArg;
+        const uint32_t wanted = *inout_index;
+        uint32_t flags = 0;
+        {
+            Call call;
+            const Result r = Enter(self, call);
+            if (r != Result::Ok) return r;
+            Db& d = *call.db;
+            HostStmt q(d, "SELECT name, type, \"notnull\", pk FROM pragma_table_info(?1) ORDER BY cid");
+            if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
+            BindText(q.s, 1, t);
+            uint32_t seen = 0;
+            int rc;
+            while ((rc = sqlite3_step(q.s)) == SQLITE_ROW && seen++ != wanted) {}
+            if (rc != SQLITE_ROW) return Result::NotFound;
+            const unsigned char* nm = sqlite3_column_text(q.s, 0);
+            if (!nm) return Fail(d, SQLITE_NOMEM, Result::TooMany);
+            name.assign(reinterpret_cast<const char*>(nm), static_cast<size_t>(sqlite3_column_bytes(q.s, 0)));
+            const unsigned char* tp = sqlite3_column_text(q.s, 1);   // NULL: column without declared type
+            if (tp) type.assign(reinterpret_cast<const char*>(tp), static_cast<size_t>(sqlite3_column_bytes(q.s, 1)));
+            flags = (sqlite3_column_int(q.s, 2) ? SCO_STORAGE_COLUMN_NOTNULL : 0u) |
+                    (sqlite3_column_int(q.s, 3) ? SCO_STORAGE_COLUMN_PK : 0u);
+        }
+        *name_io = ncap;
+        *type_io = tcap;
+        Result r = CopyOut(name.data(), name.size(), true, name_out, name_io);
+        if (r == Result::Ok) r = CopyOut(type.data(), type.size(), true, type_out, type_io);
+        if (r == Result::Ok) { *out_flags = flags; *inout_index = wanted + 1; }
+        return r;
+    });
+}
+
 const sco_storage_v1 kTable = {
     sizeof(sco_storage_v1), 0,
     Put, Get, Del, NextKey,
     Begin, Commit, Rollback,
     Exec, Query, Step, ColumnCount, Column, ColumnName, CloseCursor,
-    LastError,
+    LastError, NextTable, NextColumn,
 };
 
 // ---- lifetime ---------------------------------------------------------------------------------
@@ -809,7 +883,7 @@ Result Start(const Options& opts) {
     }
     Result r = AddReleaseHook(OnRelease);
     if (r == Result::Ok) {
-        r = host::ProvideHostService(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_0, &kTable);
+        r = host::ProvideHostService(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_1, &kTable);
         if (r != Result::Ok) RemoveReleaseHook(OnRelease);
     }
     if (r != Result::Ok) {

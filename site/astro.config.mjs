@@ -6,7 +6,7 @@ import starlight from '@astrojs/starlight';
 const sidebar = JSON.parse(readFileSync(new URL('./src/generated-sidebar.json', import.meta.url), 'utf8'));
 
 export default defineConfig({
-  site: 'https://scubamount.github.io',
+  site: 'https://scuba-sc.github.io',
   base: '/sco-core',
   trailingSlash: 'always',
   integrations: [starlight({

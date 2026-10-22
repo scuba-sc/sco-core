@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// game.gamerules 1.1 list_params: the static parameter-definition registry (F-INTAKE-005 member
-// names, no values). Real host API and service start/stop; nothing here runs in game.
+// game.gamerules 1.1 list_params: the static parameter-definition registry (15 names verified on
+// 4.10.197.2878, F-4.10.197.2878-054; no values). Real host API and service start/stop; nothing
+// here runs in game.
 #include <sc_gamerules.h>
 #include "../src/game/services/gamerules.h"
 #include "sco/host.h"
@@ -9,24 +10,24 @@
 #include <cstring>
 #include <thread>
 #include <vector>
+#include <stdexcept>
 using sco::Result;
 namespace G = sco::game::services;
 static int pass = 0, fail = 0;
 #define CHECK(x) do { if (x) ++pass; else { ++fail; std::printf("FAIL %d: %s\n", __LINE__, #x); } } while (0)
 
 struct Expect { uint32_t type; const char* group; const char* name; };
-// Declaration order of SGameRulesCvars, nested structs flattened where they are declared.
+// Registry order of the g_gameRules.<group>.<name> console variables; group is empty for a
+// top-level g_gameRules.<name> variable.
 static const Expect kExpect[] = {
     {SC_GAMERULES_PARAM_INT, "control", "capturableDebug"},
     {SC_GAMERULES_PARAM_INT, "control", "phaseDebug"},
     {SC_GAMERULES_PARAM_INT, "control", "objectiveDebug"},
-    {SC_GAMERULES_PARAM_FLOAT, "control", "terminalsDisabledTime"},
     {SC_GAMERULES_PARAM_INT, "state", "log"},
     {SC_GAMERULES_PARAM_INT, "scoring", "enabled"},
     {SC_GAMERULES_PARAM_INT, "scoring", "log"},
     {SC_GAMERULES_PARAM_INT, "damagehandling", "log"},
     {SC_GAMERULES_PARAM_INT, "damagehandling", "disableCollisionFilter"},
-    {SC_GAMERULES_PARAM_INT, "accessibility", "QTEMode"},
     {SC_GAMERULES_PARAM_INT, "", "showRaceCheckpoints"},
     {SC_GAMERULES_PARAM_INT, "", "showRaceInfo"},
     {SC_GAMERULES_PARAM_FLOAT, "", "overrideRespawnTimer"},
@@ -36,6 +37,7 @@ static const Expect kExpect[] = {
     {SC_GAMERULES_PARAM_INT, "", "allowAllPlayerCameras"},
 };
 static constexpr uint32_t kTotal = sizeof(kExpect) / sizeof(kExpect[0]);
+static_assert(kTotal == 15, "the 15 parameters verified on 4.10.197.2878");
 
 static unsigned reads = 0;
 static bool BackendRead(void*, sc_gamerules_state* out) { ++reads; out->valid = 1; return true; }
@@ -228,6 +230,13 @@ int main() {
         CHECK(reads == 0);
         CHECK(sc_gamerules_read(t, self, &st) == SCO_OK && st.valid == 1 && st.size == sizeof(st) && reads == 1);
         CHECK(t->list_params(self, 0, nullptr, 0, 0, &cnt, &total) == SCO_OK && reads == 1);
+        sco_result otherThread = SCO_OK;
+        std::thread([&] { otherThread = t->read(self, &st); }).join();
+        CHECK(otherThread == SCO_WRONG_THREAD && reads == 1);
+        CHECK(t->read(nullptr, &st) == SCO_BAD_ARG && reads == 1);
+        auto* released = sco::host::NewPlugin("gamerules_released");
+        CHECK(sco::Release(released) == Result::Ok);
+        CHECK(t->read(released, &st) == SCO_BAD_ARG && reads == 1);
     }
 
     // A function pointer cached before stop is refused after it, with outputs unchanged.
@@ -249,6 +258,19 @@ int main() {
               SCO_OK && total == kTotal);
     G::StopGameRules();
 
+    {
+        G::GameRulesBackend faulty{};
+        faulty.read = [](void*, sc_gamerules_state*) -> bool { throw std::runtime_error("backend fixture"); };
+        CHECK(G::StartGameRules(faulty) == Result::Ok);
+        CHECK(api->query_service(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_VERSION_1_1, &raw) == SCO_OK);
+        auto* faultTable = static_cast<const sc_gamerules_v1*>(raw);
+        bool escaped = false;
+        sco_result result = SCO_OK;
+        try { result = faultTable->read(self, &st); } catch (...) { escaped = true; }
+        CHECK(!escaped && result == SCO_FAILED);
+        if (!escaped) CHECK(faultTable->read(self, &st) == SCO_UNAVAILABLE);
+        G::StopGameRules();
+    }
     std::printf("gamerules params: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

@@ -5,11 +5,23 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 const candidates = [process.env.CHROME_BIN, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   'google-chrome', 'chromium', 'chromium-browser'].filter(Boolean);
-const chrome = candidates.find(bin => spawnSync(bin, ['--version']).status === 0);
+let chrome;
+for (const bin of candidates) {
+  if (bin === process.env.CHROME_BIN && path.isAbsolute(bin)) {
+    try { await fs.access(bin); chrome = bin; break; } catch { continue; }
+  }
+  const available = await new Promise(resolve => {
+    const probe = spawn(bin, ['--version'], { stdio: 'ignore' });
+    const timer = setTimeout(() => { probe.kill(); resolve(false); }, 3000);
+    probe.once('error', () => { clearTimeout(timer); resolve(false); });
+    probe.once('exit', code => { clearTimeout(timer); resolve(code === 0); });
+  });
+  if (available) { chrome = bin; break; }
+}
 if (!chrome) {
   console.error('SKIP browser navigation: set CHROME_BIN to a Chrome/Chromium executable');
   process.exit(77);

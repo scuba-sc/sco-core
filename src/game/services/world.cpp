@@ -418,7 +418,11 @@ sco_result ControlStep(sco_plugin* self, uint64_t lease, const sc_world_camera_s
     return g_control.Step(self, lease, step);
 }
 sco_result ControlRelease(sco_plugin* self, uint64_t lease) { return g_control.Release(self, lease); }
-const sc_world_control_v1 kControl = { sizeof(kControl), 0, ControlRay, ControlAcquire, ControlStep, ControlRelease };
+sco_result ControlRays(sco_plugin* self, uint64_t zone, const double* from, const double* dir,
+    double distance, const uint64_t* ids, uint32_t count, sc_world_hits* hits) {
+    return g_control.Rays(self, zone, from, dir, distance, ids, count, hits);
+}
+const sc_world_control_v1 kControl = { sizeof(kControl), 0, ControlRay, ControlAcquire, ControlStep, ControlRelease, ControlRays };
 
 void LogCap(const char* cap, bool ready, const char* why) {
     if (!ready) Log("[game] %s not ready: %s; it answers SCO_UNAVAILABLE", cap, why);
@@ -440,7 +444,7 @@ Result StartWorld() {
     }
     g_controlReleaseHook = AddGameReleaseHook(ControlOwnerReleased) == Result::Ok;
     (void)g_control.Start(g_controlReleaseHook);
-    const Result controlResult = host::ProvideGameService(SC_WORLD_CONTROL_NAME, SC_WORLD_CONTROL_VERSION_1_0, &kControl);
+    const Result controlResult = host::ProvideGameService(SC_WORLD_CONTROL_NAME, SC_WORLD_CONTROL_VERSION_1_1, &kControl);
     if (controlResult != Result::Ok) {
         if (g_controlReleaseHook) RemoveGameReleaseHook(ControlOwnerReleased);
         g_controlReleaseHook = false;
@@ -452,7 +456,7 @@ Result StartWorld() {
         g_game = {}; g_canRay = g_canCamera = false;
         return controlResult;
     }
-    for (const char* cap : { "game.world.raycast_filtered", "game.world.free_camera" })
+    for (const char* cap : { "game.world.raycast_filtered", "game.world.raycast_filtered_many", "game.world.free_camera" })
         caps::Set(cap, false, "no verified offline engine adapter; synthetic policy only");
     LogCap(kCapRay, g_canRay, g_whyRay);
     LogCap(kCapCamera, g_canCamera, g_whyCamera);
@@ -469,7 +473,7 @@ void StopWorld() {
     g_controlReleaseHook = false;
     host::WithdrawGameService(SC_WORLD_CONTROL_NAME);
     host::WithdrawGameService(SC_WORLD_NAME);
-    for (const char* cap : { kCapRay, kCapCamera, "game.world.raycast_filtered", "game.world.free_camera" })
+    for (const char* cap : { kCapRay, kCapCamera, "game.world.raycast_filtered", "game.world.raycast_filtered_many", "game.world.free_camera" })
         caps::Set(cap, false, "stopped");
     g_freeCam.Stop();
     g_freeCamFlag = nullptr;

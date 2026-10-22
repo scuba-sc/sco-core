@@ -151,7 +151,7 @@ load/resolution generations are unknown rather than substituting load order or
 snapshot generation. Capability gates are copied, never tested by invoking a method.
 
 The optional `GamePackMetadata` and `DiagnosticsPluginMetadata` source slots are
-absent by default. They reserve space for [#141](https://github.com/scubamount/sco-core/issues/141),
+absent by default. They reserve space for [#141](https://github.com/scuba-sc/sco-core/issues/141),
 not publishers, gameplay records, game types or new plugin-authored v1 JSON fields.
 Capture is a separate keyed host-only facility, inactive until explicitly started;
 step 1 installs no capture into a product or the ordinary logger. See

@@ -18,6 +18,9 @@ PIN(SC_ACTOR_STAT_HUNGER == 1 && SC_ACTOR_STAT_THIRST == 2 && SC_ACTOR_STAT_BODY
 PIN(SC_ACTOR_STAT_SUIT_TEMPERATURE == 4 && SC_ACTOR_STAT_STUN == 5 && SC_ACTOR_STAT_DISTORTION == 6, "stat values");
 PIN(SC_ACTOR_STAT_OXYGEN == 7 && SC_ACTOR_STAT_BODY_RADIATION == 8 && SC_ACTOR_STAT_SUIT_RADIATION == 9, "stat values");
 PIN(SC_ACTOR_STAT_LAST_1_0 == 9, "1.0 stat range");
+PIN(SC_ACTOR_STAT_LAST_1_1 == 29, "1.1 read-only stat range");
+PIN(SC_ACTOR_STAT_BLOOD_DRUG_LEVEL == 10 && SC_ACTOR_STAT_HYGIENE == 29, "1.1 appended ids");
+PIN(SC_ACTOR_STATS_VERSION_1_1 == 0x00010001u, "1.1 version");
 PIN(SC_ACTOR_STATS_VERSION_1_0 == 0x00010000u, "version");
 static sco_result read_ok(uint64_t id, uint32_t stat, float* out) {
     (void)id;

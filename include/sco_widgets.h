@@ -17,6 +17,7 @@ extern "C" {
 #define SCO_WIDGETS_NAME "sco.widgets"
 #define SCO_WIDGETS_VERSION_1_0 0x00010000u
 #define SCO_WIDGETS_VERSION_1_1 0x00010001u /* + update_nodes, remove_nodes, capabilities */
+#define SCO_WIDGETS_VERSION_1_2 0x00010002u /* + stable node tags */
 #define SCO_WIDGETS_MAX_PANELS 64u
 #define SCO_WIDGETS_MAX_NODES 256u
 #define SCO_WIDGETS_MAX_TOTAL_NODES 4096u
@@ -109,6 +110,23 @@ typedef struct sco_widget_event_1_1 {
     int32_t row;
     uint32_t _reserved;
 } sco_widget_event_1_1;
+/* ---- 1.2 extensions (opt-in; a 1.0/1.1 host ignores the tails) ----
+ * Node extension: base.base.size = sizeof(sco_widget_node_1_2) and a stride
+ * covering it. Nodes smaller than that are read as 1.0/1.1 (no tag). tag:
+ * stable automation identifier for the node, [A-Za-z0-9._-]{1..63},
+ * NULL/empty = untagged. Tags are unique within the panel: a set/update whose
+ * resulting tree would carry two nodes with the same non-empty tag is
+ * BAD_ARG and leaves the panel untouched. Tags are host metadata only:
+ * adapters never render them and event routing stays numeric by node id.
+ * _reserved must be zero. Check node->size >= sizeof(sco_widget_node_1_2)
+ * before casting, after the 1.1 check.
+ * capabilities: SCO_WIDGETS_CAP_MAX_TAG is the host's tag byte limit.
+ */
+typedef struct sco_widget_node_1_2 {
+    sco_widget_node_1_1 base;
+    const char* tag;
+    uint32_t _reserved[3];
+} sco_widget_node_1_2;
 /* capabilities(self, caps): caps[SCO_WIDGETS_CAP_COUNT] is the array length on
  * entry (>= 2) and the number of elements written on return; the host fills
  * the indices below that it knows, up to that length. Limits are the running
@@ -122,7 +140,10 @@ typedef struct sco_widget_event_1_1 {
 #define SCO_WIDGETS_CAP_MAX_COLUMNS 6u
 #define SCO_WIDGETS_CAP_MAX_TEXT 7u
 #define SCO_WIDGETS_CAP_MAX_EVENTS 8u
+#define SCO_WIDGETS_CAP_MAX_TAG 9u /* longest accepted tag, in bytes */
+#define SCO_WIDGETS_MAX_TAG 63u
 #define SCO_WIDGETS_CAPS_1_1 9u /* array length that covers every 1.1 index */
+#define SCO_WIDGETS_CAPS_1_2 10u /* array length that covers every 1.2 index */
 #define SCO_WIDGETS_FEATURE_UPDATE_NODES 0x01u
 #define SCO_WIDGETS_FEATURE_REMOVE_NODES 0x02u
 #define SCO_WIDGETS_FEATURE_SEVERITY 0x04u
@@ -130,6 +151,7 @@ typedef struct sco_widget_event_1_1 {
 #define SCO_WIDGETS_FEATURE_PAGING 0x10u
 #define SCO_WIDGETS_FEATURE_EVENT_ROW 0x20u
 #define SCO_WIDGETS_FEATURE_COALESCED_RENDER 0x40u /* <= 1 snapshot rebuild per panel render pass */
+#define SCO_WIDGETS_FEATURE_STABLE_TAGS 0x80u    /* sco_widget_node_1_2 tag field */
 typedef void (*sco_widget_event_fn)(const char* panel_id, const sco_widget_event* event, void* ctx);
 typedef struct sco_widgets_v1 {
     uint32_t size;

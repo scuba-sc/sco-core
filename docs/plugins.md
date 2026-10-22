@@ -1,6 +1,8 @@
 # Plugins: discovery, loading and data packs
 
-`sco/plugins.h`, `src/plugins/`. Internal C++ used by the host (sc-offline); plugins themselves only see [`sco_api.h`](api-v1.md).
+`sco/plugins.h`, `src/plugins/`. Internal C++ used by the host (sc-offline); plugins themselves only see [`sco_api.h`](api-v1.md). How to split a feature into plugins that cooperate through services and `requires` is in [Designing modular plugins](plugin-design.md).
+
+Published plugins live in their authors' own repositories; the [community plugin directory](plugin-directory.md) lists them with the SDK release each one reports and its last recorded `sco-plugin-check` result. A listing is not an endorsement and is not verified in game.
 
 ## The folder
 

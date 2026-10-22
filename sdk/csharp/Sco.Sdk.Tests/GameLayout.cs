@@ -33,6 +33,10 @@ namespace Sco.Sdk.Tests
             types.Add("sc_game_mission_changed", typeof(ScGameMissionChanged));
             types.Add("sc_game_loadout_respawn_completed", typeof(ScGameLoadoutRespawnCompleted));
             types.Add("sc_entities_v1", typeof(ScEntitiesV1));
+            types.Add("sc_entity_class_record", typeof(ScEntityClassRecord));
+            types.Add("sc_entity_class_page", typeof(ScEntityClassPage));
+            types.Add("sc_entity_component_record", typeof(ScEntityComponentRecord));
+            constants.Add("SC_ENTITIES_VERSION_1_2", 0x00010002u);
             types.Add("sc_vehicle_seat_flag", typeof(ScVehicleSeatFlag));
             types.Add("sc_vehicle_seat", typeof(ScVehicleSeat));
             types.Add("sc_vehicles_v1", typeof(ScVehiclesV1));
@@ -139,6 +143,9 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScGameMissionChanged)) size = Unsafe.SizeOf<ScGameMissionChanged>();
             if (t == typeof(ScGameLoadoutRespawnCompleted)) size = Unsafe.SizeOf<ScGameLoadoutRespawnCompleted>();
             if (t == typeof(ScEntitiesV1)) size = Unsafe.SizeOf<ScEntitiesV1>();
+            if (t == typeof(ScEntityClassRecord)) size = Unsafe.SizeOf<ScEntityClassRecord>();
+            if (t == typeof(ScEntityClassPage)) size = Unsafe.SizeOf<ScEntityClassPage>();
+            if (t == typeof(ScEntityComponentRecord)) size = Unsafe.SizeOf<ScEntityComponentRecord>();
             if (t == typeof(ScVehicleSeat)) size = Unsafe.SizeOf<ScVehicleSeat>();
             if (t == typeof(ScVehiclesV1)) size = Unsafe.SizeOf<ScVehiclesV1>();
             if (t == typeof(ScCreativeV1)) size = Unsafe.SizeOf<ScCreativeV1>();
