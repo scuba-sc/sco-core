@@ -533,6 +533,16 @@ def metadata_names(m, profile):
                                       "ATTRIBUTIONS.json", "SBOM.spdx.json"))
 
 
+def generated_metadata_names(m, profile):
+    """The exact generated inventory, separate from selected source components."""
+    names = set(metadata_names(m, profile))
+    if profile in ("game-sc", "legacy", "host-source-sc"):
+        names.update(("sdk-catalogue.json", "sdk-guides.json"))
+    if any(c["source"] == "sdk/skills/manifest.json" for c in select(m, profile)):
+        names.add("sdk-workflows.json")
+    return names
+
+
 def developer_catalogue(profile):
     """Compile the exact source snapshot for game developer distributions."""
     if profile not in ("game-sc", "legacy", "host-source-sc"):

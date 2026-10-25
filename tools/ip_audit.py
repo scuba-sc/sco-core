@@ -432,13 +432,8 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         # in .md files, so those are compared after package.py's own rewrite).
         fails = []
         expected = {pkg.destination(m, profile, c): c for c in chosen}
-        generated = set(pkg.metadata_names(m, profile))
-        if profile in ("game-sc", "legacy", "host-source-sc"):
-            generated.add("sdk-catalogue.json")
-            generated.add("sdk-guides.json")
-        workflows_selected = any(c["source"] == "sdk/skills/manifest.json" for c in chosen)
-        if workflows_selected:
-            generated.add("sdk-workflows.json")
+        generated = pkg.generated_metadata_names(m, profile)
+        workflows_selected = "sdk-workflows.json" in generated
         for rel in names:
             if rel not in expected and rel not in generated:
                 fails.append(f"{rel}: in the archive but not selected by {COMPONENTS} for {profile}")

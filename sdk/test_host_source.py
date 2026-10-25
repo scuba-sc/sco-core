@@ -86,10 +86,31 @@ class HostSourceArchive(unittest.TestCase):
                 archive = pkg.build(m, "host-source-sc", str(Path(tmp, "dist")))
             with zipfile.ZipFile(archive) as z:
                 files = {n.split("/", 1)[1]: z.read(n) for n in z.namelist()}
-                self.assertEqual(set(files), sources | set(pkg.metadata_names(m, "host-source-sc"))
-                                 | {"sdk-catalogue.json", "sdk-guides.json"})
+                self.assertEqual(set(files), sources | pkg.generated_metadata_names(m, "host-source-sc"))
                 self.assertEqual(json.loads(files["sdk-catalogue.json"])["source_sha"], pkg.source_commit())
                 self.assertEqual(json.loads(files["sdk-guides.json"])["source_sha"], pkg.source_commit())
+                workflows = json.loads(files["sdk-workflows.json"])
+                self.assertEqual(workflows["schema_version"], 1)
+                self.assertEqual(workflows["source_sha"], pkg.source_commit())
+                self.assertEqual(workflows["sdk_version"], pkg.sdk_version())
+                self.assertEqual(workflows["manifest_path"], "sdk/skills/manifest.json")
+                manifest_bytes = files[workflows["manifest_path"]]
+                manifest = json.loads(manifest_bytes)
+                self.assertEqual(workflows["manifest_sha256"], hashlib.sha256(manifest_bytes).hexdigest())
+                self.assertEqual(workflows["bundle_version"], manifest["bundle_version"])
+                self.assertEqual(workflows["baseline_sdk"], manifest["baseline_sdk"])
+                self.assertEqual([w["id"] for w in workflows["workflows"]],
+                                 [s["id"] for s in manifest["skills"]])
+                for workflow, skill in zip(workflows["workflows"], manifest["skills"]):
+                    directory = "sdk/skills/" + skill["id"] + "/"
+                    paths = [directory + name for name in ["SKILL.md", *skill["resources"]]]
+                    self.assertEqual(workflow["entry"], paths[0])
+                    self.assertEqual([f["path"] for f in workflow["files"]], paths)
+                    for record in workflow["files"]:
+                        self.assertEqual(record["text"].encode("utf-8"), files[record["path"]])
+                        self.assertEqual(record["sha256"], hashlib.sha256(files[record["path"]]).hexdigest())
+                self.assertEqual(workflows["content_sha256"],
+                                 hashlib.sha256(pkg.json_bytes(workflows["workflows"])).hexdigest())
                 sums = dict(line.split("  ", 1)[::-1] for line in files["SHA256SUMS"].decode().splitlines())
                 self.assertEqual(set(sums), set(files) - {"SHA256SUMS"})
                 for path, digest in sums.items():

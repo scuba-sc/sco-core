@@ -265,11 +265,35 @@ class RealManifest(unittest.TestCase):
         self.assertEqual({p for p in self.m["profiles"] if pkg.developer_guides(p) is not None},
                          {"game-sc", "legacy", "host-source-sc"})
 
+    def test_generated_metadata_inventory(self):
+        base = ("VERSIONS.txt", "SHA256SUMS", "COMPATIBILITY.json",
+                "ATTRIBUTIONS.json", "SBOM.spdx.json")
+        for prof in self.m["profiles"]:
+            with self.subTest(profile=prof):
+                suffix = ".game-sc" if prof == "game-sc" else ""
+                self.assertEqual(pkg.metadata_names(self.m, prof), tuple(n + suffix for n in base))
+                expected = {n + suffix for n in base}
+                if prof in ("game-sc", "legacy", "host-source-sc"):
+                    expected.update(("sdk-catalogue.json", "sdk-guides.json"))
+                if prof != "game-sc":
+                    expected.add("sdk-workflows.json")
+                self.assertEqual(pkg.generated_metadata_names(self.m, prof), expected)
+                selected = {pkg.destination(self.m, prof, c) for c in pkg.select(self.m, prof)}
+                entries = pkg.archive_entries(self.m, prof)[1]
+                self.assertEqual(set(entries) - selected, expected)
+                self.assertEqual(set(entries), selected | expected)
+        unselected = copy.deepcopy(self.m)
+        unselected["components"] = [c for c in unselected["components"]
+                                    if c["source"] != "sdk/skills/manifest.json"]
+        for prof in self.m["profiles"]:
+            with self.subTest(profile=prof, manifest_selected=False):
+                self.assertNotIn("sdk-workflows.json", pkg.generated_metadata_names(unselected, prof))
+
     def test_core_and_game_sc_partition_legacy(self):
         names = {}
         for prof in ("core", "game-sc", "legacy"):
             z = zipfile.ZipFile(pkg.build(self.m, prof, os.path.join(self.tmp, prof)))
-            names[prof] = {n.split("/", 1)[1] for n in z.namelist()} - set(pkg.metadata_names(self.m, prof))
+            names[prof] = {n.split("/", 1)[1] for n in z.namelist()} - pkg.generated_metadata_names(self.m, prof)
         self.assertEqual(names["core"] | names["game-sc"], names["legacy"])
         self.assertEqual(names["core"] & names["game-sc"], {"LICENSE"})
 
