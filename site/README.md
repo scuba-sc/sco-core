@@ -40,9 +40,11 @@ These bounds are not a speed benchmark. There is no telemetry panel, GSAP, video
 remote asset, font download or new dependency. Documentation and search results
 stay still; existing brief control feedback respects reduced motion.
 
-Native CSS scroll timelines fade and recede the home hero, moving its two
-particle planes at different depths. Home body blocks fade near viewport edges
-and stay opaque through the central reading area. Reverse scrolling restores
+Native CSS scroll timelines recede the home hero with its text at full opacity,
+fading only its two decorative particle planes as they move at different depths.
+Task and hub arrows use decorative inline SVG icons rather than font glyphs.
+Home body blocks fade near viewport edges and stay opaque through the central
+reading area. Reverse scrolling restores
 them; focused or targeted sections remain fully visible. Reduced motion and
 browsers without scroll-timeline support show still, visible content. These
 home-only effects add no scroll listener or recurring JavaScript loop.

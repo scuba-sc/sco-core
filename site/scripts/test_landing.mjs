@@ -126,10 +126,19 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
   };
   const scrollStyles = () => evaluate(`(() => {
     const read = selector => {
-      const style = getComputedStyle(document.querySelector(selector));
-      return { opacity: Number(style.opacity), transform: style.transform, animation: style.animationName };
+      const element = document.querySelector(selector);
+      const style = getComputedStyle(element);
+      let effectiveOpacity = 1;
+      for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+        effectiveOpacity *= Number(getComputedStyle(ancestor).opacity);
+      }
+      const box = element.getBoundingClientRect();
+      return { opacity: Number(style.opacity), effectiveOpacity, transform: style.transform,
+        animation: style.animationName, onscreen: box.bottom > 0 && box.top < innerHeight };
     };
-    return { copy: read('.sco-landing__copy'), particles: read('[data-sco-particles]'),
+    return { copy: read('.sco-landing__copy'), topline: read('.sco-landing__topline'),
+      hubs: read('.sco-landing__hub-nav'), footer: read('.sco-landing__footer'),
+      particles: read('[data-sco-particles]'),
       front: read('[data-sco-particles-front]'),
       block: read('.sl-container:has(> [data-sco-landing]) > .sl-markdown-content > :first-child') };
   })()`);
@@ -188,7 +197,12 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
             titles: [...document.querySelectorAll('h1')].map(title => ({ text: title.textContent.trim(), id: title.id,
               marked: title.hasAttribute('data-page-title') })),
             links: [...hero.querySelectorAll('a')].map(link => ({ path: new URL(link.href).pathname,
-              visible: visible(link), left: link.getBoundingClientRect().left, right: link.getBoundingClientRect().right })),
+              text: link.textContent.trim(), visible: visible(link),
+              left: link.getBoundingClientRect().left, right: link.getBoundingClientRect().right })),
+            arrows: [...hero.querySelectorAll('.sco-landing__arrow')].map(icon => ({
+              svg: icon instanceof SVGSVGElement && !!icon.querySelector('path'),
+              hidden: icon.getAttribute('aria-hidden'), focusable: icon.tabIndex >= 0, visible: visible(icon)
+            })),
             search: visible(document.querySelector('header [data-open-modal]')),
             theme: visible(theme) && !!(theme.getAttribute('aria-label') || theme.labels?.length),
             controls: [theme, document.querySelector('header [data-open-modal]'), ${toggle}].every(control => {
@@ -212,6 +226,13 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
         assert.deepEqual(layout.titles, [{ text: 'sco-core SDK', id: '_top', marked: true }], label + ': semantic title');
         assert(layout.search && layout.theme && layout.controls, label + ': header/control accessibility');
         assert.equal(layout.intro, false, label + ': duplicate old intro');
+        assert.equal(layout.arrows.length, 6, label + ': task/hub arrow count');
+        assert(layout.arrows.every(icon => icon.svg && icon.hidden === 'true' && !icon.focusable && icon.visible),
+          label + ': arrows must be visible decorative SVGs outside the tab order');
+        for (const [route, text] of [['guides/getting-started', 'Start a plugin'], ['hubs/reference', 'Browse API']]) {
+          assert(layout.links.some(link => link.path === '/sco-core/' + route + '/' && link.text === text),
+            label + ': task link label changed');
+        }
         assert.equal(layout.workers.length, 1, label + ': active worker bound');
         assert(layout.workers.every(worker => worker.maxInFlight <= 1
           && worker.bytes.every(bytes => bytes <= worker.count * 8)), label + ': per-particle buffer/queue bound');
@@ -231,7 +252,7 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
         assert(layout.clipped && layout.foreground, label + ': clipped foreground particle layer');
       }
     }
-    console.log('PASS landing: nine widths in both themes; one title, real task/language/hub links, visible search/theme controls, bounded canvas and no overflow');
+    console.log('PASS landing: nine widths in both themes; one title, real task/language/hub links, decorative SVG arrows, visible search/theme controls, bounded canvas and no overflow');
 
     for (const width of [1440, 390]) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 2, mobile: false });
@@ -245,7 +266,13 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
           blockEntry: block.top + scrollY - innerHeight + Math.min(20, block.height * 0.1),
           blockCenter: block.top + scrollY - innerHeight * 0.5 };
       })()`);
-      await scroll(positions.heroExit);
+      for (const top of [0, positions.heroExit / 2, positions.heroExit]) {
+        await scroll(top);
+        const styles = await scrollStyles();
+        for (const part of ['copy', 'topline', 'hubs', 'footer']) {
+          assert.equal(styles[part].effectiveOpacity, 1, width + 'px: scrolling faded hero ' + part);
+        }
+      }
       const exited = await scrollStyles();
       console.log('OBSERVED native scroll ' + JSON.stringify({ width, start, exited, positions,
         document: await evaluate(`({ y: scrollY, focused: document.activeElement?.outerHTML.slice(0, 160),
@@ -254,13 +281,20 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
           animations: document.querySelector('.sco-landing__copy').getAnimations().map(animation => ({
             state: animation.playState, progress: animation.effect.getComputedTiming().progress,
             timeline: animation.timeline?.currentTime?.toString() })) })`) }));
-      assert(exited.copy.opacity < start.copy.opacity - 0.05, width + 'px: hero copy did not fade on scroll');
+      assert(exited.hubs.onscreen && exited.footer.onscreen, width + 'px: lower hero readability was not checked onscreen');
       assert.notEqual(exited.copy.transform, start.copy.transform, width + 'px: hero copy did not move on scroll');
+      assert(exited.particles.opacity < start.particles.opacity - 0.05, width + 'px: background decoration did not fade');
+      assert(exited.front.opacity < start.front.opacity - 0.05, width + 'px: foreground decoration did not fade');
       assert.notEqual(exited.particles.transform, start.particles.transform, width + 'px: particle parallax did not advance');
       assert.notEqual(exited.front.transform, start.front.transform, width + 'px: foreground parallax did not advance');
+      assert.notEqual(exited.particles.transform, exited.front.transform, width + 'px: particle depth planes moved together');
       await scroll(0);
       const reversed = await scrollStyles();
-      assert(Math.abs(reversed.copy.opacity - start.copy.opacity) < 0.02, width + 'px: hero fade did not reverse');
+      for (const part of ['copy', 'topline', 'hubs', 'footer']) {
+        assert.equal(reversed[part].effectiveOpacity, 1, width + 'px: reverse scrolling faded hero ' + part);
+      }
+      assert(Math.abs(reversed.particles.opacity - start.particles.opacity) < 0.02, width + 'px: background fade did not reverse');
+      assert(Math.abs(reversed.front.opacity - start.front.opacity) < 0.02, width + 'px: foreground fade did not reverse');
       assert.equal(reversed.copy.transform, start.copy.transform, width + 'px: hero movement did not reverse');
       assert.equal(reversed.particles.transform, start.particles.transform, width + 'px: parallax did not reverse');
       assert.equal(reversed.front.transform, start.front.transform, width + 'px: foreground parallax did not reverse');
@@ -274,7 +308,7 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
       assert(Math.abs(reverseEntry.block.opacity - entering.block.opacity) < 0.02, width + 'px: content entry did not reverse');
       await scroll(0);
     }
-    console.log('PASS native CSS scroll timelines: hero fade/movement, particle parallax and content entry follow actual scroll and reverse at desktop/mobile widths');
+    console.log('PASS native CSS scroll timelines: opaque hero text, decoration fade, hero movement, particle parallax and content entry follow actual scroll and reverse at desktop/mobile widths');
 
     await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 2, mobile: false });
     await wait(`${active}?.count === 12000 && ${active}?.received > 0`);

@@ -1,5 +1,6 @@
 ---
 import DefaultHero from '@astrojs/starlight/components/Hero.astro';
+import { Icon } from '@astrojs/starlight/components';
 import '../styles/landing.css';
 
 const { entry } = Astro.locals.starlightRoute;
@@ -46,10 +47,10 @@ const hubs = [
 					<p class="sco-landing__tagline">Public contracts for Star Citizen offline plugins</p>
 					<nav class="sco-landing__actions" aria-label="Developer tasks">
 						<a class="sco-landing__action sco-landing__action--primary" href={href('guides/getting-started')}>
-							Start a plugin <span aria-hidden="true">→</span>
+							Start a plugin <Icon name="right-arrow" class="sco-landing__arrow" size="1.125rem" />
 						</a>
 						<a class="sco-landing__action sco-landing__action--secondary" href={href('hubs/reference')}>
-							Browse API <span aria-hidden="true">→</span>
+							Browse API <Icon name="right-arrow" class="sco-landing__arrow" size="1.125rem" />
 						</a>
 					</nav>
 					<nav aria-label="Language mappings">
@@ -70,7 +71,7 @@ const hubs = [
 						{hubs.map((hub) => (
 							<li class="sco-landing__hub">
 								<div class="sco-landing__hub-label" aria-hidden="true">
-									<span>{hub.index} / {hub.task}</span><span>↗</span>
+									<span>{hub.index} / {hub.task}</span><Icon name="right-arrow" class="sco-landing__arrow" size="1.125rem" />
 								</div>
 								<a href={href(`hubs/${hub.key}`)}>{hub.title}</a>
 							</li>
