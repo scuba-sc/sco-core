@@ -55,7 +55,7 @@ class Inputs(unittest.TestCase):
             lambda d: d['skills'][0]['resources'].append('../../private.md'),
             lambda d: d['skills'][0]['resources'].append('/private.md'),
             lambda d: d['skills'][0]['resources'].append('references/hidden.py'),
-            lambda d: d.update(bundle_version='0.2.1'),
+            lambda d: d.update(bundle_version='99.0.0'),
             lambda d: d.update(extra='unexpected'),
         ):
             d = copy.deepcopy(original)

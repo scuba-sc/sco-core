@@ -2,7 +2,7 @@
 name: sco-build-check-package
 description: "Build or adapt an SCO SDK extension in C, C++, C# NativeAOT, Lua or a data pack. Use for consumers choosing contracts, scaffolding, building and checking a plugin before distribution."
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # Build, check and package an SCO consumer
@@ -29,7 +29,7 @@ Read [language and build routes](references/build.md) for exact commands and lan
 
 Validate the final manifest and widget nodes using `validate_manifest_and_widgets` when offered; inspect `valid` and all findings. This validates supplied text, not runtime pointers/providers. Otherwise inspect contracts and use the native checker, disclosing missing static validation. Keep negative fixtures outside the shipping tree.
 
-Build, run the generated check target and stage the extension as described in the language reference. Find the actual checker executable, including configuration subdirectories. Recheck the staged folder in full and `--short-tables` root modes and explicitly invoke the feature command. Assert its exact semantic reply (`pong` for the default generated ping), not merely exit 0. API 1.0 generated plugins should pass both modes. A deliberately newer minimum ABI must disclose short-mode refusal, not claim old-host support.
+Build, run the generated check target and stage the extension as described in the language reference. Find the actual checker executable, including configuration subdirectories. Recheck the staged folder in full and `--short-tables` root modes and explicitly invoke the feature command. Assert its exact semantic reply (`pong` for the default generated ping), not merely exit 0. Native and C# generated plugins declare API 1.1 to match their exported built-against version. Both root-table modes should pass defensively; a short root table does not establish admission by an API 1.0 host. A deliberately required appended member must disclose any short-mode refusal.
 
 Short-root mode exercises the no-query-service path. It does not simulate a present query returning absent, old, short or NULL-member providers: add focused public-provider fixtures when the feature uses services. Capability flags do not create providers. Use [debugging](../sco-debug-plugin/SKILL.md) for observed failures.
 

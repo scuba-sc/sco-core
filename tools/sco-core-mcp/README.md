@@ -458,7 +458,7 @@ existing server process. It does not
 start a subprocess or write `__pycache__`. Without a root, or when the file is
 missing, a symlink or fails to load, `state` is `unavailable` with a `reason` and
 `files` is empty. The result is not bound to the catalogue `source_sha`.
-Generated plugins declare `api = 1.0`. Nothing generated here has been loaded by
+Generated native/C++/C# plugins declare `api = 1.1`, matching their exported built-against version; Lua declares `api = 1.0`. Short-table checks do not establish API 1.0 loader admission. Nothing generated here has been loaded by
 a host or run in game.
 
 **Guide search.** `search_guides` and `get_guide_section` answer "how do I ..."
@@ -529,7 +529,7 @@ seventeen offered tools:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
-| `run_plugin_check` | `folder`; optional: `mode` | Run `sco-plugin-check` on a built plugin folder. `mode` is `full` (default) or `short`, which adds `--short-tables` (the 1.0 host tables). |
+| `run_plugin_check` | `folder`; optional: `mode` | Run `sco-plugin-check` on a built plugin folder. `mode` is `full` (default) or `short`, which adds `--short-tables` (a truncated 1.0-sized root prefix, not API 1.0 loader admission). |
 | `build_plugin_project` | `project` | Configure a CMake plugin project into its own `build` subfolder, then build it. |
 | `test_plugin_project` | `project` | Run `ctest` in that `build` subfolder. Run `build_plugin_project` first. |
 

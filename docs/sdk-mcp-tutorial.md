@@ -108,8 +108,7 @@ or checked them. Review the generated code and notices, then save those exact
 relative files into a new empty project folder. Do not overwrite an existing
 project or treat returned source as trusted merely because it came through MCP.
 
-The generated manifest uses `api = 1.0`; generated code guards access to later
-root-table members. `services` requests optional lookups on `game.ready`, not
+Generated native/C++/C# manifests use `api = 1.1`, matching their exported built-against version; Lua uses `api = 1.0`. Generated code still guards access to later root-table members. Short-table checker success does not establish API 1.0 loader admission. `services` requests optional lookups on `game.ready`, not
 implementations or automatic permission to invoke those services. This scaffold
 has not been loaded in a real host.
 
@@ -131,7 +130,7 @@ Here is a complete minimal manifest/widget example using the same ID:
 {
   "name": "validate_manifest_and_widgets",
   "arguments": {
-    "plugin_ini": "id = my_probe\nname = My probe\nversion = 0.1.0\napi = 1.0\nkind = native\nentry = my_probe.dll\n",
+    "plugin_ini": "id = my_probe\nname = My probe\nversion = 0.1.0\napi = 1.1\nkind = native\nentry = my_probe.dll\n",
     "folder": "my_probe",
     "widgets": [
       {

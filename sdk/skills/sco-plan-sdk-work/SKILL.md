@@ -2,7 +2,7 @@
 name: sco-plan-sdk-work
 description: "Plan and carry out SCO SDK development against the project's current roadmap. Use at the start of extension, product-adoption or SDK-platform work to choose a bounded goal, resolve public contracts, define acceptance and route implementation through the matching workflow."
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # Plan and carry out SDK work

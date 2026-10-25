@@ -2,7 +2,7 @@
 name: sco-report-sdk-gap
 description: "Prepare a minimal, privacy-safe report of a missing or broken public SCO SDK contract, documentation or tool encountered by a consumer. Use for SDK gaps, unsupported consumer features or upstream handoffs."
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # Report a public SDK gap

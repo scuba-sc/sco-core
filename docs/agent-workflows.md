@@ -1,6 +1,6 @@
 # Consumer workflows for agents
 
-The SDK ships six focused skills for developers building extensions. Bundle **0.2.0** targets the **SDK 2.4.0** baseline; this source addition does not modify the already published RC1 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
+The SDK ships six focused skills for developers building extensions. Bundle **0.2.1** targets the **SDK 2.4.0** baseline; this source addition does not modify the already published RC1 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
 
 | Task | Entrypoint |
 | --- | --- |

@@ -4,6 +4,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Generated native/C++/C# manifests declare API 1.1, matching their exported
+  built-against ABI. Truncated-table checker success is no longer described as
+  API 1.0 loader admission. Lua keeps its script-runtime declaration.
+- Guide input allowlists check exact path casing on case-insensitive filesystems.
+  Agent guides are assigned to the integration library hub, and browser search
+  tests select existing input explicitly across platforms.
+
 - Ship consumer agent skills for roadmap/SDK planning, building/checking, debugging, packaging, upgrading
   and reporting public SDK gaps. A versioned index hashes exact packaged text;
   MCP offers the complete fourteen-tool discovery surface by default, with

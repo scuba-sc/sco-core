@@ -2,7 +2,7 @@
 name: sco-upgrade-plugin
 description: "Migrate an existing SCO SDK consumer between SDK or host versions, checking archive composition, ABI/service prefixes, language mappings, behavior and rollback. Use for plugin dependency upgrades or compatibility regressions."
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # Upgrade an SCO consumer
@@ -13,7 +13,7 @@ Read [input/evidence rules](../sco-build-check-package/references/inputs.md). Pr
 
 Build a small comparison table for the methods actually used: old/new public declarations and contract IDs, minimum version/member extent, language support, ownership/thread/cleanup rules, stability and available runtime capability. Use each kit's matching catalogue/headers, not one server pointed at mismatched roots. Compare exact core/overlay digests before configuring. SDK 2.4.0 is the baseline for this bundle; consult the selected release for later versions rather than asserting future compatibility.
 
-Prefer additive service prefixes and optional feature fallback. The frozen root ABI only grows; guard optional/appended root fields and queried table extent/pointers. Do not require a newer ABI because a header contains more members. Experimental contracts need explicit review of their documented changes/deprecation window. `check_compatibility` compares metadata, not installed provider behavior or release approval. Respect explicit owner deferrals; missing native backend work is not part of an ordinary SDK bump.
+Prefer additive service prefixes and optional feature fallback. The frozen root ABI only grows; guard optional/appended root fields and queried table extent/pointers. Keep the manifest consistent with exported built-against ABI info. Retain an appropriate older build when older-host admission is required; size guards alone do not lower the loader minimum. Experimental contracts need explicit review of their documented changes/deprecation window. `check_compatibility` compares metadata, not installed provider behavior or release approval. Respect explicit owner deferrals; missing native backend work is not part of an ordinary SDK bump.
 
 Create a fresh build tree and stage directory for the new kit, retaining the old package for rollback. Use [build/check](../sco-build-check-package/SKILL.md) and the actual language route; regenerate only into a comparison directory, then adapt intentionally rather than overwriting custom code. Recheck old-host fallback, new-host feature behavior, missing/old/short/NULL service cases as relevant, cleanup and exact command replies. C# layout/RID and Lua binding availability need their own checks.
 

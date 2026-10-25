@@ -99,6 +99,8 @@ HUB_DOCS = {
         ('docs/api.md', 'Internal C++ namespace `sco`; version 0, not the plugin ABI.'),
     ),
     'integration': (
+        ('docs/agent-workflows.md', 'Roadmap-driven skills for building, checking, packaging and maintaining public SDK consumers.'),
+        ('docs/defaults-readiness.md', 'Default discovery and plugin behavior, with per-capability backend prerequisites and evidence still owed.'),
         ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
         ('docs/sdk-mcp-tutorial.md', 'Discover a contract, request a scaffold, validate manifest/widgets and run a native checker.'),
         ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),

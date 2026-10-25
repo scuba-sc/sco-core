@@ -220,14 +220,24 @@ try {
     return await Promise.all(result.results.slice(0, 5).map(async r => new URL((await r.data()).url, location.origin).pathname));
   })()`);
   const enterQuery = async query => {
-    await evaluate("document.querySelector('.pagefind-ui__search-input').focus()");
-    await key('a', 'KeyA', process.platform === 'darwin' ? 4 : 2);
+    // CDP's synthetic Cmd+A does not select text in headless Chrome on macOS.
+    // Keep native text insertion/input events, with an explicit replacement selection.
+    await evaluate("(() => { const input = document.querySelector('.pagefind-ui__search-input'); input.focus(); input.select(); })()");
     await call('Input.insertText', { text: query });
+    assert.equal(await evaluate("document.querySelector('.pagefind-ui__search-input').value"), query,
+      'Query replacement must not append to the preceding search');
   };
   const settledQuery = async (query, expected) => {
-    await wait(`document.querySelector('.pagefind-ui__message')?.textContent.includes(${JSON.stringify(query)})
-      && !document.querySelector('.pagefind-ui__message').textContent.includes('Searching')
-      && JSON.stringify(${resultPaths}) === ${JSON.stringify(JSON.stringify(expected))}`);
+    try {
+      await wait(`document.querySelector('.pagefind-ui__message')?.textContent.includes(${JSON.stringify(query)})
+        && !document.querySelector('.pagefind-ui__message').textContent.includes('Searching')
+        && JSON.stringify(${resultPaths}) === ${JSON.stringify(JSON.stringify(expected))}`);
+    } catch (error) {
+      const actual = await evaluate(`({ input: document.querySelector('.pagefind-ui__search-input')?.value,
+        message: document.querySelector('.pagefind-ui__message')?.textContent,
+        correction: document.querySelector('[data-search-correction]')?.textContent, paths: ${resultPaths} })`);
+      throw Error(`Search did not settle: ${JSON.stringify({ query, expected, actual })}`, { cause: error });
+    }
   };
   for (const [query, route] of [
     ['spawn a ship', 'sc-spawn-service-v1-spawn-near-player'],
@@ -387,7 +397,12 @@ try {
   if (socket) socket.close();
   const groupAlive = () => {
     if (!child.pid) return false;
-    try { process.kill(-child.pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; }
+    try { process.kill(-child.pid, 0); return true; } catch (error) {
+      if (error.code === 'ESRCH') return false;
+      // A permission refusal still means the group exists; keep waiting for its exit.
+      if (error.code === 'EPERM') return true;
+      throw error;
+    }
   };
   if (process.platform === 'win32') child.kill();
   else if (groupAlive()) process.kill(-child.pid, 'SIGTERM');

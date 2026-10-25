@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tools-only MCP 2025-11-25 server for SDK catalogue schema 1; read-only unless --enable-dev-tools.
+"""Tools-only MCP 2025-11-25 server for SDK catalogue schema 1; configured project roots enable local development tools.
 
 By default: no SDK invocation, subprocesses, network access, or filesystem writes.
 Stdout is reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr.
@@ -102,7 +102,7 @@ def scaffold_conclusions(lang):
         "files maps each relative path to the text sdk/tools/sco-new-plugin.py's render_plugin returns for this spec; nothing was written, built or checked.",
         "To use them, write the files into a missing or empty folder, then: " + SCAFFOLD_USE.get(lang, SCAFFOLD_USE["c"]),
         "The generator is read from --repo-root and run in this server process; it is not bound to the catalogue source_sha.",
-        "The plugin declares api = 1.0 and treats every service as optional; nothing generated here has been loaded by a host or run in game."]
+        "Native/C++/C# plugins declare API 1.1 to match exported info; Lua declares API 1.0. Every service is optional; nothing generated here has been loaded by a host or run in game."]
 NATIVE_CONCLUSIONS = [
     "hash is _0x plus 16 hex digits of sha256('sco-core:native:' + id): a stable symbolic name, not an address. The index records no pattern, mask, offset or address.",
     "tier comes from sdk/status_registry.json sig_rows: tier 2 means no registry capability names the row, not that the row is unused.",
@@ -253,7 +253,7 @@ def dev_tool(name, description, properties, required):
 
 DEV_TOOLS = [
     dev_tool("run_plugin_check", "Run the operator-configured sco-plugin-check on a built plugin folder inside a --project-root "
-             "(mode short adds --short-tables, as a 1.0 host serves); returns exit code, pass/fail and FAIL lines. "
+             "(mode short probes a truncated 1.0-sized root prefix, not API 1.0 loader admission); returns exit code, pass/fail and FAIL lines. "
              "Loads and runs the plugin's code against a stand-in host; not run in game.",
              {"folder": DEV_PATH, "mode": {"type": "string", "enum": ["full", "short"], "default": "full"}}, ("folder",)),
     dev_tool("build_plugin_project", "Configure and build a CMake plugin project inside a --project-root with the operator's cmake, "

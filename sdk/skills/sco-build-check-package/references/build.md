@@ -16,7 +16,7 @@ Check each exit code before proceeding. Use `cpp` for C++20; C is C11. On Window
 "$CHECKER" "$WORK/stage/data/plugins/pilot_probe" --short-tables --invoke pilot_probe.ping
 ```
 
-Assert exact `pong` replies. The generated check target exercises both root-table modes; it does not prove a real service provider or game behavior. Re-run after the last source/manifest edit and after archive extraction.
+Assert exact `pong` replies. The generated native manifest and exported info both declare API 1.1. The generated check target exercises full and truncated root-table modes; it does not simulate an actual API 1.0 loader admission, a real service provider or game behavior. Re-run after the last source/manifest edit and after archive extraction.
 
 | Language/kind | Route and limits |
 | --- | --- |

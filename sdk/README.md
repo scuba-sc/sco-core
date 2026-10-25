@@ -205,7 +205,7 @@ lua5.4 tools/lua-check.lua examples/greeter --invoke greeter.greet "Pilot One" t
 
 `release_service` withdraws one of your own services; it does not release a table you got from `query_service` (that table is borrowed, and the host answers `SCO_NOT_FOUND`). The checker fails a `release_service` for any name the plugin doesn't provide at that moment, naming the case where the plugin only queried it.
 
-`--short-tables` hands the plugin a 1.0 host's `sco_api`: `size` 88 (`offsetof(sco_api, provide_service)`) and `minor` 0. Calling a 1.1 member (`provide_service`, `query_service`, `release_service`, `invoke_raw`, `register_raw`) without first checking `api->size >= offsetof(sco_api, member) + sizeof(api->member)` fails the check, with the size the call needed. Run it once on a plugin that should still load on an older host.
+`--short-tables` hands the plugin a synthetic 1.0-sized `sco_api` prefix: `size` 88 (`offsetof(sco_api, provide_service)`) and `minor` 0. Calling a 1.1 member (`provide_service`, `query_service`, `release_service`, `invoke_raw`, `register_raw`) without first checking `api->size >= offsetof(sco_api, member) + sizeof(api->member)` fails the check, with the size the call needed. Use it to exercise size guards; actual host admission separately requires the exported API version to be supported.
 
 The stand-in serves `sco.widgets` 1.2 by default. It validates complete preorder trees, subtree updates/removals, 1.1 tooltip/severity/paging tails and 1.2 stable tags, including resulting-panel tag uniqueness. Each node is read only through its advertised size; capability readback reports features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24), with extension tails ignored. Calling later table members without complete-member extent and non-null checks fails the checker. An unchecked `query_service` under that short root table also fails, while returning the stand-in table so subsequent unchecked calls can be diagnosed.
 
@@ -221,6 +221,11 @@ To switch one plugin off, create an empty file named `disabled` in its folder.
 
 ## Generate a plugin folder
 
+Published RC1's generator writes a native API 1.0 manifest while exporting built-against
+API 1.1. The current source corrects this to 1.1. For an author-owned project generated
+with the unchanged RC1 tool, make its native manifest declare 1.1; do not alter the SDK's
+recorded checksums or claim API 1.0 admission from a short-table check.
+
 `tools/sco-new-plugin.py` (Python 3.8 or newer) writes a ready-to-build plugin folder in one command, in C, C++, C# or Lua:
 
 ```sh
@@ -230,8 +235,8 @@ cmake -S ../my_radar -B ../my_radar/build -DSCO_SDK="$PWD"
 cmake --build ../my_radar/build --target check
 ```
 
-- C and C++: the folder holds `plugin.ini` (`api = 1.0`), `<id>.c` (C11) or `<id>.cpp` (C++20, `include/scosdk/`), and a `CMakeLists.txt` that builds the plugin with `cmake/sco-plugin.cmake`. Its `check` target builds `sco-plugin-check` from `tools/` and runs it on the plugin twice: as is, and with `--short-tables`.
-- Every generated plugin registers `<id>.ping`. The code checks `sco_api`'s size before any 1.1 member and each service table's `size` before using it, so the plugin also loads on a 1.0 host.
+- C and C++: the folder holds `plugin.ini` (`api = 1.1`), `<id>.c` (C11) or `<id>.cpp` (C++20, `include/scosdk/`), and a `CMakeLists.txt` that builds the plugin with `cmake/sco-plugin.cmake`. Its `check` target builds `sco-plugin-check` from `tools/` and runs it on the plugin twice: as is, and with `--short-tables`.
+- Every generated plugin registers `<id>.ping`. Native/C++/C# manifests declare API 1.1 to match their exported built-against version. Size guards and short-table checks exercise defensive prefix access; they do not establish API 1.0 loader admission. Lua declares its script-runtime minimum.
 - `--with-menu` adds a `sco.widgets` panel (`<id>.main`). C++ builds it with `scosdk::PanelBuilder` ([UI cookbook](../docs/ui.md)); C writes the `sco_widget_node` array itself. Without the service the plugin runs with no panel.
 - `--services NAME[@MAJOR.MINOR],...` (default version 1.0) looks each service up on `game.ready` and logs the ones that are missing; the plugin keeps working. `plugin.ini` lists them on a commented `requires` line. Uncomment it if the plugin can't run without them. Include a service's header to call its table.
 - `--lang csharp` writes `plugin.ini`, `<id>.csproj` (a NativeAOT class library that references `csharp/Sco.Sdk`, like [`cs_hello`](examples/cs_hello)), `<Name>Plugin.cs` (`Sco.Sdk` with the three exports; `--with-menu` uses `PanelBuilder`, `--services` uses `Query`) and a `README.md`. Publish and check it with the [.NET 8 SDK and NativeAOT toolchain](../docs/sdk-csharp.md#setup); `ScoSdk` (or the `SCO_SDK` environment variable) is this folder, and the publish copies `plugin.ini` next to the DLL. `out/bin/sco-plugin-check` comes from [Build the examples](#build-the-examples):

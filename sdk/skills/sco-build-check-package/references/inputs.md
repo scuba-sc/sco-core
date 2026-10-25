@@ -1,6 +1,6 @@
 # Inputs and evidence
 
-This bundle version is 0.2.0, authored against SDK 2.4.0. Resolve actual versions from the chosen artifacts; bundle version is independent of SDK version. Matching hashes establish identity, not a signature, maintainer approval or safety of executable code.
+This bundle version is 0.2.1, authored against SDK 2.4.0. Resolve actual versions from the chosen artifacts; bundle version is independent of SDK version. Matching hashes establish identity, not a signature, maintainer approval or safety of executable code.
 
 Prefer a checksum-verified published plugin SDK. Preserve release tag, asset SHA-256, VERSION/VERSIONS.txt, COMPATIBILITY.json and catalogue hash/source. A game overlay requires its descriptor's exact base-core digest. Combined kits carry developer catalogue/server/guides; a core-only kit can use public files directly. Host-source kits are separate build inputs, not plugin SDK overlays. Verify file inventory before executing kit scripts. For a supplied Git blob inventory, hash exact bytes with `blob <length>\0`; never normalize bytes or change an expected digest to conceal a mismatch.
 
@@ -14,7 +14,7 @@ Use JSON or Markdown with these fields; keep paths relative or sanitized in shar
 
 ```json
 {
-  "workflow_bundle": "0.2.0",
+  "workflow_bundle": "0.2.1",
   "sdk": {"tag": null, "source_sha": null, "archive_sha256": null, "catalogue_sha256": null, "profile": null},
   "plugin": {"id": null, "version": null, "language": null, "required_services": [], "optional_services": []},
   "target": {"os": null, "arch": null, "toolchain": null, "product_revision": null, "host_revision": null},

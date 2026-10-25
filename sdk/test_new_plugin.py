@@ -7,7 +7,9 @@
 2. C and C++ plugins, with and without a menu, are generated into a temp folder, configured
    against this sdk/ folder the way an SDK user would (-DSCO_SDK=...), built, and checked by
    sco-plugin-check with and without --short-tables (the generated `check` target, plus a direct
-   run whose output is inspected). Lua plugins run their generated `check` target, and
+   run whose output is inspected). The queried native export must match the manifest's ABI.
+   Production discovery/loader admit the plugin at API 1.1 and refuse it when configured for
+   host API 1.0; short tables test only prefix defensiveness. Lua plugins run their `check` target, and
    tools/lua-check.lua when a Lua 5.4 interpreter is on PATH.
 3. With SCO_SDK_CSHARP=1 and dotnet on PATH, C# plugins are published with NativeAOT against a copy
    of this sdk/csharp (-p:ScoSdk=...) and checked by sco-plugin-check with and without
@@ -18,6 +20,7 @@
 import importlib.util
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -53,6 +56,115 @@ def run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, **kw)
 
 
+def assert_native_manifest_export(test, folder, output):
+    with open(os.path.join(folder, "plugin.ini"), encoding="utf-8") as f:
+        manifest = re.search(r"^api\s*=\s*(\d+\.\d+)\s*$", f.read(), re.MULTILINE)
+    queried = re.search(r"^\s*query\s+.*\(api (\d+\.\d+)\)$", output, re.MULTILINE)
+    test.assertIsNotNone(manifest)
+    test.assertIsNotNone(queried, output)
+    test.assertEqual(manifest[1], queried[1], "manifest must match the built-against queried native ABI")
+    test.assertEqual(queried[1], "1.1")
+
+
+def build_admission_probe(tmp):
+    """Compile the production discovery, loader and host; no game pack or checker admission shim."""
+    source = os.path.join(tmp, "admission")
+    os.mkdir(source)
+    with open(os.path.join(source, "admission.cpp"), "w", encoding="utf-8") as f:
+        f.write(r'''#include "sco/host.h"
+#include "sco/plugins.h"
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "line %d: %s\n", __LINE__, #x); std::exit(1); } } while (0)
+namespace P = sco::plugins;
+struct Reply { bool called = false; sco::Result result = sco::Result::Failed; std::string text; };
+static void Done(sco::Result r, const char* text, void* ctx) {
+    auto& reply = *static_cast<Reply*>(ctx);
+    reply = { true, r, text ? text : "" };
+}
+int main(int argc, char** argv) {
+    CHECK(argc == 5);
+    const std::string id = argv[2], expected = argv[3], mode = argv[4];
+    sco::SetGameThread();
+    const sco_api* api = sco::host::BuildApi({ "generated-plugin-admission-test" });
+    CHECK(api && api->major == 1 && api->minor == 1);
+    P::Options current; current.enabled = true;
+    auto list = P::Discover(argv[1], current);
+    CHECK(list.size() == 1 && list[0].manifest.id == id && list[0].state == P::State::Ready);
+    auto& plugin = list[0];
+    const std::string version = std::to_string(plugin.manifest.apiMajor) + "." +
+                                std::to_string(plugin.manifest.apiMinor);
+    CHECK(version == "1.1");
+    sco_plugin* self = sco::host::NewPlugin(id.c_str());
+    CHECK(self);
+    if (mode == "old") {
+        P::Options old = current; old.hostMinor = 0;
+        const auto refused = P::Discover(argv[1], old);
+        CHECK(refused.size() == 1 && refused[0].state == P::State::Refused);
+        CHECK(refused[0].reason == "built for api " + version);
+        // Also exercise the native query gate after bypassing only discovery's manifest gate.
+        sco_api oldApi = *api;
+        oldApi.size = offsetof(sco_api, provide_service); oldApi.minor = old.hostMinor;
+        CHECK(!P::LoadNative(plugin, &oldApi, self, old));
+        CHECK(plugin.state == P::State::Refused && plugin.reason == "DLL built for api " + version);
+        CHECK(!plugin.module && sco::Release(self) == sco::Result::Ok);
+        std::puts("API 1.0: discovery and native query both refused built-against API 1.1");
+        return 0;
+    }
+    CHECK(mode == "current" && P::LoadNative(plugin, api, self, current));
+    const sco_plugin_info* info = plugin.exports.query();
+    CHECK(info && info->size >= sizeof(sco_plugin_info));
+    CHECK(info->api_major == plugin.manifest.apiMajor && info->api_minor == plugin.manifest.apiMinor);
+    std::puts("manifest/export API 1.1: match; real loader admitted");
+    Reply reply;
+    CHECK(sco::Invoke((id + ".ping").c_str(), nullptr, 0, Done, &reply) == sco::Result::Ok);
+    CHECK(reply.called && reply.result == sco::Result::Ok && reply.text == expected);
+    std::printf("real host invoke -> OK \"%s\"\n", reply.text.c_str());
+    P::UnloadNative(plugin);
+    CHECK(plugin.state == P::State::Unloaded);
+    CHECK(sco::Invoke((id + ".ping").c_str(), nullptr, 0, nullptr, nullptr) == sco::Result::NotFound);
+    std::puts("real loader unload: command removed");
+}
+''')
+    with open(os.path.join(source, "CMakeLists.txt"), "w", encoding="utf-8") as f:
+        f.write('''cmake_minimum_required(VERSION 3.20)
+project(generated_plugin_admission C CXX)
+set(SCO_GAME_SC OFF CACHE BOOL "" FORCE)
+set(SCO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory("${SCO_ROOT}" core EXCLUDE_FROM_ALL)
+add_executable(generated-plugin-admission admission.cpp)
+target_compile_features(generated-plugin-admission PRIVATE cxx_std_20)
+target_link_libraries(generated-plugin-admission PRIVATE sco_plugins sco_host)
+''')
+    build = os.path.join(source, "build")
+    for cmd in ([CMAKE, "-S", source, "-B", build, "-DSCO_ROOT=" + os.path.dirname(HERE),
+                 "-DCMAKE_BUILD_TYPE=Release"],
+                [CMAKE, "--build", build, "--config", "Release", "--target", "generated-plugin-admission"]):
+        result = run(cmd)
+        if result.returncode:
+            raise AssertionError(f"{' '.join(cmd)}\n{result.stdout}\n{result.stderr}")
+    exes = [os.path.join(dp, name) for dp, _, files in os.walk(build) for name in files
+            if name in ("generated-plugin-admission", "generated-plugin-admission.exe")]
+    if len(exes) != 1:
+        raise AssertionError(exes)
+    return exes[0]
+
+
+def assert_host_admission(test, probe, folder, pid, services, with_menu):
+    lookups = [s for s in services if not (with_menu and s.partition("@")[0] == "sco.widgets")]
+    reply = f"pong (0 of {len(lookups)} services)" if lookups else "pong"
+    for mode in ("current", "old"):
+        result = run([probe, os.path.dirname(folder), pid, reply, mode])
+        test.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        if mode == "current":
+            test.assertIn("manifest/export API 1.1: match; real loader admitted", result.stdout)
+            test.assertIn(f'real host invoke -> OK "{reply}"', result.stdout)
+            test.assertIn("real loader unload: command removed", result.stdout)
+        else:
+            test.assertIn("API 1.0: discovery and native query both refused built-against API 1.1", result.stdout)
+
+
 class Render(unittest.TestCase):
     def test_pure_and_deterministic(self):
         s = {"id": "my_radar", "lang": "cpp", "with_menu": True, "services": ["game.actors", "sco.widgets"]}
@@ -76,7 +188,7 @@ class Render(unittest.TestCase):
                                    "services": ["game.actors@1.1", "sco.widgets"]})
         ini = files["plugin.ini"]
         self.assertIn("id = my_radar\n", ini)
-        self.assertIn("api = 1.0\n", ini)
+        self.assertIn("api = 1.1\n", ini)
         self.assertIn("entry = my_radar.dll\n", ini)
         self.assertIn("; requires = game.actors, sco.widgets\n", ini)
         src = files["my_radar.c"]
@@ -98,7 +210,7 @@ class Render(unittest.TestCase):
         files = gen.render_plugin({"id": "my_radar", "lang": "csharp", "with_menu": True,
                                    "services": ["game.actors@1.1", "sco.widgets"]})
         ini = files["plugin.ini"]
-        for line in ("id = my_radar\n", "api = 1.0\n", "kind = native\n", "entry = my_radar.dll\n",
+        for line in ("id = my_radar\n", "api = 1.1\n", "kind = native\n", "entry = my_radar.dll\n",
                      "; requires = game.actors, sco.widgets\n"):
             self.assertIn(line, ini)
         proj = files["my_radar.csproj"]
@@ -118,10 +230,22 @@ class Render(unittest.TestCase):
             self.assertIn(text, cs)
         self.assertNotIn('("sco.widgets"', cs)  # the menu's service, opened by Widgets.Open
         self.assertIn("dotnet publish -c Release -r win-x64 -o out\\my_radar -p:ScoSdk=", files["README.md"])
+        self.assertIn("matching `PluginExports.Query`'s built-against ABI", files["README.md"])
+        self.assertIn("does not prove admission by an API 1.0 host", files["README.md"])
         plain = gen.render_plugin({"id": "widgets", "lang": "csharp"})["WidgetsPlugin.cs"]
         self.assertIn('reply.Set("pong");', plain)
         for text in ("PanelBuilder", "Widgets _widgets", "AnyTable", "LookupServices"):
             self.assertNotIn(text, plain)
+
+    def test_native_minimum_is_distinct_from_short_table_guards(self):
+        for lang in LANGS:
+            files = gen.render_plugin({"id": "abi_probe", "lang": lang, "with_menu": True})
+            self.assertIn("api = " + ("1.0" if lang == "lua" else "1.1") + "\n", files["plugin.ini"])
+            for text in files.values():
+                self.assertNotIn("also loads on a 1.0 host", text)
+                self.assertNotIn("so a 1.0 host loads it too", text)
+            if lang in ("c", "cpp"):
+                self.assertIn("not admission by an API 1.0 host", files["CMakeLists.txt"])
 
     def test_lua(self):
         files = gen.render_plugin({"id": "lua_radar", "lang": "lua", "with_menu": True, "services": ["sco.widgets"]})
@@ -256,6 +380,7 @@ class Build(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp()
+        cls.admission = build_admission_probe(cls.tmp)
 
     @classmethod
     def tearDownClass(cls):
@@ -293,6 +418,7 @@ class Build(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertIn("OK: 0 failure(s)", r.stdout)
             self.assertIn(f"invoke  {pid}.ping -> ok \"pong", r.stdout)
+            assert_native_manifest_export(self, stage, r.stdout)
             outputs[bool(extra)] = r.stdout
         self.assertIn("1.0 table", outputs[True])
         if with_menu:
@@ -302,6 +428,7 @@ class Build(unittest.TestCase):
         for name in (s.partition("@")[0] for s in services):
             if not (with_menu and name == "sco.widgets"):
                 self.assertIn(f"service {name}", outputs[False])
+        assert_host_admission(self, self.admission, stage, pid, services, with_menu)
         return outputs
 
     def test_c(self):
@@ -348,6 +475,7 @@ class CSharpBuild(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp()
+        cls.admission = build_admission_probe(cls.tmp)
         # The NativeAOT link finds MSVC with vswhere, which may not be on PATH (as in sdk/test-zip.sh).
         cls.env = dict(os.environ)
         vsw = os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
@@ -410,6 +538,7 @@ class CSharpBuild(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertIn("OK: 0 failure(s)", r.stdout)
             self.assertIn(f"invoke  {pid}.ping -> ok \"pong", r.stdout)
+            assert_native_manifest_export(self, stage, r.stdout)
             outputs[bool(extra)] = r.stdout
         self.assertIn("1.0 table", outputs[True])
         if with_menu:
@@ -419,6 +548,7 @@ class CSharpBuild(unittest.TestCase):
         for name in (s.partition("@")[0] for s in services):
             if not (with_menu and name == "sco.widgets"):
                 self.assertIn(f"service {name} not available", outputs[False])
+        assert_host_admission(self, self.admission, stage, pid, services, with_menu)
 
     def test_csharp(self):
         self.publish_and_check("scaf_cs", False)
