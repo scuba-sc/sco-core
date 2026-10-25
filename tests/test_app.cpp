@@ -310,7 +310,7 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     pf.registerSignatures = RegisterForTest;
     pf.hostVersion = "test-app 1.0";
     pf.pluginRoot = root;
-    pf.pluginsEnabled = true;
+    CHECK(pf.pluginsEnabled);   // a configured root uses the default-on consumer path
     pf.builtins = kBuiltins;
     pf.nBuiltins = 2;
     pf.scripts = &kLua;
@@ -418,6 +418,17 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     CHECK(sco::app::Plugins().size() == 2 && StateOf("core1") == State::Loaded);
     CHECK(Logged("[plugin] 2 found, 2 loaded (plugins = off)"));
     sco::app::Stop();
+
+    // An empty root must not discover the current directory, even with plugins enabled.
+    const fs::path previousDirectory = fs::current_path();
+    fs::current_path(root);
+    pf.pluginsEnabled = true;
+    pf.pluginRoot.clear();
+    CHECK(sco::app::Start(pf));
+    CHECK(sco::app::Plugins().size() == 2 && StateOf("core1") == State::Loaded);
+    sco::app::Stop();
+    fs::current_path(previousDirectory);
+    pf.pluginRoot = root;
 
     // No script runtime: a lua plugin is refused, the rest load.
     pf.pluginsEnabled = true;

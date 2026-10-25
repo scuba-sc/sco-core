@@ -65,7 +65,7 @@ namespace sco::app {
 struct Platform {
     const char* hostVersion = nullptr;             // "sc-offline 0.8.0"; static string (host_version())
     std::filesystem::path pluginRoot;              // data/plugins
-    bool pluginsEnabled = false;                   // plugins = on|off; built-ins load either way
+    bool pluginsEnabled = true;                    // configured pluginRoot loads by default; false keeps built-ins only
     const plugins::Builtin* builtins = nullptr;    // the product's own features, loaded first
     size_t nBuiltins = 0;
     const plugins::ScriptRuntime* scripts = nullptr;   // sco-lua, or nullptr: lua plugins refused

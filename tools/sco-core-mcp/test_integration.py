@@ -11,8 +11,8 @@ launcher of one of two layouts:
   and no sdk/ folder);
 * checkout: the maintainer layout, with dist/sdk-catalogue.json under the repository root.
 
-A block either offers the SDK developer profile (--extended-tools, twelve tools) or the
-minimal profile (no flag, six tools), and a `tools` allowlist must name exactly that
+A block offers comprehensive SDK discovery by default (fourteen tools), or the
+explicit minimal profile (--minimal-tools, six tools), and a `tools` allowlist must name exactly that
 profile's tools. The Claude Code and Codex commands (which quote `$SDK`, set by the guide's
 "Find the SDK folder" block) and the Codex TOML table must repeat the same arguments. Each
 block is then started for real: a kit block against a kit-shaped folder assembled from this
@@ -50,7 +50,7 @@ MINIMAL_TOOLS = ['search_api', 'get_symbol', 'list_services', 'get_example',
                  'get_capability_status', 'check_compatibility']
 EXTENDED_TOOLS = MINIMAL_TOOLS + ['list_engine_natives', 'get_engine_native',
                                   'validate_manifest_and_widgets', 'generate_plugin_scaffold',
-                                  'search_guides', 'get_guide_section']
+                                  'search_guides', 'get_guide_section', 'list_workflows', 'get_workflow']
 SCRIPT = '/tools/sco-core-mcp/server.py'
 SERVER_NAME = 'sco-core-sdk'
 KIT_FOLDER = 'sco-sdk-2.4.0'
@@ -91,7 +91,7 @@ def codex_table(block):
     tomllib present, a test checks that this reader and a real TOML parser agree.
     """
     match = re.fullmatch(r'\[mcp_servers\.([A-Za-z0-9_-]+)\]\ncommand = ("[^"\n]*")\n'
-                         r'args = \[\n((?:  "[^"\n]*",\n)+)\]\n', block.strip() + '\n')
+                         r'args = \[\n((?:  "[^"\n]*",\n)*  "[^"\n]*",?\n)\]\n', block.strip() + '\n')
     if not match:
         raise ValueError('Expected a [mcp_servers.<name>] table: a command, then args one element per line')
     args = [json.loads(line.strip().rstrip(',')) for line in match.group(3).splitlines()]
@@ -129,11 +129,11 @@ def validate(envelope, name, entry):
         layout = 'checkout'
     else:
         raise ValueError('Unexpected --catalogue or --repo-root')
-    developer = args[5:] == ['--extended-tools']
-    if args[5:] and not developer:
+    if args[5:] not in ([], ['--extended-tools'], ['--minimal-tools']):
         raise ValueError('Unexpected launcher arguments')
+    developer = args[5:] != ['--minimal-tools']
     if 'tools' in entry and entry['tools'] != (EXTENDED_TOOLS if developer else MINIMAL_TOOLS):
-        raise ValueError('The tools allowlist must name exactly the six or twelve tools of the profile')
+        raise ValueError('The tools allowlist must name exactly the six or fourteen tools of the profile')
     return layout, base, developer
 
 
@@ -169,6 +169,8 @@ class DocumentedBlockTests(unittest.TestCase):
         self.assertGreaterEqual(layouts.count('kit'), 4, 'generic POSIX and Windows, VS Code and Copilot CLI')
         self.assertEqual(layouts.count('checkout'), 1, 'the one maintainer block')
         self.assertEqual([developer for layout, _, developer in seen if layout == 'checkout'], [False])
+        checkout = next(entry for envelope, name, entry in self.blocks if validate(envelope, name, entry)[0] == 'checkout')
+        self.assertIn('--minimal-tools', arguments(checkout), 'the hosted catalogue remains explicitly minimal')
         self.assertTrue(any(envelope == 'servers' for envelope, _, _ in self.blocks), 'VS Code envelope')
         windows = [entry for _, _, entry in self.blocks if entry['command'] == 'py']
         self.assertTrue(windows, 'a Windows launcher')
@@ -259,8 +261,8 @@ class DocumentedBlockTests(unittest.TestCase):
         changes = {
             'wildcard': lambda e: e.update(tools=['*']),
             'unknown tool': lambda e: e.update(tools=EXTENDED_TOOLS + ['write_file']),
-            'six names for twelve tools': lambda e: e.update(tools=MINIMAL_TOOLS),
-            'twelve names without the flag': lambda e: e.update(args=e['args'][:-1]),
+            'six names for comprehensive discovery': lambda e: e.update(tools=MINIMAL_TOOLS),
+            'comprehensive names with minimal flag': lambda e: e.update(args=e['args'][:catalogue + 4] + ['--minimal-tools']),
             'secret': lambda e: e.update(env={'API_KEY': 'forbidden-config-value'}),
             'wrong command': lambda e: e.update(command='python'),
             'py without -3': lambda e: e.update(command='py'),
@@ -326,7 +328,7 @@ class IntegrationTests(unittest.TestCase):
             shutil.copy(ROOT / source, self.kit / target)
         shutil.copy(CATALOGUE, self.kit / 'sdk-catalogue.json')
 
-    def launch(self, block, replacement, *calls, drop=(), omit=(), join=(), novalue=(), **overrides):
+    def launch(self, block, replacement, *calls, drop=(), omit=(), join=(), novalue=(), minimal=False, **overrides):
         """Run a documented block with its placeholder base path replaced by a real folder.
 
         `drop` removes arguments by their documented text, `omit` removes a flag and its value,
@@ -335,6 +337,9 @@ class IntegrationTests(unittest.TestCase):
         envelope, name, entry = block
         base = validate(envelope, name, entry)[1]
         args = [a.replace(base, replacement.as_posix()) for a in arguments(entry) if a not in drop]
+        if minimal:
+            args = [a for a in args if a not in ('--extended-tools', '--workflow-tools')]
+            args.append('--minimal-tools')
         for flag in omit:
             del args[args.index('--' + flag):args.index('--' + flag) + 2]
         for flag, value in overrides.items():
@@ -403,7 +408,7 @@ class IntegrationTests(unittest.TestCase):
         # unavailable with checkout paths in the reason, and the stability labels are unknown.
         result, replies = self.launch(block, self.kit, *calls, **{'repo-root': self.work})
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(replies[2]['result']['tools']), 12)
+        self.assertEqual(len(replies[2]['result']['tools']), 14)
         self.assertTrue(replies[3]['result']['structuredContent']['reason'].startswith(
             'sdk/native_index.json unavailable beneath --repo-root'))
         self.assertTrue(replies[4]['result']['structuredContent']['reason'].startswith(
@@ -433,9 +438,8 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertTrue(result.stderr.startswith('sco-core-mcp: catalogue refused: FileNotFoundError'),
                         result.stderr)
-        # The minimal profile is the same arguments without --extended-tools: six tools, extended names unknown.
-        _, replies = self.launch(block, self.kit, ('list_engine_natives', {'limit': 1}),
-                                 drop=('--extended-tools',))
+        # Explicit minimal mode keeps the six original names and rejects comprehensive names.
+        _, replies = self.launch(block, self.kit, ('list_engine_natives', {'limit': 1}), minimal=True)
         self.assertEqual([t['name'] for t in replies[2]['result']['tools']], MINIMAL_TOOLS)
         self.assertEqual(replies[3]['error'], {'code': -32602, 'message': 'Unknown tool'})
 

@@ -1,5 +1,7 @@
 # sco-core
 
+Consumer agents: start with the [SDK workflow skills](docs/agent-workflows.md) for building, debugging, packaging, upgrading and reporting public SDK gaps.
+
 [![test](https://github.com/scuba-sc/sco-core/actions/workflows/test.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/test.yml)
 [![cmake](https://github.com/scuba-sc/sco-core/actions/workflows/cmake.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/cmake.yml)
 [![sdk](https://github.com/scuba-sc/sco-core/actions/workflows/sdk.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/sdk.yml)

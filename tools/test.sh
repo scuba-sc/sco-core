@@ -5,6 +5,9 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=$ROOT/tests/out
 mkdir -p "$OUT"
+if [ -f "$ROOT/tools/test_sdk_workflows.py" ]; then
+  python3 "$ROOT/tools/test_sdk_workflows.py"
+fi
 CXX=${CXX:-$(command -v clang++ || command -v g++)}
 CC=${CC:-$(command -v clang || command -v gcc)}
 

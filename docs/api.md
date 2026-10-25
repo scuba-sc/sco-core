@@ -156,7 +156,7 @@ The startup order every product needs, over the host table, caps, signatures and
 struct Platform {
     const char* hostVersion;                       // "sc-offline 0.8.0"; static
     std::filesystem::path pluginRoot;              // data/plugins
-    bool pluginsEnabled = false;                   // plugins = on|off; built-ins load either way
+    bool pluginsEnabled = true;                    // configured root; false keeps built-ins only
     const plugins::Builtin* builtins = nullptr; size_t nBuiltins = 0;
     const plugins::ScriptRuntime* scripts = nullptr;   // sco-lua, or nullptr
     const Image* image = nullptr;                  // resolve signatures against this; nullptr skips

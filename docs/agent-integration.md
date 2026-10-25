@@ -1,8 +1,10 @@
 # SDK discovery in agents and IDEs
 
+For durable consumer procedures, start with the [roadmap-driven workflow skills](agent-workflows.md). Workflow discovery, scaffolding, validation, guides and API discovery are available together in the default profile.
+
 The local [`tools/sco-core-mcp`](../tools/sco-core-mcp/README.md) server exposes
-read-only **discovery** tools over stdio: six by default, twelve with
-`--extended-tools`. It reads the same compiler-backed catalogue as the static
+read-only **discovery** tools over stdio: fourteen by default, or the original six
+with explicit `--minimal-tools`. It reads the same compiler-backed catalogue as the static
 reference site. It does not call SDK methods, run a game, or provide an HTTP
 endpoint, and by default it compiles nothing. GitHub Pages cannot host it.
 No credentials, secrets, network service or orchestration prompt is required.
@@ -43,6 +45,15 @@ host: read those under `docs/releases/` in the repository. For a guide
 under `sdk/docs` the `url` is a repository path, not a link; in the kit that guide is under
 `docs/` (see [Find the SDK folder](#find-the-sdk-folder)). See the
 [release notes](releases/sdk-v2.4.0.md#known-issues-in-release-candidate-1).
+
+**Current source versus published RC1.** The fourteen-tool default and workflow bundle
+on this page describe current source and candidate kits built from it. The already
+published RC1 archive keeps its original six-tool default and twelve tools with
+`--extended-tools`; it has no workflow index or workflow tools. When using that
+unchanged archive, append `--extended-tools` to the developer launchers below and
+expect twelve tools. Use a separately pinned, checksummed candidate built from the
+updated source for the fourteen-tool workflow. Do not replace RC1 files silently or
+claim the new defaults were verified in its published bytes.
 
 ### Download and verify the kit
 
@@ -140,19 +151,24 @@ shell expands it. The configuration examples use `/absolute/path/to/sco-sdk-2.4.
 
 ### Choose a profile
 
-Every example on this page uses one of two profiles:
+Current source offers these profiles:
 
 | Profile | Server flag | Tools |
 | --- | --- | --- |
-| **SDK developer profile (recommended)** | `--extended-tools` | 12 read-only tools |
-| **Minimal profile** | none | 6 read-only tools |
+| **SDK developer profile (recommended default)** | none | 14 read-only tools |
+| **Minimal profile** | `--minimal-tools` | 6 read-only catalogue tools |
 
-The six default tools are `search_api`, `get_symbol`, `list_services`,
-`get_example`, `get_capability_status` and `check_compatibility`. `--extended-tools`
-adds `list_engine_natives`, `get_engine_native`, `validate_manifest_and_widgets`,
-`generate_plugin_scaffold`, `search_guides` and `get_guide_section`. The
-[SDK tutorial](sdk-mcp-tutorial.md)'s scaffold, validation, native and guide steps
-need all twelve.
+The original six are `search_api`, `get_symbol`, `list_services`, `get_example`,
+`get_capability_status` and `check_compatibility`. The default also offers
+`list_engine_natives`, `get_engine_native`, `validate_manifest_and_widgets`,
+`generate_plugin_scaffold`, `search_guides`, `get_guide_section`, `list_workflows`
+and `get_workflow`. The legacy `--extended-tools` and `--workflow-tools` flags are
+accepted compatibility aliases; neither is needed for current-source defaults.
+Do not combine them with `--minimal-tools`.
+
+The [SDK tutorial](sdk-mcp-tutorial.md) uses the comprehensive default. Call
+`list_workflows {}` and start with `sco-plan-sdk-work` to connect the task to the
+current roadmap and public SDK before choosing an implementation workflow.
 
 - Both profiles run the kit's own `tools/sco-core-mcp/server.py`, a Python program, on
   your machine, and both read data files under `--repo-root`. What differs is which tools
@@ -162,7 +178,7 @@ need all twelve.
   kit's `sdk-guides.json`; a checkout's `tools/sdk_guides.py` is not in the kit, so a kit
   without `sdk-guides.json` gets a tool error from them. Use the developer profile on a
   kit you downloaded from the release and verified. Neither profile compiles or builds
-  anything; running builds and checks is a separate opt-in, the
+  anything; running builds and checks requires operator-configured project roots for the
   [development tools](#opt-in-development-tools).
 - Where your client has a tool allowlist, list the exact names of the profile you
   chose. Never use a wildcard. A name left out of an allowlist hides that tool from
@@ -173,9 +189,9 @@ need all twelve.
   labels are `unknown`. The guide tools still work when `sdk-guides.json` sits beside
   the catalogue. Leave `--repo-root` out only when you do not want example file
   contents to reach your model provider.
-- Three build-and-check tools are a separate opt-in
-  ([development tools](#opt-in-development-tools)). Do not put them in a shared
-  configuration.
+- Three build-and-check tools are offered automatically when the operator configures
+  a `--project-root` ([development tools](#opt-in-development-tools)). Without a root
+  they are absent. Keep project-root execution configuration local.
 
 ### Register the server in your client
 
@@ -201,9 +217,9 @@ These rules apply to every client below.
   rely on the client's working directory, `~`, environment variables or shell quoting.
   In a shell command, quote each path (see [Claude Code](#claude-code)).
 - **The arguments in order.** `SDK/tools/sco-core-mcp/server.py`, `--catalogue`,
-  `SDK/sdk-catalogue.json`, `--repo-root`, `SDK`, then `--extended-tools` for the
-  developer profile (`SDK` is the SDK folder's absolute path). Leave `--extended-tools`
-  out for the minimal profile.
+  `SDK/sdk-catalogue.json`, `--repo-root`, `SDK` for the default developer
+  profile (`SDK` is the SDK folder's absolute path). Append `--minimal-tools` for
+  the six-tool minimal profile.
 - **Replacing a registration.** After you move the SDK folder or change a path, remove the
   old entry and add it again; `claude mcp add` refuses a name that is already registered
   (`already exists in user config`). Claude Code:
@@ -212,9 +228,10 @@ These rules apply to every client below.
   remove the `sco-core-sdk` entry in its configuration file or MCP panel, then add it
   again with the new paths.
 
-**What was tested.** The server command was run on Windows only, with `py -3`, from
-the release candidate 1 kit. With `--extended-tools` it served twelve tools, without
-it six, and the tool calls tried returned results. Not run in game.
+**Historical RC1 verification.** The RC1 server command was run on Windows only,
+with `py -3`: `--extended-tools` served twelve tools, and no flag served six. The
+tool calls tried returned results. That observation does not verify the new
+source defaults or workflow index. Not run in game.
 `tools/sco-core-mcp/test_integration.py` starts the server with the arguments of
 the JSON blocks on this page, using a kit-shaped folder it assembles from this
 repository; it has been run on Windows only. On Windows, with a throwaway
@@ -231,13 +248,13 @@ to stop the server, were not run on macOS or Linux.
 User scope, so every project sees the server. Windows PowerShell:
 
 ```powershell
-claude mcp add --scope user sco-core-sdk -- py -3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK" --extended-tools
+claude mcp add --scope user sco-core-sdk -- py -3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK"
 ```
 
 macOS and Linux:
 
 ```sh
-claude mcp add --scope user sco-core-sdk -- python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK" --extended-tools
+claude mcp add --scope user sco-core-sdk -- python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK"
 ```
 
 These commands use the `$SDK` you set in [Find the SDK folder](#find-the-sdk-folder), so
@@ -269,8 +286,7 @@ others) take this entry. macOS and Linux:
         "--catalogue",
         "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-sdk-2.4.0",
-        "--extended-tools"
+        "/absolute/path/to/sco-sdk-2.4.0"
       ]
     }
   }
@@ -290,8 +306,7 @@ Windows: `py` with `-3` first, and `C:/` paths.
         "--catalogue",
         "C:/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
         "--repo-root",
-        "C:/absolute/path/to/sco-sdk-2.4.0",
-        "--extended-tools"
+        "C:/absolute/path/to/sco-sdk-2.4.0"
       ]
     }
   }
@@ -307,13 +322,13 @@ Either register it from a shell, or edit `~/.codex/config.toml` (on Windows,
 `.codex\config.toml` under your user folder). The command, on macOS and Linux:
 
 ```sh
-codex mcp add sco-core-sdk -- python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK" --extended-tools
+codex mcp add sco-core-sdk -- python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK"
 ```
 
 On Windows PowerShell:
 
 ```powershell
-codex mcp add sco-core-sdk -- py -3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK" --extended-tools
+codex mcp add sco-core-sdk -- py -3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK"
 ```
 
 Both use the same `$SDK` and the same quotes as the Claude Code commands.
@@ -328,8 +343,7 @@ args = [
   "--catalogue",
   "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
   "--repo-root",
-  "/absolute/path/to/sco-sdk-2.4.0",
-  "--extended-tools",
+  "/absolute/path/to/sco-sdk-2.4.0"
 ]
 ```
 
@@ -358,8 +372,7 @@ VS Code reads `.vscode/mcp.json`, and its top-level key is `servers`, not
         "--catalogue",
         "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-sdk-2.4.0",
-        "--extended-tools"
+        "/absolute/path/to/sco-sdk-2.4.0"
       ]
     }
   }
@@ -389,8 +402,7 @@ launching the server**:
         "--catalogue",
         "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-sdk-2.4.0",
-        "--extended-tools"
+        "/absolute/path/to/sco-sdk-2.4.0"
       ],
       "tools": [
         "search_api",
@@ -404,15 +416,17 @@ launching the server**:
         "validate_manifest_and_widgets",
         "generate_plugin_scaffold",
         "search_guides",
-        "get_guide_section"
+        "get_guide_section",
+        "list_workflows",
+        "get_workflow"
       ]
     }
   }
 }
 ```
 
-For the minimal profile, remove `--extended-tools` and the last six names from
-`tools`. On Windows use `"command": "py"` and `"-3"` first in `args`.
+For the minimal profile, append `--minimal-tools` and retain only the original
+six names in `tools`. On Windows use `"command": "py"` and `"-3"` first in `args`.
 
 A session-specific file can be passed with
 `--additional-mcp-config @/absolute/path/to/mcp.json`. A repository
@@ -428,8 +442,9 @@ separate, see
 2. Check that the server is connected. In Claude Code, `claude mcp list` or `/mcp`
    shows `sco-core-sdk` as connected; approve a project-scoped server first. In other
    clients, open the MCP or tools panel and look for `sco-core-sdk` running.
-3. Check `tools/list`: twelve tools for the developer profile, six for the minimal
-   profile, all with `readOnlyHint: true`. Ask the agent to list the server's tools
+3. Check `tools/list`: fourteen tools for the current-source default developer
+   profile, six for explicit `--minimal-tools`, all with `readOnlyHint: true`. The
+   unchanged published RC1 developer profile has twelve instead. Ask the agent to list the server's tools
    if your client has no tools view.
 4. Ask the agent: "Call the `sco-core-sdk` tool `list_services` with no arguments and
    show me the raw `provenance` and `stability_context`." Most clients have no box for
@@ -465,13 +480,29 @@ Common failures:
 | `sco-core-mcp: catalogue refused: FileNotFoundError`, exit code 1, and the client shows the server as failed or disconnected | `server.py` started, but the `--catalogue` file does not exist: for example a checkout's `dist/sdk-catalogue.json` path in a kit, or the extract folder in place of `sco-sdk-2.4.0`. Run the same existence check. |
 | The server connects, but `get_example` returns `Example unavailable: requires a contained regular UTF-8 file without symlinks`; `list_engine_natives` or `generate_plugin_scaffold` return `unavailable` with a `reason` such as `sdk/native_index.json unavailable beneath --repo-root`; `list_services` shows `stability_context.game_state` `unavailable` | `--repo-root` is not the SDK folder: it is one level too high, another folder, or left out (left out, `get_example` instead returns paths only with `paths_only: true`). The server starts anyway. The messages use checkout paths (`sdk/...`); a kit has no `sdk/` folder, and those files sit at its root (`native_index.json`, `tools/sco-new-plugin.py`), so nothing is missing from the kit. Set `--repo-root` to the SDK folder and restart; step 5 above checks it. |
 | A usage block that ends with `server.py: error: unrecognized arguments: ...`, `server.py: error: --catalogue or SCO_CORE_CATALOGUE is required` or `server.py: error: argument --repo-root: expected one argument`, exit code 2 | An argument is malformed: a flag and its value were joined in one `args` element (`"--catalogue C:/..."`), `--catalogue` is missing, or a flag has no value. Make every flag and every value its own element, in the order under [Register the server in your client](#register-the-server-in-your-client). |
-| `Unknown tool` (JSON-RPC `-32602`), or only six tools | `--extended-tools` is missing, or the client's allowlist leaves the names out. Add the flag and the six extended names, then restart. |
+| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is the older published RC1 server. Current source defaults to fourteen; grant the fourteen exact names for that profile. RC1 needs `--extended-tools` for its twelve supported names and has no workflow tools. |
 | The server does not start on Windows, or the Microsoft Store opens | `python3` is not a standard Windows command. Use `py` with `-3`, or an absolute `python.exe` (`py -3 -c "import sys; print(sys.executable)"` prints its path). |
 | The client disconnects while initializing | The client does not support protocol `2025-11-25`. Update the client. |
 | `check_compatibility` says a `tag` does not match the advertised pattern | Known issue in release candidate 1: the tag pattern is `sdk-vMAJOR.MINOR.PATCH`, so `sdk-v2.4.0-rc.1` is refused. Compare `sdk_version` and `game_pack_version` instead. |
 | `search_guides` text says 2.4.0 is not on the release page | Known issue in release candidate 1, described at the top of this section. The [docs site](https://scuba-sc.github.io/sco-core/) supersedes the kit's guides. |
 
-### The extended tools
+### Workflow discovery and missing indexes
+
+`list_workflows` takes no arguments. `get_workflow` requires `id` and accepts an
+optional `path` returned for that workflow; with no path it reads its SKILL.md.
+Read only the relevant references from the returned resource list. Results carry
+catalogue provenance and separate workflow bundle/index/file hashes. The index
+must match the catalogue's SDK/source coordinates. Tool arguments cannot read
+arbitrary files.
+
+Current source lists these two tools even when no default index is present;
+calling them then returns the precise `Workflow index unavailable` tool error.
+Place the matching `sdk-workflows.json` beside the catalogue or select it with
+operator flag `--workflows`. A selected missing file, or a present malformed,
+corrupted or source-mismatched index, refuses startup. This includes an invalid
+index found beside the catalogue; it is not silently bypassed.
+
+### The default developer tools
 
 `search_guides` answers "how do I ..." questions from the SDK guides, not only
 the contract catalogue. It takes a `query` and optionally one guide path as
@@ -494,14 +525,16 @@ as relative path to text. It writes and builds nothing; save the files into an
 empty folder and build them with the SDK yourself. Without `--repo-root` it
 reports `unavailable`. With a root, the server runs that root's scaffolder in its
 own process, so grant only a kit or checkout you have reviewed. The
-[server README](../tools/sco-core-mcp/README.md#extended-tools-opt-in) gives the
+[server README](../tools/sco-core-mcp/README.md#extended-tools-default) gives the
 schemas and limits.
 
-### Opt-in development tools
+### Local development tools
 
-On a developer's own machine, an agent can also run the build-and-check loop. Add
-`--enable-dev-tools` and one or more `--project-root /absolute/path/to/projects` to
-the server's `args`, and the server offers three more tools: `run_plugin_check`,
+<a id="opt-in-development-tools"></a>
+
+On a developer's own machine, configure one or more
+`--project-root /absolute/path/to/projects` entries in the server's `args`; it then
+automatically offers three more tools for the build-and-check loop: `run_plugin_check`,
 `build_plugin_project` and `test_plugin_project`. Where your client has an
 allowlist, add each name you want to `tools` explicitly. In `args`, every flag and
 every value is its own array element; `"--project-root /abs"` as one element is
@@ -510,8 +543,7 @@ refused at start. Append these elements to the existing `args` and `tools` of th
 
 ```json
 {
-  "args": ["--enable-dev-tools",
-           "--project-root", "/absolute/path/to/projects",
+  "args": ["--project-root", "/absolute/path/to/projects",
            "--plugin-check", "/absolute/path/to/sco-plugin-check"],
   "tools": ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
 }
@@ -532,6 +564,8 @@ how to build the checker.
 - `test_plugin_project` takes the same `project` and runs `ctest` in that
   `build` subfolder.
 
+`--enable-dev-tools` remains a compatibility flag and still requires at least one
+project root; current source needs no separate enable flag once a root is configured.
 The caller supplies only that path. The operator fixes the programs (with
 `--plugin-check`, `--cmake` and `--ctest`), the generator and platform
 (`--cmake-generator`, `--cmake-platform`), the SDK folder (`--sco-sdk`), a
@@ -572,7 +606,7 @@ Clang is required for compiler-backed AST extraction. The tool uses `CLANG` if
 set, otherwise `clang` on `PATH`; pass `--clang /absolute/path/to/clang` to the
 `build` command to override either.
 
-The opt-in guide tools need no file in a checkout: without `sdk-guides.json`
+The default guide tools need no generated file in a checkout: without `sdk-guides.json`
 beside the catalogue they build fresh sections from `--repo-root` on first use.
 To pin them to a commit instead, build the file beside the catalogue (standard
 library only, no compiler):
@@ -605,7 +639,8 @@ first and `C:/` paths.
         "--catalogue",
         "/absolute/path/to/sco-core/dist/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-core"
+        "/absolute/path/to/sco-core",
+        "--minimal-tools"
       ],
       "tools": [
         "search_api",
@@ -620,9 +655,13 @@ first and `C:/` paths.
 }
 ```
 
-For the developer profile in your own checkout, add `"--extended-tools"` to `args` and
-the six extended names to `tools`. The profile rule, the arguments rules and the
-client files above apply unchanged; only the paths differ.
+For the comprehensive default in your own checkout, remove `"--minimal-tools"`
+from `args` and list all fourteen names in `tools`. Build the workflow index beside
+the catalogue with `python3 tools/sdk_workflows.py --root . --out dist/sdk-workflows.json`.
+A missing default index leaves the two workflow names listed but calls report
+`Workflow index unavailable`; an explicit missing index, or any malformed/hash-
+inconsistent/source-mismatched index that is present, refuses startup. The
+arguments and client-file rules above apply; only the paths differ.
 
 ## Copilot code review: maintainer-owned repository setting
 
@@ -632,8 +671,8 @@ cloud agent and code review. This document is a configuration snippet, **not an
 applied repository setting**. No settings or setup workflows are changed here.
 See [GitHub's repository MCP guide](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/configure-mcp-servers).
 Use the minimal profile there: a hosted runner should run nothing from the
-checkout beyond the server itself (no scaffolder, no builds), so leave out
-`--extended-tools` and the development tools.
+checkout beyond the server itself (no scaffolder, no builds), so pass
+`--minimal-tools` and leave out project roots and development tools.
 
 Before saving, the maintainer must prepare Python 3.9 or newer, Clang capable of compiling
 and running x64 C11 probes, the trusted checkout and `dist/sdk-catalogue.json`
@@ -647,7 +686,7 @@ context. Check that context rather than guessing a runner path or promising the
 cloud agent's setup also prepares code review.
 
 GitHub code review excludes tools whose `tools/list` response omits
-`annotations.readOnlyHint` or sets it to false. All twelve discovery tools return:
+`annotations.readOnlyHint` or sets it to false. All fourteen discovery tools return:
 
 ```json
 {

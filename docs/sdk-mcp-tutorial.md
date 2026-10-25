@@ -28,16 +28,20 @@ Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-u
 verify `sco-sdk-2.4.0.zip`, find the SDK folder (the folder that directly contains
 `sdk-catalogue.json`; for the combined kit, `<extract folder>/sco-sdk-2.4.0`), choose a
 profile, register `sco-core-sdk` in your client and verify the connection. This
-tutorial uses the **SDK developer profile**: `--extended-tools`, 12 read-only tools.
-The scaffold, validation, native and guide steps below need the six extended tools; the
-**minimal profile** (no `--extended-tools`, 6 tools) covers only the discovery steps.
+tutorial uses the current-source **SDK developer profile**: fourteen read-only
+tools by default. Explicit `--minimal-tools` retains the six catalogue tools and
+leaves out scaffolding, validation, native/guide and workflow discovery. The
+legacy `--extended-tools` and `--workflow-tools` aliases are no longer needed.
+The published RC1 server is unchanged: append `--extended-tools` for its twelve
+tools, and use a separately pinned updated-source kit for the new workflow tools
+and defaults.
 
 To start the server by hand, with absolute paths on the machine running the client:
 
 ```sh
 python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
   --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
-  --repo-root /absolute/path/to/sco-sdk-2.4.0 --extended-tools
+  --repo-root /absolute/path/to/sco-sdk-2.4.0
 ```
 
 This command waits for MCP messages on stdin; it is not a shell prompt. On
@@ -45,10 +49,21 @@ Windows use `py -3` with drive-qualified paths, for example
 `C:/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py`. On macOS/Linux use
 `python3`, or an absolute Python executable if the client does not inherit shell `PATH`.
 
-No runtime tools are added by `--extended-tools`; grant the six additional names
-deliberately. A root permits bounded example/metadata reads and lets the scaffold
+The fourteen default tools do not add runtime access; list their exact names in
+client allowlists. A root permits bounded example/metadata reads and lets the scaffold
 tool, and the guide tools when no `sdk-guides.json` is present, execute that root's
 reviewed generator code in-process.
+
+### Start with the roadmap workflow
+
+On an updated-source kit call `list_workflows {}`, then
+`get_workflow {"id":"sco-plan-sdk-work"}`. Read its returned references as needed,
+map the task to the pinned roadmap goal and public contracts, and record observable
+acceptance before continuing below. This workflow bundle is absent from published
+RC1. If the default index is missing, the names remain listed but return
+`Workflow index unavailable`; obtain or build matching index bytes rather than
+combining snapshots. A selected missing or present invalid/mismatched index
+refuses startup. These tools serve embedded reference text and execute no code.
 
 ### Discover one contract
 
@@ -207,8 +222,8 @@ plugins. Runtime metadata inspection, if independently authorized, uses the
 
 ### Optional: let the agent build and check
 
-The same loop can run through MCP on your own machine, with three opt-in
-development tools. First build the checker once, outside your project root (the
+The same loop can run through MCP on your own machine. Three development tools
+are offered automatically when operator project roots are configured. First build the checker once, outside your project root (the
 `check` target builds its own copy inside the project's build tree, but
 `build_plugin_project` builds only the default targets):
 
@@ -219,15 +234,16 @@ cmake --build /absolute/checker-build --config Release --target sco-plugin-check
 
 The program is `/absolute/checker-build/sco-plugin-check`, or
 `/absolute/checker-build/Release/sco-plugin-check.exe` with a Visual Studio
-generator. Then start the server with `--enable-dev-tools`, a project root that
-holds your project folder, and that checker. On Windows with Visual Studio 2022,
+generator. Then start the server with a `--project-root` that holds your project
+folder and that checker. No separate enable flag is needed in current source;
+`--enable-dev-tools` remains compatible and still requires a root. On Windows with Visual Studio 2022,
 add a generator and platform as well:
 
 ```sh
 python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
   --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
-  --repo-root /absolute/path/to/sco-sdk-2.4.0 --extended-tools \
-  --enable-dev-tools --project-root /absolute/project \
+  --repo-root /absolute/path/to/sco-sdk-2.4.0 \
+  --project-root /absolute/project \
   --plugin-check /absolute/checker-build/sco-plugin-check \
   --cmake-generator "Visual Studio 17 2022" --cmake-platform x64
 ```
@@ -463,8 +479,8 @@ command invocation or gameplay mutation.
 ## Optional runtime observations — default OFF, separate acceptance
 
 The historical walkthrough above uses **only the six static discovery tools** (the
-minimal profile); the standalone workflow at the top uses the twelve of the SDK
-developer profile. Runtime MCP is an optional independently implemented/reviewed
+minimal profile when explicitly launched with `--minimal-tools`); the standalone
+workflow at the top uses the fourteen current-source default discovery tools. Runtime MCP is an optional independently implemented/reviewed
 feature under
 [runtime MCP design](design/runtime-mcp.md); do not enable it to make the example
 compile. The default launcher advertises no `runtime_*` names. Consult `tools/list`

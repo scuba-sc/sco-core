@@ -40,6 +40,14 @@ sco-core instead of a game build, and a game patch is fixed once here instead of
 | Agent and IDE discovery | A read-only stdio MCP server that ships with the SDK: search the API, read contracts and examples, check compatibility, validate a manifest, and generate a plugin scaffold. See [agent integration](agent-integration.md) and the [SDK and MCP tutorial](sdk-mcp-tutorial.md). |
 | Out-of-game testing | `sco-plugin-check` runs a plugin against a rule-enforcing host without the game. The [scuba-engine](https://github.com/scuba-sc/scuba-engine) studio hosts plugins against mock game services. |
 
+Consumer agents start with [roadmap and SDK planning](../sdk/skills/sco-plan-sdk-work/SKILL.md).
+The workflow records this document's source/hash, goal, public contracts and observable
+acceptance, then carries implementation through archive-only checks. The default discovery
+profile exposes the complete fourteen-tool SDK/skill surface; constrained clients can select
+`--minimal-tools`. [Defaults readiness](defaults-readiness.md) records experimental backend
+prerequisites. Default availability is a goal; backend implementation and evidence remain
+separate requirements.
+
 ### Start contributing today
 
 | You want to | Start here |
@@ -112,7 +120,7 @@ without starting over later:
   Stable once its signature rows resolve on the verified build. An Experimental table can later be
   replaced by a new major version, with the old one kept through a deprecation window.
 - **MCP tools for the whole development loop:** run the plugin checker, scaffold C# and Lua plugins
-  as well as C and C++, search the guides, and (opt-in) build and test a plugin project.
+  as well as C and C++, search the guides, and build/test a plugin project when operator project roots are configured.
 - **A plugin design principles guide** with a modular example, and a **community plugin directory**:
   plugins live in their authors' own repositories and are listed with their compatibility.
 - **An outsider dry run:** starting only from the published archive, the docs site and the MCP, an

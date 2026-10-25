@@ -1,5 +1,7 @@
 # sco SDK
 
+Consumer agents: use the [workflow bundle](../docs/agent-workflows.md), starting with [roadmap and SDK planning](skills/sco-plan-sdk-work/SKILL.md). Skills and their content-hashed index ship with the kit; default MCP workflow discovery is documented there.
+
 Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star Citizen offline mod. A plugin is one folder that sc-offline loads from `data\plugins\<id>\`. There are three kinds:
 
 | Kind | What it is | Example |

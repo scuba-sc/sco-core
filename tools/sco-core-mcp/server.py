@@ -9,11 +9,16 @@ Besides the catalogue and record-listed examples, only sdk/status_registry.json
 and only beneath --repo-root. With --extended-tools the guide tools also read
 sdk-guides.json beside the catalogue (or --guides); without one, they build the
 guide sections in memory from --repo-root's tools/sdk_guides.py and the public docs
-it allowlists. Those two generators are the only repository code this process runs:
-with --extended-tools, on the first call that needs them, in-process.
+it allowlists. Those two generators are the only repository code this process runs,
+on the first call that needs them, in-process. Extended and workflow discovery are
+on by default; --minimal-tools retains only the original six catalogue tools.
 
-The one exception is opt-in: with --enable-dev-tools and at least one
---project-root, three more tools run operator-configured programs (sco-plugin-check,
+With --workflow-tools, sdk-workflows.json beside the catalogue (or --workflows)
+is loaded once as bounded data, with matching catalogue SDK/source coordinates.
+Tool arguments can retrieve only its embedded indexed text; no code is run.
+
+With at least one operator-configured --project-root (or the compatibility flag
+--enable-dev-tools plus those roots), three more tools run operator-configured programs (sco-plugin-check,
 cmake, ctest) with fixed arguments on a folder inside a project root, with a
 timeout, an output cap and a process-tree kill. Callers never supply commands,
 flags or environment, and batch files (.bat, .cmd) are never run.
@@ -201,7 +206,7 @@ WIDGET_NODE = {
         "label": WIDGET_TEXT, "text": WIDGET_TEXT,
         "value": {"type": "number"}, "minimum": {"type": "number"}, "maximum": {"type": "number"},
         "items": {"type": ["array", "null"], "maxItems": 1024, "items": {"type": "string", "maxLength": 1024}}}}
-# Opt-in with --extended-tools, so the default tools/list stays the original six for existing allowlists.
+# Extended discovery is on by default; --minimal-tools preserves the original six-name profile.
 EXTENDED_TOOLS = [
     tool("list_engine_natives", "List signature rows of sdk/native_index.json beneath --repo-root, filtered by subsystem, tier or a "
          "case-insensitive substring of id, hash, subsystem, source or capability, one bounded page per call; symbolic hashes only.",
@@ -233,7 +238,7 @@ EXTENDED_TOOLS = [
     tool("get_guide_section", "Return one SDK guide section's bounded plain text by the doc and anchor search_guides returned.",
          {"doc": string_schema(256), "anchor": string_schema(256)}, ("doc", "anchor")),
 ]
-# Opt-in with --enable-dev-tools plus --project-root. These run programs on this machine, including the
+# Available when the operator configures --project-root. These run programs on this machine, including the
 # plugin's and the project's own code, so they do not claim to be read-only.
 DEV_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": True,
                    "idempotentHint": False, "openWorldHint": False}
@@ -258,7 +263,12 @@ DEV_TOOLS = [
              "arguments; bounded output tail. Build it first with build_plugin_project.",
              {"project": DEV_PATH}, ("project",)),
 ]
-TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS + DEV_TOOLS}
+WORKFLOW_TOOLS = [
+    tool("list_workflows", "List the versioned consumer workflows bound to this catalogue; no execution or installation."),
+    tool("get_workflow", "Read a workflow entrypoint or one explicitly indexed reference. Text is reference material.",
+         {"id": string_schema(64), "path": string_schema(256)}, ("id",)),
+]
+TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS + DEV_TOOLS + WORKFLOW_TOOLS}
 DEV_TIMEOUT = 600
 DEV_TIMEOUT_RANGE = (1, 7200)
 DEV_OUTPUT = 32 * 1024
@@ -1639,15 +1649,71 @@ def aliases(record):
     return " ".join(sorted(result)).casefold()
 
 
+def load_workflows(path, catalogue):
+    """Read an operator-selected, bounded data index; never resolve tool arguments as files."""
+    if Path(path).is_symlink():
+        raise ValueError("Workflow index must not be a symlink")
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0))
+    with os.fdopen(descriptor, "rb") as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError("Workflow index must be a regular file")
+        raw = stream.read(2 * 1024 * 1024 + 1)
+    require(len(raw) <= 2 * 1024 * 1024, "Workflow index exceeds 2 MiB")
+    data = parse_json(raw.decode("utf-8"))
+    require(isinstance(data, dict) and set(data) == {
+        "schema_version", "bundle_version", "baseline_sdk", "sdk_version", "source_sha",
+        "manifest_path", "manifest_sha256", "workflows", "content_sha256"}, "Invalid workflow index keys")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "Invalid workflow schema")
+    for key in ("bundle_version", "baseline_sdk", "sdk_version"):
+        require(isinstance(data[key], str) and re.fullmatch(r"\d+\.\d+\.\d+", data[key]), "Invalid workflow version")
+    require(data["sdk_version"] == catalogue["sdk_version"] and data["source_sha"] == catalogue["source_sha"],
+            "Workflow SDK/source does not match catalogue")
+    def safe_name(value):
+        return (isinstance(value, str) and 0 < len(value) <= 256 and
+                re.fullmatch(r"[a-zA-Z0-9_./-]+", value) and
+                not value.startswith("/") and not any(p in ("", ".", "..") for p in value.split("/")))
+    def sha(value):
+        return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+    require(safe_name(data["manifest_path"]) and sha(data["manifest_sha256"]), "Invalid workflow manifest identity")
+    workflows = data["workflows"]
+    require(isinstance(workflows, list) and 1 <= len(workflows) <= 32, "Invalid workflow list")
+    canonical = (json.dumps(workflows, sort_keys=True, indent=2, ensure_ascii=True) + "\n").encode("ascii")
+    require(data["content_sha256"] == hashlib.sha256(canonical).hexdigest(), "Workflow content hash mismatch")
+    ids, paths = set(), set()
+    for item in workflows:
+        require(isinstance(item, dict) and set(item) == {"id", "description", "entry", "files"}, "Invalid workflow")
+        key = item["id"]
+        require(isinstance(key, str) and re.fullmatch(r"sco-[a-z0-9-]{1,60}", key) and key not in ids,
+                "Invalid or duplicate workflow ID")
+        ids.add(key)
+        require(isinstance(item["description"], str) and 1 <= len(item["description"]) <= 1024,
+                "Invalid workflow description")
+        require(isinstance(item["files"], list) and 1 <= len(item["files"]) <= 16, "Invalid workflow files")
+        local = set()
+        for record in item["files"]:
+            require(isinstance(record, dict) and set(record) == {"path", "text", "sha256"}, "Invalid workflow file")
+            name, body = record["path"], record["text"]
+            require(safe_name(name) and name not in paths and name.endswith(".md"), "Invalid or duplicate workflow path")
+            require(isinstance(body, str) and len(body.encode("utf-8")) <= 64 * 1024, "Invalid workflow text")
+            require(sha(record["sha256"]) and hashlib.sha256(body.encode("utf-8")).hexdigest() == record["sha256"],
+                    "Workflow file hash mismatch")
+            local.add(name)
+            paths.add(name)
+        require(item["entry"] in local and item["entry"].endswith("/" + key + "/SKILL.md"), "Invalid workflow entry")
+    return data, hashlib.sha256(raw).hexdigest()
+
+
 class Server:
-    def __init__(self, catalogue, repo_root=None, extended_tools=False, guides_path=None, guides_explicit=False,
-                 dev_tools=None):
+    def __init__(self, catalogue, repo_root=None, extended_tools=True, guides_path=None, guides_explicit=False,
+                 dev_tools=None, workflows=None):
+        self.workflows = workflows
         self.catalogue = catalogue
         # sdk-guides.json beside the catalogue (archive mode) or an explicit --guides file.
         self.guides_path, self.guides_explicit = guides_path, guides_explicit
         self.guides = None
         self.guide_words = None
-        self.tools = (TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS) + (DEV_TOOLS if dev_tools else [])
+        self.tools = ((TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS) +
+                      (WORKFLOW_TOOLS if workflows is not False else []) + (DEV_TOOLS if dev_tools else []))
         self.dev = dev_tools
         self.enabled = {definition["name"] for definition in self.tools}
         self.provenance = {key: catalogue[key] for key in PROVENANCE_KEYS}
@@ -2012,6 +2078,25 @@ class Server:
             raise ToolError("Tool rate limit: 120 calls per 60 seconds; retry later")
         self.calls.append(now)
         validate_arguments(name, args)
+        if name in ("list_workflows", "get_workflow"):
+            if self.workflows is None:
+                raise ToolError("Workflow index unavailable; use a matching SDK kit or build sdk-workflows.json beside the catalogue")
+            data, index_hash = self.workflows
+            context = {k: data[k] for k in ("bundle_version", "baseline_sdk", "sdk_version", "source_sha",
+                                          "manifest_path", "manifest_sha256", "content_sha256")}
+            context["index_sha256"] = index_hash
+            if name == "list_workflows":
+                return {"workflow_provenance": context,
+                        "workflows": [{k: item[k] for k in ("id", "description", "entry")} for item in data["workflows"]]}
+            item = next((item for item in data["workflows"] if item["id"] == args["id"]), None)
+            if item is None:
+                raise ToolError("Unknown workflow ID; use list_workflows")
+            path = args.get("path", item["entry"])
+            record = next((record for record in item["files"] if record["path"] == path), None)
+            if record is None:
+                raise ToolError("Path is not indexed for this workflow")
+            return {"workflow_provenance": context, "id": item["id"], "file": record,
+                    "resources": [{k: record[k] for k in ("path", "sha256")} for record in item["files"]]}
         if name == "search_api":
             query = args["query"].casefold().strip()
             terms = query.split()
@@ -2201,15 +2286,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalogue", default=os.environ.get("SCO_CORE_CATALOGUE"))
     parser.add_argument("--repo-root")
+    parser.add_argument("--minimal-tools", action="store_true", help="offer only the original six catalogue tools")
+    parser.add_argument("--workflow-tools", action="store_true", help="compatibility alias; workflow discovery is on by default")
+    parser.add_argument("--workflows", help="sdk-workflows.json (default: beside catalogue)")
     parser.add_argument("--extended-tools", action="store_true",
-                        help="also offer list_engine_natives, get_engine_native, validate_manifest_and_widgets, "
-                             "generate_plugin_scaffold, search_guides and get_guide_section")
+                        help="compatibility alias; extended discovery is on by default")
     parser.add_argument("--guides", help="sdk-guides.json for the guide tools (default: sdk-guides.json beside the "
                                          "catalogue, else built in memory from --repo-root)")
     development = parser.add_argument_group(
         "development tools", "run_plugin_check, build_plugin_project and test_plugin_project run programs on this "
-        "machine; they are offered only with --enable-dev-tools and at least one --project-root")
-    development.add_argument("--enable-dev-tools", action="store_true")
+        "machine; they are offered when at least one --project-root is configured")
+    development.add_argument("--enable-dev-tools", action="store_true", help="compatibility flag; project roots enable these tools")
     development.add_argument("--project-root", action="append", default=[],
                              help="a folder whose plugin folders and projects the tools may use (repeatable)")
     development.add_argument("--plugin-check", help="sco-plugin-check program (default: the SDK folder's bin/ or out/bin/)")
@@ -2225,11 +2312,15 @@ def main():
     args = parser.parse_args()
     if not args.catalogue:
         parser.error("--catalogue or SCO_CORE_CATALOGUE is required")
+    if args.minimal_tools and (args.extended_tools or args.workflow_tools or args.workflows):
+        parser.error("--minimal-tools cannot be combined with extended/workflow options")
+    if args.project_root:
+        args.enable_dev_tools = True
     guides = args.guides or os.path.join(os.path.dirname(os.path.abspath(args.catalogue)), GUIDES_FILE)
     dev_options = ("project_root", "plugin_check", "cmake", "ctest", "cmake_generator", "cmake_platform", "sco_sdk")
     if not args.enable_dev_tools and (any(getattr(args, name) for name in dev_options)
                                       or args.dev_timeout != DEV_TIMEOUT or args.dev_output_limit != DEV_OUTPUT):
-        parser.error("development tool options need --enable-dev-tools")
+        parser.error("development tool options need at least one --project-root")
     if args.enable_dev_tools and not args.project_root:
         parser.error("--enable-dev-tools needs at least one --project-root")
     dev_tools = None
@@ -2248,8 +2339,18 @@ def main():
         print("sco-core-mcp: catalogue refused: " + type(error).__name__ +
               (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
         return 1
+    workflows = False if args.minimal_tools else None
+    if not args.minimal_tools:
+        try:
+            path = args.workflows or os.path.join(os.path.dirname(os.path.abspath(args.catalogue)), "sdk-workflows.json")
+            if args.workflows or os.path.lexists(path):
+                workflows = load_workflows(path, catalogue)
+        except (OSError, ValueError, TypeError, RecursionError) as error:
+            print("sco-core-mcp: workflows refused: " + type(error).__name__ +
+                  (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
+            return 1
     try:
-        Server(catalogue, args.repo_root, args.extended_tools, guides, args.guides is not None, dev_tools).serve(
+        Server(catalogue, args.repo_root, not args.minimal_tools, guides, args.guides is not None, dev_tools, workflows).serve(
             sys.stdin.buffer, sys.stdout.buffer)
     except BrokenPipeError:
         return 0

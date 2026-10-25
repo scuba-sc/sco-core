@@ -2,6 +2,18 @@
 
 What each change means for plugin authors and for products built on sco-core (sc-offline). SDK releases are tagged `sdk-v<version>` and published with `sco-sdk-<version>.zip`; between releases, sc-offline pins a commit.
 
+## Unreleased
+
+- Ship consumer agent skills for roadmap/SDK planning, building/checking, debugging, packaging, upgrading
+  and reporting public SDK gaps. A versioned index hashes exact packaged text;
+  MCP offers the complete fourteen-tool discovery surface by default, with
+  `--minimal-tools` for constrained clients. Build/check tools are available when
+  operator project roots are configured; confinement/admission remain required.
+  Host plugin loading defaults on for a configured nonempty plugin root; explicit
+  disable remains available and empty roots never scan the current directory.
+  A readiness review covers all 37 recorded OFF experimental capabilities and
+  their remaining backend/probe prerequisites. These changes are absent from published RC1.
+
 ## sdk-v2.4.0 (release candidate 1 published 2026-10-21 as sdk-v2.4.0-rc.1; final release pending)
 
 - The documentation hero keeps its text, navigation and footer opaque while its

@@ -1,18 +1,20 @@
 # sco-core SDK discovery MCP server
 
+[Consumer workflow discovery](../../docs/agent-workflows.md) is included in the default fourteen-tool profile. Start with `sco-plan-sdk-work` to tie the task to the roadmap and public SDK. It reads `sdk-workflows.json` beside the catalogue or an operator-selected `--workflows` file, requires matching SDK/source coordinates, and serves only embedded indexed text.
+
 Development-only, read-only discovery of the public sco-core SDK contracts through
 MCP over stdio. The server uses only the standard library of Python 3.9 or newer
 and a generated SDK catalogue. It does **not** connect to a running host or game,
 invoke SDK methods, execute examples, or modify the repository. It is bundled
 development tooling, not a runtime game-service component. By default it compiles nothing; three
 [development tools](#development-tools-opt-in) that build and check plugin
-projects exist only when the operator turns them on.
+projects are offered automatically when the operator configures project roots.
 
 [Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
 implements the fixed runtime tool surface. This discovery executable remains
-credentials-free and catalogue-only, with six tools by default (the minimal
-profile) and six more read-only tools [opt-in](#extended-tools-opt-in) (the SDK
-developer profile, twelve tools).
+credentials-free, with fourteen read-only discovery tools by default. Explicit
+`--minimal-tools` retains the original six catalogue tools. The default developer
+profile includes [extended discovery](#extended-tools-default) and workflow retrieval.
 The separate launcher supersedes the historical same-server placement in the
 [runtime design](../../docs/design/runtime-mcp.md). Discovery never imports or
 enables runtime inspection. No live runtime/game acceptance is claimed.
@@ -28,9 +30,11 @@ To connect Claude Code, Codex, Cursor, VS Code or Copilot CLI to the SDK kit, fo
 It downloads and verifies the kit, defines the SDK folder (the folder that directly contains
 `sdk-catalogue.json`), gives each client's configuration and says how to verify the
 connection. This README does not repeat those configurations. Two profiles are used
-in every example: **SDK developer profile (recommended)**, with `--extended-tools`
-and 12 read-only tools, and **minimal profile**, without `--extended-tools` and with
-6 tools.
+in current-source examples: **SDK developer profile (recommended default)** with
+fourteen read-only tools, and **minimal profile** with explicit `--minimal-tools`
+and six catalogue tools. The legacy `--extended-tools` and `--workflow-tools` flags
+remain accepted aliases and are no longer needed; they cannot be combined with
+`--minimal-tools`.
 
 ## Copyable SDK consumer tutorial
 
@@ -61,20 +65,23 @@ extraction directory or an uncomposed overlay. The
 `host-source-sc` archive retains repository layout. Core and core-source profiles
 remain game-neutral and contain neither this game catalogue nor its launcher.
 
-For a trusted extracted kit, this command (SDK developer profile; drop
-`--extended-tools` for the minimal profile) is what a client launches:
+The published RC1 launcher retains its original six-tool default and twelve with
+`--extended-tools`; it has no workflow tools/index. The fourteen-tool default
+described here applies to updated source and independently pinned candidate kits
+built from it, not to unchanged RC1 bytes. Append `--extended-tools` to a developer
+launcher for RC1 compatibility and expect twelve. For an updated-source kit, this
+command uses the default developer profile (append `--minimal-tools` for six):
 
 ```sh
 python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
   --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
-  --repo-root /absolute/path/to/sco-sdk-2.4.0 \
-  --extended-tools
+  --repo-root /absolute/path/to/sco-sdk-2.4.0
 ```
 
 On Windows use `py -3` instead of `python3`, with drive-qualified paths such as
-`C:/absolute/path/to/sco-sdk-2.4.0`. `--extended-tools` grants the six additional
-discovery tools; the guide tools read the kit's `sdk-guides.json` beside its
-catalogue. Compiler probes run during packaging, not when the client connects.
+`C:/absolute/path/to/sco-sdk-2.4.0`. Default discovery includes scaffold, native,
+manifest/widget, guide and workflow tools. Guide tools read `sdk-guides.json`
+beside the catalogue; workflow tools use matching `sdk-workflows.json`. Compiler probes run during packaging, not when the client connects.
 Verify the zip against the release `SHA256SUMS`, and compare the first result's
 `provenance` (`sdk_version`, `game_pack_version`, `source_sha`) with the kit's
 `COMPATIBILITY.json`, before relying on its catalogue; a version match does not
@@ -201,10 +208,12 @@ server before relying on the new snapshot. The server does not regenerate it.
 
 ## Tools and explicit allowlist
 
-These are the complete six default tool names, the minimal profile. Six more are
-[opt-in](#extended-tools-opt-in) and make up the SDK developer profile (twelve
-tools); three [development tools](#development-tools-opt-in) are a separate
-opt-in. Enable the names of your profile explicitly, not with a wildcard.
+These are the original six catalogue tools, retained alone by explicit
+`--minimal-tools`. The default developer profile also includes the six
+[extended tools](#extended-tools-default) and two workflow tools below, fourteen
+read-only tools in total. Three [development tools](#development-tools-opt-in)
+are additionally offered when the operator configures project roots. List the
+exact names of your profile explicitly, not with a wildcard.
 The Arguments column gives the exact `inputSchema` property names, required ones
 first; any other argument name is refused:
 
@@ -273,7 +282,7 @@ request, and `no_matching_approval_record` otherwise. Each record reports its
 - A record is committed at its release tag, so a branch without it reports no
   match. That is not proof that no release exists.
 
-Every discovery tool (the six above and the six extended tools) advertises
+Every discovery tool (all fourteen in the default profile) advertises
 these MCP annotations; the development tools advertise
 [different ones](#development-tools-opt-in):
 
@@ -289,15 +298,17 @@ these MCP annotations; the development tools advertise
 These annotations describe this discovery server's tools. They do not make SDK
 methods mentioned in the returned contracts read-only or safe to invoke.
 
-### Extended tools (opt-in)
+### Extended tools (default)
 
-Start the server with `--extended-tools` to add six more read-only tools after
-the six above: the SDK developer profile, twelve tools. Without the flag,
-`tools/list` is exactly the six, and calling an extended name is refused as an
-unknown tool, so a minimal-profile allowlist is unchanged. If you enable the flag,
-add these names to the client allowlist explicitly.
-[The integration guide](../../docs/agent-integration.md#choose-a-profile) says what the
-flag lets the server run:
+<a id="extended-tools-opt-in"></a>
+
+These six developer tools and the two workflow tools are included by default.
+`--minimal-tools` omits all eight and offers exactly the original six catalogue
+tools when no project roots are configured. The legacy `--extended-tools` and
+`--workflow-tools` flags remain compatibility aliases, not prerequisites. Add
+the default fourteen names to client allowlists explicitly.
+[The integration guide](../../docs/agent-integration.md#choose-a-profile) explains
+which reviewed generator code the developer tools can run:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
@@ -307,6 +318,32 @@ flag lets the server run:
 | `generate_plugin_scaffold` | `id`, `lang`; optional: `with_menu`, `services` | Return the files [`sco-new-plugin`](../../sdk/tools/sco-new-plugin.py) would generate for a plugin spec, without writing them. |
 | `search_guides` | `query`; optional: `doc`, `limit`, `cursor` | Rank sections of the SDK guides by the query's whole-word terms (heading and title above body text, rarer terms above common ones) and return bounded snippets with doc, heading, anchor and url. |
 | `get_guide_section` | `doc`, `anchor` | Return one guide section's bounded plain text, by the doc and anchor `search_guides` returned. |
+| `list_workflows` | none | List the versioned consumer workflow IDs, descriptions and entrypoint paths bound to this catalogue. |
+| `get_workflow` | `id`; optional: `path` | Read a workflow SKILL.md or one explicitly indexed reference returned for that workflow; never an arbitrary filesystem path. |
+
+**Workflow retrieval.** `list_workflows {}` returns the bundle's entrypoint list;
+start with `sco-plan-sdk-work`. `get_workflow` with `id` alone returns its SKILL.md
+and a resource path/hash list; pass one returned `path` with the same ID to read
+that reference. Follow another workflow's link by requesting its own ID. Results
+include catalogue provenance and `workflow_provenance` with bundle/baseline/SDK/
+source coordinates, manifest/content/index hashes, and the returned file hash.
+This is reference data, not a grant of authority to execute its instructions.
+
+The operator-selected `--workflows` file, or default `sdk-workflows.json` beside
+the catalogue, is loaded once as bounded data (2 MiB index, 64 KiB per text file,
+up to 32 workflows and 16 files each). SDK/source coordinates must exactly match
+the catalogue. The index contains embedded text with validated hashes: tool
+arguments never trigger file reads. A missing default index keeps both tools
+listed but calls report `Workflow index unavailable`. An explicitly selected
+missing index, or a present malformed, corrupted or source-mismatched index,
+refuses startup rather than falling back. `--minimal-tools` reads no index and
+cannot be combined with workflow-selection flags.
+
+Build a source index beside a matching catalogue using
+`python3 tools/sdk_workflows.py --root . --out dist/sdk-workflows.json`.
+Updated-source SDK archives generate it from exact transformed payload bytes;
+its identity hashes do not imply human provenance or release approval. The
+published RC1 archive has no workflow index or tools.
 
 **Engine natives.** Both native tools read `sdk/native_index.json` (`native_index.json`
 in a kit) beneath `--repo-root` once, at start. The file has the same no-symlink
@@ -477,15 +514,18 @@ term matching, not semantic search. Guides are prose, not contract records:
 check a method with `get_symbol` before relying on it. Nothing in a guide is
 evidence that code ran in game.
 
-### Development tools (opt-in)
+### Development tools (configured roots)
+
+<a id="development-tools-opt-in"></a>
 
 Three more tools let an agent run the developer's own loop on this machine:
 check a built plugin, and configure, build and test a CMake plugin project.
-They are **off** unless the operator starts the server with
-`--enable-dev-tools` **and** at least one `--project-root DIR`. Without the flag,
-`tools/list` is unchanged (six tools, or twelve with `--extended-tools`) and calling
-one of these names is refused as an unknown tool. With it, they follow the other
-tools in `tools/list`. Add each name to the client allowlist explicitly:
+The operator configures at least one `--project-root DIR`; the server then
+automatically offers the tools. Without project roots they are absent and calls
+to their names are refused as unknown. `--enable-dev-tools` remains a compatibility
+flag and still requires a project root. Add each name to the client allowlist
+explicitly; three execution tools plus the default fourteen discovery tools means
+seventeen offered tools:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
@@ -502,8 +542,8 @@ environment variable, and any other argument is refused as a tool error.
 
 | Flag | Default | Effect |
 |---|---|---|
-| `--enable-dev-tools` | off | Offer the three tools. Refused at start without a `--project-root`. |
-| `--project-root DIR` | none | A folder the tools may use. Repeat it for more folders. Each must exist. |
+| `--enable-dev-tools` | unnecessary with roots | Compatibility flag; refused at start without a `--project-root`. |
+| `--project-root DIR` | none | A folder the tools may use; configuring one automatically offers all three development tools. Repeat for more folders. Each must exist. |
 | `--plugin-check PATH` | `bin/` or `out/bin/` of the SDK folder | The `sco-plugin-check` program. `cmake --install <build> --prefix out` in the SDK folder puts it in `out/bin/`. |
 | `--cmake PATH` | `cmake` on the server's `PATH` (`cmake.exe` on Windows) | The CMake program. |
 | `--ctest PATH` | `ctest` beside `--cmake`, else on `PATH` | The CTest program. |
@@ -513,8 +553,8 @@ environment variable, and any other argument is refused as a tool error.
 | `--dev-timeout SECONDS` | 600 | Time limit for one call, 1-7200. A build's configure and build steps share it. |
 | `--dev-output-limit BYTES` | 32768 | Output tail returned per step, 256-262144. |
 
-Any of these options without `--enable-dev-tools` is refused at start, as is a
-missing project root or an out-of-range limit. Programs are looked up on every
+Development options without an operator-configured project root are refused at
+start, as is `--enable-dev-tools` without a root or an out-of-range limit. Programs are looked up on every
 call, so a checker built after the server started is found. A program path that
 ends in `.py` is run with the server's own Python interpreter, which lets an
 operator use a wrapper script. Batch files are refused: Windows runs a `.bat` or
@@ -626,8 +666,10 @@ Rules that hold for every client:
 - On Windows use `py` with `-3` as the first argument, or an absolute `python.exe`. A
   standard Windows Python install has `py` but not `python3`, and a `python3` alias can
   be the Microsoft Store stub.
-- The profile decides the tools. With `--extended-tools` the client allowlist names the
-  twelve tools; without it, the six above. Never use a wildcard.
+- The default client allowlist names all fourteen discovery tools; explicit
+  `--minimal-tools` uses only the original six. Configured project roots additionally
+  offer three execution tools, which need their own exact client permissions. Never
+  use a wildcard.
 - Removing `--repo-root` and its path disables `get_example` contents, the engine-native
   tools, the scaffold, status and stability evidence and release-approval lookups. The
   guide tools still work when `sdk-guides.json` sits beside the catalogue. Do it only to
@@ -666,7 +708,8 @@ runner**, not a path on your workstation:
         "--catalogue",
         "/absolute/path/to/sco-core/dist/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-core"
+        "/absolute/path/to/sco-core",
+        "--minimal-tools"
       ],
       "tools": [
         "search_api",
@@ -699,8 +742,8 @@ Prepare the runner before enabling this configuration:
 
 GitHub warns that configured MCP tools may be used autonomously without asking
 for approval, and recommends specific read-only tool allowlists. Copilot code
-review requires `annotations.readOnlyHint: true` on tools it uses. All twelve
-discovery tools, the six in this allowlist and the six extended ones, set that
+review requires `annotations.readOnlyHint: true` on tools it uses. All fourteen
+default discovery tools, including the six in this minimal allowlist, set that
 annotation, but annotations and an allowlist are not a sandbox for the
 client itself. Do not add a wildcard or assume this restricts the client's other
 tools. Consult the linked GitHub documentation for current UI and runner behavior.
@@ -714,8 +757,8 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | `catalogue refused: FileNotFoundError`, exit code 1 | `server.py` started, but the `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
 | Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
-| Extended tool is unknown | Restart with `--extended-tools` and explicit client permissions for the additional names. |
-| Development tool is unknown or refused | Restart with `--enable-dev-tools` and a `--project-root`. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
+| Developer/workflow tool is unknown | Remove `--minimal-tools` and grant the fourteen exact default names in the client. The older published RC1 launcher needs `--extended-tools` for twelve tools and has no workflow tools. |
+| Development tool is unknown or refused | Configure an operator `--project-root`; current source offers execution tools automatically. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
 | Scaffold/native metadata unavailable | `--repo-root` must be the SDK folder, not its parent folder: the server starts either way. Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
 | Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |
 | Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
@@ -724,7 +767,7 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | Guide text says 2.4.0 is not on the release page, or `check_compatibility` refuses the tag `sdk-v2.4.0-rc.1` | Known issues in release candidate 1: its guides and READMEs predate publication, and the tag pattern has no pre-release suffix. The docs site supersedes the kit's text; compare `sdk_version` and `game_pack_version`. |
 
 Discovery cannot invoke commands, reload plugins or diagnose live game state.
-The opt-in development tools build and check plugins on this machine only; they
+The project-root development tools build and check plugins on this machine only; they
 never reach a host or the game.
 Runtime inspection uses the separate default-off launcher with independent host
 and security admission.
@@ -732,7 +775,7 @@ and security admission.
 ## Security boundaries and limits
 
 - **No network, subprocess execution, or file writes by the server**, unless the
-  operator enables the [development tools](#development-tools-opt-in), which run
+  operator configures project roots for the [development tools](#development-tools-opt-in), which run
   fixed programs on folders inside the configured project roots. Its interface
   is stdio and its discovery operations read local catalogue data and optional
   example files. The separate catalogue builder compiles/runs probes and writes
@@ -741,7 +784,7 @@ and security admission.
   `sdk/` folder; see [Using an extracted SDK archive](#using-an-extracted-sdk-archive)),
   on the first `generate_plugin_scaffold` call, and `tools/sdk_guides.py` (a checkout
   only: a kit has no such file and ships `sdk-guides.json`), on the first guide call when
-  no `sdk-guides.json` is found; both only with `--extended-tools` and a `--repo-root`,
+  no `sdk-guides.json` is found; both in the default developer profile with a `--repo-root`,
   in-process. Treat that root as code you would run yourself.
 - **Not arbitrary file access.** `get_example` reads only paths listed in the
   selected catalogue record's `examples`, beneath the configured repository root.
@@ -751,7 +794,7 @@ and security admission.
   [Using an extracted SDK archive](#using-an-extracted-sdk-archive)),
   or `docs/game/status.md` when there is no registry (each read once,
   at start), the `sdk-v*.json`/`.json.sig` records in `docs/legal/release-decisions/`
-  (per `check_compatibility` call) and, with `--extended-tools` only,
+  (per `check_compatibility` call) and, in the default developer profile,
   `sdk/native_index.json` (at most 4 MiB, once at start),
   `sdk/tools/sco-new-plugin.py` (at most 256 KiB, once, on the first scaffold
   call) and, for the guide tools without an `sdk-guides.json`,

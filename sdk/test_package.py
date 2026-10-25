@@ -298,22 +298,39 @@ class RealManifest(unittest.TestCase):
             ("get_example", {"symbol_or_id": "sc_container_contents_v1.snapshot", "language": "c"}),
             ("validate_manifest_and_widgets", {"plugin_ini": "[plugin]\nid=archive_probe\nversion=0.1.0\napi=1.0\nkind=native\nentry=archive_probe.dll\n"}),
             ("search_guides", {"query": "start your first plugin", "limit": 1}),
+            ("list_workflows", {}),
+            ("get_workflow", {"id": "sco-plan-sdk-work"}),
+            ("get_workflow", {"id": "sco-plan-sdk-work", "path": "skills/sco-plan-sdk-work/references/roadmap.md"}),
         ], 3):
             messages.append({"jsonrpc": "2.0", "id": index, "method": "tools/call",
                              "params": {"name": name, "arguments": arguments}})
         result = subprocess.run([sys.executable, str(kit / "tools/sco-core-mcp/server.py"),
-            "--catalogue", str(kit / "sdk-catalogue.json"), "--repo-root", str(kit), "--extended-tools"],
+            "--catalogue", str(kit / "sdk-catalogue.json"), "--repo-root", str(kit)],
             input="".join(json.dumps(message) + "\n" for message in messages),
             cwd=self.tmp, capture_output=True, text=True, encoding="utf-8", timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         replies = {reply["id"]: reply for reply in map(json.loads, result.stdout.splitlines())}
-        self.assertEqual(len(replies[2]["result"]["tools"]), 12)
-        for index in range(3, 10):
+        tools = replies[2]["result"]["tools"]
+        self.assertEqual(len(tools), 14)
+        self.assertEqual([tool["name"] for tool in tools][-2:], ["list_workflows", "get_workflow"])
+        self.assertTrue(all(tool["annotations"]["readOnlyHint"] for tool in tools))
+        for index in range(3, 13):
             self.assertNotIn("error", replies[index])
             self.assertFalse(replies[index]["result"].get("isError", False), replies[index])
         found = replies[9]["result"]["structuredContent"]
         self.assertEqual((found["guides"]["mode"], found["guides"]["matches_catalogue_source_sha"]), ("file", True))
         self.assertEqual(found["sections"][0]["doc"], "docs/getting-started.md")
+        workflows = json.loads((kit / "sdk-workflows.json").read_text(encoding="utf-8"))
+        listed = replies[10]["result"]["structuredContent"]
+        self.assertEqual(listed["workflow_provenance"]["source_sha"], catalogue["source_sha"])
+        self.assertEqual(listed["workflow_provenance"]["sdk_version"], catalogue["sdk_version"])
+        self.assertEqual([item["id"] for item in listed["workflows"]], [item["id"] for item in workflows["workflows"]])
+        self.assertIn("sco-plan-sdk-work", [item["id"] for item in listed["workflows"]])
+        for reply_id in (11, 12):
+            served = replies[reply_id]["result"]["structuredContent"]["file"]
+            self.assertEqual(served["text"].encode("utf-8"), (kit / served["path"]).read_bytes())
+            self.assertEqual(served["sha256"], sha(kit / served["path"]))
+        self.assertIn("roadmap", replies[12]["result"]["structuredContent"]["file"]["text"].casefold())
         scaffold = replies[6]["result"]
         self.assertIn("archive_probe", json.dumps(scaffold))
         payload = json.loads(scaffold["content"][0]["text"])
