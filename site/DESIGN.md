@@ -105,7 +105,8 @@ page, the native theme selector is also visible in the mobile header.
 - **Landing** (`[data-sco-landing]`, `.sco-landing__*`): home-only semantic
   section, one page title, linked tasks/languages/hubs, decorative bracket/core
   mark, canvas and simple motion toggle. The canvas is `aria-hidden`; all content
-  and navigation exist in server-rendered HTML.
+  and navigation exist in server-rendered HTML. Arrow cues use Starlight's inline
+  SVG icons, hidden from assistive technology; link text supplies the names.
 - **Intro** (`.sco-intro`, `.sco-intro__eyebrow`, `.sco-intro__lead`): compact,
   left-aligned explanation following the page title.
 - **Actions** (`.sco-actions`, `.sco-action`, `.sco-action--primary`): real links;
@@ -165,9 +166,11 @@ fallback and usable links. Runtime teardown handles pagehide and restoration
 from the back/forward cache; the component also disposes before an Astro swap.
 There is no telemetry panel, GSAP, video, external font or animation dependency.
 
-On the home page, native CSS scroll timelines recede and fade the hero copy and
-move the two particle planes at different depths. Home body blocks fade at the
-viewport edges and remain opaque through the central reading area. Scrolling
+On the home page, native CSS scroll timelines recede the hero copy at full text
+opacity, keeping the topline, task links, hub navigation and footer readable while
+onscreen. Only the decorative particle planes fade as they move at different depths.
+Home body blocks fade at the viewport edges and remain opaque through the central
+reading area. Scrolling
 back reverses these effects. Focused or targeted sections stay fully visible.
 The effects add no scroll listener or animation loop. Unsupported browsers and
 reduced motion retain visible, still content; documentation routes stay still.

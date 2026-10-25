@@ -322,9 +322,13 @@
 	text-transform: uppercase;
 }
 
-.sco-landing__hub-label > span:last-child {
+.sco-landing__arrow {
+	flex: none;
+}
+
+.sco-landing__hub-label .sco-landing__arrow {
 	color: var(--sco-landing-accent);
-	font-size: 1.125rem;
+	transform: rotate(-45deg);
 }
 
 .sco-landing__hub a {
@@ -495,8 +499,9 @@
 }
 
 @keyframes sco-landing-recede {
-	from { opacity: 1; transform: translateY(0); }
-	to { opacity: 0.12; transform: translateY(-3rem); }
+	/* Only decoration fades; navigation and footer text stay readable on exit. */
+	from { transform: translateY(0); }
+	to { transform: translateY(-3rem); }
 }
 
 @keyframes sco-landing-depth {

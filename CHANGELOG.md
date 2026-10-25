@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (release candidate 1 published 2026-10-21 as sdk-v2.4.0-rc.1; final release pending)
 
+- The documentation hero keeps its text, navigation and footer opaque while its
+  decorative galaxy layers fade on scroll. Task and hub arrows use inline SVG
+  icons so their rendering does not depend on font glyph coverage.
+
 - The documentation home page gains a responsive deepwater landing with the
   sco-core SDK title, plugin/API actions, language mappings and four library links.
   A local worker draws its decorative particle field; Pause/Resume holds and
