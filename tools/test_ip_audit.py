@@ -104,6 +104,27 @@ def resum(entries):
     entries[f"{top}/SHA256SUMS"] = "".join(lines).encode()
 
 
+def refresh_generated_metadata(entries, profile):
+    """Rebuild hashes/SBOM after a mutation, so semantic checks must catch the defect."""
+    top = next(iter(entries)).split("/", 1)[0]
+    content = {name[len(top) + 1:]: data for name, data in entries.items()}
+    manifest = pkg.load_manifest()
+    _, sums_name, _, inventory_name, sbom_name = pkg.metadata_names(manifest, profile)
+    records = {row["path"]: row for row in json.loads(content[inventory_name])["files"]}
+    payload = {name: (data, False) for name, data in content.items() if name not in (sums_name, sbom_name)}
+    for name in payload:
+        records.setdefault(name, {"path": name, "source": "tools/sdk_workflows.py", "origin": "generated",
+                                  "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors",
+                                  "status": "needs-review"})
+    version = pkg.game_pack()[0] if profile == "game-sc" else pkg.sdk_version()
+    content[sbom_name] = pkg.json_bytes(pkg.sbom_document(
+        top, version, payload, records, sbom_name, sums_name, audit.git_head(ROOT)))
+    content[sums_name] = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n"
+                               for name, data in sorted(content.items()) if name != sums_name).encode("ascii")
+    entries.clear()
+    entries.update({top + "/" + name: data for name, data in content.items()})
+
+
 class Real(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -131,7 +152,64 @@ class Real(unittest.TestCase):
             self.assertIn(audit.git_head(ROOT), d["packages"][0]["downloadLocation"])
             with zipfile.ZipFile(z) as zz:
                 n = len([i for i in zz.infolist() if not i.filename.endswith("/")])
+                workflows = [name for name in zz.namelist() if name.endswith("/sdk-workflows.json")]
+                self.assertEqual(len(workflows), 0 if prof == "game-sc" else 1)
+            if prof != "game-sc":
+                self.assertIn("workflow index = selected payload: 1 checked, 0 failed", out)
             self.assertEqual(len(d["files"]), n, "the SBOM lists every archive entry")
+
+    def assert_rehashed_semantic_failure(self, profile, change, check_name, needle):
+        bad = os.path.join(self.out, "bad-workflows-" + profile + ".zip")
+        def mutate(entries):
+            change(entries)
+            refresh_generated_metadata(entries, profile)
+        rezip(self.zips[profile], bad, mutate)
+        report = audit.audit_zip(bad, profile)
+        for required in ("archive structure", "SHA256SUMS (Gate 6)", "embedded SPDX 2.3 SBOM"):
+            check, = [row for row in report.checks if row["check"] == required]
+            self.assertEqual(check["failed"], 0, report.failures)
+        check, = [row for row in report.checks if row["check"] == check_name]
+        self.assertGreater(check["failed"], 0, report.failures)
+        self.assertTrue(any(needle in failure for failure in report.failures), report.failures)
+
+    def test_overlay_refuses_unselected_workflow_index(self):
+        with zipfile.ZipFile(self.zips["core"]) as archive:
+            index, = [name for name in archive.namelist() if name.endswith("/sdk-workflows.json")]
+            data = archive.read(index)
+        def change(entries):
+            top = next(iter(entries)).split("/", 1)[0]
+            entries[top + "/sdk-workflows.json"] = data
+        self.assert_rehashed_semantic_failure("game-sc", change, "archive = manifest selection",
+                                              "sdk-workflows.json: in the archive but not selected")
+
+    def test_selected_profiles_refuse_missing_workflow_index(self):
+        for profile in ("core", "core-source", "legacy", "host-source-sc"):
+            with self.subTest(profile=profile):
+                def change(entries):
+                    name, = [name for name in entries if name.endswith("/sdk-workflows.json")]
+                    del entries[name]
+                self.assert_rehashed_semantic_failure(profile, change, "archive = manifest selection",
+                                                      "sdk-workflows.json: missing")
+
+    def test_workflow_index_source_and_embedded_text_are_bound_to_payload(self):
+        for profile in ("core", "core-source", "legacy", "host-source-sc"):
+            for defect in ("source", "text", "manifest"):
+                with self.subTest(profile=profile, defect=defect):
+                    def change(entries):
+                        name, = [name for name in entries if name.endswith("/sdk-workflows.json")]
+                        index = json.loads(entries[name])
+                        if defect == "source":
+                            index["source_sha"] = "0" * 40
+                        elif defect == "manifest":
+                            index["manifest_sha256"] = "0" * 64
+                        else:
+                            record = index["workflows"][0]["files"][0]
+                            record["text"] += "\nAltered embedded instructions.\n"
+                            record["sha256"] = hashlib.sha256(record["text"].encode()).hexdigest()
+                            index["content_sha256"] = hashlib.sha256(pkg.json_bytes(index["workflows"])).hexdigest()
+                        entries[name] = pkg.json_bytes(index)
+                    self.assert_rehashed_semantic_failure(profile, change, "workflow index = selected payload",
+                                                          "sdk-workflows.json: differs from the selected payload")
 
     def test_the_sbom_is_reproducible(self):
         a, b = os.path.join(self.out, "a.json"), os.path.join(self.out, "b.json")
