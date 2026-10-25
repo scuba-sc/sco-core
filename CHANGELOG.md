@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (release candidate 1 published 2026-10-21 as sdk-v2.4.0-rc.1; final release pending)
 
+- Retained-widget action buttons show their captions inside the control. Captions
+  are rendered literally, so UTF-8, percent signs and ImGui `##`/`###` markers
+  cannot alter the button identity or hide text; an empty caption uses Activate.
+
 - The documentation home page gains a responsive deepwater landing with the
   sco-core SDK title, plugin/API actions, language mappings and four library links.
   A local worker draws its decorative particle field; Pause/Resume holds and
