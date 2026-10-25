@@ -106,7 +106,9 @@ def build(root, source_sha, paths=None, entries=None):
     workflows = []
     for key, files in declarations:
         text = content(files[0]).decode('utf-8')
-        front = re.match(r'\A---\nname: ([a-z0-9-]+)\ndescription: ("[^\n]+")\nmetadata:\n  version: "([^"\n]+)"\n---\n', text)
+        # Accept checkout line endings without altering the embedded text or its byte hash.
+        front_text = text.replace('\r\n', '\n')
+        front = re.match(r'\A---\nname: ([a-z0-9-]+)\ndescription: ("[^\n]+")\nmetadata:\n  version: "([^"\n]+)"\n---\n', front_text)
         if not front or front[1] != key or front[3] != manifest['bundle_version']:
             raise ValueError('Workflow frontmatter/version mismatch: ' + key)
         description = json.loads(front[2])

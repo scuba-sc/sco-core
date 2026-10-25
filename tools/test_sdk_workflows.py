@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Workflow allowlist, exact archive bytes and real stdio discovery; stdlib only."""
 import copy
-import hashlib
 import importlib.util
 import io
 import json
@@ -46,6 +45,49 @@ class Inputs(unittest.TestCase):
         self.assertEqual(len(a['workflows']), 6)
         self.assertEqual(sum(len(i['files']) for i in a['workflows']), 10)
         self.assertEqual(a['content_sha256'], workflows.digest(workflows.encoded(a['workflows'])))
+
+    def test_crlf_checkout_preserves_source_and_packaged_bytes(self):
+        originals = {}
+        for path in (self.root / 'sdk/skills').rglob('*'):
+            if path.is_file():
+                data = path.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
+                path.write_bytes(data)
+                originals[path.relative_to(self.root).as_posix()] = data
+        source = workflows.build(self.root, SHA)
+        paths = {name: name.removeprefix('sdk/') for name in originals}
+        dirs = {'sdk/skills': 'skills'}
+        packaged = {paths[name]: (pkg.fix_links(name, paths[name], data, paths, dirs), False)
+                    for name, data in originals.items()}
+        archive = workflows.build(self.root, SHA, paths, packaged)
+        for mode, index in (('source', source), ('archive', archive)):
+            with self.subTest(mode=mode):
+                self.assertEqual(len(index['workflows']), 6)
+                self.assertEqual(sum(len(item['files']) for item in index['workflows']), 10)
+                for item in index['workflows']:
+                    for record in item['files']:
+                        raw = originals[record['path']] if mode == 'source' else packaged[record['path']][0]
+                        self.assertIn(b'\r\n', raw)
+                        self.assertEqual(record['text'].encode('utf-8'), raw)
+                        self.assertEqual(record['sha256'], workflows.digest(raw))
+                        self.assertNotEqual(record['sha256'], workflows.digest(raw.replace(b'\r\n', b'\n')))
+                self.assertEqual(index['content_sha256'], workflows.digest(workflows.encoded(index['workflows'])))
+        catalogue = json.loads((ROOT / 'tools/sco-core-mcp/fixtures/catalogue.json').read_bytes())
+        catalogue.update(sdk_version=source['sdk_version'], source_sha=SHA)
+        catalogue_path = self.root / 'catalogue.json'
+        catalogue_path.write_text(json.dumps(catalogue))
+        index_path = self.root / 'sdk-workflows.json'
+        index_path.write_bytes(workflows.encoded(source))
+        client = client_module.Client(catalogue_path, extended=True, extra=('--workflows', index_path))
+        self.addCleanup(client.close)
+        self.assertIn('result', client.initialize())
+        for item in source['workflows']:
+            for record in item['files']:
+                response = client.call('get_workflow', {'id': item['id'], 'path': record['path']})
+                received = response['result']['structuredContent']['file']
+                self.assertEqual(received, record)
+                self.assertEqual(received['text'].encode('utf-8'), originals[record['path']])
+        for name, data in originals.items():
+            self.assertEqual((self.root / name).read_bytes(), data)
 
     def test_manifest_refusals(self):
         path = self.root / workflows.MANIFEST
