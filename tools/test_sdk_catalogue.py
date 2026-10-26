@@ -18,6 +18,25 @@ SHA = '0123456789abcdef0123456789abcdef01234567'
 
 
 class InventoryVocabularyTests(unittest.TestCase):
+    def test_inventory_layout_tolerates_windows_min_macro(self):
+        source = (ROOT / 'src/game/services/inventory_layout.cpp').read_text()
+        marker = 'namespace sco::game::services::inventory_layout {'
+        self.assertEqual(source.count(marker), 1)
+        source = source.replace(marker, '#define min(a, b) windows_min_macro_must_not_expand(a, b)\n' + marker)
+        clang = shutil.which('clang++')
+        self.assertIsNotNone(clang)
+        with tempfile.TemporaryDirectory(prefix='inventory_min_macro_') as directory:
+            path = Path(directory) / 'inventory_layout.cpp'
+            args = [clang, '-std=c++20', '-I', str(ROOT / 'include'), '-I', str(ROOT / 'src'),
+                    '-I', str(ROOT / 'src/game/services'), '-fsyntax-only', str(path)]
+            path.write_text(source)
+            result = subprocess.run(args, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            old = '(std::min)(frame.info.count, capacity)'
+            self.assertEqual(source.count(old), 1)
+            path.write_text(source.replace(old, 'std::min(frame.info.count, capacity)'))
+            self.assertNotEqual(subprocess.run(args, capture_output=True).returncode, 0)
+
     def test_managed_vocabulary_matches_all_public_categories(self):
         header = (ROOT / 'include/sc_inventory.h').read_text()
         managed = (ROOT / 'sdk/csharp/Sco.Sdk/Game/Inventory.cs').read_text()

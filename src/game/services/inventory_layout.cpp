@@ -138,7 +138,7 @@ sco_result Snapshot(sco_plugin* self, sc_inventory_layout_snapshot* out,
     }
     g_previous = canonical; g_haveFrame = true;
     frame.info.source_epoch = g_publicEpoch;
-    const uint32_t count = std::min(frame.info.count, capacity);
+    const uint32_t count = (std::min)(frame.info.count, capacity);
     if (count < frame.info.count) {
         frame.info.flags = (frame.info.flags & ~SC_INVENTORY_LAYOUT_COMPLETE) | SC_INVENTORY_LAYOUT_TRUNCATED;
         frame.info.count = count;
