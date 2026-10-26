@@ -35,6 +35,57 @@ python3 tools/sdk_workflows.py --root . --out /path/beside/catalogue/sdk-workflo
 
 The builder takes inputs only from the explicit `sdk/skills/manifest.json` allowlist, validates frontmatter/version/links and rejects symlink inputs. Run without `--out` to validate. `sdk/package.py` generates the index from the selected transformed payload. Do not use dirty-source output as evidence that published bytes match a commit.
 
+## RC2 consumer reconciliation
+
+This is the bounded consumer-workflow portion of [SDK 2.4.0 preparation](roadmap-2.4.0.md).
+RC2 means a candidate to be built and evaluated from updated source; no RC2
+publication is asserted here. Published RC1, candidate archives, the product's
+host revision and final release approval have separate identities. The following
+issues explain demand for contracts already present in source. Their proposals
+are not API declarations, and this reconciliation does not close them or certify
+their full acceptance.
+
+| Request | Current public contract and remaining boundary | Source checks to retain |
+| --- | --- | --- |
+| [#189](https://github.com/scuba-sc/sco-core/issues/189), GameRules definitions | `game.gamerules` 1.1 appends `list_params`: 15 static definitions, with names/groups verified on 4.10.197.2878 and types unverified. Check the table extent and member before calling. Metadata does not require the default-OFF live-read backend and supplies no server values. [Contract](game/gamerules.md#parameter-registry-list_params-11) | `tests/abi_game_gamerules.c`, `tests/test_gamerules_params.cpp` |
+| [#190](https://github.com/scuba-sc/sco-core/issues/190), inventory categories | `game.inventory` 1.1 exposes 192 build-scoped C/C++ categories and display helpers; `item_class_id` remains a category ordinal. The whole-tree snapshot has size-gated `flags`/`total_seen` and preserves the 1.0 prefix. Native reads remain OFF by default; new typed C#/Lua mappings are unsupported. [Contract](game/inventory.md) | `tests/abi_game_inventory.c`, `tests/test_inventory.cpp`, `tests/test_inventory_engine.cpp` |
+| [#192](https://github.com/scuba-sc/sco-core/issues/192), partial pack application | `PackApplyPolicy::BestEffort` is explicit opt-in with `PackApplyReceipt`; Atomic remains default. `sco-dcb lint <pack>...` checks syntax; `sco-dcb check <file.dcb> <pack>...` also needs the database. The issue's one-input example is not the implemented CLI. [Pack contract](datacore.md#packs-lint-check-show-diff) | `tests/test_datacore_pack.cpp`, `tests/dcb_pack.cmake` |
+| [#194](https://github.com/scuba-sc/sco-core/issues/194), action vocabulary | `game.input` 1.0 has **1,297** actions, ids 1..1297, re-derived on 4.10.197.2878. The older 1,267-member proposal is superseded by source evidence. Lookup is metadata only; no input dispatch or binding API is implied. [Contract](game/input.md) | `tests/abi_game_input.c`, `tests/test_input.cpp` |
+| [#195](https://github.com/scuba-sc/sco-core/issues/195), respawn completion | `game.loadout.respawn_completed` deliberately carries only the size-prefixed 8-byte occurrence marker (`size`, padding), with occurrences within a tick coalesced. It has no proposed entity/result fields and is not per-slot success. The producer seam is tested; the native hook remains unresolved and the capability OFF. [Lifecycle](game/loadout.md#respawn-completed-event-gameloadoutrespawn_completed) | `tests/abi_game_events.c`, `tests/game_contracts/loadout/test_loadout.cpp` |
+| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and published RC1 inventory. Updated candidate bytes still need their own archive build and approval. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
+
+For an RC2 consumer evaluation:
+
+1. Select a bounded author-owned plugin task with `sco-plan-sdk-work`. Record the
+   roadmap revision/hash, public contracts, supported language route and expected
+   unavailable-provider fallback. Do not add another native hook or scanner to
+   bypass a missing SDK backend; the mining service owns its detour.
+2. Pin the candidate source and archive SHA-256, verify its inventory, and extract
+   into an empty directory. Compose `game-sc` only over its exact matching core
+   archive; keep host-source kits separate. Read the six skills directly or use
+   the matching catalogue/workflow index. Confirm fourteen discovery tools by
+   default and six with `--minimal-tools`; runtime tools require their independent
+   admission path.
+3. Carry the task through the matching build/debug/package/upgrade workflow. Keep
+   actual MCP requests/replies, compiler dependency evidence showing extracted
+   public plugin-SDK inputs, `sco-plugin-check` results, payload inventory and
+   round-trip archive checks. A source-tree or host-source build alone does not
+   prove this consumer path.
+4. Record the target product/host revision independently. Check service version,
+   complete member extent, capability and provider readiness on that host. Retain
+   old/short/missing-provider refusals where the task depends on a newer tail.
+   A newer kit cannot upgrade the installed host, and a successful synthetic
+   provider is not game acceptance.
+
+Use the [planning receipt](../sdk/skills/sco-plan-sdk-work/references/roadmap.md#acceptance-record)
+and [input/evidence receipt](../sdk/skills/sco-build-check-package/references/inputs.md#receipt-template).
+Mark unexecuted Windows, launcher, host-load and game checks separately; **not run
+in game** remains the boundary here. Final candidate checks on the exact builder
+commit, per-profile provenance review, signing and publication remain human gates.
+In particular, selecting native-index/status metadata in a manifest does not lift
+the [native-index distribution restriction](legal/release-decisions/2026-10-14-native-index.md).
+Do not distribute new candidate bytes without the applicable maintainer decision.
+
 ## Verification and maintenance
 
 Run `python3 tools/test_sdk_workflows.py`, the MCP test suite, and packaging tests when changing workflows/discovery. The workflow tests check deterministic indexes, malformed inputs, transformed archive byte hashes, composition, checksums and actual stdio retrieval/refusals. Existing archive example proofs exercise language/toolchain paths. Start each task with `sco-plan-sdk-work`: bind its roadmap source/hash and goal to measurable acceptance, record public contract IDs, prove dependencies use the extracted plugin SDK, then route to implementation. The canonical roadmap ships as `docs/roadmap.md`; no hand-copied status snapshot is maintained in the skills. A fresh-agent evaluation should use only an extracted candidate kit and a bounded author-owned task, record commands and exact replies, and mark Windows/launcher/game checks separately.

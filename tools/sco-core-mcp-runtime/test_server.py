@@ -70,7 +70,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(replies[1]['result']['tools'], [])
         self.assertEqual(replies[2]['error']['code'], -32602)
 
-    def test_original_discovery_remains_exact_six(self):
+    def test_discovery_default_and_minimal_profiles_remain_runtime_free(self):
         launcher = HERE.parent / 'sco-core-mcp/server.py'
         fixture = HERE.parent / 'sco-core-mcp/fixtures/catalogue.json'
         # The discovery server enforces a complete MCP handshake; the test supplies it.
@@ -79,14 +79,23 @@ class RuntimeTests(unittest.TestCase):
                               'clientInfo': {'name': 'sco-core-mcp-runtime-test', 'version': '1.0.0'}}},
                   {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
                   {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'}]
-        proc = subprocess.run([sys.executable, str(launcher), '--catalogue', str(fixture)],
-            input=b'\n'.join(server.encode(x) for x in frames) + b'\n', capture_output=True, timeout=5)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        replies = {reply['id']: reply for reply in map(json.loads, proc.stdout.splitlines())}
-        self.assertEqual(sorted(replies), [1, 2])
-        self.assertIn('result', replies[1], replies[1])
-        tools = replies[2]['result']['tools']
-        self.assertEqual([t['name'] for t in tools], ['search_api', 'get_symbol', 'list_services', 'get_example', 'get_capability_status', 'check_compatibility'])
+        catalogue_tools = ['search_api', 'get_symbol', 'list_services', 'get_example',
+                           'get_capability_status', 'check_compatibility']
+        discovery_tools = catalogue_tools + ['list_engine_natives', 'get_engine_native',
+            'validate_manifest_and_widgets', 'generate_plugin_scaffold', 'search_guides',
+            'get_guide_section', 'list_workflows', 'get_workflow']
+        for options, expected in (([], discovery_tools), (['--minimal-tools'], catalogue_tools)):
+            with self.subTest(options=options):
+                proc = subprocess.run([sys.executable, str(launcher), '--catalogue', str(fixture)] + options,
+                    input=b'\n'.join(server.encode(x) for x in frames) + b'\n', capture_output=True, timeout=5)
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                replies = {reply['id']: reply for reply in map(json.loads, proc.stdout.splitlines())}
+                self.assertEqual(sorted(replies), [1, 2])
+                self.assertIn('result', replies[1], replies[1])
+                tools = replies[2]['result']['tools']
+                self.assertEqual([t['name'] for t in tools], expected)
+                self.assertTrue(all(t['annotations']['readOnlyHint'] for t in tools))
+                self.assertFalse(set(expected) & set(server.NAMES))
 
 if __name__ == '__main__':
     unittest.main()
