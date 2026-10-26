@@ -318,3 +318,9 @@ source and payload inventory. Candidates publish as GitHub prereleases and do no
 the final-release notification. A final `sdk-v<SDK version>` requires its own signed
 approval and remains subject to the same promotion checks. Neither label authorizes
 signing, tagging or publication by itself.
+
+The verifier compares the regular workflow file at the signed `builder.workflow_sha`
+with the same path at the approved source commit. Promotion separately checks that the
+successful `workflow_dispatch` run reports that source SHA, path and attempt. Identical
+workflow blobs are accepted across distinct commits; this comparison does not assert
+that GitHub reported the signed workflow commit SHA itself.

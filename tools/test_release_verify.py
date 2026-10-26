@@ -354,6 +354,24 @@ class ReleaseVerifyTests(unittest.TestCase):
         result = self.verify()
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_changed_workflow_commit_refused(self):
+        (self.root / ".github/workflows/build.yml").write_text("name: changed workflow\n")
+        self.command("git", "add", ".github/workflows/build.yml")
+        self.command("git", "-c", "user.name=maintainer", "-c", "user.email=maintainer@example.invalid",
+                     "commit", "-qm", "changed workflow")
+        self.record["builder"]["workflow_sha"] = self.command("git", "rev-parse", "HEAD").stdout.decode().strip()
+        self.write_record()
+        self.sign()
+        self.assert_refused(self.verify(), "builder workflow differs from source workflow")
+
+    def test_approval_only_descendant_with_same_workflow_passes(self):
+        self.command("git", "-c", "user.name=maintainer", "-c", "user.email=maintainer@example.invalid",
+                     "commit", "--allow-empty", "-qm", "same workflow")
+        self.record["builder"]["workflow_sha"] = self.command("git", "rev-parse", "HEAD").stdout.decode().strip()
+        published = self.approval_commit()
+        result = self.verify(**{"source-sha": published})
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_missing_workflow_commit(self):
         self.refused_record(lambda r: r["builder"].update(workflow_sha="a" * 40), "git results unavailable")
 
