@@ -21,6 +21,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - C# and Lua expose the existing 192-category inventory vocabulary and read-only copied
   snapshots, with exact unknown raw uint64 values and guarded 1.1/1.0 snapshot negotiation.
+  Lua preserves UNKNOWN as the canonical unsigned 32-bit category on MSVC.
   Category metadata remains pinned to 4.10.197.2878 and does not enable the inventory backend.
   These routes are absent from published RC1.
 

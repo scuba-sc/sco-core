@@ -596,7 +596,7 @@ static uint64_t InventoryRaw(lua_State* L, int index) {
 
 static int L_inventory_item_type(lua_State* L) {
     const uint64_t raw = InventoryRaw(L, 1);
-    lua_pushinteger(L, raw < SC_ITEM_TYPE_COUNT_197 ? (lua_Integer)raw : (lua_Integer)SC_ITEM_TYPE_UNKNOWN);
+    lua_pushinteger(L, raw < SC_ITEM_TYPE_COUNT_197 ? (lua_Integer)raw : (lua_Integer)(uint32_t)SC_ITEM_TYPE_UNKNOWN);
     InventoryU64(L, raw);
     return 2;
 }
@@ -652,7 +652,7 @@ static int L_inventory_snapshot(lua_State* L) {
         lua_pushboolean(L, port->valid != 0); lua_setfield(L, -2, "valid");
         InventoryU64(L, port->item_class_id); lua_setfield(L, -2, "item_class_id");
         InventoryU64(L, port->entity_id); lua_setfield(L, -2, "entity_id");
-        lua_pushinteger(L, (lua_Integer)type); lua_setfield(L, -2, "item_type");
+        lua_pushinteger(L, (lua_Integer)(uint32_t)type); lua_setfield(L, -2, "item_type");
         lua_pushstring(L, sc_inventory_item_type_name((uint32_t)type)); lua_setfield(L, -2, "item_type_name");
         lua_rawseti(L, -2, (lua_Integer)i + 1);
     }
@@ -757,7 +757,7 @@ static void Open(lua_State* L) {
         for (uint32_t i = 0; i < SC_ITEM_TYPE_COUNT_197; ++i) {
             lua_pushinteger(L, i); lua_setfield(L, -2, sc_inventory_item_type_name(i));
         }
-        lua_pushinteger(L, (lua_Integer)SC_ITEM_TYPE_UNKNOWN); lua_setfield(L, -2, "UNKNOWN");
+        lua_pushinteger(L, (lua_Integer)(uint32_t)SC_ITEM_TYPE_UNKNOWN); lua_setfield(L, -2, "UNKNOWN");
         lua_setfield(L, -2, "item_types");
         lua_pushinteger(L, SC_ITEM_TYPE_COUNT_197); lua_setfield(L, -2, "item_type_count");
         lua_pushliteral(L, "4.10.197.2878"); lua_setfield(L, -2, "item_type_build");
