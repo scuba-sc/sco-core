@@ -23,11 +23,11 @@ class InventoryVocabularyTests(unittest.TestCase):
         marker = 'namespace sco::game::services::inventory_layout {'
         self.assertEqual(source.count(marker), 1)
         source = source.replace(marker, '#define min(a, b) windows_min_macro_must_not_expand(a, b)\n' + marker)
-        clang = shutil.which('clang++')
+        clang = catalogue.find_clang()
         self.assertIsNotNone(clang)
         with tempfile.TemporaryDirectory(prefix='inventory_min_macro_') as directory:
             path = Path(directory) / 'inventory_layout.cpp'
-            args = [clang, '-std=c++20', '-I', str(ROOT / 'include'), '-I', str(ROOT / 'src'),
+            args = [clang, '-x', 'c++', '-std=c++20', '-I', str(ROOT / 'include'), '-I', str(ROOT / 'src'),
                     '-I', str(ROOT / 'src/game/services'), '-fsyntax-only', str(path)]
             path.write_text(source)
             result = subprocess.run(args, capture_output=True, text=True)
