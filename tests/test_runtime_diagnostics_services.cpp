@@ -58,7 +58,7 @@ void TestTrustedMetadataAndValidation() {
     const auto original = CopyServiceMetadata();
     assert(Find(original, "fixture.trusted").ownerId == "fixture_owner");
     assert(Find(original, "fixture.trusted").ownerCategory == "plugin");
-    assert(Find(original, "fixture.trusted").tableSize == 32);
+    assert(Find(original, "fixture.trusted").tableSize == 32u);
     assert(!sco::ServiceTableHandedOut(&owner));
 
     assert(SetServiceDiagnosticMetadata(nullptr, "fixture.trusted", "valid", "host", 4) == Result::BadArg);
@@ -86,7 +86,7 @@ void TestTrustedMetadataAndValidation() {
     const auto unchanged = CopyServiceMetadata();
     assert(Find(unchanged, "fixture.trusted").ownerId == "fixture_owner");
     assert(Find(unchanged, "fixture.trusted").ownerCategory == "plugin");
-    assert(Find(unchanged, "fixture.trusted").tableSize == 32);
+    assert(Find(unchanged, "fixture.trusted").tableSize == 32u);
 
     const std::string maxId(31, 'a');
     for (const char* category : { "host", "game_pack", "plugin", "unknown" }) {
@@ -94,7 +94,7 @@ void TestTrustedMetadataAndValidation() {
         assert(Find(CopyServiceMetadata(), "fixture.trusted").ownerCategory == category);
     }
     assert(SetServiceDiagnosticMetadata(&owner, "fixture.trusted", nullptr, "unknown", 65536) == Result::Ok);
-    assert(Find(CopyServiceMetadata(), "fixture.trusted").tableSize == 65536);
+    assert(Find(CopyServiceMetadata(), "fixture.trusted").tableSize == 65536u);
     assert(SetServiceDiagnosticMetadata(&owner, "fixture.trusted", nullptr, "unknown", std::nullopt) == Result::Ok);
     const auto cleared = CopyServiceMetadata();
     assert(!Find(cleared, "fixture.trusted").ownerId && !Find(cleared, "fixture.trusted").tableSize);
@@ -142,7 +142,7 @@ void TestAdmissionExposureWithdrawalAndReplacement() {
     const auto withdrawn = CopyServiceMetadata();
     const auto& first = Find(withdrawn, "fixture.first");
     assert(first.status == "withdrawn" && first.reason == "service_withdrawn" && first.exposed);
-    assert(first.ownerId == "fixture_owner" && first.ownerCategory == "host" && first.tableSize == 64);
+    assert(first.ownerId == "fixture_owner" && first.ownerCategory == "host" && first.tableSize == 64u);
     assert(Find(withdrawn, "fixture.second").status == "admission_blocked");
     assert(SetServiceDiagnosticMetadata(&owner, "fixture.first", "valid", "host", 4) == Result::NotFound);
     assert(!sco::ServiceExists("fixture.first"));

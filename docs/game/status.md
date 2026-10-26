@@ -97,6 +97,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 <!-- status-registry:start -->
 | Table | Version | Stability | Capability | Default | Evidence |
 |---|---|---|---|---|---|
+| `game.asop.selection` ([`sc_asop_selection.h`](../../include/sc_asop_selection.h)) | 1.0 | Experimental | `game.asop.selection.file` (`state`, `refresh`, `rows`, `acquire`, `release`, `replace`, `status`) | OFF | Unpublished candidate fixed-document coordinator with synthetic adapter tests. Product file adapter and native terminal integration are not admitted or game verified. |
 | `game.audio` ([`sc_audio.h`](../../include/sc_audio.h)) | 1.1 | Experimental | `game.audio.triggers` (`resolve`, `play`, `stop`) | OFF | Owner-bound trigger/playback tokens, actual host release cleanup and bounded synthetic provider tests. No native or audible output verification; not run in game. |
 | | | | `game.audio.play_once` (`resolve`, `play_once`) | OFF | Independent default-OFF capability with owner-bound tokens, extent-checked v1.1 tail, fault latch until process restart and synthetic provider tests. No native backend ships; held until current game-object registration can be confirmed at submission. Not run in game. |
 | `game.inventory.contents` ([`sc_container_contents.h`](../../include/sc_container_contents.h)) | 1.0 | Experimental | `game.inventory.contents.read` (`snapshot`) | OFF | Copied bounded container-item read provider with real-host consumer and ABI fixtures; no native adapter, not run in game. |

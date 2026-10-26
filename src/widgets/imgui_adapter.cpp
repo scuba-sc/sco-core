@@ -2,6 +2,7 @@
 #include "sco/widgets_imgui.h"
 #include "imgui.h"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <utility>
@@ -136,10 +137,30 @@ void RenderNode(const Panel& panel, size_t& cursor, std::vector<Event>& events, 
             break;
         }
         case SCO_WIDGET_SLIDER: {
-            double value = node.value;
-            changed = ImGui::SliderScalar("##value", ImGuiDataType_Double, &value,
-                                          &node.minimum, &node.maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-            event.value = value;
+            if (node.presentation == SCO_WIDGET_NUMERIC_NUMBER) {
+                double value = node.value;
+                changed = ImGui::SliderScalar("##value", ImGuiDataType_Double, &value,
+                                              &node.minimum, &node.maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+                event.value = value;
+            } else {
+                double value = node.value;
+                const char* format = node.presentation == SCO_WIDGET_NUMERIC_INTEGER_PERCENT ? "%.0f%%" : "%.0f";
+                // Keep fractional input until after ImGui returns so ties round away from zero.
+                changed = ImGui::SliderScalar("##value", ImGuiDataType_Double, &value,
+                                              &node.minimum, &node.maximum, format,
+                                              ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_NoRoundToFormat);
+                if (!std::isfinite(value)) changed = false;
+                else event.value = std::clamp(std::round(value), node.minimum, node.maximum);
+                // ImGui scales navigation by the range for wide sliders; integer
+                // controls use one-unit keyboard steps. Text editing keeps its arrows.
+                const auto& io = ImGui::GetIO();
+                if (changed && ImGui::IsItemActive() && !io.WantTextInput && !io.MouseDown[0] &&
+                    std::isfinite(value) && value != node.value) {
+                    const double step = value > node.value ? 1.0 : -1.0;
+                    event.value = std::clamp(node.value + step, node.minimum, node.maximum);
+                    changed = event.value != node.value;
+                }
+            }
             break;
         }
         case SCO_WIDGET_COMBO:
@@ -211,7 +232,7 @@ void RenderNode(const Panel& panel, size_t& cursor, std::vector<Event>& events, 
 void ImGuiRenderer::Render(const Panel& panel, std::vector<Event>& events) {
     ImGui::PushID(panel.id.c_str());
     EndScope id{ImGui::PopID};
-    Plain(panel.title);
+    if (showTitle_) Plain(panel.title);
     // The host provides a validated, contiguous preorder tree.
     size_t cursor = 0;
     while (cursor < panel.nodes.size()) RenderNode(panel, cursor, events, false);

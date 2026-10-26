@@ -29,6 +29,7 @@ namespace Sco.Sdk.Tests
             Types["sco_widget_node"] = typeof(ScoWidgetNode);
             Types["sco_widget_node_1_1"] = typeof(ScoWidgetNode11);
             Types["sco_widget_node_1_2"] = typeof(ScoWidgetNode12);
+            Types["sco_widget_node_1_3"] = typeof(ScoWidgetNode13);
             Types["sco_widget_event"] = typeof(ScoWidgetEvent);
             Types["sco_widget_event_1_1"] = typeof(ScoWidgetEvent11);
             Types["sco_widgets_v1"] = typeof(ScoWidgetsV1);
@@ -64,6 +65,11 @@ namespace Sco.Sdk.Tests
             Constants["SCO_WIDGET_DISABLED"] = Abi.WidgetDisabled;
             Constants["SCO_WIDGETS_VERSION_1_0"] = Abi.WidgetsVersion1_0;
             Constants["SCO_WIDGETS_VERSION_1_2"] = Abi.WidgetsVersion1_2;
+            Constants["SCO_WIDGETS_VERSION_1_3"] = Abi.WidgetsVersion1_3;
+            Constants["SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION"] = Abi.WidgetsFeatureNumericPresentation;
+            Constants["SCO_WIDGET_NUMERIC_NUMBER"] = (uint)WidgetNumericPresentation.Number;
+            Constants["SCO_WIDGET_NUMERIC_INTEGER"] = (uint)WidgetNumericPresentation.Integer;
+            Constants["SCO_WIDGET_NUMERIC_INTEGER_PERCENT"] = (uint)WidgetNumericPresentation.IntegerPercent;
             Constants["SCO_WIDGETS_MAX_PANELS"] = Abi.WidgetsMaxPanels;
             Constants["SCO_WIDGETS_MAX_NODES"] = Abi.WidgetsMaxNodes;
             Constants["SCO_WIDGETS_MAX_TOTAL_NODES"] = Abi.WidgetsMaxTotalNodes;
@@ -198,7 +204,7 @@ namespace Sco.Sdk.Tests
                 string e = m.Groups[1].Value.Trim();
                 if (e == "sizeof(void*) == 8") return IntPtr.Size == 8 ? null : "not 64-bit";
                 if (e == "sizeof(void (*)(void)) == 8") return sizeof_fnptr() == 8 ? null : "function pointers aren't 8 bytes";
-                Match structure = Regex.Match(e, @"^(sizeof|ALIGN)\((sco_widget_node|sco_widget_node_1_1|sco_widget_node_1_2|sco_widget_event|sco_widget_event_1_1|sco_widgets_v1)\) == (\d+)$");
+                Match structure = Regex.Match(e, @"^(sizeof|ALIGN)\((sco_widget_node|sco_widget_node_1_1|sco_widget_node_1_2|sco_widget_node_1_3|sco_widget_event|sco_widget_event_1_1|sco_widgets_v1)\) == (\d+)$");
                 if (structure.Success)
                 {
                     Type t = Types[structure.Groups[2].Value];
@@ -231,12 +237,14 @@ namespace Sco.Sdk.Tests
         [StructLayout(LayoutKind.Sequential)] private struct Node11Alignment { public byte prefix; public ScoWidgetNode11 value; }
         [StructLayout(LayoutKind.Sequential)] private struct Event11Alignment { public byte prefix; public ScoWidgetEvent11 value; }
         [StructLayout(LayoutKind.Sequential)] private struct Node12Alignment { public byte prefix; public ScoWidgetNode12 value; }
+        [StructLayout(LayoutKind.Sequential)] private struct Node13Alignment { public byte prefix; public ScoWidgetNode13 value; }
         [StructLayout(LayoutKind.Sequential)] private struct EventAlignment { public byte prefix; public ScoWidgetEvent value; }
         [StructLayout(LayoutKind.Sequential)] private struct TableAlignment { public byte prefix; public ScoWidgetsV1 value; }
         private static int WidgetAlignment(Type t) => t == typeof(ScoWidgetNode) ? (int)Marshal.OffsetOf<NodeAlignment>("value")
             : t == typeof(ScoWidgetNode11) ? (int)Marshal.OffsetOf<Node11Alignment>("value")
             : t == typeof(ScoWidgetEvent11) ? (int)Marshal.OffsetOf<Event11Alignment>("value")
             : t == typeof(ScoWidgetNode12) ? (int)Marshal.OffsetOf<Node12Alignment>("value")
+            : t == typeof(ScoWidgetNode13) ? (int)Marshal.OffsetOf<Node13Alignment>("value")
             : t == typeof(ScoWidgetEvent) ? (int)Marshal.OffsetOf<EventAlignment>("value") : (int)Marshal.OffsetOf<TableAlignment>("value");
         private static int SizeOf(Type t)
         {
@@ -253,6 +261,7 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScoWidgetNode11)) return Unsafe.SizeOf<ScoWidgetNode11>();
             if (t == typeof(ScoWidgetEvent11)) return Unsafe.SizeOf<ScoWidgetEvent11>();
             if (t == typeof(ScoWidgetNode12)) return Unsafe.SizeOf<ScoWidgetNode12>();
+            if (t == typeof(ScoWidgetNode13)) return Unsafe.SizeOf<ScoWidgetNode13>();
             if (t == typeof(ScoWidgetEvent)) return Unsafe.SizeOf<ScoWidgetEvent>();
             if (t == typeof(ScoWidgetsV1)) return Unsafe.SizeOf<ScoWidgetsV1>();
             if (t == typeof(ScoSettingsChanged)) return Unsafe.SizeOf<ScoSettingsChanged>();

@@ -1233,7 +1233,7 @@ static WidgetsService WidgetsTable(const Script* s) {
     WidgetsService out = { NULL, 0, SCO_UNAVAILABLE };
     if (!s->alive || s->api->size < offsetof(sco_api, query_service) + sizeof(s->api->query_service) ||
         !s->api->query_service) return out;
-    static const uint32_t versions[] = { SCO_WIDGETS_VERSION_1_2, SCO_WIDGETS_VERSION_1_1, SCO_WIDGETS_VERSION_1_0 };
+    static const uint32_t versions[] = { SCO_WIDGETS_VERSION_1_3, SCO_WIDGETS_VERSION_1_2, SCO_WIDGETS_VERSION_1_1, SCO_WIDGETS_VERSION_1_0 };
     for (size_t i = 0; i < sizeof(versions) / sizeof(versions[0]); ++i) {
         const void* t = NULL;
         out.result = s->api->query_service(SCO_WIDGETS_NAME, versions[i], &t);
@@ -1361,12 +1361,13 @@ static void WidgetRoot(lua_State* L, int roots) {
 
 /* Node/array buffers are budget-charged Lua userdata. Strong temporary roots
  * retain every borrowed string even when the input tree contains weak tables. */
-static sco_result WidgetNode(lua_State* L, int node, int roots, sco_widget_node_1_2* ext, uint32_t* version, uint32_t* features) {
-    sco_widget_node* n = &ext->base.base;
+static sco_result WidgetNode(lua_State* L, int node, int roots, sco_widget_node_1_3* ext, uint32_t* version, uint32_t* features) {
+    sco_widget_node_1_2* tail = &ext->base;
+    sco_widget_node* n = &tail->base.base;
     n->size = sizeof(*n);
     static const char* const keys[] = { "id", "parent", "kind", "disabled", "label", "text",
         "value", "minimum", "maximum", "index", "columns", "items",
-        "tooltip", "severity", "first_row", "visible_rows", "tag" };
+        "tooltip", "severity", "first_row", "visible_rows", "tag", "presentation" };
     lua_pushnil(L);
     while (lua_next(L, node)) {
         sco_lua_step(L, 1);
@@ -1450,15 +1451,15 @@ static sco_result WidgetNode(lua_State* L, int node, int roots, sco_widget_node_
     lua_pop(L, 1);
     WidgetField(L, node, "tooltip");
     if (!lua_isnil(L, -1)) {
-        r = WidgetString(L, -1, SCO_WIDGETS_MAX_TEXT, SCO_TOO_MANY, &ext->base.tooltip);
+        r = WidgetString(L, -1, SCO_WIDGETS_MAX_TEXT, SCO_TOO_MANY, &tail->base.tooltip);
         if (r == SCO_OK) WidgetRoot(L, roots);
         *features |= SCO_WIDGETS_FEATURE_TOOLTIP;
-        n->size = sizeof(ext->base);
+        n->size = sizeof(tail->base);
     }
     lua_pop(L, 1);
     if (r != SCO_OK) return r;
     const char* const extendedNames[] = { "severity", "first_row", "visible_rows" };
-    uint32_t* const extendedFields[] = { &ext->base.severity, &ext->base.first_row, &ext->base.visible_rows };
+    uint32_t* const extendedFields[] = { &tail->base.severity, &tail->base.first_row, &tail->base.visible_rows };
     for (int i = 0; i < 3; ++i) {
         WidgetField(L, node, extendedNames[i]);
         const int present = !lua_isnil(L, -1);
@@ -1468,23 +1469,38 @@ static sco_result WidgetNode(lua_State* L, int node, int roots, sco_widget_node_
         if (r != SCO_OK) return r;
         *extendedFields[i] = (uint32_t)v;
         if (present) {
-            n->size = sizeof(ext->base);
+            n->size = sizeof(tail->base);
             *features |= i == 0 ? SCO_WIDGETS_FEATURE_SEVERITY : SCO_WIDGETS_FEATURE_PAGING | SCO_WIDGETS_FEATURE_EVENT_ROW;
         }
     }
-    if (n->size == sizeof(ext->base)) *version = *version < SCO_WIDGETS_VERSION_1_1 ? SCO_WIDGETS_VERSION_1_1 : *version;
+    if (n->size == sizeof(tail->base)) *version = *version < SCO_WIDGETS_VERSION_1_1 ? SCO_WIDGETS_VERSION_1_1 : *version;
     WidgetField(L, node, "tag");
     if (!lua_isnil(L, -1)) {
-        r = WidgetString(L, -1, SCO_WIDGETS_MAX_TAG, SCO_TOO_MANY, &ext->tag);
+        r = WidgetString(L, -1, SCO_WIDGETS_MAX_TAG, SCO_TOO_MANY, &tail->tag);
         if (r == SCO_OK) WidgetRoot(L, roots);
-        n->size = sizeof(*ext); *version = SCO_WIDGETS_VERSION_1_2;
+        n->size = sizeof(*tail); if (*version < SCO_WIDGETS_VERSION_1_2) *version = SCO_WIDGETS_VERSION_1_2;
         *features |= SCO_WIDGETS_FEATURE_STABLE_TAGS;
+    }
+    lua_pop(L, 1);
+    if (r != SCO_OK) return r;
+    WidgetField(L, node, "presentation");
+    if (!lua_isnil(L, -1)) {
+        const char* mode = NULL;
+        r = WidgetString(L, -1, 16, SCO_BAD_ARG, &mode);
+        if (r == SCO_OK) {
+            if (!strcmp(mode, "number")) ext->presentation = SCO_WIDGET_NUMERIC_NUMBER;
+            else if (!strcmp(mode, "integer")) ext->presentation = SCO_WIDGET_NUMERIC_INTEGER;
+            else if (!strcmp(mode, "integer_percent")) ext->presentation = SCO_WIDGET_NUMERIC_INTEGER_PERCENT;
+            else r = SCO_BAD_ARG;
+        }
+        n->size = sizeof(*ext); *version = SCO_WIDGETS_VERSION_1_3;
+        *features |= SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION;
     }
     lua_pop(L, 1);
     return r;
 }
 
-static sco_result WidgetNodes(lua_State* L, int at, sco_widget_node_1_2** nodes, uint32_t* count,
+static sco_result WidgetNodes(lua_State* L, int at, sco_widget_node_1_3** nodes, uint32_t* count,
                               uint32_t* version, uint32_t* features) {
     size_t length = 0;
     sco_result r = WidgetSequence(L, at, SCO_WIDGETS_MAX_NODES, &length);
@@ -1492,7 +1508,7 @@ static sco_result WidgetNodes(lua_State* L, int at, sco_widget_node_1_2** nodes,
     if (!length) return SCO_BAD_ARG;
     luaL_checkstack(L, 8, "widget tree");
     at = lua_absindex(L, at);
-    *nodes = (sco_widget_node_1_2*)lua_newuserdatauv(L, length * sizeof(**nodes), 0);
+    *nodes = (sco_widget_node_1_3*)lua_newuserdatauv(L, length * sizeof(**nodes), 0);
     memset(*nodes, 0, length * sizeof(**nodes));
     lua_createtable(L, (int)length, 0);
     const int roots = lua_gettop(L);
@@ -1607,7 +1623,7 @@ static int L_widgets_set_panel(lua_State* L) {
     if (r != SCO_OK || !lua_istable(L, 3)) return PushResult(L, SCO_BAD_ARG);
     if (!lua_isnoneornil(L, 4) && !lua_isfunction(L, 4)) return PushResult(L, SCO_BAD_ARG);
     lua_settop(L, 4);
-    sco_widget_node_1_2* nodes = NULL;
+    sco_widget_node_1_3* nodes = NULL;
     uint32_t count = 0, version = 0, features = 0;
     r = WidgetNodes(L, 3, &nodes, &count, &version, &features);
     if (r == SCO_OK) r = WidgetFeatures(s, service, version, features);
@@ -1621,7 +1637,7 @@ static int L_widgets_set_panel(lua_State* L) {
     int ref = LUA_NOREF;
     uintptr_t cookie = 0;
     if (callback) { lua_pushvalue(L, 4); ref = luaL_ref(L, LUA_REGISTRYINDEX); cookie = g_widgetCookie++; }
-    r = t->set_panel(s->self, id, title, &nodes[0].base.base, count, sizeof(*nodes),
+    r = t->set_panel(s->self, id, title, &nodes[0].base.base.base, count, sizeof(*nodes),
                      callback ? WidgetThunk : NULL, callback ? (void*)cookie : NULL);
     if (r == SCO_OK) {
         WidgetForget(L, old);
@@ -1652,12 +1668,12 @@ static int L_widgets_update_nodes(lua_State* L) {
     sco_result r = WidgetString(L, 1, SCO_WIDGETS_MAX_ID, SCO_BAD_ARG, &id);
     if (r != SCO_OK) return PushResult(L, r);
     lua_settop(L, 2);
-    sco_widget_node_1_2* nodes = NULL;
+    sco_widget_node_1_3* nodes = NULL;
     uint32_t count = 0, version = 0, features = 0;
     r = WidgetNodes(L, 2, &nodes, &count, &version, &features);
     if (r == SCO_OK) r = WidgetFeatures(s, service, version < SCO_WIDGETS_VERSION_1_1 ? SCO_WIDGETS_VERSION_1_1 : version,
                                         features | SCO_WIDGETS_FEATURE_UPDATE_NODES);
-    if (r == SCO_OK) r = service.table->update_nodes(s->self, id, &nodes[0].base.base, count, sizeof(*nodes));
+    if (r == SCO_OK) r = service.table->update_nodes(s->self, id, &nodes[0].base.base.base, count, sizeof(*nodes));
     CheckBudget(L);
     return PushResult(L, r);
 }

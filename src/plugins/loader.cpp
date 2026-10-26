@@ -493,7 +493,7 @@ bool CallPlugin(Plugin& p, const char* where, void (*thunk)(void*), void* ctx) {
     return true;
 }
 
-static bool ContainedCallout(const void* owner, const char* where, TaskFn thunk, void* ctx) {
+bool detail::ContainedCallout(const void* owner, const char* where, TaskFn thunk, void* ctx) {
     Plugin* p = nullptr;
     if (g_contained)
         for (Plugin& q : *g_contained)
@@ -507,7 +507,7 @@ static bool ContainedCallout(const void* owner, const char* where, TaskFn thunk,
 
 void ContainCallouts(std::vector<Plugin>* list) {
     g_contained = list;
-    sco::SetCalloutGuard(list ? ContainedCallout : nullptr);
+    sco::SetCalloutGuard(list ? detail::ContainedCallout : nullptr);
 }
 
 // Unloads a loaded native (ops set: closes its module) or built-in (ops null: nothing to close).

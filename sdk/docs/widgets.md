@@ -1,7 +1,7 @@
 # Widgets without renderer dependencies
 
-For new native plugin UI, use the host-owned `sco.widgets` service (1.0 with additive 1.1 and
-1.2 extensions). Include
+For new native plugin UI, use the host-owned `sco.widgets` service (1.0 with additive 1.1,
+1.2 and 1.3 extensions). Include
 `include/sco_widgets.h` (C) or `include/scosdk/widgets.hpp` (C++20); no renderer
 header, renderer library, GPU or game data is needed to build the example.
 Frozen `sco_api` 1.1 discovers the optional service with `query_service`.
@@ -133,9 +133,27 @@ at `SCO_WIDGETS_CAP_MAX_TAG` (array length 10 covers all 1.2 indices).
 Plugins built for 1.0/1.1 are unaffected: submit the same 80/104-byte nodes
 and the tag tail is invisible, exactly as 1.1 tails are to a 1.0 host.
 
+## Numeric presentation (1.3)
+
+`sco_widget_node_1_3` is a 144-byte extension of the 1.2 node. Its
+`presentation` is NUMBER (the existing double behavior), INTEGER, or
+INTEGER_PERCENT. Integer modes apply only to sliders with integral signed
+32-bit bounds and value; nonzero reserved words and unknown modes are refused.
+Integer slider input rounds to the nearest integer, with ties away from zero,
+and clamps before an event is emitted. Fractional injected events are refused.
+The percent mode displays a percent sign without accepting a caller-supplied
+format string.
+
+Query version 1.3 and check `SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION` through
+the complete capabilities member before submitting this tail. The C++ wrapper's
+`SetPanel13` and `UpdateNodes13` perform the capability check. The C# node
+`Presentation` and Lua field `presentation` (`"integer"` or
+`"integer_percent"`) refuse an older or unsupported provider; they do not
+silently fall back to a double slider.
+
 ## Language coverage and legacy UI
 
-The typed C#/Lua 1.1/1.2 routes below describe current source/development kits.
+The typed C#/Lua 1.1/1.2/1.3 routes below describe current source/development kits.
 The published `sdk-v2.4.0-rc.1` archive retains its earlier bindings; use the
 documentation and wrappers from the same selected kit. Frozen plugin ABI 1.1
 is unchanged.
@@ -143,7 +161,7 @@ is unchanged.
 C, C++20, C# and Lua support set/remove and the 1.1 update/remove subtree and
 capability routes. C/C++ submit extended records with the matching stride; the
 C++ wrapper checks complete tail member extents. Typed C# and Lua negotiate
-1.2, then 1.1, then 1.0, falling back only for an absent/incompatible version.
+1.3, then 1.2, 1.1 and 1.0, falling back only for an absent/incompatible version.
 Unsupported requested presentation features return an explicit refusal.
 All existing provider admission, thread and owner lifetime rules still apply.
 
@@ -206,6 +224,8 @@ applies the resulting tree. `capabilities()` returns a fresh copied table or
 `max_tag` when the provider wrote the 1.2 tail. No absent limit is invented.
 Node fields `tooltip`, `severity` (0..3), `first_row`, `visible_rows` and `tag`
 use the native bounds and feature admission. Unknown fields still refuse.
+The optional `presentation` field accepts `"number"`, `"integer"`, or
+`"integer_percent"` and uses the 1.3 feature check.
 Extended events include `row` only after the complete 40-byte extent is present;
 PAGE has `kind="page"` and its new first row in `row`. Stable tags never replace
 numeric event IDs. Lua retains strings within its allocation budget and uses

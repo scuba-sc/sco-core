@@ -752,7 +752,7 @@ typedef struct widget_node_copy {
     char** items;
     int disabled;
     int extended; /* read as a sco_widget_node_1_1: severity..visible_rows are set */
-    uint32_t severity, first_row, visible_rows;
+    uint32_t severity, first_row, visible_rows, presentation;
 } widget_node_copy;
 
 typedef struct widget_panel_copy {
@@ -924,6 +924,21 @@ static sco_result widget_copy_node(const char* p, widget_node_copy* out) {
             if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
                   c == '.' || c == '_' || c == '-')) return SCO_BAD_ARG;
         }
+    }
+    if (!short_tables && in->size >= sizeof(sco_widget_node_1_3)) {
+        sco_widget_node_1_3 x;
+        memcpy(&x, p, sizeof x);
+        if (x._reserved[0] || x._reserved[1] || x._reserved[2] ||
+            x.presentation > SCO_WIDGET_NUMERIC_INTEGER_PERCENT ||
+            (in->kind != SCO_WIDGET_SLIDER && x.presentation != SCO_WIDGET_NUMERIC_NUMBER))
+            return SCO_BAD_ARG;
+        if (x.presentation != SCO_WIDGET_NUMERIC_NUMBER) {
+            const double values[] = {in->minimum, in->maximum, in->value};
+            for (j = 0; j < 3; ++j)
+                if (values[j] < INT32_MIN || values[j] > INT32_MAX ||
+                    values[j] != (double)(int32_t)values[j]) return SCO_BAD_ARG;
+        }
+        out->presentation = x.presentation;
     }
     return SCO_OK;
 }
@@ -1172,7 +1187,8 @@ static sco_result widget_remove_nodes(sco_plugin* self, const char* panel_id, co
 
 #define WIDGET_FEATURES (SCO_WIDGETS_FEATURE_UPDATE_NODES | SCO_WIDGETS_FEATURE_REMOVE_NODES | \
     SCO_WIDGETS_FEATURE_SEVERITY | SCO_WIDGETS_FEATURE_TOOLTIP | SCO_WIDGETS_FEATURE_PAGING | \
-    SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS)
+    SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS | \
+    SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION)
 
 /* Advertises what the real host does (src/widgets/widgets.cpp), with the 1.0 limit macros. */
 static sco_result widget_capabilities(sco_plugin* self, uint32_t* out) {
@@ -1435,7 +1451,7 @@ static sco_result provide_service(sco_plugin* self, const char* name, uint32_t v
 }
 
 static sco_result widgets_lookup(const char* name, uint32_t min_version, const void** out) {
-    const uint32_t served = short_tables ? SCO_WIDGETS_VERSION_1_0 : SCO_WIDGETS_VERSION_1_2;
+    const uint32_t served = short_tables ? SCO_WIDGETS_VERSION_1_0 : SCO_WIDGETS_VERSION_1_3;
     if (!name || !out) return SCO_BAD_ARG;
     remember_name(queried, &nqueried, name);
     if (strcmp(name, SCO_WIDGETS_NAME)) return SCO_NOT_FOUND;
@@ -1615,6 +1631,10 @@ static void widget_simulate(void) {
                 case SCO_WIDGET_SLIDER:
                     /* Half first so even [-DBL_MAX,DBL_MAX] stays finite. */
                     p->event.value = n->minimum * 0.5 + n->maximum * 0.5;
+                    if (node->presentation != SCO_WIDGET_NUMERIC_NUMBER) {
+                        const double rounded = p->event.value >= 0 ? p->event.value + 0.5 : p->event.value - 0.5;
+                        p->event.value = (double)(int64_t)rounded;
+                    }
                     /* Half-subnormal endpoints can round toward zero. */
                     if (p->event.value < n->minimum) p->event.value = n->minimum;
                     if (p->event.value > n->maximum) p->event.value = n->maximum;

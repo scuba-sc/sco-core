@@ -2,6 +2,7 @@
 // Standalone ABI-boundary tests: no renderer, game or host link required.
 #include "scosdk/widgets.hpp"
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #ifdef SCO_TEST_IMGUI_ADAPTER
@@ -24,13 +25,15 @@ static sco_result Query(const char* name, uint32_t version, const void** out) {
 static sco_plugin* expected_self = nullptr;
 static sco_widget_event_fn saved_fn = nullptr;
 static void* saved_ctx = nullptr;
+static uint32_t expected_stride = sizeof(sco_widget_node);
+static uint32_t reported_features = SCO_WIDGETS_FEATURE_STABLE_TAGS;
 static sco_result Set(sco_plugin* self, const char* id, const char* title,
                       const sco_widget_node* nodes, uint32_t count, uint32_t stride,
                       sco_widget_event_fn fn, void* ctx) {
     CHECK(self == expected_self);
     CHECK(std::strcmp(id, "test.main") == 0);
     CHECK(std::strcmp(title, "Panel") == 0);
-    CHECK(nodes && count == 1 && stride == sizeof(sco_widget_node));
+    CHECK(nodes && count == 1 && stride == expected_stride);
     saved_fn = fn;
     saved_ctx = ctx;
     return SCO_TOO_MANY; // Result must be passed through, not converted to bool.
@@ -50,7 +53,7 @@ static sco_result RemoveNodes(sco_plugin* self, const char* id, const uint32_t* 
 }
 static sco_result Caps(sco_plugin* self, uint32_t* caps) {
     CHECK(self == expected_self && caps && caps[0] == SCO_WIDGETS_CAPS_1_2);
-    caps[0] = 2; caps[1] = SCO_WIDGETS_FEATURE_STABLE_TAGS;
+    caps[0] = 2; caps[1] = reported_features;
     return SCO_OK;
 }
 struct Receiver {
@@ -71,11 +74,17 @@ static std::string panel_namespace;
 static int group_depth = 0, id_depth = 0, same_lines = 0, cells = 0;
 static int input_mode = 0;
 static int style_depth = 0, tooltips = 0;
+static std::string numeric_format;
+static double numeric_input = 74.5;
 static bool Disabled() {
     for (bool value : disabled_stack) if (value) return true;
     return false;
 }
+ImGuiIO::ImGuiIO() : WantTextInput(false) { MouseDown[0] = false; }
 namespace ImGui {
+void MemFree(void* ptr) { std::free(ptr); }
+ImGuiIO& GetIO() { static ImGuiIO io; return io; }
+bool IsItemActive() { return false; }
 void PushID(const char* id) { panel_namespace = id; ++id_depth; }
 void PushID(int id) { numeric_ids.push_back(id); ++id_depth; }
 void PopID() { --id_depth; }
@@ -89,9 +98,16 @@ void BeginDisabled(bool disabled) { disabled_stack.push_back(disabled); }
 void EndDisabled() { disabled_stack.pop_back(); }
 bool Button(const char*, const ImVec2&) { return !Disabled(); }
 bool Checkbox(const char*, bool* value) { *value = !*value; return !Disabled(); }
-bool SliderScalar(const char*, ImGuiDataType type, void* value, const void*, const void*, const char*, ImGuiSliderFlags) {
-    CHECK(type == ImGuiDataType_Double);
-    *static_cast<double*>(value) = 0.75;
+bool SliderScalar(const char*, ImGuiDataType type, void* value, const void* minimum, const void* maximum, const char* format, ImGuiSliderFlags flags) {
+    CHECK(flags & ImGuiSliderFlags_AlwaysClamp);
+    if (flags & ImGuiSliderFlags_NoRoundToFormat) {
+        CHECK(type == ImGuiDataType_Double);
+        CHECK(*static_cast<const double*>(minimum) <= numeric_input && *static_cast<const double*>(maximum) >= numeric_input);
+        numeric_format = format; *static_cast<double*>(value) = numeric_input;
+    } else {
+        CHECK(type == ImGuiDataType_Double);
+        *static_cast<double*>(value) = 0.75;
+    }
     return !Disabled();
 }
 bool BeginCombo(const char*, const char*, ImGuiComboFlags) { return true; }
@@ -220,6 +236,24 @@ static void TestAdapter11() {
     renderer.Render(panel, events);
     CHECK(events.empty() && disabled_stack.empty());
 }
+static void TestAdapter13() {
+    sco::widgets::Panel panel; panel.id = "test.integer";
+    sco::widgets::Node node; node.kind = SCO_WIDGET_SLIDER; node.id = 7; node.label = "Darkness";
+    node.minimum = 20; node.maximum = 95; node.value = 74;
+    panel.nodes.push_back(node);
+    sco::widgets::ImGuiRenderer renderer;
+    for (uint32_t mode : {SCO_WIDGET_NUMERIC_INTEGER, SCO_WIDGET_NUMERIC_INTEGER_PERCENT}) {
+        panel.nodes[0].presentation = mode;
+        std::vector<sco::widgets::Event> events;
+        renderer.Render(panel, events);
+        CHECK(events.size() == 1 && events[0].value == 75);
+        CHECK(numeric_format == (mode == SCO_WIDGET_NUMERIC_INTEGER ? "%.0f" : "%.0f%%"));
+    }
+    panel.nodes[0].minimum = -95; numeric_input = -0.5;
+    std::vector<sco::widgets::Event> negative;
+    renderer.Render(panel, negative);
+    CHECK(negative.size() == 1 && negative[0].value == -1);
+}
 #endif
 int main() {
     sco_api api{};
@@ -293,6 +327,14 @@ int main() {
     CHECK(widgets.UpdateNodes("test.main", &extended.base.base, 1, sizeof(extended)) == SCO_WRONG_THREAD);
     CHECK(widgets.RemoveNodes("test.main", ids, 1) == SCO_NOT_FOUND);
     CHECK(widgets.Capabilities(caps) == SCO_OK && caps[0] == 2 && caps[1] == SCO_WIDGETS_FEATURE_STABLE_TAGS);
+    sco_widget_node_1_3 numeric{};
+    numeric.base.base.base.size = sizeof(numeric);
+    numeric.presentation = SCO_WIDGET_NUMERIC_INTEGER_PERCENT;
+    CHECK(widgets.SetPanel13("test.main", "Panel", &numeric, 1) == SCO_UNAVAILABLE);
+    reported_features |= SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION;
+    expected_stride = sizeof(numeric);
+    CHECK(widgets.SetPanel13("test.main", "Panel", &numeric, 1) == SCO_TOO_MANY);
+    expected_stride = sizeof(sco_widget_node);
     // Exact allocations make an accidental partial function-pointer read observable under ASan.
     for (uint32_t extent = 4; extent < sizeof(table); ++extent) {
         auto bytes = std::make_unique<unsigned char[]>(extent);
@@ -312,6 +354,7 @@ int main() {
 #ifdef SCO_TEST_IMGUI_ADAPTER
     TestAdapter();
     TestAdapter11();
+    TestAdapter13();
 #endif
     std::printf("widgets SDK: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;

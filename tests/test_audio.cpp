@@ -21,12 +21,13 @@ struct Fixture {
     sco::sdk::game::Audio* consumer = nullptr;
     sco_plugin* release_during_play = nullptr;
 };
-int hook_calls[5]{};
+int hook_calls[6]{};
 void Hook1(const void*) { ++hook_calls[0]; }
 void Hook2(const void*) { ++hook_calls[1]; }
 void Hook3(const void*) { ++hook_calls[2]; }
 void Hook4(const void*) { ++hook_calls[3]; }
 void Hook5(const void*) { ++hook_calls[4]; }
+void Hook6(const void*) { ++hook_calls[5]; }
 const void* offered = nullptr;
 sco_result Query(const char*, uint32_t, const void** out) { *out=offered; return SCO_OK; }
 sco_result Resolve(void* ctx, const char* name, uint64_t* out) {
@@ -73,14 +74,16 @@ int main() {
     CHECK(G::AddGameReleaseHook(Hook2)==sco::Result::Ok);
     CHECK(G::AddGameReleaseHook(Hook3)==sco::Result::Ok);
     CHECK(G::AddGameReleaseHook(Hook4)==sco::Result::Ok);
-    CHECK(G::AddGameReleaseHook(Hook5)==sco::Result::TooMany);
+    CHECK(G::AddGameReleaseHook(Hook5)==sco::Result::Ok);
+    CHECK(G::AddGameReleaseHook(Hook6)==sco::Result::TooMany);
     auto* dispatch_owner=sco::host::NewPlugin("audio_dispatch");
     CHECK(sco::Release(dispatch_owner)==sco::Result::Ok);
-    CHECK(hook_calls[0]==1 && hook_calls[1]==1 && hook_calls[2]==1 && hook_calls[3]==1 && hook_calls[4]==0);
+    CHECK(hook_calls[0]==1 && hook_calls[1]==1 && hook_calls[2]==1 && hook_calls[3]==1 && hook_calls[4]==1 && hook_calls[5]==0);
     CHECK(G::RemoveGameReleaseHook(Hook1)==sco::Result::Ok);
     CHECK(G::RemoveGameReleaseHook(Hook2)==sco::Result::Ok);
     CHECK(G::RemoveGameReleaseHook(Hook3)==sco::Result::Ok);
     CHECK(G::RemoveGameReleaseHook(Hook4)==sco::Result::Ok);
+    CHECK(G::RemoveGameReleaseHook(Hook5)==sco::Result::Ok);
     const auto* api=sco::host::BuildApi({"audio fixture"});
     auto* a=sco::host::NewPlugin("audio_a");
     auto* b=sco::host::NewPlugin("audio_b");

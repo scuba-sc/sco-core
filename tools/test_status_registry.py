@@ -97,9 +97,10 @@ class StatusRegistryTest(unittest.TestCase):
         self.assertEqual((labels["game.creative"], labels["game.hangar"], labels["game.loadout"], labels["game.events"],
                           labels["game.mining.rows"], labels["game.pak.rows"]),
                          ("stable", "stable", "experimental", "stable", None, None))
+        self.assertEqual(labels["game.asop.selection"], "experimental")
         tables = [e for e in self.registry["services"] if e["kind"] == "service"]
         self.assertEqual((sum(e["stability"] == "stable" for e in tables), sum(e["stability"] == "experimental" for e in tables)),
-                         (13, 20))
+                         (13, 21))
 
     def test_old_schema_version_is_refused(self):
         self.assertEqual(self.errors_after(lambda r: r.update(schema_version=1)), ["schema_version must be 2"])

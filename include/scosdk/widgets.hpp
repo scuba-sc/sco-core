@@ -73,7 +73,28 @@ public:
             !table_->capabilities) return SCO_UNAVAILABLE;
         return table_->capabilities(self_, caps);
     }
+    // Explicit 1.3 entry points refuse old/short providers before submitting a tail.
+    sco_result SetPanel13(const char* id, const char* title, const sco_widget_node_1_3* nodes,
+                          uint32_t count, sco_widget_event_fn fn = nullptr, void* ctx = nullptr) noexcept {
+        const sco_result supported = NumericPresentation();
+        if (supported != SCO_OK) return supported;
+        return SetPanel(id, title, nodes ? &nodes->base.base.base : nullptr, count, fn, ctx,
+                        sizeof(sco_widget_node_1_3));
+    }
+    sco_result UpdateNodes13(const char* id, const sco_widget_node_1_3* nodes, uint32_t count) noexcept {
+        const sco_result supported = NumericPresentation();
+        if (supported != SCO_OK) return supported;
+        return UpdateNodes(id, nodes ? &nodes->base.base.base : nullptr, count, sizeof(sco_widget_node_1_3));
+    }
 private:
+    sco_result NumericPresentation() noexcept {
+        uint32_t caps[SCO_WIDGETS_CAPS_1_2]{SCO_WIDGETS_CAPS_1_2};
+        const sco_result result = Capabilities(caps);
+        if (result != SCO_OK) return result;
+        return caps[0] >= 2 && caps[0] <= SCO_WIDGETS_CAPS_1_2 &&
+               (caps[SCO_WIDGETS_CAP_FEATURES] & SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION)
+                   ? SCO_OK : SCO_UNAVAILABLE;
+    }
     const sco_widgets_v1* table_ = nullptr;
     sco_plugin* self_ = nullptr;
 };
