@@ -4,6 +4,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Discover owned `missions/<id>.scom` declarations as public `sco.content`
+  Script records, so the contracts consumer can read its supported namespace.
+  IDs are 1..100 lowercase ASCII letters, digits or underscores. Existing XML
+  scripts, lists and private `.cwmission` behavior are preserved. This rule is
+  absent from published SDK 2.4 RC1; it does not enable native mission ingestion
+  or script execution.
+
 - Generated native/C++/C# manifests declare API 1.1, matching their exported
   built-against ABI. Truncated-table checker success is no longer described as
   API 1.0 loader admission. Lua keeps its script-runtime declaration.

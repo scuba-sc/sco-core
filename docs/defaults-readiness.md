@@ -85,7 +85,7 @@ These eighteen capabilities require implementation or lifetime/registration grou
 | `game.missions.read` | Same empty production offline backend; capability requires admission, offer and status callbacks. | Ground native offer/status reads with copied bounded identifiers and session consistency. |
 | `game.missions.accept` | Same seam; capability requires admission, offer and accept callbacks. | Ground native acceptance and owner/session lifetime, failure/idempotency and actual accepted mission observations. Read-only offers do not certify acceptance. |
 | `game.missions.progress` | Same seam; capability requires admission, status, objective and advance callbacks. | Ground native objective/phase progression and abandon/cleanup behavior under bounded session-lifetime ownership. Retain synthetic ledger/refusal cases. |
-| `game.missions.scripts` | Same seam; capability requires admission and ingest callbacks. No production script adapter is supplied. | Ground the actual offline script consumer and bounded content/schema handling; file discovery/indexing is not script ingestion or execution proof. |
+| `game.missions.scripts` | Same seam; capability requires admission and ingest callbacks. No production script adapter is supplied. Hosts after SDK 2.4 RC1 expose owned `missions/<id>.scom` declarations through `sco.content`; RC1 lacks that discovery rule. | Ground the actual offline script consumer and bounded content/schema handling; copied declaration reachability does not enable native ingestion or execution. |
 
 ## Host, build, MCP and network defaults
 

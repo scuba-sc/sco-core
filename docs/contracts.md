@@ -339,6 +339,11 @@ atomically on unsafe/unreadable content or quotas, including dependent packs.
 Size handshakes are binary: no appended NUL. Host restart invalidates old IDs.
 C++ `scosdk/content.hpp` guards full extents/null pointers and failed reopen;
 C#/Lua are not exposed. Synthetic kernel-only fixtures are not game evidence.
+Script records cover `scripts/**/*.xml` and, on hosts after SDK 2.4 RC1,
+`missions/<id>.scom` (1..100 lowercase ASCII letters, digits or underscores).
+The latter fixes a product consumer namespace mismatch; RC1 does not discover it.
+Opaque copied declarations require consumer format validation and a separate
+mission ingest provider. Private `.cwmission` and rules remain unexposed.
 
 | Method | Size / since | Signature; inputs, outputs and buffers | Ownership / lifetime / allocation | Thread / callback context / reentrancy | Results / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
