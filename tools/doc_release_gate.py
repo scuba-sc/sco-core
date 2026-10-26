@@ -50,6 +50,12 @@ SCOPE_START = "<!-- release-scope:start -->"
 SCOPE_END = "<!-- release-scope:end -->"
 SCOPE_KEYS = ("tag", "sdk_version", "game_pack_version", "plugin_abi", "profiles")
 SEMVER = r"\d+\.\d+\.\d+"
+RELEASE_TAG = re.compile(r"sdk-v(" + SEMVER + r")(?:-rc\.([1-9][0-9]*))?\Z")
+
+
+def base_tag(tag):
+    match = RELEASE_TAG.fullmatch(tag)
+    return "sdk-v" + match.group(1) if match else None
 
 VERSION_FILE = "sdk/VERSION"
 COMPONENTS = "sdk/components.json"
@@ -275,7 +281,7 @@ def workflow_profiles(root):
     return loops[0].split()
 
 
-def approval_refusals(path, scope):
+def approval_refusals(path, scope, tag):
     display_path = path.as_posix()
     if not path.is_file():
         return [f"approval record {display_path} not found"]
@@ -291,8 +297,8 @@ def approval_refusals(path, scope):
         return [f"approval record {display_path} is not a JSON object"]
     refusals = []
     # Schema version 2 names the tag `tag`; version 1 names it `release_tag`.
-    if record.get("tag", record.get("release_tag")) != scope["tag"]:
-        refusals.append(f"approval record {display_path} is not for {scope['tag']}")
+    if record.get("tag", record.get("release_tag")) != tag:
+        refusals.append(f"approval record {display_path} is not for {tag}")
     if record.get("profiles") != scope["profiles"]:
         refusals.append(f"approval record {display_path} profiles differ from the declared release scope")
     return refusals
@@ -300,9 +306,10 @@ def approval_refusals(path, scope):
 
 def run_gate(root, tag, approval=None):
     root = Path(root)
-    if not re.fullmatch(r"sdk-v" + SEMVER, tag):
-        return [f"--tag {tag!r} is not sdk-v<major>.<minor>.<patch>"], []
-    notes_path = f"docs/releases/{tag}.md"
+    base = base_tag(tag)
+    if base is None:
+        return [f"--tag {tag!r} is not sdk-v<major>.<minor>.<patch> or its -rc.<number>"], []
+    notes_path = f"docs/releases/{base}.md"
     try:
         notes = read_text(root, notes_path)
         scope = parse_scope(notes, notes_path)
@@ -315,7 +322,7 @@ def run_gate(root, tag, approval=None):
         if declared != actual:
             refusals.append(f"release-scope {what} {declared!r} != {actual!r}")
 
-    compare(scope["tag"], tag, "tag vs --tag")
+    compare(scope["tag"], base, "tag vs --tag")
     compare(scope["tag"], "sdk-v" + scope["sdk_version"], "tag vs sdk_version")
     checks = (
         (lambda: read_text(root, VERSION_FILE).strip(), "sdk_version", f"vs {VERSION_FILE}"),
@@ -357,7 +364,7 @@ def run_gate(root, tag, approval=None):
         approval_path = Path(approval)
         if not approval_path.is_absolute():
             approval_path = root / approval_path
-        found = approval_refusals(approval_path, scope)
+        found = approval_refusals(approval_path, scope, tag)
         refusals += found
         if not found:
             notes_out.append(f"approval: profiles match {approval}")

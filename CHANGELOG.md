@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Separate numbered release-candidate labels from numeric SDK versions while preserving signed promotion checks.
+
 - Add explicit `game.relocation` 1.1 position requests and a host-source backend
   socket, sharing tickets, owner/session guards and cancellation with frozen
   FullPose requests. The native adapter supplies no position backend; its new
