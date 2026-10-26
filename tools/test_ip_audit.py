@@ -5,6 +5,7 @@
 2. Gate 7: each synthetic defect, in a scratch copy of the repository or a rebuilt zip, must make the
    audit exit non-zero with a message naming the problem. Nothing here touches the real tree.
 """
+import fnmatch
 import hashlib
 import importlib.util
 import json
@@ -291,7 +292,8 @@ class Negative(unittest.TestCase):
     # Repository.
     def test_unclassified_file(self):
         s = self.scratch()
-        s.edit_json(audit.PROVENANCE, lambda d: d["entries"].__setitem__(slice(None), [e for e in d["entries"] if e["path"] != "tools/**"]))
+        s.edit_json(audit.PROVENANCE, lambda d: d["entries"].__setitem__(slice(None),
+            [e for e in d["entries"] if not fnmatch.fnmatchcase("tools/ip_audit.py", e["path"])]))
         self.refused_repo("tools/ip_audit.py: no entry in")
 
     def test_unknown_origin(self):
