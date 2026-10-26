@@ -300,6 +300,7 @@ SHARED_ASAN_SOURCES=(
   "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_log_status.cpp" "$ROOT/src/sco_pe_file.cpp"
   "${GAME[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
   "$ROOT/src/game/services/input.cpp" "$ROOT/src/game/services/gamerules.cpp"
+  "$ROOT/src/game/services/inventory.cpp" "$ROOT/src/game/services/inventory_layout.cpp"
   "$ROOT/src/game/services/relocation.cpp" "$ROOT/src/game/admission.cpp"
   "$ROOT/src/game/services/container_contents.cpp"
   "$ROOT/src/game/services/audio.cpp" "$ROOT/src/game/services/world_control.cpp"
@@ -359,6 +360,14 @@ HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signature
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_gamerules_params.cpp" \
   $(obj asan "$ROOT/src/game/services/gamerules.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_gamerules_params"
 "$OUT/test_gamerules_params"
+# The frozen item enum includes UINT32_MAX, accepted by the SDK's target compilers.
+INVENTORY_ABI=(-Wall -Wextra -Werror -I "$ROOT/include" -fsyntax-only)
+"$CC" -std=c11 "${INVENTORY_ABI[@]}" "$ROOT/tests/abi_game_inventory.c"
+"$CXX" -std=c++20 "${INVENTORY_ABI[@]}" -x c++ "$ROOT/tests/abi_game_inventory.c"
+"$CC" -std=c11 "${INVENTORY_ABI[@]}" -fshort-enums "$ROOT/tests/abi_game_inventory.c"
+"$CXX" "${FLAGS[@]}" -I"$ROOT/src" -fsanitize=address,undefined "$ROOT/tests/test_inventory_layout.cpp" \
+  $(obj asan "$ROOT/src/game/services/inventory.cpp" "$ROOT/src/game/services/inventory_layout.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_inventory_layout"
+"$OUT/test_inventory_layout"
 "$CC" -std=c11 -Wall -Wextra -Werror -I"$ROOT/include" -c "$ROOT/tests/abi_relocation.c" -o "$OUT/abi_relocation.o"
 "$CXX" "${FLAGS[@]}" -I"$ROOT/src" -fsanitize=address,undefined "$ROOT/tests/test_relocation.cpp" "$OUT/abi_relocation.o" -o "$OUT/test_relocation"
 "$OUT/test_relocation"
