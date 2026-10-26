@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- C++20, C# and Lua expose the existing widget subtree and capability operations.
+  C#/Lua support tooltips, severity, paging events and stable tags with version,
+  feature and complete table guards. Unsupported presentation refuses explicitly;
+  callback copies and owner cleanup are checked without the game.
+
 - SDK package catalogue checks read public headers and contract documentation as
   UTF-8 explicitly, so Windows default code pages do not reject valid text.
 

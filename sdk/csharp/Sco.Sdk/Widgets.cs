@@ -24,10 +24,23 @@ namespace Sco.Sdk
         public double Maximum { get; init; }
         public string[]? Items { get; init; }
         public uint Columns { get; init; }
+        public string? Tooltip { get; init; }
+        public uint Severity { get; init; }
+        public uint FirstRow { get; init; }
+        public uint VisibleRows { get; init; }
+        public string? Tag { get; init; }
+        internal bool Extended { get; init; }
     }
 
     /// <summary>Copied typed event; unused fields are zero/null. Text remains valid after return.</summary>
-    public readonly record struct WidgetEvent(uint NodeId, WidgetKind Kind, int Index, double Value, string? Text);
+    public readonly record struct WidgetEvent(uint NodeId, WidgetKind Kind, int Index, double Value, string? Text)
+    {
+        public int Row { get; init; } = -1;
+    }
+
+    /// <summary>Copied provider limits and feature bits. These do not change the SDK's bounded input limits.</summary>
+    public readonly record struct WidgetCapabilities(uint Features, uint MaxPanels, uint MaxNodes,
+        uint MaxTotalNodes, uint MaxItems, uint MaxColumns, uint MaxText, uint MaxEvents, uint MaxTag);
 
     public abstract unsafe partial class Plugin
     {
@@ -47,20 +60,34 @@ namespace Sco.Sdk
         private Plugin? _plugin;
         private ScoWidgetsV1* _t;
         private uint _epoch;
+        public uint Version { get; private set; }
         public bool IsOpen => _t != null && _plugin != null && _plugin.IsLoaded && _epoch == _plugin.WidgetEpoch;
         public ScoResult Open(Plugin plugin)
         {
             ArgumentNullException.ThrowIfNull(plugin);
             _t = null;
             _plugin = null;
+            Version = 0;
             if (!plugin.IsLoaded) return ScoResult.BadArg;
             ScoApi* api = plugin.Api;
             if (api == null || api->size < ApiOffset.query_service + 8 || api->query_service == null) return ScoResult.Unavailable;
-            ScoResult r = plugin.Query(Abi.WidgetsName, Abi.WidgetsVersion1_0, out ServiceRef<ScoWidgetsV1> s);
+            uint version = Abi.WidgetsVersion1_2;
+            ScoResult r = plugin.Query(Abi.WidgetsName, version, out ServiceRef<ScoWidgetsV1> s);
+            if (r is ScoResult.Unavailable or ScoResult.NotFound)
+            {
+                version = Abi.WidgetsVersion1_1;
+                r = plugin.Query(Abi.WidgetsName, version, out s);
+            }
+            if (r is ScoResult.Unavailable or ScoResult.NotFound)
+            {
+                version = Abi.WidgetsVersion1_0;
+                r = plugin.Query(Abi.WidgetsName, version, out s);
+            }
             if (r != ScoResult.Ok) return r;
             _plugin = plugin;
             _epoch = plugin.WidgetEpoch;
             _t = s.Table;
+            Version = version;
             return ScoResult.Ok;
         }
         private static readonly UTF8Encoding StrictUtf8 = new(false, true);
@@ -99,6 +126,7 @@ namespace Sco.Sdk
             var nodes = input.ToArray();
             var ids = new HashSet<uint>();
             var parents = new List<uint>();
+            var tags = new HashSet<string>(StringComparer.Ordinal);
             for (int i = 0; i < nodes.Length; ++i)
             {
                 WidgetNode n = nodes[i];
@@ -130,6 +158,19 @@ namespace Sco.Sdk
                 CheckText(n.Label, 255, true, ScoResult.TooMany);
                 Require(n.Kind is < WidgetKind.Button or > WidgetKind.TextInput || !string.IsNullOrEmpty(n.Label));
                 CheckText(n.Text, 255, true, ScoResult.TooMany);
+                CheckText(n.Tooltip, 255, true, ScoResult.TooMany);
+                Require(n.Severity <= Abi.WidgetSeverityError);
+                Require(n.Kind is WidgetKind.List or WidgetKind.Table || (n.FirstRow == 0 && n.VisibleRows == 0));
+                Require(n.VisibleRows != 0 || n.FirstRow == 0);
+                Require(n.VisibleRows <= Abi.WidgetsMaxItems, ScoResult.TooMany);
+                uint rows = n.Kind == WidgetKind.Table && n.Columns > 0 ? (uint)count / n.Columns : (uint)count;
+                Require(n.FirstRow == 0 || n.FirstRow < rows);
+                if (!string.IsNullOrEmpty(n.Tag))
+                {
+                    Require(n.Tag.Length <= Abi.WidgetsMaxTag);
+                    foreach (char c in n.Tag) Require(c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '.' or '_' or '-');
+                    Require(tags.Add(n.Tag));
+                }
                 if (n.Items != null)
                 {
                     var copy = (string[])n.Items.Clone();
@@ -139,6 +180,73 @@ namespace Sco.Sdk
                 nodes[i] = n;
             }
             return nodes;
+        }
+        public ScoResult Capabilities(out WidgetCapabilities capabilities)
+        {
+            capabilities = default;
+            if (!IsOpen || Version < Abi.WidgetsVersion1_1 || _t->size < 48 || _t->capabilities == null)
+                return ScoResult.Unavailable;
+            uint* values = stackalloc uint[10];
+            new Span<uint>(values, 10).Clear();
+            values[0] = 10;
+            ScoResult result = _t->capabilities(_plugin!.SelfPtr, values);
+            if (result != ScoResult.Ok) return result;
+            if (values[0] < 9 || values[0] > 10) return ScoResult.BadArg;
+            capabilities = new(values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8],
+                values[0] == 10 ? values[9] : 0);
+            return ScoResult.Ok;
+        }
+        private uint WireFormat(WidgetNode[] nodes)
+        {
+            uint version = Abi.WidgetsVersion1_0, features = 0;
+            foreach (WidgetNode n in nodes)
+            {
+                if (n.Tooltip != null) features |= Abi.WidgetsFeatureTooltip;
+                if (n.Severity != 0) features |= Abi.WidgetsFeatureSeverity;
+                if (n.VisibleRows != 0) features |= Abi.WidgetsFeaturePaging | Abi.WidgetsFeatureEventRow;
+                if (!string.IsNullOrEmpty(n.Tag)) { features |= Abi.WidgetsFeatureStableTags; version = Abi.WidgetsVersion1_2; }
+            }
+            if (features != 0 && version < Abi.WidgetsVersion1_1) version = Abi.WidgetsVersion1_1;
+            if (features != 0)
+            {
+                Require(Version >= version, ScoResult.Unavailable);
+                ScoResult r = Capabilities(out WidgetCapabilities caps);
+                Require(r == ScoResult.Ok, r);
+                Require((caps.Features & features) == features, ScoResult.Unavailable);
+                if ((features & Abi.WidgetsFeatureStableTags) != 0)
+                    foreach (WidgetNode n in nodes) Require((uint)(n.Tag?.Length ?? 0) <= caps.MaxTag, ScoResult.TooMany);
+            }
+            return version;
+        }
+        private static ScoWidgetNode* MarshalNodes(WidgetNode[] nodes, uint version, NativeArena arena, out uint stride)
+        {
+            stride = version >= Abi.WidgetsVersion1_2 ? (uint)sizeof(ScoWidgetNode12) :
+                version >= Abi.WidgetsVersion1_1 ? (uint)sizeof(ScoWidgetNode11) : (uint)sizeof(ScoWidgetNode);
+            byte* memory = (byte*)arena.Alloc((nuint)(nodes.Length * stride));
+            new Span<byte>(memory, checked((int)(nodes.Length * stride))).Clear();
+            for (int i = 0; i < nodes.Length; ++i)
+            {
+                WidgetNode n = nodes[i];
+                var native = (ScoWidgetNode*)(memory + i * stride);
+                *native = new ScoWidgetNode { size = stride, kind = (uint)n.Kind, id = n.Id, parent = n.Parent,
+                    flags = n.Disabled ? Abi.WidgetDisabled : 0, index = n.Index, label = arena.Add(n.Label),
+                    text = arena.Add(n.Text), value = n.Value, minimum = n.Minimum, maximum = n.Maximum, columns = n.Columns };
+                if (n.Items != null && n.Items.Length > 0)
+                {
+                    native->item_count = (uint)n.Items.Length;
+                    native->items = (byte**)arena.Alloc((nuint)n.Items.Length * (nuint)sizeof(byte*));
+                    for (int j = 0; j < n.Items.Length; ++j) native->items[j] = arena.Add(n.Items[j]);
+                }
+                if (stride >= sizeof(ScoWidgetNode11))
+                {
+                    var tail = (ScoWidgetNode11*)native;
+                    tail->tooltip = arena.Add(n.Tooltip); tail->severity = n.Severity;
+                    tail->first_row = n.FirstRow; tail->visible_rows = n.VisibleRows;
+                }
+                if (stride >= sizeof(ScoWidgetNode12)) ((ScoWidgetNode12*)native)->tag = arena.Add(n.Tag);
+                nodes[i] = n with { Extended = stride >= sizeof(ScoWidgetNode11) };
+            }
+            return (ScoWidgetNode*)memory;
         }
         public ScoResult SetPanel(string id, string title, ReadOnlySpan<WidgetNode> nodes, Action<string, WidgetEvent>? callback = null)
         {
@@ -153,30 +261,13 @@ namespace Sco.Sdk
                 CheckText(title, 63, false, ScoResult.BadArg);
                 Require(title.Length > 0);
                 WidgetNode[] copied = CopyNodes(nodes);
-                nodes = copied;
-                if (callback != null)
-                {
-                    Require(_plugin.WidgetCallbacks.ContainsKey(id) || _plugin.WidgetCallbacks.Count < Abi.WidgetsMaxPanels, ScoResult.TooMany);
-                    _plugin.WidgetCallbacks.EnsureCapacity(_plugin.WidgetCallbacks.Count + 1);
-                    context = Registry.Add(new CallbackEntry(_plugin, id, copied, callback));
-                }
-                var native = (ScoWidgetNode*)arena.Alloc((nuint)(nodes.Length * sizeof(ScoWidgetNode)));
-                for (int i = 0; i < nodes.Length; ++i)
-                {
-                    WidgetNode n = nodes[i];
-                    native[i] = new ScoWidgetNode { size = (uint)sizeof(ScoWidgetNode), kind = (uint)n.Kind,
-                        id = n.Id, parent = n.Parent, flags = n.Disabled ? Abi.WidgetDisabled : 0,
-                        index = n.Index, label = arena.Add(n.Label), text = arena.Add(n.Text),
-                        value = n.Value, minimum = n.Minimum, maximum = n.Maximum, columns = n.Columns };
-                    if (n.Items != null && n.Items.Length > 0)
-                    {
-                        native[i].item_count = (uint)n.Items.Length;
-                        native[i].items = (byte**)arena.Alloc((nuint)n.Items.Length * (nuint)sizeof(byte*));
-                        for (int j = 0; j < n.Items.Length; ++j) native[i].items[j] = arena.Add(n.Items[j]);
-                    }
-                }
+                uint version = WireFormat(copied);
+                Require(_plugin.WidgetCallbacks.ContainsKey(id) || _plugin.WidgetCallbacks.Count < Abi.WidgetsMaxPanels, ScoResult.TooMany);
+                _plugin.WidgetCallbacks.EnsureCapacity(_plugin.WidgetCallbacks.Count + 1);
+                ScoWidgetNode* native = MarshalNodes(copied, version, arena, out uint stride);
+                context = Registry.Add(new CallbackEntry(_plugin, id, copied, callback));
                 ScoResult result = _t->set_panel(_plugin.SelfPtr, arena.Add(id), arena.Add(title), native,
-                    (uint)nodes.Length, (uint)sizeof(ScoWidgetNode), callback == null ? null : &EventTrampoline, (void*)context);
+                    (uint)copied.Length, stride, callback == null ? null : &EventTrampoline, (void*)context);
                 if (result == ScoResult.Ok)
                 {
                     if (_plugin.WidgetCallbacks.Remove(id, out nint old)) Registry.Remove(old);
@@ -192,11 +283,119 @@ namespace Sco.Sdk
         }
         private sealed class CallbackEntry : Entry
         {
-            public CallbackEntry(Plugin p, string id, WidgetNode[] nodes, Action<string, WidgetEvent> fn) : base(p)
+            public CallbackEntry(Plugin p, string id, WidgetNode[] nodes, Action<string, WidgetEvent>? fn) : base(p)
             { Id = id; Nodes = nodes; Fn = fn; }
             public string Id { get; }
-            public WidgetNode[] Nodes { get; }
-            public Action<string, WidgetEvent> Fn { get; }
+            public WidgetNode[] Nodes { get; set; }
+            public Action<string, WidgetEvent>? Fn { get; }
+        }
+        private CallbackEntry Panel(string id)
+        {
+            CheckId(id, _plugin!);
+            Require(_plugin!.WidgetCallbacks.TryGetValue(id, out nint context), ScoResult.NotFound);
+            CallbackEntry? entry = Registry.Get<CallbackEntry>((void*)context);
+            Require(entry != null, ScoResult.NotFound);
+            return entry!;
+        }
+        private void RequireFeature(uint feature)
+        {
+            ScoResult r = Capabilities(out WidgetCapabilities caps);
+            Require(r == ScoResult.Ok, r);
+            Require((caps.Features & feature) == feature, ScoResult.Unavailable);
+        }
+        private static int SubtreeEnd(WidgetNode[] tree, int begin)
+        {
+            var descendants = new HashSet<uint> { tree[begin].Id };
+            int end = begin + 1;
+            while (end < tree.Length && descendants.Contains(tree[end].Parent)) descendants.Add(tree[end++].Id);
+            return end;
+        }
+        /// <summary>Atomically replace one subtree, or append a new subtree under its declared parent.
+        /// Panels must have been submitted through this owner's typed wrapper.</summary>
+        public ScoResult UpdateNodes(string id, ReadOnlySpan<WidgetNode> nodes)
+        {
+            if (!IsOpen || Version < Abi.WidgetsVersion1_1 || _t->size < 32 || _t->update_nodes == null)
+                return ScoResult.Unavailable;
+            var arena = new NativeArena();
+            lock (_plugin!.WidgetLock)
+            try
+            {
+                RequireFeature(Abi.WidgetsFeatureUpdateNodes);
+                CallbackEntry entry = Panel(id);
+                Require(nodes.Length > 0);
+                Require(nodes.Length <= Abi.WidgetsMaxNodes, ScoResult.TooMany);
+                uint parent = nodes[0].Parent;
+                WidgetNode[] fragment = nodes.ToArray();
+                fragment[0] = fragment[0] with { Parent = 0 };
+                for (int i = 1; i < fragment.Length; ++i) Require(fragment[i].Parent != 0);
+                fragment = CopyNodes(fragment);
+                fragment[0] = fragment[0] with { Parent = parent };
+                uint version = WireFormat(fragment);
+                ScoWidgetNode* native = MarshalNodes(fragment, version, arena, out uint stride);
+                WidgetNode[] tree = entry.Nodes;
+                int begin = Array.FindIndex(tree, n => n.Id == fragment[0].Id), end;
+                if (begin >= 0)
+                {
+                    Require(tree[begin].Parent == parent);
+                    end = SubtreeEnd(tree, begin);
+                }
+                else if (parent != 0)
+                {
+                    int at = Array.FindIndex(tree, n => n.Id == parent);
+                    Require(at >= 0 && tree[at].Kind is WidgetKind.Row or WidgetKind.Column);
+                    begin = end = SubtreeEnd(tree, at);
+                }
+                else begin = end = tree.Length;
+                int total = tree.Length - (end - begin) + fragment.Length;
+                Require(total <= Abi.WidgetsMaxNodes, ScoResult.TooMany);
+                var merged = new WidgetNode[total];
+                Array.Copy(tree, 0, merged, 0, begin);
+                Array.Copy(fragment, 0, merged, begin, fragment.Length);
+                Array.Copy(tree, end, merged, begin + fragment.Length, tree.Length - end);
+                merged = CopyNodes(merged);
+                ScoResult result = _t->update_nodes(_plugin.SelfPtr, arena.Add(id), native, (uint)fragment.Length, stride);
+                if (result == ScoResult.Ok) entry.Nodes = merged;
+                return result;
+            }
+            catch (InvalidInput e) { return e.Result; }
+            catch (EncoderFallbackException) { return ScoResult.BadArg; }
+            catch (OutOfMemoryException) { return ScoResult.TooMany; }
+            finally { arena.FreeAll(); }
+        }
+        /// <summary>Atomically remove the named subtrees. At least one node must remain.</summary>
+        public ScoResult RemoveNodes(string id, ReadOnlySpan<uint> ids)
+        {
+            if (!IsOpen || Version < Abi.WidgetsVersion1_1 || _t->size < 40 || _t->remove_nodes == null)
+                return ScoResult.Unavailable;
+            lock (_plugin!.WidgetLock)
+            try
+            {
+                RequireFeature(Abi.WidgetsFeatureRemoveNodes);
+                CallbackEntry entry = Panel(id);
+                Require(ids.Length > 0);
+                Require(ids.Length <= Abi.WidgetsMaxNodes, ScoResult.TooMany);
+                WidgetNode[] tree = entry.Nodes;
+                var drop = new bool[tree.Length];
+                foreach (uint node in ids) Require(node != 0);
+                foreach (uint node in ids)
+                {
+                    int begin = Array.FindIndex(tree, n => n.Id == node);
+                    Require(begin >= 0, ScoResult.NotFound);
+                    int end = SubtreeEnd(tree, begin);
+                    for (int i = begin; i < end; ++i) drop[i] = true;
+                }
+                var kept = new List<WidgetNode>(tree.Length);
+                for (int i = 0; i < tree.Length; ++i) if (!drop[i]) kept.Add(tree[i]);
+                Require(kept.Count != 0);
+                WidgetNode[] merged = kept.ToArray();
+                ScoResult result;
+                fixed (byte* panel = Utf8.Z(id))
+                fixed (uint* values = ids) result = _t->remove_nodes(_plugin.SelfPtr, panel, values, (uint)ids.Length);
+                if (result == ScoResult.Ok) entry.Nodes = merged;
+                return result;
+            }
+            catch (InvalidInput e) { return e.Result; }
+            catch (OutOfMemoryException) { return ScoResult.TooMany; }
         }
         private static string ReadBounded(byte* p, int max)
         {
@@ -212,12 +411,23 @@ namespace Sco.Sdk
             try
             {
                 CallbackEntry? entry = Registry.Get<CallbackEntry>(ctx);
-                if (entry == null || !entry.Owner.IsLoaded || ev == null || ev->size < sizeof(ScoWidgetEvent)) return;
+                if (entry == null || entry.Fn == null || !entry.Owner.IsLoaded || ev == null || ev->size < sizeof(ScoWidgetEvent)) return;
                 if (ReadBounded(panel, 63) != entry.Id) return;
                 WidgetNode node = default;
                 bool enabled = true;
                 foreach (WidgetNode n in entry.Nodes) if (n.Id == ev->node_id) { node = n; break; }
-                if (node.Id == 0 || (uint)node.Kind != ev->kind) return;
+                bool page = ev->kind == Abi.WidgetEventPage;
+                if (node.Id == 0 || (!page && (uint)node.Kind != ev->kind)) return;
+                bool extended = Array.Exists(entry.Nodes, n => n.Extended);
+                if (extended && ev->size < sizeof(ScoWidgetEvent11)) return;
+                int row = -1;
+                if (ev->size >= sizeof(ScoWidgetEvent11))
+                {
+                    var tail = (ScoWidgetEvent11*)ev;
+                    if (tail->_reserved != 0) return;
+                    row = tail->row;
+                    if (!page && row != (node.Kind == WidgetKind.List ? ev->index : -1)) return;
+                }
                 for (WidgetNode n = node; n.Id != 0;)
                 {
                     if (n.Disabled) enabled = false;
@@ -226,6 +436,15 @@ namespace Sco.Sdk
                     if (parent != 0) foreach (WidgetNode candidate in entry.Nodes) if (candidate.Id == parent) { n = candidate; break; }
                 }
                 if (!enabled || !double.IsFinite(ev->value)) return;
+                if (page)
+                {
+                    uint rows = node.Kind == WidgetKind.Table && node.Columns > 0 ? (uint)(node.Items?.Length ?? 0) / node.Columns : (uint)(node.Items?.Length ?? 0);
+                    if (!extended || node.Kind is not (WidgetKind.List or WidgetKind.Table) || node.VisibleRows == 0 ||
+                        row < 0 || (uint)row >= rows || ev->index != 0 || ev->value != 0 || ev->text != null) return;
+                    try { entry.Fn(entry.Id, new WidgetEvent(node.Id, WidgetKind.Page, 0, 0, null) { Row = row }); }
+                    catch (Exception ex) { entry.Owner.ReportException("widget " + entry.Id, ex); }
+                    return;
+                }
                 bool numeric = node.Kind is WidgetKind.Toggle or WidgetKind.Slider;
                 bool selection = node.Kind is WidgetKind.Combo or WidgetKind.List;
                 if ((!numeric && ev->value != 0) || (!selection && ev->index != 0) ||
@@ -241,7 +460,7 @@ namespace Sco.Sdk
                     case WidgetKind.TextInput: text = ReadBounded(ev->text, 255); break;
                     default: return;
                 }
-                try { entry.Fn(entry.Id, new WidgetEvent(node.Id, node.Kind, ev->index, ev->value, text)); }
+                try { entry.Fn(entry.Id, new WidgetEvent(node.Id, node.Kind, ev->index, ev->value, text) { Row = row }); }
                 catch (Exception ex) { entry.Owner.ReportException("widget " + entry.Id, ex); }
             }
             catch { /* neither decoding nor callbacks may escape into native code */ }

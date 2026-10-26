@@ -3,6 +3,7 @@
 #include "scosdk/widgets.hpp"
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #ifdef SCO_TEST_IMGUI_ADAPTER
 #include "sco/widgets_imgui.h"
 #include "imgui.h"
@@ -37,6 +38,20 @@ static sco_result Set(sco_plugin* self, const char* id, const char* title,
 static sco_result Remove(sco_plugin* self, const char* id) {
     CHECK(self == expected_self && std::strcmp(id, "test.main") == 0);
     return SCO_NOT_FOUND;
+}
+static sco_result Update(sco_plugin* self, const char* id, const sco_widget_node* nodes, uint32_t count, uint32_t stride) {
+    CHECK(self == expected_self && std::strcmp(id, "test.main") == 0);
+    CHECK(nodes && count == 1 && stride == sizeof(sco_widget_node_1_2) && nodes->size == stride);
+    return SCO_WRONG_THREAD;
+}
+static sco_result RemoveNodes(sco_plugin* self, const char* id, const uint32_t* ids, uint32_t count) {
+    CHECK(self == expected_self && std::strcmp(id, "test.main") == 0 && count == 1 && ids && ids[0] == 7);
+    return SCO_NOT_FOUND;
+}
+static sco_result Caps(sco_plugin* self, uint32_t* caps) {
+    CHECK(self == expected_self && caps && caps[0] == SCO_WIDGETS_CAPS_1_2);
+    caps[0] = 2; caps[1] = SCO_WIDGETS_FEATURE_STABLE_TAGS;
+    return SCO_OK;
 }
 struct Receiver {
     int calls = 0;
@@ -268,6 +283,28 @@ int main() {
     if (saved_fn) saved_fn("test.main", &event, saved_ctx);
     CHECK(receiver.calls == 1);
     CHECK(widgets.RemovePanel("test.main") == SCO_NOT_FOUND);
+    sco_widget_node_1_2 extended{};
+    extended.base.base = node; extended.base.base.size = sizeof(extended); extended.tag = "action.apply";
+    uint32_t ids[]{7}, caps[SCO_WIDGETS_CAPS_1_2]{SCO_WIDGETS_CAPS_1_2};
+    CHECK(widgets.UpdateNodes("test.main", &extended.base.base, 1, sizeof(extended)) == SCO_UNAVAILABLE);
+    CHECK(widgets.RemoveNodes("test.main", ids, 1) == SCO_UNAVAILABLE);
+    CHECK(widgets.Capabilities(caps) == SCO_UNAVAILABLE);
+    table.update_nodes = Update; table.remove_nodes = RemoveNodes; table.capabilities = Caps;
+    CHECK(widgets.UpdateNodes("test.main", &extended.base.base, 1, sizeof(extended)) == SCO_WRONG_THREAD);
+    CHECK(widgets.RemoveNodes("test.main", ids, 1) == SCO_NOT_FOUND);
+    CHECK(widgets.Capabilities(caps) == SCO_OK && caps[0] == 2 && caps[1] == SCO_WIDGETS_FEATURE_STABLE_TAGS);
+    // Exact allocations make an accidental partial function-pointer read observable under ASan.
+    for (uint32_t extent = 4; extent < sizeof(table); ++extent) {
+        auto bytes = std::make_unique<unsigned char[]>(extent);
+        std::memcpy(bytes.get(), &table, extent);
+        std::memcpy(bytes.get(), &extent, sizeof(extent));
+        service = bytes.get();
+        CHECK(widgets.Open(&api, self) == SCO_OK);
+        CHECK(widgets.UpdateNodes("test.main", &extended.base.base, 1, sizeof(extended)) ==
+            (extent >= 32 ? SCO_WRONG_THREAD : SCO_UNAVAILABLE));
+        CHECK(widgets.RemoveNodes("test.main", ids, 1) == (extent >= 40 ? SCO_NOT_FOUND : SCO_UNAVAILABLE));
+        CHECK(widgets.Capabilities(caps) == SCO_UNAVAILABLE);
+    }
     answer = SCO_NOT_FOUND;
     CHECK(widgets.Open(&api, self) == SCO_NOT_FOUND);
     CHECK(!widgets && widgets.Table() == nullptr);

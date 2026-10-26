@@ -6,7 +6,8 @@ namespace Sco.Sdk
     public enum WidgetKind : uint
     {
         Label = 1, Button = 2, Toggle = 3, Slider = 4, Combo = 5,
-        List = 6, TextInput = 7, Table = 8, Row = 9, Column = 10
+        List = 6, TextInput = 7, Table = 8, Row = 9, Column = 10,
+        Page = 0x100 // Event only; never a node kind.
     }
     public static partial class Abi
     {

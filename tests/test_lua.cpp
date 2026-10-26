@@ -213,6 +213,20 @@ static void TestWidgetsTypedEvents() {
 }
 
 static const sco_widgets_v1* g_widgetsFixture = nullptr;
+static uint32_t g_widgetsMaxVersion = SCO_WIDGETS_VERSION_1_2;
+static sco_result g_widgetsQueryError = SCO_OK;
+static sco_result g_widgetsMissingResult = SCO_NOT_FOUND;
+static std::vector<uint32_t> g_widgetsVersions;
+static uint32_t g_widgetsFeatureMask = UINT32_MAX;
+static uint32_t g_widgetsCapsCount = 0;
+static sco_result WidgetFixtureCapabilities(sco_plugin* self, uint32_t* caps) {
+    const auto r = sco::widgets::Table()->capabilities(self, caps);
+    if (r == SCO_OK) {
+        caps[SCO_WIDGETS_CAP_FEATURES] &= g_widgetsFeatureMask;
+        if (g_widgetsCapsCount) caps[0] = g_widgetsCapsCount;
+    }
+    return r;
+}
 static void TestPanelBuilder() {
     CHECK(sco::widgets::Start() == Result::Ok);
     Write("panelbuilder", R"lua(
@@ -384,7 +398,11 @@ static void TestPanelBuilder() {
 }
 
 static sco_result WidgetsFixtureQuery(const char* name, uint32_t version, const void** out) {
-    CHECK(strcmp(name, SCO_WIDGETS_NAME) == 0 && version == SCO_WIDGETS_VERSION_1_0);
+    CHECK(strcmp(name, SCO_WIDGETS_NAME) == 0 && version >= SCO_WIDGETS_VERSION_1_0 && version <= SCO_WIDGETS_VERSION_1_2);
+    g_widgetsVersions.push_back(version);
+    *out = nullptr;
+    if (g_widgetsQueryError != SCO_OK) return g_widgetsQueryError;
+    if (version > g_widgetsMaxVersion) return g_widgetsMissingResult;
     *out = g_widgetsFixture;
     return SCO_OK;
 }
@@ -639,6 +657,136 @@ static void TestWidgetsCallbackBoundary() {
     sco::widgets::Stop();
 }
 
+
+static void TestWidgetsTails() {
+    CHECK(sco::widgets::Start() == Result::Ok);
+    Write("widgetstails", R"lua(
+      local w, seen = sco.widgets, {}
+      local caps = assert(w.capabilities())
+      assert(caps.version == 0x10002 and caps.count == 10 and caps.max_tag == 63)
+      caps.features=0 -- caller owns the copied result
+      assert(w.capabilities().features ~= 0)
+      local rows={"one","two","three","four"}
+      local nodes={
+        {kind="column",id=1,tag="root"},
+        {kind="list",id=2,parent=1,label="Rows",items=rows,index=-1,
+         tooltip="Choose a row",severity=2,first_row=0,visible_rows=2,tag="pick.rows"},
+        {kind="button",id=3,parent=1,label="Keep",tag="keep"},
+      }
+      assert(w.set_panel("widgetstails.main","Tails",nodes,function(_,e)
+        if e.kind=="page" then assert(e.node_id==2 and e.row==2);seen[#seen+1]="page"
+        elseif e.kind=="list" then assert(e.row==3 and e.index==3);seen[#seen+1]="list"
+        else assert(e.kind=="button" and e.row==-1);seen[#seen+1]="button" end
+      end))
+      -- A conflicting resulting tag, or a malformed subtree, leaves the prior tree.
+      assert(select(2,w.update_nodes("widgetstails.main",{{kind="button",id=3,parent=1,label="Bad",tag="pick.rows"}}))=="bad_arg")
+      assert(select(2,w.update_nodes("widgetstails.main",{{kind="button",id=3,parent=999,label="Bad"}}))=="bad_arg")
+      assert(select(2,w.remove_nodes("widgetstails.main",{999}))=="not_found")
+      assert(select(2,w.remove_nodes("widgetstails.main",{1}))=="bad_arg")
+      assert(select(2,w.remove_nodes("widgetstails.main",{[1]=3,[3]=2}))=="bad_arg")
+      assert(select(2,w.remove_nodes("widgetstails.main",{3, hidden=2}))=="bad_arg")
+      assert(select(2,w.remove_nodes("widgetstails.main",{0}))=="bad_arg")
+      assert(select(2,w.update_nodes("widgetstails.main",{[1]={kind="label",id=8,label="x"},hidden=true}))=="bad_arg")
+      assert(select(2,w.set_panel("widgetstails.invalid","Tails",{{kind="label",id=1,tag="bad tag"}}))=="bad_arg")
+      assert(select(2,w.set_panel("widgetstails.invalid","Tails",{{kind="label",id=1,tooltip="a\0b"}}))=="bad_arg")
+      assert(select(2,w.set_panel("widgetstails.invalid","Tails",{{kind="label",id=1,severity=4}}))=="bad_arg")
+      assert(select(2,w.set_panel("widgetstails.invalid","Tails",{{kind="label",id=1,visible_rows=1}}))=="bad_arg")
+      assert(w.update_nodes("widgetstails.main",{{kind="button",id=3,parent=1,label="Changed",tooltip="New",tag="keep"}}))
+      assert(w.update_nodes("widgetstails.main",{{kind="label",id=4,parent=1,label="Inserted",tag="new"}}))
+      assert(w.remove_nodes("widgetstails.main",{4}))
+      assert(sco.register_command{name="widgetstails.seen",title="Seen",fn=function() return table.concat(seen,",") end})
+    )lua");
+    Loaded live=Load("widgetstails");
+    CHECK(live.p && live.p->state==State::Loaded);
+    if(live.p && live.p->state!=State::Loaded) std::printf("  widgetstails: %s\n",live.p->reason.c_str());
+    const auto panels=sco::widgets::Panels();
+    CHECK(panels.size()==1 && panels[0].nodes.size()==3);
+    if(panels.size()==1 && panels[0].nodes.size()==3) {
+        const auto& n=panels[0].nodes[1];
+        CHECK(n.tooltip=="Choose a row" && n.severity==2 && n.visible_rows==2 && n.tag=="pick.rows");
+        CHECK(panels[0].nodes[2].label=="Changed" && panels[0].nodes[2].tag=="keep");
+    }
+    LuaWidgetRenderer renderer;
+    renderer.events={{2,SCO_WIDGET_EVENT_PAGE,0,0,"",2},{2,SCO_WIDGET_LIST,3,0,""},{3,SCO_WIDGET_BUTTON,0,0,""}};
+    CHECK(sco::widgets::RenderPanel("widgetstails.main",renderer)==Result::Ok);
+    CHECK(Invoke(g_caller,"widgetstails.seen").text=="page,list,button");
+    Unload(live); CHECK(sco::widgets::Panels().empty());
+    sco_api api=*g_api;api.query_service=WidgetsFixtureQuery;
+    sco_widgets_v1 table=*sco::widgets::Table();table.capabilities=WidgetFixtureCapabilities;g_widgetsFixture=&table;
+    const auto load=[&](const char* source) {
+      Write("widgetstailguards",source);Loaded l=Load("widgetstailguards",&api);
+      CHECK(l.p && l.p->state==State::Loaded);
+      if(l.p && l.p->state!=State::Loaded) std::printf("  widgetstailguards: %s\n",l.p->reason.c_str());
+      Unload(l);
+    };
+    const char* noTail=R"lua(
+      local w=sco.widgets
+      assert(select(2,w.update_nodes("widgetstailguards.main",{{kind="label",id=1,label="x"}}))=="unavailable")
+      assert(select(2,w.remove_nodes("widgetstailguards.main",{1}))=="unavailable")
+      assert(select(2,w.set_panel("widgetstailguards.main","x",{{kind="label",id=1,tooltip="tip"}}))=="unavailable")
+    )lua";
+    g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_0;g_widgetsVersions.clear();load(noTail);
+    CHECK(g_widgetsVersions.size()==9 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_2 && g_widgetsVersions[1]==SCO_WIDGETS_VERSION_1_1 && g_widgetsVersions[2]==SCO_WIDGETS_VERSION_1_0);
+    load(R"lua(
+      assert(select(2,sco.widgets.capabilities())=="unavailable")
+      assert(sco.widgets.set_panel("widgetstailguards.main","Base",{{kind="label",id=1,label="base"}}))
+    )lua");
+    g_widgetsMissingResult=SCO_UNAVAILABLE;g_widgetsVersions.clear();load(noTail);
+    CHECK(g_widgetsVersions.size()==9 && g_widgetsVersions[2]==SCO_WIDGETS_VERSION_1_0);g_widgetsMissingResult=SCO_NOT_FOUND;
+    g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_1;
+    load(R"lua(
+      assert(sco.widgets.set_panel("widgetstailguards.main","Tip",{{kind="label",id=1,label="base",tooltip="tip"}}))
+      assert(select(2,sco.widgets.set_panel("widgetstailguards.main","Tag",{{kind="label",id=1,label="x",tag="x"}}))=="unavailable")
+    )lua");
+    g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_2;g_widgetsFeatureMask=0;load(noTail);
+    load(R"lua(assert(select(2,sco.widgets.set_panel("widgetstailguards.main","Tag",{{kind="label",id=1,tag="x"}}))=="unavailable"))lua");
+    g_widgetsFeatureMask=UINT32_MAX;
+    g_widgetsFixture=nullptr;g_widgetsVersions.clear();load(R"lua(assert(select(2,sco.widgets.capabilities())=="unavailable"))lua");
+    CHECK(g_widgetsVersions.size()==1);g_widgetsFixture=&table;
+    g_widgetsQueryError=SCO_CRASHED;g_widgetsVersions.clear();
+    load(R"lua(assert(select(2,sco.widgets.capabilities())=="crashed"))lua");
+    CHECK(g_widgetsVersions.size()==1 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_2);g_widgetsQueryError=SCO_OK;
+    for(uint32_t count:{1u,11u}) {g_widgetsCapsCount=count;load(R"lua(assert(select(2,sco.widgets.capabilities())=="failed"))lua");}g_widgetsCapsCount=0;
+    const char* missing=R"lua(
+      assert(select(2,sco.widgets.capabilities())=="unavailable")
+      assert(select(2,sco.widgets.update_nodes("widgetstailguards.main",{{kind="label",id=1,label="x"}}))=="unavailable")
+      assert(select(2,sco.widgets.remove_nodes("widgetstailguards.main",{1}))=="unavailable")
+    )lua";
+    for(size_t length:{offsetof(sco_widgets_v1,update_nodes)+sizeof(table.update_nodes)-1,offsetof(sco_widgets_v1,remove_nodes)+sizeof(table.remove_nodes)-1,offsetof(sco_widgets_v1,capabilities)+sizeof(table.capabilities)-1}) {
+      table.size=static_cast<uint32_t>(length);void* shortTable=std::malloc(length);std::memcpy(shortTable,&table,length);g_widgetsFixture=static_cast<sco_widgets_v1*>(shortTable);
+      load(missing);std::free(shortTable);
+    }
+    table=*sco::widgets::Table();table.capabilities=nullptr;table.update_nodes=nullptr;table.remove_nodes=nullptr;g_widgetsFixture=&table;load(missing);
+    g_widgetsFixture=nullptr;sco::widgets::Stop();
+}
+
+static void TestWidgetsStaleCookies() {
+    CHECK(sco::widgets::Start()==Result::Ok);
+    sco_api api=*g_api;api.query_service=WidgetsFixtureQuery;
+    sco_widgets_v1 table=*sco::widgets::Table();table.set_panel=WidgetCaptureSet;g_widgetsFixture=&table;
+    Write("widgetcookie",R"lua(
+      local w=sco.widgets
+      assert(w.set_panel("widgetcookie.main","Old",{{kind="button",id=1,label="Click"}},function() sco.log("info","cookie old") end))
+      assert(sco.register_command{name="widgetcookie.replace",title="Replace",fn=function()
+        assert(w.set_panel("widgetcookie.main","New",{{kind="button",id=1,label="Click"}},function() sco.log("info","cookie new") end));return "replaced" end})
+    )lua");
+    Loaded live=Load("widgetcookie",&api);CHECK(live.p&&live.p->state==State::Loaded);
+    auto oldFn=g_widgetCallback;auto oldCtx=g_widgetContext;
+    CHECK(Invoke(g_caller,"widgetcookie.replace").text=="replaced");
+    sco_widget_event event{sizeof(event),1,SCO_WIDGET_BUTTON,0,0,nullptr};
+    CHECK(oldFn && oldCtx && oldCtx!=g_widgetContext);
+    oldFn("widgetcookie.main",&event,oldCtx);CHECK(!Logged("cookie old")&&!Logged("cookie new"));
+    g_widgetCallback("widgetcookie.main",&event,g_widgetContext);CHECK(Logged("[widgetcookie] cookie new"));
+    Unload(live);g_log.clear();
+    Loaded reload=Load("widgetcookie",&api);CHECK(reload.p&&reload.p->state==State::Loaded);
+    oldFn("widgetcookie.main",&event,oldCtx);CHECK(!Logged("cookie old"));
+    sco_widget_event_1_1 extended{{sizeof(extended),1,SCO_WIDGET_BUTTON,0,0,nullptr},-1,0};
+    extended.base.size=sizeof(extended)-1;void* partial=std::malloc(extended.base.size);std::memcpy(partial,&extended,extended.base.size);
+    g_widgetCallback("widgetcookie.main",static_cast<sco_widget_event*>(partial),g_widgetContext);std::free(partial);CHECK(!Logged("cookie old"));
+    extended.base.size=sizeof(extended);extended.row=0;g_widgetCallback("widgetcookie.main",&extended.base,g_widgetContext);CHECK(!Logged("cookie old"));
+    extended.row=-1;g_widgetCallback("widgetcookie.main",&extended.base,g_widgetContext);CHECK(Logged("[widgetcookie] cookie old"));
+    Unload(reload);g_widgetsFixture=nullptr;g_widgetCallback=nullptr;g_widgetContext=nullptr;sco::widgets::Stop();
+}
 static void TestWidgetsBounds() {
     CHECK(sco::widgets::Start()==Result::Ok);
     Write("widgetbounds",R"lua(
@@ -1480,6 +1628,8 @@ int main(int argc, char** argv) {
         TestWidgetsInvalid();
         TestWidgetsLifetime();
         TestWidgetsCallbackBoundary();
+        TestWidgetsTails();
+        TestWidgetsStaleCookies();
         TestWidgetsBounds();
         TestWidgetsExample(argv[1]);
         std::printf("sco-lua widgets tests: %d passed, %d failed\n", g_pass, g_fail);
