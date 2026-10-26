@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- The SDK archive audit allows an 8 MiB total uncompressed plugin kit, covering
+  the current workflow and guide metadata. All other structural limits and
+  exact payload, checksum, licence and provenance checks remain unchanged.
+  Raw ZIP filenames remain checked when Python normalizes Windows separators.
+
 - Generated native/C++/C# manifests declare API 1.1, matching their exported
   built-against ABI. Truncated-table checker success is no longer described as
   API 1.0 loader admission. Lua keeps its script-runtime declaration.
