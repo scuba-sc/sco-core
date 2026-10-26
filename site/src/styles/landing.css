@@ -20,22 +20,25 @@
 [data-sco-landing] {
 	--sco-landing-bg: #030d16;
 	--sco-landing-accent: #8de4e0;
+	--sco-landing-violet: #c2b3f2;
+	--sco-landing-warm: #e7c69d;
 	--sco-landing-heading: #fff;
 	--sco-landing-text: #dae7ea;
 	--sco-landing-muted: #a5bec6;
-	--sco-landing-rule: rgb(116 192 196 / 0.3);
+	--sco-landing-rule: rgb(144 185 199 / 0.28);
 	--sco-landing-gutter: clamp(1.25rem, 5vw, 6rem);
 	position: relative;
 	isolation: isolate;
 	overflow: clip;
 	background:
-		radial-gradient(ellipse at 80% 48%, rgb(6 38 45 / 0.85), transparent 64%),
-		radial-gradient(ellipse at 90% 20%, #061923, transparent 60%),
+		radial-gradient(ellipse at 88% 24%, rgb(56 36 93 / 0.76), transparent 58%),
+		radial-gradient(ellipse at 77% 66%, rgb(9 52 64 / 0.9), transparent 64%),
 		var(--sco-landing-bg);
 	color: var(--sco-landing-text);
 	font-family: system-ui, sans-serif;
 }
 
+.sco-landing__nebula,
 .sco-landing__particles,
 .sco-landing__veil {
 	position: absolute;
@@ -45,14 +48,24 @@
 	pointer-events: none;
 }
 
+.sco-landing__nebula {
+	/* Static color clouds: the stars carry the motion, with no extra repaint loop. */
+	background:
+		radial-gradient(ellipse 32% 12% at 77% 35%, rgb(157 120 226 / 0.26), transparent 76%),
+		radial-gradient(ellipse 26% 29% at 85% 46%, rgb(112 71 181 / 0.4), transparent 72%),
+		radial-gradient(ellipse 30% 12% at 68% 57%, rgb(63 188 191 / 0.34), transparent 76%),
+		radial-gradient(ellipse 12% 8% at 76% 46%, rgb(247 204 153 / 0.16), transparent 75%),
+		radial-gradient(ellipse 46% 30% at 89% 56%, rgb(30 132 157 / 0.3), transparent 78%);
+}
+
 .sco-landing__particles--front {
 	z-index: 2;
 }
 
 .sco-landing__veil {
 	background:
-		linear-gradient(90deg, rgb(3 13 22 / 0.96), rgb(3 13 22 / 0.63) 46%, transparent 80%),
-		linear-gradient(0deg, rgb(3 13 22 / 0.94), transparent 35%, transparent 82%, rgb(3 13 22 / 0.35));
+		linear-gradient(90deg, rgb(3 13 22 / 0.97), rgb(3 13 22 / 0.72) 38%, rgb(3 13 22 / 0.16) 70%, transparent 88%),
+		linear-gradient(0deg, rgb(3 13 22 / 0.96), transparent 39%, transparent 82%, rgb(3 13 22 / 0.3));
 }
 
 .sco-landing__inner {
@@ -105,7 +118,7 @@
 }
 
 .sco-landing__mark-core {
-	fill: currentColor;
+	fill: var(--sco-landing-warm);
 }
 
 .sco-landing__section-label,
@@ -118,7 +131,7 @@
 
 .sco-landing__section-label {
 	margin: 0;
-	color: #b2cfd3;
+	color: var(--sco-landing-violet);
 	font-size: 0.75rem;
 	font-weight: 500;
 	letter-spacing: 0.12em;
@@ -316,7 +329,7 @@
 	justify-content: space-between;
 	gap: 0.75rem;
 	margin-block-end: 0.75rem;
-	color: #83c8cb;
+	color: #9bbdcf;
 	font-size: 0.6875rem;
 	line-height: 1.5;
 	text-transform: uppercase;
@@ -413,8 +426,15 @@
 
 	.sco-landing__veil {
 		background:
-			linear-gradient(90deg, rgb(3 13 22 / 0.9), rgb(3 13 22 / 0.45) 65%, rgb(3 13 22 / 0.2)),
+			linear-gradient(90deg, rgb(3 13 22 / 0.91), rgb(3 13 22 / 0.6) 54%, rgb(3 13 22 / 0.28)),
 			linear-gradient(0deg, var(--sco-landing-bg) 10%, transparent 65%);
+	}
+
+	.sco-landing__nebula {
+		background:
+			radial-gradient(ellipse 55% 19% at 87% 28%, rgb(151 109 218 / 0.4), transparent 78%),
+			radial-gradient(ellipse 62% 24% at 72% 48%, rgb(54 180 184 / 0.34), transparent 78%),
+			radial-gradient(ellipse 20% 9% at 81% 39%, rgb(247 204 153 / 0.17), transparent 76%);
 	}
 }
 
@@ -520,6 +540,7 @@
 }
 
 @media print {
+	.sco-landing__nebula,
 	.sco-landing__particles,
 	.sco-landing__veil,
 	.sco-landing__field-controls {
