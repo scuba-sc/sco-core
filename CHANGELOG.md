@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- The SDK archive audit allows an 8 MiB total uncompressed plugin kit, covering
+  the current workflow and guide metadata. All other structural limits and
+  exact payload, checksum, licence and provenance checks remain unchanged.
+  Raw ZIP filenames remain checked when Python normalizes Windows separators.
+
 - Discover owned `missions/<id>.scom` declarations as public `sco.content`
   Script records, so the contracts consumer can read its supported namespace.
   IDs are 1..100 lowercase ASCII letters, digits or underscores. Existing XML

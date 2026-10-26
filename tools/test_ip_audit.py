@@ -5,6 +5,7 @@
 2. Gate 7: each synthetic defect, in a scratch copy of the repository or a rebuilt zip, must make the
    audit exit non-zero with a message naming the problem. Nothing here touches the real tree.
 """
+import fnmatch
 import hashlib
 import importlib.util
 import json
@@ -291,7 +292,8 @@ class Negative(unittest.TestCase):
     # Repository.
     def test_unclassified_file(self):
         s = self.scratch()
-        s.edit_json(audit.PROVENANCE, lambda d: d["entries"].__setitem__(slice(None), [e for e in d["entries"] if e["path"] != "tools/**"]))
+        s.edit_json(audit.PROVENANCE, lambda d: d["entries"].__setitem__(slice(None),
+            [e for e in d["entries"] if not fnmatch.fnmatchcase("tools/ip_audit.py", e["path"])]))
         self.refused_repo("tools/ip_audit.py: no entry in")
 
     def test_unknown_origin(self):
@@ -446,11 +448,21 @@ class Negative(unittest.TestCase):
         self.refused_zip(f, "unsafe path")
 
     def test_backslash_in_entry_name(self):
-        def f(e):
-            top = next(iter(e)).split("/", 1)[0]
-            e[f"{top}/dir\\evil.txt"] = b"x"
-            resum(e)
-        self.refused_zip(f, "unsafe path")
+        bad = os.path.join(self.out, "bad-raw-backslash.zip")
+        with zipfile.ZipFile(self.core) as source, zipfile.ZipFile(bad, "w") as target:
+            top = source.namelist()[0].split("/", 1)[0]
+            for info in source.infolist():
+                target.writestr(info, source.read(info))
+            # Construct safely, then retain the deliberate raw name: ZipInfo's
+            # constructor otherwise normalizes backslashes on Windows.
+            entry = zipfile.ZipInfo(f"{top}/dir/evil.txt")
+            entry.filename = entry.orig_filename = f"{top}/dir\\evil.txt"
+            target.writestr(entry, b"x")
+        with zipfile.ZipFile(bad) as archive:
+            self.assertIn(entry.orig_filename, [info.orig_filename for info in archive.infolist()])
+        code, out = run("zip", bad, "--profile", "core")
+        self.assertEqual(code, 1, out)
+        self.assertIn("unsafe path", out)
 
     def test_drive_letter_entry(self):
         def f(e):
@@ -547,12 +559,12 @@ class Negative(unittest.TestCase):
     def test_total_size_limit(self):
         def f(e):
             top = next(iter(e)).split("/", 1)[0]
-            e[f"{top}/huge.txt"] = b"x" * audit.MAX_ENTRY_BYTES
-            e[f"{top}/huge2.txt"] = b"x" * audit.MAX_ENTRY_BYTES
-            e[f"{top}/huge3.txt"] = b"x" * audit.MAX_ENTRY_BYTES
-            e[f"{top}/huge4.txt"] = b"x" * (audit.MAX_TOTAL_BYTES - 3 * audit.MAX_ENTRY_BYTES + 1)
+            full, remainder = divmod(audit.MAX_TOTAL_BYTES + 1, audit.MAX_ENTRY_BYTES)
+            sizes = [audit.MAX_ENTRY_BYTES] * full + ([remainder] if remainder else [])
+            for index, size in enumerate(sizes):
+                e[f"{top}/huge{index}.txt"] = b"x" * size
             resum(e)
-        self.refused_zip(f, "in total, over the 5338552-byte limit")
+        self.refused_zip(f, f"in total, over the {audit.MAX_TOTAL_BYTES}-byte limit")
 
     def test_compression_ratio_limit(self):
         bad = os.path.join(self.out, "bad-bomb.zip")
@@ -621,7 +633,7 @@ class Negative(unittest.TestCase):
         over = list(pads)
         over[-1].file_size = over[-1].compress_size = over[-1].file_size + 1
         problems, readable = audit.structure_problems(base + over, top, pkg.safe_rel)
-        self.assertTrue(any("5338552-byte limit" in p for p in problems), problems)
+        self.assertTrue(any(f"{audit.MAX_TOTAL_BYTES}-byte limit" in p for p in problems), problems)
         self.assertEqual(readable, {}, "nothing is read from an archive over the total limit")
 
     def test_ratio_at_the_limit_is_accepted(self):
