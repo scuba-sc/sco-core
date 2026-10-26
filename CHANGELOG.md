@@ -4,6 +4,9 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- SDK package catalogue checks read public headers and contract documentation as
+  UTF-8 explicitly, so Windows default code pages do not reject valid text.
+
 - Generated native/C++/C# manifests declare API 1.1, matching their exported
   built-against ABI. Truncated-table checker success is no longer described as
   API 1.0 loader admission. Lua keeps its script-runtime declaration.
