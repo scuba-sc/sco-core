@@ -25,6 +25,10 @@ The Star Citizen game pack publishes its services under the reserved owner `game
 
 ## Relocation (`game.relocation` 1.0)
 
+Current source also exposes a separate [1.1 position-only request](game/relocation-position.md).
+Its production capability is unavailable without an explicit position backend.
+The frozen 1.0 FullPose behavior below is unchanged.
+
 `game.relocation` 1.0 ([`sc_relocation.h`](../include/sc_relocation.h), frozen) moves the local player to a position
 and rotation in a streamed zone of the star system the player is already in. Native C and raw C++ only. The header
 owns the request, tick and status behaviour; this section is what the game pack supplies behind it, and every part of

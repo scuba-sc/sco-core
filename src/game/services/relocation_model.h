@@ -9,7 +9,22 @@ struct Evidence {
     bool offline, transport, player;
     uint64_t session, playerId, currentSystem, targetSystem;
     bool streamed, arrived, applied, fault;
+    uint64_t targetEpoch = 0, targetInstance = 0;
 };
+inline bool PositionRequest(const sc_relocation_position_request& r) {
+    if(r.size<sizeof(r)||!r.zone_id||!r.target_epoch||!r.timeout_ms||r.timeout_ms>60000)return false;
+    for(double x:r.pos)if(!std::isfinite(x)||std::abs(x)>1e12)return false;
+    return true;
+}
+inline bool ArrivedPosition(const sc_relocation_position_request& r,const double p[3]) {
+    if(!p)return false;
+    double distance=0;
+    for(int i=0;i<3;++i) {
+        if(!std::isfinite(p[i])||!std::isfinite(r.pos[i]))return false;
+        distance=std::hypot(distance,p[i]-r.pos[i]);
+    }
+    return distance<=0.05;
+}
 inline bool Arrived(const sc_relocation_request& r, const double p[3], const double q[4]) {
     if (!p || !q) return false;
     double distance=0, norm=0, targetNorm=0, dot=0;
@@ -115,6 +130,9 @@ class Machine {
         uint64_t session = 0, player = 0, system = 0, since = 0;
         sc_relocation_request request{};
         sc_relocation_status status{};
+        sc_relocation_position_request position{};
+        uint64_t targetInstance = 0;
+        bool positionOnly = false;
     };
 public:
     sco_result Request(const void* owner, const sc_relocation_request& r, const Evidence& e,
@@ -128,22 +146,25 @@ public:
             norm = std::hypot(norm,x);
         }
         if (!std::isfinite(norm) || norm < 1e-12) return SCO_BAD_ARG;
-        if (e.fault || !e.offline || !e.transport || !e.player || !e.session || !e.playerId || !e.streamed ||
-            !e.currentSystem || !e.targetSystem || e.currentSystem != e.targetSystem) return SCO_UNAVAILABLE;
-        for (const auto& s : slots_) if (s.status.state == SC_RELOCATION_PENDING) return SCO_TOO_MANY;
-        Slot* chosen = nullptr;
-        for (auto& s : slots_) if (!s.owner) { chosen = &s; break; }
-        if (!chosen) {
-            chosen = &slots_[0];
-            for (auto& s : slots_) if (s.status.ticket < chosen->status.ticket) chosen = &s;
-        }
-        if (sequence_ == UINT64_MAX) return SCO_TOO_MANY; // never recycle a ticket
-        *chosen = {};
-        chosen->owner = owner; chosen->session = e.session; chosen->player = e.playerId;
-        chosen->system = e.currentSystem; chosen->since = now; chosen->request = r;
+        Slot* chosen=nullptr;
+        const auto admitted=Admit(owner,e,now,chosen);
+        if(admitted!=SCO_OK)return admitted;
+        chosen->request = r;
         for (double& x : chosen->request.rot_xyzw) x /= norm;
-        chosen->status = {sizeof(sc_relocation_status),SC_RELOCATION_PENDING,0,0,++sequence_};
-        *ticket = sequence_; return SCO_OK;
+        *ticket=chosen->status.ticket;
+        return SCO_OK;
+    }
+    sco_result RequestPosition(const void* owner,const sc_relocation_position_request& r,const Evidence& e,
+                               uint64_t now,uint64_t* ticket) {
+        if(!owner||!ticket||!PositionRequest(r))return SCO_BAD_ARG;
+        if(!e.targetInstance||e.targetEpoch!=r.target_epoch)return SCO_UNAVAILABLE;
+        Slot* chosen=nullptr;
+        const auto admitted=Admit(owner,e,now,chosen);
+        if(admitted!=SCO_OK)return admitted;
+        chosen->position=r;chosen->position.size=sizeof(chosen->position);
+        chosen->positionOnly=true;chosen->targetInstance=e.targetInstance;
+        *ticket=chosen->status.ticket;
+        return SCO_OK;
     }
     sco_result Cancel(const void* owner, uint64_t ticket) {
         if (!owner || !ticket) return SCO_BAD_ARG;
@@ -172,7 +193,10 @@ public:
                  (e.streamed && (!e.targetSystem || e.targetSystem != s->system)))
             reason = SC_RELOCATION_REASON_SYSTEM;
         else if (!e.transport) reason = SC_RELOCATION_REASON_TRANSPORT;
-        else if (now < s->since || now-s->since >= s->request.timeout_ms) reason = SC_RELOCATION_REASON_TIMEOUT;
+        else if (s->positionOnly && e.streamed && (!e.targetInstance || e.targetInstance!=s->targetInstance))
+            reason = SC_RELOCATION_REASON_TARGET;
+        else if (now < s->since || now-s->since >= (s->positionOnly?s->position.timeout_ms:s->request.timeout_ms))
+            reason = SC_RELOCATION_REASON_TIMEOUT;
         if (reason) { s->status.state=SC_RELOCATION_FAILED; s->status.reason=reason; return false; }
         if (s->status.applied && e.streamed && e.arrived) { s->status.state=SC_RELOCATION_COMPLETE; return false; }
         return e.streamed && !s->status.applied;
@@ -183,10 +207,30 @@ public:
         else { s->status.state=SC_RELOCATION_FAILED;
                s->status.reason=fault ? SC_RELOCATION_REASON_FAULT : SC_RELOCATION_REASON_TRANSPORT; }
     }
-    const sc_relocation_request* Pending() { auto* s=Active(); return s ? &s->request : nullptr; }
+    const sc_relocation_request* Pending() { auto* s=Active(); return s&&!s->positionOnly ? &s->request : nullptr; }
+    const sc_relocation_position_request* PendingPosition() { auto* s=Active();return s&&s->positionOnly?&s->position:nullptr; }
+    uint64_t PendingTargetInstance() { auto* s=Active();return s&&s->positionOnly?s->targetInstance:0; }
+    const void* PendingOwner() {auto* s=Active();return s?s->owner:nullptr;}
+    uint64_t PendingTicket() {auto* s=Active();return s?s->status.ticket:0;}
     void Release(const void* owner) { for (auto& s : slots_) if (s.owner==owner) s={}; }
     void Stop() { for (auto& s : slots_) s={}; } // sequence retained across restart
 private:
+    sco_result Admit(const void* owner,const Evidence& e,uint64_t now,Slot*& chosen) {
+        if (e.fault || !e.offline || !e.transport || !e.player || !e.session || !e.playerId || !e.streamed ||
+            !e.currentSystem || !e.targetSystem || e.currentSystem != e.targetSystem) return SCO_UNAVAILABLE;
+        for (const auto& s : slots_) if (s.status.state == SC_RELOCATION_PENDING) return SCO_TOO_MANY;
+        for (auto& s : slots_) if (!s.owner) { chosen = &s; break; }
+        if (!chosen) {
+            chosen = &slots_[0];
+            for (auto& s : slots_) if (s.status.ticket < chosen->status.ticket) chosen = &s;
+        }
+        if (sequence_ == UINT64_MAX) return SCO_TOO_MANY;
+        *chosen = {};
+        chosen->owner = owner; chosen->session = e.session; chosen->player = e.playerId;
+        chosen->system = e.currentSystem; chosen->since = now;
+        chosen->status = {sizeof(sc_relocation_status),SC_RELOCATION_PENDING,0,0,++sequence_};
+        return SCO_OK;
+    }
     Slot* Find(const void* owner,uint64_t ticket) {
         for (auto& s : slots_) if (s.owner==owner && s.status.ticket==ticket) return &s;
         return nullptr;

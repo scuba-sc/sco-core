@@ -300,6 +300,7 @@ SHARED_ASAN_SOURCES=(
   "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_log_status.cpp" "$ROOT/src/sco_pe_file.cpp"
   "${GAME[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
   "$ROOT/src/game/services/input.cpp" "$ROOT/src/game/services/gamerules.cpp"
+  "$ROOT/src/game/services/relocation.cpp" "$ROOT/src/game/admission.cpp"
   "$ROOT/src/game/services/container_contents.cpp"
   "$ROOT/src/game/services/audio.cpp" "$ROOT/src/game/services/world_control.cpp"
   "$ROOT/src/game/services/entity_lookup.cpp"
@@ -358,6 +359,18 @@ HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signature
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_gamerules_params.cpp" \
   $(obj asan "$ROOT/src/game/services/gamerules.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_gamerules_params"
 "$OUT/test_gamerules_params"
+"$CC" -std=c11 -Wall -Wextra -Werror -I"$ROOT/include" -c "$ROOT/tests/abi_relocation.c" -o "$OUT/abi_relocation.o"
+"$CXX" "${FLAGS[@]}" -I"$ROOT/src" -fsanitize=address,undefined "$ROOT/tests/test_relocation.cpp" "$OUT/abi_relocation.o" -o "$OUT/test_relocation"
+"$OUT/test_relocation"
+"$CXX" "${FLAGS[@]}" -I"$ROOT/src" -fsanitize=address,undefined "$ROOT/tests/test_relocation_position.cpp" -o "$OUT/test_relocation_position"
+"$OUT/test_relocation_position"
+for fixture in test_provider test_position_provider; do
+  "$CXX" "${FLAGS[@]}" -I"$ROOT/src" -fsanitize=address,undefined "$ROOT/tests/game_contracts/relocation/$fixture.cpp" \
+    "$OUT/abi_relocation.o" $(obj asan "$ROOT/src/game/services/relocation.cpp" "$ROOT/src/game/admission.cpp") "${HOST_ASAN[@]}" -o "$OUT/relocation_$fixture"
+  "$OUT/relocation_$fixture"
+done
+"$OUT/relocation_test_position_provider" --clock-request
+"$OUT/relocation_test_position_provider" --clock-tick
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_container_contents.cpp" \
   $(obj asan "$ROOT/src/game/services/container_contents.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_container_contents"
 "$OUT/test_container_contents"
