@@ -4,6 +4,9 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- SDK package catalogue checks read public headers and contract documentation as
+  UTF-8 explicitly, so Windows default code pages do not reject valid text.
+
 - The SDK archive audit allows an 8 MiB total uncompressed plugin kit, covering
   the current workflow and guide metadata. All other structural limits and
   exact payload, checksum, licence and provenance checks remain unchanged.
