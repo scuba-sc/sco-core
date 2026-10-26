@@ -31,6 +31,7 @@ run(0 "APPLIED 6/6.*emit: OK, [0-9]+ splices.*\\[datacore\\] 1 pack: quantum_pac
 run(1 "line 9: SKIP [^\n]*no property \"spoolTime\" in ExampleDriveValues.*missing_field refused" check "${DIR}/example_fixture.dcb" "${ROOT}/tests/fixtures/datacore/missing_field")
 run(1 "REFUSED \\(doesn't parse\\)" check "${DIR}/example_fixture.dcb" "${G}/bad_set_twice.toml")
 run(2 "missing.dcb" check "${DIR}/missing.dcb" "${SAMPLE}")
+run(1 "REFUSED 0/2.*deep clone exceeds 16 nested structs.*emit: OK" check "${DIR}/deep_clone_cycle.dcb" "${DIR}/deep_clone_cycle.toml")
 
 run(0 "Components\\[1\\]\\.params\\.spoolUpTime = 5\\.0" show "${DIR}/example_fixture.dcb" "${EOS}")
 run(0 "params\\.spoolUpTime = 3\\.5" show "${DIR}/example_fixture_patched.dcb" "guid:00000000-0000-4000-8000-00000000a001" "Components[ExampleDriveParams].params")

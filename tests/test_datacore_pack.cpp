@@ -601,6 +601,57 @@ clone = { record = "ShipA", mode = "deep" }
     CHECK(pRound.ops[0].clone.deep);
 }
 
+static void TestDeepCloneApplyAndRefusal() {
+    const Bytes base = Scene();
+    Schema s;
+    CHECK(s.Parse(base));
+    const Pack clone = Parse(R"(format = 1
+[[record]]
+struct = "Ship"
+name = "ShipDeep"
+clone = { record = "ShipA", mode = "deep" }
+set = { "counts[0]" = 99 }
+)");
+    const PackResult applied = ApplyPacks(s, std::vector<Pack>{ Parse(WritePack(clone)) });
+    const Bytes out = Applied(base, applied);
+    CHECK(applied.status.ok() && applied.packs[0].state == PackState::Applied);
+    CHECK(Val(out, "ShipDeep", "counts[0]") == "99" && Val(out, "ShipA", "counts[0]") == "1");
+
+    dcb::Builder b;
+    b.structs = {{ "Node", -1, {{ "children", dcb::t::Class, 0, dcb::kArray1 }, { "marker", dcb::t::Int32 }} }};
+    b.mappings = {{ 0, 1 }};
+    b.records = {{ "Root", "libs/foundry/records/test/tree.xml", 0, dcb::MakeGuid(0x10), 0 }};
+    b.fills = {{ 0, 0, "children", Pair(1, 0) }, { 0, 0, "marker", Le(7, 4) }};
+    const Bytes cycle = b.Build();
+    Schema cyclic;
+    CHECK(cyclic.Parse(cycle));
+    const std::string body = R"([[record]]
+struct = "Node"
+name = "Clone"
+clone = { record = "Root", mode = "deep" }
+[[set]]
+record = "Root"
+field = "marker"
+value = 23
+)";
+    for (bool bestEffort : { false, true }) {
+        const std::string text = std::string("format = 1\n") + (bestEffort ? "policy = \"best_effort\"\n" : "") + body;
+        const PackResult result = ApplyPacks(cyclic, std::vector<Pack>{ Parse(text) });
+        CHECK(result.status.ok() && result.packs[0].ops[0].status.category == Refusal::Limit);
+        CHECK(result.packs[0].state == (bestEffort ? PackState::Partial : PackState::Refused));
+        CHECK(result.packs[0].receipt.applied_records == (bestEffort ? 1u : 0u));
+        CHECK(result.packs[0].receipt.skipped_records == (bestEffort ? 1u : 2u));
+        const Bytes emitted = Applied(cycle, result);
+        CHECK(Val(emitted, "Root", "marker") == (bestEffort ? "23" : "7"));
+        Schema parsed;
+        CHECK(parsed.Parse(emitted) && parsed.header.recordCount == 1 && parsed.structInfo[0].instances == 1);
+        if (!bestEffort) {
+            std::ofstream(g_out / "deep_clone_cycle.dcb", std::ios::binary).write(reinterpret_cast<const char*>(cycle.data()), static_cast<std::streamsize>(cycle.size()));
+            std::ofstream(g_out / "deep_clone_cycle.toml") << text;
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc != 3) {
         std::fprintf(stderr, "usage: test_datacore_pack <repo root> <out dir>\n");
@@ -613,6 +664,7 @@ int main(int argc, char** argv) {
     TestApplyAll();
     TestOrder();
     TestAtomicity();
+    TestDeepCloneApplyAndRefusal();
     TestRefusals();
     TestRecords();
     TestSamplePack();
