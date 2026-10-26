@@ -27,6 +27,8 @@ enum class PackApplyPolicy : uint32_t {
     BestEffort = 1   // Opt-in: applies valid records, records per-record failures
 };
 
+// Counters describe committed top-level PackOp units. A record/instance and its nested sets are
+// one unit; errors retain detailed patcher failures, so a dropped unit can have several errors.
 struct PackApplyReceipt {
     uint32_t applied_records = 0;
     uint32_t skipped_records = 0;
@@ -68,8 +70,8 @@ struct PackOp {
 struct Pack {
     std::string plugin;        // the owning plugin id; its position in plugin order is the pack's priority
     std::string name;          // "datacore/drive.toml"; "pending" for a saved sco.datacore patch
-    bool        atomic = true; // `atomic = false` opts out of per-pack atomicity
-    PackApplyPolicy policy = PackApplyPolicy::Atomic; // PackApplyPolicy::BestEffort when policy = "best_effort" or atomic = false
+    bool        atomic = true; // legacy opt-out: false still selects BestEffort
+    PackApplyPolicy policy = PackApplyPolicy::Atomic; // BestEffort also opts out when atomic is true
     std::vector<PackOp> ops;   // file order
 };
 
@@ -77,7 +79,9 @@ struct Pack {
 // line, "12: [[set]]: unknown key \"feild\"". Checked here, without a game file: TOML syntax, known
 // keys, value shapes, field path syntax, GUID syntax, `@id` defined (by an earlier [[instance]])
 // before use and unique, a field set twice by one file (same target, same path), the size and
-// operation limits. Names (records, structs, fields) resolve only against a .dcb (ApplyPacks).
+// operation limits. An explicit TOML policy overrides the atomic alias, independent of key order.
+// Failed parses clear operations and reset both policy fields. Names (records, structs, fields)
+// resolve only against a .dcb (ApplyPacks).
 bool ParsePack(std::string_view text, Pack& out, std::string& error);
 
 // The GUID a [[record]] without `guid` gets: derived from the plugin id and the record name (a
@@ -90,8 +94,8 @@ std::string PackRecordFile(std::string_view plugin, std::string_view name);
 bool PackRecordFileOk(std::string_view path);
 
 // The canonical .toml for a pack, `comment` lines first (each prefixed "# "). ParsePack of the
-// result gives the same operations back (lines aside). Values that TOML can't hold as they are
-// (uint64 past int64) use the `{ uint = "..." }` form.
+// result gives the same operations and normalized policy back (lines aside). Values that TOML can't
+// hold as they are (uint64 past int64) use the `{ uint = "..." }` form.
 std::string WritePack(const Pack& pack, std::string_view comment = {});
 
 // ---- applying ----------------------------------------------------------------------------------
@@ -114,10 +118,10 @@ struct PackReport {
     bool        atomic = true;
     PackApplyPolicy policy = PackApplyPolicy::Atomic;
     PackState   state = PackState::Applied;
-    size_t      applied = 0, skipped = 0;
+    size_t      applied = 0, skipped = 0; // legacy flat patcher-call counts, unlike receipt units
     std::string reason;                  // Refused, Partial: the first failure ("line 12: ...")
     std::vector<PackOpReport> ops;       // one per patcher operation, in order
-    PackApplyReceipt receipt;            // structured receipt for caller
+    PackApplyReceipt receipt;            // committed top-level TOML/PackOp units
 };
 
 struct PackResult {
@@ -129,8 +133,9 @@ struct PackResult {
 
 // Applies packs in the given order, which is plugin order (folder-name order, built-ins first; a
 // plugin's own .toml files in name order, then its saved patch). Each pack is tried on a copy of
-// everything accepted so far and kept or dropped as a whole (atomic) or per operation (atomic =
-// false). A later pack wins a field an earlier one set, and the conflict is listed; a pack that
+// everything accepted so far and kept or dropped as a whole (atomic) or per top-level PackOp unit
+// (policy BestEffort or legacy atomic = false). Reports normalize both policy fields. A later pack
+// wins a field an earlier one set, and the conflict is listed; a pack that
 // sets one field twice (by two paths) has that operation refused. Then one Emit for everything.
 PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs);
 

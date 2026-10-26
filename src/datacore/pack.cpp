@@ -396,6 +396,7 @@ struct Parser {
         }
         const toml::table& t = r.table();
         bool haveFormat = false;
+        std::optional<PackApplyPolicy> explicitPolicy;
         struct Item { uint32_t line; int kind; const toml::table* t; };
         std::vector<Item> items;
         for (auto&& [k, v] : t) {
@@ -414,11 +415,9 @@ struct Parser {
                 const auto* s = v.as_string();
                 if (!s) return Fail(line, "policy must be a string (\"atomic\" or \"best_effort\")");
                 if (s->get() == "atomic") {
-                    out.policy = PackApplyPolicy::Atomic;
-                    out.atomic = true;
+                    explicitPolicy = PackApplyPolicy::Atomic;
                 } else if (s->get() == "best_effort") {
-                    out.policy = PackApplyPolicy::BestEffort;
-                    out.atomic = false;
+                    explicitPolicy = PackApplyPolicy::BestEffort;
                 } else {
                     return Fail(line, "unknown policy " + Q(s->get()) + " (\"atomic\" or \"best_effort\")");
                 }
@@ -436,6 +435,10 @@ struct Parser {
             }
         }
         if (!haveFormat) return Fail(1, Fmt("missing format = %d", kPackFormat));
+        if (explicitPolicy) {
+            out.policy = *explicitPolicy;
+            out.atomic = out.policy == PackApplyPolicy::Atomic;
+        }
         std::stable_sort(items.begin(), items.end(), [](const Item& a, const Item& b) { return a.line < b.line; });
         for (const Item& it : items) {
             const bool ok = it.kind == 1 ? Instance(*it.t, it.line) : it.kind == 3 ? NewRec(*it.t, it.line) : Change(*it.t, it.line, it.kind == 2);
@@ -456,6 +459,7 @@ bool ParsePack(std::string_view text, Pack& out, std::string& error) {
     if (!parser.Run(text)) {
         out.ops.clear();
         out.atomic = true;
+        out.policy = PackApplyPolicy::Atomic;
         return false;
     }
     out = std::move(p);
@@ -510,6 +514,10 @@ bool PackRecordFileOk(std::string_view path) {
 
 namespace {
 
+bool UsesAtomicPolicy(const Pack& pack) {
+    return pack.atomic && pack.policy != PackApplyPolicy::BestEffort;
+}
+
 std::string RefText(const RecordRef& r) {
     std::string s;
     if (!r.name.empty()) s += "record = " + Q(r.name);
@@ -545,7 +553,7 @@ std::string WritePack(const Pack& p, std::string_view comment) {
         comment.remove_prefix(nl + 1);
     }
     s += Fmt("format = %d\n", kPackFormat);
-    s += std::string("atomic = ") + (p.atomic ? "true" : "false") + "\n";
+    s += std::string("atomic = ") + (UsesAtomicPolicy(p) ? "true" : "false") + "\n";
     for (const PackOp& op : p.ops) {
         if (op.kind == PackOp::Kind::Instance) {
             s += "\n[[instance]]\nid = " + Q(op.id) + "\nstruct = " + Q(op.type) + "\n";
@@ -729,11 +737,12 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
         PackReport rep;
         rep.plugin = pack.plugin;
         rep.name = pack.name;
-        rep.atomic = pack.atomic;
-        rep.policy = pack.policy;
+        rep.atomic = UsesAtomicPolicy(pack);
+        rep.policy = rep.atomic ? PackApplyPolicy::Atomic : PackApplyPolicy::BestEffort;
         std::map<std::string, InstanceId> ids;
         std::map<SlotKey, size_t> mine;                    // slots this pack wrote -> report index
         std::vector<std::pair<SlotKey, size_t>> accepted;  // slots of operations kept
+        std::vector<std::pair<size_t, size_t>> units;
 
         // A field this pack already set (through another path): refuse the later operation.
         auto checkOwn = [&](std::vector<std::pair<SlotKey, size_t>>& slots) {
@@ -750,11 +759,15 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
         };
 
         Patch trial = main.Fork();
-        if (pack.atomic) {
+        if (rep.atomic) {
             std::vector<std::pair<SlotKey, size_t>> slots;
             Exec ex{ trial, ids, rep.ops, slots, pack.plugin };
             bool ok = true;
-            for (const PackOp& op : pack.ops) ok &= ex.Run(op);
+            for (const PackOp& op : pack.ops) {
+                const size_t first = rep.ops.size();
+                ok &= ex.Run(op);
+                units.emplace_back(first, rep.ops.size());
+            }
             ok &= checkOwn(slots);
             if (ok) accepted = std::move(slots);
         } else {
@@ -764,6 +777,7 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
                 const size_t first = rep.ops.size();
                 Exec ex{ step, ids, rep.ops, slots, pack.plugin };
                 bool ok = ex.Run(op);
+                units.emplace_back(first, rep.ops.size());
                 ok &= checkOwn(slots);
                 if (ok) {
                     trial = std::move(step);
@@ -781,6 +795,14 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
             }
         }
 
+        // Receipts count whole TOML units; the detailed report keeps flat patcher calls.
+        for (const auto& [first, end] : units) {
+            const bool ok = std::all_of(rep.ops.begin() + first, rep.ops.begin() + end,
+                                       [](const PackOpReport& op) { return op.status.ok(); });
+            if (ok) ++rep.receipt.applied_records;
+            else ++rep.receipt.skipped_records;
+        }
+        rep.receipt.total_records = static_cast<uint32_t>(units.size());
         for (size_t k = 0; k < rep.ops.size(); ++k) {
             const PackOpReport& r = rep.ops[k];
             if (r.status) ++rep.applied;
@@ -791,7 +813,7 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
                 if (rep.reason.empty()) rep.reason = (r.line ? Fmt("line %u: ", r.line) : Fmt("operation %zu: ", k + 1)) + r.status.message;
             }
         }
-        if (pack.atomic && rep.skipped) {
+        if (rep.atomic && rep.skipped) {
             rep.state = PackState::Refused;
             rep.applied = 0;
             rep.skipped = rep.ops.size();
@@ -827,9 +849,10 @@ PackResult ApplyPacks(const Schema& base, std::span<const Pack> packs) {
     // A receipt describes committed work, not successful operations in a trial
     // later rolled back by pack atomicity or final emission validation.
     for (PackReport& r : res.packs) {
-        r.receipt.applied_records = static_cast<uint32_t>(r.applied);
-        r.receipt.skipped_records = static_cast<uint32_t>(r.skipped);
-        r.receipt.total_records = static_cast<uint32_t>(r.applied + r.skipped);
+        if (r.state == PackState::Refused) {
+            r.receipt.applied_records = 0;
+            r.receipt.skipped_records = r.receipt.total_records;
+        }
     }
     return res;
 }
