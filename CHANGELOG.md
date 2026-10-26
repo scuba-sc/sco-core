@@ -23,6 +23,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## sdk-v2.4.0 (release candidate 1 published 2026-10-21 as sdk-v2.4.0-rc.1; final release pending)
 
+- DataCore deep clones now refuse excessive recursion, invalid array ranges and
+  count limits without leaving a partial clone or consuming its output ID.
+  Reads use the pre-operation source, so newly appended copies cannot validate
+  invalid source indexes. Nested/shared arrays, both clone routes, shallow
+  compatibility and best-effort receipts are checked with synthetic files.
+  Published RC1 bytes are unchanged; not run in game.
+
 - The documentation hero keeps its text, navigation and footer opaque while its
   decorative galaxy layers fade on scroll. Task and hub arrows use inline SVG
   icons so their rendering does not depend on font glyph coverage.

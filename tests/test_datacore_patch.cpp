@@ -1062,6 +1062,203 @@ static void TestAddRecordRefusals() {
     }
 }
 
+static void TestDeepCloneCycleRefusesWithoutMutation() {
+    dcb::Builder b;
+    b.structs = {{ "Node", -1, {{ "children", dcb::t::Class, 0, dcb::kArray1 }} }};
+    b.mappings = {{ 0, 1 }};
+    b.records = {{ "Root", "libs/foundry/records/test/tree.xml", 0, dcb::MakeGuid(0x10), 0 }};
+    b.fills = {{ 0, 0, "children", Pair(1, 0) }};
+    const Bytes base = b.Build();
+    Schema s;
+    CHECK(s.Parse(base));
+    PatchOptions options;
+    options.atomic = false;
+    Patch p(s, options);
+    InstanceSource source = Src("Root");
+    source.deep = true;
+    InstanceId clone;
+    const Status status = p.AddInstance("Node", source, clone);
+    CHECK(status.category == Refusal::Limit);
+    CHECK(!clone.valid());
+    std::vector<sco::vfs::Splice> splices;
+    CHECK(p.Emit(splices).ok() && splices.empty());
+}
+
+static void TestDeepCloneInvalidArrayRefusesWithoutMutation() {
+    dcb::Builder b;
+    b.structs = {{ "Node", -1, {{ "values", dcb::t::Int32, 0, dcb::kArray1 },
+                                 { "children", dcb::t::Class, 0, dcb::kArray1 }} }};
+    b.mappings = {{ 0, 1 }};
+    b.records = {{ "Root", "libs/foundry/records/test/tree.xml", 0, dcb::MakeGuid(0x10), 0 }};
+    b.PushU32(dcb::Int32, 7);
+    b.fills = {{ 0, 0, "values", Pair(1, 0) }, { 0, 0, "children", Pair(1, 1) }};
+    const Bytes base = b.Build();
+    Schema s;
+    CHECK(s.Parse(base));
+    InstanceSource source = Src("Root");
+    source.deep = true;
+    CHECK(One(s, [&](Patch& p) {
+        InstanceId clone;
+        return p.AddInstance("Node", source, clone);
+    }) == Refusal::Corrupt);
+}
+
+static Bytes EmitClonePatch(const Bytes& base, const Patch& p) {
+    std::vector<sco::vfs::Splice> splices;
+    CHECK(p.Emit(splices).ok());
+    Bytes out;
+    CHECK(ApplySplices(base, splices, out).ok());
+    return out;
+}
+
+template <class Target>
+static std::string CloneValue(const Patch& p, const Target& target, const char* field) {
+    std::vector<FieldView> values;
+    CHECK(p.ReadFields(target, field, values, 0).ok() && values.size() == 1);
+    return values.empty() ? "" : values[0].text;
+}
+
+static void TestDeepCloneNestedAndSharedArrays() {
+    dcb::Builder b;
+    b.structs = {
+        { "Leaf", -1, {{ "values", dcb::t::Int32, 0, dcb::kArray1 }} },
+        { "Inline", -1, {{ "leaf", dcb::t::Class, 0 }} },
+        { "Root", -1, {{ "embedded", dcb::t::Class, 1 },
+                         { "left", dcb::t::Class, 0, dcb::kArray1 },
+                         { "right", dcb::t::Class, 0, dcb::kArray1 }} }
+    };
+    b.mappings = {{ 0, 1 }, { 2, 1 }};
+    b.records = {{ "Root", "libs/foundry/records/test/tree.xml", 2, dcb::MakeGuid(0x10), 0 }};
+    b.PushU32(dcb::Int32, 17);
+    b.fills = {{ 0, 0, "values", Pair(1, 0) }, { 2, 0, "embedded.leaf.values", Pair(1, 0) },
+               { 2, 0, "left", Pair(1, 0) }, { 2, 0, "right", Pair(1, 0) }};
+    const Bytes base = b.Build();
+    Schema s;
+    CHECK(s.Parse(base) && b.layout.badFills == 0);
+    for (bool record : { false, true }) for (bool deep : { false, true }) {
+        Patch p(s);
+        InstanceSource source = Src("Root");
+        source.deep = deep;
+        InstanceId clone;
+        if (record) {
+            NewRecord rec = NewRec("Root", "Clone", "Root");
+            rec.clone = source;
+            AddedRecord added;
+            CHECK(p.AddRecord(rec, added).ok());
+            clone = added.root;
+        } else CHECK(p.AddInstance("Root", source, clone).ok());
+        CHECK(p.OverrideField(clone, "left[0].values[0]", Value::OfInt(99)).ok());
+        CHECK(p.OverrideField(clone, "embedded.leaf.values[0]", Value::OfInt(41)).ok());
+        CHECK(CloneValue(p, clone, "left[0].values[0]") == (deep ? "99" : "41"));
+        CHECK(CloneValue(p, clone, "right[0].values[0]") == (deep ? "17" : "41"));
+        CHECK(CloneValue(p, Rec("Root"), "left[0].values[0]") == (deep ? "17" : "41"));
+        const Bytes out = EmitClonePatch(base, p);
+        TestReader before(b, base), after(b, out);
+        CHECK(before.ok && after.ok);
+        if (deep) {
+            for (uint32_t st : { 0u, 2u }) {
+                const uint64_t oldAt = before.Instance(st, 0), newAt = after.Instance(st, 0);
+                CHECK(std::equal(base.begin() + oldAt, base.begin() + oldAt + b.Size(st), out.begin() + newAt));
+            }
+            CHECK(Get32(out, after.PoolEntry(dcb::Int32, 0)) == 17);
+        }
+        Schema parsed;
+        CHECK(parsed.Parse(out));
+        Patch readback(parsed);
+        CHECK(CloneValue(readback, clone, "embedded.leaf.values[0]") == "41");
+    }
+}
+
+static dcb::Builder CloneChain(uint32_t depth, bool cycle = false) {
+    dcb::Builder b;
+    b.structs = {{ "Node", -1, {{ "values", dcb::t::Int32, 0, dcb::kArray1 },
+                                 { "children", dcb::t::Class, 0, dcb::kArray1 }, { "marker", dcb::t::Int32 }} }};
+    b.mappings = {{ 0, depth + 1 }};
+    b.records = {{ "Root", "libs/foundry/records/test/tree.xml", 0, dcb::MakeGuid(0x10), 0 }};
+    b.PushU32(dcb::Int32, 7);
+    for (uint32_t i = 0; i <= depth; ++i) {
+        b.fills.push_back({ 0, i, "values", Pair(1, 0) });
+        b.fills.push_back({ 0, i, "children", i < depth ? Pair(1, i + 1) : cycle ? Pair(1, 0) : Pair(0, 0) });
+        b.fills.push_back({ 0, i, "marker", Le(i, 4) });
+    }
+    return b;
+}
+
+static void CheckDeepCloneRefusal(dcb::Builder b, Refusal expected) {
+    const Bytes base = b.Build();
+    Schema s;
+    CHECK(s.Parse(base));
+    for (bool record : { false, true }) {
+        Patch p(s, NonAtomic());
+        CHECK(p.OverrideField(Rec("Root"), "marker", Value::OfInt(23)).ok());
+        const Bytes before = EmitClonePatch(base, p);
+        InstanceSource source = Src("Root");
+        source.deep = true;
+        if (record) {
+            NewRecord rec = NewRec("Node", "Retry", "Root");
+            rec.clone = source;
+            AddedRecord clone;
+            clone.root = { 0, 0 };
+            CHECK(p.AddRecord(rec, clone).category == expected);
+            CHECK(!clone.root.valid() && clone.guid == Guid{});
+        } else {
+            InstanceId clone{ 0, 0 };
+            CHECK(p.AddInstance("Node", source, clone).category == expected);
+            CHECK(!clone.valid());
+        }
+        CHECK(p.Reports().size() == 2 && p.Reports().back().status.category == expected);
+        CHECK(EmitClonePatch(base, p) == before);
+        AddedRecord retry;
+        CHECK(p.AddRecord(NewRec("Node", "Retry", "Root"), retry).ok());
+    }
+}
+
+static void TestDeepCloneDepthAndFailureRollback() {
+    CheckDeepCloneRefusal(CloneChain(0, true), Refusal::Limit);
+    CheckDeepCloneRefusal(CloneChain(17), Refusal::Limit);
+    dcb::Builder invalid = CloneChain(1);
+    invalid.fills.push_back({ 0, 1, "values", Pair(1, 1) });
+    CheckDeepCloneRefusal(invalid, Refusal::Corrupt);
+
+    dcb::Builder b = CloneChain(16);
+    const Bytes base = b.Build();
+    Schema s;
+    CHECK(s.Parse(base));
+    Patch p(s);
+    InstanceSource source = Src("Root");
+    source.deep = true;
+    InstanceId clone;
+    CHECK(p.AddInstance("Node", source, clone).ok());
+    Schema parsed;
+    const Bytes out = EmitClonePatch(base, p);
+    CHECK(parsed.Parse(out) && parsed.structInfo[0].instances == 34);
+}
+
+static void TestDeepCloneCountLimits() {
+    dcb::Builder b = CloneChain(0);
+    const Bytes base = b.Build();
+    Schema s;
+    CHECK(s.Parse(base));
+    // Simulate the 32-bit pool boundary without allocating a multi-gigabyte fixture.
+    s.header.values[static_cast<size_t>(ValueKind::Int32)] = UINT32_MAX;
+    InstanceSource source = Src("Root");
+    source.deep = true;
+    CHECK(One(s, [&](Patch& p) { InstanceId clone; return p.AddInstance("Node", source, clone); }) == Refusal::Limit);
+
+    b.structs.push_back({ "Holder", -1, {{ "nodes", dcb::t::Class, 0, dcb::kArray1 }} });
+    b.mappings.push_back({ 1, 1 });
+    b.records.push_back({ "Holder", "libs/foundry/records/test/holder.xml", 1, dcb::MakeGuid(0x30), 0 });
+    b.fills.push_back({ 1, 0, "nodes", Pair(1, 0) });
+    const Bytes large = b.Build();
+    Schema counted;
+    CHECK(counted.Parse(large));
+    counted.mappings[0].instanceCount = UINT32_MAX;
+    counted.structInfo[0].instances = UINT32_MAX;
+    source = Src("Holder");
+    source.deep = true;
+    CHECK(One(counted, [&](Patch& p) { InstanceId clone; return p.AddInstance("Holder", source, clone); }) == Refusal::Limit);
+}
+
 int main() {
     TestOperations(32, false);
     TestOperations(36, false);
@@ -1073,6 +1270,11 @@ int main() {
     TestOpaqueAndLayout();
     TestAddRecord();
     TestAddRecordRefusals();
+    TestDeepCloneCycleRefusesWithoutMutation();
+    TestDeepCloneInvalidArrayRefusesWithoutMutation();
+    TestDeepCloneNestedAndSharedArrays();
+    TestDeepCloneDepthAndFailureRollback();
+    TestDeepCloneCountLimits();
     TestFuzz(32);
     TestFuzz(36);
     std::printf("sco-core datacore patch tests: %d passed, %d failed\n", g_pass, g_fail);

@@ -89,6 +89,11 @@ clone  = { record = "ExampleItem.Drive_Alpha" }
 For recursive array cloning use
 `clone = { record = "ExampleItem.Drive_Alpha", mode = "deep" }`; `clone_mode`
 is not a pack key. Atomic application remains the default.
+Deep mode copies array storage through inline structs and class-array elements,
+with at most 16 nested struct steps below the copied root. Strong/weak pointers
+and record references keep their targets. Invalid ranges, opaque structs, count
+overflow and excessive recursion refuse the whole clone; even best-effort mode
+cannot commit a partially deep clone. Earlier accepted operations stay intact.
 `policy = "best_effort"` explicitly permits partial application; inspect the
 per-record receipts rather than treating attempted operations as committed work.
 

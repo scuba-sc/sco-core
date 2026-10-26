@@ -798,75 +798,64 @@ struct Patch::Impl {
         return {};
     }
 
-    // Recursively duplicates array elements and nested struct arrays for deep cloning
-    Status DuplicateArrays(uint32_t st, Loc loc, uint32_t depth = 0) {
-        if (depth > 16) return {}; // prevent cycle / overflow
-        if (st >= s.structs.size() || s.structInfo[st].opaque) return {};
+    Status DuplicateArrays(const Impl& source, uint32_t st, Loc from, Loc to, uint32_t depth = 0) {
+        if (depth > 16) return Refuse(Refusal::Limit, "deep clone exceeds 16 nested structs");
+        if (st >= s.structs.size()) return Refuse(Refusal::Corrupt, "deep clone has an unknown struct");
+        if (s.structInfo[st].opaque) return Refuse(Refusal::Opaque, "deep clone has a struct with an unknown field type");
         uint64_t off = 0;
         for (uint32_t k : s.Properties(st)) {
             const PropertyDef& d = s.properties[k];
-            const Loc at = At(loc, off);
+            const Loc at = At(to, off);
+            const Loc original = At(from, off);
             if (d.conversion != 0) {
-                // It is an array (conversion != 0)
                 uint32_t count = 0, first = 0;
-                Node arrNode{ Node::Array, 0, kNoIndex, at, d.dataType, d.typeIndex };
-                if (Status stRange = ArrayRange(arrNode, count, first, "deep-clone"); stRange && count > 0) {
+                Node array{ Node::Array, 0, kNoIndex, original, d.dataType, d.typeIndex };
+                if (Status c = source.ArrayRange(array, count, first, "deep clone"); !c) return c;
+                if (count != 0) {
                     if (d.dataType == type::kClass) {
                         const uint32_t elemSt = d.typeIndex;
-                        if (elemSt < s.structs.size() && !s.structInfo[elemSt].opaque) {
-                            if (Status c = CanAddInstances(elemSt, count); c) {
-                                const uint64_t elemSize = s.structInfo[elemSt].size;
-                                Bytes bytes(SatMul(count, elemSize));
-                                Loc srcLoc;
-                                bool readOk = true;
-                                for (uint64_t i = 0; i < count; ++i) {
-                                    if (!InstanceLoc(elemSt, first + i, srcLoc) || !Read(srcLoc, bytes.data() + i * elemSize, elemSize)) {
-                                        readOk = false; break;
-                                    }
-                                }
-                                if (readOk) {
-                                    const uint64_t newFirst = PushInstances(elemSt, bytes, count);
-                                    WriteU32x2(at, count, static_cast<uint32_t>(newFirst));
-                                    for (uint64_t i = 0; i < count; ++i) {
-                                        Loc elemLoc;
-                                        if (InstanceLoc(elemSt, static_cast<uint32_t>(newFirst + i), elemLoc)) {
-                                            DuplicateArrays(elemSt, elemLoc, depth + 1);
-                                        }
-                                    }
-                                }
-                            }
+                        if (Status c = CanAddInstances(elemSt, count); !c) return c;
+                        const uint64_t elemSize = s.structInfo[elemSt].size;
+                        Bytes bytes(SatMul(count, elemSize));
+                        for (uint64_t i = 0; i < count; ++i) {
+                            Loc element;
+                            if (!source.InstanceLoc(elemSt, first + i, element) || !source.Read(element, bytes.data() + i * elemSize, elemSize))
+                                return Refuse(Refusal::Corrupt, "deep clone array element can't be read");
+                        }
+                        const uint64_t newFirst = PushInstances(elemSt, bytes, count);
+                        WriteU32x2(at, count, static_cast<uint32_t>(newFirst));
+                        for (uint64_t i = 0; i < count; ++i) {
+                            Loc element;
+                            if (!InstanceLoc(elemSt, newFirst + i, element))
+                                return Refuse(Refusal::Corrupt, "deep clone array element can't be found");
+                            Loc originalElement;
+                            if (!source.InstanceLoc(elemSt, first + i, originalElement))
+                                return Refuse(Refusal::Corrupt, "deep clone source element can't be found");
+                            if (Status c = DuplicateArrays(source, elemSt, originalElement, element, depth + 1); !c) return c;
                         }
                     } else {
-                        PoolType p;
-                        if (PoolOf(d.dataType, p)) {
-                            const uint64_t total = PoolCount(p.kind);
-                            if (SatAdd(total, count) <= kU32) {
-                                Bytes bytes(SatMul(count, p.entry));
-                                Loc srcLoc;
-                                bool readOk = true;
-                                for (uint64_t i = 0; i < count; ++i) {
-                                    if (!PoolLoc(p.kind, p.entry, first + i, srcLoc) || !Read(srcLoc, bytes.data() + i * p.entry, p.entry)) {
-                                        readOk = false; break;
-                                    }
-                                }
-                                if (readOk) {
-                                    const size_t ki = static_cast<size_t>(p.kind);
-                                    Region& r = Grow(poolRank[ki], poolEnd[ki]);
-                                    r.bytes.insert(r.bytes.end(), bytes.begin(), bytes.end());
-                                    r.count += count;
-                                    WriteU32x2(at, count, static_cast<uint32_t>(total));
-                                }
-                            }
+                        PoolType pool;
+                        if (!PoolOf(d.dataType, pool)) return Refuse(Refusal::Opaque, "deep clone array has an unknown type");
+                        const uint64_t total = PoolCount(pool.kind);
+                        if (SatAdd(total, count) > kU32)
+                            return Refuse(Refusal::Limit, "deep clone array pool would pass 2^32 entries");
+                        Bytes bytes(SatMul(count, pool.entry));
+                        for (uint64_t i = 0; i < count; ++i) {
+                            Loc element;
+                            if (!source.PoolLoc(pool.kind, pool.entry, first + i, element) || !source.Read(element, bytes.data() + i * pool.entry, pool.entry))
+                                return Refuse(Refusal::Corrupt, "deep clone array value can't be read");
                         }
+                        const size_t kind = static_cast<size_t>(pool.kind);
+                        Region& region = Grow(poolRank[kind], poolEnd[kind]);
+                        region.bytes.insert(region.bytes.end(), bytes.begin(), bytes.end());
+                        region.count += count;
+                        WriteU32x2(at, count, static_cast<uint32_t>(total));
                     }
                 }
                 off = SatAdd(off, 8);
             } else if (d.dataType == type::kClass) {
-                // Inline nested struct
-                if (d.typeIndex < s.structInfo.size()) {
-                    DuplicateArrays(d.typeIndex, at, depth + 1);
-                    off = SatAdd(off, s.structInfo[d.typeIndex].size);
-                }
+                if (Status c = DuplicateArrays(source, d.typeIndex, original, at, depth + 1); !c) return c;
+                off = SatAdd(off, s.structInfo[d.typeIndex].size);
             } else {
                 off = SatAdd(off, FieldSize(d.dataType));
             }
@@ -874,27 +863,28 @@ struct Patch::Impl {
         return {};
     }
 
-    Status AddInstance(std::string_view type, const InstanceSource& src, InstanceId& out) {
+    Status AddInstance(std::string_view type, const InstanceSource& src, InstanceId& out, const Impl& source) {
         const int64_t found = s.FindStruct(type);
         if (found < 0) return Refuse(Refusal::StructNotFound, "no struct " + Q(type));
         const auto st = static_cast<uint32_t>(found);
         if (Status c = CanAddInstances(st, 1); !c) return c;
         const uint64_t size = s.structInfo[st].size;
         Bytes bytes(size, 0);
+        Loc original;
         if (src.record) {
             Node n;
             if (Status c = Source(src, n, false); !c) return Refuse(c.category, "clone source: " + c.message);
             if (n.st != st) return Refuse(Refusal::TypeMismatch, "clone source is a " + SName(n.st) + ", not a " + SName(st));
             if (!Read(n.loc, bytes.data(), size)) return Refuse(Refusal::Corrupt, "clone source can't be read");
+            original = n.loc;
         } else if (!src.field.empty()) {
             return Refuse(Refusal::BadArgument, "clone source has a field but no record");
         }
         out = { st, static_cast<uint32_t>(PushInstances(st, bytes, 1)) };
-        if (src.deep) {
+        if (src.deep && src.record) {
             Loc outLoc;
-            if (InstanceLoc(st, out.index, outLoc)) {
-                if (Status stDupl = DuplicateArrays(st, outLoc); !stDupl) return stDupl;
-            }
+            if (!InstanceLoc(st, out.index, outLoc)) return Refuse(Refusal::Corrupt, "deep clone root can't be found");
+            if (Status c = DuplicateArrays(source, st, original, outLoc); !c) return c;
         }
         return {};
     }
@@ -931,7 +921,7 @@ struct Patch::Impl {
         return false;
     }
 
-    Status AddRecord(const NewRecord& nr, AddedRecord& out) {
+    Status AddRecord(const NewRecord& nr, AddedRecord& out, const Impl& source) {
         static constexpr std::string_view kPrefix = "libs/foundry/records/", kExt = ".xml";
         if (nr.name.empty() || nr.name.find('\0') != std::string::npos)
             return Refuse(Refusal::BadArgument, "a record needs a name, without NUL");
@@ -1005,9 +995,8 @@ struct Patch::Impl {
         const uint64_t index = PushInstances(st, root, 1);
         if (nr.clone.deep) {
             Loc outLoc;
-            if (InstanceLoc(st, static_cast<uint32_t>(index), outLoc)) {
-                if (Status stDupl = DuplicateArrays(st, outLoc); !stDupl) return stDupl;
-            }
+            if (!InstanceLoc(st, index, outLoc)) return Refuse(Refusal::Corrupt, "deep clone root can't be found");
+            if (Status c = DuplicateArrays(source, st, l, outLoc); !c) return c;
         }
         Region& names = Grow(namesRank, namesEnd);
         const auto nameOff = static_cast<uint32_t>(nameLen);
@@ -1375,7 +1364,14 @@ Status Patch::AddInstance(std::string_view type, const InstanceSource& cloneFrom
     const std::string op = "AddInstance " + where;
     if (!impl_->valid)
         return impl_->Report(op, where, Refuse(Refusal::Layout, "the base file failed validation: " + impl_->s.error));
-    return impl_->Report(op, where, impl_->AddInstance(type, cloneFrom, out));
+    if (cloneFrom.deep) {
+        auto staged = std::make_unique<Impl>(*impl_);
+        Status st = staged->AddInstance(type, cloneFrom, out, *impl_);
+        if (st) impl_ = std::move(staged);
+        else out = {};
+        return impl_->Report(op, where, std::move(st));
+    }
+    return impl_->Report(op, where, impl_->AddInstance(type, cloneFrom, out, *impl_));
 }
 
 Status Patch::AddRecord(const NewRecord& rec, AddedRecord& out) {
@@ -1384,7 +1380,14 @@ Status Patch::AddRecord(const NewRecord& rec, AddedRecord& out) {
     const std::string op = "AddRecord " + where + " (" + rec.type + ")";
     if (!impl_->valid)
         return impl_->Report(op, where, Refuse(Refusal::Layout, "the base file failed validation: " + impl_->s.error));
-    return impl_->Report(op, where, impl_->AddRecord(rec, out));
+    if (rec.clone.deep) {
+        auto staged = std::make_unique<Impl>(*impl_);
+        Status st = staged->AddRecord(rec, out, *impl_);
+        if (st) impl_ = std::move(staged);
+        else out = {};
+        return impl_->Report(op, where, std::move(st));
+    }
+    return impl_->Report(op, where, impl_->AddRecord(rec, out, *impl_));
 }
 
 Status Patch::FindInstance(const InstanceSource& source, InstanceId& out) const {
