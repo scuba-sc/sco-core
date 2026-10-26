@@ -31,14 +31,25 @@ static bool EndsWithNoCase(const std::string& s, std::string_view ext) {
     return true;
 }
 
+static bool MissionDeclarationName(std::string_view name) {
+    if (!name.starts_with("missions/") || !name.ends_with(".scom") || name.size() < 15) return false;
+    const auto id = name.substr(9, name.size() - 14);
+    if (id.size() > 100) return false;
+    return std::all_of(id.begin(), id.end(), [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+    });
+}
+
 struct Rule {
     ContentKind kind;
     const char* folder;
     const char* ext;
     bool        recursive;
+    bool        missionDeclaration = false;
 };
 static constexpr Rule kRules[] = {
     { ContentKind::Mission, "missions", ".cwmission", false },
+    { ContentKind::Script,  "missions", ".scom",      false, true },
     { ContentKind::Rules,   "rules",    ".rules",     false },
     { ContentKind::Script,  "scripts",  ".xml",       true  },
     { ContentKind::List,    "lists",    ".txt",       false },
@@ -61,6 +72,7 @@ static std::string Collect(const Plugin& p, std::vector<ContentItem>& out) {
             if (e.symlink_status(e2).type() != fs::file_type::regular || e2) return true;
             const std::string rel = Utf8(fs::relative(e.path(), p.dir, e2));
             if (e2 || !EndsWithNoCase(rel, r.ext)) return true;
+            if (r.missionDeclaration && !MissionDeclarationName(rel)) return true;
             if (out.size() >= kMaxPackFiles) return false;
             out.push_back(ContentItem{ r.kind, p.manifest.id, rel, e.path() });
             return true;

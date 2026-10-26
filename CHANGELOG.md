@@ -4,6 +4,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Discover owned `missions/<id>.scom` declarations as public `sco.content`
+  Script records, so the contracts consumer can read its supported namespace.
+  IDs are 1..100 lowercase ASCII letters, digits or underscores. Existing XML
+  scripts, lists and private `.cwmission` behavior are preserved. This rule is
+  absent from published SDK 2.4 RC1; it does not enable native mission ingestion
+  or script execution.
+
 - C# and Lua expose the existing 192-category inventory vocabulary and read-only copied
   snapshots, with exact unknown raw uint64 values and guarded 1.1/1.0 snapshot negotiation.
   Category metadata remains pinned to 4.10.197.2878 and does not enable the inventory backend.
