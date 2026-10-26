@@ -964,13 +964,23 @@ No engine calls, input injection or key binding access. See [input](game/input.m
 
 ## `sc_gamerules_v1` — game.gamerules 1.1
 
-Read-only server GameRules parameters. See [game.gamerules](game/gamerules.md). Backend-unbound default publishes UNAVAILABLE; synthetic evidence only, nothing run in game.
+Read-only server GameRules parameters. See [game.gamerules](game/gamerules.md). `read` answers UNAVAILABLE without a backend; static `list_params` definitions need no backend or read capability. Synthetic evidence only, nothing run in game.
 
 | Method | Extent / since | Buffer contract | Ownership | Thread | Results | Cleanup |
 |---|---|---|---|---|---|---|
 | `sc_gamerules_v1.read` | `size >= 16`; 1.0 | `sco_result (*read)(sco_plugin* self, sc_gamerules_state* out);`<br>Copy the client's current server GameRules parameter snapshot into out (caller sets out->size). Read-only: values are what the server sent and the client applied for the current session; they cannot be written through this ABI. generation changes when a new parameter set is applied. | Provider owns the snapshot storage; a plain copy crosses to the caller. No allocation, no engine pointer transfer, nothing retained from out. | Game thread only. | OK snapshot copied, UNAVAILABLE service off, no backend bound, out null or out->size too small, BAD_ARG invalid self. | StopGameRules withdraws the service and clears the bound backend; no engine state to restore (read-only). |
 
 | `sc_gamerules_v1.list_params` | `size >= 24`; 1.1 | `sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate the 15 static GameRules parameter definitions (names verified on 4.10.197.2878, F-4.10.197.2878-054) by offset; records carry names, groups and types but no values or engine offsets. | Caller owns all output slots; size and unknown tails remain untouched. No pointers retained. | Game thread only; live self required. | OK page copied or count-only query; BAD_ARG invalid slot size, pointers, offset, cap or stride; WRONG_THREAD; UNAVAILABLE after stop. | StopGameRules withdraws the table and disables cached list_params pointers. |
+
+Current C++20 `GameRules::ListParams`, C# `GameRules.ListParams` and Lua
+`sco.game.gamerules.list_params` wrap the existing 1.1 tail. Every enumeration
+queries 1.1 and checks the whole member extent and pointer. Pages are bounded to
+64 copied records at the 88-byte stride; capacity zero counts with a null record
+pointer. C++ preserves caller outputs on refusal, C# returns an empty array/zero
+total, and Lua returns nil/result. Malformed returned counts or unterminated
+fields refuse. Read wrappers remain 1.0-compatible. These routes expose static
+definitions only; the published RC1 bindings, native read availability and
+release approval remain unchanged. See [language routes](game/gamerules.md#language-routes).
 
 ## `sc_cvars_v1` — `game.cvars` 1.0
 

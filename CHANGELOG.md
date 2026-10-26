@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- C++20, C# and Lua enumerate the existing read-only GameRules parameter
+  definitions through guarded 1.1 service queries and bounded copied pages.
+  The C ABI, static registry and native read availability are unchanged; these
+  definitions carry no session values or new native verification.
+
 - The plugin checker records an absent current resource during automatic
   no-argument smoke calls without marking a structurally valid plugin as failed.
   Explicit `--invoke` requests still fail on `not_found`, and failed/invalid

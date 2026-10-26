@@ -212,11 +212,15 @@ static sco_result FakeFreeCam(uint32_t* out) {
     return g_freeCamResult;
 }
 
-// ---- sco.game.gamerules (read-only: read() only; a stand-in table) --------------------------------
+// ---- sco.game.gamerules (read-only snapshots and copied definition pages) ------------------------
 
 static sco_result g_gamerulesResult = SCO_OK;
 static uint32_t g_gamerulesValid = 1;
+static uint32_t g_gamerulesReadCalls = 0, g_gamerulesListCalls = 0, g_gamerulesListBad = 0;
+static bool g_gamerulesNamesChanged = false;
+static sco_result g_gamerulesListResult = SCO_OK;
 static sco_result FakeGrRead(sco_plugin* self, sc_gamerules_state* out) {
+    ++g_gamerulesReadCalls;
     if (!self || !out || out->size < sizeof(*out)) return SCO_BAD_ARG;
     if (g_gamerulesResult != SCO_OK) return g_gamerulesResult;
     out->valid = g_gamerulesValid;
@@ -229,20 +233,73 @@ static sco_result FakeGrRead(sco_plugin* self, sc_gamerules_state* out) {
     return SCO_OK;
 }
 
+static sco_result FakeGrList(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out,
+                             uint32_t stride, uint32_t capacity, uint32_t* count, uint32_t* total) {
+    ++g_gamerulesListCalls;
+    if (!self || offset > 3 || capacity > 64 || !count || !total || count == total ||
+        (capacity ? (!out || stride != sizeof(*out)) : out != nullptr)) return SCO_BAD_ARG;
+    const uint32_t n = capacity < 3 - offset ? capacity : 3 - offset;
+    for (uint32_t i = 0; i < n; ++i) {
+        if (out[i].size != sizeof(out[i])) return SCO_BAD_ARG;
+        out[i].type = offset + i == 2 ? SC_GAMERULES_PARAM_FLOAT : SC_GAMERULES_PARAM_INT;
+        std::snprintf(out[i].name, sizeof(out[i].name), "%s_%u", g_gamerulesNamesChanged ? "changed" : "synthetic", offset + i);
+        std::snprintf(out[i].group, sizeof(out[i].group), "%s", offset + i == 2 ? "" : "test");
+    }
+    *count = g_gamerulesListBad == 1 ? capacity + 1 : n;
+    *total = g_gamerulesListBad == 4 ? 0 : 3;
+    if (n && g_gamerulesListBad == 2) std::memset(out[0].name, 'x', sizeof(out[0].name));
+    if (n && g_gamerulesListBad == 3) out[0].size = 0;
+    if (n && g_gamerulesListBad == 5) std::memset(out[0].group, 'x', sizeof(out[0].group));
+    return g_gamerulesListResult;
+}
+
 static void TestGameRules() {
-    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, FakeGrRead, nullptr };
+    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, FakeGrRead, FakeGrList };
     CHECK(sco::host::ProvideGameService(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_SERVICE_VERSION, &kFake) == Result::Ok);
     Write("gagr", R"(
 local g = assert(sco.game and sco.game.gamerules, "sco.game.gamerules")
 local n = 0
 for _ in pairs(g) do n = n + 1 end
-assert(n == 1 and g.read, "read-only: read() is the only function")
+assert(n == 2 and g.read and g.list_params, "read-only snapshot and static metadata functions")
 sco.register_command{ name = "gagr.read", title = "Read", fn = function()
   local s, err = g.read()
   if not s then return err end
   return string.format("%s %d %s %s %s %.1f %.1f %.1f", tostring(s.valid), s.generation, tostring(s.enforce_group_qt),
     tostring(s.quantum_travel_allowed), tostring(s.quantum_boost_allowed), s.travel_target_threshold_angle,
     s.target_lock_angular_ai, s.boost_group_distance_threshold)
+end }
+local saved
+sco.register_command{ name = "gagr.list", title = "List", fn = function()
+  local p, err = g.list_params(0, 2)
+  if not p then return err end
+  assert(p.offset == 0 and p.count == 2 and p.total == 3 and not p.complete and #p.params == 2)
+  assert(p.params[1].type == 1 and p.params[2].group == "test")
+  return p.params[1].name
+end }
+sco.register_command{ name = "gagr.saved", title = "Saved", fn = function()
+  if not saved then saved = assert(g.list_params(0, 1)) end
+  return saved.params[1].name
+end }
+sco.register_command{ name = "gagr.pages", title = "Pages", fn = function()
+  local p = assert(g.list_params(nil, 0))
+  assert(p.count == 0 and p.total == 3 and #p.params == 0 and not p.complete)
+  p = assert(g.list_params())
+  assert(p.count == 3 and p.complete and #p.params == 3)
+  p = assert(g.list_params(2, 64))
+  assert(p.offset == 2 and p.count == 1 and p.total == 3 and p.complete)
+  assert(p.params[1].type == 2 and p.params[1].group == "")
+  p = assert(g.list_params(3, 1))
+  assert(p.count == 0 and #p.params == 0 and p.complete)
+  local bad, err = g.list_params(4, 1)
+  assert(bad == nil and err == "bad_arg")
+  return "pages"
+end }
+sco.register_command{ name = "gagr.args", title = "Args", fn = function()
+  for _, args in ipairs({{-1,1},{4294967296,1},{0,-1},{0,65},{"0",1},{0,1.5},{0,1,2}}) do
+    local p, err = g.list_params(table.unpack(args))
+    assert(p == nil and err == "bad_arg")
+  end
+  return "args"
 end }
 )");
     Loaded l = Load("gagr");
@@ -267,6 +324,47 @@ end }
     r = Invoke(g_caller, "gagr.read");
     CHECK(r.r == SCO_OK && r.text == "unavailable");
     kFake.read = FakeGrRead;
+    r = Invoke(g_caller, "gagr.list");
+    CHECK(r.r == SCO_OK && r.text == "unavailable" && g_gamerulesListCalls == 0);
+    CHECK(sco::host::WithdrawGameService(SC_GAMERULES_SERVICE_NAME) == Result::Ok);
+    CHECK(sco::host::ProvideGameService(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_VERSION_1_1, &kFake) == Result::Ok);
+    g_gamerulesResult = SCO_UNAVAILABLE;
+    const uint32_t readsBefore = g_gamerulesReadCalls;
+    r = Invoke(g_caller, "gagr.list");
+    CHECK(r.r == SCO_OK && r.text == "synthetic_0");
+    r = Invoke(g_caller, "gagr.pages");
+    CHECK(r.r == SCO_OK && r.text == "pages");
+    const uint32_t listsBefore = g_gamerulesListCalls;
+    r = Invoke(g_caller, "gagr.args");
+    CHECK(r.r == SCO_OK && r.text == "args" && g_gamerulesListCalls == listsBefore);
+    r = Invoke(g_caller, "gagr.saved");
+    CHECK(r.r == SCO_OK && r.text == "synthetic_0");
+    g_gamerulesNamesChanged = true;
+    r = Invoke(g_caller, "gagr.list");
+    CHECK(r.r == SCO_OK && r.text == "changed_0");
+    r = Invoke(g_caller, "gagr.saved");
+    CHECK(r.r == SCO_OK && r.text == "synthetic_0");
+    g_gamerulesNamesChanged = false;
+    for (uint32_t bad = 1; bad <= 5; ++bad) {
+        g_gamerulesListBad = bad;
+        r = Invoke(g_caller, "gagr.list");
+        CHECK(r.r == SCO_OK && r.text == "failed");
+    }
+    g_gamerulesListBad = 0;
+    g_gamerulesListResult = SCO_WRONG_THREAD;
+    r = Invoke(g_caller, "gagr.list");
+    CHECK(r.r == SCO_OK && r.text == "wrong_thread");
+    g_gamerulesListResult = SCO_OK;
+    const auto calls = g_gamerulesListCalls;
+    kFake.size = 23;
+    r = Invoke(g_caller, "gagr.list");
+    CHECK(r.r == SCO_OK && r.text == "unavailable" && g_gamerulesListCalls == calls);
+    kFake.size = sizeof(kFake); kFake.list_params = nullptr;
+    r = Invoke(g_caller, "gagr.list");
+    CHECK(r.r == SCO_OK && r.text == "unavailable" && g_gamerulesListCalls == calls);
+    kFake.list_params = FakeGrList;
+    CHECK(g_gamerulesReadCalls == readsBefore);
+    g_gamerulesResult = SCO_OK;
     Unload(l);
     CHECK(sco::host::WithdrawGameService(SC_GAMERULES_SERVICE_NAME) == Result::Ok);
 }

@@ -520,7 +520,7 @@ static int L_creative_state(lua_State* L) {
     return 1;
 }
 
-/* ---- sco.game.gamerules: the game pack's game.gamerules, read-only (only read(); the table has no write) -- */
+/* ---- sco.game.gamerules: read-only snapshots and static parameter definitions ------------------ */
 
 static const sc_gamerules_v1* GameRules(lua_State* L) {
     const sco_api* api = sco_lua_api(L);
@@ -559,6 +559,65 @@ static int L_gamerules_read(lua_State* L) {
     lua_pushnumber(L, (lua_Number)s.target_lock_linear_player);       lua_setfield(L, -2, "target_lock_linear_player");
     lua_pushnumber(L, (lua_Number)s.target_lock_linear_ai);           lua_setfield(L, -2, "target_lock_linear_ai");
     lua_pushnumber(L, (lua_Number)s.boost_group_distance_threshold);  lua_setfield(L, -2, "boost_group_distance_threshold");
+    return 1;
+}
+
+static int GameRulesListFail(lua_State* L, sco_result result) {
+    lua_pushnil(L);
+    lua_pushstring(L, sco_lua_result_name(result));
+    return 2;
+}
+
+/* list_params([offset [, capacity]]): copied metadata page, not values or native registry proof. */
+static int L_gamerules_list_params(lua_State* L) {
+    lua_Integer offset = 0, capacity = SC_GAMERULES_PARAM_MAX_PAGE;
+    if (lua_gettop(L) > 2) return GameRulesListFail(L, SCO_BAD_ARG);
+    if (!lua_isnoneornil(L, 1)) {
+        if (!lua_isinteger(L, 1)) return GameRulesListFail(L, SCO_BAD_ARG);
+        offset = lua_tointeger(L, 1);
+    }
+    if (!lua_isnoneornil(L, 2)) {
+        if (!lua_isinteger(L, 2)) return GameRulesListFail(L, SCO_BAD_ARG);
+        capacity = lua_tointeger(L, 2);
+    }
+    if (offset < 0 || (uint64_t)offset > UINT32_MAX || capacity < 0 || capacity > SC_GAMERULES_PARAM_MAX_PAGE)
+        return GameRulesListFail(L, SCO_BAD_ARG);
+    const sco_api* api = sco_lua_api(L);
+    const void* raw = NULL;
+    if (!GAME_MEMBER(api, sco_api, query_service)) return GameRulesListFail(L, SCO_UNAVAILABLE);
+    sco_result result = api->query_service(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_VERSION_1_1, &raw);
+    if (result != SCO_OK) return GameRulesListFail(L, result);
+    const sc_gamerules_v1* table = (const sc_gamerules_v1*)raw;
+    if (!GAME_MEMBER(table, sc_gamerules_v1, list_params)) return GameRulesListFail(L, SCO_UNAVAILABLE);
+    sc_gamerules_param_info page[SC_GAMERULES_PARAM_MAX_PAGE];
+    memset(page, 0, sizeof(page));
+    for (lua_Integer i = 0; i < capacity; ++i) page[i].size = sizeof(page[i]);
+    uint32_t count = 0, total = 0;
+    result = table->list_params(sco_lua_self(L), (uint32_t)offset, capacity ? page : NULL,
+        sizeof(page[0]), (uint32_t)capacity, &count, &total);
+    sco_lua_check_budget(L);
+    if (result != SCO_OK) return GameRulesListFail(L, result);
+    if ((uint64_t)offset > total || count != ((uint32_t)capacity < total - (uint32_t)offset ?
+        (uint32_t)capacity : total - (uint32_t)offset)) return GameRulesListFail(L, SCO_FAILED);
+    for (uint32_t i = 0; i < count; ++i) {
+        sco_lua_step(L, 1);
+        if (page[i].size != sizeof(page[i]) || !memchr(page[i].name, 0, sizeof(page[i].name)) ||
+            !memchr(page[i].group, 0, sizeof(page[i].group))) return GameRulesListFail(L, SCO_FAILED);
+    }
+    lua_createtable(L, 0, 5);
+    lua_pushinteger(L, offset); lua_setfield(L, -2, "offset");
+    lua_pushinteger(L, count); lua_setfield(L, -2, "count");
+    lua_pushinteger(L, total); lua_setfield(L, -2, "total");
+    lua_pushboolean(L, (uint64_t)offset + count == total); lua_setfield(L, -2, "complete");
+    lua_createtable(L, (int)count, 0);
+    for (uint32_t i = 0; i < count; ++i) {
+        lua_createtable(L, 0, 3);
+        lua_pushinteger(L, page[i].type); lua_setfield(L, -2, "type");
+        lua_pushstring(L, page[i].name); lua_setfield(L, -2, "name");
+        lua_pushstring(L, page[i].group); lua_setfield(L, -2, "group");
+        lua_rawseti(L, -2, (lua_Integer)i + 1);
+    }
+    lua_setfield(L, -2, "params");
     return 1;
 }
 
@@ -781,7 +840,8 @@ static void Open(lua_State* L) {
         lua_setfield(L, -2, "creative");
     }
     if (gamerules) {                                  /* sco.game.gamerules */
-        static const luaL_Reg grfns[] = { { "read", L_gamerules_read }, { NULL, NULL } };
+        static const luaL_Reg grfns[] = {
+            { "read", L_gamerules_read }, { "list_params", L_gamerules_list_params }, { NULL, NULL } };
         luaL_newlib(L, grfns);
         lua_setfield(L, -2, "gamerules");
     }

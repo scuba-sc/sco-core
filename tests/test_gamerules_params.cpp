@@ -3,6 +3,7 @@
 // 4.10.197.2878, F-4.10.197.2878-054; no values). Real host API and service start/stop; nothing
 // here runs in game.
 #include <sc_gamerules.h>
+#include <scosdk/game/gamerules.hpp>
 #include "../src/game/services/gamerules.h"
 #include "sco/host.h"
 #include "../src/api/internal.h"
@@ -99,6 +100,20 @@ int main() {
     uint32_t cnt = 77, total = 77;
     CHECK(sc_gamerules_list_params(&legacy, self, 0, nullptr, 0, 0, &cnt, &total) == SCO_UNAVAILABLE);
     CHECK(cnt == 77 && total == 77);
+
+    // The typed C++ page uses the actual host registry while native Read remains unavailable.
+    sco::sdk::game::GameRules rules;
+    CHECK(rules.Open(api, self) == SCO_OK);
+    CHECK(rules.ListParams(0, {}, cnt, total) == SCO_OK && cnt == 0 && total == kTotal);
+    std::array<sc_gamerules_param_info, 4> copied{};
+    for (uint32_t offset = 0; offset < kTotal;) {
+        const auto result = rules.ListParams(offset, copied, cnt, total);
+        CHECK(result == SCO_OK && total == kTotal && cnt > 0 && cnt <= copied.size());
+        if (result != SCO_OK || cnt == 0 || cnt > copied.size()) break;
+        for (uint32_t i = 0; i < cnt; ++i) CHECK(Matches(copied[i], offset + i));
+        offset += cnt;
+    }
+    CHECK(rules.Read(st) == SCO_UNAVAILABLE && reads == 0);
 
     // Count only, and offset == total (empty page): count 0, total is the registry size.
     CHECK(sc_gamerules_list_params(t, self, 0, nullptr, 0, 0, &cnt, &total) == SCO_OK && cnt == 0 && total == kTotal);

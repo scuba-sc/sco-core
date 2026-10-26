@@ -374,6 +374,15 @@ Present only when the Star Citizen game pack publishes [`game.gamerules`](../../
 | Function | Returns |
 |---|---|
 | `sco.game.gamerules.read()` | A table `{ valid, generation, enforce_group_qt, quantum_travel_allowed, quantum_boost_allowed, travel_target_threshold_angle, target_lock_angular_player, target_lock_angular_ai, target_lock_linear_player, target_lock_linear_ai, boost_group_distance_threshold }`: the first, third, fourth and fifth are booleans, `generation` an integer (an opaque counter, not a session id) and the rest numbers. `valid` is `false` until the client has received a parameter set; every other field is then zero |
+| `sco.game.gamerules.list_params([offset [, capacity]])` | Current source/development kits: copied `{params={ {name, group, type}, ... }, offset, count, total, complete}`, or `nil, err`. Queries service 1.1 with the whole tail/pointer guard; defaults 0/64, capacity 0 counts only and maximum is 64. Numeric type codes 1/2 are the existing metadata hints. No values, read capability or backend required; published RC1 retains its earlier bindings. |
+
+Enumeration uses the exact 88-byte record stride and bounded copied strings.
+Invalid arguments refuse as `bad_arg`; inconsistent counts, changed record sizes
+or unterminated fields refuse as `failed`. `offset == total` is an empty complete
+page. A later call cannot change a previously returned page. These are the 15
+static definitions described in the service guide, not a connected-session
+registry or verified live parameter values/types. `lua-check.lua` has no game
+provider stand-in; actual host/headless adapter proof is separate.
 
 On failure it returns `nil, err` (`err` as for `sco.store`: `"unavailable"`, ...). There is no message: the table has no `last_error`.
 

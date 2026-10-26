@@ -26,7 +26,7 @@
         "No backend bound in the default production configuration; nothing has run in game.",
         "Snapshot freshness follows provider binding; no push notification of parameter changes in 1.0.",
         "Parameter set covers the quantum-travel gate fields observed in the corpus (F-4.10.196.36804-007/-008); the wider GameRules schema is not exposed in 1.0.",
-        "C++ (scosdk/game/gamerules.hpp), C# (Sco.Sdk.Game.GameRules) and Lua (sco.game.gamerules.read) wrap read only; the table has no last_error, so a failed wrapper call carries a result name and no message."
+        "C++/C#/Lua Read wrappers keep the 1.0 snapshot route; separate 1.1 ListParams/list_params wrappers copy static definitions only. The table has no last_error."
       ],
       "tests": [
         "tests/abi_game_gamerules.c",
@@ -113,11 +113,15 @@
       "limitations": [
         "Names are build-scoped to 4.10.197.2878 (F-4.10.197.2878-054); INT/FLOAT types are not verified; metadata is not proof of a live parameter layout.",
         "Not run in game.",
-        "C++/C#/Lua list_params wrappers are unsupported; existing read wrappers unchanged."
+        "Current source/development kits include guarded copied C++/C#/Lua enumeration; published RC1 retains its earlier bindings. Static metadata does not establish live values or native type verification."
       ],
       "tests": [
         "tests/test_gamerules_params.cpp",
-        "tests/abi_game_gamerules.c"
+        "tests/abi_game_gamerules.c",
+        "tests/test_sdk.cpp",
+        "tests/test_language_routes.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/test_lua.cpp"
       ],
       "examples": [],
       "language_mappings": {
@@ -134,34 +138,42 @@
           ]
         },
         "cpp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/game/gamerules.md",
-              "token": "unsupported"
+              "path": "include/scosdk/game/gamerules.hpp",
+              "token": "table->list_params(self_, offset, capacity ? copied.data() : nullptr,"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_sdk.cpp",
+            "tests/test_language_routes.cpp",
+            "tests/test_gamerules_params.cpp"
+          ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/game/gamerules.md",
-              "token": "unsupported"
+              "path": "sdk/csharp/Sco.Sdk/Game/GameRules.cs",
+              "token": "result = service.Table->list_params(Self, offset, capacity == 0 ? null : page,"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs"
+          ]
         },
         "lua": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/game/gamerules.md",
-              "token": "unsupported"
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "result = table->list_params(sco_lua_self(L), (uint32_t)offset, capacity ? page : NULL,"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
         }
       }
     }

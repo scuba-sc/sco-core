@@ -275,7 +275,10 @@ def language_check(root, record, language, mapping):
                 'unsupported language claimed as supported: ' + symbol + ' / lua direct FFI')
         # The game adapter is read-only. self-taking last_error/state are queries,
         # not exceptions authorizing mutation; native table discovery is not Lua FFI.
-        mutation = record['source_header'].startswith('include/sc_') and 'sco_plugin *' in record['signature'] and member not in {'last_error', 'state'} and (record['table'], member) not in {('sc_gamerules_v1', 'read'), ('sc_inventory_v1', 'snapshot')}
+        readonly_self = {('sc_gamerules_v1', 'read'), ('sc_gamerules_v1', 'list_params'),
+                         ('sc_inventory_v1', 'snapshot')}
+        mutation = (record['source_header'].startswith('include/sc_') and 'sco_plugin *' in record['signature']
+                    and member not in {'last_error', 'state'} and (record['table'], member) not in readonly_self)
         require(not mutation and record['kind'] != 'entrypoint',
                 'unsupported language claimed as supported: ' + symbol + ' / lua')
     require(not positive or supported_evidence,

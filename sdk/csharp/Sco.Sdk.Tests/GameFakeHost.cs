@@ -153,6 +153,10 @@ namespace Sco.Sdk.Tests
         private static ScReputationV1* _reputation;  // a stand-in game.reputation
         private static ScGamerulesV1* _gamerules;    // a stand-in game.gamerules
         private static uint _gamerulesValid = 1;     // what the stand-in snapshot reports
+        private static uint _gamerulesVersion = GameAbi.GameRulesVersion1_1;
+        private static bool _gamerulesQueryNull;
+        private static uint _gamerulesListCalls, _gamerulesListBad;
+        private static ScoResult _gamerulesListResult = ScoResult.Ok;
         private static uint _freeCamValue = 1;   // what the stand-in free-camera flag reads
         private static int _freeCamCalls;
 
@@ -171,7 +175,11 @@ namespace Sco.Sdk.Tests
             if (name == GameAbi.CreativeName) { *o = _creative; found = true; return; }
             if (name == GameAbi.HangarName) { *o = _hangar; found = true; return; }
             if (name == GameAbi.ReputationName) { *o = _reputation; found = true; return; }
-            if (name == GameAbi.GameRulesName) { *o = _gamerules; found = true; return; }
+            if (name == GameAbi.GameRulesName)
+            {
+                if (minVersion <= _gamerulesVersion) { *o = _gamerulesQueryNull ? null : _gamerules; found = true; }
+                return;
+            }
         }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -222,6 +230,74 @@ namespace Sco.Sdk.Tests
             o->travel_target_threshold_angle = 45f;
             o->boost_group_distance_threshold = 2500f;
             return ScoResult.Ok;
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult GrList(void* self, uint offset, ScGamerulesParamInfo* o,
+            uint stride, uint capacity, uint* count, uint* total)
+        {
+            ++_gamerulesListCalls;
+            if (self != _self || offset > 3 || capacity > 64 || count == null || total == null || count == total ||
+                (capacity == 0 ? o != null : o == null || stride != (uint)sizeof(ScGamerulesParamInfo))) return ScoResult.BadArg;
+            uint n = Math.Min(capacity, 3 - offset);
+            for (uint i = 0; i < n; ++i)
+            {
+                if (o[i].size != (uint)sizeof(ScGamerulesParamInfo)) return ScoResult.BadArg;
+                o[i].type = offset + i == 2 ? GameAbi.GameRulesParamFloat : GameAbi.GameRulesParamInt;
+                string name = "synthetic_" + (offset + i), group = offset + i == 2 ? "" : "test";
+                for (int j = 0; j < 48; ++j) o[i].name[j] = j < name.Length ? (byte)name[j] : (byte)0;
+                for (int j = 0; j < 32; ++j) o[i].group[j] = j < group.Length ? (byte)group[j] : (byte)0;
+            }
+            *count = _gamerulesListBad == 1 ? capacity + 1 : n;
+            *total = _gamerulesListBad == 5 ? 0u : 3u;
+            if (n != 0 && _gamerulesListBad == 2) new Span<byte>(o[0].name, 48).Fill((byte)'x');
+            if (n != 0 && _gamerulesListBad == 3) o[0].size = 0;
+            if (n != 0 && _gamerulesListBad == 4) { o[0].name[0] = 0xFF; o[0].name[1] = 0; }
+            if (n != 0 && _gamerulesListBad == 6) new Span<byte>(o[0].group, 32).Fill((byte)'x');
+            return _gamerulesListResult;
+        }
+
+        private static void GameRulesListTests(GameRules rules)
+        {
+            Expect(new GameRules().ListParams(0, 1, out var absent, out uint total) == ScoResult.Unavailable && absent.Length == 0 && total == 0,
+                "unopened GameRules enumeration is unavailable with empty outputs");
+            Expect(rules.ListParams(0, 0, out var page, out total) == ScoResult.Ok && page.Length == 0 && total == 3,
+                "GameRules count-only passes NULL with initialized counts");
+            Expect(rules.ListParams(0, 2, out page, out total) == ScoResult.Ok && page.Length == 2 && total == 3 &&
+                page[0] == new GameRulesParameter(GameAbi.GameRulesParamInt, "synthetic_0", "test"),
+                "GameRules copies a bounded definition page at native stride88");
+            var first = page;
+            Expect(rules.ListParams(2, 64, out page, out total) == ScoResult.Ok && page.Length == 1 && total == 3 &&
+                page[0] == new GameRulesParameter(GameAbi.GameRulesParamFloat, "synthetic_2", "") && first[0].Name == "synthetic_0",
+                "partial final page and empty group preserve earlier owned strings");
+            Expect(rules.ListParams(3, 1, out page, out total) == ScoResult.Ok && page.Length == 0 && total == 3,
+                "offset equal total is a complete empty page");
+            Expect(rules.ListParams(4, 1, out page, out total) == ScoResult.BadArg && page.Length == 0 && total == 0,
+                "invalid offset result is preserved with empty outputs");
+            uint calls = _gamerulesListCalls;
+            Expect(rules.ListParams(0, 65, out page, out total) == ScoResult.BadArg && _gamerulesListCalls == calls,
+                "oversized capacity is refused without a provider call");
+            for (uint bad = 1; bad <= 6; ++bad)
+            {
+                _gamerulesListBad = bad;
+                Expect(rules.ListParams(bad == 5 ? 1u : 0u, 2, out page, out total) == ScoResult.Failed && page.Length == 0 && total == 0,
+                    "malformed count/string/size/UTF8/total refuses without exposing partial records");
+            }
+            _gamerulesListBad = 0;
+            _gamerulesListResult = ScoResult.WrongThread;
+            Expect(rules.ListParams(0, 2, out page, out total) == ScoResult.WrongThread && page.Length == 0 && total == 0,
+                "provider failure is preserved and scratch output is discarded");
+            _gamerulesListResult = ScoResult.Ok;
+            _gamerulesVersion = GameAbi.GameRulesVersion1_0;
+            calls = _gamerulesListCalls;
+            Expect(rules.ListParams(0, 1, out page, out total) == ScoResult.NotFound && _gamerulesListCalls == calls && rules.Read(out _) == ScoResult.Ok,
+                "old service never calls a 1.1 tail and keeps Read working");
+            _gamerulesVersion = GameAbi.GameRulesVersion1_1;
+            _gamerulesQueryNull = true;
+            Expect(rules.ListParams(0, 1, out page, out total) == ScoResult.BadArg && _gamerulesListCalls == calls,
+                "Query refuses a successful NULL table as BadArg without a tail call");
+            _gamerulesQueryNull = false;
+            Expect(rules.ListParams(0, 1, out page, out total) == ScoResult.Ok, "enumeration recovers after refused provider cases");
         }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -483,6 +559,7 @@ namespace Sco.Sdk.Tests
             _gamerules = (ScGamerulesV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScGamerulesV1));
             _gamerules->size = (uint)sizeof(ScGamerulesV1);
             _gamerules->read = &GrRead;
+            _gamerules->list_params = &GrList;
             _creative = (ScCreativeV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScCreativeV1));
             _creative->size = (uint)sizeof(ScCreativeV1);
             _creative->set_god_mode = &CrGod;
@@ -722,8 +799,11 @@ namespace Sco.Sdk.Tests
             Expect(hangar.Open(p) == ScoResult.Ok, "hangar recovers after a failed reopen");
 
             var gr = new GameRules();
-            Expect(sizeof(ScGamerulesV1) == 16 && sizeof(ScGamerulesState) == 56 &&
+            Expect(sizeof(ScGamerulesV1) == 24 && sizeof(ScGamerulesState) == 56 && sizeof(ScGamerulesParamInfo) == 88 &&
                    Marshal.OffsetOf<ScGamerulesV1>(nameof(ScGamerulesV1.read)).ToInt32() == 8 &&
+                   Marshal.OffsetOf<ScGamerulesV1>(nameof(ScGamerulesV1.list_params)).ToInt32() == 16 &&
+                   Marshal.OffsetOf<ScGamerulesParamInfo>(nameof(ScGamerulesParamInfo.name)).ToInt32() == 8 &&
+                   Marshal.OffsetOf<ScGamerulesParamInfo>(nameof(ScGamerulesParamInfo.group)).ToInt32() == 56 &&
                    Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.generation)).ToInt32() == 8 &&
                    Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.enforce_group_qt)).ToInt32() == 16 &&
                    Marshal.OffsetOf<ScGamerulesState>(nameof(ScGamerulesState.quantum_travel_allowed)).ToInt32() == 20 &&
@@ -748,6 +828,7 @@ namespace Sco.Sdk.Tests
             _gamerules->size = grSize;
             Expect(gr.Read(out g) == ScoResult.Unavailable && g.valid == 0, "a failed gamerules reopen disables Read");
             Expect(gr.Open(p) == ScoResult.Ok, "gamerules recovers after a failed reopen");
+            GameRulesListTests(gr);
             var rep = new Reputation();
             Expect(new Reputation().Checks(out ScReputationChecks rc) == ScoResult.Unavailable && rc.size == (uint)sizeof(ScReputationChecks) && rc.sites == 0,
                    "a Reputation that isn't open answers Unavailable with a zeroed, sized struct");
@@ -833,6 +914,10 @@ namespace Sco.Sdk.Tests
                 (nameof(ScGamerulesV1.read),
                     () => gr.Read(out ScGamerulesState g0) == ScoResult.Unavailable && g0.valid == 0 && g0.size == (uint)sizeof(ScGamerulesState),
                     () => gr.Read(out ScGamerulesState g1) == ScoResult.Ok && g1.valid == 1 && g1.generation == 7),
+                (nameof(ScGamerulesV1.list_params),
+                    () => { ScoResult result = gr.ListParams(0, 1, out var page0, out uint total0);
+                        return result == (_gamerules->size < 4 ? ScoResult.BadArg : ScoResult.Unavailable) && page0.Length == 0 && total0 == 0; },
+                    () => gr.ListParams(0, 1, out var page1, out uint total1) == ScoResult.Ok && page1.Length == 1 && total1 == 3),
             });
             CheckGameFields(_creative, new (string Field, Func<bool> Unavailable, Func<bool> Available)[]
             {

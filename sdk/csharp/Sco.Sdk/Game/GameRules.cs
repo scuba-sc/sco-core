@@ -1,10 +1,11 @@
-// GameRules.cs: the game pack's service "game.gamerules" 1.0 (sc_gamerules.h): a read-only view of
-// the server GameRules parameters the client received. Sco.Sdk.Game holds the game pack's services
+// GameRules.cs: the game pack's service "game.gamerules" 1.1 (sc_gamerules.h): read-only snapshots
+// and copied static parameter definitions. Sco.Sdk.Game holds the game pack's services
 // (docs/game-services.md).
 //
 // Part of the sco SDK. GPL-3.0, like sco-core.
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using Sco.Sdk.Interop;
 
 namespace Sco.Sdk.Game
@@ -13,6 +14,10 @@ namespace Sco.Sdk.Game
     {
         public const string GameRulesName = "game.gamerules";            // SC_GAMERULES_SERVICE_NAME
         public const uint GameRulesVersion1_0 = 0x00010000u;             // SC_GAMERULES_SERVICE_VERSION
+        public const uint GameRulesVersion1_1 = 0x00010001u;
+        public const uint GameRulesMaxPage = 64;
+        public const uint GameRulesParamInt = 1;
+        public const uint GameRulesParamFloat = 2;
     }
 
     /// <summary>sc_gamerules_state: the snapshot, 56 bytes. All zero apart from size when the call
@@ -34,13 +39,26 @@ namespace Sco.Sdk.Game
         public float boost_group_distance_threshold;
     }
 
-    /// <summary>sc_gamerules_v1, the table of the game service "game.gamerules": 16 bytes.</summary>
+    /// <summary>sc_gamerules_param_info: copied definition metadata, 88 bytes.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct ScGamerulesParamInfo
+    {
+        public uint size;
+        public uint type;
+        public fixed byte name[48];
+        public fixed byte group[32];
+    }
+
+    public readonly record struct GameRulesParameter(uint Type, string Name, string Group);
+
+    /// <summary>sc_gamerules_v1: 24 bytes including the optional 1.1 list_params tail.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct ScGamerulesV1
     {
         public uint size;
         public uint _pad;
         public delegate* unmanaged[Cdecl]<void*, ScGamerulesState*, ScoResult> read;
+        public delegate* unmanaged[Cdecl]<void*, uint, ScGamerulesParamInfo*, uint, uint, uint*, uint*, ScoResult> list_params;
     }
 
     /// <summary>
@@ -49,6 +67,7 @@ namespace Sco.Sdk.Game
     /// a RunOnGameThread task). Read-only: the server owns these values; nothing here writes them
     /// and nothing writes game memory. Capability: game.gamerules.read, OFF by default; the default
     /// production backend binds nothing, so Read then answers Unavailable without touching the game.
+    /// ListParams separately copies static definitions without a backend or live values.
     /// There is no LastError: the table has no such member. Not run in game.
     /// </summary>
     public sealed unsafe class GameRules
@@ -87,6 +106,50 @@ namespace Sco.Sdk.Game
             ScoResult r = !Covers(8) || _t->read == null ? ScoResult.Unavailable : _t->read(Self, &s);
             state = s;
             return r;
+        }
+
+        private static readonly UTF8Encoding ParameterText = new(false, true);
+        private static bool CopyParameterText(byte* text, int capacity, out string value)
+        {
+            value = string.Empty;
+            var bytes = new ReadOnlySpan<byte>(text, capacity);
+            int end = bytes.IndexOf((byte)0);
+            if (end < 0) return false;
+            try { value = ParameterText.GetString(bytes[..end]); return true; }
+            catch (DecoderFallbackException) { return false; }
+        }
+
+        /// <summary>Copies up to 64 static parameter definitions, without values or a backend.
+        /// Capacity zero counts only. On failure parameters is empty and total is zero.</summary>
+        public ScoResult ListParams(uint offset, uint capacity, out GameRulesParameter[] parameters, out uint total)
+        {
+            parameters = Array.Empty<GameRulesParameter>();
+            total = 0;
+            if (capacity > GameAbi.GameRulesMaxPage) return ScoResult.BadArg;
+            if (!IsOpen || _plugin == null) return ScoResult.Unavailable;
+            ScoResult result = _plugin.Query(GameAbi.GameRulesName, GameAbi.GameRulesVersion1_1,
+                out ServiceRef<ScGamerulesV1> service);
+            if (result != ScoResult.Ok) return result;
+            if (!service.Covers(16) || service.Table->list_params == null) return ScoResult.Unavailable;
+            ScGamerulesParamInfo* page = stackalloc ScGamerulesParamInfo[64];
+            new Span<ScGamerulesParamInfo>(page, 64).Clear();
+            for (int i = 0; i < (int)capacity; ++i) page[i].size = (uint)sizeof(ScGamerulesParamInfo);
+            uint count = 0, found = 0;
+            result = service.Table->list_params(Self, offset, capacity == 0 ? null : page,
+                (uint)sizeof(ScGamerulesParamInfo), capacity, &count, &found);
+            if (result != ScoResult.Ok) return result;
+            if (offset > found || count != Math.Min(capacity, found - offset)) return ScoResult.Failed;
+            var copied = new GameRulesParameter[count];
+            for (int i = 0; i < (int)count; ++i)
+            {
+                if (page[i].size != (uint)sizeof(ScGamerulesParamInfo) ||
+                    !CopyParameterText(page[i].name, 48, out string name) ||
+                    !CopyParameterText(page[i].group, 32, out string group)) return ScoResult.Failed;
+                copied[i] = new GameRulesParameter(page[i].type, name, group);
+            }
+            parameters = copied;
+            total = found;
+            return ScoResult.Ok;
         }
     }
 }

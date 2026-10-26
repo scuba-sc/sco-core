@@ -106,8 +106,9 @@ the server's answer, not a lock to work around.
 
 ## Language routes
 
-The new `list_params` method is supported through the C table; typed C++/C#/Lua
-wrappers for enumeration are unsupported. Existing read wrappers are unchanged.
+Current source/development kits expose `list_params` in C, C++20, C# and Lua.
+The published RC1 archive retains its earlier read-only language bindings; select
+the guide and wrappers from the same kit. Existing `read` wrappers are unchanged.
 
 Read-only in every language; nothing writes a value, and no route is a way around a server gate.
 
@@ -117,6 +118,25 @@ Read-only in every language; nothing writes a value, and no route is a way aroun
 | C++20 | [`scosdk/game/gamerules.hpp`](../../include/scosdk/game/gamerules.hpp): `sco::sdk::game::GameRules`, `Open(plugin)` then `Read(state)` | header-only, not in `scosdk.hpp`; `Read` zeroes `state` and sets its `size` first, so a failure leaves it zero apart from `size`; answers `SCO_UNAVAILABLE` for a short table or a null member |
 | C# | `Sco.Sdk.Game.GameRules`: `Open(plugin)`, `Read(out ScGamerulesState)` | same zero-and-size rule; `Unavailable` for a short table, a null member or a table that is not open |
 | Lua | `sco.game.gamerules.read()` | present only when the host publishes `game.gamerules`; returns a table of `valid`, `generation`, the three server gates as booleans and the six thresholds as numbers, or `nil, "<result name>"` |
+
+The copied enumeration routes freshly query service 1.1 and check the complete
+24-byte table extent plus the non-null `list_params` pointer. They do not call
+`read`, enable its capability or supply a backend. A 1.0 service still supports
+the existing read route and refuses enumeration.
+
+| Language | Definition page | Failure outputs |
+|---|---|---|
+| C++20 | `GameRules::ListParams(offset, std::span<sc_gamerules_param_info>, count, total)` | Caller page, count and total remain unchanged. The page holds at most 64 copied 88-byte records, whose sizes are initialized internally; count and total must be distinct. |
+| C# | `GameRules.ListParams(offset, capacity, out GameRulesParameter[] parameters, out uint total)` | Empty array and total zero. Records own their `Name` and `Group` strings and expose the copied numeric `Type`; capacity is 0..64. A malformed query table can return `BadArg` from `Plugin.Query`. |
+| Lua | `sco.game.gamerules.list_params([offset [, capacity]])` | `nil, "<result name>"`. Defaults are offset 0, capacity 64; arguments must be integers in range. Success is `{params={ {name, group, type}, ... }, offset, count, total, complete}` with copied strings. |
+
+Capacity zero performs a count-only query with a null record pointer. Typed
+pages use the exact 88-byte native stride. `offset == total` is an empty complete
+page; a partial page is complete when `offset + count == total`. Provider
+refusals propagate. Inconsistent returned counts, modified record sizes and
+unterminated name/group fields refuse as `FAILED` without exposing a partial
+page; C# also refuses invalid UTF-8. Metadata still describes the existing 15
+static definitions, not live session values or verified native types.
 
 Check `valid` (`state.valid`, `s.valid`) first: a result of OK with `valid == 0` means the client has not received a
 parameter set yet, and every other field is zero. The table has no `last_error` member, so the wrappers
