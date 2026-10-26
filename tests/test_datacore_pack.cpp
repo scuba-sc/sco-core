@@ -184,6 +184,7 @@ static void TestApplyAll() {
     for (const PackOpReport& op : r.packs[0].ops)
         if (!op.status) std::printf("  line %u: %s\n", op.line, op.status.message.c_str());
     CHECK(r.packs[0].state == PackState::Applied && r.packs[0].skipped == 0 && r.packs[0].applied == 16);
+    CHECK(r.packs[0].receipt.applied_records == 13 && r.packs[0].receipt.total_records == 13);
     const Bytes f = Applied(base, r);
     CHECK(!f.empty());
     CHECK(Val(f, "ShipA", "speed") == "2.5");
@@ -561,6 +562,192 @@ static void TestSamplePack() {
 }
 
 
+static void TestProgrammaticBestEffort() {
+    const Bytes base = Scene();
+    Schema s;
+    CHECK(s.Parse(base));
+    Pack pack = Parse("format = 1\n" + Set("ShipA", "speed", "3.0") + Set("ShipA", "nope", "1.0"));
+    pack.policy = PackApplyPolicy::BestEffort;
+    CHECK(pack.atomic);
+    const PackResult result = ApplyPacks(s, std::vector<Pack>{pack});
+    const PackReport& report = result.packs[0];
+    CHECK(!report.atomic && report.policy == PackApplyPolicy::BestEffort);
+    CHECK(report.state == PackState::Partial && report.applied == 1 && report.skipped == 1);
+    CHECK(Val(Applied(base, result), "ShipA", "speed") == "3.0");
+    const Pack roundtrip = Parse(WritePack(pack));
+    CHECK(!roundtrip.atomic && roundtrip.policy == PackApplyPolicy::BestEffort);
+    CHECK(ApplyPacks(s, std::vector<Pack>{roundtrip}).packs[0].state == PackState::Partial);
+    pack.policy = PackApplyPolicy::Atomic;
+    const PackResult atomic = ApplyPacks(s, std::vector<Pack>{pack});
+    CHECK(atomic.packs[0].atomic && atomic.packs[0].policy == PackApplyPolicy::Atomic);
+    CHECK(atomic.packs[0].state == PackState::Refused && Applied(base, atomic) == base);
+}
+
+static void TestCompoundRecordReceiptUnits() {
+    const Bytes base = Scene();
+    Schema s;
+    CHECK(s.Parse(base));
+    const std::string text = R"(format = 1
+policy = "best_effort"
+
+[[record]]
+struct = "Ship"
+name = "ShipValid"
+clone = { record = "ShipA" }
+set = { speed = 3.0 }
+
+[[record]]
+struct = "Ship"
+name = "ShipBroken"
+clone = { record = "ShipA" }
+set = { mass = 9.0, zz_missing = 1.0 }
+)";
+    const Pack pack = Parse(text);
+    const PackResult result = ApplyPacks(s, std::vector<Pack>{pack});
+    const PackReport& report = result.packs[0];
+    CHECK(report.state == PackState::Partial && report.applied == 2 && report.skipped == 3);
+    CHECK(report.receipt.applied_records == 1);
+    CHECK(report.receipt.skipped_records == 1);
+    CHECK(report.receipt.total_records == 2);
+    const Bytes out = Applied(base, result);
+    CHECK(Val(out, "ShipValid", "speed") == "3.0" && Val(out, "ShipA", "mass") == Val(base, "ShipA", "mass"));
+    Schema parsed;
+    CHECK(parsed.Parse(out) && parsed.header.recordCount == s.header.recordCount + 1);
+    CHECK(parsed.structInfo[dcb::kShip].instances == s.structInfo[dcb::kShip].instances + 1);
+    Patch readback(parsed);
+    RecordRef missing; missing.name = "ShipBroken";
+    std::vector<FieldView> fields;
+    CHECK(readback.ReadFields(missing, "mass", fields).category == Refusal::RecordNotFound);
+
+    const std::string line = "line " + std::to_string(pack.ops[1].line) + ": ";
+    const std::string instance = "instance " + std::to_string(s.structInfo[dcb::kShip].instances + 1) + " of Ship";
+    const std::vector<std::string> errors = {
+        line + "AddRecord record \"ShipBroken\" (Ship): not applied: another part of the same operation failed",
+        line + "OverrideField " + instance + " field \"mass\": not applied: another part of the same operation failed",
+        line + instance + " field \"zz_missing\": no property \"zz_missing\" in Ship"
+    };
+    CHECK(report.receipt.errors == errors);
+
+    Pack atomic = pack;
+    atomic.atomic = true;
+    atomic.policy = PackApplyPolicy::Atomic;
+    const PackResult refused = ApplyPacks(s, std::vector<Pack>{atomic});
+    CHECK(refused.packs[0].applied == 0 && refused.packs[0].skipped == 5);
+    CHECK(refused.packs[0].receipt.applied_records == 0 && refused.packs[0].receipt.skipped_records == 2);
+    CHECK(refused.packs[0].receipt.total_records == 2 && Applied(base, refused) == base);
+    CHECK(refused.packs[0].receipt.errors == std::vector<std::string>{errors.back()});
+
+    Pack legacy = pack;
+    legacy.policy = PackApplyPolicy::Atomic;
+    const PackResult compatible = ApplyPacks(s, std::vector<Pack>{legacy});
+    CHECK(!compatible.packs[0].atomic && compatible.packs[0].policy == PackApplyPolicy::BestEffort);
+    CHECK(compatible.packs[0].receipt.applied_records == 1 && compatible.packs[0].receipt.skipped_records == 1);
+
+    Pack success = pack;
+    success.ops[1].sets.pop_back();
+    const PackResult applied = ApplyPacks(s, std::vector<Pack>{success});
+    CHECK(applied.packs[0].state == PackState::Applied && applied.packs[0].applied == 4);
+    CHECK(applied.packs[0].receipt.applied_records == 2 && applied.packs[0].receipt.skipped_records == 0);
+    CHECK(applied.packs[0].receipt.total_records == 2 && applied.packs[0].receipt.errors.empty());
+
+    Schema inconsistent;
+    CHECK(inconsistent.Parse(base));
+    ++inconsistent.header.recordCount;
+    const PackResult invalid = ApplyPacks(inconsistent, std::vector<Pack>{success});
+    CHECK(invalid.status.category == Refusal::Revalidation && invalid.splices.empty());
+    CHECK(invalid.packs[0].state == PackState::Refused && invalid.packs[0].applied == 0 && invalid.packs[0].skipped == 4);
+    CHECK(invalid.packs[0].receipt.applied_records == 0 && invalid.packs[0].receipt.skipped_records == 2);
+    CHECK(invalid.packs[0].receipt.total_records == 2 && invalid.packs[0].receipt.errors.back() == invalid.packs[0].reason);
+
+    std::ofstream(g_out / "policy_fixture.dcb", std::ios::binary).write(reinterpret_cast<const char*>(base.data()), static_cast<std::streamsize>(base.size()));
+    std::ofstream(g_out / "policy_records_best_effort.toml") << text;
+    std::string defaultAtomic = text;
+    const std::string selector = "policy = \"best_effort\"\n";
+    defaultAtomic.erase(defaultAtomic.find(selector), selector.size());
+    std::ofstream(g_out / "policy_records_atomic.toml") << defaultAtomic;
+    std::ofstream(g_out / "policy_records_valid.toml") << WritePack(success);
+    std::ofstream(g_out / "policy_invalid.toml") << "format = 1\npolicy = true\n";
+}
+
+static void TestPolicyAliasesAndParseFailure() {
+    const Bytes base = Scene();
+    Schema s;
+    CHECK(s.Parse(base));
+    const std::string body = Set("ShipA", "speed", "3.0") + Set("ShipA", "nope", "1.0");
+    struct Case { const char* policy; bool atomic; };
+    const Case cases[] = {
+        { "", true }, { "atomic = true\n", true }, { "atomic = false\n", false },
+        { "policy = \"atomic\"\n", true }, { "policy = \"best_effort\"\n", false },
+        { "atomic = false\npolicy = \"atomic\"\n", true },
+        { "policy = \"atomic\"\natomic = false\n", true },
+        { "atomic = true\npolicy = \"best_effort\"\n", false },
+        { "policy = \"best_effort\"\natomic = true\n", false }
+    };
+    for (const Case& test : cases) {
+        const Pack pack = Parse(std::string("format = 1\n") + test.policy + body);
+        CHECK(pack.atomic == test.atomic);
+        CHECK(pack.policy == (test.atomic ? PackApplyPolicy::Atomic : PackApplyPolicy::BestEffort));
+        const PackReport report = ApplyPacks(s, std::vector<Pack>{pack}).packs[0];
+        CHECK(report.atomic == test.atomic && report.policy == pack.policy);
+        CHECK(report.state == (test.atomic ? PackState::Refused : PackState::Partial));
+        const Pack again = Parse(WritePack(pack));
+        CHECK(again.atomic == pack.atomic && again.policy == pack.policy);
+    }
+    Pack legacy = Parse("format = 1\n" + body);
+    legacy.atomic = false;
+    CHECK(legacy.policy == PackApplyPolicy::Atomic);
+    const PackReport report = ApplyPacks(s, std::vector<Pack>{legacy}).packs[0];
+    CHECK(!report.atomic && report.policy == PackApplyPolicy::BestEffort && report.state == PackState::Partial);
+
+    for (const char* invalid : { "policy = \"other\"\n", "policy = true\n", "atomic = \"false\"\n" }) {
+        Pack pack = Parse("format = 1\npolicy = \"best_effort\"\n" + body);
+        std::string error;
+        CHECK(!ParsePack(std::string("format = 1\n") + invalid + body, pack, error) && !error.empty());
+        CHECK(pack.ops.empty() && pack.atomic && pack.policy == PackApplyPolicy::Atomic);
+    }
+}
+
+static void TestInstanceAndStandaloneReceiptUnits() {
+    const Bytes base = Scene();
+    Schema s;
+    CHECK(s.Parse(base));
+    const Pack pack = Parse(R"(format = 1
+policy = "best_effort"
+[[instance]]
+id = "good"
+struct = "Part"
+clone = { record = "PartX" }
+set = { weight = 5.0, partName = "own" }
+[[set]]
+record = "ShipA"
+field = "engine"
+pointer = "@good"
+[[instance]]
+id = "bad"
+struct = "Part"
+set = { weight = 7.0, zz_missing = 1.0 }
+[[set]]
+record = "ShipB"
+field = "engine"
+pointer = "@bad"
+[[set]]
+record = "ShipB"
+field = "speed"
+value = 8.0
+)");
+    const PackResult result = ApplyPacks(s, std::vector<Pack>{pack});
+    const PackReport& report = result.packs[0];
+    CHECK(report.state == PackState::Partial && report.applied == 5 && report.skipped == 4);
+    CHECK(report.receipt.applied_records == 3 && report.receipt.skipped_records == 2 && report.receipt.total_records == 5);
+    CHECK(report.receipt.errors.size() == 4);
+    CHECK(report.ops[7].status.category == Refusal::DependencyFailed);
+    const Bytes out = Applied(base, result);
+    CHECK(Val(out, "ShipA", "engine.weight") == "5.0" && Val(out, "ShipA", "engine.partName") == "\"own\"");
+    CHECK(Val(out, "ShipB", "speed") == "8.0" && Val(out, "PartX", "weight") == "1.0");
+    Schema parsed;
+    CHECK(parsed.Parse(out) && parsed.structInfo[dcb::kPart].instances == s.structInfo[dcb::kPart].instances + 1);
+}
+
 static void TestBestEffortPolicyAndDeepClone() {
     // 1. Test BestEffort policy parsing and receipt
     const std::string text = R"(
@@ -669,6 +856,10 @@ int main(int argc, char** argv) {
     TestRecords();
     TestSamplePack();
     TestBestEffortPolicyAndDeepClone();
+    TestProgrammaticBestEffort();
+    TestCompoundRecordReceiptUnits();
+    TestPolicyAliasesAndParseFailure();
+    TestInstanceAndStandaloneReceiptUnits();
     std::printf("sco-core datacore pack tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

@@ -101,8 +101,18 @@ with at most 16 nested struct steps below the copied root. Strong/weak pointers
 and record references keep their targets. Invalid ranges, opaque structs, count
 overflow and excessive recursion refuse the whole clone; even best-effort mode
 cannot commit a partially deep clone. Earlier accepted operations stay intact.
-`policy = "best_effort"` explicitly permits partial application; inspect the
-per-record receipts rather than treating attempted operations as committed work.
+
+`policy = "best_effort"` explicitly permits partial application; `atomic = false`
+remains a compatible alias. An explicit TOML policy wins if both are present.
+Receipts count top-level record/instance/set/append units: a definition and its
+nested sets are accepted or dropped together. Detailed operation reports keep
+flat call counts, so they can differ from receipt counts. Atomic rollback or
+final emission failure leaves zero applied receipt units. In C++, explicit
+`PackApplyPolicy::BestEffort` also selects this behavior when `atomic` is true.
+
+For database-aware preflight, use `sco-dcb check <database.dcb> <pack>...`.
+The short `check <pack>` alias only lints syntax/shape and cannot prove that the
+pack's record or field names resolve. Neither check form changes its input files.
 
 Without a `guid`, it gets one derived from your plugin id and the record name, the same at every launch; without a `file`, it lives at `libs/foundry/records/sco/<plugin id>/<name>.xml`.
 
