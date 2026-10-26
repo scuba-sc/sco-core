@@ -2,6 +2,7 @@
 """Synthetic refusal tests for the compiler-backed SDK catalogue gate."""
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -14,6 +15,23 @@ import sdk_catalogue as catalogue
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA = '0123456789abcdef0123456789abcdef01234567'
+
+
+class InventoryVocabularyTests(unittest.TestCase):
+    def test_managed_vocabulary_matches_all_public_categories(self):
+        header = (ROOT / 'include/sc_inventory.h').read_text()
+        managed = (ROOT / 'sdk/csharp/Sco.Sdk/Game/Inventory.cs').read_text()
+        ordinals = {symbol: int(value) for symbol, value in
+                    re.findall(r'\b(SC_ITEM_TYPE_\w+)\s*=\s*(\d+)\s*[,}]', header)}
+        expected = {int(ordinals[symbol]): name for symbol, name in
+                    re.findall(r'case (SC_ITEM_TYPE_\w+): return "([^"]+)";', header)}
+        self.assertEqual(set(expected), set(range(192)))
+        body = managed.split('public enum ScItemType : uint', 1)[1].split('}', 1)[0]
+        actual = {int(value): name for name, value in re.findall(r'\b(\w+) = (\d+),', body)}
+        self.assertEqual(actual, expected)
+        self.assertIn('Unknown = 0xFFFFFFFFu', body)
+        self.assertIn('verified on Star Citizen 4.10.197.2878', header)
+        self.assertIn('VerifiedBuild = "4.10.197.2878"', managed)
 
 
 class FindClangTests(unittest.TestCase):

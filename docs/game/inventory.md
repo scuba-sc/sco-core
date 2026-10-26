@@ -120,4 +120,31 @@ the backpack's own port, and the 128 cap, `total_seen` and TRUNCATED match this 
 unequipping a piece advances `generation` and changes the values in the expected port only. A query
 on an entity without a container answers UNAVAILABLE with no crash.
 
-No C# or Lua game.inventory routes are supported in 1.1.
+## C# and Lua consumers
+
+The source SDK adds read-only inventory routes after published RC1; their presence does not
+establish native backend readiness. Both prefer service 1.1, fall back to its 1.0 snapshot prefix
+only when 1.1 is unavailable or not found, and require `game.inventory.read` for a snapshot.
+A missing provider, incomplete or null snapshot member, disabled capability, or unloaded consumer
+cannot invoke the backend. Calls run on the game thread and return copies owned by the caller.
+
+C# [`Inventory`](../../sdk/csharp/Sco.Sdk/Game/Inventory.cs) offers `Open(plugin)` and
+`Snapshot(out ScInventorySnapshot)`. `snapshot.Port(i)` returns a copied `ScInventoryPort`;
+`item_class_id` and `entity_id` remain `ulong`. `ItemType` maps a valid port to `ScItemType`,
+and `ItemTypeName` returns its canonical category name. Invalid ports or raw categories outside
+0..191 map to `ScItemType.Unknown` / `"UNDEFINED"`, while the original raw field remains exact.
+`HasDetails` is false for 1.0; `flags` and `total_seen` then carry no observation and stay zero.
+The static `InventoryItemTypes.FromRaw(ulong)` and `Name(ulong)` helpers and `VerifiedBuild`
+are usable without opening a service.
+
+Lua [`sco.game.inventory`](../../sdk/docs/lua.md#scogameinventory) exposes `snapshot()`,
+`item_types`, `item_type(raw)` and `item_type_name(raw)`. The static vocabulary is available whenever
+the game adapter is registered, even without a provider. Snapshot ports retain the ABI field names
+`item_class_id` and `entity_id`, plus `item_type` and `item_type_name`. `has_details` is false on 1.0,
+and `flags` / `total_seen` are absent. Inventory uint64 values use a nonnegative Lua integer through
+2^63-1 and an exact decimal string above it; category helpers accept either representation and
+reject negative, fractional or out-of-range input. Unknown values, including values above uint32,
+map to `item_types.UNKNOWN` without narrowing the preserved raw value.
+
+The 192-name vocabulary in both languages is pinned to the existing public table for
+**4.10.197.2878**. It adds no per-class ids, quantities, mutation routes, or in-game validation.

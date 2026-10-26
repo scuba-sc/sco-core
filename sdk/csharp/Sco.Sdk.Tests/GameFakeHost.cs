@@ -13,6 +13,134 @@ namespace Sco.Sdk.Tests
 {
     internal static unsafe partial class FakeHost
     {
+        private static bool _inventoryCapability = true;
+        static partial void GameHas(string name, ref bool ready)
+        {
+            if (name == "game.inventory.read") ready = _inventoryCapability;
+        }
+
+        private static ScInventoryV1* _inventory;
+        private static bool _inventoryAvailable = true, _inventoryNull;
+        private static uint _inventoryVersion = GameAbi.InventoryVersion1_1, _inventoryQueriedVersion;
+        private static ulong _inventoryRaw = 22;
+        private static uint _inventoryValid = 1;
+        private static ScoResult _inventoryResult = ScoResult.Ok;
+        private static int _inventoryCalls;
+        private static bool _inventoryBadSize, _inventoryBadCount;
+        private static Inventory? _inventoryAfterUnload;
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult InvSnapshot(void* self, ScInventorySnapshot* value)
+        {
+            ++_inventoryCalls;
+            if (self != _self || value == null || value->size < 3088 || value->count != 128) return ScoResult.BadArg;
+            if (_inventoryResult != ScoResult.Ok) return _inventoryResult;
+            value->count = 1;
+            value->generation = 7;
+            var port = (ScInventoryPort*)value->ports;
+            *port = new ScInventoryPort { size = 24, valid = _inventoryValid, item_class_id = _inventoryRaw, entity_id = ulong.MaxValue };
+            if (value->size >= 3096) { value->flags = 3; value->total_seen = 129; }
+            if (_inventoryBadSize) value->size = 0;
+            if (_inventoryBadCount) value->count = 129;
+            return ScoResult.Ok;
+        }
+
+        private static void InventoryTests(Plugin p)
+        {
+            Expect(sizeof(ScInventoryPort) == 24 && sizeof(ScInventorySnapshot) == 3096 && sizeof(ScInventoryV1) == 16, "inventory native sizes");
+            Expect(Marshal.OffsetOf<ScInventoryPort>(nameof(ScInventoryPort.item_class_id)).ToInt32() == 8 &&
+                   Marshal.OffsetOf<ScInventoryPort>(nameof(ScInventoryPort.entity_id)).ToInt32() == 16 &&
+                   Marshal.OffsetOf<ScInventorySnapshot>(nameof(ScInventorySnapshot.ports)).ToInt32() == 16 &&
+                   Marshal.OffsetOf<ScInventorySnapshot>(nameof(ScInventorySnapshot.flags)).ToInt32() == 3088 &&
+                   Marshal.OffsetOf<ScInventorySnapshot>(nameof(ScInventorySnapshot.total_seen)).ToInt32() == 3092,
+                   "inventory frozen prefix and 1.1 tail offsets");
+            var inventory = new Inventory();
+            Expect(inventory.Open(p) == ScoResult.Ok && _inventoryQueriedVersion == GameAbi.InventoryVersion1_1, "inventory queries exact 1.1");
+            for (uint raw = 0; raw < InventoryItemTypes.Count; ++raw)
+            {
+                _inventoryRaw = raw;
+                Expect(inventory.Snapshot(out ScInventorySnapshot snap) == ScoResult.Ok && snap.count == 1 && snap.HasDetails && snap.flags == 3 && snap.total_seen == 129,
+                       $"inventory snapshot {raw}");
+                var port = snap.Port(0);
+                Expect(port.item_class_id == raw && (uint)port.ItemType == raw && port.ItemTypeName == ((ScItemType)raw).ToString() && port.entity_id == ulong.MaxValue,
+                       $"inventory mapped category {raw}");
+            }
+            foreach (ulong raw in new ulong[] { 192, 999, uint.MaxValue, 0x100000016, 1UL << 63, ulong.MaxValue })
+            {
+                _inventoryRaw = raw;
+                Expect(inventory.Snapshot(out ScInventorySnapshot snap) == ScoResult.Ok && snap.Port(0).item_class_id == raw &&
+                       snap.Port(0).ItemType == ScItemType.Unknown && snap.Port(0).ItemTypeName == "UNDEFINED", "inventory preserves unknown uint64");
+            }
+            _inventoryValid = 0;
+            foreach (ulong raw in new ulong[] { 0, 22 })
+            {
+                _inventoryRaw = raw;
+                Expect(inventory.Snapshot(out ScInventorySnapshot invalid) == ScoResult.Ok && invalid.Port(0).item_class_id == raw &&
+                       invalid.Port(0).ItemType == ScItemType.Unknown && invalid.Port(0).ItemTypeName == "UNDEFINED",
+                       "invalid port maps unknown without dropping raw, including AIModule zero");
+            }
+            _inventoryValid = 1;
+            _inventoryVersion = GameAbi.InventoryVersion1_0;
+            Expect(inventory.Open(p) == ScoResult.Ok && _inventoryQueriedVersion == GameAbi.InventoryVersion1_0 &&
+                   inventory.Snapshot(out ScInventorySnapshot old) == ScoResult.Ok && old.size == 3088 && !old.HasDetails && old.flags == 0 && old.total_seen == 0,
+                   "inventory 1.0 prefix fallback has no tail");
+            _inventoryVersion = GameAbi.InventoryVersion1_1;
+            Expect(inventory.Open(p) == ScoResult.Ok, "inventory reopens 1.1");
+            int calls = _inventoryCalls;
+            for (uint size = 0; size < 16; ++size)
+            {
+                _inventory->size = size;
+                Expect(inventory.Snapshot(out _) == ScoResult.Unavailable && _inventoryCalls == calls, "inventory incomplete member never called");
+                Expect(new Inventory().Open(p) == (size < 4 ? ScoResult.BadArg : ScoResult.Unavailable), "inventory incomplete table refuses open");
+            }
+            _inventory->size = 16; _inventory->snapshot = null;
+            Expect(inventory.Snapshot(out _) == ScoResult.Unavailable && new Inventory().Open(p) == ScoResult.Unavailable && _inventoryCalls == calls,
+                   "inventory null method never called");
+            _inventory->snapshot = &InvSnapshot;
+            _inventoryCapability = false;
+            Expect(inventory.Snapshot(out _) == ScoResult.Unavailable && _inventoryCalls == calls, "inventory capability off never called");
+            _inventoryCapability = true;
+            _inventoryResult = ScoResult.Unavailable;
+            Expect(inventory.Snapshot(out ScInventorySnapshot missing) == ScoResult.Unavailable && missing.count == 0, "inventory unavailable leaves no snapshot");
+            _inventoryResult = ScoResult.Ok;
+            _inventoryBadSize = true;
+            Expect(inventory.Snapshot(out ScInventorySnapshot shortValue) == ScoResult.Failed && shortValue.count == 0, "inventory malformed snapshot size discarded");
+            _inventoryBadSize = false; _inventoryBadCount = true;
+            Expect(inventory.Snapshot(out ScInventorySnapshot longValue) == ScoResult.Failed && longValue.count == 0, "inventory over-capacity snapshot discarded");
+            _inventoryBadCount = false;
+            var api = p.Api;
+            uint rootSize = api->size;
+            calls = _inventoryCalls;
+            api->size = 23;
+            Expect(inventory.Snapshot(out _) == ScoResult.Unavailable && _inventoryCalls == calls, "inventory partial root has never called");
+            api->size = rootSize;
+            var has = api->has;
+            api->has = null;
+            Expect(inventory.Snapshot(out _) == ScoResult.Unavailable && _inventoryCalls == calls, "inventory null root has never called");
+            api->has = has;
+            api->size = ApiOffset.query_service + 7;
+            Expect(new Inventory().Open(p) == ScoResult.Unavailable, "inventory partial root query never called");
+            api->size = rootSize;
+            var query = api->query_service;
+            api->query_service = null;
+            Expect(new Inventory().Open(p) == ScoResult.Unavailable, "inventory null root query never called");
+            api->query_service = query;
+            _inventoryNull = true;
+            Expect(new Inventory().Open(p) == ScoResult.BadArg && _inventoryCalls == calls, "inventory null service table rejected");
+            _inventoryNull = false;
+            _inventoryAvailable = false;
+            Expect(inventory.Open(p) == ScoResult.NotFound && !inventory.IsOpen, "inventory missing table clears borrowed state");
+            _inventoryAvailable = true;
+            Expect(inventory.Open(p) == ScoResult.Ok, "inventory restores provider");
+            _inventoryAfterUnload = inventory;
+        }
+
+        static partial void GameAfterUnload()
+        {
+            int calls = _inventoryCalls;
+            Expect(_inventoryAfterUnload!.Snapshot(out _) == ScoResult.Unavailable && _inventoryCalls == calls, "inventory never calls after consumer unload");
+        }
+
         private static ScActorsV1* _actors;  // a stand-in game.actors
         private static ScEntitiesV1* _entities;  // a stand-in game.entities
         private static ScWorldV1* _world;    // a stand-in game.world
@@ -28,8 +156,14 @@ namespace Sco.Sdk.Tests
         private static uint _freeCamValue = 1;   // what the stand-in free-camera flag reads
         private static int _freeCamCalls;
 
-        static partial void GameQueryService(string name, void** o, ref bool found)
+        static partial void GameQueryService(string name, uint minVersion, void** o, ref bool found)
         {
+            if (name == GameAbi.InventoryName)
+            {
+                _inventoryQueriedVersion = minVersion;
+                if (_inventoryAvailable && minVersion <= _inventoryVersion) { *o = _inventoryNull ? null : _inventory; found = true; }
+                return;
+            }
             if (_actorEntityServicesMissing && (name == GameAbi.ActorsName || name == GameAbi.EntitiesName)) return;
             if (name == GameAbi.ActorsName) { *o = _actors; found = true; return; }
             if (name == GameAbi.EntitiesName) { *o = _entities; found = true; return; }
@@ -306,6 +440,9 @@ namespace Sco.Sdk.Tests
 
         static partial void GameSetUp()
         {
+            _inventory = (ScInventoryV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScInventoryV1));
+            _inventory->size = (uint)sizeof(ScInventoryV1);
+            _inventory->snapshot = &InvSnapshot;
             _actors = (ScActorsV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScActorsV1));
             _actors->size = (uint)sizeof(ScActorsV1);
             _actors->local_player = &ActLocal;
@@ -511,6 +648,7 @@ namespace Sco.Sdk.Tests
 
         static partial void GameTests(Plugin p)
         {
+            InventoryTests(p);
             var actors = new Actors();
             Expect(actors.Open(p) == ScoResult.Ok && actors.IsOpen, "game.actors opens");
             Expect(actors.LocalPlayer(out ulong actorId, out ulong entityId) == ScoResult.Ok && actorId == 5 && entityId == 6, "Actors.LocalPlayer");

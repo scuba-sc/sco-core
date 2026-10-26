@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- C# and Lua expose the existing 192-category inventory vocabulary and read-only copied
+  snapshots, with exact unknown raw uint64 values and guarded 1.1/1.0 snapshot negotiation.
+  Category metadata remains pinned to 4.10.197.2878 and does not enable the inventory backend.
+  These routes are absent from published RC1.
+
 - Generated native/C++/C# manifests declare API 1.1, matching their exported
   built-against ABI. Truncated-table checker success is no longer described as
   API 1.0 loader admission. Lua keeps its script-runtime declaration.
