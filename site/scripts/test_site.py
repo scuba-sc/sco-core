@@ -524,6 +524,13 @@ class SiteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'duplicate or unsafe record'):
                 gen.generate(ROOT, bad, Path(work))
 
+    def test_particle_field_model(self):
+        self.assertIsNotNone(shutil.which('node'), 'Node required for particle model verification')
+        result = subprocess.run(['node', str(ROOT / 'site/scripts/test_field_model.mjs')],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        print(result.stdout.strip())
+
     def test_actual_search_and_keyboard_navigation(self):
         if BUILT is None:
             self.skipTest('Use --built site/dist for browser navigation verification')

@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- The documentation landing gains a cinematic violet/teal nebula, warm star
+  accents, slow orbital layers, brighter foreground stars and selective glows.
+  Cached orbit math, per-plane culling and a shared 1.2-million-pixel canvas
+  budget retain bounded rendering work. Hero text stays opaque and arrow cues
+  retain accessible inline SVGs; documentation and SDK contracts are unchanged.
+
 - Generated native/C++/C# manifests declare API 1.1, matching their exported
   built-against ABI. Truncated-table checker success is no longer described as
   API 1.0 loader admission. Lua keeps its script-runtime declaration.

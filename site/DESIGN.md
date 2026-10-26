@@ -56,9 +56,12 @@ The home landing retains the supplied deepwater identity in both themes:
 `#030d16` background, `#8de4e0` teal, white display text, `#dae7ea` supporting
 copy, and translucent teal rules. These values are scoped to `[data-sco-landing]`;
 the documentation body and built-in header keep the selected Starlight theme.
-The right-hand particle field sits behind a dark veil so text remains readable
-when particles pass underneath it. The CSS glow remains with JavaScript off or
-field initialization unavailable.
+The cinematic atmosphere adds violet and teal clouds with a restrained warm
+core, concentrated to the right of the reading area. Six seeded star groups
+vary color, size and brightness; rare warm highlights and brighter near stars
+provide depth. The right-hand particle field sits behind a dark veil, with only
+a sparse foreground plane crossing the copy. The static CSS nebula remains with
+JavaScript off or field initialization unavailable; no image or font is fetched.
 
 ## 3. Typography
 
@@ -107,6 +110,9 @@ page, the native theme selector is also visible in the mobile header.
   mark, canvas and simple motion toggle. The canvas is `aria-hidden`; all content
   and navigation exist in server-rendered HTML. Arrow cues use Starlight's inline
   SVG icons, hidden from assistive technology; link text supplies the names.
+- **Nebula** (`.sco-landing__nebula`): one static, aria-hidden gradient layer
+  behind the stars. It ignores pointer input, clips to the hero, and is hidden
+  in print. The existing dark desktop/mobile veils protect the reading area.
 - **Intro** (`.sco-intro`, `.sco-intro__eyebrow`, `.sco-intro__lead`): compact,
   left-aligned explanation following the page title.
 - **Actions** (`.sco-actions`, `.sco-action`, `.sco-action--primary`): real links;
@@ -155,9 +161,12 @@ section. A sparse foreground canvas lets a few stars and thin, short trails pass
 across the hero text; most particles stay behind the text veil. Both layers use
 the same simulation snapshot, with no extra worker or blur filter. Canvas layers
 ignore pointer events and cannot cover the documentation below the hero.
-Its bundled worker samples a deterministic ten-second orbital loop; counts are
+Its bundled worker samples four seeded orbital bands with 40, 60, 80 and
+96-second rotations and a continuous 480-second full-field period; counts are
 capped at 12,000 desktop and 3,000 mobile particles, with bounded DPR, at most
-one request in flight and a maximum 30fps update cadence. These are implementation
+one request in flight and a maximum 30fps update cadence. The two canvas backing
+surfaces share a 1,200,000-pixel ceiling, with DPR at most 1.5 and no dimension
+above 3072px. Position transfers stay within 96KB. These are implementation
 limits, not a measured speed claim. The toggle is hidden until the first frame is
 ready. **Pause animation** freezes the phase; **Resume animation** continues it.
 Reduced motion keeps a static frame and hides the toggle. Paused, hidden and
@@ -175,11 +184,16 @@ back reverses these effects. Focused or targeted sections stay fully visible.
 The effects add no scroll listener or animation loop. Unsupported browsers and
 reduced motion retain visible, still content; documentation routes stay still.
 
-The orbital model caches per-particle rotations and uses global harmonics per
-frame. Its approximation must keep deterministic ten-second closure and maximum
-position error below 0.01 reference pixels in a same-input comparison. This
-reduces repeated trigonometry at the cost of bounded parameter storage; a math
-microbenchmark does not establish whole-page rendering speed.
+The orbital model caches per-particle rotations, four band rotations and global
+harmonics. Its approximation must keep deterministic 480-second closure and
+maximum position error below 0.01 reference pixels against an independent exact
+trigonometric implementation of the same visual model. Orbit parameters remain
+bounded at 288KB, plus 64 bytes of band scratch. Per-plane culling includes glow
+and trail extents, avoiding submissions for wholly offscreen points. Six small
+32px glow sprites and seeded style buckets are cached at initialization; only
+about one star in 151 receives a glow. Brighter, larger glows add bounded fill
+area even at similar draw counts. CPU microbenchmarks exclude worker transfer,
+scheduling, rasterization, GPU/power and whole-page frame-rate measurements.
 
 The site remains statically generated. Search normalization uses a bounded task
 vocabulary, preserves exact symbols and quoted searches, and leaves unknown terms
