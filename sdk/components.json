@@ -9161,6 +9161,40 @@
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
+    },
+    {
+      "id": "relocation-position-tests-test_relocation_position-cpp",
+      "source": "tests/test_relocation_position.cpp",
+      "destination": "tests/test_relocation_position.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": false
+    },
+    {
+      "id": "relocation-position-tests-game_contracts-relocation-test_position_provider-cpp",
+      "source": "tests/game_contracts/relocation/test_position_provider.cpp",
+      "destination": "tests/game_contracts/relocation/test_position_provider.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": false
+    },
+    {
+      "id": "relocation-position-docs-game-relocation-position-md",
+      "source": "docs/game/relocation-position.md",
+      "destination": "docs/game/relocation-position.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": false
     }
   ]
 }

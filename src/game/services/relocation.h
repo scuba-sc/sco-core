@@ -32,8 +32,23 @@ struct RelocationBackend {
     bool (*pose)(uint64_t zoneId, double pos[3], double rot[4]) = nullptr;
     uint64_t (*now)() = nullptr;                       // monotonic milliseconds; null = steady clock
 };
+// Epoch is a current copied spatial observation, while instance is a distinct
+// opaque token that changes on replacement, reparenting or authority reset.
+struct RelocationPositionTarget {
+    uint64_t epoch = 0, instance = 0, system = 0;
+    bool streamed = false;
+};
+struct RelocationPositionBackend {
+    bool verified = false;
+    bool (*target)(uint64_t zoneId, RelocationPositionTarget* out) = nullptr;
+    // Revalidate the admitted instance before applying; never call a full-pose transport.
+    bool (*apply)(const sc_relocation_position_request* request, uint64_t instance) = nullptr;
+    // Fresh position only, and only in the admitted target frame/instance.
+    bool (*observe)(uint64_t zoneId, uint64_t instance, double pos[3]) = nullptr;
+};
 // Game thread. A null backend publishes the service with game.relocation OFF.
 Result StartRelocation(const RelocationBackend* backend = nullptr);
+Result StartRelocationV2(const RelocationBackend* backend, const RelocationPositionBackend* position);
 void StopRelocation();
 // Game thread, once per game tick: drives bounded work and refreshes the capability.
 void TickRelocation();
@@ -42,7 +57,11 @@ void ReleaseRelocationOwner(const void* owner);
 const RelocationBackend* EngineRelocationBackend();
 }
 struct sco_relocation_backend;
-namespace sco::game::services { sco_result SetRelocationBackend(const sco_relocation_backend* backend); }
+struct sco_relocation_backend_v2;
+namespace sco::game::services {
+sco_result SetRelocationBackend(const sco_relocation_backend* backend);
+sco_result SetRelocationBackendV2(const sco_relocation_backend_v2* backend);
+}
 
 // Host provider socket for game.relocation (2.4.0, K-29): the host shell binds a custom simulation/
 // relocation backend. Host-source seam only, like RelocationBackend above; not a plugin-facing table,
@@ -64,4 +83,24 @@ struct sco_relocation_backend {
     uint64_t (*now)();
 };
 sco_result sco_game_set_relocation_backend(const sco_relocation_backend* backend);
+
+// Host-source 1.1 socket. The old socket/installer above is unchanged. Position
+// callbacks are all required; FullPose target/apply/pose are either all present
+// or all absent. player is required, now optional. Installation attests these
+// callbacks, including independent target-instance authority, as verified. Same
+// fresh host admission, game-thread/one-shot-before-start and lifetime rules.
+// The production engine adapter supplies none of these new position callbacks.
+struct sco_relocation_backend_v2 {
+    uint32_t size;
+    uint32_t _pad;
+    bool (*player)(sco::game::services::RelocationPlayer* out);
+    bool (*target)(uint64_t zone_id, sco::game::services::RelocationTarget* out);
+    bool (*apply)(const sc_relocation_request* request);
+    bool (*pose)(uint64_t zone_id, double pos[3], double rot[4]);
+    uint64_t (*now)();
+    bool (*position_target)(uint64_t zone_id, sco::game::services::RelocationPositionTarget* out);
+    bool (*apply_position)(const sc_relocation_position_request* request, uint64_t instance);
+    bool (*observe_position)(uint64_t zone_id, uint64_t instance, double pos[3]);
+};
+sco_result sco_game_set_relocation_backend_v2(const sco_relocation_backend_v2* backend);
 }

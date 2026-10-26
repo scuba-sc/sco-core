@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Add explicit `game.relocation` 1.1 position requests and a host-source backend
+  socket, sharing tickets, owner/session guards and cancellation with frozen
+  FullPose requests. The native adapter supplies no position backend; its new
+  capability stays unavailable. Runtime-released owners now refuse before
+  admission/dispatch for both methods. Synthetic checks only; not run in game.
 - C++20, C# and Lua enumerate the existing read-only GameRules parameter
   definitions through guarded 1.1 service queries and bounded copied pages.
   The C ABI, static registry and native read availability are unchanged; these

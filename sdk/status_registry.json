@@ -367,10 +367,31 @@
       "kind": "service",
       "service": "game.relocation",
       "header": "include/sc_relocation.h",
-      "version": "1.0",
+      "version": "1.1",
       "stability": "experimental",
       "capabilities": [
-        {"name": "game.relocation", "methods": [], "default": "ON", "evidence_level": "synthetic_only", "evidence": "ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Synthetic provider tests only; not run on Windows or in game", "sig_rows": ["teleport.to_camera", "teleport.relocation"], "evidence_source": "docs/game-services.md"}
+        {
+          "name": "game.relocation",
+          "methods": [],
+          "default": "ON",
+          "evidence_level": "synthetic_only",
+          "evidence": "ON only while the host certifies offline admission, the engine rows resolve, a live player and a known star system exist and the product switch is on; otherwise OFF. Portable and Windows/MSVC synthetic provider/ABI tests; native engine behavior and gameplay not verified",
+          "sig_rows": [
+            "teleport.to_camera",
+            "teleport.relocation"
+          ],
+          "evidence_source": "docs/game-services.md"
+        },
+        {
+          "name": "game.relocation.position",
+          "methods": [
+            "request_position"
+          ],
+          "default": "OFF",
+          "evidence_level": "synthetic_only",
+          "evidence": "Explicit position-only request and shared provider/socket fixtures; no native position transport, independent target-instance/epoch producer or fresh readback adapter. Existing FullPose adapter does not supply this path. Portable and Windows/MSVC synthetic provider/ABI tests; not run in game.",
+          "evidence_source": "docs/game/relocation-position.md"
+        }
       ]
     },
     {

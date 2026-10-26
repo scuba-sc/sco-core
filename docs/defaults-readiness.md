@@ -21,9 +21,11 @@ service ownership, adapters and admission. DataCore requires an applying adapter
 ImGui requires renderer integration; runtime inspection requires its independent
 consent/offline/audit prerequisites described below.
 
+The position-only relocation source extension was reviewed on 2026-10-26 against base `e75219bcdf856e3798ab9e99e26315041d14b6e1`; its separate OFF/synthetic row below adds no native activation.
+
 ## Reading availability correctly
 
-[The status registry](../sdk/status_registry.json) contains **37 named capabilities whose recorded default is OFF**: 24 have `synthetic_only` evidence and 13 have `off_pending_probe` evidence. All 37 appear once in the inventories below. A registry entry records the reviewed availability/evidence baseline; actual host capability state is also computed from signatures, configured providers, admission, cleanup and fault state. The quantum path below already attempts production setup automatically under those conditions, despite its conservative OFF registry entry. Do not infer that changing a registry field changes runtime implementation.
+[The status registry](../sdk/status_registry.json) contains **38 named capabilities whose recorded default is OFF**: 25 have `synthetic_only` evidence and 13 have `off_pending_probe` evidence. All 38 appear once in the inventories below. A registry entry records the reviewed availability/evidence baseline; actual host capability state is also computed from signatures, configured providers, admission, cleanup and fault state. The quantum path below already attempts production setup automatically under those conditions, despite its conservative OFF registry entry. Do not infer that changing a registry field changes runtime implementation.
 
 [The roadmap](roadmap.md) separates contract, mock, static evidence, grounded native backend, game evidence and default-on behavior. Its post-2.4.0 work explicitly includes narrowed native rays, entity lookup, live GameRules values and audio. Comprehensive discovery should expose those contracts and their readiness honestly. Comprehensive behavior requires completing their adapters and acceptance work, rather than treating an unavailable response as a hidden switch.
 
@@ -64,7 +66,7 @@ These twelve additional capabilities have fixed proof holds rather than a genera
 
 ## Public contracts with absent or unready production backends
 
-These eighteen capabilities require implementation or lifetime/registration grounding in addition to a future default decision. There is no truthful configuration-only completion. Public contracts and mocks can still support SDK-based consumer development while the native call answers unavailable.
+These nineteen capabilities require implementation or lifetime/registration grounding in addition to a future default decision. There is no truthful configuration-only completion. Public contracts and mocks can still support SDK-based consumer development while the native call answers unavailable.
 
 | Capability | Current provider/source evidence | Work required and roadmap boundary |
 | --- | --- | --- |
@@ -78,6 +80,7 @@ These eighteen capabilities require implementation or lifetime/registration grou
 | `game.events.loadout_respawn_completed` | [loadout service](../src/game/services/loadout.cpp) can accept a verified host producer but production has no resolved native respawn-completed occurrence/hook; [guide](game/loadout.md) names F-INTAKE-004/T-3. | Locate and ground the actual occurrence, thread/payload/re-arm/lifetime, then prove one correctly owned event per occurrence. Async equipment completion is a different event. |
 | `game.loadout.apply` | [production composition](../src/game/services/spatial.cpp) calls `StartLoadout(nullptr, ProductionLoadoutBackend())`; [service](../src/game/services/loadout.cpp) has no verified synchronous equip backend. | Ground typed synchronous equipment methods and per-slot mapping/readback/cleanup, or retain the documented async route as a distinct contract. A working async adapter cannot certify synchronous apply. |
 | `game.loadout.weapons` | [loadout service](../src/game/services/loadout.cpp) additionally requires verified `engine.weapons`; production synchronous backend is empty. | Ground and test weapon/multitool slot semantics independently, including failed/partial equips and no duplication/corruption. Existing wearable vocabulary is not weapons proof. |
+| `game.relocation.position` | [Explicit 1.1 contract](game/relocation-position.md), [provider/socket](../src/game/services/relocation.h), [actual provider fixture](../tests/game_contracts/relocation/test_position_provider.cpp). The existing native FullPose adapter supplies no position callbacks; capability remains OFF with synthetic evidence. | Ground a position-only local-player transport, current copied target epoch, independent target-instance token changing on replacement/reparent/reset, and fresh target-frame readback. Preserve live-owner/session/system/admission/cancel/fault guards. The NPC local-frame setter and full-pose transport do not prove cross-zone position semantics; no guessed loaded-zone registry or probe attestation. |
 | `game.gamerules.read` | [GameRules service](../src/game/services/gamerules.cpp) starts with empty [GameRulesBackend](../src/game/services/gamerules.h). Static `list_params` metadata is separately available. | Complete the narrowed live value-change read backend with current parameter object lifetime and typed copied values. This is one of the four post-2.4.0 deferrals. Metadata definitions never imply live values. |
 | `game.cvars.write` | [native write mechanics](../src/game/services/cvars_engine.cpp) exist, but [production configuration](../src/game/services/cvars_production.cpp) calls `native.Install(resolved, false)` even with `SCO_CVARS_NATIVE=1`. | Establish native registration/backing lifetime across setter callbacks and retained leases, plus identity-safe restore and Stop/cleanup admission. The environment switch cannot supply that evidence. See [host Stop fixture](../tests/test_cvars_host_stop.cpp) and [CVar guide](game/cvars.md). |
 | `game.economy.read` | [offline backend seam](../src/game/services/offline_missions.h) has no production balance backend; [production composition](../src/game/services/spatial.cpp) calls `offline::Start()` with empty callbacks. | Supply an independently validated offline balance reader with fresh session/admission and fault containment. See [design](design/offline-missions.md), [synthetic tests](../tests/test_offline_missions.cpp). |
@@ -89,7 +92,7 @@ These eighteen capabilities require implementation or lifetime/registration grou
 
 ## Host, build, MCP and network defaults
 
-These controls are separate from the 37 game capability entries. Build inclusion, tool discovery, executable access, service publication, privacy disclosure and gameplay activation need distinct decisions.
+These controls are separate from the 38 game capability entries. Build inclusion, tool discovery, executable access, service publication, privacy disclosure and gameplay activation need distinct decisions.
 
 | Control | Current source/default | Comprehensive-default action and required boundary |
 | --- | --- | --- |
