@@ -80,11 +80,19 @@ One tab-separated line per record, after a `#` header line:
 ```sh
 sco-dcb lint <pack>...                    # syntax and shape; no game file
 sco-dcb check Game2.dcb <pack>...         # every override resolved: OK / SKIP per operation, a verdict per pack
+sco-dcb check <pack>                     # syntax/shape only; alias for lint, no database resolution
 sco-dcb show Game2.dcb <record> [field]   # the record's values as field paths, to write overrides from
 sco-dcb diff a.dcb b.dcb > changes.toml   # what changed from a to b, as a pack
 ```
 
 A `<pack>` is a pack folder (its `datacore/*.toml` files in name order; the folder name is the plugin id) or one `.toml` file. Several packs are applied in the order given, which stands for plugin order, so `check` also shows conflicts between them. A `<record>` is its name or its GUID (`guid:` prefix optional).
+
+The one-argument `check <pack>` form only lints syntax and shape; it prints that
+scope explicitly. It can succeed even when a named record or field does not exist.
+Use `check <database.dcb> <pack>...` for database-aware acceptance. A partially
+applicable pack exits 1, an entirely applicable pack exits 0, and an unreadable
+database exits 2. Checking revalidates the proposed overlay in memory and does
+not change the database or pack files.
 
 `check` is the patch-day routine for data mods: run it against the `Game2.dcb` of each new game build. The SDK's sample pack ([`sdk/examples/quantum_pack`](../sdk/examples/quantum_pack/datacore/eos.toml)) uses made-up record, struct and field names, so here it is checked against the small file `test_datacore_pack` writes with that schema (as `tests/dcb_pack.cmake` and the `sdk` workflow do); a real pack names the game's records and is checked against the game's file the same way:
 
@@ -198,7 +206,23 @@ preserves earlier operations and leaves no usable clone ID, including when
 
 **Order and priority.** Operations run in file order, whatever their kind. Packs apply in plugin order (folder-name order, built-ins first), a plugin's files in name order. A later pack wins a field an earlier one set; the conflict is logged with both sources (`... alpha (datacore/a.toml:3) overridden by beta (datacore/b.toml:3) (later in plugin order)`). There is no `priority` key (design decision 7). Within one file a field may be set once: the same target and path twice is a lint error, and two paths to the same field are caught when the pack applies (the later operation is refused).
 
-**Atomicity.** By default a file applies whole or not at all: one failing operation (record or field not found, a value that doesn't fit, ...) refuses the file, with that reason, and the other packs still apply. With `atomic = false` each operation applies on its own; an `[[instance]]` with its `set` table is one operation, and anything using an `@id` whose instance failed is refused too. The game reads either its own bytes or a fully re-validated patched file.
+**Atomicity.** By default a file applies whole or not at all: one failing unit
+(record or field not found, a value that doesn't fit, ...) refuses the file, and
+other packs still apply. `policy = "best_effort"` or the legacy `atomic = false`
+alias permits independent units to apply. A `[[record]]` or `[[instance]]` and its
+nested `set` table stay one unit: any failure drops the complete definition and
+refuses references to its failed `@id`. If both TOML selectors appear, `policy`
+wins regardless of key order. A C++ `Pack` selects BestEffort through
+`PackApplyPolicy::BestEffort` or legacy `atomic=false`; Atomic requires both
+`policy=Atomic` and `atomic=true`. Serialization preserves that normalized choice.
+
+`PackApplyReceipt` counts top-level `[[record]]`, `[[instance]]`, `[[set]]` and
+`[[append]]` units kept or dropped in the final revalidated overlay. Whole-pack
+rollback or final Emit failure reports zero applied units. Its errors retain
+detailed line-specific failures, including several failures for one dropped unit.
+The legacy `PackReport` counters and CLI operation totals still count flat patcher
+calls. A create-plus-set definition is therefore one receipt unit but two calls.
+The database-aware CLI receipt is a validation result; `check` writes no data.
 
 **Checked without the game** (`lint`, and `sco-host-sim` for every indexed pack): TOML syntax, `format = 1`, known keys, value shapes, field path and GUID syntax, `@id` defined before use and only once, a field set twice, a `[[record]]`'s required keys, its clone being a record (no `field`), its file path rule and a name or GUID it adds twice, at most 4 MiB and 65,536 operations per file. Names resolve only against a real file: `check`.
 
@@ -284,7 +308,7 @@ Details: [C++ SDK § DataCore](sdk-cpp.md#datacore), [Lua § sco.datacore](../sd
 
 | Code | Meaning |
 |---|---|
-| 0 | The layout is valid (`info`, `records`, `show`); `patch`: the batch emitted, re-validated, and the output was written; every file parses (`lint`); every operation of every pack applies (`check`); everything converted (`diff`) |
+| 0 | The layout is valid (`info`, `records`, `show`); `patch`: the batch emitted, re-validated, and the output was written; every file parses (`lint`); every operation of every pack applies (database-aware `check`); syntax/shape passes (`check <pack>`); everything converted (`diff`) |
 | 1 | The layout is refused (the reason names the first failing check); a pack doesn't parse or doesn't fully apply; a record or field isn't found (`show`); some change couldn't be converted (`diff`); `patch`: an operation or `Emit` was refused, and nothing is written |
 | 2 | Bad arguments, a file or pack folder that can't be read (or, for `patch`, written), or a file smaller than the 120-byte header |
 

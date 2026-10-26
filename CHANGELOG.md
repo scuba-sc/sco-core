@@ -35,6 +35,13 @@ What each change means for plugin authors and for products built on sco-core (sc
   compatibility and best-effort receipts are checked with synthetic files.
   Published RC1 bytes are unchanged; not run in game.
 
+- DataCore's explicit C++ BestEffort policy now selects partial application and
+  survives serialization; the legacy atomic flag stays compatible. Structured
+  receipts count whole TOML units, including grouped record/instance sets, while
+  detailed reports retain their flat call totals. Syntax-only `sco-dcb check`
+  now states that it cannot resolve database names. Synthetic pack, rollback and
+  CLI checks cover the correction; not run in game. Published RC1 bytes are unchanged.
+
 - The documentation hero keeps its text, navigation and footer opaque while its
   decorative galaxy layers fade on scroll. Task and hub arrows use inline SVG
   icons so their rendering does not depend on font glyph coverage.

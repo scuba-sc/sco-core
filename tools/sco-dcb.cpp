@@ -6,6 +6,7 @@
 //   sco-dcb records <file.dcb>              one tab-separated line per record (research R1 input)
 //   sco-dcb lint <pack>...                  .toml syntax and shape, no game file needed
 //   sco-dcb check <file.dcb> <pack>...      resolves every override: OK / SKIP per operation, a verdict per pack
+//   sco-dcb check <pack>                  syntax/shape only, an alias for lint; no database resolution
 //   sco-dcb show <file.dcb> <record> [field]  a record's fields as paths and values, to write overrides from
 //   sco-dcb diff <a.dcb> <b.dcb>            the changes from a to b as a .toml pack, on stdout
 //   sco-dcb patch <in.dcb> <out.dcb> [options] <op>...
@@ -17,7 +18,8 @@
 // A <record> is a record name, or its GUID (optionally prefixed guid:).
 //
 // Exit code: 0 when the layout is valid (info, records, show), every pack parses (lint), every
-// operation of every pack applies (check) or the diff converted everything (diff); 1 when the layout
+// operation of every pack applies (database-aware check), syntax/shape passes (short check), or
+// the diff converted everything (diff); 1 when the layout
 // is refused, a pack doesn't parse or doesn't fully apply, a record or field isn't found (show), or
 // some change couldn't be expressed (diff, listed as comments), or a patch operation or Emit was
 // refused (patch writes nothing then); 2 on a usage error or a file that can't be read or written or
@@ -45,6 +47,7 @@ static const char* kUsage =
     "       sco-dcb records <file.dcb>\n"
     "       sco-dcb lint <pack>...\n"
     "       sco-dcb check <file.dcb> <pack>...\n"
+    "       sco-dcb check <pack>                 (syntax/shape only; alias for lint)\n"
     "       sco-dcb show <file.dcb> <record> [field]\n"
     "       sco-dcb diff <a.dcb> <b.dcb>\n"
     "       sco-dcb patch <in.dcb> <out.dcb> [--seed N] [--pack ID] [--non-atomic] <op>...\n"
@@ -766,7 +769,8 @@ int main(int argc, char** argv) {
     if (cmd == "patch") return RunPatch(argc, argv);
     if (cmd == "lint" && argc >= 3) return Lint(argc, argv);
     if (cmd == "check" && argc == 3) {
-        // Validation without DCB: validates TOML pack syntax and semantics
+        std::fputs("check without a database: syntax/shape only; record and field compatibility is not checked. "
+                   "Use check <file.dcb> <pack>... for database validation.\n", stderr);
         const char* fakeArgs[] = { argv[0], "lint", argv[2] };
         return Lint(3, const_cast<char**>(fakeArgs));
     }
