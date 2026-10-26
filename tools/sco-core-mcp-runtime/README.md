@@ -1,8 +1,22 @@
 # Local runtime MCP (development-only)
 
-Separate from credentials-free `../sco-core-mcp/server.py`. Discovery is unchanged:
-its six default catalogue tools (six more read-only ones only with `--extended-tools`),
-no runtime imports/credentials/attachment.
+Separate from credentials-free [`../sco-core-mcp/server.py`](../sco-core-mcp/README.md).
+Current-source discovery offers fourteen read-only tools by default: six catalogue,
+six extended discovery and two consumer-workflow tools. Explicit `--minimal-tools`
+retains the original six catalogue tools; `--extended-tools` and `--workflow-tools`
+are compatibility aliases. The unchanged published RC1 launcher still defaults to
+six tools (twelve with `--extended-tools`) and has no workflow index. Use the
+launcher and indexes from the same verified kit; current-source behavior does not
+change published archive bytes.
+
+Static discovery imports no runtime peer, reads no runtime credentials and attaches
+to no host. Its separate development tools run local builds/checks only when an
+operator configures project roots; they do not enable this runtime launcher.
+See [consumer workflows](../../docs/agent-workflows.md) for the pinned SDK route.
+Native-index discovery exposes symbolic metadata, not callable natives or game
+verification. Structural checks and indexed text do not clear pending provenance;
+distribution still requires the human decisions in the
+[release checklist](../../docs/legal/release-checklist.md#needs-a-person).
 This launcher uses stdio only and never starts a game, socket, scanner or subprocess.
 No tunnel, SSH forwarding, hosted/remote runtime client, LAN or online use is supported.
 
@@ -135,9 +149,13 @@ is refused, never silently reused; operator resolves a crash leftover locally.
 
 ## Evidence
 
-Implementation/configuration/compile only in this wave: new stdio tests are
-**NOT RUN** by owner speed order. Windows effective-identity mapping/token/collector
-proof and manual offline/game acceptance are **NOT VERIFIED; not run in game**.
-Portable fake collectors and schema vectors never stand in for those checks.
-The [acceptance ledger](../../docs/runtime-acceptance.md) records the no-game
-fixture target, owed Windows identity checks and human offline checklist separately.
+The [acceptance ledger](../../docs/runtime-acceptance.md) preserves the historical
+2026-10-12 compile/configure-only wave separately from execution receipts. Run
+`python tools/sco-core-mcp-runtime/test_server.py` from the repository root for
+synthetic stdio policy and the discovery default/minimal-profile boundary;
+`python tools/sco-core-mcp/test_runtime_schema.py` checks the closed schema vectors.
+Record actual results against the tested source revision. These Python checks do
+not execute the native peer/host fixture or prove Windows effective-identity
+mapping/token/collector behavior. Those checks and manual offline/game acceptance
+remain **NOT VERIFIED; not run in game**. Portable fake collectors and schema
+vectors never stand in for them.
