@@ -51,6 +51,7 @@
     "site"
   ],
   "excluded": [
+    {"path":"tools/test_sdk_workflows.py","why":"Repository workflow index, archive and MCP integration tests; not a runtime dependency."},
     {"path":"tools/test_sdk_mvp_host.mjs","why":"Repository cross-product native host MCP acceptance harness; requires separately built studio."},
     {"path":"tools/test_sdk_mvp.py","why":"Repository archive-only developer workflow acceptance runner."},
     {"path":"tools/sco-core-mcp/runtime_schema/","why":"Runtime protocol design fixtures; separate runtime package, not discovery dependencies."},
@@ -230,6 +231,21 @@
     }
   ],
   "components": [
+    {"id":"workflow.docs.defaults-readiness.md","source":"docs/defaults-readiness.md","destination":"docs/defaults-readiness.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-plan-sdk-work.SKILL.md","source":"sdk/skills/sco-plan-sdk-work/SKILL.md","destination":"skills/sco-plan-sdk-work/SKILL.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-plan-sdk-work.references.roadmap.md","source":"sdk/skills/sco-plan-sdk-work/references/roadmap.md","destination":"skills/sco-plan-sdk-work/references/roadmap.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.docs.roadmap.md","source":"docs/roadmap.md","destination":"docs/roadmap.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.manifest.json","source":"sdk/skills/manifest.json","destination":"skills/manifest.json","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-build-check-package.SKILL.md","source":"sdk/skills/sco-build-check-package/SKILL.md","destination":"skills/sco-build-check-package/SKILL.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-build-check-package.references.build.md","source":"sdk/skills/sco-build-check-package/references/build.md","destination":"skills/sco-build-check-package/references/build.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-build-check-package.references.inputs.md","source":"sdk/skills/sco-build-check-package/references/inputs.md","destination":"skills/sco-build-check-package/references/inputs.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-debug-plugin.SKILL.md","source":"sdk/skills/sco-debug-plugin/SKILL.md","destination":"skills/sco-debug-plugin/SKILL.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-package-plugin.SKILL.md","source":"sdk/skills/sco-package-plugin/SKILL.md","destination":"skills/sco-package-plugin/SKILL.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-package-plugin.references.sc-offline.md","source":"sdk/skills/sco-package-plugin/references/sc-offline.md","destination":"skills/sco-package-plugin/references/sc-offline.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-report-sdk-gap.SKILL.md","source":"sdk/skills/sco-report-sdk-gap/SKILL.md","destination":"skills/sco-report-sdk-gap/SKILL.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.sdk.skills.sco-upgrade-plugin.SKILL.md","source":"sdk/skills/sco-upgrade-plugin/SKILL.md","destination":"skills/sco-upgrade-plugin/SKILL.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.tools.sdk_workflows.py","source":"tools/sdk_workflows.py","destination":"tools/sdk_workflows.py","profiles":["core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"workflow.docs.agent-workflows.md","source":"docs/agent-workflows.md","destination":"docs/agent-workflows.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
 {"id":"source.src.game.services.entity_lookup.h","source":"src/game/services/entity_lookup.h","destination":"src/game/services/entity_lookup.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
 {"id":"source.src.game.services.entity_lookup.cpp","source":"src/game/services/entity_lookup.cpp","destination":"src/game/services/entity_lookup.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
 {"id":"source.tests.test_entity_lookup.cpp","source":"tests/test_entity_lookup.cpp","destination":"tests/test_entity_lookup.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},

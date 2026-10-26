@@ -76,6 +76,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: MCP stdio profiles and configured execution on Windows
+        run: python tools/sco-core-mcp/test_server.py
+
       - name: Configure
         run: cmake -S . -B build -A x64
 

@@ -36,7 +36,8 @@ TOOLS = {
 }
 ORIGINAL_ORDER = ["search_api", "get_symbol", "list_services", "get_example", "get_capability_status", "check_compatibility"]
 EXTENDED_ORDER = ORIGINAL_ORDER + ["list_engine_natives", "get_engine_native", "validate_manifest_and_widgets",
-                                   "generate_plugin_scaffold", "search_guides", "get_guide_section"]
+                                   "generate_plugin_scaffold", "search_guides", "get_guide_section",
+                                   "list_workflows", "get_workflow"]
 DEV_ORDER = ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
 SCAFFOLDER = ROOT / "sdk" / "tools" / "sco-new-plugin.py"
 PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source_sha"}
@@ -102,7 +103,7 @@ class Client:
     """One real child process; bounded reads without platform-specific selectors."""
 
     def __init__(self, catalogue=CATALOGUE, repo_root=None, use_env=False, extended=False, extra=()):
-        command = [sys.executable, str(SERVER)] + (["--extended-tools"] if extended else []) + [str(a) for a in extra]
+        command = [sys.executable, str(SERVER)] + ([] if extended else ["--minimal-tools"]) + [str(a) for a in extra]
         environment = os.environ.copy()
         environment.pop("SCO_CORE_CATALOGUE", None)
         if use_env:
@@ -1227,18 +1228,32 @@ class EngineNativeTests(ServerCase):
         root, catalogue = self.native_root(**kwargs)
         return self.start(catalogue=catalogue, repo_root=root, extended=True)
 
-    def test_extended_tools_are_opt_in_and_read_only(self):
+    def test_minimal_profile_and_default_comprehensive_read_only_tools(self):
         default = self.start()
         self.assertEqual([tool["name"] for tool in default.request("tools/list")["result"]["tools"]], ORIGINAL_ORDER)
         for name in EXTENDED_ORDER[6:]:
             with self.subTest(name=name):
                 self.rpc_error(default.call(name, {}), -32602)
+        # extended=True deliberately sends no profile flag: this asserts the CLI default.
         tools = self.start(extended=True).request("tools/list")["result"]["tools"]
         self.assertEqual([tool["name"] for tool in tools], EXTENDED_ORDER)
         for tool in tools:
             self.assertEqual(tool["annotations"], {"readOnlyHint": True, "destructiveHint": False,
                                                    "idempotentHint": True, "openWorldHint": False})
             self.assertIs(tool["inputSchema"]["additionalProperties"], False)
+
+    def test_legacy_discovery_flags_are_compatible_with_the_default(self):
+        for flag in ("--extended-tools", "--workflow-tools"):
+            client = self.start(extended=True, extra=[flag])
+            self.assertEqual([tool["name"] for tool in client.request("tools/list")["result"]["tools"]], EXTENDED_ORDER)
+
+    def test_default_workflow_tools_report_missing_index(self):
+        client = self.start(extended=True)
+        for name, args in (("list_workflows", {}), ("get_workflow", {"id": "sco-build-check-package"})):
+            with self.subTest(name=name):
+                result = self.result(client.call(name, args), is_error=True)
+                self.assertIn("workflow", result["error"].casefold())
+                self.assertNotIn("workflows", result)
 
     def test_without_repo_root_is_unavailable(self):
         client = self.start(extended=True)
@@ -2109,7 +2124,7 @@ REFUSED = "inside a --project-root"
 
 
 class DevToolTests(ServerCase):
-    """Opt-in run_plugin_check, build_plugin_project and test_plugin_project, with synthetic programs."""
+    """Configured run_plugin_check, build_plugin_project and test_plugin_project, with synthetic programs."""
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="sco_mcp_dev_")
@@ -2162,7 +2177,7 @@ class DevToolTests(ServerCase):
         self.assertIn(token, result["error"])
         return result
 
-    def test_disabled_by_default_and_tool_lists(self):
+    def test_unconfigured_execution_absent_and_configured_tool_lists(self):
         for extended, order in ((False, ORIGINAL_ORDER), (True, EXTENDED_ORDER)):
             client = self.start(extended=extended)
             self.assertEqual([tool["name"] for tool in client.request("tools/list")["result"]["tools"]], order)
@@ -2178,7 +2193,7 @@ class DevToolTests(ServerCase):
 
     def test_startup_refusals(self):
         missing = self.root / "missing"
-        for options in (["--enable-dev-tools"], ["--project-root", self.root], ["--cmake", self.tools / "cmake.py"],
+        for options in (["--enable-dev-tools"], ["--cmake", self.tools / "cmake.py"],
                         ["--enable-dev-tools", "--project-root", missing],
                         ["--enable-dev-tools", "--project-root", self.tools / "check.py"],
                         self.options(timeout=0), self.options(limit=10)):
@@ -2187,6 +2202,16 @@ class DevToolTests(ServerCase):
                                      stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertEqual(run.stdout, b"")
+
+    def test_project_root_configuration_enables_execution_without_legacy_flag(self):
+        options = [item for item in self.options() if item != "--enable-dev-tools"]
+        client = self.start(extended=True, extra=options)
+        tools = client.request("tools/list")["result"]["tools"]
+        self.assertEqual([tool["name"] for tool in tools], EXTENDED_ORDER + DEV_ORDER)
+        good = self.folder("configured")
+        result = self.result(client.call("run_plugin_check", {"folder": str(good)}))
+        self.assertTrue(result["passed"])
+        self.refused(client, "run_plugin_check", {"folder": str(self.outside / "plugin")})
 
     def test_plugin_check_pass_fail_and_short_mode(self):
         client = self.client()

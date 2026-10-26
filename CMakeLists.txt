@@ -616,6 +616,9 @@ if(SCO_BUILD_TESTS)
   # alone stays green and ctest carries the verdict. Header-only, so the kernel-only build runs it
   # too. Needs python3 (CI has it) and the git tag (fetched by the tool when missing).
   find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_sdk_workflows.py")
+    add_test(NAME sdk_workflows COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_sdk_workflows.py")
+  endif()
   if(Python3_Interpreter_FOUND)
     set(_freeze_probe "${CMAKE_CURRENT_BINARY_DIR}/abi_freeze_probe.c")
     execute_process(COMMAND "${Python3_EXECUTABLE}"

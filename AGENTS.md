@@ -1,5 +1,7 @@
 # AGENTS.md: sco-core
 
+For **SDK consumers** building extensions, start with [the packaged workflow suite](sdk/skills/sco-plan-sdk-work/SKILL.md) and [discovery guide](docs/agent-workflows.md). The contributor/clean-room process below applies to core contributions and interoperability-derived facts; ordinary consumer debugging and packaging use public SDK inputs.
+
 Welcome to `sco-core`. This file guides AI coding agents (Claude Code, Cursor, Codex, OmO)
 working in this repository or in downstream forks.
 

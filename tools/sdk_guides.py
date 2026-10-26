@@ -103,6 +103,12 @@ def contained(root, name, limit=MAX_DOC_BYTES, what='guide input'):
         current = current / part
         require(not current.is_symlink() and not is_junction(current), what + ' crosses a symlink or junction: ' + name)
     require(current.is_file(), what + ' missing: ' + name)
+    # resolve() preserves requested casing on some case-insensitive filesystems.
+    exact = root
+    for part in PurePosixPath(name).parts:
+        require(part in {entry.name for entry in exact.iterdir()},
+                what + ' is not exactly beneath the root: ' + name)
+        exact = exact / part
     base, real = Path(root).resolve(), current.resolve()
     require(real.is_relative_to(base) and real.relative_to(base).as_posix() == name,
             what + ' is not exactly beneath the root: ' + name)

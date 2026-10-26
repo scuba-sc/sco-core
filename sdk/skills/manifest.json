@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "bundle_version": "0.2.1",
+  "baseline_sdk": "2.4.0",
+  "skills": [
+    {
+      "id": "sco-plan-sdk-work",
+      "resources": [
+        "references/roadmap.md"
+      ]
+    },
+    {
+      "id": "sco-build-check-package",
+      "resources": [
+        "references/build.md",
+        "references/inputs.md"
+      ]
+    },
+    {
+      "id": "sco-debug-plugin",
+      "resources": []
+    },
+    {
+      "id": "sco-package-plugin",
+      "resources": [
+        "references/sc-offline.md"
+      ]
+    },
+    {
+      "id": "sco-upgrade-plugin",
+      "resources": []
+    },
+    {
+      "id": "sco-report-sdk-gap",
+      "resources": []
+    }
+  ]
+}

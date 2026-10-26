@@ -144,7 +144,7 @@ def load_manifest(path=MANIFEST, root=ROOT):
         raise ManifestError("no components")
     ids, dsts, srcs = set(), {}, set()
     reserved = {n for prof in profiles for n in metadata_names(m, prof)}   # written by package.py
-    reserved |= {"sdk-catalogue.json", "sdk-guides.json"}                   # generated developer data
+    reserved |= {"sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json"}                   # generated developer data
     for i, c in enumerate(comps):
         if not isinstance(c, dict):
             raise ManifestError(f"component {i} is not an object")
@@ -533,6 +533,16 @@ def metadata_names(m, profile):
                                       "ATTRIBUTIONS.json", "SBOM.spdx.json"))
 
 
+def generated_metadata_names(m, profile):
+    """The exact generated inventory, separate from selected source components."""
+    names = set(metadata_names(m, profile))
+    if profile in ("game-sc", "legacy", "host-source-sc"):
+        names.update(("sdk-catalogue.json", "sdk-guides.json"))
+    if any(c["source"] == "sdk/skills/manifest.json" for c in select(m, profile)):
+        names.add("sdk-workflows.json")
+    return names
+
+
 def developer_catalogue(profile):
     """Compile the exact source snapshot for game developer distributions."""
     if profile not in ("game-sc", "legacy", "host-source-sc"):
@@ -589,6 +599,10 @@ def attributions(m, profile):
             "origin": "generated", "license": "GPL-3.0-only",
             "copyright": "2026 the sco-core contributors", "status": "needs-review"}
         records["sdk-guides.json"] = {"path": "sdk-guides.json", "source": "tools/sdk_guides.py",
+            "origin": "generated", "license": "GPL-3.0-only",
+            "copyright": "2026 the sco-core contributors", "status": "needs-review"}
+    if any(c["source"] == "sdk/skills/manifest.json" for c in select(m, profile)):
+        records["sdk-workflows.json"] = {"path": "sdk-workflows.json", "source": "tools/sdk_workflows.py",
             "origin": "generated", "license": "GPL-3.0-only",
             "copyright": "2026 the sco-core contributors", "status": "needs-review"}
     return records
@@ -725,6 +739,17 @@ def archive_entries(m, profile):
     guides = developer_guides(profile)
     if guides is not None:
         entries["sdk-guides.json"] = (guides, False)
+    if "sdk/skills/manifest.json" in zip_paths:
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        try:
+            import sdk_workflows
+            try:
+                workflows = sdk_workflows.build(Path(ROOT), source_commit(), zip_paths, entries)
+                entries["sdk-workflows.json"] = (sdk_workflows.encoded(workflows), False)
+            except (ValueError, KeyError, OSError) as error:
+                raise ManifestError(f"sdk-workflows.json: {error}") from error
+        finally:
+            sys.path.remove(os.path.join(ROOT, "tools"))
     entries[versions_name] = (versions_txt(profile, version).encode("ascii"), False)
     commit = source_commit()
     desc = {"schema_version": 1, "profile": profile, "core_sdk_version": sdk_version(),

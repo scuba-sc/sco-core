@@ -22,6 +22,8 @@
     "docs/contracts.md",
     "docs/stability.md",
     "docs/agent-integration.md",
+    "docs/agent-workflows.md",
+    "docs/defaults-readiness.md",
     "docs/sdk-mcp-tutorial.md",
     "docs/reference-snapshots.md",
     "docs/host-source-sc.md",

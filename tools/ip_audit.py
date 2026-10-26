@@ -432,10 +432,8 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         # in .md files, so those are compared after package.py's own rewrite).
         fails = []
         expected = {pkg.destination(m, profile, c): c for c in chosen}
-        generated = set(pkg.metadata_names(m, profile))
-        if profile in ("game-sc", "legacy", "host-source-sc"):
-            generated.add("sdk-catalogue.json")
-            generated.add("sdk-guides.json")
+        generated = pkg.generated_metadata_names(m, profile)
+        workflows_selected = "sdk-workflows.json" in generated
         for rel in names:
             if rel not in expected and rel not in generated:
                 fails.append(f"{rel}: in the archive but not selected by {COMPONENTS} for {profile}")
@@ -446,18 +444,39 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
             while s and d and os.path.basename(s) == os.path.basename(d):
                 dirs.setdefault(s, d)
                 s, d = os.path.dirname(s), os.path.dirname(d)
+        selected_payload = {}
         for dst, c in expected.items():
             if dst not in content:
                 fails.append(f"{dst}: selected for {profile} but missing from the archive")
                 continue
             with open(os.path.join(root, c["source"]), "rb") as f:
                 want = pkg.fix_links(c["source"], dst, f.read(), zip_paths, dirs)
+            selected_payload[dst] = (want, False)
             if want != content[dst]:
                 fails.append(f"{dst}: differs from {c['source']} at {git_head(root) or 'the working tree'}")
         for g in generated:
             if g not in content:
                 fails.append(f"{g}: missing")
         r.check("archive = manifest selection", len(expected), fails)
+
+        if workflows_selected:
+            # Bind generated text, hashes and source coordinates to the same selected,
+            # link-rewritten payload checked above; an internally rehashed index is not enough.
+            fails = []
+            try:
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(
+                    "sco_audit_workflows", os.path.join(root, "tools", "sdk_workflows.py"))
+                if spec is None or spec.loader is None:
+                    raise AuditError("can't load the workflow index builder")
+                workflows = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(workflows)
+                want = workflows.encoded(workflows.build(root, git_head(root), zip_paths, selected_payload))
+                if content.get("sdk-workflows.json") != want:
+                    fails.append("sdk-workflows.json: differs from the selected payload and source commit")
+            except (AuditError, OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+                fails.append(f"sdk-workflows.json: could not verify the selected payload: {exc}")
+            r.check("workflow index = selected payload", 1, fails)
 
         # SHA256SUMS: every entry once, every hash right.
         fails = []

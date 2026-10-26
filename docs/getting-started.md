@@ -183,7 +183,7 @@ These are **Windows/in-game steps**, not part of the verification above:
 2. With the game stopped, copy the entire Windows-built `first_plugin` folder
    from the install output into sc-offline's `data\plugins\`. Confirm that
    `data\plugins\first_plugin\plugin.ini` and its declared module are together.
-3. In `sc-offline.ini`, set `plugins = on` (loading is off by default).
+3. Check `plugins = on` in `sc-offline.ini` (the current product default); an owner can explicitly disable loading.
 4. Start the offline product and inspect `data\mod.log` for this plugin's state.
    Invoke `first_plugin.ping` in the product's command UI; verify its `pong`
    reply. Record the product/game build and result before claiming gameplay

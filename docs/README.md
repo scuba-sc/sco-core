@@ -1,5 +1,7 @@
 # sco-core documentation
 
+[Consumer agent workflows](agent-workflows.md) cover extension authoring, debugging, packaging, upgrades and SDK gap reports using the existing public contracts.
+
 Curated guides by audience, not an exhaustive inventory of historical records.
 For the project overview, start with the [root README](../README.md).
 For where the SDK is going and how to contribute, read the [roadmap](roadmap.md).

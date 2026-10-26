@@ -43,6 +43,9 @@ jobs:
 
       # sdk/components.json: every file classified, profiles valid, each profile reproducible, core
       # free of game files, and every refusal path refuses (sdk/test_package.py).
+      - name: Consumer workflow index, archive and MCP tests
+        run: python3 tools/test_sdk_workflows.py
+
       - name: Packaging tests (manifest, profiles, refusals)
         run: python3 sdk/test_package.py
 
