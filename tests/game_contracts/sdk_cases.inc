@@ -296,6 +296,28 @@ static void TestGameReputation(const sco_api* api) {
 
 static sco_plugin* g_gruleSelf = nullptr;
 static uint32_t g_gruleValid = 1;
+static uint32_t g_gruleListCalls = 0;
+static uint32_t g_gruleListBad = 0;
+static sco_result g_gruleListResult = SCO_OK;
+static sco_result GruleList(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out,
+                            uint32_t stride, uint32_t cap, uint32_t* count, uint32_t* total) {
+    ++g_gruleListCalls;
+    if (self != g_gruleSelf || offset > 3 || cap > 64 || !count || !total || count == total ||
+        (cap ? (!out || stride != sizeof(*out)) : out != nullptr)) return SCO_BAD_ARG;
+    const uint32_t n = cap < 3 - offset ? cap : 3 - offset;
+    for (uint32_t i = 0; i < n; ++i) {
+        if (out[i].size != sizeof(out[i])) return SCO_BAD_ARG;
+        out[i].type = offset + i == 2 ? SC_GAMERULES_PARAM_FLOAT : SC_GAMERULES_PARAM_INT;
+        std::snprintf(out[i].name, sizeof(out[i].name), "synthetic_%u", offset + i);
+        std::snprintf(out[i].group, sizeof(out[i].group), "%s", offset + i == 2 ? "" : "test");
+    }
+    *count = g_gruleListBad == 1 ? cap + 1 : n;
+    *total = g_gruleListBad == 4 ? 0 : 3;
+    if (n && g_gruleListBad == 2) std::memset(out[0].name, 'x', sizeof(out[0].name));
+    if (n && g_gruleListBad == 3) out[0].size = 0;
+    if (n && g_gruleListBad == 5) std::memset(out[0].group, 'x', sizeof(out[0].group));
+    return g_gruleListResult;
+}
 static sco_result GruleRead(sco_plugin* self, sc_gamerules_state* out) {
     if (self != g_gruleSelf || !out || out->size < sizeof(sc_gamerules_state)) return SCO_BAD_ARG;
     out->valid = g_gruleValid;
@@ -314,7 +336,7 @@ static void TestGameRules(const sco_api* api) {
     state.valid = 1;
     CHECK(none.Open(api, g_gruleSelf) == SCO_NOT_FOUND && !none);
     CHECK(none.Read(state) == SCO_UNAVAILABLE && state.size == sizeof(state) && state.valid == 0);
-    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, GruleRead, nullptr };
+    static sc_gamerules_v1 kFake = { sizeof(sc_gamerules_v1), 0, GruleRead, GruleList };
     CHECK(sco::host::ProvideGameService(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_SERVICE_VERSION, &kFake) == sco::Result::Ok);
     sdk::game::GameRules rules;
     CHECK(rules.Open(api, g_gruleSelf) == SCO_OK && rules && rules.Table() == &kFake);
@@ -331,7 +353,46 @@ static void TestGameRules(const sco_api* api) {
     CHECK(rules.Read(state) == SCO_UNAVAILABLE);
     kFake.read = GruleRead;
     CHECK(rules.Read(state) == SCO_OK);
+    std::array<sc_gamerules_param_info, 2> page{};
+    uint32_t count = 77, total = 88;
+    CHECK(rules.ListParams(0, page, count, total) == SCO_UNAVAILABLE && count == 77 && total == 88);
+    CHECK(g_gruleListCalls == 0); // The 1.0 registration cannot promise a 1.1 tail.
     CHECK(sco::host::WithdrawGameService(SC_GAMERULES_SERVICE_NAME) == sco::Result::Ok);
+    CHECK(sco::host::ProvideGameService(SC_GAMERULES_SERVICE_NAME, SC_GAMERULES_VERSION_1_1, &kFake) == sco::Result::Ok);
+    CHECK(rules.ListParams(0, {}, count, total) == SCO_OK && count == 0 && total == 3);
+    CHECK(rules.ListParams(0, page, count, total) == SCO_OK && count == 2 && total == 3);
+    CHECK(page[0].size == sizeof(page[0]) && std::strcmp(page[0].name, "synthetic_0") == 0 &&
+          std::strcmp(page[1].group, "test") == 0 && page[0].type == SC_GAMERULES_PARAM_INT);
+    const auto firstPage = page;
+    CHECK(rules.ListParams(2, page, count, total) == SCO_OK && count == 1 && total == 3);
+    CHECK(std::strcmp(page[0].name, "synthetic_2") == 0 && page[0].group[0] == 0 &&
+          page[0].type == SC_GAMERULES_PARAM_FLOAT &&
+          std::memcmp(&page[1], &firstPage[1], sizeof(page[1])) == 0);
+    CHECK(rules.ListParams(3, page, count, total) == SCO_OK && count == 0 && total == 3);
+    CHECK(rules.ListParams(4, page, count, total) == SCO_BAD_ARG);
+    std::array<sc_gamerules_param_info, 65> tooMany{};
+    const auto calls = g_gruleListCalls;
+    CHECK(rules.ListParams(0, tooMany, count, total) == SCO_BAD_ARG && g_gruleListCalls == calls);
+    CHECK(rules.ListParams(0, page, count, count) == SCO_BAD_ARG && g_gruleListCalls == calls);
+    const auto unchanged = page;
+    for (uint32_t bad = 1; bad <= 5; ++bad) {
+        g_gruleListBad = bad;
+        count = 77; total = 88;
+        CHECK(rules.ListParams(bad == 4 ? 1 : 0, page, count, total) == SCO_FAILED && count == 77 && total == 88);
+        CHECK(std::memcmp(page.data(), unchanged.data(), sizeof(page)) == 0);
+    }
+    g_gruleListBad = 0;
+    g_gruleListResult = SCO_WRONG_THREAD;
+    CHECK(rules.ListParams(0, page, count, total) == SCO_WRONG_THREAD && count == 77 && total == 88 &&
+          std::memcmp(page.data(), unchanged.data(), sizeof(page)) == 0);
+    g_gruleListResult = SCO_OK;
+    kFake.size = 23;
+    CHECK(rules.ListParams(0, page, count, total) == SCO_UNAVAILABLE);
+    kFake.size = sizeof(kFake); kFake.list_params = nullptr;
+    CHECK(rules.ListParams(0, page, count, total) == SCO_UNAVAILABLE);
+    kFake.list_params = GruleList;
+    CHECK(sco::host::WithdrawGameService(SC_GAMERULES_SERVICE_NAME) == sco::Result::Ok);
+    CHECK(rules.ListParams(0, page, count, total) == SCO_NOT_FOUND);
 }
 
 // ---- scosdk/game/events.hpp: the helpers copy the payload and refuse a short one ------------------

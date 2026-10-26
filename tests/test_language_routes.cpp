@@ -227,6 +227,7 @@ int main() {
     CheckField(reputation, &sc_reputation_v1::checks, [&] { sc_reputation_checks rc; (void)rp.Checks(rc); });
     CheckField(reputation, &sc_reputation_v1::last_error, [&] { (void)rp.LastError(); });
     CheckField(gamerules, &sc_gamerules_v1::read, [&] { sc_gamerules_state gs; (void)gr.Read(gs); });
+    CheckField(gamerules, &sc_gamerules_v1::list_params, [&] { uint32_t n = 0, total = 0; (void)gr.ListParams(0, {}, n, total); });
     CheckField(vehicles, &sc_vehicles_v1::player_ship, [&] { (void)v.PlayerShip(ship); });
     CheckField(vehicles, &sc_vehicles_v1::seat_occupant, [&] { (void)v.SeatOccupant(9, 0, actor); });
     CheckField(vehicles, &sc_vehicles_v1::seat, [&] { (void)v.Seat(5, 9, 0); });
