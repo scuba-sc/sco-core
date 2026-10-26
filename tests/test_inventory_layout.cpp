@@ -105,6 +105,7 @@ int main() {
     alignas(8) unsigned char odd[sizeof(out) + 8]{};
     Check(table->snapshot_layout(self, reinterpret_cast<sc_inventory_layout_snapshot*>(odd + 1), rows,
                                   sizeof(rows[0]), 3) == SCO_BAD_ARG);
+    Check(!sc_inventory_layout_valid(reinterpret_cast<sc_inventory_layout_snapshot*>(odd + 1), rows, sizeof(rows[0]), 3));
 
     world.oversizedInfo = true; ++world.generation;
     Check(table->snapshot_layout(self, &out, rows, sizeof(rows[0]), 3) == SCO_UNAVAILABLE);

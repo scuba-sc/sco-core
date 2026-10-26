@@ -550,7 +550,7 @@ static inline int sc_inventory_layout_key_valid(const char* key, uint32_t bytes,
 static inline int sc_inventory_layout_valid(const sc_inventory_layout_snapshot* out,
     const sc_inventory_layout_entry* entries, uint32_t stride, uint32_t capacity) {
     uint32_t i, j;
-    if (!out || out->size < sizeof(*out) || !capacity || capacity > SC_INVENTORY_LAYOUT_MAX_PORTS ||
+    if (!out || ((uintptr_t)out & 7u) || out->size < sizeof(*out) || !capacity || capacity > SC_INVENTORY_LAYOUT_MAX_PORTS ||
         !entries || stride < sizeof(*entries) || stride > SC_INVENTORY_LAYOUT_MAX_STRIDE || (stride & 7u) ||
         ((uintptr_t)entries & 7u) || out->count > capacity || out->total_seen < out->count ||
         !out->source_epoch || !out->observation_generation || !out->flags || (out->flags & ~7u) ||
