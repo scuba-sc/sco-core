@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- The plugin checker records an absent current resource during automatic
+  no-argument smoke calls without marking a structurally valid plugin as failed.
+  Explicit `--invoke` requests still fail on `not_found`, and failed/invalid
+  handlers and API misuse remain failures. No command success is inferred.
+
 - C++20, C# and Lua expose the existing widget subtree and capability operations.
   C#/Lua support tooltips, severity, paging events and stable tags with version,
   feature and complete table guards. Unsupported presentation refuses explicitly;

@@ -1810,7 +1810,9 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
         }
         r = run_command(c, args, c->c.nargs, reply, sizeof reply);
         printf("  invoke  %s -> %s \"%s\"\n", c->name, result_name(r), reply);
-        if (r != SCO_OK && r != SCO_UNAVAILABLE) fail("%s returned %s", c->name, result_name(r));
+        if (r == SCO_NOT_FOUND && !(invoke_name && !strcmp(invoke_name, c->name)))
+            printf("  observe %s: not_found; no current resource, command did not succeed\n", c->name);
+        else if (r != SCO_OK && r != SCO_UNAVAILABLE) fail("%s returned %s", c->name, result_name(r));
     }
     if (invoke_name) {
         for (i = 0; i < ncmds; ++i) if (!strcmp(cmds[i].name, invoke_name)) break;
