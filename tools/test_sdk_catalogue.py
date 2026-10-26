@@ -18,6 +18,25 @@ SHA = '0123456789abcdef0123456789abcdef01234567'
 
 
 class InventoryVocabularyTests(unittest.TestCase):
+    def test_inventory_layout_tolerates_windows_min_macro(self):
+        source = (ROOT / 'src/game/services/inventory_layout.cpp').read_text()
+        marker = 'namespace sco::game::services::inventory_layout {'
+        self.assertEqual(source.count(marker), 1)
+        source = source.replace(marker, '#define min(a, b) windows_min_macro_must_not_expand(a, b)\n' + marker)
+        clang = catalogue.find_clang()
+        self.assertIsNotNone(clang)
+        with tempfile.TemporaryDirectory(prefix='inventory_min_macro_') as directory:
+            path = Path(directory) / 'inventory_layout.cpp'
+            args = [clang, '-x', 'c++', '-std=c++20', '-I', str(ROOT / 'include'), '-I', str(ROOT / 'src'),
+                    '-I', str(ROOT / 'src/game/services'), '-fsyntax-only', str(path)]
+            path.write_text(source)
+            result = subprocess.run(args, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            old = '(std::min)(frame.info.count, capacity)'
+            self.assertEqual(source.count(old), 1)
+            path.write_text(source.replace(old, 'std::min(frame.info.count, capacity)'))
+            self.assertNotEqual(subprocess.run(args, capture_output=True).returncode, 0)
+
     def test_managed_vocabulary_matches_all_public_categories(self):
         header = (ROOT / 'include/sc_inventory.h').read_text()
         managed = (ROOT / 'sdk/csharp/Sco.Sdk/Game/Inventory.cs').read_text()
@@ -108,12 +127,38 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(source.count(before), 1)
         path.write_text(source.replace(before, after))
 
+    def test_inventory_nested_prefix_exposes_inherited_and_new_members(self):
+        inventory = catalogue.header_inventory(self.root)
+        self.assertEqual(inventory['tables']['sc_inventory_v1']['version_macro'],
+                         'SC_INVENTORY_SERVICE_VERSION_1_1')
+        tail = inventory['tables']['sc_inventory_v1_2']
+        self.assertEqual(tail['members'], ['base.snapshot', 'snapshot_layout'])
+        self.assertEqual((tail['size'], tail['version_macro']), (24, 'SC_INVENTORY_SERVICE_VERSION_1_2'))
+        methods = {r['symbol']: r for r in inventory['methods']}
+        self.assertEqual(methods['sc_inventory_v1_2.base.snapshot']['member_extent'], 16)
+        self.assertEqual(methods['sc_inventory_v1_2.snapshot_layout']['member_extent'], 24)
+
+    def test_nested_prefix_must_start_at_zero(self):
+        self.header_change('sc_inventory.h', '    sc_inventory_v1 base; /* offset zero;',
+                           '    uint64_t not_prefix;\n    sc_inventory_v1 base; /* offset zero;')
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'leading size'):
+            catalogue.header_inventory(self.root)
+
+    def test_nested_prefix_must_be_a_real_callback_table(self):
+        self.header_change('sc_inventory.h', 'typedef struct sc_inventory_v1_2 {',
+                           'typedef struct fake_inventory_prefix { uint32_t size; uint32_t pad; } fake_inventory_prefix;\n'
+                           'typedef struct sc_inventory_v1_2 {')
+        self.header_change('sc_inventory.h', '    sc_inventory_v1 base; /* offset zero;',
+                           '    fake_inventory_prefix base; /* offset zero;')
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'leading size'):
+            catalogue.header_inventory(self.root)
+
     def test_baseline_matches_header_count(self):
         records, extracted = catalogue.validate(self.root)
         self.assertEqual(len(records), len(extracted['methods']))
-        self.assertEqual(len(records), 222)
-        self.assertEqual(len(extracted['tables']), 46)
-        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 219)
+        self.assertEqual(len(records), 224)
+        self.assertEqual(len(extracted['tables']), 47)
+        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 221)
         self.assertEqual(extracted['tables']['sc_relocation_v1']['size'], 32)
         self.assertEqual(extracted['tables']['sc_relocation_v1_1']['size'], 40)
         self.assertEqual(extracted['tables']['sc_relocation_v1_1']['members'],

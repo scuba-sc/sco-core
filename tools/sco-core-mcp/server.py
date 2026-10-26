@@ -380,7 +380,7 @@ def load_catalogue(path):
                     and record["member_extent"] <= table["size"] == record["table_size"]
                     and record["service"] == table["service"]
                     and record["symbol"].startswith(record["table"] + ".")
-                    and record["symbol"].rsplit(".", 1)[-1] in table["members"], "Invalid record layout")
+                    and record["symbol"][len(record["table"]) + 1:] in table["members"], "Invalid record layout")
         for key in ("examples", "tests", "limitations"):
             require(isinstance(record[key], list) and all(nonempty(v) for v in record[key]), "Invalid record array")
         mappings = record["language_mappings"]

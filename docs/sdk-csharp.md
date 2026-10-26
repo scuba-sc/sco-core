@@ -169,6 +169,9 @@ The host-owned services each have a class. `Open(plugin)` queries the service on
 | `Sco.Sdk.Game.Entities` | [`game.entities`](api-v1.md#gameentities-11-game-pack) ([`sc_entities.h`](../include/sc_entities.h)) | `Open`, `Alive(id)`, `ClassOf(id, out cls)`, `GetTransform(id, Span<double> pos, Span<double> rot, out zone)`, `SetTransform`, `Spawn(cls, zone, pos, rot, out id)`, `Despawn`, `Keep` (1.1), `Watch(what, type, fn, ctx, out id)` (an unmanaged function pointer), `Unwatch`, `QueryRadius`, `LastError()`, `LastReadError()`. Game thread only |
 
 Inventory category names use the existing public 192-member table for build **4.10.197.2878**.
+`Sco.Sdk.Game.InventoryLayout` separately queries the 1.2 copied logical-layout route and
+validates the complete returned buffer. Its `game.inventory.layout` capability is OFF
+without an admitted producer; the current provider tests are synthetic.
 `InventoryItemTypes.FromRaw(raw)` and `Name(raw)` work without a service; names do not indicate
 backend readiness. For a snapshot port, retain `item_class_id` as `ulong` alongside `ItemType`:
 invalid or unmapped values become `ScItemType.Unknown` (`0xFFFFFFFF`) and `"UNDEFINED"` without

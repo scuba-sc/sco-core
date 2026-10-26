@@ -107,6 +107,7 @@ def header_inventory(root, clang=None):
     include = root / 'include'
     methods = {}
     tables = {}
+    nested_prefixes = {}
     headers = sorted(include.glob('*.h'))
     require(headers, 'no public headers found')
     with tempfile.TemporaryDirectory(prefix='sdk_catalogue_') as work:
@@ -124,21 +125,45 @@ def header_inventory(root, clang=None):
             # Primary-file candidates only; included headers are inspected themselves.
             primary = set(re.findall(r'\bstruct\s+(\w+)\s*\{',
                                      re.sub(r'/\*.*?\*/|//[^\n]*', '', source, flags=re.S)))
-            for node in walk(ast):
-                name = node.get('name')
-                if node.get('kind') != 'RecordDecl' or name not in primary or name == 'sco_command':
-                    continue
-                fields = [f for f in node.get('inner', []) if f.get('kind') == 'FieldDecl']
-                functions = []
+            nodes = {node.get('name'): node for node in walk(ast)
+                     if node.get('kind') == 'RecordDecl' and node.get('name') in primary
+                     and any(f.get('kind') == 'FieldDecl' for f in node.get('inner', []))}
+            fields_by_name = {name: [f for f in node.get('inner', []) if f.get('kind') == 'FieldDecl']
+                              for name, node in nodes.items()}
+
+            def callbacks(fields):
+                result = []
                 for field in fields:
                     typ = field.get('type', {})
                     sig = typ.get('desugaredQualType', typ.get('qualType', ''))
                     if re.search(r'\(\s*\*[^)]*\)\s*\(', sig):
-                        functions.append((field['name'], sig))
+                        result.append((field['name'], sig))
+                return result
+
+            for name, fields in fields_by_name.items():
+                if not callbacks(fields) or fields[0]['name'] == 'size' or name == 'sco_command':
+                    continue
+                kind = fields[0].get('type', {}).get('desugaredQualType', '')
+                match = re.fullmatch(r'struct (\w+)', kind)
+                base = match.group(1) if match else None
+                base_fields = fields_by_name.get(base, [])
+                require(base_fields and base_fields[0]['name'] == 'size' and callbacks(base_fields),
+                        'public method table has no leading size: ' + name)
+                nested_prefixes[name] = (fields[0]['name'], base)
+
+            for node in nodes.values():
+                name = node.get('name')
+                if node.get('kind') != 'RecordDecl' or name not in primary or name == 'sco_command':
+                    continue
+                fields = fields_by_name[name]
+                functions = callbacks(fields)
                 if not functions:
                     continue
-                require(fields and fields[0]['name'] == 'size',
+                require(fields and (fields[0]['name'] == 'size' or name in nested_prefixes),
                         'public method table has no leading size: ' + name)
+                if name in nested_prefixes:
+                    field, base = nested_prefixes[name]
+                    functions = [(field + '.' + member, sig) for member, sig in callbacks(fields_by_name[base])] + functions
                 require(name not in tables, 'duplicate header table: ' + name)
                 own_macros = re.findall(r'^\s*#\s*define\s+(\w+)', source, re.M)
                 if name == 'sco_api':
@@ -147,7 +172,14 @@ def header_inventory(root, clang=None):
                 else:
                     versions = [m for m in own_macros if re.search(r'_VERSION(?:_\d+_\d+)?$', m)]
                     require(versions, 'no version macro for ' + name)
-                    version_macro = sorted(versions, key=lambda m: [int(x) for x in re.findall(r'\d+', m)] or [0])[-1]
+                    def version_key(macro):
+                        return tuple(int(x) for x in re.findall(r'\d+', macro)) or (0,)
+                    child_versions = [tuple(map(int, match.groups())) for child, (_, base) in nested_prefixes.items()
+                                      if base == name and (match := re.search(r'_v(\d+)_(\d+)$', child))]
+                    if child_versions:
+                        versions = [m for m in versions if version_key(m) < min(child_versions)]
+                        require(versions, 'no base version macro for ' + name)
+                    version_macro = sorted(versions, key=version_key)[-1]
                     prefix = re.sub(r'_v\d+(?:_\d+)?$', '', name).upper()
                     names = [m for m in own_macros if m in {prefix + '_NAME', prefix + '_SERVICE_NAME'}]
                     require(len(names) == 1, 'ambiguous service name macro for ' + name)
@@ -178,6 +210,9 @@ def header_inventory(root, clang=None):
         lines += ['int main(void) {',
                   '_Static_assert(sizeof(void*) == 8, "x64 required");',
                   'printf("game-pack %s\\n", SCO_GAME_PACK_VERSION);']
+        for name, (field, base) in sorted(nested_prefixes.items()):
+            lines.append(f'_Static_assert(offsetof({name}, {field}) == 0, "nested table must start at zero");')
+            lines.append(f'_Static_assert(offsetof({base}, size) == 0 && sizeof((({base}*)0)->size) == 4, "nested table needs a 32-bit size prefix");')
         for name, table in sorted(tables.items()):
             macro = table['version_macro']
             version = '((SCO_API_MAJOR << 16) | SCO_API_MINOR)' if name == 'sco_api' else macro
@@ -276,7 +311,7 @@ def language_check(root, record, language, mapping):
         # The game adapter is read-only. self-taking last_error/state are queries,
         # not exceptions authorizing mutation; native table discovery is not Lua FFI.
         readonly_self = {('sc_gamerules_v1', 'read'), ('sc_gamerules_v1', 'list_params'),
-                         ('sc_inventory_v1', 'snapshot')}
+                         ('sc_inventory_v1', 'snapshot'), ('sc_inventory_v1_2', 'snapshot_layout')}
         mutation = (record['source_header'].startswith('include/sc_') and 'sco_plugin *' in record['signature']
                     and member not in {'last_error', 'state'} and (record['table'], member) not in readonly_self)
         require(not mutation and record['kind'] != 'entrypoint',
@@ -308,7 +343,7 @@ def documentation_check(root, records, inventory):
     text = (root / 'docs/contracts.md').read_text(encoding='utf-8')
     rows = {}
     for line in text.splitlines():
-        match = re.match(r'^\| `((?:\w+\.\w+)|sco_plugin_\w+)` \|', line)
+        match = re.match(r'^\| `((?:\w+(?:\.\w+)+)|sco_plugin_\w+)` \|', line)
         if not match:
             continue
         cells = [cell.strip() for cell in line.strip().strip('|').split('|')]
@@ -339,7 +374,8 @@ def documentation_signatures(root, records, clang=None):
         require(declaration is not None, 'missing documented C declaration: ' + record['symbol'])
         declaration = declaration[1].rstrip(';') + ';'
         member = record['symbol'].split('.')[-1]
-        actual = f"(({record['table']}*)0)->{member}" if record['table'] else member
+        field_path = record['symbol'].split('.', 1)[1] if record['table'] else member
+        actual = f"(({record['table']}*)0)->{field_path}" if record['table'] else member
         lines += [f'void docs_signature_{index}(void) {{', declaration,
                   f'_Static_assert(__builtin_types_compatible_p(__typeof__({actual}), __typeof__({member})), "documented signature mismatch: {record["symbol"]}");', '}']
     with tempfile.TemporaryDirectory(prefix='sdk_documented_signature_') as work:

@@ -643,8 +643,8 @@ or writes game state. Not run in game.
 
 ### `game.inventory` 1.0 (game pack)
 
-[`sc_inventory.h`](../include/sc_inventory.h), pinned by [`tests/abi_game_inventory.c`](../tests/abi_game_inventory.c) (table 16 bytes, `sc_inventory_port` 24 bytes, `sc_inventory_snapshot` 3088 bytes):
-`snapshot` copies the local player's item ports (up to 128) with `valid`, `item_class_id` (the item type id, a coarse category) and `entity_id` per port, and a `generation` counter. Read-only. Capability `game.inventory.read` defaults OFF; unbound answers `SCO_UNAVAILABLE`. This is the 1.0 contract; C# and Lua routes are unsupported ([game.inventory](game/inventory.md)). Not run in game.
+[`sc_inventory.h`](../include/sc_inventory.h), pinned by [`tests/abi_game_inventory.c`](../tests/abi_game_inventory.c) (1.0 table 16 bytes, `sc_inventory_port` 24 bytes, 1.0 snapshot prefix 3088 bytes):
+`snapshot` copies the local player's item ports (up to 128) with `valid`, `item_class_id` (a coarse category) and `entity_id` per port, and a `generation` counter. Version 1.1 adds size-gated completeness details and has C# and Lua wrappers. The separately queried 1.2 table adds a copied logical layout and C++, C# and Lua wrappers; its capability `game.inventory.layout` is OFF without a production producer. `game.inventory.read` also defaults OFF. See [game.inventory](game/inventory.md). Not run in game.
 
 ## Raw handlers (1.1)
 

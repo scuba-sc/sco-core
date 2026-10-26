@@ -243,7 +243,7 @@ class FixtureTests(unittest.TestCase):
                 table = data["tables"][record["table"]]
                 self.assertEqual(record["table_size"], table["size"])
                 self.assertLessEqual(record["member_extent"], table["size"])
-                self.assertIn(record["symbol"].split(".")[-1], table["members"])
+                self.assertIn(record["symbol"][len(record["table"]) + 1:], table["members"])
 
     def test_fixture_examples_are_contained_regular_files(self):
         for record in fixture()["records"]:
@@ -896,6 +896,24 @@ class AdditionalBoundaryTests(ServerCase):
 
 
 class LanguageMetadataTests(ServerCase):
+    def test_nested_table_member_matches_complete_path(self):
+        server = importlib.import_module("server")
+        data = fixture()
+        record = next(r for r in data["records"] if r["table"] is not None)
+        table = data["tables"][record["table"]]
+        member = record["symbol"][len(record["table"]) + 1:]
+        table["members"][table["members"].index(member)] = "base." + member
+        record["symbol"] = record["table"] + ".base." + member
+        _, path = self.temporary_catalogue(data)
+        self.assertEqual(server.load_catalogue(path), data)
+        client = self.start(catalogue=path)
+        result = self.result(client.call("get_symbol", {"symbol_or_id": record["symbol"]}), data=data)
+        self.assertEqual(result["record"]["symbol"], record["symbol"])
+        record["symbol"] = record["table"] + ".other." + member
+        path.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Invalid record layout"):
+            server.load_catalogue(path)
+
     def test_language_test_metadata_and_legacy_catalogues(self):
         server = importlib.import_module("server")
         self.assertEqual(server.load_catalogue(CATALOGUE), fixture())

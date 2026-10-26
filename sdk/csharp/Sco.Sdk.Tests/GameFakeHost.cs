@@ -13,10 +13,11 @@ namespace Sco.Sdk.Tests
 {
     internal static unsafe partial class FakeHost
     {
-        private static bool _inventoryCapability = true;
+        private static bool _inventoryCapability = true, _layoutCapability = true;
         static partial void GameHas(string name, ref bool ready)
         {
             if (name == "game.inventory.read") ready = _inventoryCapability;
+            if (name == "game.inventory.layout") ready = _layoutCapability;
         }
 
         private static ScInventoryV1* _inventory;
@@ -28,6 +29,57 @@ namespace Sco.Sdk.Tests
         private static int _inventoryCalls;
         private static bool _inventoryBadSize, _inventoryBadCount;
         private static Inventory? _inventoryAfterUnload;
+        private static InventoryLayout? _layoutAfterUnload;
+        private static int _layoutCalls, _layoutMalformed;
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult InvLayout(void* self, ScInventoryLayoutSnapshot* info, ScInventoryLayoutEntry* rows, uint stride, uint capacity)
+        {
+            ++_layoutCalls;
+            if (self != _self || info == null || info->size != 160 || rows == null || stride != 96 || capacity != 128) return ScoResult.BadArg;
+            info->count = info->total_seen = 2; info->flags = 1;
+            info->source_epoch = ulong.MaxValue; info->observation_generation = 1;
+            System.Text.Encoding.ASCII.GetBytes("dev.gear.v1").CopyTo(new Span<byte>(info->identity_domain, 64));
+            System.Text.Encoding.ASCII.GetBytes("human.v1").CopyTo(new Span<byte>(info->layout_key, 64));
+            rows[0].state = 2; rows[0].role = 1; rows[0].flags = 3; rows[0].raw_item_type = uint.MaxValue; rows[0].entity_id = ulong.MaxValue;
+            System.Text.Encoding.ASCII.GetBytes("helmet").CopyTo(new Span<byte>(rows[0].port_key, 64));
+            rows[1].state = 1; rows[1].role = 2;
+            System.Text.Encoding.ASCII.GetBytes(_layoutMalformed == 1 ? "helmet" : "storage").CopyTo(new Span<byte>(rows[1].port_key, 64));
+            if (_layoutMalformed == 2) info->size = 168;
+            if (_layoutMalformed == 3) info->count = 129;
+            if (_layoutMalformed == 4) rows[1].entity_id = 1;
+            return ScoResult.Ok;
+        }
+
+        private static void InventoryLayoutTests(Plugin p)
+        {
+            Expect(sizeof(ScInventoryV12) == 24 && sizeof(ScInventoryLayoutSnapshot) == 160 && sizeof(ScInventoryLayoutEntry) == 96, "layout native sizes");
+            var t = (ScInventoryV12*)_inventory;
+            t->size = 24; t->snapshot_layout = &InvLayout; _inventoryVersion = 0x00010002u;
+            var layout = new InventoryLayout();
+            Expect(layout.Open(p) == ScoResult.Ok && _inventoryQueriedVersion == 0x00010002u, "layout queries exact version");
+            Expect(layout.Snapshot(out var value) == ScoResult.Ok && value != null && value.Ports.Length == 2 &&
+                value.IdentityDomain == "dev.gear.v1" && value.LayoutKey == "human.v1" && value.SourceEpoch == ulong.MaxValue &&
+                value.Ports[0].Key == "helmet" && value.Ports[0].RawItemType == uint.MaxValue && value.Ports[1].Role == 2,
+                "layout returns copied coherent values");
+            int calls = _layoutCalls;
+            for (uint size = 0; size < 24; ++size)
+            {
+                t->size = size;
+                Expect(layout.Snapshot(out _) == ScoResult.Unavailable && _layoutCalls == calls, "layout short member never called");
+            }
+            t->size = 24; t->snapshot_layout = null;
+            Expect(layout.Snapshot(out _) == ScoResult.Unavailable && _layoutCalls == calls, "layout null method never called");
+            t->snapshot_layout = &InvLayout;
+            _layoutCapability = false;
+            Expect(layout.Snapshot(out _) == ScoResult.Unavailable && _layoutCalls == calls, "layout capability off never called");
+            _layoutCapability = true;
+            for (_layoutMalformed = 1; _layoutMalformed <= 4; ++_layoutMalformed)
+                Expect(layout.Snapshot(out var invalid) == ScoResult.Failed && invalid == null, "layout rejects malformed output");
+            _layoutMalformed = 0;
+            _layoutAfterUnload = layout;
+            t->size = 16; _inventoryVersion = GameAbi.InventoryVersion1_1;
+        }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult InvSnapshot(void* self, ScInventorySnapshot* value)
@@ -139,6 +191,11 @@ namespace Sco.Sdk.Tests
         {
             int calls = _inventoryCalls;
             Expect(_inventoryAfterUnload!.Snapshot(out _) == ScoResult.Unavailable && _inventoryCalls == calls, "inventory never calls after consumer unload");
+            calls = _layoutCalls;
+            uint priorSize = _inventory->size;
+            _inventory->size = 24; // Keep the layout member callable so owner unload is the refusal cause.
+            Expect(_layoutAfterUnload!.Snapshot(out _) == ScoResult.Unavailable && _layoutCalls == calls, "layout never calls after consumer unload");
+            _inventory->size = priorSize;
         }
 
         private static ScActorsV1* _actors;  // a stand-in game.actors
@@ -516,7 +573,7 @@ namespace Sco.Sdk.Tests
 
         static partial void GameSetUp()
         {
-            _inventory = (ScInventoryV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScInventoryV1));
+            _inventory = (ScInventoryV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScInventoryV12));
             _inventory->size = (uint)sizeof(ScInventoryV1);
             _inventory->snapshot = &InvSnapshot;
             _actors = (ScActorsV1*)NativeMemory.AllocZeroed((nuint)sizeof(ScActorsV1));
@@ -726,6 +783,7 @@ namespace Sco.Sdk.Tests
         static partial void GameTests(Plugin p)
         {
             InventoryTests(p);
+            InventoryLayoutTests(p);
             var actors = new Actors();
             Expect(actors.Open(p) == ScoResult.Ok && actors.IsOpen, "game.actors opens");
             Expect(actors.LocalPlayer(out ulong actorId, out ulong entityId) == ScoResult.Ok && actorId == 5 && entityId == 6, "Actors.LocalPlayer");

@@ -508,6 +508,66 @@ end}
     CHECK(sco::caps::Set("game.inventory.read", false) == Result::Ok);
 }
 
+static uint32_t g_layoutCalls = 0, g_layoutMalformed = 0;
+static sco_result FakeInventoryLayout(sco_plugin* self, sc_inventory_layout_snapshot* out,
+                                      sc_inventory_layout_entry* rows, uint32_t stride, uint32_t capacity) {
+    ++g_layoutCalls;
+    if (!self || !out || out->size != sizeof(*out) || !rows || stride != sizeof(*rows) || capacity != 128)
+        return SCO_BAD_ARG;
+    out->count = out->total_seen = 2; out->flags = SC_INVENTORY_LAYOUT_COMPLETE;
+    out->source_epoch = UINT64_MAX; out->observation_generation = 1;
+    std::strcpy(out->identity_domain, "dev.gear.v1"); std::strcpy(out->layout_key, "human.v1");
+    rows[0].state = SC_INVENTORY_PORT_OCCUPIED; rows[0].role = SC_INVENTORY_ROLE_EQUIPMENT;
+    rows[0].flags = SC_INVENTORY_ENTRY_TYPE_KNOWN | SC_INVENTORY_ENTRY_ENTITY_KNOWN;
+    rows[0].raw_item_type = UINT32_MAX; rows[0].entity_id = UINT64_MAX; std::strcpy(rows[0].port_key, "helmet");
+    rows[1].state = SC_INVENTORY_PORT_EMPTY; rows[1].role = SC_INVENTORY_ROLE_STORAGE;
+    std::strcpy(rows[1].port_key, g_layoutMalformed == 1 ? "helmet" : "storage");
+    if (g_layoutMalformed == 2) out->size += 8;
+    if (g_layoutMalformed == 3) out->count = 129;
+    return SCO_OK;
+}
+
+static void TestInventoryLayout() {
+    static sc_inventory_v1_2 table = {{sizeof(table), 0, FakeInventory}, FakeInventoryLayout};
+    Write("galayout", R"(
+local inv = assert(sco.game.inventory)
+sco.register_command{name="galayout.read",title="Read",fn=function()
+  local s, err = inv.layout()
+  return s and tostring(s.count) or err
+end}
+sco.register_command{name="galayout.check",title="Check",fn=function()
+  local s = assert(inv.layout())
+  assert(s.count == 2 and s.total_seen == 2 and s.flags == 1 and s.source_epoch == "18446744073709551615")
+  assert(s.identity_domain == "dev.gear.v1" and s.layout_key == "human.v1" and s.observation_generation == 1)
+  assert(s.ports[1].port_key == "helmet" and s.ports[1].role == 1 and s.ports[1].state == 2)
+  assert(s.ports[1].raw_item_type == 4294967295 and s.ports[1].entity_id == "18446744073709551615")
+  assert(s.ports[2].port_key == "storage" and s.ports[2].role == 2 and s.ports[2].state == 1)
+  return "ok"
+end}
+)");
+    Loaded l = Load("galayout"); CHECK(l.p && l.p->state == State::Loaded);
+    CHECK(Invoke(g_caller, "galayout.read").text == "unavailable");
+    CHECK(sco::host::ProvideGameService(SC_INVENTORY_SERVICE_NAME, SC_INVENTORY_SERVICE_VERSION_1_2, &table) == Result::Ok);
+    CHECK(sco::caps::Set(SC_INVENTORY_LAYOUT_CAPABILITY, true) == Result::Ok);
+    CHECK(Invoke(g_caller, "galayout.check").text == "ok");
+    const auto calls = g_layoutCalls;
+    for (uint32_t size = 0; size < sizeof(table); ++size) {
+        table.base.size = size;
+        CHECK(Invoke(g_caller, "galayout.read").text == "unavailable" && g_layoutCalls == calls);
+    }
+    table.base.size = sizeof(table); table.snapshot_layout = nullptr;
+    CHECK(Invoke(g_caller, "galayout.read").text == "unavailable" && g_layoutCalls == calls);
+    table.snapshot_layout = FakeInventoryLayout;
+    for (g_layoutMalformed = 1; g_layoutMalformed <= 3; ++g_layoutMalformed)
+        CHECK(Invoke(g_caller, "galayout.read").text == "failed");
+    g_layoutMalformed = 0;
+    CHECK(sco::caps::Set(SC_INVENTORY_LAYOUT_CAPABILITY, false) == Result::Ok);
+    const auto before = g_layoutCalls;
+    CHECK(Invoke(g_caller, "galayout.read").text == "unavailable" && g_layoutCalls == before);
+    Unload(l);
+    CHECK(sco::host::WithdrawGameService(SC_INVENTORY_SERVICE_NAME) == Result::Ok);
+}
+
 // ---- sco.game.creative (read-only: state() only; a stand-in table) -------------------------------
 
 static uint32_t g_creativeFlags = 0;

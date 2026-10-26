@@ -719,6 +719,51 @@ static int L_inventory_snapshot(lua_State* L) {
     return 1;
 }
 
+static int L_inventory_layout(lua_State* L) {
+    const sco_api* api = sco_lua_api(L);
+    sco_plugin* self = sco_lua_self(L);
+    const void* raw = NULL;
+    sco_result result = SCO_UNAVAILABLE;
+    if (self && GAME_MEMBER(api, sco_api, has) && api->has(SC_INVENTORY_LAYOUT_CAPABILITY) &&
+        GAME_MEMBER(api, sco_api, query_service))
+        result = api->query_service(SC_INVENTORY_SERVICE_NAME, SC_INVENTORY_SERVICE_VERSION_1_2, &raw);
+    const sc_inventory_v1_2* inventory = (const sc_inventory_v1_2*)raw;
+    sc_inventory_layout_snapshot snapshot = {0};
+    sc_inventory_layout_entry entries[SC_INVENTORY_LAYOUT_MAX_PORTS] = {0};
+    snapshot.size = sizeof(snapshot);
+    for (uint32_t i = 0; i < SC_INVENTORY_LAYOUT_MAX_PORTS; ++i) entries[i].size = sizeof(entries[i]);
+    if (result == SCO_OK) {
+        if (!inventory || inventory->base.size < offsetof(sc_inventory_v1_2, snapshot_layout) + sizeof(inventory->snapshot_layout) ||
+            !inventory->snapshot_layout) result = SCO_UNAVAILABLE;
+        else result = inventory->snapshot_layout(self, &snapshot, entries, sizeof(entries[0]), SC_INVENTORY_LAYOUT_MAX_PORTS);
+    }
+    if (result == SCO_OK && (snapshot.size != sizeof(snapshot) ||
+        !sc_inventory_layout_valid(&snapshot, entries, sizeof(entries[0]), SC_INVENTORY_LAYOUT_MAX_PORTS))) result = SCO_FAILED;
+    if (result != SCO_OK) { lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(result)); return 2; }
+    lua_createtable(L, 0, 8);
+    lua_pushinteger(L, snapshot.count); lua_setfield(L, -2, "count");
+    lua_pushinteger(L, snapshot.total_seen); lua_setfield(L, -2, "total_seen");
+    lua_pushinteger(L, snapshot.flags); lua_setfield(L, -2, "flags");
+    InventoryU64(L, snapshot.source_epoch); lua_setfield(L, -2, "source_epoch");
+    InventoryU64(L, snapshot.observation_generation); lua_setfield(L, -2, "observation_generation");
+    lua_pushstring(L, snapshot.identity_domain); lua_setfield(L, -2, "identity_domain");
+    lua_pushstring(L, snapshot.layout_key); lua_setfield(L, -2, "layout_key");
+    lua_createtable(L, (int)snapshot.count, 0);
+    for (uint32_t i = 0; i < snapshot.count; ++i) {
+        const sc_inventory_layout_entry* entry = &entries[i];
+        lua_createtable(L, 0, 6);
+        lua_pushinteger(L, entry->state); lua_setfield(L, -2, "state");
+        lua_pushinteger(L, entry->role); lua_setfield(L, -2, "role");
+        lua_pushinteger(L, entry->flags); lua_setfield(L, -2, "flags");
+        lua_pushinteger(L, entry->raw_item_type); lua_setfield(L, -2, "raw_item_type");
+        InventoryU64(L, entry->entity_id); lua_setfield(L, -2, "entity_id");
+        lua_pushstring(L, entry->port_key); lua_setfield(L, -2, "port_key");
+        lua_rawseti(L, -2, (lua_Integer)i + 1);
+    }
+    lua_setfield(L, -2, "ports");
+    return 1;
+}
+
 /* ---- sco.game.world: the game pack's game.world, read-only queries (no self) ---------------------- */
 
 static const sc_world_v1* WorldTable(lua_State* L) {
@@ -809,7 +854,7 @@ static void Open(lua_State* L) {
     lua_newtable(L);
     { /* Vocabulary is static; snapshot still requires a published, enabled provider. */
         static const luaL_Reg inventoryfns[] = {
-            { "snapshot", L_inventory_snapshot }, { "item_type", L_inventory_item_type },
+            { "snapshot", L_inventory_snapshot }, { "layout", L_inventory_layout }, { "item_type", L_inventory_item_type },
             { "item_type_name", L_inventory_item_type_name }, { NULL, NULL } };
         luaL_newlib(L, inventoryfns);
         lua_createtable(L, 0, SC_ITEM_TYPE_COUNT_197 + 1);
