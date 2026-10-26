@@ -5,9 +5,11 @@
 #include "sco_api.h"
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #define SC_INVENTORY_SERVICE_NAME "game.inventory"
 #define SC_INVENTORY_SERVICE_VERSION_1_0 0x00010000u
 #define SC_INVENTORY_SERVICE_VERSION_1_1 0x00010001u /* + flags and total_seen after ports[] */
+#define SC_INVENTORY_SERVICE_VERSION_1_2 0x00010002u /* explicit copied logical layout */
 #define SC_INVENTORY_SERVICE_VERSION SC_INVENTORY_SERVICE_VERSION_1_1
 #define SC_INVENTORY_MAX_PORTS 128u
 /* snapshot.flags bits (1.1; see sc_inventory_snapshot). */
@@ -459,5 +461,117 @@ static inline sco_result sc_inventory_snapshot_ports(const sc_inventory_v1* t, s
                                                      sc_inventory_snapshot* out) {
     return (t && t->size >= offsetof(sc_inventory_v1, snapshot) + sizeof(t->snapshot) && t->snapshot && out)
                ? t->snapshot(self, out) : SCO_UNAVAILABLE;
+}
+
+/* 1.2 is a separate, optional copied layout observation. The native 1.1 reader
+ * cannot supply logical port identities or roles and does not implement it.
+ * Query 1.2 explicitly; check the complete member and game.inventory.layout.
+ * The legacy service-version alias and all legacy records remain unchanged. */
+#define SC_INVENTORY_LAYOUT_CAPABILITY "game.inventory.layout"
+#define SC_INVENTORY_LAYOUT_MAX_PORTS 128u
+#define SC_INVENTORY_LAYOUT_MAX_STRIDE 4096u
+#define SC_INVENTORY_LAYOUT_KEY_BYTES 64u
+#define SC_INVENTORY_LAYOUT_DOMAIN_BYTES 64u
+#define SC_INVENTORY_PORT_UNKNOWN 0u
+#define SC_INVENTORY_PORT_EMPTY 1u
+#define SC_INVENTORY_PORT_OCCUPIED 2u
+#define SC_INVENTORY_ROLE_UNKNOWN 0u
+#define SC_INVENTORY_ROLE_EQUIPMENT 1u
+#define SC_INVENTORY_ROLE_STORAGE 2u
+#define SC_INVENTORY_ENTRY_TYPE_KNOWN 1u
+#define SC_INVENTORY_ENTRY_ENTITY_KNOWN 2u
+#define SC_INVENTORY_LAYOUT_COMPLETE 1u
+#define SC_INVENTORY_LAYOUT_TRUNCATED 2u
+#define SC_INVENTORY_LAYOUT_LIMITED 4u
+
+typedef struct sc_inventory_layout_entry {
+    uint32_t size;
+    uint32_t state; /* UNKNOWN/EMPTY/OCCUPIED; unknown never means empty */
+    uint32_t role;  /* UNKNOWN/EQUIPMENT/STORAGE; never inferred from category */
+    uint32_t flags;
+    uint32_t raw_item_type; /* exact uint32 category, not class/model identity */
+    uint32_t _reserved;    /* zero in 1.2 */
+    uint64_t entity_id;    /* optional nonzero observation, never persist */
+    char port_key[SC_INVENTORY_LAYOUT_KEY_BYTES];
+} sc_inventory_layout_entry;
+typedef struct sc_inventory_layout_snapshot {
+    uint32_t size;
+    uint32_t count;
+    uint32_t total_seen;
+    uint32_t flags;
+    uint64_t source_epoch; /* opaque live incarnation, never a durable key */
+    uint64_t observation_generation; /* nonzero revision within source_epoch */
+    char identity_domain[SC_INVENTORY_LAYOUT_DOMAIN_BYTES];
+    char layout_key[SC_INVENTORY_LAYOUT_KEY_BYTES];
+} sc_inventory_layout_snapshot;
+typedef struct sc_inventory_v1_2 {
+    sc_inventory_v1 base; /* offset zero; base.size covers the complete table */
+    /* One coherent game-thread observation for a live caller. out->size>=160;
+     * capacity1..128; entries non-NULL/aligned8; stride aligned8,96..4096;
+     * each entry.size96..stride. Output ranges must be valid and disjoint.
+     * Count<=capacity, total_seen>=count. COMPLETE means count==total_seen and
+     * excludes TRUNCATED/LIMITED; LIMITED makes total_seen only a lower bound.
+     * Copy only known prefixes, preserving size/unknown tails. Valid-buffer
+     * refusals leave both outputs unchanged; invalid/racing native buffers
+     * violate the ABI and cannot promise fault rollback.
+     * BAD_ARG malformed caller input; TOO_MANY published bounds/resource limit;
+     * WRONG_THREAD; UNAVAILABLE absent/disabled/unadmitted/incoherent source;
+     * CRASHED a contained backend fault. Table presence is not readiness.
+     * Keys are stable within the exact domain/layout and are never traversal
+     * indices, contents, entity IDs or pointers. Domain [a-z0-9._-], keys
+     * [A-Za-z0-9._-], each1..63 bytes. Source epoch changes on restart/rebind,
+     * subject replacement or admission withdrawal. Revision advances when
+     * observations/knowledge change; rotate epoch before revision overflow.
+     * No exact-class, quantity, equip/move or persistence authority. */
+    sco_result (*snapshot_layout)(sco_plugin* self, sc_inventory_layout_snapshot* out,
+                                  sc_inventory_layout_entry* entries,
+                                  uint32_t entry_stride, uint32_t capacity);
+} sc_inventory_v1_2;
+
+static inline sco_result sc_inventory_snapshot_layout(const sc_inventory_v1_2* t, sco_plugin* self,
+    sc_inventory_layout_snapshot* out, sc_inventory_layout_entry* entries, uint32_t stride, uint32_t capacity) {
+    return t && t->base.size >= offsetof(sc_inventory_v1_2, snapshot_layout) + sizeof(t->snapshot_layout) &&
+           t->snapshot_layout ? t->snapshot_layout(self, out, entries, stride, capacity) : SCO_UNAVAILABLE;
+}
+
+/* Structural validation for copied 1.2 observations. This does not establish
+ * freshness, native authority or eligibility for equipment advice. */
+static inline int sc_inventory_layout_key_valid(const char* key, uint32_t bytes, int domain) {
+    uint32_t i;
+    if (!key || !bytes || !key[0]) return 0;
+    for (i = 0; i < bytes; ++i) {
+        const unsigned char c = (unsigned char)key[i];
+        if (!c) return 1;
+        if (!(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') &&
+            !(c == '.' || c == '_' || c == '-') && !(domain == 0 && c >= 'A' && c <= 'Z')) return 0;
+    }
+    return 0;
+}
+static inline int sc_inventory_layout_valid(const sc_inventory_layout_snapshot* out,
+    const sc_inventory_layout_entry* entries, uint32_t stride, uint32_t capacity) {
+    uint32_t i, j;
+    if (!out || out->size < sizeof(*out) || !capacity || capacity > SC_INVENTORY_LAYOUT_MAX_PORTS ||
+        !entries || stride < sizeof(*entries) || stride > SC_INVENTORY_LAYOUT_MAX_STRIDE || (stride & 7u) ||
+        ((uintptr_t)entries & 7u) || out->count > capacity || out->total_seen < out->count ||
+        !out->source_epoch || !out->observation_generation || !out->flags || (out->flags & ~7u) ||
+        !sc_inventory_layout_key_valid(out->identity_domain, sizeof(out->identity_domain), 1) ||
+        !sc_inventory_layout_key_valid(out->layout_key, sizeof(out->layout_key), 0)) return 0;
+    if ((out->flags & SC_INVENTORY_LAYOUT_COMPLETE) &&
+        (out->flags != SC_INVENTORY_LAYOUT_COMPLETE || out->count != out->total_seen)) return 0;
+    if (((out->flags & SC_INVENTORY_LAYOUT_TRUNCATED) != 0) != (out->total_seen > out->count)) return 0;
+    for (i = 0; i < out->count; ++i) {
+        const sc_inventory_layout_entry* row = (const sc_inventory_layout_entry*)((const unsigned char*)entries + (size_t)i * stride);
+        if (row->size < sizeof(*row) || row->size > stride || row->state > SC_INVENTORY_PORT_OCCUPIED ||
+            row->role > SC_INVENTORY_ROLE_STORAGE || (row->flags & ~3u) || row->_reserved ||
+            !sc_inventory_layout_key_valid(row->port_key, sizeof(row->port_key), 0)) return 0;
+        if (row->state != SC_INVENTORY_PORT_OCCUPIED && (row->flags || row->raw_item_type || row->entity_id)) return 0;
+        if (!(row->flags & SC_INVENTORY_ENTRY_TYPE_KNOWN) && row->raw_item_type) return 0;
+        if (((row->flags & SC_INVENTORY_ENTRY_ENTITY_KNOWN) != 0) != (row->entity_id != 0)) return 0;
+        for (j = 0; j < i; ++j) {
+            const sc_inventory_layout_entry* previous = (const sc_inventory_layout_entry*)((const unsigned char*)entries + (size_t)j * stride);
+            if (!strcmp(row->port_key, previous->port_key)) return 0;
+        }
+    }
+    return 1;
 }
 #endif

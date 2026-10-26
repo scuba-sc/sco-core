@@ -86,6 +86,169 @@
           ]
         }
       }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_inventory_v1_2.base.snapshot",
+      "table": "sc_inventory_v1_2",
+      "source_header": "include/sc_inventory.h",
+      "signature": "sco_result (*)(sco_plugin *, sc_inventory_snapshot *)",
+      "version_macro": "SC_INVENTORY_SERVICE_VERSION_1_2",
+      "member_extent": 16,
+      "table_size": 24,
+      "service": "game.inventory",
+      "id": "sc-inventory-v1-2-base-snapshot",
+      "since": "`size >= 16`; inherited 1.0; flags and total_seen 1.1",
+      "purpose": "Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). The ports are the whole attached tree, depth first: each port, then the ports of the container attached to it, empty ports included. Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. With out->size >= sizeof(sc_inventory_snapshot) (1.1) it also sets flags (TRUNCATED: ports beyond the cap exist; LIMITED: the walk's own limits cut the tree) and total_seen; a 1.0 caller passing the 1.0 size never sees them. Values are the client's view of server state at snapshot time; nothing can be written through this ABI.",
+      "buffer_contract": "`sco_result (*snapshot)(sco_plugin* self, sc_inventory_snapshot* out);`<br>Copy the local player's current item-port snapshot into out (caller sets out->size; out->count is capacity in, ports filled out, max 128). The ports are the whole attached tree, depth first: each port, then the ports of the container attached to it, empty ports included. Read-only: per valid port, the attached item's item type id (field item_class_id, an ordinal of the game's item-type enumeration) and its session-scoped entity id (joins game.entities); generation advances on port-set change. With out->size >= sizeof(sc_inventory_snapshot) (1.1) it also sets flags (TRUNCATED: ports beyond the cap exist; LIMITED: the walk's own limits cut the tree) and total_seen; a 1.0 caller passing the 1.0 size never sees them. Values are the client's view of server state at snapshot time; nothing can be written through this ABI.",
+      "ownership": "Provider fills caller-owned storage; a plain copy crosses. No allocation, no engine pointer transfer, nothing retained from out.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callback.",
+      "reentrancy": "Snapshot read; the adapter reads the container's port vector in place and calls only per-port accessors, each checked against its signature row first.",
+      "results": "OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size below the 1.0 snapshot size, no local player, no item-port container on the player, or the adapter's guards failed; BAD_ARG invalid self.",
+      "absent_capability": "game.inventory.read defaults OFF (a product switch, and every inventory.* signature row must be OK); off, unbound or unready, the service publishes UNAVAILABLE. Adapter grounded on F-4.10.197.2878-011..-016; synthetic evidence only, not run in game.",
+      "cleanup": "StopGameInventory withdraws the service; read-only, no engine state to restore.",
+      "limitations": [
+        "Local player ports only in 1.0 (ships/mounts are follow-ups).",
+        "Per-class item names are not established; the 192-category vocabulary is build-scoped to 4.10.197.2878.",
+        "No stack counts (layout unattested).",
+        "Snapshot semantics: 128 ports max; the walk covers the whole attached tree depth first (at most 8 levels below the player's container, 256 containers, 4096 ports counted); flags and total_seen say what was cut; generation is computed by comparing successive snapshots (the game has no change counter); per-frame streams are out of contract.",
+        "Nesting is not reported: ports come in walk order without a parent or depth."
+      ],
+      "tests": [
+        "tests/abi_game_inventory.c",
+        "tests/test_inventory_layout.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_inventory.h",
+              "token": "(*snapshot)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_inventory.c"
+          ]
+        },
+        "cpp": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_inventory.h",
+              "token": "(*snapshot)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_inventory.c"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "Legacy language snapshot wrappers query the 1.0/1.1 table."
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/contracts.md",
+              "token": "Legacy language snapshot wrappers query the 1.0/1.1 table."
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_inventory_v1_2.snapshot_layout",
+      "table": "sc_inventory_v1_2",
+      "source_header": "include/sc_inventory.h",
+      "signature": "sco_result (*)(sco_plugin *, sc_inventory_layout_snapshot *, sc_inventory_layout_entry *, uint32_t, uint32_t)",
+      "version_macro": "SC_INVENTORY_SERVICE_VERSION_1_2",
+      "member_extent": 24,
+      "table_size": 24,
+      "service": "game.inventory",
+      "id": "sc-inventory-v1-2-snapshot-layout",
+      "since": "`size >= 24`; 1.2",
+      "purpose": "Copy a coherent bounded logical-port observation into caller-owned metadata and entries. Initialize sizes; provide 1..128 entries with stride 96..4096 and disjoint aligned buffers. COMPLETE distinguishes an empty layout from unavailable; TRUNCATED or LIMITED never represents a complete observation. Domain and layout keys scope stable port identities; entity ids and epochs are transient.",
+      "buffer_contract": "`sco_result (*snapshot_layout)(sco_plugin* self, sc_inventory_layout_snapshot* out, sc_inventory_layout_entry* entries, uint32_t entry_stride, uint32_t capacity);`<br>Copy a coherent bounded logical-port observation into caller-owned metadata and entries. Initialize sizes; provide 1..128 entries with stride 96..4096 and disjoint aligned buffers. COMPLETE distinguishes an empty layout from unavailable; TRUNCATED or LIMITED never represents a complete observation. Domain and layout keys scope stable port identities; entity ids and epochs are transient.",
+      "ownership": "Caller owns all buffers; provider copies known prefixes, preserves sizes and tails, and retains no output pointers.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "Host-owned admission and snapshot callbacks run synchronously; no plugin callback.",
+      "reentrancy": "Nested observations are refused. Owner and service lifetime are rechecked after each callback.",
+      "results": "OK copied, BAD_ARG invalid owner or buffers, TOO_MANY exceeded published limits, WRONG_THREAD, UNAVAILABLE absent or incoherent source, CRASHED contained backend fault. Valid disjoint outputs remain unchanged on refusal.",
+      "absent_capability": "game.inventory.layout defaults OFF; no production native layout producer is installed.",
+      "cleanup": "Stop withdraws the service and clears the host producer.",
+      "limitations": [
+        "Synthetic host provider only; no gameplay or native producer established.",
+        "No item class identity, quantity, equip, move or persistence authority."
+      ],
+      "tests": [
+        "tests/abi_game_inventory.c",
+        "tests/test_inventory_layout.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/game_contracts/lua_cases.inc"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_inventory.h",
+              "token": "(*snapshot_layout)"
+            }
+          ],
+          "tests": [
+            "tests/abi_game_inventory.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/inventory_layout.hpp",
+              "token": "table_->snapshot_layout(self_, &copied, entries.data(), sizeof(entries[0]), capacity)"
+            }
+          ],
+          "tests": [
+            "tests/test_inventory_layout.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/Game/InventoryLayout.cs",
+              "token": "_table->snapshot_layout(_plugin.SelfPtr, &info, entries, (uint)sizeof(ScInventoryLayoutEntry), 128)"
+            }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs"
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "inventory->snapshot_layout(self, &snapshot, entries, sizeof(entries[0]), SC_INVENTORY_LAYOUT_MAX_PORTS)"
+            }
+          ],
+          "tests": [
+            "tests/game_contracts/lua_cases.inc"
+          ]
+        }
+      }
     }
   ]
 }

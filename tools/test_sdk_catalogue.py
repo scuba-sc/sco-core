@@ -108,12 +108,38 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(source.count(before), 1)
         path.write_text(source.replace(before, after))
 
+    def test_inventory_nested_prefix_exposes_inherited_and_new_members(self):
+        inventory = catalogue.header_inventory(self.root)
+        self.assertEqual(inventory['tables']['sc_inventory_v1']['version_macro'],
+                         'SC_INVENTORY_SERVICE_VERSION_1_1')
+        tail = inventory['tables']['sc_inventory_v1_2']
+        self.assertEqual(tail['members'], ['base.snapshot', 'snapshot_layout'])
+        self.assertEqual((tail['size'], tail['version_macro']), (24, 'SC_INVENTORY_SERVICE_VERSION_1_2'))
+        methods = {r['symbol']: r for r in inventory['methods']}
+        self.assertEqual(methods['sc_inventory_v1_2.base.snapshot']['member_extent'], 16)
+        self.assertEqual(methods['sc_inventory_v1_2.snapshot_layout']['member_extent'], 24)
+
+    def test_nested_prefix_must_start_at_zero(self):
+        self.header_change('sc_inventory.h', '    sc_inventory_v1 base; /* offset zero;',
+                           '    uint64_t not_prefix;\n    sc_inventory_v1 base; /* offset zero;')
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'leading size'):
+            catalogue.header_inventory(self.root)
+
+    def test_nested_prefix_must_be_a_real_callback_table(self):
+        self.header_change('sc_inventory.h', 'typedef struct sc_inventory_v1_2 {',
+                           'typedef struct fake_inventory_prefix { uint32_t size; uint32_t pad; } fake_inventory_prefix;\n'
+                           'typedef struct sc_inventory_v1_2 {')
+        self.header_change('sc_inventory.h', '    sc_inventory_v1 base; /* offset zero;',
+                           '    fake_inventory_prefix base; /* offset zero;')
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'leading size'):
+            catalogue.header_inventory(self.root)
+
     def test_baseline_matches_header_count(self):
         records, extracted = catalogue.validate(self.root)
         self.assertEqual(len(records), len(extracted['methods']))
-        self.assertEqual(len(records), 218)
-        self.assertEqual(len(extracted['tables']), 45)
-        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 215)
+        self.assertEqual(len(records), 220)
+        self.assertEqual(len(extracted['tables']), 46)
+        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 217)
         wave3 = {
             'sc_mining_v1': (['request', 'state'], 'tests/abi_catalogue_mining.c', 'tests/test_mining.cpp'),
             'sc_private_session_v1': (['request_host', 'request_join', 'leave', 'get_state'],

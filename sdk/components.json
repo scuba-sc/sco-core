@@ -2615,6 +2615,18 @@
       "public_header": true
     },
     {
+      "id": "include.scosdk.game.inventory_layout.hpp",
+      "source": "include/scosdk/game/inventory_layout.hpp",
+      "destination": "include/scosdk/game/inventory_layout.hpp",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
       "id": "include.scosdk.game.reputation.hpp",
       "source": "include/scosdk/game/reputation.hpp",
       "destination": "include/scosdk/game/reputation.hpp",
@@ -3020,6 +3032,17 @@
       "id": "csharp.Sco.Sdk.Game.Inventory.cs",
       "source": "sdk/csharp/Sco.Sdk/Game/Inventory.cs",
       "destination": "csharp/Sco.Sdk/Game/Inventory.cs",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "csharp.Sco.Sdk.Game.InventoryLayout.cs",
+      "source": "sdk/csharp/Sco.Sdk/Game/InventoryLayout.cs",
+      "destination": "csharp/Sco.Sdk/Game/InventoryLayout.cs",
       "profiles": [
         "game-sc",
         "host-source-sc"
@@ -8268,6 +8291,18 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-inventory_layout.cpp",
+      "source": "src/game/services/inventory_layout.cpp",
+      "destination": "src/game/services/inventory_layout.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-src-game-services-inventory.h",
       "source": "src/game/services/inventory.h",
       "destination": "src/game/services/inventory.h",
@@ -9098,6 +9133,18 @@
       "id": "host-source-sc-tests-test_inventory.cpp",
       "source": "tests/test_inventory.cpp",
       "destination": "tests/test_inventory.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_inventory_layout.cpp",
+      "source": "tests/test_inventory_layout.cpp",
+      "destination": "tests/test_inventory_layout.cpp",
       "profiles": [
         "host-source-sc"
       ],

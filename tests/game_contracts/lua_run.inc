@@ -7,5 +7,6 @@
     TestGameCreative();
     TestGameRules();
     TestInventory();
+    TestInventoryLayout();
     TestGameWorld();
     TestGameEntities();

@@ -15,6 +15,20 @@ struct InventoryBackend {
     bool (*snapshot)(void* ctx, sc_inventory_snapshot* io);
 };
 
+// Optional host-owned logical layout producer. No native implementation is
+// inferred from InventoryBackend. enabled is an explicit host choice; admitted
+// must freshly attest the current source before each synchronous observation.
+// snapshot receives private full-size metadata and 128 initialized entries.
+// It supplies coherent nonzero source/revision tokens and bounded copied data.
+// Context/callbacks live until Stop; neither callback may retain output pointers.
+struct InventoryLayoutBackend {
+    void* ctx = nullptr;
+    bool enabled = false;
+    bool (*admitted)(void* ctx) = nullptr;
+    sco_result (*snapshot)(void* ctx, sc_inventory_layout_snapshot* out,
+                           sc_inventory_layout_entry* entries, uint32_t capacity) = nullptr;
+};
+
 // What the published snapshot() does with a backend: validates out, runs the backend into a
 // service-owned snapshot, then copies only what the caller's out->size covers (1.0 callers pass
 // SC_INVENTORY_SNAPSHOT_SIZE_1_0 and never get the 1.1 tail) and keeps flags and total_seen
@@ -22,5 +36,12 @@ struct InventoryBackend {
 // or a backend with nothing to report. Exposed for the tests; the service wraps it.
 sco_result SnapshotWith(const InventoryBackend& backend, sc_inventory_snapshot* out);
 Result StartGameInventory(const InventoryBackend& backend = {});
+Result StartGameInventoryWithLayout(const InventoryBackend& backend, const InventoryLayoutBackend& layout);
 void StopGameInventory();
+namespace inventory_layout {
+Result Begin(const InventoryLayoutBackend& backend);
+void Stop();
+sco_result Snapshot(sco_plugin* self, sc_inventory_layout_snapshot* out,
+                    sc_inventory_layout_entry* entries, uint32_t stride, uint32_t capacity);
+}
 }  // namespace sco::game::services

@@ -391,7 +391,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/spawn.cpp src/game/services/missions.cpp
                                        src/game/services/actors.cpp src/game/services/actor_stats.cpp src/game/services/vehicles.cpp
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp src/game/services/gamerules.cpp src/game/services/inventory.cpp
-                                       src/game/services/inventory_walk.cpp src/game/services/inventory_engine.cpp src/game/services/inventory_host.cpp
+                                       src/game/services/inventory_walk.cpp src/game/services/inventory_engine.cpp src/game/services/inventory_host.cpp src/game/services/inventory_layout.cpp
                                        src/game/services/container_contents.cpp src/game/services/audio.cpp
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/entity_lookup.cpp src/game/services/creative.cpp
@@ -1098,11 +1098,16 @@ if(SCO_BUILD_TESTS)
       target_include_directories(abi_container_contents_short PRIVATE "${SCO_INCLUDE_DIR}")
       target_compile_options(abi_container_contents_short PRIVATE -fshort-enums)
     endif()
-    add_executable(test_inventory tests/test_inventory.cpp src/game/services/inventory.cpp src/game/services/inventory_walk.cpp)
+    add_executable(test_inventory tests/test_inventory.cpp src/game/services/inventory.cpp src/game/services/inventory_walk.cpp src/game/services/inventory_layout.cpp)
     target_include_directories(test_inventory PRIVATE "${SCO_INCLUDE_DIR}")
     target_link_libraries(test_inventory PRIVATE sco_host)
     sco_project_target(test_inventory)
     add_test(NAME inventory COMMAND test_inventory)
+    add_executable(test_inventory_layout tests/test_inventory_layout.cpp src/game/services/inventory.cpp src/game/services/inventory_layout.cpp)
+    target_include_directories(test_inventory_layout PRIVATE "${SCO_INCLUDE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(test_inventory_layout PRIVATE sco_host)
+    sco_project_target(test_inventory_layout)
+    add_test(NAME inventory_layout COMMAND test_inventory_layout)
     if(WIN32)
       add_executable(test_inventory_engine tests/test_inventory_engine.cpp src/game/services/inventory_engine.cpp
                                            src/game/services/inventory_walk.cpp)

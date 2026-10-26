@@ -38,6 +38,20 @@ PIN(offsetof(sc_inventory_snapshot, ports) == 16, "ports offset");
 PIN(SC_INVENTORY_MAX_PORTS == 128, "max ports");
 PIN(sizeof(sc_inventory_v1) == 16, "table size");
 PIN(offsetof(sc_inventory_v1, snapshot) == 8, "snapshot offset");
+PIN(SC_INVENTORY_SERVICE_VERSION == SC_INVENTORY_SERVICE_VERSION_1_1, "legacy read alias");
+PIN(SC_INVENTORY_SERVICE_VERSION_1_2 == 0x00010002u, "explicit layout version");
+PIN(sizeof(sc_inventory_v1_2) == 24, "layout table size");
+PIN(offsetof(sc_inventory_v1_2, base) == 0, "legacy base prefix");
+PIN(offsetof(sc_inventory_v1_2, snapshot_layout) == 16, "layout method offset");
+PIN(sizeof(sc_inventory_layout_entry) == 96, "layout entry size");
+PIN(offsetof(sc_inventory_layout_entry, raw_item_type) == 16, "raw category offset");
+PIN(offsetof(sc_inventory_layout_entry, entity_id) == 24, "ephemeral entity offset");
+PIN(offsetof(sc_inventory_layout_entry, port_key) == 32, "logical key offset");
+PIN(sizeof(sc_inventory_layout_snapshot) == 160, "layout snapshot size");
+PIN(offsetof(sc_inventory_layout_snapshot, source_epoch) == 16, "source epoch offset");
+PIN(offsetof(sc_inventory_layout_snapshot, observation_generation) == 24, "observation revision offset");
+PIN(offsetof(sc_inventory_layout_snapshot, identity_domain) == 32, "identity domain offset");
+PIN(offsetof(sc_inventory_layout_snapshot, layout_key) == 96, "layout key offset");
 static sco_result snap_ok(sco_plugin* p, sc_inventory_snapshot* o) { (void)p; (void)o; return SCO_OK; }
 int main(void) {
     sc_inventory_v1 full = {sizeof(full), 0, snap_ok};

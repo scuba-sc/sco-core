@@ -1,6 +1,6 @@
 # game.inventory — read-only item-port view
 
-`sc_inventory.h` · service `game.inventory` · version 1.1 · game thread only ·
+`sc_inventory.h` · service `game.inventory` · version 1.2 · game thread only ·
 capability `game.inventory.read` (default **OFF**).
 
 `snapshot` copies the local player's item-port set as the client sees it: per port,
@@ -148,3 +148,27 @@ map to `item_types.UNKNOWN` without narrowing the preserved raw value.
 
 The 192-name vocabulary in both languages is pinned to the existing public table for
 **4.10.197.2878**. It adds no per-class ids, quantities, mutation routes, or in-game validation.
+
+## Logical layout observations (1.2)
+
+The optional 1.2 table embeds the original table at offset zero and adds
+`snapshot_layout`. Query 1.2 explicitly and check both the member extent and
+`game.inventory.layout`. The legacy version alias and 1.0/1.1 snapshot stay
+unchanged. A table alone does not imply that an admitted producer is available.
+The production host has no logical-layout producer and this capability is OFF;
+the current provider evidence comes from synthetic host fixtures, not gameplay.
+
+An observation copies a domain, layout key and bounded entries with stable
+provider-supplied port keys and explicit equipment, storage or unknown roles.
+Unknown state is not empty. COMPLETE with zero entries is a valid empty layout;
+LIMITED or TRUNCATED is incomplete. Category ordinals do not identify individual
+item classes, and a role cannot be inferred from the category. Entity IDs, source
+epochs and revisions are transient observations, never durable preset identity.
+The API does not move or equip anything. Consumers must validate copied data and
+restrict advice to equipment roles; storage entries are layout context only.
+
+Initialize metadata and every entry size, supply disjoint aligned buffers, and
+check the result before reading output. Valid buffers are unchanged on refusal;
+unknown tails are preserved. The C++ `sco::sdk::game::InventoryLayout` helper
+performs the 1.2 lookup, capability and structural checks and copies only a valid
+result. C# `InventoryLayout.Snapshot` and Lua `sco.game.inventory.layout()` expose validated copied observations with the same capability gate.

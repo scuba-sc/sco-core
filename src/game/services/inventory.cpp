@@ -5,7 +5,7 @@ namespace sco::game::services {
 namespace {
 InventoryBackend g_backend;
 bool g_bound = false;
-sc_inventory_v1 g_table = {sizeof(sc_inventory_v1), 0, nullptr};
+sc_inventory_v1_2 g_table = {{sizeof(sc_inventory_v1_2), 0, nullptr}, inventory_layout::Snapshot};
 sco_result Snapshot(sco_plugin* self, sc_inventory_snapshot* out) {
     (void)self;
     if (!g_bound) return SCO_UNAVAILABLE;
@@ -38,20 +38,26 @@ sco_result SnapshotWith(const InventoryBackend& backend, sc_inventory_snapshot* 
     return SCO_OK;
 }
 Result StartGameInventory(const InventoryBackend& backend) {
-    if (g_table.snapshot) return Result::Failed;
+    return StartGameInventoryWithLayout(backend, {});
+}
+Result StartGameInventoryWithLayout(const InventoryBackend& backend, const InventoryLayoutBackend& layout) {
+    if (g_table.base.snapshot) return Result::Failed;
+    const Result prepared = inventory_layout::Begin(layout);
+    if (prepared != Result::Ok) return prepared;
     g_bound = backend.snapshot != nullptr;
     g_backend = backend;
-    g_table.snapshot = Snapshot;
+    g_table.base.snapshot = Snapshot;
     const Result r = host::ProvideGameService(SC_INVENTORY_SERVICE_NAME,
-                                              SC_INVENTORY_SERVICE_VERSION, &g_table);
-    if (r != Result::Ok) { g_table.snapshot = nullptr; g_backend = {}; g_bound = false; }
+                                              SC_INVENTORY_SERVICE_VERSION_1_2, &g_table);
+    if (r != Result::Ok) { g_table.base.snapshot = nullptr; g_backend = {}; g_bound = false; inventory_layout::Stop(); }
     return r;
 }
 void StopGameInventory() {
-    if (!g_table.snapshot) return;
+    if (!g_table.base.snapshot) return;
     host::WithdrawGameService(SC_INVENTORY_SERVICE_NAME);
-    g_table.snapshot = nullptr;
+    g_table.base.snapshot = nullptr;
     g_backend = {};
     g_bound = false;
+    inventory_layout::Stop();
 }
 }  // namespace sco::game::services

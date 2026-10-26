@@ -286,10 +286,11 @@
       "kind": "service",
       "service": "game.inventory",
       "header": "include/sc_inventory.h",
-      "version": "1.1",
+      "version": "1.2",
       "stability": "experimental",
       "capabilities": [
-        {"name": "game.inventory.read", "methods": ["snapshot"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only item-port snapshot of the local player (whole attached tree, depth first, 128 ports max with TRUNCATED and total_seen); adapter grounded on the private corpus (F-4.10.197.2878-011..-016, static analysis only) and bound in production behind fail-closed guards; the signature rows resolve against the 4.10.197.2878 executable on disk, and the adapter is exercised against synthetic game objects only; switched off by default; not run in game", "sig_rows": ["inventory.get_item_ports", "inventory.port_is_valid", "inventory.port_item_handle", "inventory.handle_valid", "inventory.unequip_item", "inventory.port_get_item", "inventory.port_get_container", "inventory.container_type_id", "inventory.item_type_names"], "evidence_source": "docs/game/inventory.md"}
+        {"name": "game.inventory.read", "methods": ["snapshot"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Read-only item-port snapshot of the local player (whole attached tree, depth first, 128 ports max with TRUNCATED and total_seen); adapter grounded on the private corpus (F-4.10.197.2878-011..-016, static analysis only) and bound in production behind fail-closed guards; the signature rows resolve against the 4.10.197.2878 executable on disk, and the adapter is exercised against synthetic game objects only; switched off by default; not run in game", "sig_rows": ["inventory.get_item_ports", "inventory.port_is_valid", "inventory.port_item_handle", "inventory.handle_valid", "inventory.unequip_item", "inventory.port_get_item", "inventory.port_get_container", "inventory.container_type_id", "inventory.item_type_names"], "evidence_source": "docs/game/inventory.md"},
+        {"name": "game.inventory.layout", "methods": ["snapshot_layout"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Copied stable logical-port identities and roles through an explicitly bound synthetic host producer; no production native layout producer is installed and no gameplay validation is claimed.", "evidence_source": "docs/game/inventory.md"}
       ]
     },
     {

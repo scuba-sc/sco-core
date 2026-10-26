@@ -423,7 +423,11 @@ if snapshot then
 end
 ```
 
-See [inventory](../../docs/game/inventory.md) for snapshot limits and build scope. This route
+`layout()` separately queries 1.2 and `game.inventory.layout`, returning a copied domain,
+layout key, completeness flags and logical port entries, or `nil, error`. State and role
+are explicit; unknown is not empty, and entity IDs and epochs are transient. No layout
+producer is installed in production. See [inventory](../../docs/game/inventory.md) for
+layout semantics, snapshot limits and build scope. This route
 adds no mutation, per-class ids, or in-game validation.
 
 ## `sco.game.entities`
