@@ -192,7 +192,10 @@ namespace Sco.Sdk.Tests
             int calls = _inventoryCalls;
             Expect(_inventoryAfterUnload!.Snapshot(out _) == ScoResult.Unavailable && _inventoryCalls == calls, "inventory never calls after consumer unload");
             calls = _layoutCalls;
+            uint priorSize = _inventory->size;
+            _inventory->size = 24; // Keep the layout member callable so owner unload is the refusal cause.
             Expect(_layoutAfterUnload!.Snapshot(out _) == ScoResult.Unavailable && _layoutCalls == calls, "layout never calls after consumer unload");
+            _inventory->size = priorSize;
         }
 
         private static ScActorsV1* _actors;  // a stand-in game.actors
