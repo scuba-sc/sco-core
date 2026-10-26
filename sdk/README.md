@@ -86,14 +86,17 @@ it ships from SDK 2.1.0. Frozen plugin ABI 1.1 is unchanged.
 
 ## Renderer-neutral widget UI
 
-New C/C++ plugins use `sco.widgets` 1.0 (`sco_widgets.h`, `scosdk/widgets.hpp`):
+New plugins use `sco.widgets` (`sco_widgets.h`, `scosdk/widgets.hpp`), with a 1.0
+base and additive 1.1/1.2 extensions:
 retained copied trees, typed game-thread events and no plugin renderer linkage.
 The [widget guide](docs/widgets.md) and `examples/widgets` show all eight widgets
 plus ROW/COLUMN layout with synthetic data. `sco-plugin-check` supplies deterministic
-headless interaction coverage. C# and Lua implement the bounded 1.0 set/remove
-route with rooted callbacks. Native C/C++ can submit extended nodes; raw C#
-`ScoWidgetNode12` interop does not add typed stable tags, and Lua accepts no `tag`.
-Typed 1.1 tail methods remain unsupported in those languages.
+headless interaction coverage. Current source/development kits include typed C#
+and Lua subtree update/removal, capabilities, tooltip/severity/paging fields,
+row events and stable tags. These bindings negotiate 1.2, then 1.1, then 1.0,
+check complete member extents and feature bits, and refuse unsupported requested
+features. The published RC1 archive is unchanged and retains its earlier bindings;
+use the guide and wrappers from the same selected kit.
 The optional host-only adapter is source-kit code, never a public plugin header.
 
 ## Optional ImGui: a host-specific third-party ABI

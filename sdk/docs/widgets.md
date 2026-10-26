@@ -135,6 +135,11 @@ and the tag tail is invisible, exactly as 1.1 tails are to a 1.0 host.
 
 ## Language coverage and legacy UI
 
+The typed C#/Lua 1.1/1.2 routes below describe current source/development kits.
+The published `sdk-v2.4.0-rc.1` archive retains its earlier bindings; use the
+documentation and wrappers from the same selected kit. Frozen plugin ABI 1.1
+is unchanged.
+
 C, C++20, C# and Lua support set/remove and the 1.1 update/remove subtree and
 capability routes. C/C++ submit extended records with the matching stride; the
 C++ wrapper checks complete tail member extents. Typed C# and Lua negotiate
