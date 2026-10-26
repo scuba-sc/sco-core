@@ -56,6 +56,23 @@ public:
             !table_->remove_panel) return SCO_UNAVAILABLE;
         return table_->remove_panel(self_, id);
     }
+    sco_result UpdateNodes(const char* id, const sco_widget_node* nodes, uint32_t count,
+                           uint32_t stride = sizeof(sco_widget_node)) noexcept {
+        if (!table_ || table_->size < offsetof(sco_widgets_v1, update_nodes) + sizeof(table_->update_nodes) ||
+            !table_->update_nodes) return SCO_UNAVAILABLE;
+        return table_->update_nodes(self_, id, nodes, count, stride);
+    }
+    sco_result RemoveNodes(const char* id, const uint32_t* ids, uint32_t count) noexcept {
+        if (!table_ || table_->size < offsetof(sco_widgets_v1, remove_nodes) + sizeof(table_->remove_nodes) ||
+            !table_->remove_nodes) return SCO_UNAVAILABLE;
+        return table_->remove_nodes(self_, id, ids, count);
+    }
+    // caps[0] is the allocated element count (at least 2), replaced by the written count.
+    sco_result Capabilities(uint32_t* caps) noexcept {
+        if (!table_ || table_->size < offsetof(sco_widgets_v1, capabilities) + sizeof(table_->capabilities) ||
+            !table_->capabilities) return SCO_UNAVAILABLE;
+        return table_->capabilities(self_, caps);
+    }
 private:
     const sco_widgets_v1* table_ = nullptr;
     sco_plugin* self_ = nullptr;

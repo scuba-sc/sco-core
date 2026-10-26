@@ -231,6 +231,18 @@ function store.exec(sql) str_arg(sql, "exec") return nil, "unavailable", "lua-ch
 function store.sql(sql) str_arg(sql, "sql") return nil, "unavailable", "lua-check has no SQLite" end
 sco.store = store
 
+-- No widget provider/renderer runs in this checker. Match the real runtime's
+-- absent-service result shapes so scripts can keep their command-only route.
+local function widgets_unavailable() return false, "unavailable" end
+sco.widgets = {
+  available = function() return false end,
+  set_panel = widgets_unavailable,
+  remove_panel = widgets_unavailable,
+  update_nodes = widgets_unavailable,
+  remove_nodes = widgets_unavailable,
+  capabilities = function() return nil, "unavailable" end,
+}
+
 -- ---- sandbox ----------------------------------------------------------------------------
 
 local function copy(t) local r = {} for k, v in pairs(t) do r[k] = v end return r end

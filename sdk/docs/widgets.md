@@ -135,10 +135,12 @@ and the tag tail is invisible, exactly as 1.1 tails are to a 1.0 host.
 
 ## Language coverage and legacy UI
 
-C, C++20, C# and Lua support the 1.0 set/remove route. Native C/C++ can submit
-extended nodes with the correct stride. C# exposes raw `ScoWidgetNode12` interop,
-but typed `WidgetNode`/`SetPanel` remains 1.0-only. Lua does not accept `tag`.
-The 1.1 tail methods have no typed C#/Lua wrappers.
+C, C++20, C# and Lua support set/remove and the 1.1 update/remove subtree and
+capability routes. C/C++ submit extended records with the matching stride; the
+C++ wrapper checks complete tail member extents. Typed C# and Lua negotiate
+1.2, then 1.1, then 1.0, falling back only for an absent/incompatible version.
+Unsupported requested presentation features return an explicit refusal.
+All existing provider admission, thread and owner lifetime rules still apply.
 
 ## C#
 
@@ -154,6 +156,28 @@ the owner registry root; copied `WidgetEvent` text is safe to keep. Callbacks ma
 invoke/replace/remove; exceptions stay managed and stale contexts are discarded.
 Open again after owner reload. All calls and events remain game-thread only.
 
+`WidgetNode` also accepts `Tooltip`, `Severity` (0..3), `FirstRow`, `VisibleRows`
+and `Tag` under the public bounds above. Plain inputs retain the 80-byte route;
+presentation inputs use 104-byte records and nonempty tags use 128-byte records.
+The wrapper checks the negotiated version and advertised feature bits before
+submission. `Capabilities(out WidgetCapabilities)` returns copied feature bits
+and limits; incomplete tables and malformed capability counts are refused.
+
+`UpdateNodes(id, nodes)` replaces one subtree in place or appends a new subtree
+as the last child of its declared parent. `RemoveNodes(id, ids)` removes named
+subtrees while retaining at least one node. These typed operations apply to
+panels submitted by the same plugin through `Widgets`, including panels without
+a callback. They keep copied validation state in the owner registry, update it
+only after native success and preserve it on failure. A new wrapper for the same
+loaded owner can use that state; reload requires a new panel submission.
+
+`WidgetEvent.Row` is copied from the 40-byte event tail, with LIST row equal to
+Index and other ordinary events set to -1. A paging event uses `WidgetKind.Page`
+and its new first row in `Row`; Page is never a valid node kind. Truncated tails,
+invalid fields, removed nodes and stale replacement contexts are dropped. The
+host generation controls pending events after partial updates. Tags remain
+metadata; numeric node IDs continue to route events.
+
 The core archive includes `examples/cs_widgets` and its test driver:
 `dotnet run -c Release --project csharp/Sco.Sdk.Tests -- --widgets`.
 This builds/runs the example against a synthetic host, including missing service,
@@ -167,6 +191,21 @@ Use `sco.widgets.set_panel(id, title, nodes[, fn])` and
 `sco.widgets.remove_panel(id)`. `sco.widgets.available()` checks both complete
 nonnull methods; each operation separately guards its member extent and queries
 the optional service afresh. No renderer, native FFI or raw draw callback is exposed.
+
+`update_nodes(id, nodes)` and `remove_nodes(id, ids)` return the same success/error
+shape as set/remove. They require the negotiated 1.1 service, complete member
+extents and their advertised features; the provider validates and atomically
+applies the resulting tree. `capabilities()` returns a fresh copied table or
+`nil, error`: `count`, `features`, `version`, `max_panels`, `max_nodes`,
+`max_total_nodes`, `max_items`, `max_columns`, `max_text`, `max_events`, and
+`max_tag` when the provider wrote the 1.2 tail. No absent limit is invented.
+Node fields `tooltip`, `severity` (0..3), `first_row`, `visible_rows` and `tag`
+use the native bounds and feature admission. Unknown fields still refuse.
+Extended events include `row` only after the complete 40-byte extent is present;
+PAGE has `kind="page"` and its new first row in `row`. Stable tags never replace
+numeric event IDs. Lua retains strings within its allocation budget and uses
+opaque callback identities to reject callbacks from replaced panels or old
+owner sessions.
 
 ```lua
 if sco.widgets.available() then

@@ -50,11 +50,24 @@
         "csharp": {
           "status": "typed-wrapper",
           "evidence": [
-            { "path": "sdk/csharp/Sco.Sdk/Widgets.cs", "token": "_t->set_panel(_plugin.SelfPtr" },
-            { "path": "sdk/csharp/Sco.Sdk/Widgets.cs", "token": "_t->remove_panel(_plugin.SelfPtr" },
-            { "path": "sdk/csharp/Sco.Sdk/WidgetsInterop.cs", "token": "public unsafe struct ScoWidgetsV1" }
+            {
+              "path": "sdk/csharp/Sco.Sdk/Widgets.cs",
+              "token": "_t->set_panel(_plugin.SelfPtr"
+            },
+            {
+              "path": "sdk/csharp/Sco.Sdk/Widgets.cs",
+              "token": "_t->remove_panel(_plugin.SelfPtr"
+            },
+            {
+              "path": "sdk/csharp/Sco.Sdk/WidgetsInterop.cs",
+              "token": "public unsafe struct ScoWidgetsV1"
+            }
           ],
-          "tests": ["sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs", "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs"]
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs",
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs"
+          ]
         },
         "lua": {
           "status": "typed-wrapper",
@@ -68,7 +81,9 @@
               "token": "t->remove_panel(s->self"
             }
           ],
-          "tests": ["tests/test_lua.cpp"]
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
         }
       },
       "examples": [
@@ -83,7 +98,8 @@
         "tests/test_lua.cpp",
         "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
         "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs",
-        "sdk/test-zip.sh"
+        "sdk/test-zip.sh",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs"
       ],
       "limitations": [
         "C# provides bounded copied UTF-8 trees and registry-rooted callbacks; Windows NativeAOT host loading remains unverified locally.",
@@ -140,11 +156,24 @@
         "csharp": {
           "status": "typed-wrapper",
           "evidence": [
-            { "path": "sdk/csharp/Sco.Sdk/Widgets.cs", "token": "_t->set_panel(_plugin.SelfPtr" },
-            { "path": "sdk/csharp/Sco.Sdk/Widgets.cs", "token": "_t->remove_panel(_plugin.SelfPtr" },
-            { "path": "sdk/csharp/Sco.Sdk/WidgetsInterop.cs", "token": "public unsafe struct ScoWidgetsV1" }
+            {
+              "path": "sdk/csharp/Sco.Sdk/Widgets.cs",
+              "token": "_t->set_panel(_plugin.SelfPtr"
+            },
+            {
+              "path": "sdk/csharp/Sco.Sdk/Widgets.cs",
+              "token": "_t->remove_panel(_plugin.SelfPtr"
+            },
+            {
+              "path": "sdk/csharp/Sco.Sdk/WidgetsInterop.cs",
+              "token": "public unsafe struct ScoWidgetsV1"
+            }
           ],
-          "tests": ["sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs", "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs"]
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs",
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs"
+          ]
         },
         "lua": {
           "status": "typed-wrapper",
@@ -158,7 +187,9 @@
               "token": "t->remove_panel(s->self"
             }
           ],
-          "tests": ["tests/test_lua.cpp"]
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
         }
       },
       "examples": [
@@ -173,7 +204,8 @@
         "tests/test_lua.cpp",
         "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
         "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs",
-        "sdk/test-zip.sh"
+        "sdk/test-zip.sh",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs"
       ],
       "limitations": [
         "C# provides bounded copied UTF-8 trees and registry-rooted callbacks; Windows NativeAOT host loading remains unverified locally.",
@@ -193,8 +225,8 @@
       "member_extent": 32,
       "table_size": 48,
       "since": "`size >= 32`; 1.1",
-      "purpose": "Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0 or 1.1 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
-      "buffer_contract": "`sco_result (*update_nodes)(sco_plugin* self, const char* panel_id, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride);`<br>Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0 or 1.1 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
+      "purpose": "Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0, 1.1 or 1.2 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
+      "buffer_contract": "`sco_result (*update_nodes)(sco_plugin* self, const char* panel_id, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride);`<br>Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0, 1.1 or 1.2 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
       "ownership": "Host deep-copies the subtree on success; the panel's fn/ctx stay unchanged and borrowed. No allocation transfer.",
       "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard.",
       "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned.",
@@ -206,40 +238,59 @@
         "c": {
           "status": "direct",
           "evidence": [
-            { "path": "include/sco_widgets.h", "token": "(*update_nodes)" }
+            {
+              "path": "include/sco_widgets.h",
+              "token": "(*update_nodes)"
+            }
           ],
           "tests": [
             "tests/abi_widgets.c"
           ]
         },
         "cpp": {
-          "status": "direct",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "include/sco_widgets.h", "token": "(*update_nodes)" }
+            {
+              "path": "include/scosdk/widgets.hpp",
+              "token": "return table_->update_nodes(self_,"
+            }
           ],
           "tests": [
-            "tests/test_widgets11.cpp"
+            "tests/test_widgets_sdk.cpp"
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+            {
+              "path": "sdk/csharp/Sco.Sdk/Widgets.cs",
+              "token": "_t->update_nodes(_plugin"
+            }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs"
+          ]
         },
         "lua": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "service.table->update_nodes(s->self"
+            }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_widgets.c",
-        "tests/test_widgets11.cpp"
+        "tests/test_widgets11.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs",
+        "tests/test_widgets_sdk.cpp",
+        "tests/test_lua.cpp"
       ],
       "limitations": [
         "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",
@@ -271,40 +322,59 @@
         "c": {
           "status": "direct",
           "evidence": [
-            { "path": "include/sco_widgets.h", "token": "(*remove_nodes)" }
+            {
+              "path": "include/sco_widgets.h",
+              "token": "(*remove_nodes)"
+            }
           ],
           "tests": [
             "tests/abi_widgets.c"
           ]
         },
         "cpp": {
-          "status": "direct",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "include/sco_widgets.h", "token": "(*remove_nodes)" }
+            {
+              "path": "include/scosdk/widgets.hpp",
+              "token": "return table_->remove_nodes(self_,"
+            }
           ],
           "tests": [
-            "tests/test_widgets11.cpp"
+            "tests/test_widgets_sdk.cpp"
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+            {
+              "path": "sdk/csharp/Sco.Sdk/Widgets.cs",
+              "token": "_t->remove_nodes(_plugin"
+            }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs"
+          ]
         },
         "lua": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "service.table->remove_nodes(s->self"
+            }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_widgets.c",
-        "tests/test_widgets11.cpp"
+        "tests/test_widgets11.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs",
+        "tests/test_widgets_sdk.cpp",
+        "tests/test_lua.cpp"
       ],
       "limitations": [
         "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",
@@ -336,40 +406,59 @@
         "c": {
           "status": "direct",
           "evidence": [
-            { "path": "include/sco_widgets.h", "token": "(*capabilities)" }
+            {
+              "path": "include/sco_widgets.h",
+              "token": "(*capabilities)"
+            }
           ],
           "tests": [
             "tests/abi_widgets.c"
           ]
         },
         "cpp": {
-          "status": "direct",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "include/sco_widgets.h", "token": "(*capabilities)" }
+            {
+              "path": "include/scosdk/widgets.hpp",
+              "token": "return table_->capabilities(self_,"
+            }
           ],
           "tests": [
-            "tests/test_widgets11.cpp"
+            "tests/test_widgets_sdk.cpp"
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+            {
+              "path": "sdk/csharp/Sco.Sdk/Widgets.cs",
+              "token": "_t->capabilities(_plugin"
+            }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs"
+          ]
         },
         "lua": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
-            { "path": "docs/contracts.md", "token": "C# and Lua sco.widgets 1.1 routes are unsupported." }
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "service.table->capabilities(s->self"
+            }
           ],
-          "tests": []
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
         }
       },
       "examples": [],
       "tests": [
         "tests/abi_widgets.c",
-        "tests/test_widgets11.cpp"
+        "tests/test_widgets11.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs",
+        "tests/test_widgets_sdk.cpp",
+        "tests/test_lua.cpp"
       ],
       "limitations": [
         "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",

@@ -426,6 +426,13 @@ else
   mkdir -p "$CASES/parity"
   printf 'id = parity\nname = Parity\nversion = 1.0\napi = 1.0\nkind = lua\nentry = main.lua\n' > "$CASES/parity/plugin.ini"
   cat > "$CASES/parity/main.lua" <<'EOF'
+assert(type(sco.widgets) == "table" and not sco.widgets.available(), "widgets absent")
+assert(select(2, sco.widgets.set_panel("parity.main", "Absent", {})) == "unavailable")
+assert(select(2, sco.widgets.remove_panel("parity.main")) == "unavailable")
+assert(select(2, sco.widgets.update_nodes("parity.main", {})) == "unavailable")
+assert(select(2, sco.widgets.remove_nodes("parity.main", {1})) == "unavailable")
+local wc, we = sco.widgets.capabilities()
+assert(wc == nil and we == "unavailable", "widget capabilities do not invent a provider")
 assert(string.dump == nil, "string.dump")
 assert(not pcall(setmetatable, {}, { __gc = print }), "__gc")
 assert(sco.subscribe("tick", print))
@@ -442,6 +449,9 @@ print("parity", true, nil)
 EOF
   "$LUA" "$ROOT/tools/lua-check.lua" "$CASES/parity" | tee "$WORK/parity.txt"
   grep -q "\[parity\] info: parity$(printf '\t')true$(printf '\t')nil" "$WORK/parity.txt"
+  "$LUA" "$ROOT/tools/lua-check.lua" "$P/widgets_lua" | tee "$WORK/widgets_lua.txt"
+  grep -q 'widgets unavailable; commands remain usable' "$WORK/widgets_lua.txt"
+  grep -q 'invoke  widgets_lua.state -> ok "0 events"' "$WORK/widgets_lua.txt"
   # The storage example (sco.store): add a note, then list and clear run without arguments.
   "$LUA" "$ROOT/tools/lua-check.lua" "$P/notebook" --invoke notebook.add "buy fuel" | tee "$WORK/notebook.txt"
   grep -q 'invoke  notebook.add -> ok "note 1 saved"' "$WORK/notebook.txt"

@@ -133,14 +133,12 @@ class CatalogueTests(unittest.TestCase):
                                      '-fsyntax-only', str(self.root / c_test)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
         widgets = {r['symbol']: r for r in records if r['table'] == 'sco_widgets_v1'}
-        wrapped = {'sco_widgets_v1.set_panel', 'sco_widgets_v1.remove_panel'}
-        direct = {'sco_widgets_v1.update_nodes', 'sco_widgets_v1.remove_nodes', 'sco_widgets_v1.capabilities'}
-        self.assertEqual(set(widgets), wrapped | direct)
+        wrapped = {'sco_widgets_v1.set_panel', 'sco_widgets_v1.remove_panel',
+                   'sco_widgets_v1.update_nodes', 'sco_widgets_v1.remove_nodes', 'sco_widgets_v1.capabilities'}
+        self.assertEqual(set(widgets), wrapped)
         for symbol, record in widgets.items():
             self.assertEqual({lang: route['status'] for lang, route in record['language_mappings'].items()},
-                             {'c': 'direct', 'cpp': 'typed-wrapper', 'csharp': 'typed-wrapper', 'lua': 'typed-wrapper'}
-                             if symbol in wrapped else
-                             {'c': 'direct', 'cpp': 'direct', 'csharp': 'unsupported', 'lua': 'unsupported'})
+                             {'c': 'direct', 'cpp': 'typed-wrapper', 'csharp': 'typed-wrapper', 'lua': 'typed-wrapper'})
 
     def test_new_undocumented_method(self):
         self.header_change('sco_storage.h', '} sco_storage_v1;',

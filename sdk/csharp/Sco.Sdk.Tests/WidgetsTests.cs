@@ -319,7 +319,7 @@ namespace Sco.Sdk.Tests
             Expect(PluginExports.LoadPlugin(absent, &api, (void*)2, "cs_widgets") == ScoResult.Ok, "archive example without service");
             PluginExports.UnloadPlugin(absent);
             Console.WriteLine($"widgets: {_checks} checks, {_failed} failed");
-            return _failed;
+            return _failed + WidgetsTailTests.Run();
         }
     }
 }

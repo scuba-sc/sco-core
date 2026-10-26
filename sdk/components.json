@@ -2735,6 +2735,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "csharp.Sco.Sdk.Tests.WidgetsTailTests.cs",
+      "source": "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs",
+      "destination": "csharp/Sco.Sdk.Tests/WidgetsTailTests.cs",
+      "profiles": [
+        "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "csharp.Sco.Sdk.Tests.WidgetsTests.cs",
       "source": "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
       "destination": "csharp/Sco.Sdk.Tests/WidgetsTests.cs",
