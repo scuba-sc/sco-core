@@ -26,6 +26,18 @@ PIN(offsetof(sc_relocation_status,reason)==8);
 PIN(offsetof(sc_relocation_status,applied)==12);
 PIN(offsetof(sc_relocation_status,ticket)==16);
 PIN(SC_RELOCATION_VERSION==0x00010000u);
+PIN(SC_RELOCATION_VERSION_1_1==0x00010001u);
+PIN(sizeof(sc_relocation_position_request)==48);
+PIN(offsetof(sc_relocation_position_request,size)==0);
+PIN(offsetof(sc_relocation_position_request,timeout_ms)==4);
+PIN(offsetof(sc_relocation_position_request,zone_id)==8);
+PIN(offsetof(sc_relocation_position_request,pos)==16);
+PIN(offsetof(sc_relocation_position_request,target_epoch)==40);
+PIN(sizeof(sc_relocation_v1_1)==40);
+PIN(offsetof(sc_relocation_v1_1,request)==8);
+PIN(offsetof(sc_relocation_v1_1,cancel)==16);
+PIN(offsetof(sc_relocation_v1_1,status)==24);
+PIN(offsetof(sc_relocation_v1_1,request_position)==32);
 #define HAS(t,m) ((t) && (t)->size>=offsetof(sc_relocation_v1,m)+sizeof((t)->m) && (t)->m)
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +53,13 @@ sco_result sco_relocation_route(const sc_relocation_v1* table, unsigned method, 
     case 2:return HAS(table,status) ? table->status(self,1,&s) : SCO_UNAVAILABLE;
     default:return SCO_BAD_ARG;
     }
+}
+sco_result sco_relocation_position_route(const sc_relocation_v1_1* table, sco_plugin* self,
+                                        const sc_relocation_position_request* request, uint64_t* ticket);
+sco_result sco_relocation_position_route(const sc_relocation_v1_1* table, sco_plugin* self,
+                                        const sc_relocation_position_request* request, uint64_t* ticket) {
+    return table && table->size >= offsetof(sc_relocation_v1_1,request_position)+sizeof(table->request_position) &&
+           table->request_position ? table->request_position(self,request,ticket) : SCO_UNAVAILABLE;
 }
 #ifdef __cplusplus
 }

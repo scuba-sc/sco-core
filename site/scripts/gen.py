@@ -90,6 +90,7 @@ HUB_DOCS = {
         ('docs/contracts.md', 'How to read the per-method service contract catalogue.'),
         ('docs/stability.md', 'What stays compatible across SDK 2.x: Stable and Experimental service tables.'),
         ('docs/game-services.md', 'Services the Star Citizen game pack publishes under the reserved owner `game`.'),
+        ('docs/game/relocation-position.md', 'Explicit position-only relocation requests, completion evidence and unavailable native producer boundaries.'),
         ('docs/game/status.md', 'Status of every `game.*` table.'),
         ('docs/storage.md', 'Per-plugin key-value and SQL storage over SQLite.'),
         ('docs/ui.md', 'Renderer-neutral `sco.widgets` and the legacy `sco.ui` service.'),
