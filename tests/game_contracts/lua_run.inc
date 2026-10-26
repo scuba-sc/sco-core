@@ -6,5 +6,6 @@
     TestGameActors();
     TestGameCreative();
     TestGameRules();
+    TestInventory();
     TestGameWorld();
     TestGameEntities();

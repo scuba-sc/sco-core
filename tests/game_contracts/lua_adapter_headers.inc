@@ -6,4 +6,5 @@
 #include "sc_entities.h"
 #include "sc_game_events.h"
 #include "sc_gamerules.h"
+#include "sc_inventory.h"
 #include "sc_world.h"

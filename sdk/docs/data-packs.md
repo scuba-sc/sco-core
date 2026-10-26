@@ -13,12 +13,13 @@ data\plugins\travel_pack\
 | Folder | Files | Kind in the content index |
 |---|---|---|
 | `missions\` | `*.cwmission` | `mission` |
+| `missions\` | `<id>.scom`, id of 1..100 lowercase ASCII letters, digits or underscores; no subfolders | `script` (hosts after SDK 2.4 RC1) |
 | `rules\` | `*.rules` | `rules` |
 | `scripts\` | `*.xml`, up to 16 subfolder levels below `scripts\`; deeper content is ignored | `script` |
 | `lists\` | `*.txt` | `list` |
 | `datacore\` | `*.toml` | `datacore`: changes to game data ([below](#game-data-datacore)) |
 
-Extensions match in any case. Everything else in the folder is ignored. Links (symlinks, junctions) are skipped, so a pack can't point outside its own folder. A pack holds at most 4096 content files; more refuses the whole pack.
+The `.scom` namespace is exact and case-sensitive; other extensions match in any case. Everything else in the folder is ignored. Links (symlinks, junctions) are skipped, so a pack can't point outside its own folder. A pack holds at most 4096 content files; more refuses the whole pack.
 
 ## How features use it
 
@@ -58,8 +59,14 @@ an atomic filesystem transaction.
 
 The [native C content reader](../examples/content_reader/README.md) and
 [G14 audit/design](../../docs/design/content-access.md) explain the boundary.
-Script data is not permission to execute scripts. C#/Lua bindings, mission/rules
-exposure and automatic import of legacy product base lists are not provided.
+Script data is not permission to execute scripts. Hosts after SDK 2.4 RC1 also
+expose owned `missions/<id>.scom` declarations as `SCO_CONTENT_SCRIPT`, allowing
+the product contracts consumer to read its declared format through this public
+table. Published RC1 does not discover those files. The host copies opaque bytes;
+the consumer validates the declaration and still needs an available mission
+ingest provider. Native mission capability enablement is separate. Private
+`.cwmission`/rules exposure, C#/Lua bindings and automatic import of legacy
+product base lists are not provided.
 
 Each feature decides which files it reads and in what format. A list file uses the format of the sc-offline file it extends: [`examples/travel_pack/lists/locations.txt`](../examples/travel_pack/lists/locations.txt) uses the `system | name | entity | radius` lines of sc-offline's `data\locations.txt`. Which features read pack content, and from which names, is listed in sc-offline's docs as each feature gains support.
 

@@ -73,12 +73,14 @@ RFC3339 = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\
 SCHEMA_KEYWORDS = {"$schema", "$id", "title", "type", "properties", "required", "additionalProperties",
                    "items", "const", "enum", "pattern", "format", "minLength", "maxLength",
                    "minimum", "maximum", "minItems", "maxItems", "uniqueItems", "oneOf"}
-# Archive limits, four times what the legacy zip actually holds (sdk/package.py --profile legacy:
+# Original count, per-entry and ratio limits are four times the earlier legacy zip (sdk/package.py --profile legacy:
 # 116 entries, 1,334,638 bytes uncompressed in total, its largest entry 426,845 bytes and its best
 # compression 8.2:1). A release that outgrows them raises these constants on purpose.
 MAX_ENTRIES = 464            # 4 x 116
 MAX_ENTRY_BYTES = 1_707_380  # 4 x 426,845
-MAX_TOTAL_BYTES = 5_338_552  # 4 x 1,334,638
+# SDK 2.4 workflow/guide metadata grows the combined kit to about 5.4 MB.
+# Keep a finite 8 MiB total budget without changing the other plugin-archive bounds.
+MAX_TOTAL_BYTES = 8 * 1024 * 1024
 MAX_RATIO = 33               # 4 x 8.2:1
 # Device names Windows refuses in any path segment, with or without an extension.
 RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {f"LPT{i}" for i in range(1, 10)}
@@ -120,6 +122,13 @@ def structure_problems(infos, top, safe_rel, limits=None):
     seen, folded, total = set(), {}, 0
     for i in infos:
         n = i.filename
+        # ZipInfo can normalize Windows separators or truncate at a NUL.
+        # Check the original path too, before even skipping directories.
+        raw = i.orig_filename
+        raw_path = raw[:-1] if raw.endswith("/") else raw
+        if "\0" in raw or not safe_rel(raw_path):
+            problems.append(f"{raw}: unsafe path")
+            continue
         if n.endswith("/"):
             continue
         rel = n[len(top) + 1:] if n.startswith(top + "/") else n

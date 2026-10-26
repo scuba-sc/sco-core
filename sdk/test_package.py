@@ -462,11 +462,11 @@ class RealManifest(unittest.TestCase):
     def test_contract_catalogue_inventory(self):
         methods = set()
         for header in sorted(Path(pkg.ROOT, "include").glob("*.h")):
-            text = re.sub(r"/\*.*?\*/|//[^\n]*", "", header.read_text(), flags=re.S)
+            text = re.sub(r"/\*.*?\*/|//[^\n]*", "", header.read_text(encoding="utf-8"), flags=re.S)
             for body, table in re.findall(r"typedef\s+struct\s+\w+\s*\{(.*?)\}\s*(\w+)\s*;", text, re.S):
                 methods.update(f"{table}.{name}" for name in re.findall(r"\(\s*\*\s*(\w+)\s*\)\s*\(", body))
         methods.update(("sco_plugin_query", "sco_plugin_load", "sco_plugin_unload"))
-        with open(os.path.join(pkg.ROOT, "docs", "contracts.md")) as f:
+        with open(os.path.join(pkg.ROOT, "docs", "contracts.md"), encoding="utf-8") as f:
             catalogue = f.read()
         rows = re.findall(r"^\| `(\w+(?:\.\w+)?)` \| (.*)$", catalogue, re.M)
         found = [name for name, cells in rows if name in methods]

@@ -74,7 +74,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
+              "token": "const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;"
             }
           ],
           "tests": []
@@ -165,7 +165,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
+              "token": "const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;"
             }
           ],
           "tests": []
@@ -256,7 +256,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
+              "token": "const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;"
             }
           ],
           "tests": []
@@ -347,7 +347,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
+              "token": "const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;"
             }
           ],
           "tests": []
@@ -438,7 +438,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
+              "token": "const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;"
             }
           ],
           "tests": []
@@ -529,7 +529,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
+              "token": "const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;"
             }
           ],
           "tests": []
@@ -619,7 +619,7 @@
             },
             {
               "path": "plugins/lua/sco_lua_game.c",
-              "token": "if (!(actors || vehicles || world || entities || creative || gamerules)) return;"
+              "token": "const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;"
             }
           ],
           "tests": []

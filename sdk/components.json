@@ -3007,6 +3007,17 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "csharp.Sco.Sdk.Game.Inventory.cs",
+      "source": "sdk/csharp/Sco.Sdk/Game/Inventory.cs",
+      "destination": "csharp/Sco.Sdk/Game/Inventory.cs",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "csharp.Sco.Sdk.Game.Reputation.cs",
       "source": "sdk/csharp/Sco.Sdk/Game/Reputation.cs",
       "destination": "csharp/Sco.Sdk/Game/Reputation.cs",

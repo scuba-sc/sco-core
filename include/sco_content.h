@@ -4,6 +4,9 @@
  * All calls: game thread only, live self required. No file IO during a call.
  * Table storage lives for the process; Stop/terminal shutdown returns UNAVAILABLE.
  * Contents are a startup snapshot; change packs only while the host is stopped.
+ * Script records include XML files below scripts/ and, on hosts after SDK 2.4 RC1,
+ * missions/<id>.scom (id: 1..100 lowercase ASCII letters, digits or underscores).
+ * File bytes are opaque; consumers validate their formats. Private .cwmission is not exposed.
  * No implicit base files, script execution, ownership transfer or reload support.
  * Check complete callback extents AND non-null pointers before using any table.
  */

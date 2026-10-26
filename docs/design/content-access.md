@@ -20,8 +20,13 @@ is sufficient; no game provider, transport, command broker or base ABI change.
 ## Decisions
 
 - Publish `sco.content` 1.0, a separate size-prefixed C service, with `item` and
-  `read`. Only indexed `lists/*.txt` and `scripts/**/*.xml` are exposed. Mission,
-  rules and DataCore consumption retain their existing host/game pipelines.
+  `read`. Indexed `lists/*.txt` and `scripts/**/*.xml` are exposed. Hosts after
+  SDK 2.4 RC1 additionally classify exact `missions/<id>.scom` declarations as
+  Script (id: 1..100 lowercase ASCII letters, digits or underscores, no subfolders).
+  RC1 lacks this rule, so its real public provider cannot supply the product
+  contracts consumer's declared namespace. These remain opaque copied bytes:
+  the consumer validates its format and requires a separate ingest provider.
+  Private `.cwmission`, rules and DataCore retain their existing pipelines.
 - Copy bytes at startup **before any consumer code loads**. Startup packs depending on code providers are explicitly
   refused; data-pack refusal propagates to data dependents. No public callback
   opens a file, accepts a filesystem path or exposes an absolute path. Script

@@ -5,7 +5,8 @@
  * It talks to the game only through the services the game pack publishes (query_service), the same
  * tables a native plugin gets, and it keeps sco-lua's rules: every table is read-only (no function
  * that changes the game, except sco.datacore's patches, which the host checks), every call is
- * charged to the script's step budget, and a table appears only when its service is published.
+ * charged to the script's step budget. Service tables appear when published, except inventory's
+ * static category vocabulary; its snapshot still requires a published, enabled provider.
  * Script reference: sdk/docs/lua.md (sco.datacore, sco.game). */
 #include "sco_lua_game.h"
 #include "sco_lua_ext.h"
@@ -15,11 +16,21 @@
 #include "sc_entities.h"
 #include "sc_game_events.h"
 #include "sc_gamerules.h"
+/* The public C enum's UNKNOWN sentinel is uint32, beyond ISO C's int enumerator range. */
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+#include "sc_inventory.h"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #include "sc_vehicles.h"
 #include "sc_world.h"
 #include "sco_datacore.h"
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 /* The payload of a game.* event (sc_game_events.h) as a table: nil for any other event, and for a
@@ -551,6 +562,104 @@ static int L_gamerules_read(lua_State* L) {
     return 1;
 }
 
+/* ---- sco.game.inventory: copied snapshots and static build-scoped category vocabulary --------- */
+
+static void InventoryU64(lua_State* L, uint64_t value) {
+    if (value <= INT64_MAX) lua_pushinteger(L, (lua_Integer)value);
+    else {
+        char text[21];
+        snprintf(text, sizeof(text), "%llu", (unsigned long long)value);
+        lua_pushstring(L, text);
+    }
+}
+
+static uint64_t InventoryRaw(lua_State* L, int index) {
+    if (lua_isinteger(L, index) && lua_tointeger(L, index) >= 0)
+        return (uint64_t)lua_tointeger(L, index);
+    if (lua_type(L, index) == LUA_TSTRING) {
+        size_t size = 0;
+        const char* text = lua_tolstring(L, index, &size);
+        uint64_t value = 0;
+        if (size > 0 && size <= 20) {
+            size_t i;
+            for (i = 0; i < size; ++i) {
+                if (text[i] < '0' || text[i] > '9') break;
+                const uint32_t digit = (uint32_t)(text[i] - '0');
+                if (value > (UINT64_MAX - digit) / 10) break;
+                value = value * 10 + digit;
+            }
+            if (i == size) return value;
+        }
+    }
+    return (uint64_t)luaL_argerror(L, index, "expected an unsigned integer or uint64 decimal string");
+}
+
+static int L_inventory_item_type(lua_State* L) {
+    const uint64_t raw = InventoryRaw(L, 1);
+    lua_pushinteger(L, raw < SC_ITEM_TYPE_COUNT_197 ? (lua_Integer)raw : (lua_Integer)(uint32_t)SC_ITEM_TYPE_UNKNOWN);
+    InventoryU64(L, raw);
+    return 2;
+}
+
+static int L_inventory_item_type_name(lua_State* L) {
+    const uint64_t raw = InventoryRaw(L, 1);
+    lua_pushstring(L, raw < SC_ITEM_TYPE_COUNT_197 ? sc_inventory_item_type_name((uint32_t)raw) : "UNDEFINED");
+    return 1;
+}
+
+static int L_inventory_snapshot(lua_State* L) {
+    const sco_api* api = sco_lua_api(L);
+    sco_plugin* self = sco_lua_self(L);
+    const void* table = NULL;
+    uint32_t size = sizeof(sc_inventory_snapshot);
+    sco_result result = SCO_UNAVAILABLE;
+    if (self && GAME_MEMBER(api, sco_api, has) && api->has("game.inventory.read") &&
+        GAME_MEMBER(api, sco_api, query_service)) {
+        result = api->query_service(SC_INVENTORY_SERVICE_NAME, SC_INVENTORY_SERVICE_VERSION_1_1, &table);
+        if (result == SCO_UNAVAILABLE || result == SCO_NOT_FOUND) {
+            table = NULL;
+            size = SC_INVENTORY_SNAPSHOT_SIZE_1_0;
+            result = api->query_service(SC_INVENTORY_SERVICE_NAME, SC_INVENTORY_SERVICE_VERSION_1_0, &table);
+        }
+    }
+    const sc_inventory_v1* inventory = (const sc_inventory_v1*)table;
+    sc_inventory_snapshot snapshot;
+    memset(&snapshot, 0, sizeof(snapshot));
+    snapshot.size = size;
+    snapshot.count = SC_INVENTORY_MAX_PORTS;
+    if (result == SCO_OK)
+        result = GAME_MEMBER(inventory, sc_inventory_v1, snapshot) ? inventory->snapshot(self, &snapshot) : SCO_UNAVAILABLE;
+    if (result == SCO_OK && (snapshot.size < size || snapshot.count > SC_INVENTORY_MAX_PORTS)) result = SCO_FAILED;
+    if (result != SCO_OK) {
+        lua_pushnil(L); lua_pushstring(L, sco_lua_result_name(result)); return 2;
+    }
+    const int details = size >= sizeof(sc_inventory_snapshot);
+    lua_createtable(L, 0, 7);
+    lua_pushinteger(L, size); lua_setfield(L, -2, "size");
+    lua_pushinteger(L, snapshot.count); lua_setfield(L, -2, "count");
+    InventoryU64(L, snapshot.generation); lua_setfield(L, -2, "generation");
+    lua_pushboolean(L, details); lua_setfield(L, -2, "has_details");
+    if (details) {
+        lua_pushinteger(L, snapshot.flags); lua_setfield(L, -2, "flags");
+        lua_pushinteger(L, snapshot.total_seen); lua_setfield(L, -2, "total_seen");
+    }
+    lua_createtable(L, (int)snapshot.count, 0);
+    for (uint32_t i = 0; i < snapshot.count; ++i) {
+        const sc_inventory_port* port = &snapshot.ports[i];
+        const sc_item_type type = sc_inventory_port_item_type(port);
+        lua_createtable(L, 0, 6);
+        lua_pushinteger(L, port->size); lua_setfield(L, -2, "size");
+        lua_pushboolean(L, port->valid != 0); lua_setfield(L, -2, "valid");
+        InventoryU64(L, port->item_class_id); lua_setfield(L, -2, "item_class_id");
+        InventoryU64(L, port->entity_id); lua_setfield(L, -2, "entity_id");
+        lua_pushinteger(L, (lua_Integer)(uint32_t)type); lua_setfield(L, -2, "item_type");
+        lua_pushstring(L, sc_inventory_item_type_name((uint32_t)type)); lua_setfield(L, -2, "item_type_name");
+        lua_rawseti(L, -2, (lua_Integer)i + 1);
+    }
+    lua_setfield(L, -2, "ports");
+    return 1;
+}
+
 /* ---- sco.game.world: the game pack's game.world, read-only queries (no self) ---------------------- */
 
 static const sc_world_v1* WorldTable(lua_State* L) {
@@ -635,11 +744,25 @@ static void Open(lua_State* L) {
         luaL_newlib(L, dcfns);
         lua_setfield(L, -2, "datacore");
     }
-    /* sco.game: the game pack's services, read-only, each only when published */
+    /* sco.game: read-only services plus the static inventory category vocabulary */
     const int actors = ActorsTable(L) != NULL, vehicles = Vehicles(L) != NULL, world = WorldTable(L) != NULL;
     const int entities = Entities(L) != NULL, creative = Creative(L) != NULL, gamerules = GameRules(L) != NULL;
-    if (!(actors || vehicles || world || entities || creative || gamerules)) return;
     lua_newtable(L);
+    { /* Vocabulary is static; snapshot still requires a published, enabled provider. */
+        static const luaL_Reg inventoryfns[] = {
+            { "snapshot", L_inventory_snapshot }, { "item_type", L_inventory_item_type },
+            { "item_type_name", L_inventory_item_type_name }, { NULL, NULL } };
+        luaL_newlib(L, inventoryfns);
+        lua_createtable(L, 0, SC_ITEM_TYPE_COUNT_197 + 1);
+        for (uint32_t i = 0; i < SC_ITEM_TYPE_COUNT_197; ++i) {
+            lua_pushinteger(L, i); lua_setfield(L, -2, sc_inventory_item_type_name(i));
+        }
+        lua_pushinteger(L, (lua_Integer)(uint32_t)SC_ITEM_TYPE_UNKNOWN); lua_setfield(L, -2, "UNKNOWN");
+        lua_setfield(L, -2, "item_types");
+        lua_pushinteger(L, SC_ITEM_TYPE_COUNT_197); lua_setfield(L, -2, "item_type_count");
+        lua_pushliteral(L, "4.10.197.2878"); lua_setfield(L, -2, "item_type_build");
+        lua_setfield(L, -2, "inventory");
+    }
     if (actors) {                                     /* sco.game.actors */
         static const luaL_Reg gafns[] = { { "local_player", L_actors_local_player }, { "health", L_actors_health }, { NULL, NULL } };
         luaL_newlib(L, gafns);

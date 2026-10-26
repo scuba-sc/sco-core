@@ -4,6 +4,27 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- SDK package catalogue checks read public headers and contract documentation as
+  UTF-8 explicitly, so Windows default code pages do not reject valid text.
+
+- The SDK archive audit allows an 8 MiB total uncompressed plugin kit, covering
+  the current workflow and guide metadata. All other structural limits and
+  exact payload, checksum, licence and provenance checks remain unchanged.
+  Raw ZIP filenames remain checked when Python normalizes Windows separators.
+
+- Discover owned `missions/<id>.scom` declarations as public `sco.content`
+  Script records, so the contracts consumer can read its supported namespace.
+  IDs are 1..100 lowercase ASCII letters, digits or underscores. Existing XML
+  scripts, lists and private `.cwmission` behavior are preserved. This rule is
+  absent from published SDK 2.4 RC1; it does not enable native mission ingestion
+  or script execution.
+
+- C# and Lua expose the existing 192-category inventory vocabulary and read-only copied
+  snapshots, with exact unknown raw uint64 values and guarded 1.1/1.0 snapshot negotiation.
+  Lua preserves UNKNOWN as the canonical unsigned 32-bit category on MSVC.
+  Category metadata remains pinned to 4.10.197.2878 and does not enable the inventory backend.
+  These routes are absent from published RC1.
+
 - Generated native/C++/C# manifests declare API 1.1, matching their exported
   built-against ABI. Truncated-table checker success is no longer described as
   API 1.0 loader admission. Lua keeps its script-runtime declaration.

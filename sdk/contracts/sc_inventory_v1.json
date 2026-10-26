@@ -24,14 +24,16 @@
       "cleanup": "StopGameInventory withdraws the service; read-only, no engine state to restore.",
       "limitations": [
         "Local player ports only in 1.0 (ships/mounts are follow-ups).",
-        "Per-class item names are not yet established; an item-type-id name map exists but is not exposed.",
+        "Per-class item names are not established; the 192-category vocabulary is build-scoped to 4.10.197.2878.",
         "No stack counts (layout unattested).",
         "Snapshot semantics: 128 ports max; the walk covers the whole attached tree depth first (at most 8 levels below the player's container, 256 containers, 4096 ports counted); flags and total_seen say what was cut; generation is computed by comparing successive snapshots (the game has no change counter); per-frame streams are out of contract.",
-        "Nesting is not reported: ports come in walk order without a parent or depth.",
-        "No C# or Lua game.inventory routes are supported."
+        "Nesting is not reported: ports come in walk order without a parent or depth."
       ],
       "tests": [
-        "tests/abi_game_inventory.c"
+        "tests/abi_game_inventory.c",
+        "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs",
+        "tests/game_contracts/lua_cases.inc",
+        "tools/test_sdk_catalogue.py"
       ],
       "examples": [],
       "language_mappings": {
@@ -60,24 +62,28 @@
           ]
         },
         "csharp": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/game/inventory.md",
-              "token": "No C# or Lua game.inventory routes are supported"
+              "path": "sdk/csharp/Sco.Sdk/Game/Inventory.cs",
+              "token": "_table->snapshot(_plugin.SelfPtr, &value)"
             }
           ],
-          "tests": []
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/GameFakeHost.cs"
+          ]
         },
         "lua": {
-          "status": "unsupported",
+          "status": "typed-wrapper",
           "evidence": [
             {
-              "path": "docs/game/inventory.md",
-              "token": "No C# or Lua game.inventory routes are supported"
+              "path": "plugins/lua/sco_lua_game.c",
+              "token": "inventory->snapshot(self, &snapshot)"
             }
           ],
-          "tests": []
+          "tests": [
+            "tests/game_contracts/lua_cases.inc"
+          ]
         }
       }
     }

@@ -65,11 +65,69 @@ static void Guards(sco_plugin* self) {
     fakeResult = SCO_OK; fakeTable = nullptr;
     CHECK(c.Open(&api, self) == SCO_UNAVAILABLE);
 }
+static void MissionScripts(const fs::path& root) {
+    Pack(root, "declarations");
+    const std::string declaration = "sco-mission 1\nphases 2\nobjectives 1\n";
+    Write(root / "declarations/missions/demo.scom", declaration);
+    const std::string longest(100, 'z');
+    Write(root / ("declarations/missions/" + longest + ".scom"), declaration);
+    Write(root / "declarations/scripts/nested/kept.XML", "<synthetic/>");
+    Write(root / "declarations/lists/kept.txt", "synthetic list");
+    Write(root / "declarations/missions/private.cwmission", "private mission");
+    for (const auto& name : {std::string(".scom"), std::string("Upper.scom"),
+                            std::string("bad-name.scom"), std::string("bad.name.scom"),
+                            std::string("suffix.SCOM"), std::string("nested/hidden.scom"),
+                            std::string("nonascii_\xc3\xa9.scom"), std::string(101, 'z') + ".scom"})
+        Write(root / "declarations/missions" / name, declaration);
+    std::error_code linkError;
+    fs::create_symlink(root / "declarations/missions/demo.scom",
+                       root / "declarations/missions/linked.scom", linkError);
+#ifndef _WIN32
+    CHECK(!linkError);
+#endif
+    Pack(root, "z_duplicate");
+    Write(root / "z_duplicate/missions/demo.scom", "second declaration");
+    Pack(root, "oversized");
+    Write(root / "oversized/missions/demo.scom", std::string(SCO_CONTENT_MAX_FILE_BYTES + 1u, 'x'));
+    Write(root / "oversized/lists/hidden.txt", "must not leak");
+    sco::app::Platform pf{}; pf.pluginRoot = root; pf.pluginsEnabled = true;
+    CHECK(sco::app::Start(pf));
+    const auto* api = sco::host::BuildApi({"synthetic"});
+    const void* raw = nullptr;
+    CHECK(api->query_service(SCO_CONTENT_NAME, SCO_CONTENT_VERSION_1_0, &raw) == SCO_OK);
+    const auto* table = static_cast<const sco_content_v1*>(raw);
+    auto* self = sco::host::NewPlugin("mission_reader");
+    CHECK(sco::app::Content().Find(P::ContentKind::Mission, "missions/private.cwmission").size() == 1);
+    CHECK(sco::app::Content().FromPlugin("oversized").empty());
+    sco_content_item item{}; item.size = sizeof(item);
+    CHECK(table->item(self, SCO_CONTENT_SCRIPT, 0, &item) == SCO_OK &&
+          std::strcmp(item.name, "missions/demo.scom") == 0);
+    uint32_t size = 0;
+    CHECK(table->read(self, item.id, nullptr, &size) == SCO_TOO_MANY && size == declaration.size());
+    std::string bytes(size, '\0');
+    CHECK(table->read(self, item.id, bytes.data(), &size) == SCO_OK && bytes == declaration);
+    const auto originalId = item.id;
+    Write(root / "declarations/missions/demo.scom", "changed after snapshot");
+    size = static_cast<uint32_t>(bytes.size());
+    CHECK(table->read(self, originalId, bytes.data(), &size) == SCO_OK && bytes == declaration);
+    CHECK(table->item(self, SCO_CONTENT_SCRIPT, 1, &item) == SCO_OK &&
+          std::string(item.name) == "missions/" + longest + ".scom");
+    CHECK(table->item(self, SCO_CONTENT_SCRIPT, 2, &item) == SCO_OK &&
+          std::strcmp(item.name, "scripts/nested/kept.XML") == 0);
+    CHECK(table->item(self, SCO_CONTENT_SCRIPT, 3, &item) == SCO_OK && item.id != originalId &&
+          std::strcmp(item.pack, "z_duplicate") == 0 && std::strcmp(item.name, "missions/demo.scom") == 0);
+    CHECK(table->item(self, SCO_CONTENT_SCRIPT, 4, &item) == SCO_NOT_FOUND);
+    CHECK(table->item(self, SCO_CONTENT_LIST, 0, &item) == SCO_OK &&
+          std::strcmp(item.name, "lists/kept.txt") == 0);
+    CHECK(table->item(self, SCO_CONTENT_LIST, 1, &item) == SCO_NOT_FOUND);
+    sco::Release(self); sco::app::Stop();
+}
 int main(int argc, char** argv) {
     if (argc != 3) return 2;
     sco::SetLogSink(Sink);
     const fs::path base = fs::path(argv[1]) / "content-fixture";
     fs::remove_all(base); fs::create_directories(base);
+    MissionScripts(base / "mission-scripts");
     const auto root = base / "plugins";
     Pack(root, "a_pack"); Pack(root, "b_pack"); Pack(root, "disabled_pack"); Pack(root, "broken_pack");
     Pack(root, "a_dependent");

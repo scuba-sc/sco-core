@@ -90,7 +90,7 @@ static sco_result FakeLastError(sco_plugin* self, char* out, uint32_t* io) {
 }
 
 static void TestGameActors() {
-    Write("ganone", "assert(sco.game == nil, 'not published')\n");
+    Write("ganone", "assert(sco.game.inventory and sco.game.actors == nil, 'actors not published')\n");
     Loaded none = Load("ganone");
     CHECK(none.p && none.p->state == State::Loaded);
     Unload(none);
@@ -271,6 +271,145 @@ end }
     CHECK(sco::host::WithdrawGameService(SC_GAMERULES_SERVICE_NAME) == Result::Ok);
 }
 
+// ---- sco.game.inventory (public category vocabulary and caller-owned snapshots) ----------------
+
+static uint32_t g_inventoryCalls = 0;
+static uint32_t g_inventoryValid = 1;
+static uint64_t g_inventoryFirstRaw = 22;
+static bool g_inventoryBadSize = false, g_inventoryBadCount = false;
+static sco_result g_inventoryResult = SCO_OK;
+static sco_result FakeInventory(sco_plugin* self, sc_inventory_snapshot* out) {
+    ++g_inventoryCalls;
+    if (!self || !out || out->size < SC_INVENTORY_SNAPSHOT_SIZE_1_0 || out->count != SC_INVENTORY_MAX_PORTS) return SCO_BAD_ARG;
+    if (g_inventoryResult != SCO_OK) return g_inventoryResult;
+    static const uint64_t raw[] = { 22, 191, 192, UINT32_MAX, 0x100000016ull, INT64_MAX, 0x8000000000000000ull, UINT64_MAX };
+    out->generation = UINT64_MAX;
+    out->count = 8;
+    for (uint32_t i = 0; i < out->count; ++i)
+        out->ports[i] = { sizeof(sc_inventory_port), g_inventoryValid, i == 0 ? g_inventoryFirstRaw : raw[i], UINT64_MAX };
+    if (out->size >= sizeof(*out)) { out->flags = 3; out->total_seen = 129; }
+    if (g_inventoryBadSize) out->size = 0;
+    if (g_inventoryBadCount) out->count = SC_INVENTORY_MAX_PORTS + 1;
+    return SCO_OK;
+}
+
+static sco_result FakeInventoryNoTable(const char* name, uint32_t version, const void** out) {
+    if (std::strcmp(name, SC_INVENTORY_SERVICE_NAME) == 0) { *out = nullptr; return SCO_OK; }
+    return g_api->query_service(name, version, out);
+}
+
+static void TestInventory() {
+    static sc_inventory_v1 table = { sizeof(sc_inventory_v1), 0, FakeInventory };
+    std::string source = R"(
+local inv = assert(sco.game.inventory)
+assert(inv.item_types.UNKNOWN == 4294967295 and inv.item_type_count == 192 and inv.item_type_build == "4.10.197.2878")
+local names = 0
+for _ in pairs(inv.item_types) do names = names + 1 end
+assert(names == 193)
+for _, raw in ipairs({192, 999, 4294967295, 4294967318, 9223372036854775807, "9223372036854775808", "18446744073709551615"}) do
+  local mapped, kept = inv.item_type(raw)
+  assert(mapped == inv.item_types.UNKNOWN and kept == raw and inv.item_type_name(raw) == "UNDEFINED")
+end
+for _, raw in ipairs({-1, 1.5, {}, "", "-1", "18446744073709551616", "000000000000000000000", "22x", "22\0"}) do
+  assert(not pcall(inv.item_type, raw) and not pcall(inv.item_type_name, raw))
+end
+sco.register_command{name="gainv.read",title="Read",fn=function()
+  local s, err = inv.snapshot()
+  return s and (tostring(s.has_details)..":"..s.count) or err
+end}
+sco.register_command{name="gainv.check",title="Check",fn=function()
+  local s = assert(inv.snapshot())
+  assert(s.count == 8 and #s.ports == 8 and s.generation == "18446744073709551615")
+  assert(s.ports[1].item_class_id == 22 and s.ports[1].item_type == inv.item_types.Char_Armor_Helmet and s.ports[1].item_type_name == "Char_Armor_Helmet")
+  local raw = {22, 191, 192, 4294967295, 4294967318, 9223372036854775807, "9223372036854775808", "18446744073709551615"}
+  for i, port in ipairs(s.ports) do
+    assert(port.valid and port.size == 24 and port.item_class_id == raw[i] and port.entity_id == "18446744073709551615")
+    assert(port.item_type == (i <= 2 and raw[i] or inv.item_types.UNKNOWN))
+  end
+  if s.has_details then assert(s.size == 3096 and s.flags == 3 and s.total_seen == 129)
+  else assert(s.size == 3088 and s.flags == nil and s.total_seen == nil) end
+  local copied = s.ports[1].item_class_id
+  assert(inv.snapshot())
+  assert(s.ports[1].item_class_id == copied)
+  return "ok"
+end}
+sco.register_command{name="gainv.invalid",title="Invalid",fn=function()
+  local p = assert(inv.snapshot()).ports[1]
+  assert(not p.valid and p.item_type == inv.item_types.UNKNOWN and p.item_type_name == "UNDEFINED")
+  return tostring(p.item_class_id)
+end}
+)";
+    // The actual Lua helper and exported table must agree with all public C names and ordinals.
+    for (uint32_t i = 0; i < SC_ITEM_TYPE_COUNT_197; ++i) {
+        const std::string name = sc_inventory_item_type_name(i);
+        source += "assert(inv.item_types[\"" + name + "\"] == " + std::to_string(i) + ")\n";
+        source += "assert(inv.item_type_name(" + std::to_string(i) + ") == \"" + name + "\")\n";
+        source += "assert(inv.item_type(" + std::to_string(i) + ") == " + std::to_string(i) + ")\n";
+    }
+    Write("gainv", source);
+    Loaded l = Load("gainv");
+    CHECK(l.p && l.p->state == State::Loaded);
+    if (l.p && l.p->state != State::Loaded) std::printf("  gainv: %s\n", l.p->reason.c_str());
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable"); // vocabulary exists without a provider
+    CHECK(sco::host::ProvideGameService(SC_INVENTORY_SERVICE_NAME, SC_INVENTORY_SERVICE_VERSION_1_1, &table) == Result::Ok);
+    CHECK(sco::caps::Set("game.inventory.read", true) == Result::Ok);
+    CHECK(Invoke(g_caller, "gainv.check").text == "ok");
+    g_inventoryValid = 0;
+    g_inventoryFirstRaw = 0;
+    CHECK(Invoke(g_caller, "gainv.invalid").text == "0");
+    g_inventoryFirstRaw = 22;
+    CHECK(Invoke(g_caller, "gainv.invalid").text == "22");
+    g_inventoryValid = 1;
+    CHECK(sco::host::WithdrawGameService(SC_INVENTORY_SERVICE_NAME) == Result::Ok);
+    CHECK(sco::host::ProvideGameService(SC_INVENTORY_SERVICE_NAME, SC_INVENTORY_SERVICE_VERSION_1_0, &table) == Result::Ok);
+    CHECK(Invoke(g_caller, "gainv.read").text == "false:8" && Invoke(g_caller, "gainv.check").text == "ok");
+    CHECK(sco::host::WithdrawGameService(SC_INVENTORY_SERVICE_NAME) == Result::Ok);
+    CHECK(sco::host::ProvideGameService(SC_INVENTORY_SERVICE_NAME, SC_INVENTORY_SERVICE_VERSION_1_1, &table) == Result::Ok);
+    const uint32_t calls = g_inventoryCalls;
+    for (uint32_t size = 0; size < sizeof(table); ++size) {
+        table.size = size;
+        CHECK(Invoke(g_caller, "gainv.read").text == "unavailable" && g_inventoryCalls == calls);
+    }
+    table.size = sizeof(table); table.snapshot = nullptr;
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable" && g_inventoryCalls == calls);
+    table.snapshot = FakeInventory;
+    CHECK(sco::caps::Set("game.inventory.read", false) == Result::Ok);
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable" && g_inventoryCalls == calls);
+    CHECK(sco::caps::Set("game.inventory.read", true) == Result::Ok);
+    g_inventoryResult = SCO_UNAVAILABLE;
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable");
+    g_inventoryResult = SCO_OK; g_inventoryBadCount = true;
+    CHECK(Invoke(g_caller, "gainv.read").text == "failed");
+    g_inventoryBadCount = false; g_inventoryBadSize = true;
+    CHECK(Invoke(g_caller, "gainv.read").text == "failed");
+    g_inventoryBadSize = false;
+    Unload(l);
+    CHECK(Invoke(g_caller, "gainv.read").r == SCO_NOT_FOUND);
+    CHECK(sco::host::WithdrawGameService(SC_INVENTORY_SERVICE_NAME) == Result::Ok);
+    CHECK(sco::caps::Set("game.inventory.read", false) == Result::Ok);
+
+    // A short or null root member cannot be called, even with a published table and ready cap.
+    CHECK(sco::host::ProvideGameService(SC_INVENTORY_SERVICE_NAME, SC_INVENTORY_SERVICE_VERSION_1_1, &table) == Result::Ok);
+    CHECK(sco::caps::Set("game.inventory.read", true) == Result::Ok);
+    sco_api api = *g_api;
+    Loaded guarded = Load("gainv", &api);
+    const uint32_t before = g_inventoryCalls;
+    api.size = offsetof(sco_api, has) + sizeof(api.has) - 1;
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable" && g_inventoryCalls == before);
+    api.size = sizeof(api); api.has = nullptr;
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable" && g_inventoryCalls == before);
+    api = *g_api; api.size = offsetof(sco_api, query_service) + sizeof(api.query_service) - 1;
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable" && g_inventoryCalls == before);
+    api.size = sizeof(api); api.query_service = nullptr;
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable" && g_inventoryCalls == before);
+    api = *g_api; api.query_service = FakeInventoryNoTable;
+    CHECK(Invoke(g_caller, "gainv.read").text == "unavailable" && g_inventoryCalls == before);
+    api = *g_api;
+    Unload(guarded);
+    CHECK(sco::host::WithdrawGameService(SC_INVENTORY_SERVICE_NAME) == Result::Ok);
+    CHECK(sco::caps::Set("game.inventory.read", false) == Result::Ok);
+}
+
 // ---- sco.game.creative (read-only: state() only; a stand-in table) -------------------------------
 
 static uint32_t g_creativeFlags = 0;
@@ -375,7 +514,7 @@ end }
 }
 
 static void TestGameWorld() {
-    Write("gwnone", "assert(sco.game == nil, 'not published')\n");
+    Write("gwnone", "assert(sco.game.inventory and sco.game.world == nil, 'world not published')\n");
     Loaded none = Load("gwnone");
     CHECK(none.p && none.p->state == State::Loaded);
     Unload(none);

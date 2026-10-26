@@ -41,9 +41,11 @@ state can run again after a budget violation, but an overrun disables that state
 in the same way as before reload.
 
 The game adapter is optional and separate from the neutral runtime. Linking it
-alone exposes nothing: the host must register it, and its tables appear only for
-published services when each new script state opens. Game queries stay read-only;
-DataCore retains its separately documented patch API. Neither a reload nor a
+alone exposes nothing: the host must register it. Each new script state exposes
+published service tables plus inventory's static category vocabulary, which needs
+no provider. Inventory snapshots still require an available provider and the
+`game.inventory.read` capability. Game queries stay read-only; DataCore retains its
+separately documented patch API. Neither a reload nor a
 missing adapter grants native access, game mutation methods, files or FFI. Reload
 of a script is not reload of its native service providers.
 
@@ -368,6 +370,46 @@ Present only when the Star Citizen game pack publishes [`game.gamerules`](../../
 | `sco.game.gamerules.read()` | A table `{ valid, generation, enforce_group_qt, quantum_travel_allowed, quantum_boost_allowed, travel_target_threshold_angle, target_lock_angular_player, target_lock_angular_ai, target_lock_linear_player, target_lock_linear_ai, boost_group_distance_threshold }`: the first, third, fourth and fifth are booleans, `generation` an integer (an opaque counter, not a session id) and the rest numbers. `valid` is `false` until the client has received a parameter set; every other field is then zero |
 
 On failure it returns `nil, err` (`err` as for `sco.store`: `"unavailable"`, ...). There is no message: the table has no `last_error`.
+
+## `sco.game.inventory`
+
+The game adapter exposes this static category vocabulary whenever it is registered, including
+when no inventory provider is published. It uses the existing public 192-member table for
+**4.10.197.2878** (`item_type_build`, `item_type_count = 192`). This source addition is absent from
+published RC1; `lua-check.lua` has no inventory stand-in. Names do not imply backend readiness.
+
+| Member | Returns |
+|---|---|
+| `item_types` | Canonical category keys such as `Char_Armor_Helmet = 22`, `FPS_WeaponSidearm = 95`, and `UNKNOWN = 4294967295` |
+| `item_type(raw)` | Mapped enum integer and the exact raw uint64 value; outside 0..191 maps to `UNKNOWN` |
+| `item_type_name(raw)` | Canonical category name or `"UNDEFINED"`; no uint32 narrowing |
+| `snapshot()` | Copied `{ size, count, generation, has_details, ports, flags, total_seen }`, or `nil, err` |
+
+Inventory uint64 values (`item_class_id`, `entity_id`, `generation`, and the raw helper result)
+are nonnegative Lua integers through 2^63-1, and decimal strings above it. The category helpers
+accept an integer or an unsigned decimal string through `"18446744073709551615"`; negative,
+fractional and out-of-range values raise an argument error. Do not convert upper-half values to
+floating point. Other game services retain their documented id representations.
+
+`snapshot()` requires a live script owner, capability `game.inventory.read` (OFF by default),
+and a published complete non-null snapshot member. It prefers 1.1 and falls back to the 3088-byte
+1.0 prefix only for `"unavailable"` / `"not_found"`. A 1.0 result has `has_details = false` and
+no `flags` or `total_seen` fields. Each `ports` entry has `{ size, valid, item_class_id, entity_id,
+item_type, item_type_name }`; invalid ports map to `UNKNOWN` / `"UNDEFINED"` while retaining the
+raw field. Snapshots run on the game thread and own their copied values; no game pointers cross.
+
+```lua
+local inv = sco.game.inventory
+local snapshot, err = inv.snapshot()
+if snapshot then
+  for _, port in ipairs(snapshot.ports) do
+    print(port.item_type_name, port.item_class_id)
+  end
+end
+```
+
+See [inventory](../../docs/game/inventory.md) for snapshot limits and build scope. This route
+adds no mutation, per-class ids, or in-game validation.
 
 ## `sco.game.entities`
 

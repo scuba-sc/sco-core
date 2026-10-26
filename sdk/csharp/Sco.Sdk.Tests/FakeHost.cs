@@ -17,12 +17,14 @@ namespace Sco.Sdk.Tests
         // services and the tests of their wrappers. Without it, the core SDK's test runs these alone.
         static partial void GameSetUp();
         static partial void GameTests(Plugin p);
-        static partial void GameQueryService(string name, void** o, ref bool found);
+        static partial void GameAfterUnload();
+        static partial void GameHas(string name, ref bool ready);
+        static partial void GameQueryService(string name, uint minVersion, void** o, ref bool found);
 
-        private static bool GameQuery(string name, void** o)
+        private static bool GameQuery(string name, uint minVersion, void** o)
         {
             bool found = false;
-            GameQueryService(name, o, ref found);
+            GameQueryService(name, minVersion, o, ref found);
             return found;
         }
 
@@ -85,7 +87,13 @@ namespace Sco.Sdk.Tests
         private static byte* HostVersion() => (byte*)Version;
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
-        private static int Has(byte* cap) => S(cap) == "teleport" ? 1 : 0;
+        private static int Has(byte* cap)
+        {
+            string name = S(cap);
+            bool ready = name == "teleport";
+            GameHas(name, ref ready);
+            return ready ? 1 : 0;
+        }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult RunOnGameThread(void* self, delegate* unmanaged[Cdecl]<void*, void> fn, void* ctx)
@@ -156,7 +164,7 @@ namespace Sco.Sdk.Tests
                 *o = _storageTable;
                 return ScoResult.Ok;
             }
-            if (GameQuery(S(name), o)) return ScoResult.Ok;
+            if (GameQuery(S(name), minVersion, o)) return ScoResult.Ok;
             if (S(name) != "other.small") return ScoResult.NotFound;
             *o = _smallTable;
             return ScoResult.Ok;
@@ -368,6 +376,7 @@ namespace Sco.Sdk.Tests
             Cmd echo = Cmds[0];
             p.RunOnGameThread(() => ++ran);   // still queued at unload: must never run
             PluginExports.UnloadPlugin(p);
+            GameAfterUnload();
             Expect(Registry.Count == 0, $"unload swept the registry ({Registry.Count} left)");
             (r, _) = Call(echo, "late");
             Expect(r == ScoResult.NotFound, "a late call through an old ctx finds nothing");

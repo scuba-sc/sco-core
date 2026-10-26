@@ -78,6 +78,7 @@
       ],
       "limitations": [
         "List/script kinds only; script bytes are not permission to execute.",
+        "Hosts after SDK 2.4 RC1 also expose owned missions/<id>.scom declarations as Script (id: 1..100 lowercase ASCII letters, digits or underscores). RC1 does not discover them. Bytes remain opaque; private .cwmission/rules are not exposed and mission ingest availability is separate.",
         "No C# or Lua binding. Windows file handling and gameplay unverified."
       ]
     },
@@ -158,6 +159,7 @@
       ],
       "limitations": [
         "List/script kinds only; script bytes are not permission to execute.",
+        "Hosts after SDK 2.4 RC1 also expose owned missions/<id>.scom declarations as Script (id: 1..100 lowercase ASCII letters, digits or underscores). RC1 does not discover them. Bytes remain opaque; private .cwmission/rules are not exposed and mission ingest availability is separate.",
         "No C# or Lua binding. Windows file handling and gameplay unverified."
       ]
     }
