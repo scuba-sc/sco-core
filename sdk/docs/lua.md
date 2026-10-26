@@ -75,6 +75,11 @@ missing services and present read-only services across reload with the pack enab
 
 ## Renderer-neutral widgets (`sco.widgets` 1.0)
 
+This section shows the base 1.0 route. Current source/development kits also expose
+the guarded 1.1 subtree/capability methods, presentation fields and row/PAGE events,
+plus 1.2 stable tags; see [the widget guide](widgets.md#lua) for version negotiation,
+feature checks and the distinction from the unchanged published RC1 bindings.
+
 `sco.widgets` is always present. `available()` is true only when both complete,
 nonnull table methods exist; `set_panel(id, title, nodes[, fn])` and
 `remove_panel(id)` independently check their method and return `true` or
@@ -119,14 +124,15 @@ malformed ID/title returns `bad_arg`. Transient conversion buffers are charged
 against Lua memory, and bounded parsing loops against the instruction budget.
 
 On success the host copies all declarative data. Mutating the original table
-later changes nothing; submit a complete replacement. Failure preserves the old
-tree **and callback**. The registry retains `fn` until successful replacement,
+later changes nothing; submit a replacement or an explicit subtree update.
+Failure preserves the old tree **and callback**. The registry retains `fn` until successful replacement,
 removal or ordinary unload; callers need not keep their own reference.
 
 `fn(panel_id, event)` receives a copied Lua table with `node_id` and lowercase
 `kind`. Button has no payload; toggle adds boolean `value`, slider numeric
-`value`, combo/list integer `index`, and text input string `text`. No events
-exist for labels/tables/layout. Callbacks run under the host owner's callout
+`value`, combo/list integer `index`, and text input string `text`. In the base
+1.0 route, no events exist for labels/tables/layout. Callbacks run under the host
+owner's callout
 and the existing shared Lua sandbox budget; errors are caught/logged and an
 overrun disables the script. They may invoke commands or replace/remove their
 panel; queued old-generation events are discarded. A currently executing
@@ -468,7 +474,9 @@ lua5.4 tools/lua-check.lua examples/greeter --cap teleport --invoke greeter.gree
 
 ## Widget extension limits
 
-The bounded Lua 1.0 set/remove route is implemented. Lua does not accept stable
-tags, expose native FFI or provide typed 1.1 subtree/paging methods. C# also has
-a base typed route; raw interop is not typed stable-tag parity. See
-[widgets](widgets.md) for operation-specific support and callback lifetimes.
+Lua supports bounded set/remove, guarded 1.1 subtree update/removal and
+capabilities, tooltip/severity/paging fields, row/PAGE events and 1.2 stable tags
+in current source/development kits. Each call checks the negotiated service,
+complete member extent and required feature bits; unsupported requests refuse.
+Lua exposes no native FFI. See [widgets](widgets.md) for operation-specific
+support, callback lifetimes and the unchanged published RC1 boundary.

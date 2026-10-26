@@ -701,7 +701,9 @@ and dispatches guarded game-thread events without exposing renderer types.
 [`Widget design`](design/widgets.md) defines the data, limits, lifetime and
 versioning; [`UI docs`](ui.md) distinguish it
 from the retained legacy `sco.ui` draw-context route. Frozen `sco_api` 1.1 is
-unchanged. C/C++ routes ship first; C# and Lua are deferred to #142 and #143.
+unchanged. C, C++20, C# and Lua provide typed routes; see the
+[SDK widget guide](../sdk/docs/widgets.md) for the current 1.1/1.2 binding support,
+version/feature checks and the unchanged published RC1 boundary.
 
 ## ABI freeze
 

@@ -6,16 +6,16 @@ For new native UI, use **`sco.widgets`**, the retained renderer-neutral service
 in [`sco_widgets.h`](../include/sco_widgets.h) and [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp).
 The host owns rendering; plugins submit copied preorder trees and receive typed
 game-thread events. See [widget design](design/widgets.md) and
-[SDK widget guide](../sdk/docs/widgets.md). The host publishes 1.1, a strictly additive
-extension of 1.0 (next section). The C, C++20, C# and Lua routes in the SDK widget guide
-cover 1.0, and each wrapper language has a declarative panel builder that writes the
+[SDK widget guide](../sdk/docs/widgets.md). The host publishes 1.2, retaining the additive
+1.1 and base 1.0 routes. C, C++20, C# and Lua support these versioned operations
+as described in that guide; each wrapper language has a declarative panel builder that writes the
 preorder array for you. The C++ builder also opts into 1.1 attributes: see the cookbook below. C# is in
 [the C# SDK guide](sdk-csharp.md) ("Panel builder"), Lua in
 [the Lua guide](../sdk/docs/lua.md) ("Nested panels").
 
 ### `sco.widgets` 1.1
 
-The host publishes **1.1** (`SCO_WIDGETS_VERSION_1_1`), a strictly additive extension: a
+The **1.1** extension (`SCO_WIDGETS_VERSION_1_1`) is strictly additive: a
 plugin that asks for 1.0 gets the same table and the same behaviour, and a plugin built
 against the 1.0 header keeps its 80-byte node stride and 32-byte events. Contracts per
 method: [contracts](contracts.md#scowidgets-sco_widgets_v1); pins: `tests/abi_widgets.c`.
@@ -57,9 +57,11 @@ events; the new tree renders next pass.
 **Host adapter.** The optional ImGui adapter spells severity out as text (`Warning:`) as well as
 coloring it, shows tooltips on hover, and draws only the visible rows of a paged LIST/TABLE
 with Previous/Next controls that produce `SCO_WIDGET_EVENT_PAGE`. The scosdk C++ builder
-exposes the node attributes; the wrapper's subtree/capabilities methods and the C#
-and Lua 1.1 routes are not exposed yet. C and C++ call those methods directly. Nothing here has
-run in the game.
+exposes the node attributes. Native C/C++ and current typed C#/Lua bindings
+also expose the guarded subtree/capability routes; C#/Lua support presentation
+fields, row/PAGE events and 1.2 stable tags. See the [SDK widget guide](../sdk/docs/widgets.md)
+for operation-specific checks and the unchanged published RC1 boundary. Nothing
+here has run in the game.
 
 ### Cookbook: declarative C++ panels (`scosdk/menu_builder.hpp`)
 
