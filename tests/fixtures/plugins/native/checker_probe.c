@@ -12,6 +12,11 @@
 #define PROBE_TAIL_CHECKED     3  /* checks api->size first: passes with and without --short-tables */
 #define PROBE_W11_UNCHECKED    4  /* uses sco.widgets 1.1 without size checks: passes, fails with --short-tables */
 #define PROBE_W11_CHECKED      5  /* checks both table sizes before 1.1 calls: passes with and without */
+#define PROBE_NO_RESOURCE      6
+#define PROBE_COMMAND_FAILED   7
+#define PROBE_COMMAND_BAD_ARG  8
+#define PROBE_COMMAND_UNKNOWN  9
+#define PROBE_OBSERVE_MISUSE  10
 
 #ifndef PROBE_MODE
 #error "build with -DPROBE_MODE=<n>"
@@ -30,6 +35,25 @@ static const sco_plugin_info g_info = {
 };
 
 SCO_EXPORT const sco_plugin_info* sco_plugin_query(void) { return &g_info; }
+
+#if PROBE_MODE >= PROBE_NO_RESOURCE && PROBE_MODE <= PROBE_OBSERVE_MISUSE
+static sco_result EmptyResource(const sco_arg* args, uint32_t count, void* ctx, char* reply, uint32_t capacity) {
+    (void)args; (void)count; (void)ctx;
+    if (reply && capacity) snprintf(reply, capacity, "No current synthetic job");
+#if PROBE_MODE == PROBE_NO_RESOURCE
+    return SCO_NOT_FOUND;
+#elif PROBE_MODE == PROBE_COMMAND_FAILED
+    return SCO_FAILED;
+#elif PROBE_MODE == PROBE_COMMAND_BAD_ARG
+    return SCO_BAD_ARG;
+#elif PROBE_MODE == PROBE_COMMAND_UNKNOWN
+    return (sco_result)999;
+#else
+    (void)((const sco_api*)ctx)->release_service(NULL, "sco.widgets");
+    return SCO_NOT_FOUND;
+#endif
+}
+#endif
 
 #if PROBE_MODE == PROBE_RELEASE_OWN
 typedef struct probe_service { uint32_t size; int (*answer)(void); } probe_service;
@@ -162,7 +186,11 @@ static sco_result UseWidgets11(const sco_widgets_v1* w) {
 #endif
 
 SCO_EXPORT sco_result sco_plugin_load(const sco_api* api, sco_plugin* self) {
-#if PROBE_MODE == PROBE_RELEASE_OWN
+#if PROBE_MODE >= PROBE_NO_RESOURCE && PROBE_MODE <= PROBE_OBSERVE_MISUSE
+    const sco_command command = { sizeof(sco_command), 0, PROBE_ID ".progress", "Progress",
+        "Read a current synthetic job", NULL, NULL, 0, sizeof(sco_arg_def), EmptyResource, (void*)api };
+    return api->register_command(self, &command);
+#elif PROBE_MODE == PROBE_RELEASE_OWN
     sco_result r;
     if (!COVERS(api, release_service)) return SCO_OK;
     r = api->provide_service(self, PROBE_ID ".svc", 1u << 16, &g_svc);

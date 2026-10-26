@@ -26,3 +26,13 @@ expect(chk_w11_unchecked 0 "widgets 1\\.1 ok features=0xff")
 expect(chk_w11_unchecked 1 "FAIL plugin called sco_widgets_v1\\.update_nodes, but this host's sco\\.widgets table size is 24" --short-tables)
 expect(chk_w11_checked 0 "widgets 1\\.1 ok features=0xff.*tag=\"probe.child\".*event kind=6 size=40 row=1.*event kind=2 size=40 row=-1")
 expect(chk_w11_checked 0 "1\\.0 host: no services" --short-tables)
+# Automatic zero-argument smoke calls may observe an absent resource. An explicit
+# requested command still fails on NOT_FOUND; invalid and failed handlers stay failures.
+expect(chk_no_resource 0 "observe chk_no_resource\\.progress: not_found; no current resource, command did not succeed")
+expect(chk_no_resource 0 "observe chk_no_resource\\.progress: not_found" --short-tables)
+expect(chk_no_resource 1 "FAIL chk_no_resource\\.progress returned not_found" --invoke chk_no_resource.progress)
+expect(chk_no_resource 1 "FAIL --invoke chk_no_resource\\.missing: no such command" --invoke chk_no_resource.missing)
+expect(chk_command_failed 1 "FAIL chk_command_failed\\.progress returned failed")
+expect(chk_command_bad_arg 1 "FAIL chk_command_bad_arg\\.progress returned bad_arg")
+expect(chk_command_unknown 1 "FAIL chk_command_unknown\\.progress returned [?]")
+expect(chk_observe_misuse 1 "FAIL.*release_service.*observe chk_observe_misuse\\.progress: not_found")

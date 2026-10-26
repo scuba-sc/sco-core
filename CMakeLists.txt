@@ -1742,7 +1742,8 @@ if(SCO_BUILD_TESTS)
   set(_chk "${SCO_TEST_OUT}/plugin_check")
   file(REMOVE_RECURSE "${_chk}")
   foreach(probe IN ITEMS chk_release_own:0 chk_release_borrowed:1 chk_tail_unchecked:2 chk_tail_checked:3
-                      chk_w11_unchecked:4 chk_w11_checked:5)
+                      chk_w11_unchecked:4 chk_w11_checked:5 chk_no_resource:6
+                      chk_command_failed:7 chk_command_bad_arg:8 chk_command_unknown:9 chk_observe_misuse:10)
     string(REPLACE ":" ";" probe "${probe}")
     list(GET probe 0 id)
     list(GET probe 1 mode)
