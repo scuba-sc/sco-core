@@ -18,6 +18,7 @@ import sys
 import zipfile
 
 sys.dont_write_bytecode = True
+from doc_release_gate import base_tag
 
 
 class Refusal(Exception):
@@ -64,6 +65,10 @@ def fetch_candidate(approval, repo, payload, client=github):
             or run["event"] != "workflow_dispatch" or run["head_branch"] != "main"
             or run["status"] != "completed" or run["conclusion"] != "success"):
         raise Refusal("approved builder is not a successful main release-candidate run")
+    if (run.get("head_sha") != approval["source"]["sha"]
+            or run.get("run_attempt") != approval["builder"]["run_attempt"]
+            or run["path"] != approval["builder"]["workflow_path"]):
+        raise Refusal("builder source, attempt or workflow mismatch")
     payload.mkdir()
     downloaded = set()
     for artifact_id in sorted(artifact_ids):
@@ -150,6 +155,9 @@ def create_draft(repo, tag, manifest, signature, payload, runner_temp, downloade
     Refusals deliberately leave an unpublished draft available for investigation.
     """
     approval = json.loads(manifest.read_bytes())
+    if base_tag(tag) != "sdk-v" + version:
+        raise Refusal("release tag does not match SDK version")
+    prerelease = tag != base_tag(tag)
     names = [artifact["name"] for artifact in approval["artifacts"]]
     staging = runner_temp / "release-approval"
     staging.mkdir()
@@ -160,11 +168,12 @@ def create_draft(repo, tag, manifest, signature, payload, runner_temp, downloade
         raise Refusal("a draft or published release already exists for this tag")
     client("release", "create", tag, *[str(payload / name) for name in names],
            str(staging / "release.json"), str(staging / "release.json.sig"),
-           "--repo", repo, "--draft", "--verify-tag", "--title", f"sco-core SDK {version}",
-           "--notes-file", str(runner_temp / "notes.md"))
+           "--repo", repo, "--draft", "--verify-tag", "--title", f"sco-core SDK {tag[5:]}",
+           "--notes-file", str(runner_temp / "notes.md"), *(["--prerelease"] if prerelease else []))
     # GET /releases/tags/{tag} retrieves published releases, not drafts.
     matches = tagged_releases(repo, tag, client)
-    if len(matches) != 1 or not matches[0]["draft"]:
+    if (len(matches) != 1 or not matches[0]["draft"]
+            or matches[0].get("prerelease") is not prerelease):
         raise Refusal("release is not the unique expected draft")
     release_id = matches[0]["id"]
     assets = release_assets(repo, release_id, client)
@@ -195,8 +204,13 @@ def asset_identity(items):
 
 def publish_draft(repo, tag, release_id, runner_temp, client=github):
     """Publish only the same unique draft with its unchanged verified inventory."""
+    base = base_tag(tag)
+    if base is None:
+        raise Refusal("invalid release tag")
+    prerelease = tag != base
     releases = tagged_releases(repo, tag, client)
-    if len(releases) != 1 or releases[0]["id"] != release_id or not releases[0]["draft"]:
+    if (len(releases) != 1 or releases[0]["id"] != release_id or not releases[0]["draft"]
+            or releases[0].get("prerelease") is not prerelease):
         raise Refusal("verified draft changed or its tag is ambiguous")
     assets = release_assets(repo, release_id, client)
     original = json.loads((runner_temp / "draft-assets.json").read_bytes())
@@ -204,7 +218,8 @@ def publish_draft(repo, tag, release_id, runner_temp, client=github):
         raise Refusal("draft asset inventory changed after verification")
     client("release", "edit", tag, "--repo", repo, "--draft=false")
     published = api(client, f"repos/{repo}/releases/{release_id}")
-    if published["draft"] or published["tag_name"] != tag:
+    if (published["draft"] or published["tag_name"] != tag
+            or published.get("prerelease") is not prerelease):
         raise Refusal("the verified draft was not published")
     return published["html_url"]
 
@@ -217,7 +232,7 @@ def candidate_summary(summary_path, dist, tag, sha, run_id, artifact_id):
         summary.write(f"builder.run_id: `{run_id}`\n\n")
         summary.write(f"artifacts[].artifact_id (same bundle for every file): `{artifact_id}`\n\n")
         summary.write("| artifacts[].name | bytes | sha256 |\n|---|---:|---|\n")
-        for path in sorted(dist.iterdir()):
+        for path in sorted(dist.iterdir(), key=lambda path: path.name):
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             summary.write(f"| {path.name} | {path.stat().st_size} | `{digest}` |\n")
 

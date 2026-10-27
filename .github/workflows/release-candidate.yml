@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Prospective SDK tag matching sdk/VERSION (sdk-v<version>)
+        description: Prospective SDK tag (sdk-v<version> or sdk-v<version>-rc.<number>)
         required: true
         type: string
 
@@ -63,7 +63,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           v=$(tr -d '\r\n' < sdk/VERSION)
-          test "$RELEASE_TAG" = "sdk-v$v" || { echo 'tag does not match sdk/VERSION'; exit 1; }
+          python3 -c 'import sys; from tools.doc_release_gate import base_tag; sys.exit(base_tag(sys.argv[1]) != "sdk-v" + sys.argv[2])' "$RELEASE_TAG" "$v"
           git check-ref-format "refs/tags/$RELEASE_TAG"
 
       - name: Repository audit

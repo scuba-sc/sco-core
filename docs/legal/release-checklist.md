@@ -307,3 +307,20 @@ Candidate summaries include the outer `SHA256SUMS` file's own hash, even though 
 cannot include its own hash inside itself. Artifact IDs identify the immutable Actions bundle;
 SHA-256 values bind the individual files. A successful candidate run is evidence, not a signature
 or approval to publish.
+
+### Candidate identity and final release
+
+The candidate label may be `sdk-v<SDK version>-rc.<positive number>`, for example
+`sdk-v2.4.0-rc.2`. `sdk/VERSION`, archive names, game-pack version and plugin ABI
+remain their numeric coordinates. The documentation gate checks the final version's
+release scope; the signed approval names the exact candidate label and the builder run,
+source and payload inventory. Candidates publish as GitHub prereleases and do not use
+the final-release notification. A final `sdk-v<SDK version>` requires its own signed
+approval and remains subject to the same promotion checks. Neither label authorizes
+signing, tagging or publication by itself.
+
+The verifier compares the regular workflow file at the signed `builder.workflow_sha`
+with the same path at the approved source commit. Promotion separately checks that the
+successful `workflow_dispatch` run reports that source SHA, path and attempt. Identical
+workflow blobs are accepted across distinct commits; this comparison does not assert
+that GitHub reported the signed workflow commit SHA itself.
