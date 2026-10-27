@@ -49,3 +49,15 @@ The published archive bytes are immutable; a local build with the same version i
 not proof of byte equality. No game,
 CIG server, anti-cheat interaction, network runtime or GPU/renderer was exercised.
 Products may retain their tagged submodule until they migrate to the published asset.
+
+## Evaluating a later candidate
+
+For a candidate, separately record the exact `host-source-sc` archive name,
+SHA-256, source revision and verified inventory, and the plugin SDK archive or
+composed core/game-sc identities used by consumers. Verify both from the actual
+candidate's checksums and metadata, extract each into its own empty directory,
+and retain the host build/test and plugin compiler-dependency receipts. Record
+the target product's host pin separately: an extracted plugin kit does not
+upgrade that host. A development archive with the same version or a successful
+synthetic host test is not an official candidate, distribution approval or game
+acceptance. See [RC2 consumer reconciliation](agent-workflows.md#rc2-consumer-reconciliation).

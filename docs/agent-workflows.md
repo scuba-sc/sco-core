@@ -1,6 +1,6 @@
 # Consumer workflows for agents
 
-The SDK ships six focused skills for developers building extensions. Bundle **0.2.1** targets the **SDK 2.4.0** baseline; this source addition does not modify the already published RC1 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
+Current source contains six focused skills for developers building extensions, targeting the **SDK 2.4.0** baseline. Check the selected kit’s workflow manifest and index for the actual bundle version and source identity; source changes do not modify the already published RC1 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
 
 | Task | Entrypoint |
 | --- | --- |
@@ -25,7 +25,7 @@ python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json
 
 The catalogue and workflow index must have exactly matching SDK/source coordinates; a missing, oversized, malformed, hash-inconsistent or mismatched index refuses startup when an index is supplied or present. If the default index is missing, the workflow tools remain listed and return a precise unavailable error. The operator can select an index with `--workflows <file>`. Tool calls cannot select arbitrary filesystem files: `get_workflow` serves only embedded indexed text. `list_workflows {}` returns IDs/descriptions/entry paths; `get_workflow {"id":"sco-build-check-package"}` reads the entrypoint and lists resource paths/hashes. Pass a returned `path` with that ID to read one reference. Cross-workflow links are resolved by requesting the linked workflow's ID.
 
-Use `--minimal-tools` for the original six catalogue tools. The old `--extended-tools` and `--workflow-tools` flags remain compatibility aliases. Local build/check tools are offered when an operator configures `--project-root`; fixed commands, confinement and resource limits still apply. Runtime inspection retains its independent admission requirements. Core-only plugin kits have the skill files/index but no catalogue/server; direct file reading works. Combined or core+game-sc kits support MCP discovery. Core-source/host-source are distinct source build inputs.
+Use `--minimal-tools` for the original six catalogue tools. The old `--extended-tools` and `--workflow-tools` flags remain compatibility aliases. Local build/check tools are offered when an operator configures `--project-root`; fixed commands, confinement and resource limits still apply. Runtime inspection retains its independent admission requirements. Check the selected archive inventory for its catalogue, server and workflow bundle; direct skill-file reading is independent of MCP availability. Combined or matching core+game-sc kits support MCP discovery. Core-source/host-source are distinct source build inputs.
 
 For a source checkout, build a matching catalogue using its existing instructions, then:
 
@@ -53,6 +53,19 @@ their full acceptance.
 | [#194](https://github.com/scuba-sc/sco-core/issues/194), action vocabulary | `game.input` 1.0 has **1,297** actions, ids 1..1297, re-derived on 4.10.197.2878. The older 1,267-member proposal is superseded by source evidence. Lookup is metadata only; no input dispatch or binding API is implied. [Contract](game/input.md) | `tests/abi_game_input.c`, `tests/test_input.cpp` |
 | [#195](https://github.com/scuba-sc/sco-core/issues/195), respawn completion | `game.loadout.respawn_completed` deliberately carries only the size-prefixed 8-byte occurrence marker (`size`, padding), with occurrences within a tick coalesced. It has no proposed entity/result fields and is not per-slot success. The producer seam is tested; the native hook remains unresolved and the capability OFF. [Lifecycle](game/loadout.md#respawn-completed-event-gameloadoutrespawn_completed) | `tests/abi_game_events.c`, `tests/game_contracts/loadout/test_loadout.cpp` |
 | [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and published RC1 inventory. Updated candidate bytes still need their own archive build and approval. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
+
+Additional current-source contracts are not contained in published RC1:
+
+| Surface | Consumer checks and remaining boundary |
+| --- | --- |
+| [Inventory layout 1.2](game/inventory.md#logical-layout-observations-12) | Query 1.2, check the complete `snapshot_layout` member and `game.inventory.layout`, then validate copied observations. The production host has no logical-layout producer; the capability is OFF. |
+| [ASOP selection 1.0](game/asop-selection.md) | Query the service and each complete member, and require `game.asop.selection.file` and a ready host coordinator. Editing the host-owned document does not establish native terminal publication or observation. C# and Lua are unsupported. |
+| [Position-only relocation 1.1](game/relocation-position.md) | Query 1.1, check the complete `request_position` member and `game.relocation.position`, and preserve offline/owner and observation guards. The default native adapter supplies no position callbacks; the capability is OFF. |
+| [Widgets 1.3](../sdk/docs/widgets.md#numeric-presentation-13) | Query 1.3, check the full member extent and numeric-presentation feature before submitting the extended node. Host and language support are independent of the SDK used to compile. |
+
+These boundaries are current-source descriptions, not a claim that an RC2 archive
+exists or that the installed product host supplies the capabilities. Synthetic
+fixtures are not gameplay acceptance.
 
 For an RC2 consumer evaluation:
 
