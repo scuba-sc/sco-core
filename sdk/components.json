@@ -8954,6 +8954,18 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-tests-test_reward_consumer.cpp",
+      "source": "tests/test_reward_consumer.cpp",
+      "destination": "tests/test_reward_consumer.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-tests-test_offline_missions.cpp",
       "source": "tests/test_offline_missions.cpp",
       "destination": "tests/test_offline_missions.cpp",
