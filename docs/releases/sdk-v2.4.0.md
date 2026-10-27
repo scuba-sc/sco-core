@@ -137,6 +137,26 @@ availability or game acceptance.
 
 The bus event `game.loadout.respawn_completed` is also on `main`: production capability OFF, native hook unresolved, not run in game (F-INTAKE-004). #185's in-game hold was resolved by the owner's acceptance of static evidence; inventory 1.1 is **not run in game**.
 
+### Unpublished current-source additions for RC2 evaluation
+
+The following changes are in current source after RC1. They do not alter the
+published RC1 archive tables or establish an RC2 archive, release or download.
+
+- [Inventory 1.2 logical layouts](../game/inventory.md#logical-layout-observations-12)
+  copy bounded observations; the production host has no layout producer and the
+  capability is OFF.
+- [Position-only relocation 1.1](../game/relocation-position.md) has its own
+  capability and guards; the default native adapter supplies no position callbacks.
+- [ASOP selection 1.0](../game/asop-selection.md) edits a host-owned document
+  through an admitted coordinator; it does not establish native terminal
+  publication or observation.
+- [Widgets 1.3 numeric presentation](../../sdk/docs/widgets.md#numeric-presentation-13)
+  requires a supporting host and explicit version, extent and feature checks.
+
+These source contracts and synthetic fixtures do not certify native behavior or
+an extracted candidate. Candidate archive hashes, inventory, source and host
+identity must be established from the actual candidate when one is built.
+
 ### RC2 in-game evidence
 
 For the proposed `sdk-v2.4.0-rc.2` candidate, the owner deferred in-game

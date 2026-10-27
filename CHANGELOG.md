@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Reconcile current-source widget, MCP, host-source and RC2 consumer guidance while preserving published RC1 coordinates and provider limits.
+
 - Add synthetic coverage for audio owner cleanup failures and retry.
 
 - Record the owner’s RC2 in-game validation deferral; no native or game behavior is certified.

@@ -54,6 +54,19 @@ their full acceptance.
 | [#195](https://github.com/scuba-sc/sco-core/issues/195), respawn completion | `game.loadout.respawn_completed` deliberately carries only the size-prefixed 8-byte occurrence marker (`size`, padding), with occurrences within a tick coalesced. It has no proposed entity/result fields and is not per-slot success. The producer seam is tested; the native hook remains unresolved and the capability OFF. [Lifecycle](game/loadout.md#respawn-completed-event-gameloadoutrespawn_completed) | `tests/abi_game_events.c`, `tests/game_contracts/loadout/test_loadout.cpp` |
 | [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and published RC1 inventory. Updated candidate bytes still need their own archive build and approval. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
 
+Additional current-source contracts are not contained in published RC1:
+
+| Surface | Consumer checks and remaining boundary |
+| --- | --- |
+| [Inventory layout 1.2](game/inventory.md#logical-layout-observations-12) | Query 1.2, check the complete `snapshot_layout` member and `game.inventory.layout`, then validate copied observations. The production host has no logical-layout producer; the capability is OFF. |
+| [ASOP selection 1.0](game/asop-selection.md) | Query the service and each complete member, and require `game.asop.selection.file` and a ready host coordinator. Editing the host-owned document does not establish native terminal publication or observation. C# and Lua are unsupported. |
+| [Position-only relocation 1.1](game/relocation-position.md) | Query 1.1, check the complete `request_position` member and `game.relocation.position`, and preserve offline/owner and observation guards. The default native adapter supplies no position callbacks; the capability is OFF. |
+| [Widgets 1.3](../sdk/docs/widgets.md#numeric-presentation-13) | Query 1.3, check the full member extent and numeric-presentation feature before submitting the extended node. Host and language support are independent of the SDK used to compile. |
+
+These boundaries are current-source descriptions, not a claim that an RC2 archive
+exists or that the installed product host supplies the capabilities. Synthetic
+fixtures are not gameplay acceptance.
+
 For an RC2 consumer evaluation:
 
 1. Select a bounded author-owned plugin task with `sco-plan-sdk-work`. Record the
