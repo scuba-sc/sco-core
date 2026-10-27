@@ -2,7 +2,7 @@
 name: sco-plan-sdk-work
 description: "Plan and carry out SCO SDK development against the project's current roadmap. Use at the start of extension, product-adoption or SDK-platform work to choose a bounded goal, resolve public contracts, define acceptance and route implementation through the matching workflow."
 metadata:
-  version: "0.2.1"
+  version: "0.2.2"
 ---
 
 # Plan and carry out SDK work
@@ -19,7 +19,7 @@ Map the work to a specific existing milestone/goal and explain the concrete impr
 
 ## Choose a bounded SDK path
 
-Resolve the required public methods, language mappings, table versions/extents, capability state and lifecycle rules from the selected kit. Build a small matrix of **requested behavior → public contract → implementation/availability → evidence needed**. Include the minimum fallback when a provider is absent or incomplete.
+Apply the shared version and availability resolution to every selected kit and target. Resolve the required public methods, language mappings, table versions/extents, capability state and lifecycle rules from the selected kit. Build a small matrix of **requested behavior → public contract → implementation/availability → evidence needed**. Include the minimum fallback when a provider is absent or incomplete.
 
 Extensions and product features consume the public SDK. They do not add private core includes, copied engine layouts, raw offsets or duplicate scanners to complete a missing operation. Build the consumer against an extracted plugin SDK when possible; retain compiler dependency/build evidence that distinguishes its public SDK inputs from the source checkout and private product headers. A core/host-source build alone does not prove that a consumer builds from the plugin SDK.
 

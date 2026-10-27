@@ -2,7 +2,7 @@
 name: sco-build-check-package
 description: "Build or adapt an SCO SDK extension in C, C++, C# NativeAOT, Lua or a data pack. Use for consumers choosing contracts, scaffolding, building and checking a plugin before distribution."
 metadata:
-  version: "0.2.1"
+  version: "0.2.2"
 ---
 
 # Build, check and package an SCO consumer
@@ -15,15 +15,17 @@ Produce an author-owned extension with reproducible checks and an explicit targe
 
 Read [input and evidence rules](references/inputs.md) before running kit tools. Record behavior, unique plugin ID, language, target OS/architecture and product/host revision. When no feature is specified, a neutral command with an optional widgets panel is a useful bounded example. Data packs require an existing consumer for their format.
 
-Use the selected kit's public headers, per-method contract records and contract rules. Plugin kits place these records in `contracts/`; source kits retain them in `sdk/contracts/`. References inside records to repository evidence and tests identify source context and may not be local to the kit. If available, inspect MCP `tools/list`: the current bundle's server offers fourteen discovery tools by default, including scaffolding, manifest/widget validation, guides and workflows. The unchanged RC1 server needs `--extended-tools` for its twelve-tool profile and has no workflow tools. Discovery grants no build or runtime access. Use `list_services`, `search_api` (language tokens `c`, `cpp`, `csharp`, `lua`), `get_symbol`, `get_example`, `get_capability_status` and `check_compatibility` using the negotiated schemas. Resolve procedures with guide tools. Direct kit references and CLI tools remain valid when MCP is unavailable. Never mix a moving catalogue with a pinned kit.
+Use the selected kit's public headers, per-method contract records and contract rules. Plugin kits place these records in `contracts/`; source kits retain them in `sdk/contracts/`. References inside records to repository evidence and tests identify source context and may not be local to the kit. Use the matching `sdk-catalogue.json` when present; if a needed input is missing, report the gap. If MCP is available, inspect `tools/list` and its schemas before choosing tools: profiles and versions differ. Use available `list_services`, `search_api` (language tokens `c`, `cpp`, `csharp`, `lua`), `get_symbol`, `get_example`, `get_capability_status` and `check_compatibility`; resolve procedures with guide and workflow tools where offered. Discovery grants no build or runtime access. Direct kit references and CLI tools remain valid when MCP is unavailable. Never mix a moving catalogue with a pinned kit.
 
 For each used method retain record ID, version, whole-member extent, result/buffer semantics, ownership, thread/callback rules and cleanup. Apply documented mandatory root ABI preconditions; guard optional/appended root members and service tables for presence, version, size through the whole pointer and non-NULL callback. `unspecified` supplies no guarantee. Stability, capability availability, signature resolution and game verification are separate facts.
+
+For an empty or partial search, try related feature words and search guides, inspect total matches and request a larger permitted limit if needed, then resolve each candidate by symbol and capability status. A workflow search hit is a discovery hint, not proof that all required operations, language bindings or native providers are available.
 
 ## Scaffold and implement
 
 Use an unreserved ID of 1–31 lowercase letters/digits/underscores, consistent across folder, manifest, native info, module and command prefix. Generate into a missing/empty directory using this kit's generator. Review files returned by MCP before writing them. Services requested from the generator are optional lookups, not supplied implementations. Make `requires` mandatory only if the feature cannot work without the named plugin; it takes IDs, not version ranges or URLs.
 
-Read [language and build routes](references/build.md) for exact commands and language-specific limits. Copy data examples only when their actual consuming feature supports the format. Re-query borrowed resources where required; quiesce callbacks/workers and release owned resources on unload. A missing SDK surface becomes a [gap report](../sco-report-sdk-gap/SKILL.md), not a private scanner.
+Read [language and build routes](references/build.md) for exact commands and language-specific limits. Copy data examples only when their actual consuming feature supports the format. Re-query borrowed resources where required; quiesce callbacks/workers and release owned resources on unload. When a missing contract, provider, compatibility/admission condition, package guidance or MCP discovery blocks the requested behavior, notify the developer and prepare a [gap report](../sco-report-sdk-gap/SKILL.md); do not invent a private scanner or silently replace a refusal.
 
 ## Validate and exercise
 
