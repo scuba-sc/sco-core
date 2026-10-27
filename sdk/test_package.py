@@ -82,7 +82,7 @@ class RealManifest(unittest.TestCase):
         by_id = {record["id"]: record for record in catalogue["records"]}
         self.assertEqual(len(by_id), len(catalogue["records"]))
         all_ids = set()
-        for profile in ("core", "game-sc", "legacy"):
+        for profile in ("core", "game-sc", "legacy", "core-source", "host-source-sc"):
             selected = pkg.select(self.m, profile)
             entries = pkg.archive_entries(self.m, profile)[1]
             for component in selected:
