@@ -1,6 +1,11 @@
 ---
+// SCO-LOCAL-CHANGE 01 BEGIN
+// SPDX-FileCopyrightText: 2023 Astro contributors (https://github.com/withastro/starlight/graphs/contributors)
+// SPDX-FileCopyrightText: 2026 the sco-core contributors
+// SPDX-License-Identifier: MIT AND GPL-3.0-only
 // Adapted from Starlight 0.42.6 (MIT); see THIRD_PARTY_NOTICES.md.
 import { Icon } from '@astrojs/starlight/components';
+// SCO-LOCAL-CHANGE 01 END
 import project from 'virtual:starlight/project-context';
 
 const pagefindTranslations = {
@@ -45,12 +50,16 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 					</div>
 				) : (
 					<div class="search-container">
+						{/* SCO-LOCAL-CHANGE 02 BEGIN */}
 						<div class="sco-search-status" role="status" aria-live="polite">
 							<span data-search-status>Loading local search…</span>
 							<button type="button" data-search-retry hidden>Reload and retry</button>
 						</div>
+						{/* SCO-LOCAL-CHANGE 02 END */}
 						<div id="starlight__search" />
+						{/* SCO-LOCAL-CHANGE 03 BEGIN */}
 						<p class="sco-search-help" id="sco-search-help">Try a task like “spawn a ship” or “read inventory”, or an exact API name.</p>
+						<p><a href={`${import.meta.env.BASE_URL}starlight-LICENSE.txt`}>Search component license</a></p>
 						<div class="sco-search-tools">
 							<label for="sco-search-type">Type</label>
 							<select id="sco-search-type" class="sco-search-type" disabled>
@@ -65,6 +74,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 							<span>Choose one category, or search all.</span>
 						</div>
 						<p data-search-correction role="status" aria-live="polite" hidden />
+						{/* SCO-LOCAL-CHANGE 03 END */}
 					</div>
 				)
 			}
@@ -95,7 +105,9 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
 <script>
 	import { pagefindUserConfig } from 'virtual:starlight/pagefind-config';
+	// SCO-LOCAL-CHANGE 04 BEGIN
 	import { normalizeTaskQuery } from '../search/query.mjs';
+	// SCO-LOCAL-CHANGE 04 END
 
 	class SiteSearch extends HTMLElement {
 		constructor() {
@@ -104,6 +116,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			const closeBtn = this.querySelector<HTMLButtonElement>('button[data-close-modal]')!;
 			const dialog = this.querySelector('dialog')!;
 			const dialogFrame = this.querySelector('.dialog-frame')!;
+			// SCO-LOCAL-CHANGE 05 BEGIN
 			const status = this.querySelector<HTMLElement>('.sco-search-status');
 			const statusText = this.querySelector<HTMLElement>('[data-search-status]');
 			const retry = this.querySelector<HTMLButtonElement>('[data-search-retry]');
@@ -118,10 +131,13 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 				if (reset) reset.disabled = !value;
 				ui?.triggerFilters(value ? { Type: value } : {});
 			};
+			// SCO-LOCAL-CHANGE 05 END
 
 			/** Close the modal if a user clicks on a link or outside of the modal. */
 			const onClick = (event: MouseEvent) => {
+				// SCO-LOCAL-CHANGE 06 BEGIN
 				const isLink = event.target instanceof Element && event.target.closest('a[href]');
+				// SCO-LOCAL-CHANGE 06 END
 				if (
 					isLink ||
 					(document.body.contains(event.target as Node) &&
@@ -132,12 +148,16 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			};
 
 			const openModal = (event?: MouseEvent) => {
+				// SCO-LOCAL-CHANGE 07 BEGIN
 				if (dialog.open) return;
 				returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : openBtn;
+				// SCO-LOCAL-CHANGE 07 END
 				dialog.showModal();
 				document.body.toggleAttribute('data-search-modal-open', true);
+				// SCO-LOCAL-CHANGE 08 BEGIN
 				this.querySelector<HTMLInputElement>('.pagefind-ui__search-input')?.focus();
 				void initialize();
+				// SCO-LOCAL-CHANGE 08 END
 				event?.stopPropagation();
 				window.addEventListener('click', onClick);
 			};
@@ -147,6 +167,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			openBtn.addEventListener('click', openModal);
 			openBtn.disabled = false;
 			closeBtn.addEventListener('click', closeModal);
+			// SCO-LOCAL-CHANGE 09 BEGIN
 			retry?.addEventListener('click', () => location.reload());
 			reset?.addEventListener('click', () => {
 				selectCategory('');
@@ -162,16 +183,21 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 					this.querySelector<HTMLInputElement>('.pagefind-ui__search-input')?.focus();
 				}
 			});
+			// SCO-LOCAL-CHANGE 09 END
 
 			dialog.addEventListener('close', () => {
 				document.body.toggleAttribute('data-search-modal-open', false);
 				window.removeEventListener('click', onClick);
+				// SCO-LOCAL-CHANGE 10 BEGIN
 				(returnFocus?.isConnected ? returnFocus : openBtn).focus();
+				// SCO-LOCAL-CHANGE 10 END
 			});
 
 			// Listen for `ctrl + k` and `cmd + k` keyboard shortcuts.
 			window.addEventListener('keydown', (e) => {
+				// SCO-LOCAL-CHANGE 11 BEGIN
 				if ((e.metaKey === true || e.ctrlKey === true) && e.key.toLowerCase() === 'k') {
+				// SCO-LOCAL-CHANGE 11 END
 					dialog.open ? closeModal() : openModal();
 					e.preventDefault();
 				}
@@ -186,11 +212,14 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 			const stripTrailingSlash = (path: string) => path.replace(/(.)\/(#.*)?$/, '$1$2');
 			const formatURL = shouldStrip ? stripTrailingSlash : (path: string) => path;
 
+			// SCO-LOCAL-CHANGE 12 BEGIN
 			// Prewarm only the UI bundle at idle; the index waits for first use.
 			// @ts-expect-error — Missing types for @pagefind/default-ui package.
 			const loadUI = () => import('@pagefind/default-ui');
 			const initialize = () => initialized ??= (async () => {
+			// SCO-LOCAL-CHANGE 12 END
 				if (import.meta.env.DEV) return;
+				// SCO-LOCAL-CHANGE 13 BEGIN
 				try {
 					const bundlePath = import.meta.env.BASE_URL.replace(/\/$/, '') + '/pagefind/';
 					const [{ PagefindUI }, pagefind] = await Promise.all([
@@ -199,13 +228,19 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 					// Catch a missing local index before the UI can get stuck waiting for it.
 					await pagefind.filters();
 					ui = new PagefindUI({
+				// SCO-LOCAL-CHANGE 13 END
 						...pagefindUserConfig,
 						element: '#starlight__search',
 						baseUrl: import.meta.env.BASE_URL,
+						// SCO-LOCAL-CHANGE 14 BEGIN
 						bundlePath,
+						// SCO-LOCAL-CHANGE 14 END
 						showImages: false,
+						// SCO-LOCAL-CHANGE 15 BEGIN
 						translations: { ...translations, zero_results: 'No results for “[SEARCH_TERM]”. Try fewer words or clear the category filters.' },
+						// SCO-LOCAL-CHANGE 15 END
 						showSubResults: true,
+						// SCO-LOCAL-CHANGE 16 BEGIN
 						processTerm: (term: string) => {
 							const normalized = normalizeTaskQuery(term);
 							if (correction) {
@@ -214,6 +249,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 							}
 							return normalized;
 						},
+						// SCO-LOCAL-CHANGE 16 END
 						processResult: (result: { url: string; sub_results: Array<{ url: string }> }) => {
 							result.url = formatURL(result.url);
 							result.sub_results = result.sub_results.map((sub_result) => {
@@ -222,6 +258,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 							});
 						},
 					});
+					// SCO-LOCAL-CHANGE 17 BEGIN
 					const drawer = this.querySelector('.pagefind-ui__drawer');
 					for (const selector of ['.sco-search-help', '.sco-search-tools', '[data-search-correction]']) {
 						const control = this.querySelector(selector);
@@ -242,6 +279,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 				const onIdle = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
 				onIdle(() => { void loadUI().catch(() => {}); });
 			}
+					// SCO-LOCAL-CHANGE 17 END
 		}
 	}
 	customElements.define('site-search', SiteSearch);
@@ -379,12 +417,14 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
 
 <style is:global>
 	@import url('@pagefind/default-ui/css/ui.css') layer(starlight.core);
+/* SCO-LOCAL-CHANGE 18 BEGIN */
 
 	/* A page has one Type. Use a single native select instead of Pagefind's
 	   intersecting checkboxes and their misleading cross-category facet counts. */
 	#starlight__search .pagefind-ui__filter-panel {
 		display: none;
 	}
+/* SCO-LOCAL-CHANGE 18 END */
 
 	@layer starlight.core {
 		[data-search-modal-open] {

@@ -311,8 +311,11 @@ def reuse_toml(entries):
            "# tools/ip_audit.py repo fails when this file is out of date. Checked by `reuse lint` in CI.",
            "version = 1", ""]
     for e in reversed(entries):
+        # Preserve distinct holders: REUSE treats a list as separate copyright statements.
+        holders = e['copyright'].splitlines()
+        copyright_value = q(holders[0]) if len(holders) == 1 else '[' + ', '.join(q(v) for v in holders) + ']'
         out += ["[[annotations]]", f"path = {q(e['path'])}", 'precedence = "override"',
-                f"SPDX-FileCopyrightText = {q(e['copyright'])}", f"SPDX-License-Identifier = {q(e['license'])}", ""]
+                f"SPDX-FileCopyrightText = {copyright_value}", f"SPDX-License-Identifier = {q(e['license'])}", ""]
     return "\n".join(out)
 
 
