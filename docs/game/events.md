@@ -38,5 +38,8 @@ See [loadout lifecycle](loadout.md) for coalescing and Stop behavior.
 
 `game.events.mission_changed` gates on no signature rows. It polls the game.missions service's accepted-mission statuses
 (offline::PollStatuses) on the tick and publishes state/phase/objective changes, so it fires only
-when a game.missions backend is bound and admitted (production adapter; offline sessions). Payload
+when a game.missions backend is bound and admitted. The current default has no native mission
+backend. A mission ID is matched together with its session: the first sighting in a new session
+reports its own state as both old and new. An empty poll is not proof of an empty mission list,
+so it does not clear the cache; a later nonempty observation prunes absent IDs, and stop resets it. Payload
 `sc_game_mission_changed` is pinned by `tests/abi_game_events.c`; see `sc_game_events.h` for stream semantics.

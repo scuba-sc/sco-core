@@ -304,16 +304,23 @@ const sc_missions_v1 table{sizeof(table), 0, Offer, Status, Accept, Objective, A
 }
 uint32_t PollStatuses(sc_mission_status* out, uint32_t cap) {
     if (!out || !cap || !OnGameThread()) return 0;
-    if (!started || faulted || busy || notifying) return 0;
+    if (!started || faulted || busy || notifying || detail::RuntimeStopping()) return 0;
     if (!backend.admission || !backend.status) return 0;
-    const Admission a = backend.admission(backend.ctx);
-    if (!a.session || !a.offline || !a.eac_absent || a.shutting_down) return 0;
     CallScope scope;
+    Admission a;
+    if (Call([&] { a = backend.admission(backend.ctx); return SCO_OK; }) != SCO_OK) return 0;
+    if (!a.session || !a.offline || !a.eac_absent || a.shutting_down) return 0;
+    Session(a.session);
     uint32_t n = 0;
     for (const Ticket& t : tickets) {
-        if (!t.owner || t.revoked || n >= cap) continue;
+        if (faulted || detail::RuntimeStopping()) return 0;
+        if (n >= cap) break;
+        if (!t.owner || t.revoked || t.result != SCO_OK) continue;
         sc_mission_status v{}; v.size = sizeof(v);
-        if (Call([&] { return backend.status(backend.ctx, t.mission, &v); }) != SCO_OK) continue;
+        if (Call([&] { return backend.status(backend.ctx, t.mission, &v); }) != SCO_OK) {
+            if (faulted || detail::RuntimeStopping()) return 0;
+            continue;
+        }
         if (!ValidStatus(v, t.mission, a.session)) continue;
         out[n++] = v;
     }

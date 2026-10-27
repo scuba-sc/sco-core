@@ -18,8 +18,18 @@ struct Fake {
     uint64_t lastMission = 303;
     int64_t wallet = 50;
     unsigned payments = 0;
-    bool walletFault = false, paymentFail = false;
-    static Admission Admit(void* p) { return static_cast<Fake*>(p)->allow; }
+    bool walletFault = false, paymentFail = false, acceptFail = false;
+    bool admissionReentry = false, admissionFault = false;
+    int admissions = 0, statuses = 0;
+    static Admission Admit(void* p) {
+        auto& f = *static_cast<Fake*>(p); ++f.admissions;
+        if (f.admissionReentry) {
+            sc_mission_status nested{};
+            CHECK(PollStatuses(&nested, 1) == 0);
+        }
+        if (f.admissionFault) throw 1;
+        return f.allow;
+    }
     static sco_result Offer(void* p, uint32_t i, sc_mission_offer* out) {
         ++static_cast<Fake*>(p)->reads;
         if (i) return SCO_NOT_FOUND;
@@ -27,7 +37,8 @@ struct Fake {
         return SCO_OK;
     }
     static sco_result Accept(void* p, const sc_mission_offer*, uint64_t* out) {
-        auto& f = *static_cast<Fake*>(p); ++f.accepts; *out = f.lastMission = 302 + f.accepts; return SCO_OK;
+        auto& f = *static_cast<Fake*>(p); ++f.accepts; *out = f.lastMission = 302 + f.accepts;
+        return f.acceptFail ? SCO_FAILED : SCO_OK;
     }
     static sco_result Objective(void* p, uint64_t, uint32_t, uint32_t) {
         auto& f = *static_cast<Fake*>(p); ++f.objectives; ++f.objective; return SCO_OK;
@@ -56,6 +67,7 @@ struct Fake {
     }
     static sco_result Status(void* p, uint64_t id, sc_mission_status* out) {
         ++static_cast<Fake*>(p)->reads;
+        ++static_cast<Fake*>(p)->statuses;
         if (id != static_cast<Fake*>(p)->lastMission) return SCO_NOT_FOUND;
         auto& f = *static_cast<Fake*>(p);
         *out = {sizeof(*out), f.state, f.lastMission, 101, f.phase, f.objective, 2, 2, f.allow.session};
@@ -114,7 +126,7 @@ struct Signals {
         CHECK(s.service->receipt(s.self, 500, &receipt) == SCO_FAILED); // notification reentrancy
     }
 };
-int main() {
+int main(int argc, char** argv) {
     SetGameThread();
     const auto* api = host::BuildApi({"synthetic-offline"});
     auto* self = host::NewPlugin("mission_fixture"); CHECK(self);
@@ -122,6 +134,18 @@ int main() {
     Fake f;
     Backend backend{&f, Fake::Admit, Fake::Offer, Fake::Status, Fake::Accept, Fake::Objective, Fake::Advance, Fake::Abandon, Fake::Ingest, Fake::Balance, Fake::Apply};
     CHECK(Start(backend) == Result::Ok);
+    if (argc == 2 && !std::strcmp(argv[1], "--poll-fault")) {
+        f.admissionFault = true;
+        sc_mission_status snapshot{};
+        CHECK(PollStatuses(&snapshot, 1) == 0); // callback exception is contained
+        const sc_missions_v1* faulted = nullptr;
+        CHECK(api->query_service(SC_MISSIONS_SERVICE_NAME, SC_MISSIONS_SERVICE_VERSION,
+                                 reinterpret_cast<const void**>(&faulted)) == SCO_OK);
+        sc_mission_offer unavailable{}; unavailable.size = sizeof(unavailable);
+        CHECK(faulted->offer(self, 0, &unavailable) == SCO_CRASHED);
+        CHECK(Stop() == Result::Ok && Start(backend) == Result::Crashed);
+        return 0;
+    }
     const sc_missions_v1* svc = nullptr;
     CHECK(api->query_service(SC_MISSIONS_SERVICE_NAME, SC_MISSIONS_SERVICE_VERSION,
                             reinterpret_cast<const void**>(&svc)) == SCO_OK);
@@ -161,6 +185,14 @@ int main() {
     CHECK(f.payments == 2);
     uint64_t mission = 0;
     CHECK(svc->accept(self, &offer, 42, &mission) == SCO_OK && mission == 303 && f.accepts == 1);
+    sc_mission_status snapshot{};
+    f.admissionReentry = true;
+    CHECK(PollStatuses(&snapshot, 1) == 1 && snapshot.mission_id == mission);
+    f.admissionReentry = false;
+    const int admissionCount = f.admissions;
+    detail::SetRuntimeStopping(true);
+    CHECK(PollStatuses(&snapshot, 1) == 0 && f.admissions == admissionCount);
+    detail::SetRuntimeStopping(false);
     CHECK(svc->accept(self, &offer, 42, &mission) == SCO_OK && f.accepts == 1);
     auto changed = offer; changed.broker_id++;
     CHECK(svc->accept(self, &changed, 42, &mission) == SCO_BAD_ARG && f.accepts == 1);
@@ -181,6 +213,7 @@ int main() {
     CHECK(svc->objective(self, mission, 1, 1) == SCO_OK);
     CHECK(svc->advance(self, mission, 1) == SCO_OK && f.state == SC_MISSION_COMPLETED);
     CHECK(svc->advance(self, mission, 1) == SCO_OK && f.advances == 2);
+    CHECK(PollStatuses(&snapshot, 1) == 1 && snapshot.state == SC_MISSION_COMPLETED);
     CHECK(svc->abandon(self, mission) == SCO_FAILED && f.abandons == 0); // completed
     const char text[] = "sco-mission 1\nphases 2\nobjectives 2\n";
     sc_mission_script script{}; script.size = sizeof(script);
@@ -221,6 +254,8 @@ int main() {
     CHECK(svc->offer(self, SC_MISSIONS_MAX_OFFERS, &offer) == SCO_BAD_ARG);
     CHECK(svc->offer(nullptr, 0, &offer) == SCO_BAD_ARG);
     f.allow.session = 8;
+    const int statusesBeforeSession = f.statuses;
+    CHECK(PollStatuses(&snapshot, 1) == 0 && f.statuses == statusesBeforeSession);
     CHECK(money->receipt(self, 500, &receipt) == SCO_NOT_FOUND);
     f.phase = f.objective = 0; f.state = SC_MISSION_ACTIVE;
     CHECK(svc->objective(self, mission, 0, 0) == SCO_NOT_FOUND); // stale session
@@ -235,6 +270,13 @@ int main() {
     CHECK(svc->accept(self, &offer, 100, &mission) == SCO_OK);
     CHECK(Release(self) == Result::Ok && f.abandons == 2);
     CHECK(svc->status(self, 303, &status) == SCO_BAD_ARG);
+    const int statusesBeforeReleasePoll = f.statuses;
+    CHECK(PollStatuses(&snapshot, 1) == 0 && f.statuses == statusesBeforeReleasePoll);
+    f.allow.session = 10; f.acceptFail = true;
+    CHECK(svc->accept(foreign, &offer, 101, &mission) == SCO_FAILED);
+    const int statusesBeforeFailedAccept = f.statuses;
+    CHECK(PollStatuses(&snapshot, 1) == 0 && f.statuses == statusesBeforeFailedAccept);
+    f.acceptFail = false;
     CHECK(Stop() == Result::Ok);
     CHECK(api->query_service(SC_MISSIONS_SERVICE_NAME, SC_MISSIONS_SERVICE_VERSION,
                             reinterpret_cast<const void**>(&svc)) == SCO_NOT_FOUND);

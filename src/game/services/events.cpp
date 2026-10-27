@@ -25,6 +25,7 @@
 #include "events.h"
 #include "actors.h"
 #include "death_events.h"
+#include "mission_events.h"
 #include "offline_missions.h"
 #include "sco/caps.h"
 #include "sco/game/actors.h"
@@ -93,9 +94,7 @@ bool         g_haveCache = false;
 uint64_t     g_zone = 0;              // your zone as of the last poll with a zone
 uint32_t     g_lastPoll = 0;
 bool         g_capMission = false;
-struct MisPrev { uint64_t id; uint32_t state, phase, objective; uint64_t session; };
-MisPrev      g_mis[SC_MISSIONS_MAX_ACTIVE];
-size_t       g_nmis = 0;
+MissionEvents g_missions;
 struct Wait { uintptr_t actor; uint32_t since; };
 Wait         g_wait[kWaitMax];
 size_t       g_nwait = 0;
@@ -367,31 +366,9 @@ void TickMissions() {
     const uint32_t n = offline::PollStatuses(cur, SC_MISSIONS_MAX_ACTIVE);
     if (n == 0) return;
     if (!g_capMission) { g_capMission = true; caps::Set(kCapMission, true, ""); }
-    struct { uint64_t id; uint32_t state, phase, objective; uint64_t session; } next[SC_MISSIONS_MAX_ACTIVE];
-    size_t nn = 0;
-    for (uint32_t i = 0; i < n; ++i) {
-        const sc_mission_status& c = cur[i];
-        MisPrev* prev = nullptr;
-        for (size_t j = 0; j < g_nmis; ++j) if (g_mis[j].id == c.mission_id) { prev = &g_mis[j]; break; }
-        const bool changed = !prev || prev->state != c.state || prev->phase != c.phase ||
-                             prev->objective != c.objective;
-        if (changed) {
-            sc_game_mission_changed pc = { sizeof(pc), 0, c.mission_id,
-                prev ? prev->state : c.state, c.state, c.phase, c.objective, c.session };
-            Publish(SC_GAME_EVENT_MISSION_CHANGED, &pc);
-        }
-        if (prev) { prev->state = c.state; prev->phase = c.phase; prev->objective = c.objective; prev->session = c.session; }
-        else if (nn < SC_MISSIONS_MAX_ACTIVE) next[nn++] = { c.mission_id, c.state, c.phase, c.objective, c.session };
-    }
-    size_t kept = 0;
-    for (size_t j = 0; j < g_nmis; ++j) {
-        bool alive = false;
-        for (uint32_t i = 0; i < n; ++i) if (cur[i].mission_id == g_mis[j].id) { alive = true; break; }
-        if (alive) g_mis[kept++] = g_mis[j];
-    }
-    for (size_t j = 0; j < nn && kept < SC_MISSIONS_MAX_ACTIVE; ++j, ++kept)
-        g_mis[kept] = { next[j].id, next[j].state, next[j].phase, next[j].objective, next[j].session };
-    g_nmis = kept;
+    g_missions.Observe(cur, n, [](const sc_game_mission_changed& event) {
+        Publish(SC_GAME_EVENT_MISSION_CHANGED, &event);
+    });
 }
 
 void OnTick(const char*, const void* data, void*) {
@@ -548,7 +525,7 @@ void StopEvents() {
     g_haveCache = false;
     g_zone = 0;
     g_lastPoll = 0;
-    g_nmis = 0;
+    g_missions.Reset();
     g_capMission = false;
     g_nwait = 0;
     g_seatLogged = 0;

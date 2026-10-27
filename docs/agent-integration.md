@@ -55,7 +55,40 @@ expect twelve tools. Use a separately pinned, checksummed candidate built from t
 updated source for the fourteen-tool workflow. Do not replace RC1 files silently or
 claim the new defaults were verified in its published bytes.
 
-### Download and verify the kit
+### Use a separately supplied current-source kit
+
+For a combined `legacy` plugin kit built from current source, obtain the archive, its expected
+SHA-256 and source revision from the person or process supplying that kit. This is
+a separate option from the published RC1 download below; a locally built archive is
+not a release asset. Verify the digest before extracting into an empty directory.
+For example, on macOS or Linux, set `ARCHIVE` to its absolute path and `EXPECTED`
+to the separately recorded digest, then run:
+
+```sh
+python3 - "$ARCHIVE" "$EXPECTED" <<'PY'
+import hashlib, pathlib, sys
+actual = hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()
+if actual.lower() != sys.argv[2].lower():
+    raise SystemExit('SHA-256 mismatch; stop')
+print('SHA-256 OK:', actual)
+PY
+```
+
+On PowerShell, compare `(Get-FileHash $Archive -Algorithm SHA256).Hash` with the
+separately recorded digest and stop if they differ. A matching digest identifies
+the bytes; it does not establish their approval or origin. Extract the verified
+archive into an empty directory, set `SDK` (or `$SDK` in PowerShell) to the absolute
+path of the extracted folder containing `sdk-catalogue.json`, and check
+`COMPATIBILITY.json`, `sdk-catalogue.json`, and `sdk-workflows.json` against the
+supplied source revision and each other. Record the archive, catalogue and workflow
+index digests. For separate core and game-sc archives, verify each archive and
+follow the exact-base and metadata checks in [archive composition](../sdk/README.md#zips)
+before composing them; the single-archive example above is not that procedure.
+Then skip the RC1-specific download and extraction below and continue at
+[Choose a profile](#choose-a-profile). The server checks catalogue/index coordinates
+and indexed content on startup; negotiate the available tools after connecting.
+
+### Published RC1 option: download and verify the kit
 
 Download `sco-sdk-2.4.0.zip` and `SHA256SUMS` from the
 [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1)

@@ -72,12 +72,32 @@ void Cleanup(const void* owner, bool all = false) {
     for (auto& t : triggers) if (t.token && (all || t.owner == owner)) t = {};
     busy = false;
 }
-void DrainReleased() {
-    for (const auto& p : playbacks)
-        if (p.token && detail::Released(p.owner)) Cleanup(p.owner);
+void DrainReleased(const void* already_cleaned = nullptr) {
+    // A stop callback can release another owner whose slot was already visited.
+    // Attempt each owner at most once per drain, including failed stops, so a
+    // nested release is handled without an unbounded retry on retained effects.
+    const void* attempted[SC_AUDIO_MAX_PLAYBACKS + 1]{};
+    size_t count = 0;
+    if (already_cleaned) attempted[count++] = already_cleaned;
+    for (;;) {
+        const void* pending = nullptr;
+        for (const auto& p : playbacks) {
+            if (!p.token || !detail::Released(p.owner)) continue;
+            bool seen = false;
+            for (size_t i = 0; i < count; ++i) if (attempted[i] == p.owner) { seen = true; break; }
+            if (!seen) { pending = p.owner; break; }
+        }
+        if (!pending) break;
+        attempted[count++] = pending;
+        Cleanup(pending);
+    }
     for (auto& t : triggers) if (t.token && detail::Released(t.owner)) t = {};
 }
-void OwnerReleased(const void* owner) { Cleanup(owner); }
+void OwnerReleased(const void* owner) {
+    if (busy) return;
+    Cleanup(owner);
+    DrainReleased(owner);
+}
 sco_result Resolve(sco_plugin* self, const char* name, uint64_t* out) {
     if (!out) return SCO_BAD_ARG;
     *out = 0;
@@ -127,7 +147,7 @@ sco_result Play(sco_plugin* self, uint64_t token, uint64_t* out) {
     }
     DrainReleased();
     if (!Live(self) || failed || detail::RuntimeStopping() || !caps::Has("game.audio.triggers")) {
-        Cleanup(self); return SCO_UNAVAILABLE;
+        Cleanup(self); DrainReleased(self); return SCO_UNAVAILABLE;
     }
     *out = free->token; return SCO_OK;
 }
@@ -142,6 +162,7 @@ sco_result PlayOnce(sco_plugin* self, uint64_t token) {
     if (r == SCO_CRASHED) {
         once_failed = true;
         caps::Set("game.audio.play_once", false, "native audio fault; restart required");
+        DrainReleased();
         return SCO_CRASHED;
     }
     DrainReleased();

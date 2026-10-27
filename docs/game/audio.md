@@ -31,8 +31,10 @@ across restart of the service within the process.
 Effect quota and token tracking are reserved before the backend can start an
 effect. A complete backend and registered release hook are required for admission.
 Owner release stops only that owner's effects and expires its triggers. Release
-during a backend call is cleaned immediately after that call returns, before any
-successful playback token can be returned to the released caller.
+during a backend call is cleaned immediately after that call returns, including
+when a one-shot call reports a fault, before the operation returns to the caller.
+Cleanup also drains releases made by stop callbacks, attempting each affected owner
+at most once per drain so a failed stop remains tracked without a retry loop.
 
 A backend stop failure retains its effect and context for retry and latches new
 operations unavailable. Stop can retry a retained token. Service stop withdraws
