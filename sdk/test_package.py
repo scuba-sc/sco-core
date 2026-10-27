@@ -56,6 +56,27 @@ class RealManifest(unittest.TestCase):
                         if any(c["source"] == source for c in pkg.select(self.m, profile))}
             self.assertEqual(selected, expected, source)
 
+    def test_contract_records_follow_public_headers(self):
+        # Ship each per-method authority with its corresponding public header.
+        records = {}
+        for path in Path(HERE, "contracts").glob("*.json"):
+            document = json.loads(path.read_text(encoding="utf-8"))
+            headers = {r["source_header"] for r in document["records"] if r.get("source_header")}
+            self.assertTrue(headers, path.name)
+            records["sdk/contracts/" + path.name] = headers
+        self.assertTrue(records)
+        for profile in self.m["profiles"]:
+            selected = pkg.select(self.m, profile)
+            by_source = {c["source"]: c for c in selected}
+            shipped_headers = set(by_source)
+            for source, headers in records.items():
+                with self.subTest(profile=profile, source=source):
+                    self.assertEqual(source in by_source, headers <= shipped_headers)
+                    if source in by_source:
+                        self.assertEqual(pkg.destination(self.m, profile, by_source[source]),
+                                         ("sdk/" if profile in ("core-source", "host-source-sc") else "")
+                                         + "contracts/" + Path(source).name)
+
     def test_every_profile_reproducible(self):
         runs = []
         for label, tz, locale, mask in (("a", "UTC", "C", "022"),
