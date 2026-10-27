@@ -12,6 +12,7 @@ uint64_t session = 0;
 uint32_t now = 0, heldSince = 0, holdMs = 0;
 sco_plugin* owner = nullptr;
 QuantumBackend bridge, production;
+bool productionExplicit = false;
 hook::Transaction hooks;
 struct BridgeScope { BridgeScope() { busy = true; } ~BridgeScope() { busy = false; } };
 sco_result Enter(sco_plugin* self) {
@@ -104,10 +105,28 @@ Result ConfigureProductionQuantum(const QuantumBackend& backend) {
     if (!!backend.observe != !!backend.apply || backend.hookCount > 4 ||
         (backend.hookCount && (!backend.hooks || !backend.observe))) return Result::BadArg;
     production = backend;
+    productionExplicit = backend.observe != nullptr;
+    return Result::Ok;
+}
+Result ConfigureImplicitQuantum(const QuantumBackend& backend) {
+    if (started || busy || restart) return Result::Failed;
+    if (!backend.observe || !backend.apply || backend.hookCount > 4 ||
+        (backend.hookCount && !backend.hooks)) return Result::BadArg;
+    if (!productionExplicit) production = backend;
     return Result::Ok;
 }
 Result StartProductionQuantum(bool ownerCleanupReady) {
     return StartQuantum(production, ownerCleanupReady);
+}
+Result StartProductionQuantumWithDefault(bool ownerCleanupReady, Result (*configureDefault)()) {
+    if (!OnGameThread()) return Result::WrongThread;
+    if (started || busy || restart) return StartProductionQuantum(ownerCleanupReady);
+    if (!productionExplicit) {
+        // A prior implicit selection is valid only for its own startup attempt.
+        production = {};
+        if (configureDefault && configureDefault() != Result::Ok) production = {};
+    }
+    return StartProductionQuantum(ownerCleanupReady);
 }
 Result StartQuantum(const QuantumBackend& backend, bool ownerCleanupReady) {
     if (!OnGameThread()) return Result::WrongThread;
@@ -169,13 +188,21 @@ void TickQuantum(uint32_t nowMs) {
     }
 }
 void StopQuantum() {
-    if (!OnGameThread() || !started || busy) return;
+    if (!OnGameThread() || busy) return;
+    if (!started) {
+        // A failed start may leave an explicit selection whose lifetime ends at stop.
+        // Faulted rollback retains its backing state until process exit.
+        if (!restart) { production = {}; productionExplicit = false; }
+        return;
+    }
     host::WithdrawGameService(SC_QUANTUM_SERVICE_NAME);
     caps::Set("game.quantum.control", false, "quantum service stopped");
     started = false;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     if (!restart && Clear()) {
-        if (hooks.Rollback() == hook::Error::None) { bridge = {}; cleanupReady = false; }
+        if (hooks.Rollback() == hook::Error::None) {
+            bridge = {}; production = {}; productionExplicit = false; cleanupReady = false;
+        }
         else Fault();
     }
 }
