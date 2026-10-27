@@ -17,6 +17,8 @@ struct Fixture {
     uint64_t next = 10;
     unsigned resolves = 0, plays = 0, stops = 0, once = 0, active = 0;
     bool fail_stop = false;
+    uint64_t fail_stop_key = 0;
+    bool active_keys[512]{};
     bool fail_play = false, fault_once = false, release_once = false, revoke_play = false, recurse = false;
     sco::sdk::game::Audio* consumer = nullptr;
     sco_plugin* release_during_play = nullptr;
@@ -41,6 +43,7 @@ sco_result Play(void* ctx, uint64_t key, uint64_t* out) {
     auto& f = *static_cast<Fixture*>(ctx); CHECK(key==7);
     if (f.fail_play) return SCO_FAILED;
     ++f.plays; ++f.active; *out=f.next++;
+    CHECK(*out < 512); if (*out < 512) f.active_keys[*out] = true;
     if (f.recurse) {
         uint64_t nested=9;
         CHECK(f.consumer->Play(1,nested)==SCO_FAILED && nested==0);
@@ -55,8 +58,10 @@ sco_result Play(void* ctx, uint64_t key, uint64_t* out) {
 }
 sco_result Stop(void* ctx, uint64_t key) {
     auto& f = *static_cast<Fixture*>(ctx); CHECK(key>=10); ++f.stops;
-    if (f.fail_stop) return SCO_FAILED;
-    CHECK(f.active>0); --f.active; return SCO_OK;
+    if (f.fail_stop || key == f.fail_stop_key) return SCO_FAILED;
+    CHECK(f.active>0 && key < 512 && f.active_keys[key]);
+    if (key < 512) f.active_keys[key] = false;
+    --f.active; return SCO_OK;
 }
 sco_result PlayOnce(void* ctx, uint64_t key) {
     auto& f = *static_cast<Fixture*>(ctx); CHECK(key == 7 || key == 8); ++f.once;
@@ -68,7 +73,7 @@ sco_result PlayOnce(void* ctx, uint64_t key) {
     return f.fail_play ? SCO_FAILED : SCO_OK;
 }
 }
-int main() {
+int main(int argc, char**) {
     sco::SetGameThread();
     CHECK(G::AddGameReleaseHook(Hook1)==sco::Result::Ok);
     CHECK(G::AddGameReleaseHook(Hook2)==sco::Result::Ok);
@@ -209,12 +214,31 @@ int main() {
     CHECK(G::StartAudio({&f,Resolve,Play,Stop})==sco::Result::Ok);
     CHECK(B.Play(tb,pb)==SCO_NOT_FOUND);
     CHECK(B.Resolve("cue",tb)==SCO_OK && B.Play(tb,pb)==SCO_OK);
-    f.fail_stop=true;
-    CHECK(B.Stop(pb)==SCO_FAILED && f.active==1);
-    CHECK(B.Play(tb,repeat)==SCO_UNAVAILABLE && repeat==0);
-    CHECK(G::StopAudio()==sco::Result::Failed && f.active==1);
-    f.fail_stop=false;
-    CHECK(B.Stop(pb)==SCO_OK && f.active==0);
+    if (argc > 1) {
+        // Owner release must retain only the failed effect; another owner can
+        // still stop its own playback while new operations are latched off.
+        auto* d=sco::host::NewPlugin("audio_cleanup_failure"); sco::sdk::game::Audio D;
+        uint64_t td=0,pd=0;
+        CHECK(D.Open(api,d)==SCO_OK && D.Resolve("cue",td)==SCO_OK);
+        CHECK(D.Play(td,pd)==SCO_OK && f.active==2);
+        const uint64_t b_effect=f.next-2, d_effect=f.next-1;
+        CHECK(b_effect < 512 && d_effect < 512 && f.active_keys[b_effect] && f.active_keys[d_effect]);
+        f.fail_stop_key=d_effect;
+        CHECK(sco::Release(d)==sco::Result::Ok);
+        CHECK(f.active==2 && f.active_keys[b_effect] && f.active_keys[d_effect]);
+        CHECK(B.Play(tb,repeat)==SCO_UNAVAILABLE && repeat==0);
+        CHECK(B.Stop(pb)==SCO_OK && f.active==1 && !f.active_keys[b_effect] && f.active_keys[d_effect]);
+        CHECK(G::StopAudio()==sco::Result::Failed && f.active==1 && f.active_keys[d_effect]);
+        f.fail_stop_key=0;
+        CHECK(G::StopAudio()==sco::Result::Failed && f.active==0 && !f.active_keys[d_effect]);
+    } else {
+        f.fail_stop=true;
+        CHECK(B.Stop(pb)==SCO_FAILED && f.active==1);
+        CHECK(B.Play(tb,repeat)==SCO_UNAVAILABLE && repeat==0);
+        CHECK(G::StopAudio()==sco::Result::Failed && f.active==1);
+        f.fail_stop=false;
+        CHECK(B.Stop(pb)==SCO_OK && f.active==0);
+    }
     CHECK(G::StartAudio({&f,Resolve,Play,Stop})==sco::Result::Failed);
     std::printf("audio synthetic: %d passed, %d failed\n",passed,failed);
     return failed ? 1 : 0;

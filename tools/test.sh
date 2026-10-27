@@ -389,6 +389,7 @@ done
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_audio.cpp" \
   $(obj asan "$ROOT/src/game/services/audio.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_audio"
 "$OUT/test_audio"
+"$OUT/test_audio" owner-cleanup
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_entity_lookup.cpp" \
   $(obj asan "$ROOT/src/game/services/entity_lookup.cpp") -o "$OUT/test_entity_lookup"
 "$OUT/test_entity_lookup"
