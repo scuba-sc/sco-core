@@ -218,6 +218,12 @@ def verify(args):
         tree = git(root, "ls-tree", "-z", builder["workflow_sha"], "--", builder["workflow_path"])
         if not tree.startswith(b"100644 blob "):
             raise Refusal("builder workflow unavailable or not a regular file")
+        # The promotion fetch binds the dispatch run's head SHA and workflow path
+        # to this source. Require the approved workflow blob to be that source's
+        # regular file, while allowing a distinct commit with identical contents.
+        source_tree = git(root, "ls-tree", "-z", sha, "--", builder["workflow_path"])
+        if not source_tree.startswith(b"100644 blob ") or source_tree != tree:
+            raise Refusal("builder workflow differs from source workflow")
         declared = {}
         for dep in record["source"]["dependencies"]:
             if not safe_path(dep["path"]) or dep["path"] in declared:

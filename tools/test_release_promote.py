@@ -62,12 +62,12 @@ class PromotionTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.github = FakeGitHub()
-        self.approval = {"builder": {"run_id": 123}, "artifacts": [
+        self.approval = {"source": {"sha": SHA}, "builder": {"run_id": 123, "run_attempt": 1, "workflow_path": ".github/workflows/release-candidate.yml"}, "artifacts": [
             {"name": "sdk.zip", "artifact_id": 456},
             {"name": "sdk.spdx.json", "artifact_id": 456},
         ]}
         self.builder_run = {"path": ".github/workflows/release-candidate.yml", "event": "workflow_dispatch",
-                    "head_branch": "main", "status": "completed", "conclusion": "success"}
+                    "head_branch": "main", "head_sha": SHA, "run_attempt": 1, "status": "completed", "conclusion": "success"}
         self.metadata = {"expired": False, "workflow_run": {"id": 123}}
         self.members = [("sdk.zip", b"archive"), ("sdk.spdx.json", b"sbom")]
 
@@ -139,6 +139,19 @@ class PromotionTests(unittest.TestCase):
     def test_fetch_different_builder_run(self):
         self.metadata["workflow_run"]["id"] = 999
         self.assert_fetch_refused("expired or belongs")
+
+    def test_fetch_wrong_source_and_attempt_are_refused(self):
+        for field, value in (("head_sha", "b" * 40), ("run_attempt", 2)):
+            with self.subTest(field=field):
+                self.builder_run[field] = value
+                self.assert_fetch_refused("builder source, attempt or workflow mismatch")
+                self.assertFalse(any(args[-1].endswith("/zip") for args in self.github.calls))
+                self.github = FakeGitHub()
+                self.builder_run[field] = SHA if field == "head_sha" else 1
+
+    def test_fetch_approved_workflow_mismatch_refused(self):
+        self.approval["builder"]["workflow_path"] = ".github/workflows/other.yml"
+        self.assert_fetch_refused("builder source, attempt or workflow mismatch")
 
     def test_fetch_wrong_builder_workflow(self):
         self.builder_run["path"] = ".github/workflows/other.yml"
@@ -375,7 +388,7 @@ class PromotionTests(unittest.TestCase):
         self.assets = [{"id": i, "name": name, "size": len(data), "state": "uploaded",
                         "updated_at": "2026-01-01T00:00:00Z"}
                        for i, (name, data) in enumerate(self.asset_bytes.items(), 700)]
-        self.draft = {"id": 600, "tag_name": TAG, "draft": True}
+        self.draft = {"id": 600, "tag_name": TAG, "draft": True, "prerelease": False}
         self.releases_command = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases?per_page=100")
         self.assets_command = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases/600/assets?per_page=100")
         self.create_command = ("release", "create", TAG,
@@ -413,6 +426,25 @@ class PromotionTests(unittest.TestCase):
         with self.assertRaisesRegex(promote.Refusal, message):
             self.create_draft(**kwargs)
         self.assertFalse(any(args[:2] == ("release", "edit") for args in self.github.calls))
+
+    def test_rc_draft_and_publish_preserve_prerelease(self):
+        self.draft_fixtures()
+        rc = TAG + "-rc.2"
+        self.draft.update(tag_name=rc, prerelease=True)
+        self.create_command = tuple("sco-core SDK 9.9.9-rc.2" if part == "sco-core SDK 9.9.9" else part for part in (self.create_command[0], self.create_command[1], rc, *self.create_command[3:], "--prerelease"))
+        self.create_draft(configure_only=True)
+        self.assertEqual(promote.create_draft(REPO, rc, self.manifest, self.signature, self.payload,
+                                             self.runner, self.root / "downloaded", "9.9.9", self.github), 600)
+        (self.runner / "draft-assets.json").write_text(json.dumps(self.assets))
+        self.github.add(self.releases_command, [[self.draft]])
+        self.github.add(self.assets_command, [self.assets])
+        self.github.add(("release", "edit", rc, "--repo", REPO, "--draft=false"), b"")
+        self.github.add(("api", f"repos/{REPO}/releases/600"), dict(self.draft, draft=False, html_url="https://example.invalid/rc"))
+        self.assertEqual(promote.publish_draft(REPO, rc, 600, self.runner, self.github), "https://example.invalid/rc")
+
+    def test_wrong_prerelease_state_refused(self):
+        self.draft_fixtures()
+        self.assert_draft_refused("unique expected draft", after=[[dict(self.draft, prerelease=True)]])
 
     def test_draft_existing_draft_refused_before_create(self):
         self.draft_fixtures()
@@ -501,6 +533,15 @@ class PromotionTests(unittest.TestCase):
         with self.assertRaisesRegex(promote.Refusal, message):
             self.publication(**kwargs)
         self.assertNotIn(self.edit_command, self.github.calls)
+
+    def test_publish_wrong_prerelease_state_refused(self):
+        self.draft_fixtures()
+        self.assert_publish_refused("draft changed", releases=[[dict(self.draft, prerelease=True)]])
+
+    def test_publish_readback_wrong_prerelease_state_refused(self):
+        self.draft_fixtures()
+        with self.assertRaisesRegex(promote.Refusal, "was not published"):
+            self.publication(published=dict(self.draft, draft=False, prerelease=True))
 
     def test_publish_missing_draft(self):
         self.draft_fixtures()
@@ -714,6 +755,13 @@ class SignedPromotionTests(unittest.TestCase):
         self.fixture = verify_tests.ReleaseVerifyTests("test_valid_release")
         self.addCleanup(self.fixture.doCleanups)
         self.fixture.setUp()
+        workflow = self.fixture.root / ".github/workflows/release-candidate.yml"
+        workflow.write_text("name: candidate\n")
+        self.fixture.command("git", "add", str(workflow))
+        self.fixture.command("git", "-c", "user.name=maintainer", "-c", "user.email=maintainer@example.invalid", "commit", "-qm", "candidate fixture")
+        self.fixture.sha = self.fixture.command("git", "rev-parse", "HEAD").stdout.decode().strip()
+        self.fixture.record["source"]["sha"] = self.fixture.sha
+        self.fixture.record["builder"].update(workflow_path=".github/workflows/release-candidate.yml", workflow_sha=self.fixture.sha)
         self.fixture.write_record()
         self.fixture.sign()
         self.root = self.fixture.root
@@ -725,7 +773,7 @@ class SignedPromotionTests(unittest.TestCase):
         self.bytes = {p.name: p.read_bytes() for p in self.fixture.payload.iterdir()}
         self.assets_command = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases/600/assets?per_page=100")
         self.releases_command = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases?per_page=100")
-        self.draft = {"id": 600, "tag_name": TAG, "draft": True}
+        self.draft = {"id": 600, "tag_name": TAG, "draft": True, "prerelease": False}
         output = contextlib.redirect_stdout(io.StringIO())
         output.__enter__()
         self.addCleanup(output.__exit__, None, None, None)
@@ -733,7 +781,7 @@ class SignedPromotionTests(unittest.TestCase):
     def fetch(self, changed=False):
         self.client.add(("api", f"repos/{REPO}/actions/runs/123"), {
             "path": ".github/workflows/release-candidate.yml", "head_branch": "main",
-            "event": "workflow_dispatch", "status": "completed", "conclusion": "success",
+            "event": "workflow_dispatch", "head_sha": self.fixture.sha, "run_attempt": 1, "status": "completed", "conclusion": "success",
         })
         self.client.add(("api", f"repos/{REPO}/actions/artifacts/456"),
                         {"expired": False, "workflow_run": {"id": 123}})

@@ -119,14 +119,18 @@ jobs:
       - name: The tag matches sdk/VERSION and has a CHANGELOG section
         run: |
           v=$(tr -d '\r\n' < sdk/VERSION)
-          if [ "$GITHUB_REF_NAME" != "sdk-v$v" ]; then
+          if ! python3 -c 'import sys; from tools.doc_release_gate import base_tag; sys.exit(base_tag(sys.argv[1]) != "sdk-v" + sys.argv[2])' "$GITHUB_REF_NAME" "$v"; then
             echo "tag $GITHUB_REF_NAME does not match sdk/VERSION ($v)"; exit 1
           fi
-          awk -v t="$GITHUB_REF_NAME" '
+          awk -v t="sdk-v$v" '
             $0 ~ "^## " { if (on) exit; if (index($0, "## " t " ") == 1 || $0 == "## " t) { on = 1; next } }
             on { print }' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
             echo "CHANGELOG.md has no '## $GITHUB_REF_NAME' section"; exit 1
+          fi
+          if [ "$GITHUB_REF_NAME" != "sdk-v$v" ]; then
+            { printf 'Release candidate %s; not the final SDK release.\n\n' "$GITHUB_REF_NAME"; cat "$RUNNER_TEMP/notes.md"; } > "$RUNNER_TEMP/candidate-notes.md"
+            mv "$RUNNER_TEMP/candidate-notes.md" "$RUNNER_TEMP/notes.md"
           fi
           echo "VERSION=$v" >> "$GITHUB_ENV"
 
@@ -156,6 +160,7 @@ jobs:
 
   notify:
     needs: publish
+    if: ${{ !contains(github.ref_name, '-rc.') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:

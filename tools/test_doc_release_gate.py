@@ -116,6 +116,20 @@ class DocReleaseGateTests(unittest.TestCase):
         out = self.assert_passes()
         self.assertIn("approval: not compared", out)
 
+    def test_candidate_uses_final_scope_without_changing_sdk_version(self):
+        self.assert_passes(tag="sdk-v2.1.0-rc.2")
+        for tag in ("sdk-v2.1.0-rc.0", "sdk-v2.1.0-rc.02", "sdk-v2.1.0-rc.2-extra", "sdk-v2.1.1-rc.2"):
+            with self.subTest(tag=tag):
+                self.assertEqual(self.run_cli(tag=tag)[0], 1)
+
+    def test_candidate_approval_must_name_exact_label(self):
+        approval = self.repo.root / "approval.json"
+        approval.write_text(json.dumps({"tag": "sdk-v2.1.0-rc.1", "profiles": FIVE}))
+        Path(str(approval) + ".sig").write_text("fixture")
+        self.assert_refused("not for", "--approval", str(approval), tag="sdk-v2.1.0-rc.2")
+        approval.write_text(json.dumps({"tag": "sdk-v2.1.0-rc.2", "profiles": FIVE}))
+        self.assert_passes("--approval", str(approval), tag="sdk-v2.1.0-rc.2")
+
     def test_next_release_passes(self):
         self.repo = Fixture(tempfile.mkdtemp(dir=self.tmp), version="2.2.0", game_pack="0.5.0")
         self.tmp = str(self.repo.root)

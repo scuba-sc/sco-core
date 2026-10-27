@@ -94,6 +94,20 @@ class ReleaseVerifyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, "")
 
+    def test_signed_rc_tag_is_distinct_from_final(self):
+        self.record["tag"] = "sdk-v9.9.9-rc.2"
+        self.write_record()
+        self.sign()
+        self.assertEqual(self.verify(tag="sdk-v9.9.9-rc.2").returncode, 0)
+        self.assert_refused(self.verify(tag="sdk-v9.9.9"), "tag mismatch")
+
+    def test_malformed_rc_tag_refused_by_schema(self):
+        for tag in ("sdk-v9.9.9-rc.0", "sdk-v9.9.9-rc.02", "sdk-v9.9.9-rc.2-extra"):
+            with self.subTest(tag=tag):
+                self.record["tag"] = tag
+                self.write_record()
+                self.assert_refused(self.verify(tag=tag), "$.tag")
+
     def test_valid_five_profile_release(self):
         self.record["profiles"] = ["core", "game-sc", "legacy", "core-source", "host-source-sc"]
         self.write_record()
@@ -338,6 +352,24 @@ class ReleaseVerifyTests(unittest.TestCase):
         self.write_record()
         self.sign()
         result = self.verify()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_changed_workflow_commit_refused(self):
+        (self.root / ".github/workflows/build.yml").write_text("name: changed workflow\n")
+        self.command("git", "add", ".github/workflows/build.yml")
+        self.command("git", "-c", "user.name=maintainer", "-c", "user.email=maintainer@example.invalid",
+                     "commit", "-qm", "changed workflow")
+        self.record["builder"]["workflow_sha"] = self.command("git", "rev-parse", "HEAD").stdout.decode().strip()
+        self.write_record()
+        self.sign()
+        self.assert_refused(self.verify(), "builder workflow differs from source workflow")
+
+    def test_approval_only_descendant_with_same_workflow_passes(self):
+        self.command("git", "-c", "user.name=maintainer", "-c", "user.email=maintainer@example.invalid",
+                     "commit", "--allow-empty", "-qm", "same workflow")
+        self.record["builder"]["workflow_sha"] = self.command("git", "rev-parse", "HEAD").stdout.decode().strip()
+        published = self.approval_commit()
+        result = self.verify(**{"source-sha": published})
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_missing_workflow_commit(self):

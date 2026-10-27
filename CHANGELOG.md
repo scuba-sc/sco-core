@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Separate numbered release-candidate labels from numeric SDK versions while preserving signed promotion checks.
+
 - Add the candidate `game.asop.selection` file coordinator and public C/C++
   interface, with guarded owner leases, copied state and file-operation receipts.
   Product composition is development-only and off by default; saving a file
@@ -51,6 +53,11 @@ What each change means for plugin authors and for products built on sco-core (sc
   Lua preserves UNKNOWN as the canonical unsigned 32-bit category on MSVC.
   Category metadata remains pinned to 4.10.197.2878 and does not enable the inventory backend.
   These routes are absent from published RC1.
+- The documentation landing gains a cinematic violet/teal nebula, warm star
+  accents, slow orbital layers, brighter foreground stars and selective glows.
+  Cached orbit math, per-plane culling and a shared 1.2-million-pixel canvas
+  budget retain bounded rendering work. Hero text stays opaque and arrow cues
+  retain accessible inline SVGs; documentation and SDK contracts are unchanged.
 
 - Generated native/C++/C# manifests declare API 1.1, matching their exported
   built-against ABI. Truncated-table checker success is no longer described as

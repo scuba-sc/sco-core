@@ -1,17 +1,63 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import {
 	DESKTOP_PARTICLES, FIELD_CENTER_X, FIELD_CENTER_Y, FIELD_HEIGHT, FIELD_PERIOD, FIELD_WIDTH,
-	MOBILE_PARTICLES, MOBILE_WIDTH, POSITION_COMPONENTS, makeOrbits, sampleField,
+	MOBILE_PARTICLES, MOBILE_WIDTH, ORBIT_TURNS, POSITION_COMPONENTS, fieldGeometry, makeOrbits, sampleField, seedFraction,
 } from './field-model';
 import type { FieldResponse } from './field-model';
 
 const FRAME_INTERVAL = 1000 / 30;
 const MAX_DPR = 1.5;
-const MAX_BACKING_PIXELS = 1920 * 1080;
+const MAX_BACKING_PIXELS = 1200000;
 const MAX_BACKING_DIMENSION = 3072;
 const WORKER_TIMEOUT = 8000;
 const FRONT_STRIDE = 67;
-const COLORS = ['rgb(141 228 224 / 0.32)', 'rgb(141 228 224 / 0.26)', 'rgb(218 231 234 / 0.48)'];
+const COLORS = [
+	{ fill: 'rgb(100 190 197 / 0.28)', glow: 'rgb(100 190 197 / 0.42)' },
+	{ fill: 'rgb(152 239 230 / 0.60)', glow: 'rgb(152 239 230 / 0.70)' },
+	{ fill: 'rgb(188 161 252 / 0.52)', glow: 'rgb(188 161 252 / 0.68)' },
+	{ fill: 'rgb(150 188 246 / 0.42)', glow: 'rgb(150 188 246 / 0.58)' },
+	{ fill: 'rgb(235 246 255 / 0.82)', glow: 'rgb(235 246 255 / 0.76)' },
+	{ fill: 'rgb(255 209 145 / 0.84)', glow: 'rgb(255 209 145 / 0.74)' },
+];
+
+function makeStarStyles(count: number) {
+	const buckets: number[][] = COLORS.map(() => []);
+	const glows: number[][] = COLORS.map(() => []);
+	const sizes = new Float32Array(count);
+	for (let index = 0; index < count; index++) {
+		const choice = seedFraction(index, 4);
+		const bucket = choice < 0.33 ? 0 : choice < 0.56 ? 1 : choice < 0.72 ? 2 : choice < 0.88 ? 3 : choice < 0.97 ? 4 : 5;
+		buckets[bucket].push(index);
+		if (index % 151 === 0) glows[bucket].push(index);
+		sizes[index] = 0.45 + seedFraction(index, 5) * (bucket >= 4 ? 1.0 : 0.6);
+	}
+	return { buckets, glows, sizes };
+}
+
+type FieldBounds = { left: number; top: number; right: number; bottom: number };
+
+function visiblePoint(x: number, y: number, bounds: FieldBounds, margin: number): boolean {
+	return x + margin >= bounds.left && x - margin <= bounds.right &&
+		y + margin >= bounds.top && y - margin <= bounds.bottom;
+}
+
+function makeGlowSprites(): (HTMLCanvasElement | null)[] {
+	return COLORS.map(({ glow }) => {
+		try {
+			const sprite = document.createElement('canvas');
+			sprite.width = sprite.height = 32;
+			const renderer = sprite.getContext('2d');
+			if (!renderer) return null;
+			const gradient = renderer.createRadialGradient(16, 16, 0, 16, 16, 16);
+			gradient.addColorStop(0, glow);
+			gradient.addColorStop(0.22, glow);
+			gradient.addColorStop(1, 'transparent');
+			renderer.fillStyle = gradient;
+			renderer.fillRect(0, 0, 32, 32);
+			return sprite;
+		} catch { return null; }
+	});
+}
 
 export function initParticleField(root: HTMLElement): () => void {
 	const canvas = root.querySelector<HTMLCanvasElement>('canvas[data-sco-particles]');
@@ -43,6 +89,8 @@ export function initParticleField(root: HTMLElement): () => void {
 	let height = 1;
 	let count = DESKTOP_PARTICLES;
 	let snapshot = new Float32Array(count * POSITION_COMPONENTS);
+	let stars = makeStarStyles(count);
+	const glowSprites = makeGlowSprites();
 	let buffer: ArrayBuffer | null = null;
 	let worker: Worker | null = null;
 	let resizeObserver: ResizeObserver | undefined;
@@ -106,9 +154,10 @@ export function initParticleField(root: HTMLElement): () => void {
 		paintedAt = performance.now();
 		clearCanvas(canvas, ctx);
 		if (front) clearCanvas(front.canvas, front.ctx);
-		// The enlarged orbit extends beyond the hero; a sparse near layer crosses the text.
+		// Separate orbit speeds shear the three seeded arms into a slowly changing galaxy.
 		const mobile = width <= MOBILE_WIDTH;
 		const scale = Math.min(width / (mobile ? 700 : FIELD_WIDTH), height / FIELD_HEIGHT) * 2.8;
+		const { phase, centerX: orbitX, centerY: orbitY, tilt } = fieldGeometry(seconds);
 		const transform = (surface: HTMLCanvasElement, renderer: CanvasRenderingContext2D,
 			layerScale: number, centerX: number, centerY: number) => {
 			const pixelX = surface.width / width;
@@ -116,24 +165,46 @@ export function initParticleField(root: HTMLElement): () => void {
 			renderer.setTransform(pixelX * layerScale, 0, 0, pixelY * layerScale,
 				pixelX * (centerX - FIELD_CENTER_X * layerScale), pixelY * (centerY - FIELD_CENTER_Y * layerScale));
 		};
-		transform(canvas, ctx, scale, width * (mobile ? 0.9 : 0.83), height * (mobile ? 0.34 : 0.42));
+		const backX = width * (mobile ? 0.9 : 0.83);
+		const backY = height * (mobile ? 0.34 : 0.42);
+		const boundsAt = (layerScale: number, centerX: number, centerY: number): FieldBounds => {
+			const left = FIELD_CENTER_X - centerX / layerScale;
+			const top = FIELD_CENTER_Y - centerY / layerScale;
+			return { left, top, right: left + width / layerScale, bottom: top + height / layerScale };
+		};
+		const backBounds = boundsAt(scale, backX, backY);
+		transform(canvas, ctx, scale, backX, backY);
 		for (let bucket = 0; bucket < COLORS.length; bucket++) {
-			ctx.fillStyle = COLORS[bucket];
+			ctx.fillStyle = COLORS[bucket].fill;
+			ctx.globalAlpha = 0.86 + Math.sin(phase * 5 + bucket * 1.7) * 0.14;
 			ctx.beginPath();
-			const size = (bucket === 2 ? 1.25 : 0.9) / scale;
-			for (let index = bucket; index < count; index += COLORS.length) {
+			for (const index of stars.buckets[bucket]) {
 				if (front && index % FRONT_STRIDE === 0) continue;
-				ctx.rect(snapshot[index * 2], snapshot[index * 2 + 1], size, size);
+				const size = stars.sizes[index] / scale;
+				const x = snapshot[index * 2];
+				const y = snapshot[index * 2 + 1];
+				if (visiblePoint(x, y, backBounds, size)) ctx.rect(x, y, size, size);
 			}
 			ctx.fill();
 		}
-		const phase = seconds * Math.PI * 2 / FIELD_PERIOD;
-		const orbitX = FIELD_CENTER_X + Math.sin(phase) * 26;
-		const orbitY = FIELD_CENTER_Y + Math.sin(phase * 2) * 16;
-		const tilt = 0.65 + Math.sin(phase) * 0.08;
-		const strokeTrails = (renderer: CanvasRenderingContext2D, stride: number, layerScale: number, near: boolean) => {
-			const length = Math.min(2.75, Math.max(0.75, layerScale * 1.1)) / layerScale;
-			renderer.strokeStyle = near ? 'rgb(218 245 242 / 0.32)' : 'rgb(141 228 224 / 0.2)';
+		ctx.globalAlpha = 1;
+		// Tiny cached glows enrich a few stars without per-frame gradients or blur filters.
+		for (let bucket = 0; bucket < COLORS.length; bucket++) {
+			const sprite = glowSprites[bucket];
+			if (!sprite) continue;
+			ctx.globalAlpha = 0.62 + Math.sin(phase * 7 + bucket * 1.4) * 0.18;
+			for (const index of stars.glows[bucket]) {
+				if (front && index % FRONT_STRIDE === 0) continue;
+				const size = (10 + stars.sizes[index] * 4) / scale;
+				const x = snapshot[index * 2];
+				const y = snapshot[index * 2 + 1];
+				if (visiblePoint(x, y, backBounds, size / 2)) ctx.drawImage(sprite, x - size / 2, y - size / 2, size, size);
+			}
+		}
+		ctx.globalAlpha = 1;
+		const strokeTrails = (renderer: CanvasRenderingContext2D, stride: number, layerScale: number, near: boolean, bounds: FieldBounds) => {
+			const length = Math.min(4.4, Math.max(1.1, layerScale * 1.5)) / layerScale;
+			renderer.strokeStyle = near ? 'rgb(227 218 255 / 0.46)' : 'rgb(161 205 229 / 0.19)';
 			renderer.lineWidth = (near ? 0.5 : 0.35) / layerScale;
 			renderer.lineCap = 'butt';
 			renderer.beginPath();
@@ -141,27 +212,36 @@ export function initParticleField(root: HTMLElement): () => void {
 				if (!near && front && index % FRONT_STRIDE === 0) continue;
 				const x = snapshot[index * 2];
 				const y = snapshot[index * 2 + 1];
-				const direction = index % 7 === 0 ? -1 : 1;
+				if (!visiblePoint(x, y, bounds, length)) continue;
+				const direction = index % 11 === 0 ? -1 : 1;
 				const tangentX = -(y - orbitY) / tilt * direction;
 				const tangentY = (x - orbitX) * tilt * direction;
-				const ratio = length / Math.max(1, Math.hypot(tangentX, tangentY));
+				const speed = ORBIT_TURNS[index % ORBIT_TURNS.length] / ORBIT_TURNS[0];
+				const ratio = length * speed / Math.max(1, Math.hypot(tangentX, tangentY));
 				renderer.moveTo(x - tangentX * ratio, y - tangentY * ratio);
 				renderer.lineTo(x, y);
 			}
 			renderer.stroke();
 		};
-		strokeTrails(ctx, 8, scale, false);
+		strokeTrails(ctx, 8, scale, false, backBounds);
 		if (front) {
-			const nearScale = scale * 1.16;
-			transform(front.canvas, front.ctx, nearScale, width * (mobile ? 0.5 : 0.6), height * 0.37);
-			front.ctx.fillStyle = 'rgb(205 245 240 / 0.52)';
+			const nearScale = scale * 1.28;
+			const nearX = width * (mobile ? 0.5 : 0.6);
+			const nearY = height * 0.37;
+			const nearBounds = boundsAt(nearScale, nearX, nearY);
+			transform(front.canvas, front.ctx, nearScale, nearX, nearY);
+			front.ctx.fillStyle = 'rgb(232 236 255 / 0.74)';
+			front.ctx.globalAlpha = 0.88 + Math.sin(phase * 3) * 0.12;
 			front.ctx.beginPath();
-			const size = 1.4 / nearScale;
 			for (let index = 0; index < count; index += FRONT_STRIDE) {
-				front.ctx.rect(snapshot[index * 2], snapshot[index * 2 + 1], size, size);
+				const size = (1.25 + stars.sizes[index] * 0.75) / nearScale;
+				const x = snapshot[index * 2];
+				const y = snapshot[index * 2 + 1];
+				if (visiblePoint(x, y, nearBounds, size)) front.ctx.rect(x, y, size, size);
 			}
 			front.ctx.fill();
-			strokeTrails(front.ctx, FRONT_STRIDE, nearScale, true);
+			front.ctx.globalAlpha = 1;
+			strokeTrails(front.ctx, FRONT_STRIDE, nearScale, true, nearBounds);
 		}
 	};
 	const paintStill = () => {
@@ -280,6 +360,7 @@ export function initParticleField(root: HTMLElement): () => void {
 			terminateWorker();
 			count = nextCount;
 			snapshot = new Float32Array(count * POSITION_COMPONENTS);
+			stars = makeStarStyles(count);
 			if (hasFrame) paintStill();
 		} else if (hasFrame) { paint(); }
 		if (!intersectionObserver) {

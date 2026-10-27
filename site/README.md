@@ -13,8 +13,11 @@ continue below the hero, including source, preview status and evidence limits.
 Documentation sidebar groups start collapsed; Starlight expands the group
 containing the current page.
 
-The landing uses a deepwater background, white system typography and teal
-bracket/core details in both themes. The documentation body and built-in Starlight
+The landing uses a deepwater background with static violet/teal nebula clouds,
+a restrained warm core, white system typography and teal bracket/core details
+in both themes. Seeded stars vary size, brightness and color; sparse warm points,
+selective cached glows and brighter foreground stars strengthen depth without
+adding a background-animation loop. The documentation body and built-in Starlight
 header keep the existing charcoal and warm-neutral themes. Search retains its
 native dialog and shortcuts; the native theme selector also stays available in
 the mobile splash header. The home-only Hero override falls back to Starlight's
@@ -31,11 +34,15 @@ unavailable. Hidden/offscreen fields stop recurring work; pagehide and
 back/forward-cache restoration manage the worker lifecycle. The runtime caps
 particles at 12,000 desktop and 3,000 mobile, bounds pixel density and transferred
 buffers, allows at most one worker request in flight, and limits updates to 30fps.
+Both canvases share a 1,200,000 backing-pixel ceiling, DPR at most 1.5 and a
+3072px dimension ceiling. The shared position buffer stays within 96KB.
 The enlarged galaxy is clipped to the hero. Most stars remain behind the copy;
 a sparse foreground layer and thin, short trails cross some text to suggest
 depth. Both canvases share one simulation snapshot, ignore pointer events and
-cannot spill over lower sections. Cached particle rotations reduce repeated
-per-frame trigonometry; the deterministic ten-second loop is preserved.
+cannot spill over lower sections. Four orbital layers turn in 40, 60, 80 and
+96 seconds, with continuous 480-second full-field closure. Cached rotations and
+harmonics reduce repeated trigonometry. Per-plane culling includes glow/trail
+extents; seeded style buckets and six 32px glow sprites are cached once.
 These bounds are not a speed benchmark. There is no telemetry panel, GSAP, video,
 remote asset, font download or new dependency. Documentation and search results
 stay still; existing brief control feedback respects reduced motion.
@@ -48,6 +55,15 @@ reading area. Reverse scrolling restores
 them; focused or targeted sections remain fully visible. Reduced motion and
 browsers without scroll-timeline support show still, visible content. These
 home-only effects add no scroll listener or recurring JavaScript loop.
+
+`node site/scripts/test_field_model.mjs` checks deterministic finite sampling,
+sampling-order independence, wrap continuity, bounds and agreement within 0.01
+reference pixels of an independent exact-trigonometric model. The Python site
+suite runs this focused check too. With Node 24,
+`node site/scripts/benchmark_field.mjs` compares warm CPU math for the same
+visual model. It excludes initialization, transfer, scheduling, paint, GPU and
+power; it is not a whole-page frame-rate measurement. Larger selective glows
+cover more pixels even when their submission count stays similar.
 
 The workflow publishes to `https://scuba-sc.github.io/sco-core/` through the
 existing `docs-site` workflow and GitHub Pages' workflow build mode. Pull requests
