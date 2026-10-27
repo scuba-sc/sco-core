@@ -90,10 +90,6 @@
       "why": "Repository guide-section builder tests; not part of the kernel source kit."
     },
     {
-      "path": "sdk/status_registry.json",
-      "why": "Repository source of the docs/game/status.md service table; the packaged page carries the rendered table."
-    },
-    {
       "path": "tools/status_registry.py",
       "why": "Repository status registry validator and docs/game/status.md table generator; not part of the kernel source kit."
     },
@@ -108,10 +104,6 @@
     {
       "path": "tools/test_plugin_directory.py",
       "why": "Repository plugin directory refusal and drift tests; not part of any SDK profile."
-    },
-    {
-      "path": "sdk/native_index.json",
-      "why": "Repository-only public index of signature row ids, symbolic hashes and promotion tiers; excluded from every SDK profile."
     },
     {
       "path": "tools/native_index.py",

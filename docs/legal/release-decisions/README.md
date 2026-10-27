@@ -38,6 +38,7 @@ Two kinds of file live here:
 | [SDK2.1 distribution and public-overlay scope](2026-10-12-sdk-v2.1.0-scope.md) | 2026-10-12 | Four profiles approved; implementation export held, host-source-sc publication excluded; signed bytes required |
 | [SDK2.1 host-source candidate scope](2026-10-13-sdk-v2.1.0-host-source.md) | 2026-10-13 | Five-profile candidate selected; supersedes the SDK2.1 host-source exclusion only; fresh signed bytes required |
 | [Engine-native index publication channel](2026-10-14-native-index.md) | 2026-10-14 | Decided: site and static MCP only, row name, subsystem, tier and readiness, in no SDK zip; counsel review not recorded; index landed, field question open |
+| [RC2 discovery metadata archive scope](2026-10-27-rc2-discovery-metadata.md) | 2026-10-27 | RC2 index and registry selected for game-sc, legacy and host-source-sc; exact-file provenance and release review pending |
 | [SDK2.2 distribution scope](2026-10-14-sdk-v2.2.0-scope.md) | 2026-10-14 | Recorded by the maintainer: five 2.1.0 profiles, game tables kept, game-sc 0.5.0; dispatches no candidate, signs, tags or publishes nothing |
 | [SDK2.3 distribution scope](2026-10-15-sdk-v2.3.0-scope.md) | 2026-10-15 | Recorded by the maintainer: five 2.2.0 profiles, game-sc 0.6.0; candidate dispatch still open; dispatches no candidate, signs, tags or publishes nothing |
 
