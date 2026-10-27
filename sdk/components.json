@@ -70,10 +70,6 @@
       "why": "Repository documentation site, dependency metadata and generated static assets; excluded from every SDK package profile."
     },
     {
-      "path": "sdk/contracts/",
-      "why": "Repository contract authority combines core and game tables; consumers use the separately built catalogue."
-    },
-    {
       "path": "tools/sdk_catalogue.py",
       "why": "Repository compiler-backed catalogue gate; not part of the kernel source kit."
     },
@@ -223,11 +219,47 @@
     }
   ],
   "components": [
+    {"id": "contract-record.native-plugin", "source": "sdk/contracts/native-plugin.json", "destination": "contracts/native-plugin.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_actors_v1", "source": "sdk/contracts/sc_actors_v1.json", "destination": "contracts/sc_actors_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_asop_v1", "source": "sdk/contracts/sc_asop_v1.json", "destination": "contracts/sc_asop_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_contracts_v1", "source": "sdk/contracts/sc_contracts_v1.json", "destination": "contracts/sc_contracts_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_creative_v1", "source": "sdk/contracts/sc_creative_v1.json", "destination": "contracts/sc_creative_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_datacore_live_v1", "source": "sdk/contracts/sc_datacore_live_v1.json", "destination": "contracts/sc_datacore_live_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_economy_v1", "source": "sdk/contracts/sc_economy_v1.json", "destination": "contracts/sc_economy_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_entities_v1", "source": "sdk/contracts/sc_entities_v1.json", "destination": "contracts/sc_entities_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_game_spatial_v1", "source": "sdk/contracts/sc_game_spatial_v1.json", "destination": "contracts/sc_game_spatial_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_hangar_v1", "source": "sdk/contracts/sc_hangar_v1.json", "destination": "contracts/sc_hangar_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_loadout_v1", "source": "sdk/contracts/sc_loadout_v1.json", "destination": "contracts/sc_loadout_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_mining_v1", "source": "sdk/contracts/sc_mining_v1.json", "destination": "contracts/sc_mining_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_missions_v1", "source": "sdk/contracts/sc_missions_v1.json", "destination": "contracts/sc_missions_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_owned_v1", "source": "sdk/contracts/sc_owned_v1.json", "destination": "contracts/sc_owned_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_prefabs_v1", "source": "sdk/contracts/sc_prefabs_v1.json", "destination": "contracts/sc_prefabs_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_private_session_v1", "source": "sdk/contracts/sc_private_session_v1.json", "destination": "contracts/sc_private_session_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_quantum_v1", "source": "sdk/contracts/sc_quantum_v1.json", "destination": "contracts/sc_quantum_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_relocation_v1", "source": "sdk/contracts/sc_relocation_v1.json", "destination": "contracts/sc_relocation_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_reputation_v1", "source": "sdk/contracts/sc_reputation_v1.json", "destination": "contracts/sc_reputation_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_spatial_v1", "source": "sdk/contracts/sc_spatial_v1.json", "destination": "contracts/sc_spatial_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_spawn_service_v1", "source": "sdk/contracts/sc_spawn_service_v1.json", "destination": "contracts/sc_spawn_service_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_vehicles_v1", "source": "sdk/contracts/sc_vehicles_v1.json", "destination": "contracts/sc_vehicles_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_world_control_v1", "source": "sdk/contracts/sc_world_control_v1.json", "destination": "contracts/sc_world_control_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sc_world_v1", "source": "sdk/contracts/sc_world_v1.json", "destination": "contracts/sc_world_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_api", "source": "sdk/contracts/sco_api.json", "destination": "contracts/sco_api.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_content_v1", "source": "sdk/contracts/sco_content_v1.json", "destination": "contracts/sco_content_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_datacore_v1", "source": "sdk/contracts/sco_datacore_v1.json", "destination": "contracts/sco_datacore_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_diagnostics_publisher_v1", "source": "sdk/contracts/sco_diagnostics_publisher_v1.json", "destination": "contracts/sco_diagnostics_publisher_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_ipc_v1", "source": "sdk/contracts/sco_ipc_v1.json", "destination": "contracts/sco_ipc_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_net_v1", "source": "sdk/contracts/sco_net_v1.json", "destination": "contracts/sco_net_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_settings_v1", "source": "sdk/contracts/sco_settings_v1.json", "destination": "contracts/sco_settings_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_storage_v1", "source": "sdk/contracts/sco_storage_v1.json", "destination": "contracts/sco_storage_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_ui_surfaces_v1", "source": "sdk/contracts/sco_ui_surfaces_v1.json", "destination": "contracts/sco_ui_surfaces_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_ui_v1", "source": "sdk/contracts/sco_ui_v1.json", "destination": "contracts/sco_ui_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_widgets_v1", "source": "sdk/contracts/sco_widgets_v1.json", "destination": "contracts/sco_widgets_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+
     {"id":"test.asop.selection_pipeline","source":"tests/test_asop_selection_pipeline.cpp","destination":"tests/test_asop_selection_pipeline.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
     {"id":"source.asop.simulation.h","source":"src/game/asop_selection/simulation.h","destination":"src/game/asop_selection/simulation.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
     {"id":"source.asop.simulation.cpp","source":"src/game/asop_selection/simulation.cpp","destination":"src/game/asop_selection/simulation.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
     {"id":"test.asop.generation_model","source":"tests/test_asop_generation_model.cpp","destination":"tests/test_asop_generation_model.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
-    {"id":"contract.asop_selection","source":"sdk/contracts/sc_asop_selection_v1.json","destination":"contracts/sc_asop_selection_v1.json","profiles":["game-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"contract.asop_selection","source":"sdk/contracts/sc_asop_selection_v1.json","destination":"contracts/sc_asop_selection_v1.json","profiles":["game-sc", "host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
     {"id":"include.sc_asop_selection","source":"include/sc_asop_selection.h","destination":"include/sc_asop_selection.h","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
     {"id":"include.scosdk.game.asop_selection","source":"include/scosdk/game/asop_selection.hpp","destination":"include/scosdk/game/asop_selection.hpp","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
     {"id":"host.asop_selection","source":"include/sco/game/asop_selection.h","destination":"include/sco/game/asop_selection.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
@@ -255,7 +287,7 @@
 {"id":"source.tests.test_entity_lookup.cpp","source":"tests/test_entity_lookup.cpp","destination":"tests/test_entity_lookup.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
 {"id":"include.sc_audio.h","source":"include/sc_audio.h","destination":"include/sc_audio.h","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
 {"id":"include.scosdk.game.audio.hpp","source":"include/scosdk/game/audio.hpp","destination":"include/scosdk/game/audio.hpp","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
-{"id":"contract.audio","source":"sdk/contracts/sc_audio_v1.json","destination":"contracts/sc_audio_v1.json","profiles":["game-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
+{"id":"contract.audio","source":"sdk/contracts/sc_audio_v1.json","destination":"contracts/sc_audio_v1.json","profiles":["game-sc", "host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
 {"id":"docs.audio","source":"docs/game/audio.md","destination":"docs/game/audio.md","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
 {"id":"source.audio.cpp","source":"src/game/services/audio.cpp","destination":"src/game/services/audio.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
 {"id":"source.audio.h","source":"src/game/services/audio.h","destination":"src/game/services/audio.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
@@ -506,9 +538,7 @@
       "id": "wave2.sdk.contracts.sc_input_v1.json",
       "source": "sdk/contracts/sc_input_v1.json",
       "destination": "contracts/sc_input_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
@@ -8054,9 +8084,7 @@
       "id": "g7.sdk.contracts.sc_cvars_write_v1.json",
       "source": "sdk/contracts/sc_cvars_write_v1.json",
       "destination": "contracts/sc_cvars_write_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
@@ -8088,9 +8116,7 @@
       "id": "g7.sdk.contracts.sc_cvars_v1.json",
       "source": "sdk/contracts/sc_cvars_v1.json",
       "destination": "contracts/sc_cvars_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
@@ -8201,9 +8227,7 @@
       "id": "contract.container_contents",
       "source": "sdk/contracts/sc_container_contents_v1.json",
       "destination": "contracts/sc_container_contents_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
@@ -8303,9 +8327,7 @@
       "id": "g7.sdk.contracts.sc_inventory_v1.json",
       "source": "sdk/contracts/sc_inventory_v1.json",
       "destination": "contracts/sc_inventory_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
@@ -8384,9 +8406,7 @@
       "id": "g7.sdk.contracts.sc_game_build_v1.json",
       "source": "sdk/contracts/sc_game_build_v1.json",
       "destination": "contracts/sc_game_build_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
@@ -8441,9 +8461,7 @@
       "id": "g7.sdk.contracts.sc_gamerules_v1.json",
       "source": "sdk/contracts/sc_gamerules_v1.json",
       "destination": "contracts/sc_gamerules_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
@@ -8510,9 +8528,7 @@
       "id": "g7.sdk.contracts.sc_actor_stats_v1.json",
       "source": "sdk/contracts/sc_actor_stats_v1.json",
       "destination": "contracts/sc_actor_stats_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
@@ -8589,9 +8605,7 @@
       "id": "g7.sdk.contracts.sc_actor_stats_write_v1.json",
       "source": "sdk/contracts/sc_actor_stats_write_v1.json",
       "destination": "contracts/sc_actor_stats_write_v1.json",
-      "profiles": [
-        "game-sc"
-      ],
+      "profiles": ["game-sc", "host-source-sc"],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
