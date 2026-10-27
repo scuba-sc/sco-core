@@ -68,7 +68,7 @@ struct Journal {
     sc_economy_receipt receipt{};
     bool fail_intent_commit = false, fail_receipt_commit = false;
     Journal Restore() const {
-        Journal copy = *this; copy.stage = committed == Intent ? Unknown : committed; return copy;
+        Journal copy = *this; copy.stage = committed == Empty ? Empty : Unknown; return copy;
     }
     bool CommitIntent(uint64_t current_session, uint64_t current_mission, uint64_t current_offer,
                       uint64_t current_generation, const sc_economy_request& next) {
@@ -203,7 +203,7 @@ int main() {
     CHECK(consumer.Reward(id, 1) == SCO_OK && f.payments == 1 && signals.count == 1);
     CHECK(Unsubscribe(self, SC_ECONOMY_TRANSACTION_EVENT, Signals::Event) == Result::Ok);
     f.admission.offline = false; CHECK(consumer.Reward(id, 1) == SCO_UNAVAILABLE && f.payments == 1); f.admission.offline = true;
-    Journal paid_restore = journal.Restore(); CHECK(paid_restore.stage == Journal::Paid);
+    Journal paid_restore = journal.Restore(); CHECK(paid_restore.stage == Journal::Unknown);
     Journal pre_effect; CHECK(pre_effect.CommitIntent(1, id, offer.offer_id, offer.generation, {sizeof(sc_economy_request), 0, 104, 70, 1}));
     Journal pre_restore = pre_effect.Restore(); CHECK(pre_restore.stage == Journal::Unknown);
     Journal refused; refused.fail_intent_commit = true; Consumer no_commit{api, self, refused}; no_commit.BindAccepted(id, offer, 1);
@@ -290,5 +290,19 @@ int main() {
     f.state = SC_MISSION_ACTIVE; f.objective = 0; uint64_t cleanup = 0;
     CHECK(after_restart.missions->accept(replacement, &fresh, 3, &cleanup) == SCO_OK);
     C::StopContainerContents(); CHECK(Release(replacement) == Result::Ok && f.abandons == 1); CHECK(M::Stop() == Result::Ok);
+    // A replacement provider can reuse the old numeric mission ID in the same session.
+    // A restored paid record has no live owner incarnation and must not report success.
+    f.admission.session = 1; f.accepts = 0; f.state = SC_MISSION_ACTIVE; f.objective = 0;
+    CHECK(M::Start(b) == Result::Ok); CHECK(C::StartContainerContents({&f, Fake::Contents}) == Result::Ok);
+    auto* reused_owner = host::NewPlugin("reward_reused_owner"); CHECK(reused_owner);
+    Journal reused = journal.Restore(); Consumer reused_consumer{api, reused_owner, reused}; CHECK(reused_consumer.Open());
+    sc_mission_offer reused_offer{}; reused_offer.size = sizeof(reused_offer); uint64_t reused_id = 0;
+    CHECK(reused_consumer.missions->offer(reused_owner, 0, &reused_offer) == SCO_OK);
+    CHECK(reused_consumer.missions->accept(reused_owner, &reused_offer, 4, &reused_id) == SCO_OK && reused_id == id);
+    CHECK(reused_consumer.missions->objective(reused_owner, reused_id, 0, 0) == SCO_OK);
+    CHECK(reused_consumer.missions->advance(reused_owner, reused_id, 0) == SCO_OK);
+    reused_consumer.BindAccepted(reused_id, reused_offer, 1);
+    CHECK(reused_consumer.Reward(reused_id, 1) == SCO_FAILED && f.payments == 3);
+    C::StopContainerContents(); CHECK(Release(reused_owner) == Result::Ok); CHECK(M::Stop() == Result::Ok);
     std::puts("reward consumer: PASS (synthetic policy and providers; no game)");
 }
