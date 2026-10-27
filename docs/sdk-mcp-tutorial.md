@@ -9,12 +9,19 @@ core-plus-game overlay and host-source kit supply the discovery launcher,
 `sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
 gameplay acceptance claim. Core-only profiles do not contain the game catalogue.
 
-Use the combined kit (`sco-sdk-2.4.0.zip`) downloaded from that release and checked
-against its `SHA256SUMS`, as described in
-[Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit), with its
-compatibility inventory, or build a catalogue from matching source as described in
-the [discovery README](../tools/sco-core-mcp/README.md). Do not silently pair an older
-published archive with the site's changing mainline catalogue.
+For the published RC1 route, verify the combined kit (`sco-sdk-2.4.0.zip`)
+against RC1 `SHA256SUMS` and retain its compatibility inventory. RC1 provides six
+default discovery tools, or twelve with `--extended-tools`; it does not provide
+the workflow bundle described below.
+
+The complete workflow in this tutorial instead needs a separately sourced,
+matching updated-source developer kit, catalogue and workflow index. Record the
+source revision and archive digest, verify the inventory, and extract to an empty
+directory. For a source checkout, build matching metadata as described in the
+[discovery README](../tools/sco-core-mcp/README.md) and
+[workflow guide](agent-workflows.md#archive-and-source-discovery). A local build
+is not an official candidate or permission to distribute it. Do not pair RC1
+archive bytes with the site's changing mainline catalogue or a different index.
 
 Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client supporting
 protocol `2025-11-25`. Building a scaffold additionally needs CMake 3.20+ and a
@@ -24,11 +31,11 @@ consume a bundled one.
 
 ### Connect the client
 
-Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit): download and
-verify `sco-sdk-2.4.0.zip`, find the SDK folder (the folder that directly contains
-`sdk-catalogue.json`; for the combined kit, `<extract folder>/sco-sdk-2.4.0`), choose a
-profile, register `sco-core-sdk` in your client and verify the connection. This
-tutorial uses the current-source **SDK developer profile**: fourteen read-only
+Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit),
+using the separately verified updated-source kit for the steps below. Set
+`SDK_ROOT` to the folder that directly contains its `sdk-catalogue.json` and
+`sdk-workflows.json`; register `sco-core-sdk` in your client and verify the
+connection. This tutorial uses the current-source **SDK developer profile**: fourteen read-only
 tools by default. Explicit `--minimal-tools` retains the six catalogue tools and
 leaves out scaffolding, validation, native/guide and workflow discovery. The
 legacy `--extended-tools` and `--workflow-tools` aliases are no longer needed.
@@ -39,14 +46,14 @@ and defaults.
 To start the server by hand, with absolute paths on the machine running the client:
 
 ```sh
-python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
-  --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
-  --repo-root /absolute/path/to/sco-sdk-2.4.0
+python3 /absolute/path/to/updated-sdk-root/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/updated-sdk-root/sdk-catalogue.json \
+  --repo-root /absolute/path/to/updated-sdk-root
 ```
 
 This command waits for MCP messages on stdin; it is not a shell prompt. On
 Windows use `py -3` with drive-qualified paths, for example
-`C:/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py`. On macOS/Linux use
+`C:/absolute/path/to/updated-sdk-root/tools/sco-core-mcp/server.py`. On macOS/Linux use
 `python3`, or an absolute Python executable if the client does not inherit shell `PATH`.
 
 The fourteen default tools do not add runtime access; list their exact names in
@@ -199,7 +206,7 @@ With the returned files saved under `/absolute/project/my_probe`:
 
 ```sh
 cmake -S /absolute/project/my_probe -B /absolute/project/my_probe/build \
-  -DSCO_SDK=/absolute/path/to/sco-sdk-2.4.0
+  -DSCO_SDK=/absolute/path/to/updated-sdk-root
 cmake --build /absolute/project/my_probe/build --config Debug --target check
 ```
 
@@ -227,7 +234,7 @@ are offered automatically when operator project roots are configured. First buil
 `build_plugin_project` builds only the default targets):
 
 ```sh
-cmake -S /absolute/path/to/sco-sdk-2.4.0 -B /absolute/checker-build
+cmake -S /absolute/path/to/updated-sdk-root -B /absolute/checker-build
 cmake --build /absolute/checker-build --config Release --target sco-plugin-check
 ```
 
@@ -239,9 +246,9 @@ folder and that checker. No separate enable flag is needed in current source;
 add a generator and platform as well:
 
 ```sh
-python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
-  --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
-  --repo-root /absolute/path/to/sco-sdk-2.4.0 \
+python3 /absolute/path/to/updated-sdk-root/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/updated-sdk-root/sdk-catalogue.json \
+  --repo-root /absolute/path/to/updated-sdk-root \
   --project-root /absolute/project \
   --plugin-check /absolute/checker-build/sco-plugin-check \
   --cmake-generator "Visual Studio 17 2022" --cmake-platform x64

@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Reconcile current-source widget, MCP, host-source and RC2 consumer guidance while preserving published RC1 coordinates and provider limits.
+
 - Reconcile the development roadmap and contract inventory with current source, keeping RC1 downloads and RC2 and final acceptance distinct.
 
 - Add synthetic coverage for audio owner cleanup failures and retry.

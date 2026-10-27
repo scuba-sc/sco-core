@@ -6,10 +6,13 @@ For new native UI, use **`sco.widgets`**, the retained renderer-neutral service
 in [`sco_widgets.h`](../include/sco_widgets.h) and [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp).
 The host owns rendering; plugins submit copied preorder trees and receive typed
 game-thread events. See [widget design](design/widgets.md) and
-[SDK widget guide](../sdk/docs/widgets.md). The host publishes 1.2, retaining the additive
-1.1 and base 1.0 routes. C, C++20, C# and Lua support these versioned operations
-as described in that guide; each wrapper language has a declarative panel builder that writes the
-preorder array for you. The C++ builder also opts into 1.1 attributes: see the cookbook below. C# is in
+[SDK widget guide](../sdk/docs/widgets.md). Published RC1 supplies widgets 1.2;
+current source publishes 1.3 with numeric presentation, retaining the additive 1.2,
+1.1 and base 1.0 routes. A newer SDK does not upgrade an installed host. Query
+version 1.3 and check the numeric-presentation feature and complete member extent
+before using it; follow the guide for language-specific support and refusal.
+C, C++20, C# and Lua expose the earlier versioned operations as described there;
+each wrapper language has a declarative panel builder that writes the preorder array for you. The C++ builder also opts into 1.1 attributes: see the cookbook below. C# is in
 [the C# SDK guide](sdk-csharp.md) ("Panel builder"), Lua in
 [the Lua guide](../sdk/docs/lua.md) ("Nested panels").
 
