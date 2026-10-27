@@ -1,0 +1,544 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "kind": "table-method",
+      "symbol": "sc_asop_selection_v1.acquire",
+      "table": "sc_asop_selection_v1",
+      "source_header": "include/sc_asop_selection.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t *)",
+      "version_macro": "SC_ASOP_SELECTION_VERSION",
+      "member_extent": 40,
+      "table_size": 64,
+      "service": "game.asop.selection",
+      "id": "sc-asop-selection-v1-acquire",
+      "since": "`size >= 40`; 1.0",
+      "purpose": "Acquire the exclusive live-owner editor lease for this session.",
+      "buffer_contract": "`sco_result (*acquire)(sco_plugin* self, uint64_t session, uint64_t* out_lease);`<br>Acquire the exclusive live-owner editor lease for this session.",
+      "ownership": "Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
+      "reentrancy": "Operations refuse while a file adapter operation is active.",
+      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
+      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
+      "limitations": [
+        "Unpublished candidate; no native publication or game verification.",
+        "C# and Lua unsupported."
+      ],
+      "tests": [
+        "tests/abi_asop_selection.c",
+        "tests/test_asop_selection.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop_selection.h",
+              "token": "(*acquire)"
+            }
+          ],
+          "tests": [
+            "tests/abi_asop_selection.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/asop_selection.hpp",
+              "token": "table_->acquire("
+            }
+          ],
+          "tests": [
+            "tests/test_asop_selection.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_asop_selection_v1.refresh",
+      "table": "sc_asop_selection_v1",
+      "source_header": "include/sc_asop_selection.h",
+      "signature": "sco_result (*)(sco_plugin *)",
+      "version_macro": "SC_ASOP_SELECTION_VERSION",
+      "member_extent": 24,
+      "table_size": 64,
+      "service": "game.asop.selection",
+      "id": "sc-asop-selection-v1-refresh",
+      "since": "`size >= 24`; 1.0",
+      "purpose": "Read and validate the host fixed document without publishing a native selection.",
+      "buffer_contract": "`sco_result (*refresh)(sco_plugin* self);`<br>Read and validate the host fixed document without publishing a native selection.",
+      "ownership": "Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
+      "reentrancy": "Operations refuse while a file adapter operation is active.",
+      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
+      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
+      "limitations": [
+        "Unpublished candidate; no native publication or game verification.",
+        "C# and Lua unsupported."
+      ],
+      "tests": [
+        "tests/abi_asop_selection.c",
+        "tests/test_asop_selection.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop_selection.h",
+              "token": "(*refresh)"
+            }
+          ],
+          "tests": [
+            "tests/abi_asop_selection.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/asop_selection.hpp",
+              "token": "table_->refresh("
+            }
+          ],
+          "tests": [
+            "tests/test_asop_selection.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_asop_selection_v1.release",
+      "table": "sc_asop_selection_v1",
+      "source_header": "include/sc_asop_selection.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t)",
+      "version_macro": "SC_ASOP_SELECTION_VERSION",
+      "member_extent": 48,
+      "table_size": 64,
+      "service": "game.asop.selection",
+      "id": "sc-asop-selection-v1-release",
+      "since": "`size >= 48`; 1.0",
+      "purpose": "Release the caller editor lease without deleting saved file configuration.",
+      "buffer_contract": "`sco_result (*release)(sco_plugin* self, uint64_t lease);`<br>Release the caller editor lease without deleting saved file configuration.",
+      "ownership": "Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
+      "reentrancy": "Operations refuse while a file adapter operation is active.",
+      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
+      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
+      "limitations": [
+        "Unpublished candidate; no native publication or game verification.",
+        "C# and Lua unsupported."
+      ],
+      "tests": [
+        "tests/abi_asop_selection.c",
+        "tests/test_asop_selection.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop_selection.h",
+              "token": "(*release)"
+            }
+          ],
+          "tests": [
+            "tests/abi_asop_selection.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/asop_selection.hpp",
+              "token": "table_->release("
+            }
+          ],
+          "tests": [
+            "tests/test_asop_selection.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_asop_selection_v1.replace",
+      "table": "sc_asop_selection_v1",
+      "source_header": "include/sc_asop_selection.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, const sc_asop_selection_request *, uint64_t *)",
+      "version_macro": "SC_ASOP_SELECTION_VERSION",
+      "member_extent": 56,
+      "table_size": 64,
+      "service": "game.asop.selection",
+      "id": "sc-asop-selection-v1-replace",
+      "since": "`size >= 56`; 1.0",
+      "purpose": "Copy a conditional file edit request; accepted does not mean committed or applied.",
+      "buffer_contract": "`sco_result (*replace)(sco_plugin* self, uint64_t lease, const sc_asop_selection_request* request, uint64_t* out_request);`<br>Copy a conditional file edit request; accepted does not mean committed or applied.",
+      "ownership": "Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
+      "reentrancy": "Operations refuse while a file adapter operation is active.",
+      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
+      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
+      "limitations": [
+        "Unpublished candidate; no native publication or game verification.",
+        "C# and Lua unsupported."
+      ],
+      "tests": [
+        "tests/abi_asop_selection.c",
+        "tests/test_asop_selection.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop_selection.h",
+              "token": "(*replace)"
+            }
+          ],
+          "tests": [
+            "tests/abi_asop_selection.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/asop_selection.hpp",
+              "token": "table_->replace("
+            }
+          ],
+          "tests": [
+            "tests/test_asop_selection.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_asop_selection_v1.rows",
+      "table": "sc_asop_selection_v1",
+      "source_header": "include/sc_asop_selection.h",
+      "signature": "sco_result (*)(sco_plugin *, const sc_asop_selection_read *, sc_asop_selection_row *, uint32_t, uint32_t, uint32_t *, uint32_t *)",
+      "version_macro": "SC_ASOP_SELECTION_VERSION",
+      "member_extent": 32,
+      "table_size": 64,
+      "service": "game.asop.selection",
+      "id": "sc-asop-selection-v1-rows",
+      "since": "`size >= 32`; 1.0",
+      "purpose": "Copy one bounded page of file or catalogue rows against an exact session and revision.",
+      "buffer_contract": "`sco_result (*rows)(sco_plugin* self, const sc_asop_selection_read* read, sc_asop_selection_row* out, uint32_t stride, uint32_t capacity, uint32_t* out_count, uint32_t* out_more);`<br>Copy one bounded page of file or catalogue rows against an exact session and revision.",
+      "ownership": "Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
+      "reentrancy": "Operations refuse while a file adapter operation is active.",
+      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
+      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
+      "limitations": [
+        "Unpublished candidate; no native publication or game verification.",
+        "C# and Lua unsupported."
+      ],
+      "tests": [
+        "tests/abi_asop_selection.c",
+        "tests/test_asop_selection.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop_selection.h",
+              "token": "(*rows)"
+            }
+          ],
+          "tests": [
+            "tests/abi_asop_selection.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/asop_selection.hpp",
+              "token": "table_->rows("
+            }
+          ],
+          "tests": [
+            "tests/test_asop_selection.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_asop_selection_v1.state",
+      "table": "sc_asop_selection_v1",
+      "source_header": "include/sc_asop_selection.h",
+      "signature": "sco_result (*)(sco_plugin *, sc_asop_selection_state *)",
+      "version_macro": "SC_ASOP_SELECTION_VERSION",
+      "member_extent": 16,
+      "table_size": 64,
+      "service": "game.asop.selection",
+      "id": "sc-asop-selection-v1-state",
+      "since": "`size >= 16`; 1.0",
+      "purpose": "Copy the current file status and revision token; known flags distinguish errors and absent files.",
+      "buffer_contract": "`sco_result (*state)(sco_plugin* self, sc_asop_selection_state* out);`<br>Copy the current file status and revision token; known flags distinguish errors and absent files.",
+      "ownership": "Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
+      "reentrancy": "Operations refuse while a file adapter operation is active.",
+      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
+      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
+      "limitations": [
+        "Unpublished candidate; no native publication or game verification.",
+        "C# and Lua unsupported."
+      ],
+      "tests": [
+        "tests/abi_asop_selection.c",
+        "tests/test_asop_selection.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop_selection.h",
+              "token": "(*state)"
+            }
+          ],
+          "tests": [
+            "tests/abi_asop_selection.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/asop_selection.hpp",
+              "token": "table_->state("
+            }
+          ],
+          "tests": [
+            "tests/test_asop_selection.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    },
+    {
+      "kind": "table-method",
+      "symbol": "sc_asop_selection_v1.status",
+      "table": "sc_asop_selection_v1",
+      "source_header": "include/sc_asop_selection.h",
+      "signature": "sco_result (*)(sco_plugin *, uint64_t, uint64_t, sc_asop_selection_receipt *)",
+      "version_macro": "SC_ASOP_SELECTION_VERSION",
+      "member_extent": 64,
+      "table_size": 64,
+      "service": "game.asop.selection",
+      "id": "sc-asop-selection-v1-status",
+      "since": "`size >= 64`; 1.0",
+      "purpose": "Copy the current receipt for a request owned by the caller lease.",
+      "buffer_contract": "`sco_result (*status)(sco_plugin* self, uint64_t lease, uint64_t request_id, sc_asop_selection_receipt* out);`<br>Copy the current receipt for a request owned by the caller lease.",
+      "ownership": "Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied.",
+      "thread_affinity": "Game thread only.",
+      "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
+      "reentrancy": "Operations refuse while a file adapter operation is active.",
+      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
+      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
+      "limitations": [
+        "Unpublished candidate; no native publication or game verification.",
+        "C# and Lua unsupported."
+      ],
+      "tests": [
+        "tests/abi_asop_selection.c",
+        "tests/test_asop_selection.cpp"
+      ],
+      "examples": [],
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sc_asop_selection.h",
+              "token": "(*status)"
+            }
+          ],
+          "tests": [
+            "tests/abi_asop_selection.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/game/asop_selection.hpp",
+              "token": "table_->status("
+            }
+          ],
+          "tests": [
+            "tests/test_asop_selection.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        },
+        "lua": {
+          "status": "unsupported",
+          "evidence": [
+            {
+              "path": "docs/game/asop-selection.md",
+              "token": "unsupported"
+            }
+          ],
+          "tests": []
+        }
+      }
+    }
+  ]
+}

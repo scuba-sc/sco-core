@@ -171,7 +171,7 @@ echo "abi_game_creative: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-win
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_container_contents.c"
 "$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_container_contents.c"
 echo "abi_container_contents: C11, C++20 and short-enum layouts pinned"
-for contract in audio world_control; do
+for contract in audio world_control asop_selection; do
   "$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_${contract}.c"
   "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_${contract}.c"
   "$CC" -std=c11 "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_${contract}.c"
@@ -485,6 +485,26 @@ SQLITE_TSAN=$OUT/sqlite3_tsan.o
 NET_C=(-std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -I "$ROOT/include")
 "$CC" "${NET_C[@]}" -fsanitize=address,undefined -c "$ROOT/src/net/sha2.c" -o "$OUT/sha2_asan.o"
 "$CC" "${NET_C[@]}" -fsanitize=thread -c "$ROOT/src/net/sha2.c" -o "$OUT/sha2_tsan.o"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_asop_selection.cpp" \
+  "$ROOT/src/game/asop_selection/selection.cpp" "${HOST_ASAN[@]}" "$OUT/sha2_asan.o" -o "$OUT/test_asop_selection"
+"$OUT/test_asop_selection"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_asop_selection.cpp" \
+  "$ROOT/src/game/asop_selection/selection.cpp" "${HOST_TSAN[@]}" "$OUT/sha2_tsan.o" -o "$OUT/test_asop_selection_tsan"
+"$OUT/test_asop_selection_tsan"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_asop_generation_model.cpp" \
+  "$ROOT/src/game/asop_selection/simulation.cpp" -o "$OUT/test_asop_generation_model"
+"$OUT/test_asop_generation_model"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_asop_generation_model.cpp" \
+  "$ROOT/src/game/asop_selection/simulation.cpp" -o "$OUT/test_asop_generation_model_tsan"
+"$OUT/test_asop_generation_model_tsan"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_asop_selection_pipeline.cpp" \
+  "$ROOT/src/game/asop_selection/simulation.cpp" "$ROOT/src/game/asop_selection/selection.cpp" \
+  "${HOST_ASAN[@]}" "$OUT/sha2_asan.o" -o "$OUT/test_asop_selection_pipeline"
+"$OUT/test_asop_selection_pipeline"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_asop_selection_pipeline.cpp" \
+  "$ROOT/src/game/asop_selection/simulation.cpp" "$ROOT/src/game/asop_selection/selection.cpp" \
+  "${HOST_TSAN[@]}" "$OUT/sha2_tsan.o" -o "$OUT/test_asop_selection_pipeline_tsan"
+"$OUT/test_asop_selection_pipeline_tsan"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_net.cpp" $(obj asan "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable.cpp" "$ROOT/src/net/core.cpp") "$OUT/sha2_asan.o" -o "$OUT/test_net"
 "$OUT/test_net"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_net.cpp" $(obj tsan "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable.cpp" "$ROOT/src/net/core.cpp") "$OUT/sha2_tsan.o" -o "$OUT/test_net_tsan"
@@ -616,8 +636,14 @@ WIDGETS_SRC=("$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${R
              "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_widgets.cpp" $(obj asan "${WIDGETS_SRC[@]}") -o "$OUT/test_widgets"
 "$OUT/test_widgets"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_host_menu_owner.cpp" $(obj asan "${WIDGETS_SRC[@]}") -o "$OUT/test_host_menu_owner"
+"$OUT/test_host_menu_owner"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_widget_numeric.cpp" $(obj asan "${WIDGETS_SRC[@]}") -o "$OUT/test_widget_numeric"
+"$OUT/test_widget_numeric"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_widgets.cpp" $(obj tsan "${WIDGETS_SRC[@]}") -o "$OUT/test_widgets_tsan"
 "$OUT/test_widgets_tsan"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_host_menu_owner.cpp" $(obj tsan "${WIDGETS_SRC[@]}") -o "$OUT/test_host_menu_owner_tsan"
+"$OUT/test_host_menu_owner_tsan"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -DSCO_TEST_IMGUI_ADAPTER \
   -I "$ROOT/sdk/third_party/imgui" "$ROOT/tests/test_widgets_sdk.cpp" "$ROOT/src/widgets/imgui_adapter.cpp" -o "$OUT/test_widgets_sdk"
 "$OUT/test_widgets_sdk"
@@ -688,6 +714,10 @@ done
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_widgets_app.cpp" \
   "${APP_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -o "$OUT/test_widgets_app"
 "$OUT/test_widgets_app"
+
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_host_menu.cpp" \
+  "${APP_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -o "$OUT/test_host_menu"
+"$OUT/test_host_menu"
 
 SIM=$OUT/sim/plugins
 rm -rf "$OUT/sim"

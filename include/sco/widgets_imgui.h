@@ -7,6 +7,9 @@ namespace sco::widgets {
 // product supplies and links its matching ImGui implementation and backend.
 class ImGuiRenderer final : public Renderer {
 public:
+    explicit ImGuiRenderer(bool showTitle = true) : showTitle_(showTitle) {}
     void Render(const Panel& panel, std::vector<Event>& events) override;
+private:
+    bool showTitle_;
 };
 } // namespace sco::widgets

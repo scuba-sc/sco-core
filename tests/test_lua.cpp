@@ -398,7 +398,7 @@ static void TestPanelBuilder() {
 }
 
 static sco_result WidgetsFixtureQuery(const char* name, uint32_t version, const void** out) {
-    CHECK(strcmp(name, SCO_WIDGETS_NAME) == 0 && version >= SCO_WIDGETS_VERSION_1_0 && version <= SCO_WIDGETS_VERSION_1_2);
+    CHECK(strcmp(name, SCO_WIDGETS_NAME) == 0 && version >= SCO_WIDGETS_VERSION_1_0 && version <= SCO_WIDGETS_VERSION_1_3);
     g_widgetsVersions.push_back(version);
     *out = nullptr;
     if (g_widgetsQueryError != SCO_OK) return g_widgetsQueryError;
@@ -663,7 +663,15 @@ static void TestWidgetsTails() {
     Write("widgetstails", R"lua(
       local w, seen = sco.widgets, {}
       local caps = assert(w.capabilities())
-      assert(caps.version == 0x10002 and caps.count == 10 and caps.max_tag == 63)
+      assert(caps.version == 0x10003 and caps.count == 10 and caps.max_tag == 63)
+      assert(w.set_panel("widgetstails.numeric","Numeric",{
+        {kind="slider",id=1,label="Darkness",minimum=20,maximum=95,value=74,presentation="integer_percent"},
+        {kind="label",id=2,label="Later tag",tag="later"}}))
+      assert(select(2,w.set_panel("widgetstails.invalid","Numeric",{
+        {kind="slider",id=1,label="Darkness",minimum=20,maximum=95,value=74.5,presentation="integer"}}))=="bad_arg")
+      assert(select(2,w.set_panel("widgetstails.invalid","Numeric",{
+        {kind="slider",id=1,label="Darkness",minimum=20,maximum=95,value=74,presentation="unknown"}}))=="bad_arg")
+      assert(w.remove_panel("widgetstails.numeric"))
       caps.features=0 -- caller owns the copied result
       assert(w.capabilities().features ~= 0)
       local rows={"one","two","three","four"}
@@ -726,26 +734,30 @@ static void TestWidgetsTails() {
       assert(select(2,w.set_panel("widgetstailguards.main","x",{{kind="label",id=1,tooltip="tip"}}))=="unavailable")
     )lua";
     g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_0;g_widgetsVersions.clear();load(noTail);
-    CHECK(g_widgetsVersions.size()==9 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_2 && g_widgetsVersions[1]==SCO_WIDGETS_VERSION_1_1 && g_widgetsVersions[2]==SCO_WIDGETS_VERSION_1_0);
+    CHECK(g_widgetsVersions.size()==12 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_3 && g_widgetsVersions[1]==SCO_WIDGETS_VERSION_1_2 && g_widgetsVersions[2]==SCO_WIDGETS_VERSION_1_1 && g_widgetsVersions[3]==SCO_WIDGETS_VERSION_1_0);
     load(R"lua(
       assert(select(2,sco.widgets.capabilities())=="unavailable")
       assert(sco.widgets.set_panel("widgetstailguards.main","Base",{{kind="label",id=1,label="base"}}))
     )lua");
     g_widgetsMissingResult=SCO_UNAVAILABLE;g_widgetsVersions.clear();load(noTail);
-    CHECK(g_widgetsVersions.size()==9 && g_widgetsVersions[2]==SCO_WIDGETS_VERSION_1_0);g_widgetsMissingResult=SCO_NOT_FOUND;
+    CHECK(g_widgetsVersions.size()==12 && g_widgetsVersions[3]==SCO_WIDGETS_VERSION_1_0);g_widgetsMissingResult=SCO_NOT_FOUND;
     g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_1;
     load(R"lua(
       assert(sco.widgets.set_panel("widgetstailguards.main","Tip",{{kind="label",id=1,label="base",tooltip="tip"}}))
       assert(select(2,sco.widgets.set_panel("widgetstailguards.main","Tag",{{kind="label",id=1,label="x",tag="x"}}))=="unavailable")
     )lua");
     g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_2;g_widgetsFeatureMask=0;load(noTail);
+    load(R"lua(assert(select(2,sco.widgets.set_panel("widgetstailguards.main","Numeric",{{kind="slider",id=1,label="x",minimum=0,maximum=1,value=1,presentation="integer"}}))=="unavailable"))lua");
+    g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_3;
+    load(R"lua(assert(select(2,sco.widgets.set_panel("widgetstailguards.main","Numeric",{{kind="slider",id=1,label="x",minimum=0,maximum=1,value=1,presentation="integer"}}))=="unavailable"))lua");
+    g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_2;
     load(R"lua(assert(select(2,sco.widgets.set_panel("widgetstailguards.main","Tag",{{kind="label",id=1,tag="x"}}))=="unavailable"))lua");
     g_widgetsFeatureMask=UINT32_MAX;
     g_widgetsFixture=nullptr;g_widgetsVersions.clear();load(R"lua(assert(select(2,sco.widgets.capabilities())=="unavailable"))lua");
-    CHECK(g_widgetsVersions.size()==1);g_widgetsFixture=&table;
+    CHECK(g_widgetsVersions.size()==2);g_widgetsFixture=&table;
     g_widgetsQueryError=SCO_CRASHED;g_widgetsVersions.clear();
     load(R"lua(assert(select(2,sco.widgets.capabilities())=="crashed"))lua");
-    CHECK(g_widgetsVersions.size()==1 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_2);g_widgetsQueryError=SCO_OK;
+    CHECK(g_widgetsVersions.size()==1 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_3);g_widgetsQueryError=SCO_OK;
     for(uint32_t count:{1u,11u}) {g_widgetsCapsCount=count;load(R"lua(assert(select(2,sco.widgets.capabilities())=="failed"))lua");}g_widgetsCapsCount=0;
     const char* missing=R"lua(
       assert(select(2,sco.widgets.capabilities())=="unavailable")

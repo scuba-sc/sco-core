@@ -29,6 +29,7 @@ namespace Sco.Sdk
         public uint FirstRow { get; init; }
         public uint VisibleRows { get; init; }
         public string? Tag { get; init; }
+        public WidgetNumericPresentation Presentation { get; init; }
         internal bool Extended { get; init; }
     }
 
@@ -71,8 +72,13 @@ namespace Sco.Sdk
             if (!plugin.IsLoaded) return ScoResult.BadArg;
             ScoApi* api = plugin.Api;
             if (api == null || api->size < ApiOffset.query_service + 8 || api->query_service == null) return ScoResult.Unavailable;
-            uint version = Abi.WidgetsVersion1_2;
+            uint version = Abi.WidgetsVersion1_3;
             ScoResult r = plugin.Query(Abi.WidgetsName, version, out ServiceRef<ScoWidgetsV1> s);
+            if (r is ScoResult.Unavailable or ScoResult.NotFound)
+            {
+                version = Abi.WidgetsVersion1_2;
+                r = plugin.Query(Abi.WidgetsName, version, out s);
+            }
             if (r is ScoResult.Unavailable or ScoResult.NotFound)
             {
                 version = Abi.WidgetsVersion1_1;
@@ -151,6 +157,11 @@ namespace Sco.Sdk
                 Require(n.Kind == WidgetKind.Table || n.Columns == 0);
                 Require(n.Kind != WidgetKind.Toggle || n.Value is 0 or 1);
                 Require(n.Kind != WidgetKind.Slider || (n.Minimum <= n.Maximum && n.Value >= n.Minimum && n.Value <= n.Maximum));
+                Require(n.Presentation is >= WidgetNumericPresentation.Number and <= WidgetNumericPresentation.IntegerPercent);
+                Require(n.Kind == WidgetKind.Slider || n.Presentation == WidgetNumericPresentation.Number);
+                if (n.Presentation != WidgetNumericPresentation.Number)
+                    foreach (double v in new[] { n.Minimum, n.Maximum, n.Value })
+                        Require(v >= int.MinValue && v <= int.MaxValue && Math.Truncate(v) == v);
                 int count = n.Items?.Length ?? 0;
                 Require(count <= Abi.WidgetsMaxItems && n.Columns <= Abi.WidgetsMaxColumns, ScoResult.TooMany);
                 Require(!selection || (n.Index >= -1 && n.Index < count));
@@ -204,7 +215,8 @@ namespace Sco.Sdk
                 if (n.Tooltip != null) features |= Abi.WidgetsFeatureTooltip;
                 if (n.Severity != 0) features |= Abi.WidgetsFeatureSeverity;
                 if (n.VisibleRows != 0) features |= Abi.WidgetsFeaturePaging | Abi.WidgetsFeatureEventRow;
-                if (!string.IsNullOrEmpty(n.Tag)) { features |= Abi.WidgetsFeatureStableTags; version = Abi.WidgetsVersion1_2; }
+                if (!string.IsNullOrEmpty(n.Tag)) { features |= Abi.WidgetsFeatureStableTags; version = Math.Max(version, Abi.WidgetsVersion1_2); }
+                if (n.Presentation != WidgetNumericPresentation.Number) { features |= Abi.WidgetsFeatureNumericPresentation; version = Abi.WidgetsVersion1_3; }
             }
             if (features != 0 && version < Abi.WidgetsVersion1_1) version = Abi.WidgetsVersion1_1;
             if (features != 0)
@@ -220,7 +232,8 @@ namespace Sco.Sdk
         }
         private static ScoWidgetNode* MarshalNodes(WidgetNode[] nodes, uint version, NativeArena arena, out uint stride)
         {
-            stride = version >= Abi.WidgetsVersion1_2 ? (uint)sizeof(ScoWidgetNode12) :
+            stride = version >= Abi.WidgetsVersion1_3 ? (uint)sizeof(ScoWidgetNode13) :
+                version >= Abi.WidgetsVersion1_2 ? (uint)sizeof(ScoWidgetNode12) :
                 version >= Abi.WidgetsVersion1_1 ? (uint)sizeof(ScoWidgetNode11) : (uint)sizeof(ScoWidgetNode);
             byte* memory = (byte*)arena.Alloc((nuint)(nodes.Length * stride));
             new Span<byte>(memory, checked((int)(nodes.Length * stride))).Clear();
@@ -244,6 +257,7 @@ namespace Sco.Sdk
                     tail->first_row = n.FirstRow; tail->visible_rows = n.VisibleRows;
                 }
                 if (stride >= sizeof(ScoWidgetNode12)) ((ScoWidgetNode12*)native)->tag = arena.Add(n.Tag);
+                if (stride >= sizeof(ScoWidgetNode13)) ((ScoWidgetNode13*)native)->presentation = (uint)n.Presentation;
                 nodes[i] = n with { Extended = stride >= sizeof(ScoWidgetNode11) };
             }
             return (ScoWidgetNode*)memory;
@@ -454,7 +468,10 @@ namespace Sco.Sdk
                 {
                     case WidgetKind.Button: break;
                     case WidgetKind.Toggle: if (ev->value is not (0 or 1)) return; break;
-                    case WidgetKind.Slider: if (ev->value < node.Minimum || ev->value > node.Maximum) return; break;
+                    case WidgetKind.Slider:
+                        if (ev->value < node.Minimum || ev->value > node.Maximum ||
+                            (node.Presentation != WidgetNumericPresentation.Number && Math.Truncate(ev->value) != ev->value)) return;
+                        break;
                     case WidgetKind.Combo:
                     case WidgetKind.List: if (ev->index < -1 || ev->index >= (node.Items?.Length ?? 0)) return; break;
                     case WidgetKind.TextInput: text = ReadBounded(ev->text, 255); break;

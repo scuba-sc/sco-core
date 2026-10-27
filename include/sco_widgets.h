@@ -18,6 +18,7 @@ extern "C" {
 #define SCO_WIDGETS_VERSION_1_0 0x00010000u
 #define SCO_WIDGETS_VERSION_1_1 0x00010001u /* + update_nodes, remove_nodes, capabilities */
 #define SCO_WIDGETS_VERSION_1_2 0x00010002u /* + stable node tags */
+#define SCO_WIDGETS_VERSION_1_3 0x00010003u /* + numeric slider presentation */
 #define SCO_WIDGETS_MAX_PANELS 64u
 #define SCO_WIDGETS_MAX_NODES 256u
 #define SCO_WIDGETS_MAX_TOTAL_NODES 4096u
@@ -127,6 +128,18 @@ typedef struct sco_widget_node_1_2 {
     const char* tag;
     uint32_t _reserved[3];
 } sco_widget_node_1_2;
+/* 1.3 appends a presentation mode without changing earlier node prefixes.
+ * INTEGER and INTEGER_PERCENT apply to sliders with integral signed-32-bit
+ * minimum, maximum and value; events carry integral values. NUMBER preserves
+ * the existing finite-double behavior. Unknown modes and reserved words fail. */
+#define SCO_WIDGET_NUMERIC_NUMBER 0u
+#define SCO_WIDGET_NUMERIC_INTEGER 1u
+#define SCO_WIDGET_NUMERIC_INTEGER_PERCENT 2u
+typedef struct sco_widget_node_1_3 {
+    sco_widget_node_1_2 base;
+    uint32_t presentation;
+    uint32_t _reserved[3];
+} sco_widget_node_1_3;
 /* capabilities(self, caps): caps[SCO_WIDGETS_CAP_COUNT] is the array length on
  * entry (>= 2) and the number of elements written on return; the host fills
  * the indices below that it knows, up to that length. Limits are the running
@@ -152,6 +165,7 @@ typedef struct sco_widget_node_1_2 {
 #define SCO_WIDGETS_FEATURE_EVENT_ROW 0x20u
 #define SCO_WIDGETS_FEATURE_COALESCED_RENDER 0x40u /* <= 1 snapshot rebuild per panel render pass */
 #define SCO_WIDGETS_FEATURE_STABLE_TAGS 0x80u    /* sco_widget_node_1_2 tag field */
+#define SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION 0x100u /* sco_widget_node_1_3 */
 typedef void (*sco_widget_event_fn)(const char* panel_id, const sco_widget_event* event, void* ctx);
 typedef struct sco_widgets_v1 {
     uint32_t size;

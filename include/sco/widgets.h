@@ -20,6 +20,7 @@ struct Node {
     bool extended = false; // submitted as sco_widget_node_1_1
     // 1.2 stable automation tag ("" = untagged; unique per panel; not rendered).
     std::string tag;
+    uint32_t presentation = SCO_WIDGET_NUMERIC_NUMBER;
 };
 struct Panel {
     std::string id, title, owner;
@@ -45,6 +46,8 @@ bool Started();
 const sco_widgets_v1* Table();
 // Game-thread snapshots (empty off-thread or when stopped).
 std::vector<Panel> Panels();
+// True only for a live panel actually owned by this handle. Game-thread only.
+bool OwnedBy(const sco_plugin* owner, const char* id);
 // NotFound for absent panel, Unavailable when stopped; invalid adapter events
 // are ignored, only the first MAX_EVENTS candidates are considered. Adapter
 // exceptions return Failed. Replacement/removal during callbacks drops the tail.

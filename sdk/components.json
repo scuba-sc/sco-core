@@ -231,6 +231,18 @@
     }
   ],
   "components": [
+    {"id":"test.asop.selection_pipeline","source":"tests/test_asop_selection_pipeline.cpp","destination":"tests/test_asop_selection_pipeline.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+    {"id":"source.asop.simulation.h","source":"src/game/asop_selection/simulation.h","destination":"src/game/asop_selection/simulation.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+    {"id":"source.asop.simulation.cpp","source":"src/game/asop_selection/simulation.cpp","destination":"src/game/asop_selection/simulation.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+    {"id":"test.asop.generation_model","source":"tests/test_asop_generation_model.cpp","destination":"tests/test_asop_generation_model.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+    {"id":"contract.asop_selection","source":"sdk/contracts/sc_asop_selection_v1.json","destination":"contracts/sc_asop_selection_v1.json","profiles":["game-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"include.sc_asop_selection","source":"include/sc_asop_selection.h","destination":"include/sc_asop_selection.h","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
+    {"id":"include.scosdk.game.asop_selection","source":"include/scosdk/game/asop_selection.hpp","destination":"include/scosdk/game/asop_selection.hpp","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
+    {"id":"host.asop_selection","source":"include/sco/game/asop_selection.h","destination":"include/sco/game/asop_selection.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+    {"id":"source.asop_selection","source":"src/game/asop_selection/selection.cpp","destination":"src/game/asop_selection/selection.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+    {"id":"test.asop_selection","source":"tests/test_asop_selection.cpp","destination":"tests/test_asop_selection.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
+    {"id":"abi.asop_selection","source":"tests/abi_asop_selection.c","destination":"tests/abi_asop_selection.c","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"game-contract"},
+    {"id":"docs.asop_selection","source":"docs/game/asop-selection.md","destination":"docs/game/asop-selection.md","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
     {"id":"workflow.docs.defaults-readiness.md","source":"docs/defaults-readiness.md","destination":"docs/defaults-readiness.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
     {"id":"workflow.sdk.skills.sco-plan-sdk-work.SKILL.md","source":"sdk/skills/sco-plan-sdk-work/SKILL.md","destination":"skills/sco-plan-sdk-work/SKILL.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
     {"id":"workflow.sdk.skills.sco-plan-sdk-work.references.roadmap.md","source":"sdk/skills/sco-plan-sdk-work/references/roadmap.md","destination":"skills/sco-plan-sdk-work/references/roadmap.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
@@ -3806,6 +3818,56 @@
       "id": "source.docs.building.md",
       "source": "docs/building.md",
       "destination": "docs/building.md",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.include.sco.host_menu.h",
+      "source": "include/sco/host_menu.h",
+      "destination": "include/sco/host_menu.h",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_host_service.cpp",
+      "source": "tests/test_host_service.cpp",
+      "destination": "tests/test_host_service.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_host_menu.cpp",
+      "source": "tests/test_host_menu.cpp",
+      "destination": "tests/test_host_menu.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_host_menu_owner.cpp",
+      "source": "tests/test_host_menu_owner.cpp",
+      "destination": "tests/test_host_menu_owner.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_widget_numeric.cpp",
+      "source": "tests/test_widget_numeric.cpp",
+      "destination": "tests/test_widget_numeric.cpp",
       "profiles": [
         "core-source"
       ],

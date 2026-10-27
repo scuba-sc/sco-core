@@ -3,6 +3,7 @@
 #include "sco/app.h"
 #include "../ipc/diagnostics_worker.h"
 #include "../api/internal.h"
+#include "../plugins/internal.h"
 #include "sco/caps.h"
 #include "sco/content.h"
 #ifndef SCO_KERNEL_ONLY
@@ -25,8 +26,10 @@
 #include "sco/widgets.h"
 #include "sco/surfaces.h"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <system_error>
 #include <utility>
 
@@ -38,6 +41,7 @@ namespace {
 
 bool                         g_started = false;
 bool                         g_stopping = false;
+bool                         g_hostServiceStarted = false;
 Platform                     g_platform;
 std::vector<plugins::Plugin> g_list;     // never resized while ContainCallouts points at it
 plugins::ContentIndex        g_index;
@@ -51,6 +55,139 @@ std::optional<uint64_t>       g_lastDiagnosticTick;
 bool                         g_gameServicesPublished = false;
 bool                         g_reloading = false;
 bool                         g_reloadCommand = false;   // sco.reload is registered (once per process)
+
+enum class MenuPhase { Unused, Loading, Active, NormalPending, QuarantinePending, Released, Retained };
+struct MenuInstance {
+    HostMenuContext identity;
+    HostMenuClient client;
+    std::atomic<MenuPhase> phase{MenuPhase::Unused};
+};
+// Instances and their callback identities are never reused, including after failed cleanup.
+MenuInstance g_menuInstances[host::kMaxPlugins];
+std::atomic<size_t> g_menuCount{0};
+MenuInstance* g_menu = nullptr; // game thread
+bool g_menuBlocked = false;     // failed cleanup may leave borrowed callbacks reachable
+
+bool MenuGuarded(void (*thunk)(void*), void* context) noexcept {
+    try { return plugins::Guarded(thunk, context) == 0; }
+    catch (...) { return false; }
+}
+
+void MenuFault(MenuInstance& instance, const char* where) {
+    instance.phase.store(MenuPhase::Retained, std::memory_order_release);
+    g_menuBlocked = true;
+    Log("[app] Menu fault in %s; disabling this client", where ? where : "callback");
+    Result result = Result::Failed;
+    try { result = sco::detail::QuarantineOwner(instance.identity.self); } catch (...) {}
+    if (result == Result::Ok)
+        instance.phase.store(MenuPhase::QuarantinePending, std::memory_order_release);
+    else {
+        g_menuBlocked = true;
+        Log("[app] Menu fault in %s; quarantine failed, retaining its context", where ? where : "callback");
+    }
+}
+
+bool MenuCallout(const void* owner, const char* where, TaskFn thunk, void* context) {
+    const size_t count = g_menuCount.load(std::memory_order_acquire);
+    for (size_t i = 0; i < count; ++i) {
+        MenuInstance& instance = g_menuInstances[i];
+        if (instance.identity.self != owner) continue;
+        if (!OnGameThread()) return false;
+        const MenuPhase phase = instance.phase.load(std::memory_order_acquire);
+        if (phase != MenuPhase::Loading && phase != MenuPhase::Active) return false;
+        if (!MenuGuarded(thunk, context)) { MenuFault(instance, where); return false; }
+        // Nested callbacks can fault even if the outer thunk returned normally.
+        if (instance.phase.load(std::memory_order_acquire) != phase) return false;
+        if (sco::detail::Released(owner)) {
+            instance.phase.store(MenuPhase::Retained, std::memory_order_release);
+            g_menuBlocked = true; // an untracked release does not establish hook completion
+            return false;
+        }
+        return true;
+    }
+    return plugins::detail::ContainedCallout(owner, where, thunk, context);
+}
+
+struct MenuCleanup { MenuInstance* instance; Result result = Result::Failed; };
+void MenuRelease(void* context) {
+    auto& cleanup = *static_cast<MenuCleanup*>(context);
+    cleanup.result = sco::Release(cleanup.instance->identity.self);
+}
+void MenuFaultResources(void* context) {
+    auto& cleanup = *static_cast<MenuCleanup*>(context);
+    sco::detail::ReleaseFaultResources(cleanup.instance->identity.self);
+    cleanup.result = Result::Ok;
+}
+void DrainMenuCleanup() {
+    if (!OnGameThread() || sco::detail::InCallout()) return;
+    const size_t count = g_menuCount.load(std::memory_order_acquire);
+    for (size_t i = 0; i < count; ++i) {
+        MenuInstance& instance = g_menuInstances[i];
+        const MenuPhase phase = instance.phase.load(std::memory_order_acquire);
+        if (phase != MenuPhase::NormalPending && phase != MenuPhase::QuarantinePending) continue;
+        // Mark before entering hooks so a fault or recursion can never retry them blindly.
+        instance.phase.store(MenuPhase::Retained, std::memory_order_release);
+        MenuCleanup cleanup{&instance};
+        const bool completed = MenuGuarded(phase == MenuPhase::NormalPending ? MenuRelease : MenuFaultResources, &cleanup);
+        if (completed && cleanup.result == Result::Ok) {
+            instance.phase.store(MenuPhase::Released, std::memory_order_release);
+            if (phase == MenuPhase::QuarantinePending) g_menuBlocked = false;
+        } else {
+            g_menuBlocked = true;
+            Log("[app] Menu cleanup incomplete; retaining its context");
+        }
+        if (g_menu == &instance) g_menu = nullptr;
+    }
+}
+
+struct MenuLoadCall { MenuInstance* instance; sco_result result = SCO_FAILED; };
+void MenuLoadThunk(void* context) {
+    auto& call = *static_cast<MenuLoadCall*>(context);
+    call.result = call.instance->client.load(call.instance->identity, call.instance->client.context);
+}
+struct MenuFrameCall { MenuInstance* instance; void* frameContext; };
+void MenuFrameThunk(void* context) {
+    auto& call = *static_cast<MenuFrameCall*>(context);
+    call.instance->client.frame(call.instance->identity, call.instance->client.context, call.frameContext);
+}
+void MenuStopThunk(void* context) {
+    auto& instance = *static_cast<MenuInstance*>(context);
+    instance.client.stop(instance.identity, instance.client.context);
+}
+void StopMenu() {
+    MenuInstance* instance = g_menu;
+    if (!instance) { DrainMenuCleanup(); return; }
+    if (instance->phase.load(std::memory_order_acquire) == MenuPhase::Active ||
+        instance->phase.load(std::memory_order_acquire) == MenuPhase::Loading) {
+        if (instance->client.stop)
+            sco::detail::Callout(instance->identity.self, "Menu stop", MenuStopThunk, instance);
+        const MenuPhase phase = instance->phase.load(std::memory_order_acquire);
+        if (phase == MenuPhase::Active || phase == MenuPhase::Loading)
+            instance->phase.store(MenuPhase::NormalPending, std::memory_order_release);
+    }
+    DrainMenuCleanup();
+}
+void StartMenu(const HostMenuClient& client, const sco_api* api) {
+    if (!client.load || g_menuBlocked) return;
+    const size_t count = g_menuCount.load(std::memory_order_relaxed);
+    if (count == host::kMaxPlugins) { Log("[app] Menu instance limit reached"); return; }
+    sco_plugin* owner = host::NewMenuOwner();
+    if (!owner) { Log("[app] Menu owner unavailable"); return; }
+    MenuInstance& instance = g_menuInstances[count];
+    instance.identity = {api, owner, static_cast<uint64_t>(count) + 1};
+    instance.client = client;
+    instance.phase.store(MenuPhase::Loading, std::memory_order_relaxed);
+    g_menuCount.store(count + 1, std::memory_order_release);
+    g_menu = &instance;
+    MenuLoadCall call{&instance};
+    const bool completed = sco::detail::Callout(owner, "Menu load", MenuLoadThunk, &call);
+    if (completed && call.result == SCO_OK)
+        instance.phase.store(MenuPhase::Active, std::memory_order_release);
+    else {
+        if (completed) Log("[app] Menu load refused: %u", static_cast<unsigned>(call.result));
+        StopMenu();
+    }
+}
 
 uint64_t DiagnosticNow() {
     return diagnostics::ipc::ClockNow();
@@ -409,6 +546,41 @@ void FinalizeStartup(const Platform& pf) {
 
 }  // namespace
 
+bool HostMenuActive(const HostMenuContext& context) {
+    if (!OnGameThread() || !g_started || g_stopping || !g_menu) return false;
+    const MenuPhase phase = g_menu->phase.load(std::memory_order_acquire);
+    return (phase == MenuPhase::Loading || phase == MenuPhase::Active) &&
+           g_menu->identity.api == context.api && g_menu->identity.self == context.self &&
+           g_menu->identity.generation == context.generation;
+}
+
+bool HostMenuFrame(void* frameContext) {
+    if (!OnGameThread() || !g_menu || !HostMenuActive(g_menu->identity) || !g_menu->client.frame)
+        return false;
+    MenuInstance* instance = g_menu;
+    MenuFrameCall call{instance, frameContext};
+    const bool completed = sco::detail::Callout(instance->identity.self, "Menu frame", MenuFrameThunk, &call);
+    DrainMenuCleanup();
+    return completed && HostMenuActive(instance->identity);
+}
+
+void HostMenuAbort() {
+    if (!OnGameThread() || !g_menu) return;
+    const MenuPhase phase = g_menu->phase.load(std::memory_order_acquire);
+    if (phase == MenuPhase::Loading || phase == MenuPhase::Active)
+        MenuFault(*g_menu, "platform frame");
+    DrainMenuCleanup();
+}
+
+bool IsHostMenuPanel(const char* id) {
+    if (!OnGameThread() || !g_started || !id) return false;
+    if (std::strcmp(id, "menu.main") != 0 && std::strcmp(id, "menu.status") != 0) return false;
+    const size_t count = g_menuCount.load(std::memory_order_acquire);
+    for (size_t i = 0; i < count; ++i)
+        if (widgets::OwnedBy(g_menuInstances[i].identity.self, id)) return true;
+    return false;
+}
+
 bool Start(const Platform& platform) {
     if (g_started) {
         Log("[app] start refused: already started");
@@ -432,6 +604,15 @@ bool Start(const Platform& platform) {
 
     if (!PrepareDataPacks(cr)) return false;
 
+    // Discovery installs the plugin guard; compose it only after discovery and pack preparation.
+    sco::SetCalloutGuard(MenuCallout);
+    StartMenu(pf.hostMenu, api);
+    g_hostServiceStarted = false;
+    if (pf.hostService.start && pf.hostService.tick && pf.hostService.stop) {
+        try { g_hostServiceStarted = pf.hostService.start(pf.hostService.context) == Result::Ok; }
+        catch (...) { g_hostServiceStarted = false; }
+        if (!g_hostServiceStarted) Log("[app] optional host service unavailable");
+    }
     LoadPlugins(pf, api, opts);
     FinalizeStartup(pf);
     return true;
@@ -443,8 +624,13 @@ void Tick(uint32_t nowMs) {
 #ifndef SCO_KERNEL_ONLY
     game::private_session::Tick(); // revoke BEFORE queued consumer work
 #endif
+    if (g_hostServiceStarted) {
+        try { if (g_platform.hostService.tick(g_platform.hostService.context) != Result::Ok) Log("[app] host service tick failed"); }
+        catch (...) { Log("[app] host service tick threw"); }
+    }
     const Result r = GameThreadTick(nowMs);
     if (r != Result::Ok) Log("[app] tick: %s", ResultName(r));
+    DrainMenuCleanup();
     ipc::Tick();   // the owner heartbeat of every sco.ipc channel
     net::Tick();   // sco.net messages and events received since the last tick
     g_lastDiagnosticTick = DiagnosticNow();
@@ -465,8 +651,15 @@ void Stop() {
 #endif
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
+    StopMenu();  // drain host-owned cleanup even if no subsequent Tick occurs
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
     plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts);
+    if (g_hostServiceStarted) {
+        bool stopped = false;
+        try { stopped = g_platform.hostService.stop(g_platform.hostService.context) == Result::Ok; } catch (...) {}
+        if (!stopped) Log("[app] host service stop failed; context must remain retained");
+        g_hostServiceStarted = false;
+    }
     for (auto& p : g_list)
         if (p.manifest.kind == plugins::Kind::Native) { plugins::RemoveReloadCopies(p); p.reloadCopy.clear(); }
     settings::Stop();   // before storage: it reads and writes through it

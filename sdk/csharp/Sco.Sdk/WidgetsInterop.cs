@@ -9,16 +9,19 @@ namespace Sco.Sdk
         List = 6, TextInput = 7, Table = 8, Row = 9, Column = 10,
         Page = 0x100 // Event only; never a node kind.
     }
+    public enum WidgetNumericPresentation : uint { Number = 0, Integer = 1, IntegerPercent = 2 }
     public static partial class Abi
     {
         public const string WidgetsName = "sco.widgets";
         public const uint WidgetsVersion1_0 = 0x00010000u;
         public const uint WidgetsVersion1_1 = 0x00010001u;
         public const uint WidgetsVersion1_2 = 0x00010002u;
+        public const uint WidgetsVersion1_3 = 0x00010003u;
         public const uint WidgetsMaxPanels = 64, WidgetsMaxNodes = 256, WidgetsMaxTotalNodes = 4096;
         public const uint WidgetsMaxItems = 256, WidgetsMaxColumns = 16, WidgetsMaxText = 255;
         public const uint WidgetsMaxId = 63, WidgetsMaxTitle = 63, WidgetsMaxEvents = 256;
         public const uint WidgetsFeatureStableTags = 0x80, WidgetsCapMaxTag = 9, WidgetsCaps1_2 = 10, WidgetsMaxTag = 63;
+        public const uint WidgetsFeatureNumericPresentation = 0x100;
         public const uint WidgetSeverityNone = 0, WidgetSeverityInfo = 1, WidgetSeverityWarning = 2, WidgetSeverityError = 3;
         public const uint WidgetEventPage = 0x100;
         public const uint WidgetsCapCount = 0, WidgetsCapFeatures = 1, WidgetsCapMaxPanels = 2, WidgetsCapMaxNodes = 3;
@@ -59,6 +62,14 @@ namespace Sco.Sdk.Interop
     {
         public ScoWidgetNode11 @base;
         public byte* tag;
+        public fixed uint _reserved[3];
+    }
+    /// <summary>sco_widget_node_1_3: additive numeric presentation after the 1.2 prefix.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct ScoWidgetNode13
+    {
+        public ScoWidgetNode12 @base;
+        public uint presentation;
         public fixed uint _reserved[3];
     }
     /// <summary>sco_widget_event: 32 bytes; pointed-to text is borrowed only during callback.</summary>

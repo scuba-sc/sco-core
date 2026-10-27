@@ -48,6 +48,7 @@
 // host::WithdrawHostServices (host and game services outlive every plugin),
 // ContainCallouts(nullptr).
 #include "sco/plugins.h"
+#include "sco/host_menu.h"
 #include "sco/diagnostics.h"
 #include "sco/diagnostics_policy.h"
 #include "sco/runtime.h"
@@ -61,6 +62,17 @@
 #include <vector>
 
 namespace sco::app {
+// Optional product-owned game-thread service, started before plugins and stopped after
+// their unload. A refused start must clean its own partial state; the host continues
+// without it. The context outlives Stop, including an unsuccessful stop. Tick and stop
+// failures are logged; a product must retain any state that cannot be safely retired.
+struct HostService {
+    void* context = nullptr;
+    Result (*start)(void*) = nullptr;
+    Result (*tick)(void*) = nullptr;
+    Result (*stop)(void*) = nullptr;
+};
+
 
 struct Platform {
     const char* hostVersion = nullptr;             // "sc-offline 0.8.0"; static string (host_version())
@@ -110,6 +122,9 @@ struct Platform {
     // Positive EAC/offline/official-network/target evidence; missing or throw refuses.
     // game::host installs its existing admission inspector automatically.
     bool (*privateSessionAdmitted)() = nullptr;
+    // Optional product-owned Menu client. Callback context and code outlive Stop.
+    HostMenuClient hostMenu;
+    HostService hostService;
 };
 
 // Starts the host kit (see above). Game thread: it becomes the game thread. False, and nothing

@@ -28,6 +28,8 @@ inline std::string ToUtf8(const fs::path& p) {
 
 // The platform crash guard (guard_win.cpp on Windows; a plain call elsewhere).
 uint32_t DefaultGuard(void (*thunk)(void* ctx), void* ctx);
+// The app composes its fixed Menu guard with the loader's existing plugin guard.
+bool ContainedCallout(const void* owner, const char* where, void (*thunk)(void*), void* ctx);
 
 // Which modules the faulting thread was running in when a guard caught a fault, innermost frame
 // first (consecutive frames in one module count once). A guard reports it with RecordFaultTrace

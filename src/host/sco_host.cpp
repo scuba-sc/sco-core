@@ -296,8 +296,7 @@ const sco_api* BuildApi(const HostInfo& info) {
     return &g_api;
 }
 
-sco_plugin* NewPlugin(const char* id) {
-    if (!ValidId(id)) return nullptr;
+static sco_plugin* ClaimHandle(const char* id) {
     std::lock_guard<std::mutex> hold(g_handleLock);
     const size_t n = g_handleCount.load(std::memory_order_relaxed);
     for (size_t i = 0; i < n; ++i)
@@ -306,6 +305,14 @@ sco_plugin* NewPlugin(const char* id) {
     memcpy(g_handles[n].id, id, strlen(id) + 1);
     g_handleCount.store(n + 1, std::memory_order_release);
     return &g_handles[n];
+}
+
+sco_plugin* NewPlugin(const char* id) {
+    return ValidId(id) ? ClaimHandle(id) : nullptr;
+}
+
+sco_plugin* NewMenuOwner() {
+    return ClaimHandle("menu");
 }
 
 const char* PluginId(const sco_plugin* p) { return Valid(p) ? p->id : nullptr; }

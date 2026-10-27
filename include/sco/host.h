@@ -47,6 +47,10 @@ constexpr size_t kMaxIdLen = 31;
 // Any thread.
 sco_plugin* NewPlugin(const char* id);
 
+// The app's fixed Menu client is the only host-side caller allowed to claim "menu".
+// Shares NewPlugin's process-lifetime handle bound and never reuses a released handle.
+sco_plugin* NewMenuOwner();
+
 // The id a handle was made with; nullptr for a pointer NewPlugin didn't return.
 const char* PluginId(const sco_plugin* p);
 

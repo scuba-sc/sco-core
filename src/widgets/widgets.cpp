@@ -33,7 +33,8 @@ uint64_t g_snapshot_builds = 0;
 std::vector<Entry> g_panels;
 constexpr uint32_t kFeatures = SCO_WIDGETS_FEATURE_UPDATE_NODES | SCO_WIDGETS_FEATURE_REMOVE_NODES |
     SCO_WIDGETS_FEATURE_SEVERITY | SCO_WIDGETS_FEATURE_TOOLTIP | SCO_WIDGETS_FEATURE_PAGING |
-    SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS;
+    SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS |
+    SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION;
 auto Find(const std::string& id) {
     return std::find_if(g_panels.begin(), g_panels.end(), [&](const Entry& e) { return e.panel.id == id; });
 }
@@ -142,6 +143,21 @@ Result CopyTail12(const sco_widget_node_1_2& x, Node& out) {
     }
     return Result::Ok;
 }
+Result CopyTail13(const sco_widget_node_1_3& x, Node& out) {
+    for (const auto pad : x._reserved) if (pad) return Result::BadArg;
+    if (x.presentation > SCO_WIDGET_NUMERIC_INTEGER_PERCENT ||
+        (out.kind != SCO_WIDGET_SLIDER && x.presentation != SCO_WIDGET_NUMERIC_NUMBER))
+        return Result::BadArg;
+    if (x.presentation != SCO_WIDGET_NUMERIC_NUMBER) {
+        const auto integer = [](double value) {
+            return value >= std::numeric_limits<int32_t>::min() &&
+                   value <= std::numeric_limits<int32_t>::max() && std::trunc(value) == value;
+        };
+        if (!integer(out.minimum) || !integer(out.maximum) || !integer(out.value)) return Result::BadArg;
+    }
+    out.presentation = x.presentation;
+    return Result::Ok;
+}
 // True when every non-empty tag appears once. tree keeps [0, begin) and [end, size);
 // fragment supplies the rest (Set passes the whole tree with begin == end == 0).
 bool TagsUnique(const std::vector<Node>& tree, size_t begin, size_t end, const std::vector<Node>& fragment) {
@@ -185,6 +201,10 @@ Result ParseNodes(const sco_widget_node* nodes, uint32_t count, uint32_t stride,
             if (size >= sizeof(sco_widget_node_1_2)) {
                 sco_widget_node_1_2 y; std::memcpy(&y, p, sizeof(y));
                 if (auto r = CopyTail12(y, node); r != Result::Ok) return r;
+                if (size >= sizeof(sco_widget_node_1_3)) {
+                    sco_widget_node_1_3 z; std::memcpy(&z, p, sizeof(z));
+                    if (auto r = CopyTail13(z, node); r != Result::Ok) return r;
+                }
             }
         }
         if (n.kind == SCO_WIDGET_ROW || n.kind == SCO_WIDGET_COLUMN) ancestors.push_back(n.id);
@@ -384,7 +404,9 @@ bool ValidEvent(const Node& n, const Event& e) {
     switch (e.kind) {
         case SCO_WIDGET_BUTTON: return true;
         case SCO_WIDGET_TOGGLE: return e.value == 0 || e.value == 1;
-        case SCO_WIDGET_SLIDER: return e.value >= n.minimum && e.value <= n.maximum;
+        case SCO_WIDGET_SLIDER:
+            return e.value >= n.minimum && e.value <= n.maximum &&
+                   (n.presentation == SCO_WIDGET_NUMERIC_NUMBER || std::trunc(e.value) == e.value);
         case SCO_WIDGET_COMBO:
         case SCO_WIDGET_LIST: return e.index == -1 || (e.index >= 0 && static_cast<size_t>(e.index) < n.items.size());
         case SCO_WIDGET_TEXT_INPUT:
@@ -400,7 +422,7 @@ Result Start() {
     if (detail::RuntimeStopping()) return Result::Unavailable;
     auto r = AddReleaseHook(OnRelease);
     if (r != Result::Ok) return r;
-    r = host::ProvideHostService(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_2, &kTable);
+    r = host::ProvideHostService(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_3, &kTable);
     if (r != Result::Ok) { RemoveReleaseHook(OnRelease); return r; }
     g_started = true; return Result::Ok;
 }
@@ -420,6 +442,14 @@ std::vector<Panel> Panels() {
     if (g_started && !detail::RuntimeStopping())
         for (const auto& e : g_panels) if (!detail::Released(e.owner)) out.push_back(e.panel);
     return out;
+}
+bool OwnedBy(const sco_plugin* owner, const char* id) {
+    if (!OnGameThread() || !owner || !id || !host::PluginId(owner)) return false;
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (!g_started || detail::RuntimeStopping() || detail::Released(owner)) return false;
+    const auto it = std::find_if(g_panels.begin(), g_panels.end(),
+                                 [&](const Entry& e) { return e.panel.id == id; });
+    return it != g_panels.end() && it->owner == owner;
 }
 uint64_t SnapshotBuilds() { std::lock_guard<std::mutex> hold(g_lock); return g_snapshot_builds; }
 Result RenderPanel(const char* id, Renderer& renderer) {

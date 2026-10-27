@@ -7,7 +7,7 @@
       "symbol": "sco_widgets_v1.set_panel",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_2",
+      "version_macro": "SCO_WIDGETS_VERSION_1_3",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, const char *, const sco_widget_node *, uint32_t, uint32_t, sco_widget_event_fn, void *)",
       "member_extent": 16,
@@ -113,7 +113,7 @@
       "symbol": "sco_widgets_v1.remove_panel",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_2",
+      "version_macro": "SCO_WIDGETS_VERSION_1_3",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *)",
       "member_extent": 24,
@@ -219,14 +219,14 @@
       "symbol": "sco_widgets_v1.update_nodes",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_2",
+      "version_macro": "SCO_WIDGETS_VERSION_1_3",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, const sco_widget_node *, uint32_t, uint32_t)",
       "member_extent": 32,
       "table_size": 48,
       "since": "`size >= 32`; 1.1",
-      "purpose": "Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0, 1.1 or 1.2 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
-      "buffer_contract": "`sco_result (*update_nodes)(sco_plugin* self, const char* panel_id, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride);`<br>Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0, 1.1 or 1.2 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
+      "purpose": "Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0, 1.1, 1.2 or 1.3 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
+      "buffer_contract": "`sco_result (*update_nodes)(sco_plugin* self, const char* panel_id, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride);`<br>Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0, 1.1, 1.2 or 1.3 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
       "ownership": "Host deep-copies the subtree on success; the panel's fn/ctx stay unchanged and borrowed. No allocation transfer.",
       "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard.",
       "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned.",
@@ -293,7 +293,6 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",
         "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
       ]
     },
@@ -303,7 +302,7 @@
       "symbol": "sco_widgets_v1.remove_nodes",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_2",
+      "version_macro": "SCO_WIDGETS_VERSION_1_3",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, const uint32_t *, uint32_t)",
       "member_extent": 40,
@@ -377,7 +376,6 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",
         "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
       ]
     },
@@ -387,7 +385,7 @@
       "symbol": "sco_widgets_v1.capabilities",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_2",
+      "version_macro": "SCO_WIDGETS_VERSION_1_3",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, uint32_t *)",
       "member_extent": 48,
@@ -461,7 +459,6 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "No scosdk C++ wrapper, C# or Lua route for the 1.1 members yet; C and C++ call the table directly.",
         "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
       ]
     }

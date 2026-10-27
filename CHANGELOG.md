@@ -6,6 +6,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Separate numbered release-candidate labels from numeric SDK versions while preserving signed promotion checks.
 
+- Add the candidate `game.asop.selection` file coordinator and public C/C++
+  interface, with guarded owner leases, copied state and file-operation receipts.
+  Product composition is development-only and off by default; saving a file
+  does not publish or confirm a terminal selection. The test-only generation
+  model is separate from the native engine. Add host-menu support and widgets
+  1.3 numeric presentation; native terminal and game acceptance remain unverified.
+
 - Add explicit `game.relocation` 1.1 position requests and a host-source backend
   socket, sharing tickets, owner/session guards and cancellation with frozen
   FullPose requests. The native adapter supplies no position backend; its new

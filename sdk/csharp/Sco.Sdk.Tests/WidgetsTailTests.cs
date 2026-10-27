@@ -12,7 +12,7 @@ namespace Sco.Sdk.Tests
         private sealed class Owner : Plugin { }
         private static ScoWidgetsV1* _table;
         private static uint _version = Abi.WidgetsVersion1_2, _features = 255, _capsCount = 10;
-        private static uint _stride, _size, _severity, _first, _visible;
+        private static uint _stride, _size, _severity, _first, _visible, _presentation;
         private static string? _tooltip, _tag, _item;
         private static ScoResult _result = ScoResult.Ok;
         private static int _thread, _calls, _checks, _failed;
@@ -62,6 +62,12 @@ namespace Sco.Sdk.Tests
                 _tag = tail->tag == null ? null : S(tail->tag);
                 for (int i = 0; i < 3; ++i) if (tail->_reserved[i] != 0) return ScoResult.BadArg;
             }
+            if (stride >= 144)
+            {
+                var tail = (ScoWidgetNode13*)nodes;
+                _presentation = tail->presentation;
+                for (int i = 0; i < 3; ++i) if (tail->_reserved[i] != 0) return ScoResult.BadArg;
+            }
             return ScoResult.Ok;
         }
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -79,9 +85,9 @@ namespace Sco.Sdk.Tests
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult RemoveNodes(void* self, byte* id, uint* ids, uint count)
         { ++_calls; return Environment.CurrentManagedThreadId != _thread ? ScoResult.WrongThread : _result; }
-        private static void Send(uint id, uint kind, int row, int index = 0, uint size = 40, void* context = null)
+        private static void Send(uint id, uint kind, int row, int index = 0, uint size = 40, void* context = null, double value = 0)
         {
-            ScoWidgetEvent11 ev = new() { @base = new() { size = size, node_id = id, kind = kind, index = index }, row = row };
+            ScoWidgetEvent11 ev = new() { @base = new() { size = size, node_id = id, kind = kind, index = index, value = value }, row = row };
             fixed (byte* panel = Utf8.Z("test.tails")) _callback(panel, &ev.@base, context == null ? _context : context);
         }
         public static int Run()
@@ -177,6 +183,21 @@ namespace Sco.Sdk.Tests
             Check(w.Version == Abi.WidgetsVersion1_1 && w.SetPanel("test.old", "Old", new[] { list with { Tag = null } }) == ScoResult.Ok && _stride == 104 && w.SetPanel("test.old", "Old", new[] { list }) == ScoResult.Unavailable, "1.1 fallback without silent tag loss");
             _version = Abi.WidgetsVersion1_0; w.Open(owner);
             Check(w.Version == Abi.WidgetsVersion1_0 && w.SetPanel("test.old", "Old", new[] { column with { Tag = null } }) == ScoResult.Ok && _stride == 80 && w.SetPanel("test.old", "Old", new[] { list }) == ScoResult.Unavailable && w.Capabilities(out _) == ScoResult.Unavailable, "1.0 fallback");
+            WidgetNode numeric = new() { Id = 1, Kind = WidgetKind.Slider, Label = "Darkness",
+                Minimum = 20, Maximum = 95, Value = 74, Presentation = WidgetNumericPresentation.IntegerPercent };
+            _version = Abi.WidgetsVersion1_2; _features = 0x1ff; _capsCount = 10; w.Open(owner);
+            Check(w.SetPanel("test.tails", "Numeric", new[] { numeric }) == ScoResult.Unavailable, "1.2 refuses 1.3 tail");
+            _version = Abi.WidgetsVersion1_3; _features = 0xff; w.Open(owner);
+            Check(w.SetPanel("test.tails", "Numeric", new[] { numeric }) == ScoResult.Unavailable, "missing numeric feature refused");
+            _features = 0x1ff; int numericEvents = 0;
+            Check(w.SetPanel("test.tails", "Numeric", new[] { numeric }, (_, _) => ++numericEvents) == ScoResult.Ok &&
+                _stride == 144 && _size == 144 && _presentation == 2, "1.3 numeric tail");
+            Send(1, (uint)WidgetKind.Slider, -1, value: 74.5);
+            Send(1, (uint)WidgetKind.Slider, -1, value: 74);
+            Check(numericEvents == 1, "fractional integer event refused");
+            Check(w.SetPanel("test.invalid", "Numeric", new[] { numeric with { Value = 74.5 } }) == ScoResult.BadArg &&
+                  w.SetPanel("test.invalid", "Numeric", new[] { numeric with { Presentation = (WidgetNumericPresentation)99 } }) == ScoResult.BadArg,
+                "invalid numeric inputs refused");
             PluginExports.UnloadPlugin(owner);
             Check(!w.IsOpen && Registry.Count == 0 && w.UpdateNodes("test.tails", new[] { replacement }) == ScoResult.Unavailable, "unload cleans all retained roots");
             Check(PluginExports.LoadPlugin(owner, &api, (void*)1, "test") == ScoResult.Ok && !w.IsOpen, "reload invalidates wrapper");

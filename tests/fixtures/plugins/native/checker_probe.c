@@ -17,6 +17,7 @@
 #define PROBE_COMMAND_BAD_ARG  8
 #define PROBE_COMMAND_UNKNOWN  9
 #define PROBE_OBSERVE_MISUSE  10
+#define PROBE_W13_CHECKED     11
 
 #ifndef PROBE_MODE
 #error "build with -DPROBE_MODE=<n>"
@@ -185,11 +186,52 @@ static sco_result UseWidgets11(const sco_widgets_v1* w) {
 }
 #endif
 
+#if PROBE_MODE == PROBE_W13_CHECKED
+static const sco_api* numeric_api;
+static sco_plugin* numeric_self;
+static void NumericEvent(const char* panel, const sco_widget_event* event, void* context) {
+    (void)panel; (void)context;
+    numeric_api->log(numeric_self, event && event->value == 58 ? SCO_LOG_INFO : SCO_LOG_ERROR,
+                     event && event->value == 58 ? "numeric integer event 58" : "invalid numeric event");
+}
+#endif
+
 SCO_EXPORT sco_result sco_plugin_load(const sco_api* api, sco_plugin* self) {
 #if PROBE_MODE >= PROBE_NO_RESOURCE && PROBE_MODE <= PROBE_OBSERVE_MISUSE
     const sco_command command = { sizeof(sco_command), 0, PROBE_ID ".progress", "Progress",
         "Read a current synthetic job", NULL, NULL, 0, sizeof(sco_arg_def), EmptyResource, (void*)api };
     return api->register_command(self, &command);
+#elif PROBE_MODE == PROBE_W13_CHECKED
+    const void* table = NULL;
+    const sco_widgets_v1* widgets;
+    sco_widget_node_1_3 node;
+    uint32_t caps[SCO_WIDGETS_CAPS_1_2] = {SCO_WIDGETS_CAPS_1_2};
+    if (!COVERS(api, query_service) || !api->query_service) {
+        api->log(self, SCO_LOG_INFO, "1.0 host: no services");
+        return SCO_OK;
+    }
+    if (api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_3, &table) != SCO_OK || !table)
+        return SCO_UNAVAILABLE;
+    widgets = (const sco_widgets_v1*)table;
+    if (!W_COVERS(widgets, set_panel) || !W_COVERS(widgets, capabilities) ||
+        widgets->capabilities(self, caps) != SCO_OK ||
+        !(caps[SCO_WIDGETS_CAP_FEATURES] & SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION))
+        return SCO_UNAVAILABLE;
+    memset(&node, 0, sizeof node);
+    node.base.base.base.size = sizeof node;
+    node.base.base.base.kind = SCO_WIDGET_SLIDER;
+    node.base.base.base.id = 1;
+    node.base.base.base.label = "Darkness";
+    node.base.base.base.minimum = 20; node.base.base.base.maximum = 95; node.base.base.base.value = 74;
+    node.presentation = SCO_WIDGET_NUMERIC_INTEGER_PERCENT;
+    node._reserved[0] = 1;
+    if (widgets->set_panel(self, PROBE_ID ".panel", "Numeric", &node.base.base.base, 1, sizeof node, NULL, NULL) != SCO_BAD_ARG)
+        return SCO_FAILED;
+    node._reserved[0] = 0; node.base.base.base.value = 74.5;
+    if (widgets->set_panel(self, PROBE_ID ".panel", "Numeric", &node.base.base.base, 1, sizeof node, NULL, NULL) != SCO_BAD_ARG)
+        return SCO_FAILED;
+    node.base.base.base.value = 74; numeric_api = api; numeric_self = self;
+    return widgets->set_panel(self, PROBE_ID ".panel", "Numeric", &node.base.base.base, 1, sizeof node, NumericEvent, NULL);
 #elif PROBE_MODE == PROBE_RELEASE_OWN
     sco_result r;
     if (!COVERS(api, release_service)) return SCO_OK;
