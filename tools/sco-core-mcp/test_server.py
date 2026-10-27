@@ -1995,8 +1995,8 @@ class BuildIntegrationTests(ServerCase):
                     "sc_spatial_v1.player_pose", "sc_spatial_v1.world_to_local", "sc_spatial_v1.local_to_world"}
         self.assertTrue(expected <= symbols)
         cleanup = self.result(client.call("search_api", {"query": "building preview cleanup", "limit": 50}), data=data)
-        self.assertTrue({"sc_world_control_v1.camera_release", "sc_entities_v1.despawn"} <=
-                        {item["symbol"] for item in cleanup["records"]})
+        self.assertLessEqual({"sc_world_control_v1.camera_release", "sc_entities_v1.despawn"},
+                             {item["symbol"] for item in cleanup["records"]})
         ray = self.result(client.call("get_symbol", {"symbol_or_id": "sc_world_control_v1.raycast_filtered"}), data=data)
         self.assertIn("OFF", ray["record"]["purpose"])
         self.assertIn("absent", " ".join(ray["record"]["limitations"]).lower())
