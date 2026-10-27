@@ -48,6 +48,14 @@ class RealManifest(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp)
 
+    def test_rc2_discovery_metadata_profile_selection(self):
+        # The RC2 scope decision retains both files in the game-bearing kits only.
+        expected = {"game-sc", "legacy", "host-source-sc"}
+        for source in ("sdk/native_index.json", "sdk/status_registry.json"):
+            selected = {profile for profile in self.m["profiles"]
+                        if any(c["source"] == source for c in pkg.select(self.m, profile))}
+            self.assertEqual(selected, expected, source)
+
     def test_every_profile_reproducible(self):
         runs = []
         for label, tz, locale, mask in (("a", "UTC", "C", "022"),
