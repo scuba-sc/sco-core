@@ -3091,3 +3091,21 @@ path = "site/src/components/Search.astro"
 precedence = "override"
 SPDX-FileCopyrightText = ["2023 Astro contributors (https://github.com/withastro/starlight/graphs/contributors)", "2026 the sco-core contributors"]
 SPDX-License-Identifier = "MIT AND GPL-3.0-only"
+
+[[annotations]]
+path = "CHANGELOG.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "site/public/roadmap/index.html"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/roadmap-2.4.0.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"

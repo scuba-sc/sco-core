@@ -41,16 +41,16 @@ distribution; each selected file still needs applicable provenance review.
 | `sco.storage` 1.1 | 144-byte table with bounded table/view and column enumeration. |
 | `sco.diagnostics.publisher` 1.0 | Numeric and enum observations through `sco_diagnostics_observation_v1`; no free-form identifiers. |
 | `game.loadout` 1.2 | Optional asynchronous submit/status/cancel with state, completed-prefix count and nested report. Respawn event availability is a separate gate. |
-| `game.inventory` 1.1 | Copied port snapshot and item-category vocabulary; native read remains held off by default. |
+| `game.inventory` 1.2 | The 1.1 prefix supplies copied port snapshots and item-category vocabulary; 1.2 adds copied logical-layout observations. Native reads remain OFF by default; the production host has no logical-layout producer and `game.inventory.layout` is OFF. |
 | `game.inventory.contents` 1.0 | Copied bounded stored-item snapshots; no grounded native adapter is supplied. |
-| `game.audio` 1.0 | Owner-bound trigger/playback tokens and unload cleanup; acceptance is not audible playback, native backend absent/OFF. |
+| `game.audio` 1.1 | Owner-bound trigger/playback tokens and unload cleanup; `play_once` adds fire-and-forget submission with its own default-OFF capability. Acceptance does not prove audible playback; the native backend is absent. |
 | `game.entities` 1.2 | Copied epoch-pinned class registry, debug name lookup and finite typed component presence; no pointer export or native lookup adapter. New C#/Lua calls unsupported; managed layout parity only. |
 | `game.world.control` 1.1 | Bounded multi-hit with provider-owned acquire/query/release, validated copied records and owner skips; native adapter remains OFF. |
 | `game.actor_stats` 1.1 | 29 raw read IDs; stat units/ranges remain unverified. The separate write service retains its original allowlist and default-off admission. |
 | `game.input` 1.0 | Named action metadata: 1,297 ids re-verified statically on 4.10.197.2878 (F-4.10.197.2878-050); not certified input dispatch. |
 | `game.gamerules` 1.1 | Static parameter definitions through `list_params`; live read requires a backend. |
 | `game.mining` 1.0 | Public activation/state service; its game-pack provider owns the sole native detour. Default OFF/unavailable pending native acceptance; resolving the legacy `mining.cell` row does not enable it. |
-| `game.relocation` 1.0 | Existing public table with host backend composition and conditional offline admission. |
+| `game.relocation` 1.1 | The existing 1.0 FullPose route retains conditional offline admission. The 1.1 position-only request has a separate default-OFF capability; the default native adapter supplies no position callbacks. |
 | `game.datacore_live` 1.0 | Explicit host-backed pool access; no native pool adapter supplied and writes separately opt-in. |
 | DataCore packs | Atomic remains default; BestEffort receipts and `clone = { record = "...", mode = "deep" }`. Use `sco-dcb lint <pack>...` for syntax and `sco-dcb check <file.dcb> <pack>...` for database-backed validation. |
 
