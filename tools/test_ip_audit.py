@@ -126,6 +126,21 @@ def refresh_generated_metadata(entries, profile):
     entries.update({top + "/" + name: data for name, data in content.items()})
 
 
+class ReuseGeneration(unittest.TestCase):
+    def test_distinct_copyright_holders_remain_separate(self):
+        import tomllib
+        entries = [
+            {'path': 'one', 'copyright': '2026 project contributors', 'license': 'GPL-3.0-only'},
+            {'path': 'mixed', 'copyright': '2023 upstream contributors\n2026 project contributors',
+             'license': 'MIT AND GPL-3.0-only'},
+        ]
+        annotations = tomllib.loads(audit.reuse_toml(entries))['annotations']
+        self.assertEqual(annotations[0]['SPDX-FileCopyrightText'],
+                         ['2023 upstream contributors', '2026 project contributors'])
+        self.assertEqual(annotations[0]['SPDX-License-Identifier'], 'MIT AND GPL-3.0-only')
+        self.assertEqual(annotations[1]['SPDX-FileCopyrightText'], '2026 project contributors')
+
+
 class Real(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

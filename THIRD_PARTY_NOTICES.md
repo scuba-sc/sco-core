@@ -2,7 +2,7 @@
 
 sco-core includes the following third-party code. Each keeps its own licence, which applies to
 that code only; sco-core's own licence (GPL-3.0-only, [LICENSE](LICENSE)) does not replace it.
-Version, source and file hashes for each are in [docs/legal/third-party-inventory.md](docs/legal/third-party-inventory.md).
+Versions, source and file hashes are in [docs/legal/third-party-inventory.md](docs/legal/third-party-inventory.md).
 
 ## Lua 5.4.8
 
@@ -94,7 +94,7 @@ SOFTWARE.
 
 `site/src/components/Search.astro` adapts the dialog and styles from
 [Starlight](https://github.com/withastro/starlight), version 0.42.6.
-Modified for task phrase matching, category filters, first-use loading and focus handling.
+Modified for task phrase matching, category filters, first-use loading and focus handling. The project changes are recorded under the repository GPL-3.0-only policy; the user confirmed GPL-3.0-only contribution rights with no employer or other-party claim for the local modifications introduced in #245. Exact-file provenance and release review remain pending. The [upstream MIT notice](site/public/starlight-LICENSE.txt) is also included in the built site and linked from search.
 
 ```
 MIT License

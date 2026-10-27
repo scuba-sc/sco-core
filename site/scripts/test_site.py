@@ -103,10 +103,13 @@ class Links(HTMLParser):
     def __init__(self):
         super().__init__()
         self.urls = []
+        self.anchor_hrefs = set()
         self.ids = set()
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag == 'a' and attrs.get('href'):
+            self.anchor_hrefs.add(attrs['href'])
         if 'id' in attrs:
             self.ids.add(attrs['id'])
         for attr in ('href', 'src'):
@@ -114,8 +117,17 @@ class Links(HTMLParser):
                 self.urls.append(attrs[attr])
 
 
+def check_starlight_notice(root):
+    """The site artifact must retain the full attributed upstream notice."""
+    notice = root / 'starlight-LICENSE.txt'
+    expected = ROOT / 'site/public/starlight-LICENSE.txt'
+    if not notice.is_file() or notice.read_bytes() != expected.read_bytes():
+        raise AssertionError('Missing or changed Starlight MIT notice in built site')
+
+
 def check_built(root):
     check_leaks(root)
+    check_starlight_notice(root)
     pages = list(root.rglob('*.html'))
     if not pages or not list((root / 'pagefind').rglob('*.pf_index')):
         raise AssertionError('Missing HTML or Pagefind search index')
@@ -124,6 +136,9 @@ def check_built(root):
         parser = Links()
         parser.feed(path.read_text())
         parsed[path] = parser
+    required_notice = gen.BASE + '/starlight-LICENSE.txt'
+    if not any(required_notice in parser.anchor_hrefs for parser in parsed.values()):
+        raise AssertionError('Missing built Starlight notice link')
     checked = 0
     for path, parser in parsed.items():
         for target in parser.urls:
@@ -312,6 +327,7 @@ class SiteTests(unittest.TestCase):
                 shutil.copytree(ROOT / 'site/src' / name, output / 'src' / name)
             self.generate(root, output)
             shutil.copyfile(ROOT / 'site/public/favicon.svg', output / 'public/favicon.svg')
+            shutil.copyfile(ROOT / 'site/public/starlight-LICENSE.txt', output / 'public/starlight-LICENSE.txt')
             check_leaks(output / 'src/content/docs', FORBIDDEN + SENTINELS)
             check_leaks(output / 'public', FORBIDDEN + SENTINELS)
             if shutil.which('node') and (ROOT / 'site/node_modules/.bin/astro').is_file():
@@ -635,10 +651,18 @@ class SiteTests(unittest.TestCase):
             (built / 'pagefind/a.pf_index').write_bytes(b'index')
             (built / 'sdk-catalogue.json').write_text('{}')
             (built / gen.NATIVE_DOWNLOAD).write_text('{}')
+            shutil.copyfile(ROOT / 'site/public/starlight-LICENSE.txt', built / 'starlight-LICENSE.txt')
+            notice_link = '<a href="' + gen.BASE + '/starlight-LICENSE.txt">license</a>'
             (built / 'index.html').write_text('<a href="' + gen.BASE + '/">home</a>')
-            self.assertEqual(check_built(built), (1, 1))
-            (built / 'index.html').write_text('<a href="' + gen.BASE + '/%2e%2e/%2e%2e/secret">x</a>')
-            with self.assertRaises(AssertionError):
+            with self.assertRaisesRegex(AssertionError, 'Missing built Starlight notice link'):
+                check_built(built)
+            (built / 'index.html').write_text('<img src="' + gen.BASE + '/starlight-LICENSE.txt">')
+            with self.assertRaisesRegex(AssertionError, 'Missing built Starlight notice link'):
+                check_built(built)
+            (built / 'index.html').write_text('<a href="' + gen.BASE + '/">home</a>' + notice_link)
+            self.assertEqual(check_built(built), (1, 2))
+            (built / 'index.html').write_text(notice_link + '<a href="' + gen.BASE + '/%2e%2e/%2e%2e/secret">x</a>')
+            with self.assertRaisesRegex(AssertionError, 'Traversal'):
                 check_built(built)
 
     def test_private_markers_refused_plain_and_gzip(self):
@@ -676,6 +700,18 @@ class SiteTests(unittest.TestCase):
             self.assertEqual(check_leaks(output, SENTINELS, file_limit=1024, total_limit=3000), 3)
             with self.assertRaises(AssertionError):
                 check_leaks(output, SENTINELS, file_limit=1024, total_limit=2999)
+
+    def test_starlight_notice_is_required_and_exact(self):
+        with tempfile.TemporaryDirectory(prefix='site-notice-') as work:
+            root = Path(work)
+            with self.assertRaises(AssertionError):
+                check_starlight_notice(root)
+            notice = root / 'starlight-LICENSE.txt'
+            notice.write_bytes((ROOT / 'site/public/starlight-LICENSE.txt').read_bytes())
+            check_starlight_notice(root)
+            notice.write_bytes(b'changed notice')
+            with self.assertRaises(AssertionError):
+                check_starlight_notice(root)
 
     def test_supplied_build(self):
         if BUILT is None:

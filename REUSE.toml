@@ -3061,3 +3061,33 @@ path = "tests/test_audio.cpp"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/legal/third-party-inventory.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "THIRD_PARTY_NOTICES.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "site/scripts/test_site.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "site/public/starlight-LICENSE.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2023 Astro contributors (https://github.com/withastro/starlight/graphs/contributors)"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "site/src/components/Search.astro"
+precedence = "override"
+SPDX-FileCopyrightText = ["2023 Astro contributors (https://github.com/withastro/starlight/graphs/contributors)", "2026 the sco-core contributors"]
+SPDX-License-Identifier = "MIT AND GPL-3.0-only"
