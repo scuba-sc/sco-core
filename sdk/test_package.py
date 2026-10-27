@@ -77,6 +77,29 @@ class RealManifest(unittest.TestCase):
                                          ("sdk/" if profile in ("core-source", "host-source-sc") else "")
                                          + "contracts/" + Path(source).name)
 
+    def test_packaged_contract_records_match_catalogue(self):
+        catalogue = json.loads(pkg.developer_catalogue("legacy"))
+        by_id = {record["id"]: record for record in catalogue["records"]}
+        self.assertEqual(len(by_id), len(catalogue["records"]))
+        all_ids = set()
+        for profile in ("core", "game-sc", "legacy"):
+            selected = pkg.select(self.m, profile)
+            entries = pkg.archive_entries(self.m, profile)[1]
+            for component in selected:
+                source = component["source"]
+                if not source.startswith("sdk/contracts/"):
+                    continue
+                destination = pkg.destination(self.m, profile, component)
+                packaged = json.loads(entries[destination][0])
+                original = json.loads(Path(pkg.ROOT, source).read_bytes())
+                self.assertEqual(packaged, original, source)
+                for record in packaged["records"]:
+                    self.assertEqual(record, by_id[record["id"]], record["id"])
+                    if profile == "legacy":
+                        self.assertNotIn(record["id"], all_ids)
+                        all_ids.add(record["id"])
+        self.assertEqual(all_ids, set(by_id))
+
     def test_every_profile_reproducible(self):
         runs = []
         for label, tz, locale, mask in (("a", "UTC", "C", "022"),
