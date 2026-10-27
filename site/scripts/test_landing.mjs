@@ -3,6 +3,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { loadFieldModel } from './field_reference.mjs';
+
+const { FIELD_PERIOD } = await loadFieldModel();
 
 // Observe the native worker and scheduler without adding production diagnostics.
 // Arrays are bounded, and no transferred buffer is retained by this probe.
@@ -245,7 +248,7 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
         assert.equal(layout.canvases.length, 2, label + ': back/front canvas count');
         assert(layout.canvases.every(canvas => canvas.width <= 3072 && canvas.height <= 3072
           && canvas.pointer === 'none' && canvas.hidden === 'true'), label + ': canvas dimension/pointer/accessibility bound');
-        assert(layout.canvases.reduce((sum, canvas) => sum + canvas.width * canvas.height, 0) <= 2073600,
+        assert(layout.canvases.reduce((sum, canvas) => sum + canvas.width * canvas.height, 0) <= 1200000,
           label + ': combined backing store bound');
         assert(layout.canvases.every(canvas => canvas.width <= Math.ceil(canvas.cssWidth * 1.5)
           && canvas.height <= Math.ceil(canvas.cssHeight * 1.5)), label + ': DPR bound');
@@ -345,8 +348,8 @@ export async function testLanding({ call, evaluate, wait, origin, root, setParti
     await running();
     const resumed = await metrics();
     const resumePhase = resumed.worker.phases.slice(-(resumed.worker.sent - paused.worker.sent))[0];
-    const phaseDelta = ((resumePhase - paused.worker.phases.at(-1)) % 10 + 10) % 10;
-    assert(phaseDelta <= 0.2 || phaseDelta >= 9.9, 'resume jumped across paused time');
+    const phaseDelta = ((resumePhase - paused.worker.phases.at(-1)) % FIELD_PERIOD + FIELD_PERIOD) % FIELD_PERIOD;
+    assert(phaseDelta <= 0.2 || phaseDelta >= FIELD_PERIOD - 0.1, 'resume jumped across paused time');
     assert.equal(await evaluate(`${toggle}.getAttribute('aria-pressed')`), 'false');
 
     await evaluate('scrollTo(0, document.documentElement.scrollHeight)');
