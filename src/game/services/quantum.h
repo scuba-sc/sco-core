@@ -25,9 +25,14 @@ struct QuantumBackend {
     uint32_t hookCount = 0; // bounded to four; copied into the transaction at Start
 };
 // Serialized host-only setup, before production start; callbacks/context remain alive
-// through stop, and through process exit after a fault. No engine call occurs here.
+// through stop, and through process exit after a fault. Successful stop clears the
+// selection, including after a failed non-faulted start; hosts must configure it again
+// for another lifecycle. Stop must run on the game thread outside a callback.
 Result ConfigureProductionQuantum(const QuantumBackend& backend);
+// Default selection never replaces an explicit host selection.
+Result ConfigureImplicitQuantum(const QuantumBackend& backend);
 Result StartProductionQuantum(bool ownerCleanupReady);
+Result StartProductionQuantumWithDefault(bool ownerCleanupReady, Result (*configureDefault)());
 // Windows game pack only (quantum_engine.cpp): configures the default production backend under the
 // amended rule when every row resolves and fresh offline admission is positive right now. Otherwise
 // it leaves the empty configuration (capability OFF, no hook) and returns Unavailable.

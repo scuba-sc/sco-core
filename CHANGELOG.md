@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Preserve an explicit quantum host backend at startup, clear it after successful
+  stop, and refuse stale implicit defaults. Synthetic host tests only; not run in game.
 - Separate numbered release-candidate labels from numeric SDK versions while preserving signed promotion checks.
 
 - Add the candidate `game.asop.selection` file coordinator and public C/C++

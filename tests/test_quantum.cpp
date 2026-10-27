@@ -11,6 +11,12 @@
 #endif
 #include <cassert>
 #include <cstdio>
+#if defined(_WIN32) && defined(_M_X64)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <cstring>
+#endif
 using namespace sco::game::services;
 struct Fixture {
     QuantumObservation observation{true, true, true, SC_QUANTUM_CHARGING, 0, 125000};
@@ -23,6 +29,17 @@ bool Observe(void* ctx, QuantumObservation* out) {
 bool Apply(void* ctx, bool enabled, bool held) {
     auto& f = *static_cast<Fixture*>(ctx); ++f.changes; f.enabled = enabled; f.held = held; return !f.fail;
 }
+static Fixture defaultFixture;
+static int defaultCalls = 0;
+static sco::Result SelectDefault() {
+    ++defaultCalls;
+    return ConfigureImplicitQuantum({&defaultFixture, Observe, Apply, nullptr, 0});
+}
+static sco::Result DefaultUnavailable() { ++defaultCalls; return sco::Result::Unavailable; }
+#if defined(_WIN32) && defined(_M_X64)
+static QuantumBackend staleDefault;
+static sco::Result SelectStaleDefault() { return ConfigureImplicitQuantum(staleDefault); }
+#endif
 template<int N> void NoopRelease(const void*) {
     // Keep distinct hook identities under MSVC identical-COMDAT folding.
     static volatile int identity = N;
@@ -61,6 +78,110 @@ int main(int argc, char**) {
     StopQuantum();
     std::puts("quantum: unavailable and invalid admission fail closed");
     assert(sco::AddReleaseHook(ReleaseQuantumOwner) == sco::Result::Ok); // fixture host composition
+    // A failed start still ends the selected provider's lifetime when stopped.
+    auto* failedContext = new Fixture;
+    failedContext->observation.offline = false;
+    char failedTarget[32]{}; void* failedOriginal = nullptr;
+    QuantumHook failedHook{failedTarget, 14, failedTarget + 16, &failedOriginal};
+    assert(ConfigureProductionQuantum({failedContext, Observe, Apply, &failedHook, 1}) == sco::Result::Ok);
+    assert(StartProductionQuantumWithDefault(true, SelectDefault) == sco::Result::Unavailable);
+    assert(!sco::hook::IsHooked(failedTarget));
+    StopQuantum();
+    delete failedContext;
+    assert(StartProductionQuantumWithDefault(true, DefaultUnavailable) == sco::Result::Ok);
+    assert(!api->has("game.quantum.control"));
+    StopQuantum();
+    failedContext = new Fixture;
+    assert(ConfigureProductionQuantum({failedContext, Observe, Apply, nullptr, 0}) == sco::Result::Ok);
+    assert(sco::host::ProvideGameService(SC_QUANTUM_SERVICE_NAME, SC_QUANTUM_SERVICE_VERSION, q) == sco::Result::Ok);
+    assert(StartProductionQuantumWithDefault(true, SelectDefault) != sco::Result::Ok);
+    sco::host::WithdrawGameService(SC_QUANTUM_SERVICE_NAME);
+    StopQuantum();
+    delete failedContext;
+    assert(StartProductionQuantumWithDefault(true, DefaultUnavailable) == sco::Result::Ok);
+    assert(!api->has("game.quantum.control"));
+    StopQuantum();
+    defaultCalls = 0;
+    // Exercise the same default-selection/start path as normal game-service startup.
+    Fixture selected;
+    QuantumBackend chosen{&selected, Observe, Apply, nullptr, 0};
+    assert(ConfigureProductionQuantum(chosen) == sco::Result::Ok);
+    auto invalid = chosen; invalid.apply = nullptr;
+    assert(ConfigureProductionQuantum(invalid) == sco::Result::BadArg);
+    assert(ConfigureImplicitQuantum(invalid) == sco::Result::BadArg);
+    char defaultTarget[32]{}; void* defaultOriginal = nullptr;
+    QuantumHook defaultHook{defaultTarget, 14, defaultTarget + 16, &defaultOriginal};
+    QuantumBackend competing{&defaultFixture, Observe, Apply, &defaultHook, 1};
+    assert(ConfigureImplicitQuantum(competing) == sco::Result::Ok);
+    assert(StartProductionQuantumWithDefault(true, SelectDefault) == sco::Result::Ok);
+    assert(defaultCalls == 0 && api->has("game.quantum.control") && !sco::hook::IsHooked(defaultTarget));
+    auto* selectedOwner = sco::host::NewPlugin("quantum_selected");
+    assert(q->enable(selectedOwner, 1) == SCO_OK && selected.changes == 1);
+    assert(defaultFixture.changes == 0 && defaultFixture.observations == 0);
+    assert(ConfigureImplicitQuantum(chosen) == sco::Result::Failed);
+    StopQuantum();
+    assert(sco::Release(selectedOwner) == sco::Result::Ok);
+    // The host may release its provider context as soon as successful stop returns.
+    auto* releasedContext = new Fixture;
+    assert(ConfigureProductionQuantum({releasedContext, Observe, Apply, nullptr, 0}) == sco::Result::Ok);
+    assert(StartProductionQuantumWithDefault(true, SelectDefault) == sco::Result::Ok);
+    StopQuantum();
+    delete releasedContext;
+    assert(StartProductionQuantumWithDefault(true, DefaultUnavailable) == sco::Result::Ok);
+    assert(!api->has("game.quantum.control"));
+    StopQuantum();
+    assert(ConfigureProductionQuantum(chosen) == sco::Result::Ok);
+    assert(StartProductionQuantumWithDefault(true, SelectDefault) == sco::Result::Ok);
+    assert(api->has("game.quantum.control"));
+    StopQuantum();
+    defaultCalls = 0;
+#if defined(_WIN32) && defined(_M_X64)
+    // Executable synthetic code proves which provider owns the installed hook.
+    auto* page = static_cast<unsigned char*>(VirtualAlloc(nullptr, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+    assert(page);
+    const unsigned char code[] = {0xB8, 1, 0, 0, 0, 0xC3};
+    std::memcpy(page + 64, code, sizeof(code)); std::memcpy(page + 128, code, sizeof(code));
+    std::memcpy(page + 192, code, sizeof(code));
+    void* selectedOriginal = nullptr; void* defaultHookOriginal = nullptr;
+    QuantumHook selectedHook{page + 64, 5, page + 128, &selectedOriginal};
+    QuantumHook unusedHook{page + 192, 5, page + 128, &defaultHookOriginal};
+    chosen.hooks = &selectedHook; chosen.hookCount = 1;
+    assert(ConfigureProductionQuantum(chosen) == sco::Result::Ok);
+    QuantumBackend unused{&defaultFixture, Observe, Apply, &unusedHook, 1};
+    assert(ConfigureImplicitQuantum(unused) == sco::Result::Ok);
+    assert(StartProductionQuantumWithDefault(true, SelectDefault) == sco::Result::Ok);
+    assert(defaultCalls == 0 && sco::hook::IsHooked(page + 64) && !sco::hook::IsHooked(page + 192));
+    StopQuantum();
+    assert(!sco::hook::IsHooked(page + 64));
+    // Successful implicit start followed by failed revalidation cannot reuse its hook.
+    staleDefault = {&defaultFixture, Observe, Apply, &unusedHook, 1};
+    assert(StartProductionQuantumWithDefault(true, SelectStaleDefault) == sco::Result::Ok);
+    assert(sco::hook::IsHooked(page + 192));
+    StopQuantum();
+    assert(!sco::hook::IsHooked(page + 192));
+    assert(StartProductionQuantumWithDefault(true, DefaultUnavailable) == sco::Result::Ok);
+    assert(!api->has("game.quantum.control") && !sco::hook::IsHooked(page + 192));
+    StopQuantum();
+    defaultCalls = 0;
+    assert(VirtualFree(page, 0, MEM_RELEASE));
+#endif
+    char rejectedTarget[32]{}; void* rejectedOriginal = nullptr;
+    QuantumHook rejectedHook{rejectedTarget, 14, rejectedTarget + 16, &rejectedOriginal};
+    selected.observation.offline = false;
+    chosen.hooks = &rejectedHook; chosen.hookCount = 1;
+    assert(ConfigureProductionQuantum(chosen) == sco::Result::Ok);
+    assert(StartProductionQuantumWithDefault(false, SelectDefault) == sco::Result::Unavailable);
+    assert(StartProductionQuantumWithDefault(true, SelectDefault) == sco::Result::Unavailable);
+    assert(defaultCalls == 0 && !sco::hook::IsHooked(rejectedTarget));
+    assert(!api->has("game.quantum.control"));
+    assert(ConfigureProductionQuantum({}) == sco::Result::Ok);
+    assert(StartProductionQuantumWithDefault(true, DefaultUnavailable) == sco::Result::Ok);
+    assert(defaultCalls == 1 && !api->has("game.quantum.control"));
+    StopQuantum();
+    assert(StartProductionQuantumWithDefault(true, SelectDefault) == sco::Result::Ok);
+    assert(defaultCalls == 2 && api->has("game.quantum.control"));
+    StopQuantum();
+    assert(ConfigureProductionQuantum({}) == sco::Result::Ok);
     Fixture f;
     QuantumBackend backend{&f, Observe, Apply, nullptr, 0};
     auto malformed = backend; malformed.apply = nullptr;
@@ -73,6 +194,7 @@ int main(int argc, char**) {
     assert(!api->has("game.quantum.control"));
     assert(q->enable(a, 1) == SCO_UNAVAILABLE && f.changes == 0 && f.observations == 0);
     StopQuantum();
+    assert(ConfigureProductionQuantum(backend) == sco::Result::Ok);
     assert(sco::host::ProvideGameService(SC_QUANTUM_SERVICE_NAME, SC_QUANTUM_SERVICE_VERSION, q) == sco::Result::Ok);
     assert(StartProductionQuantum(true) != sco::Result::Ok);
     assert(!api->has("game.quantum.control"));

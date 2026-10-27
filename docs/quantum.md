@@ -32,9 +32,15 @@ is no signature-only readiness. It has never run in the game: real boost parity 
 `src/game/services/quantum.h` is private game-pack/host-source code, **not a
 plugin SDK header**. Serialized host setup may call `ConfigureProductionQuantum`
 before services start. A complete observe/apply pair is mandatory; an empty pair
-clears configuration. Replacement while started, inside a callback or after a
+clears configuration. An explicit backend takes precedence over the implicit default
+at normal startup; an implicit default can be refreshed on a later stopped-state start.
+A selected backend that cannot start is not replaced by a fallback. Successful stop clears
+the selection, including after a non-faulted failed start; hosts must register again for
+another lifecycle. Stop must run on the game thread outside a callback. A failed implicit refresh
+leaves the service unavailable. Replacement while started, inside a callback or after a
 restart-required fault is refused. Configuration performs no engine call.
-`spatial.cpp` calls `StartProductionQuantum(SpawnReleaseHooked())`, so actual
+`spatial.cpp` starts through `StartProductionQuantumWithDefault`, passing
+`SpawnReleaseHooked()`, so actual
 shared dispatcher installation gates mutation and hook installation; merely
 having a release-dispatch function compiled is insufficient. Standalone fixture
 hosts must install the forwarder before asserting cleanup readiness.

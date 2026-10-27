@@ -170,7 +170,7 @@ Result ConfigureDefaultProductionQuantum() {
     g_hooks[0] = { Sig("quantum.start_use"), 5, reinterpret_cast<void*>(&StartUseHook), reinterpret_cast<void**>(&g_startUse) };
     g_hooks[1] = { Sig("quantum.charge"), 5, reinterpret_cast<void*>(&ChargeHook), reinterpret_cast<void**>(&g_charge) };
     g_hooks[2] = { Sig("quantum.effect_update"), 8, reinterpret_cast<void*>(&EffectUpdateHook), reinterpret_cast<void**>(&g_effectUpdate) };
-    return ConfigureProductionQuantum(MakeOwnedQuantumBackend(g_owner, g_hooks, 3));
+    return ConfigureImplicitQuantum(MakeOwnedQuantumBackend(g_owner, g_hooks, 3));
 }
 
 }
