@@ -310,6 +310,11 @@ or approval to publish.
 
 ### Candidate identity and final release
 
+For `sdk-v2.4.0-rc.2` only, the owner deferred in-game validation. Report **not run
+in game**; this is not a passing test or evidence of native behavior. The deferral
+does not decide final 2.4.0 acceptance or alter the other candidate, provenance,
+signature, source identity or artifact-hash requirements below.
+
 The candidate label may be `sdk-v<SDK version>-rc.<positive number>`, for example
 `sdk-v2.4.0-rc.2`. `sdk/VERSION`, archive names, game-pack version and plugin ABI
 remain their numeric coordinates. The documentation gate checks the final version's
