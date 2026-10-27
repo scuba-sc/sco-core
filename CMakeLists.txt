@@ -162,6 +162,11 @@ if(SCO_GAME_SC)
     add_test(NAME test_datacore_live_engine_fault_record COMMAND test_datacore_live_engine fault-record)
   endif()
 
+    add_executable(test_reward_consumer tests/test_reward_consumer.cpp src/game/services/container_contents.cpp)
+    target_link_libraries(test_reward_consumer PRIVATE sco_offline_missions)
+    sco_project_target(test_reward_consumer)
+    add_test(NAME reward_consumer COMMAND test_reward_consumer)
+
     add_executable(test_offline_missions tests/test_offline_missions.cpp)
     target_link_libraries(test_offline_missions PRIVATE sco_offline_missions)
     sco_project_target(test_offline_missions)
