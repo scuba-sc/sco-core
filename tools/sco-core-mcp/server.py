@@ -174,7 +174,7 @@ def tool(name, description, properties=None, required=(), dependent=None):
 SYMBOL = {"symbol_or_id": string_schema()}
 LANGUAGE = {"type": "string", "enum": list(LANGUAGES)}
 TOOLS = [
-    tool("search_api", "Rank contracts by symbol, stable ID, service, purpose and source-derived aliases.",
+    tool("search_api", "Rank contracts by symbol, stable ID, service, purpose and discovery aliases; a match does not establish provider availability.",
          {"query": string_schema(), "language": LANGUAGE, "service": string_schema(),
           "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10}}, ("query",)),
     tool("get_symbol", "Return the complete contract, table narrative and catalogue reading context.", SYMBOL, ("symbol_or_id",)),
@@ -1639,10 +1639,35 @@ class DevTools:
             "passed": run["state"] == "completed" and run["exit_code"] == 0})
 
 
+WORKFLOW_ALIASES = {
+    # Discovery hints for the public build-preview workflow, not API declarations
+    # or evidence of provider availability. See docs/design/prefabs.md and
+    # docs/design/world-control.md. Apply only to records actually in the kit.
+    "sc_world_control_v1.raycast_filtered": "building preview aim filtered ray",
+    "sc_world_control_v1.camera_acquire": "building preview camera acquire",
+    "sc_world_control_v1.camera_step": "building preview camera step",
+    "sc_world_control_v1.camera_release": "building preview camera cleanup",
+    "sc_prefabs_v1.spawn": "building preview prefab spawn",
+    "sc_entities_v1.spawn": "building preview entity spawn",
+    "sc_entities_v1.set_transform": "building preview move transform",
+    "sc_entities_v1.despawn": "building preview cleanup removal",
+    "sc_owned_v1.retain_build": "building preview placement retain",
+    "sc_owned_v1.remove_build": "building preview placement removal",
+    "sc_spawn_service_v1.class_exists": "building preview entity class lookup",
+    "sc_world_v1.camera": "building preview camera read",
+    "sc_world_v1.raycast": "building preview ground raycast",
+    "sc_spatial_v1.player_pose": "building preview player pose",
+    "sc_spatial_v1.world_to_local": "building preview coordinate conversion",
+    "sc_spatial_v1.local_to_world": "building preview coordinate conversion",
+}
+
+
 def aliases(record):
     # Schema 1 has no aliases field: derive searchable names from source evidence,
     # retaining the full original mapping evidence in get_symbol.
     result = {record["symbol"].rsplit(".", 1)[-1], record["id"].replace("-", "_")}
+    if record["symbol"] in WORKFLOW_ALIASES:
+        result.add(WORKFLOW_ALIASES[record["symbol"]])
     for mapping in record["language_mappings"].values():
         for evidence in mapping["evidence"]:
             result.update(re.findall(r"\b([A-Za-z_]\w*)\s*\(", evidence["token"]))

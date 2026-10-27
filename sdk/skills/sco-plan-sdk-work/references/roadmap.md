@@ -5,7 +5,7 @@ Read this reference when selecting or revising a work item. The authoritative di
 ## Resolve authority and scope
 
 1. Preserve the user's requested outcome and any named issue, owner, handoff or explicit deferral.
-2. Record the SDK release/archive/source and the product/host revision independently. Bundle 0.2.1 was authored against SDK 2.4.0; published RC bytes, current source and final approval are distinct.
+2. Record the SDK release/archive/source and the product/host revision independently. Resolve this bundle's baseline from its manifest; published bytes, current source and any final approval are distinct.
 3. Load the current roadmap at that source. Use `search_guides` and `get_guide_section` when available, retaining their returned provenance and completing truncated sections. Otherwise read the selected public files. If the roadmap is unavailable, continue independently specified work and mark roadmap mapping unresolved; do not invent the missing text.
 4. Check relevant release scope, service status and contract records. An older planning record such as `docs/framework.md` is not live issue or product state. A task issue or newer human decision can change direction; record the decision/source and the difference without silently changing the pinned SDK truth.
 5. Identify an existing roadmap milestone/section and its concrete objective. A general aspiration is not a completed feature. Preserve issue acceptance criteria and explicit owner deferrals; an SDK bump does not implicitly include deferred native implementation.

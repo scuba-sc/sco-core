@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "bundle_version": "0.2.1",
+  "bundle_version": "0.2.2",
   "baseline_sdk": "2.4.0",
   "skills": [
     {
@@ -32,7 +32,9 @@
     },
     {
       "id": "sco-report-sdk-gap",
-      "resources": []
+      "resources": [
+        "references/report-template.md"
+      ]
     }
   ]
 }

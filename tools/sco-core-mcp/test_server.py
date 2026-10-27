@@ -553,6 +553,18 @@ class ToolTests(ServerCase):
         self.assertIs(data["coordinate_matches"]["sdk_version"], False)
         self.assertIs(data["coordinate_matches"]["game_pack_version"], False)
 
+    def test_version_identity_is_not_provider_compatibility(self):
+        client = self.start()
+        for version, expected in (("1.0.0", False), ("1.1.0", True), ("9.9.9", False)):
+            with self.subTest(version=version):
+                result = self.result(client.call("check_compatibility", {"sdk_version": version}))
+                self.assertIs(result["coordinate_matches"]["sdk_version"], expected)
+                self.assertNotIn("service_table", result)
+                self.assertTrue(any("not" in conclusion.lower() for conclusion in result["conclusions"]))
+        absent = self.result(client.call("check_compatibility", {}))
+        self.assertNotIn("sdk_version", absent["requested"])
+        self.assertNotIn("service_table", absent)
+
 
 class ArgumentTests(ServerCase):
     def test_missing_search_query(self):
@@ -1966,6 +1978,38 @@ class GuideTests(ServerCase):
 
 
 class BuildIntegrationTests(ServerCase):
+    def test_building_preview_discovery_preserves_contract_limits(self):
+        override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")
+        path = Path(override) if override else ROOT / "dist/sdk-catalogue.json"
+        if not path.is_file():
+            self.skipTest("No build catalogue; build one or set SCO_CORE_MCP_TEST_CATALOGUE")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        client = self.start(catalogue=path, repo_root=ROOT)
+        found = self.result(client.call("search_api", {"query": "building preview", "limit": 50}), data=data)
+        symbols = {item["symbol"] for item in found["records"]}
+        expected = {"sc_world_control_v1.raycast_filtered", "sc_world_control_v1.camera_acquire",
+                    "sc_world_control_v1.camera_step", "sc_world_control_v1.camera_release",
+                    "sc_prefabs_v1.spawn", "sc_entities_v1.spawn", "sc_entities_v1.set_transform",
+                    "sc_entities_v1.despawn", "sc_owned_v1.retain_build", "sc_owned_v1.remove_build",
+                    "sc_spawn_service_v1.class_exists", "sc_world_v1.camera", "sc_world_v1.raycast",
+                    "sc_spatial_v1.player_pose", "sc_spatial_v1.world_to_local", "sc_spatial_v1.local_to_world"}
+        self.assertTrue(expected <= symbols)
+        cleanup = self.result(client.call("search_api", {"query": "building preview cleanup", "limit": 50}), data=data)
+        self.assertLessEqual({"sc_world_control_v1.camera_release", "sc_entities_v1.despawn"},
+                             {item["symbol"] for item in cleanup["records"]})
+        ray = self.result(client.call("get_symbol", {"symbol_or_id": "sc_world_control_v1.raycast_filtered"}), data=data)
+        self.assertIn("OFF", ray["record"]["purpose"])
+        self.assertIn("absent", " ".join(ray["record"]["limitations"]).lower())
+        self.assertEqual(ray["record"]["language_mappings"]["lua"]["status"], "unsupported")
+        status = self.result(client.call("get_capability_status", {"symbol_or_id": "sc_world_control_v1.raycast_filtered"}), data=data)
+        evidence = status["evidence_state"]
+        row = next(row for row in evidence["service_status"]["rows"] if row["name"] == "game.world.raycast_filtered")
+        self.assertEqual((row["default"], row["registry_evidence_level"]), ("OFF", "synthetic_only"))
+        self.assertIn("no verified offline engine adapter", row["evidence"])
+        self.assertEqual(evidence["gameplay_receipt"]["state"], "unknown")
+        lua = self.result(client.call("search_api", {"query": "building preview", "language": "lua", "limit": 50}), data=data)
+        self.assertNotIn("sc_world_control_v1.raycast_filtered", {item["symbol"] for item in lua["records"]})
+
     def test_actual_build_catalogue_mcp_transcript(self):
         override = os.environ.get("SCO_CORE_MCP_TEST_CATALOGUE")
         path = Path(override) if override else ROOT / "dist/sdk-catalogue.json"

@@ -43,8 +43,25 @@ class Inputs(unittest.TestCase):
         a = workflows.build(self.root, SHA)
         self.assertEqual(workflows.encoded(a), workflows.encoded(workflows.build(self.root, SHA)))
         self.assertEqual(len(a['workflows']), 6)
-        self.assertEqual(sum(len(i['files']) for i in a['workflows']), 10)
+        self.assertEqual(sum(len(i['files']) for i in a['workflows']), 11)
         self.assertEqual(a['content_sha256'], workflows.digest(workflows.encoded(a['workflows'])))
+
+    def test_gap_report_index_tracks_selected_sdk_not_bundle_baseline(self):
+        # Old, current, and unknown future SDK versions retain the same report schema;
+        # the consumer supplies actual identities or marks them unknown in the draft.
+        for version in ('2.3.0', '2.4.0', '9.7.1'):
+            with self.subTest(version=version):
+                (self.root / 'sdk/VERSION').write_text(version + '\n')
+                index = workflows.build(self.root, SHA)
+                self.assertEqual(index['sdk_version'], version)
+                for workflow in index['workflows']:
+                    entry = next(f for f in workflow['files'] if f['path'] == workflow['entry'])
+                    self.assertIn('references/inputs.md', entry['text'])
+                gap = next(w for w in index['workflows'] if w['id'] == 'sco-report-sdk-gap')
+                template = next(f for f in gap['files'] if f['path'].endswith('/references/report-template.md'))
+                self.assertIn('sco-sdk-gap-report/v1', template['text'])
+                self.assertIn('unknown', template['text'])
+                self.assertIn('negotiated tool/schema', template['text'])
 
     def test_crlf_checkout_preserves_source_and_packaged_bytes(self):
         originals = {}
@@ -62,7 +79,7 @@ class Inputs(unittest.TestCase):
         for mode, index in (('source', source), ('archive', archive)):
             with self.subTest(mode=mode):
                 self.assertEqual(len(index['workflows']), 6)
-                self.assertEqual(sum(len(item['files']) for item in index['workflows']), 10)
+                self.assertEqual(sum(len(item['files']) for item in index['workflows']), 11)
                 for item in index['workflows']:
                     for record in item['files']:
                         raw = originals[record['path']] if mode == 'source' else packaged[record['path']][0]
