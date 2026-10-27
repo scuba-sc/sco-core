@@ -137,6 +137,13 @@ availability or game acceptance.
 
 The bus event `game.loadout.respawn_completed` is also on `main`: production capability OFF, native hook unresolved, not run in game (F-INTAKE-004). #185's in-game hold was resolved by the owner's acceptance of static evidence; inventory 1.1 is **not run in game**.
 
+### RC2 in-game evidence
+
+For the proposed `sdk-v2.4.0-rc.2` candidate, the owner deferred in-game
+validation. **Not run in game** remains the result; this is not a test pass or
+proof of native behavior. This candidate-only decision does not establish final
+2.4.0 acceptance or waive the other release and provenance checks.
+
 ### Steps to the final release
 
 Step 3 produced release candidate 1: the release-candidate workflow ran on `main` commit

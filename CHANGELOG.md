@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Record the owner’s RC2 in-game validation deferral; no native or game behavior is certified.
+
 - Add a synthetic cross-service reward consumer fixture; no native reward or item delivery is enabled. Not run in game.
 
 - Preserve an explicit quantum host backend at startup, clear it after successful
