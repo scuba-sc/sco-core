@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Add synthetic coverage for audio owner cleanup failures and retry.
+
 - Record the owner’s RC2 in-game validation deferral; no native or game behavior is certified.
 
 - Add a synthetic cross-service reward consumer fixture; no native reward or item delivery is enabled. Not run in game.
