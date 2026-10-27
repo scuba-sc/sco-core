@@ -63,16 +63,18 @@ struct Fake {
 // Deliberately conservative, test-only persistence model; no claim of durable storage integration.
 struct Journal {
     enum Stage { Empty, Intent, Paid, Unknown } stage = Empty, committed = Empty;
-    uint64_t session = 0;
+    uint64_t session = 0, mission = 0, offer = 0, generation = 0;
     sc_economy_request request{};
     sc_economy_receipt receipt{};
     bool fail_intent_commit = false, fail_receipt_commit = false;
     Journal Restore() const {
         Journal copy = *this; copy.stage = committed == Intent ? Unknown : committed; return copy;
     }
-    bool CommitIntent(uint64_t current_session, const sc_economy_request& next) {
+    bool CommitIntent(uint64_t current_session, uint64_t current_mission, uint64_t current_offer,
+                      uint64_t current_generation, const sc_economy_request& next) {
         if (fail_intent_commit) return false;
-        session = current_session; request = next; stage = committed = Intent; return true;
+        session = current_session; mission = current_mission; offer = current_offer; generation = current_generation;
+        request = next; stage = committed = Intent; return true;
     }
     bool CommitReceipt(const sc_economy_receipt& next) {
         if (fail_receipt_commit) return false;
@@ -114,14 +116,17 @@ struct Consumer {
         auto r = missions->status(owner, mission, &status);
         if (r != SCO_OK) return r;
         if (status.session != session || status.offer_id != owned_offer || status.state != SC_MISSION_COMPLETED) return SCO_FAILED;
-        if (journal.stage != Journal::Empty && journal.session != session) { journal.stage = Journal::Unknown; return SCO_FAILED; }
+        if (journal.stage != Journal::Empty && (journal.session != session || journal.mission != mission ||
+            journal.offer != owned_offer || journal.generation != owned_generation)) {
+            journal.stage = Journal::Unknown; return SCO_FAILED;
+        }
         if (journal.stage == Journal::Paid) return SCO_OK;
         if (journal.stage == Journal::Unknown) return SCO_FAILED;
         if (journal.stage == Journal::Empty) {
             sc_economy_balance balance{}; balance.size = sizeof(balance);
             if ((r = economy->balance(owner, &balance)) != SCO_OK) return r;
             const sc_economy_request request{sizeof(sc_economy_request), 0, 100, balance.local_balance, 20};
-            if (!journal.CommitIntent(session, request)) return SCO_FAILED;
+            if (!journal.CommitIntent(session, mission, owned_offer, owned_generation, request)) return SCO_FAILED;
         }
         sc_economy_receipt receipt{}; receipt.size = sizeof(receipt);
         r = economy->apply(owner, &journal.request, &receipt);
@@ -199,7 +204,7 @@ int main() {
     CHECK(Unsubscribe(self, SC_ECONOMY_TRANSACTION_EVENT, Signals::Event) == Result::Ok);
     f.admission.offline = false; CHECK(consumer.Reward(id, 1) == SCO_UNAVAILABLE && f.payments == 1); f.admission.offline = true;
     Journal paid_restore = journal.Restore(); CHECK(paid_restore.stage == Journal::Paid);
-    Journal pre_effect; CHECK(pre_effect.CommitIntent(1, {sizeof(sc_economy_request), 0, 104, 70, 1}));
+    Journal pre_effect; CHECK(pre_effect.CommitIntent(1, id, offer.offer_id, offer.generation, {sizeof(sc_economy_request), 0, 104, 70, 1}));
     Journal pre_restore = pre_effect.Restore(); CHECK(pre_restore.stage == Journal::Unknown);
     Journal refused; refused.fail_intent_commit = true; Consumer no_commit{api, self, refused}; no_commit.BindAccepted(id, offer, 1);
     CHECK(no_commit.Reward(id, 1) == SCO_FAILED && f.payments == 1 && refused.stage == Journal::Empty);
@@ -233,12 +238,12 @@ int main() {
     CHECK(foreign_consumer.Reward(id, 1) == SCO_NOT_FOUND && f.payments == 1);
     CHECK(Release(foreign) == Result::Ok);
     // A stale expected balance is refused before any backend payment attempt.
-    Journal mismatch; CHECK(mismatch.CommitIntent(1, {sizeof(sc_economy_request), 0, 103, 69, 2}));
+    Journal mismatch; CHECK(mismatch.CommitIntent(1, id, offer.offer_id, offer.generation, {sizeof(sc_economy_request), 0, 103, 69, 2}));
     Consumer stale{api, self, mismatch}; stale.BindAccepted(id, offer, 1); CHECK(stale.Open());
     CHECK(stale.Reward(id, 1) == SCO_FAILED && f.payments == 1 && mismatch.stage == Journal::Unknown);
     CHECK(stale.economy->receipt(self, 103, &receipt) == SCO_NOT_FOUND);
     // Simulate a committed intent whose external effect was attempted but returned failure.
-    Journal uncertain; CHECK(uncertain.CommitIntent(1, {sizeof(sc_economy_request), 0, 101, 70, 5}));
+    Journal uncertain; CHECK(uncertain.CommitIntent(1, id, offer.offer_id, offer.generation, {sizeof(sc_economy_request), 0, 101, 70, 5}));
     Consumer other{api, self, uncertain}; other.BindAccepted(id, offer, 1); CHECK(other.Open()); f.uncertain = true;
     CHECK(other.Reward(id, 1) == SCO_FAILED && f.payments == 2 && f.balance == 75);
     CHECK(other.Reward(id, 1) == SCO_FAILED && f.payments == 2);
@@ -246,9 +251,16 @@ int main() {
     f.uncertain = false;
     Journal lost; lost.fail_receipt_commit = true; Consumer third{api, self, lost}; third.BindAccepted(id, offer, 1); CHECK(third.Open());
     // Different key avoids collision with the first synthetic reward.
-    CHECK(lost.CommitIntent(1, {sizeof(sc_economy_request), 0, 102, 75, 20}));
+    CHECK(lost.CommitIntent(1, id, offer.offer_id, offer.generation, {sizeof(sc_economy_request), 0, 102, 75, 20}));
     CHECK(third.Reward(id, 1) == SCO_FAILED && f.payments == 3 && lost.stage == Journal::Unknown);
     CHECK(third.economy->receipt(self, 102, &receipt) == SCO_OK && receipt.after == 95);
+    // A second completed mission in the same session must not inherit the first paid record.
+    f.state = SC_MISSION_ACTIVE; f.objective = 0; uint64_t second = 0;
+    CHECK(consumer.missions->accept(self, &offer, 8, &second) == SCO_OK && second != id);
+    CHECK(consumer.missions->objective(self, second, 0, 0) == SCO_OK);
+    CHECK(consumer.missions->advance(self, second, 0) == SCO_OK);
+    Consumer second_consumer{api, self, journal}; second_consumer.BindAccepted(second, offer, 1);
+    CHECK(second_consumer.Reward(second, 1) == SCO_FAILED && f.payments == 3);
     // Restore only the fake committed state under a new session and owner: it is not proof of payment.
     Journal restored = lost.Restore(); CHECK(restored.stage == Journal::Unknown);
     CHECK(Release(self) == Result::Ok);
@@ -263,13 +275,20 @@ int main() {
     after_restart.BindAccepted(new_id, again, 1); f.state = SC_MISSION_COMPLETED;
     CHECK(after_restart.Reward(new_id, 1) == SCO_FAILED && f.payments == 3);
     f.admission.session = 2;
-    CHECK(after_restart.Reward(id, 2) == SCO_NOT_FOUND && f.payments == 3);
-    Consumer before_restart{api, replacement, pre_restore}; CHECK(before_restart.Reward(id, 2) == SCO_NOT_FOUND && f.payments == 3);
-    Consumer paid_restart{api, replacement, paid_restore}; CHECK(paid_restart.Reward(id, 2) == SCO_NOT_FOUND && f.payments == 3);
     f.state = SC_MISSION_ACTIVE; f.objective = 0;
     sc_mission_offer fresh{}; fresh.size = sizeof(fresh); uint64_t active = 0;
     CHECK(after_restart.missions->offer(replacement, 0, &fresh) == SCO_OK);
     CHECK(after_restart.missions->accept(replacement, &fresh, 2, &active) == SCO_OK);
+    CHECK(after_restart.missions->objective(replacement, active, 0, 0) == SCO_OK);
+    CHECK(after_restart.missions->advance(replacement, active, 0) == SCO_OK);
+    after_restart.BindAccepted(active, fresh, 2);
+    CHECK(after_restart.Reward(active, 2) == SCO_FAILED && f.payments == 3);
+    Consumer before_restart{api, replacement, pre_restore}; before_restart.BindAccepted(active, fresh, 2);
+    CHECK(before_restart.Reward(active, 2) == SCO_FAILED && f.payments == 3);
+    Consumer paid_restart{api, replacement, paid_restore}; paid_restart.BindAccepted(active, fresh, 2);
+    CHECK(paid_restart.Reward(active, 2) == SCO_FAILED && f.payments == 3);
+    f.state = SC_MISSION_ACTIVE; f.objective = 0; uint64_t cleanup = 0;
+    CHECK(after_restart.missions->accept(replacement, &fresh, 3, &cleanup) == SCO_OK);
     C::StopContainerContents(); CHECK(Release(replacement) == Result::Ok && f.abandons == 1); CHECK(M::Stop() == Result::Ok);
     std::puts("reward consumer: PASS (synthetic policy and providers; no game)");
 }
