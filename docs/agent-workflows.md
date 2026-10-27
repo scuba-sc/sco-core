@@ -1,6 +1,6 @@
 # Consumer workflows for agents
 
-The SDK ships six focused skills for developers building extensions. Bundle **0.2.1** targets the **SDK 2.4.0** baseline; this source addition does not modify the already published RC1 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
+Current source contains six focused skills for developers building extensions, targeting the **SDK 2.4.0** baseline. Check the selected kit’s workflow manifest and index for the actual bundle version and source identity; source changes do not modify the already published RC1 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
 
 | Task | Entrypoint |
 | --- | --- |
@@ -25,7 +25,7 @@ python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json
 
 The catalogue and workflow index must have exactly matching SDK/source coordinates; a missing, oversized, malformed, hash-inconsistent or mismatched index refuses startup when an index is supplied or present. If the default index is missing, the workflow tools remain listed and return a precise unavailable error. The operator can select an index with `--workflows <file>`. Tool calls cannot select arbitrary filesystem files: `get_workflow` serves only embedded indexed text. `list_workflows {}` returns IDs/descriptions/entry paths; `get_workflow {"id":"sco-build-check-package"}` reads the entrypoint and lists resource paths/hashes. Pass a returned `path` with that ID to read one reference. Cross-workflow links are resolved by requesting the linked workflow's ID.
 
-Use `--minimal-tools` for the original six catalogue tools. The old `--extended-tools` and `--workflow-tools` flags remain compatibility aliases. Local build/check tools are offered when an operator configures `--project-root`; fixed commands, confinement and resource limits still apply. Runtime inspection retains its independent admission requirements. Core-only plugin kits have the skill files/index but no catalogue/server; direct file reading works. Combined or core+game-sc kits support MCP discovery. Core-source/host-source are distinct source build inputs.
+Use `--minimal-tools` for the original six catalogue tools. The old `--extended-tools` and `--workflow-tools` flags remain compatibility aliases. Local build/check tools are offered when an operator configures `--project-root`; fixed commands, confinement and resource limits still apply. Runtime inspection retains its independent admission requirements. Check the selected archive inventory for its catalogue, server and workflow bundle; direct skill-file reading is independent of MCP availability. Combined or matching core+game-sc kits support MCP discovery. Core-source/host-source are distinct source build inputs.
 
 For a source checkout, build a matching catalogue using its existing instructions, then:
 
