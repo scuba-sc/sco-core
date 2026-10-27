@@ -303,7 +303,7 @@ SHARED_ASAN_SOURCES=(
   "$ROOT/src/game/services/inventory.cpp" "$ROOT/src/game/services/inventory_layout.cpp"
   "$ROOT/src/game/services/relocation.cpp" "$ROOT/src/game/admission.cpp"
   "$ROOT/src/game/services/container_contents.cpp" "$ROOT/src/game/services/offline_missions.cpp"
-  "$ROOT/src/game/services/audio.cpp" "$ROOT/src/game/services/world_control.cpp"
+  "$ROOT/src/game/services/audio.cpp" "$ROOT/src/game/services/world_control.cpp" "$ROOT/src/game/services/owned.cpp"
   "$ROOT/src/game/services/entity_lookup.cpp"
   "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
   "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "${DATACORE[@]}" "${PLUGINS[@]}"
@@ -395,6 +395,9 @@ done
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_world_control.cpp" \
   $(obj asan "$ROOT/src/game/services/world_control.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_world_control"
 "$OUT/test_world_control"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_preview_workflow.cpp" \
+  $(obj asan "$ROOT/src/game/services/world_control.cpp" "$ROOT/src/game/services/owned.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_preview_workflow"
+"$OUT/test_preview_workflow"
 "$CXX" "${FLAGS[@]}" "$ROOT/tests/test_actor_condition_map.cpp" -o "$OUT/test_actor_condition_map"
 "$OUT/test_actor_condition_map"
 "$CC" -std=c11 "${ABI[@]}" "$ROOT/tests/abi_game_input.c"

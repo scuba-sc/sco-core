@@ -8978,6 +8978,30 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-tests-preview_workflow_consumer.h",
+      "source": "tests/preview_workflow_consumer.h",
+      "destination": "tests/preview_workflow_consumer.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-tests-test_preview_workflow.cpp",
+      "source": "tests/test_preview_workflow.cpp",
+      "destination": "tests/test_preview_workflow.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-tests-test_owned_removal.cpp",
       "source": "tests/test_owned_removal.cpp",
       "destination": "tests/test_owned_removal.cpp",
