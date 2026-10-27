@@ -22,8 +22,12 @@ extents, sizes, service names and versions, reusing `tools/abi_snapshot.py` for 
 frozen root table. The gate also compiles the C declarations printed in the rows.
 No header or ABI pin is generated or changed. These checks prove inventory/layout
 and source-backed language exposure, not runtime behavior or game verification.
-The combined core/game records are repository metadata, excluded from SDK package
-profiles by `sdk/components.json`; CI publishes the built catalogue as evidence.
+The SDK profiles ship per-method records for their selected public headers: neutral
+records with core, game records with game-sc, and both in combined or host-source
+kits. Plugin kits place them under `contracts/`; source kits retain `sdk/contracts/`.
+Repository-relative evidence and test references identify source context and are
+not a guarantee that those paths are present in a kit. CI also publishes the built
+catalogue as evidence.
 
 ### Machine format (schema 1)
 
