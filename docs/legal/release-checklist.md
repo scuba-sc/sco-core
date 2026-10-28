@@ -35,8 +35,8 @@ CI creates a tag. Candidate generation and public promotion are separate operati
 
 - [ ] **F:** the CHANGELOG section and the README describe what ships (core vs. extension) and claim no more than the checks show.
 - [ ] **B:** inspect the exact files selected for each candidate profile. Every shipped `needs-review` file requires an applicable maintainer decision in `docs/legal/release-decisions/`, or exclusion from that profile. Current source and generated catalogue metadata include pending review; historical decisions for earlier versions do not approve new candidate bytes. A passing repository or ZIP audit establishes structural coverage, not provenance clearance. Check the packaged attribution inventory, not an exclusion description alone.
-- [ ] **D:** counsel has reviewed the plugin-licence wording ([option A, chosen 2026-10-11](release-decisions/2026-10-11-plugin-licence.md)), or the release states nothing stronger than it.
-- [ ] **G:** the maintainer checks the source commit, candidate run, artifact IDs and every file hash, and qualified counsel reviews any open material legal question.
+- [ ] **D:** the release states nothing stronger than the plugin-licence wording in [option A](release-decisions/2026-10-11-plugin-licence.md).
+- [ ] **G:** the maintainer checks the source commit, candidate run, artifact IDs and every file hash, and records the distribution decision.
 - [ ] **G:** the maintainer signs and commits the approval record, then tags. Publishing is a separate act from CI going green.
 - [ ] **H:** before dispatching the candidate, the release notes describe the declared profiles in prose as well as in the scope block, and `docs/getting-started.md` walks through the new archives. The gate compares coordinates and refuses scope denials; it does not judge whether the prose is accurate.
 - [ ] **I:** after publication, the documentation deployed to GitHub Pages is from the published commit, and the public release-notes and getting-started routes show the published versions and profiles. Gate H checks the source, not the deployed site.

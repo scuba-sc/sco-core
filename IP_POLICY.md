@@ -1,8 +1,7 @@
 # IP policy
 
 How sco-core keeps track of where its code comes from and what it may distribute. It is an
-engineering policy, not legal advice; questions it can't settle go to the maintainer and, where they
-matter, to qualified counsel.
+engineering policy, not legal advice; the maintainer decides release readiness.
 
 ## Licence
 
@@ -17,7 +16,7 @@ matter, to qualified counsel.
   headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms; whether the
   GPL applies to a particular plugin depends on how it is built and on applicable law. This is option A
   of [docs/legal/plugin-licensing-options.md](docs/legal/plugin-licensing-options.md), chosen by the
-  maintainer on 2026-10-11 and pending counsel's review ([decision](docs/legal/release-decisions/2026-10-11-plugin-licence.md)).
+  maintainer on 2026-10-11 ([decision](docs/legal/release-decisions/2026-10-11-plugin-licence.md)).
 
 ## Copyright holder
 

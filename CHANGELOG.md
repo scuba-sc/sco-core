@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Keep release decisions with the maintainer while preserving exact-file review and signed promotion checks.
+
 - Drain deferred audio owner cleanup after one-shot faults and nested releases, with bounded failure handling.
 
 - Guard mission-event polling against callback faults, reentry, shutdown and stale

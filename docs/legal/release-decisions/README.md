@@ -30,7 +30,7 @@ Two kinds of file live here:
 | Decision | Date | Status |
 |---|---|---|
 | [Example data: synthetic names](2026-10-11-example-data.md) (F-08, F-09) | 2026-10-11 | Done |
-| [Plugin licence: option A](2026-10-11-plugin-licence.md) (F-13) | 2026-10-11 | Wording in place; counsel review pending |
+| [Plugin licence: option A](2026-10-11-plugin-licence.md) (F-13) | 2026-10-11 | Wording in place |
 | [Contribution rights](2026-10-12-contribution-rights.md) (P05-03) | 2026-10-12 | Approved |
 | [Star Citizen overlay package](2026-10-12-game-overlay.md) (P05-06) | 2026-10-12 | Approved |
 | [Game implementation](2026-10-12-game-implementation.md) (P05-07) | 2026-10-12 | Option A: export on hold, in no SDK profile |

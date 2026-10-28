@@ -174,7 +174,7 @@ Step 3 produced release candidate 1: the release-candidate workflow ran on `main
 3. The designated human owner/operator dispatches `release-candidate.yml` on the exact fully green main commit. Local ZIP generation is separate from that candidate and its attestations.
 4. Human acts: the provenance decisions are recorded
    ([2.4.0 decisions](../legal/release-decisions/2026-10-21-sdk-v2.4.0-scope.md)); the signed
-   approval, counsel review, the final `sdk-v2.4.0` tag and its publication remain. None of them is done here.
+   approval, the final `sdk-v2.4.0` tag and its publication remain. None of them is done here.
 
 
 ## Coordinates and distribution
