@@ -305,6 +305,25 @@ class Negative(unittest.TestCase):
         self.assertIn(needle, out)
 
     # Repository.
+    def test_needs_review_requires_no_per_file_release_decision(self):
+        s = self.scratch()
+        def mark_pending(doc):
+            audit.match(doc["entries"], "include/sco_api.h")["status"] = "needs-review"
+        s.edit_json(audit.PROVENANCE, mark_pending)
+        code, out = run("repo", root=s.dir)
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("release decision", out)
+        archive = package(s.dir, "core", os.path.join(self.out, "pending"))
+        code, out = run("zip", archive, "--profile", "core", root=s.dir)
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("release decision", out)
+        with zipfile.ZipFile(archive) as z:
+            name, = [n for n in z.namelist() if n.endswith("/ATTRIBUTIONS.json")]
+            records = json.loads(z.read(name))["files"]
+        record, = [r for r in records if r["source"] == "include/sco_api.h"]
+        self.assertEqual(record["status"], "needs-review")
+        self.assertTrue(record["license"] and record["copyright"])
+
     def test_unclassified_file(self):
         s = self.scratch()
         s.edit_json(audit.PROVENANCE, lambda d: d["entries"].__setitem__(slice(None),
@@ -317,6 +336,13 @@ class Negative(unittest.TestCase):
         code, out = run("repo", root=s.dir)
         self.assertEqual(code, 2, out)
         self.assertIn("unknown origin", out)
+
+    def test_unknown_status(self):
+        s = self.scratch()
+        s.edit_json(audit.PROVENANCE, lambda d: d["entries"][-1].__setitem__("status", "unknown"))
+        code, out = run("repo", root=s.dir)
+        self.assertEqual(code, 2, out)
+        self.assertIn("unknown status", out)
 
     def test_unresolved_provenance(self):
         s = self.scratch()

@@ -57,6 +57,7 @@ MANIFEST = os.path.join(SDK, "components.json")
 REPO_URL = "https://github.com/scuba-sc/sco-core/"
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 ORIGINS = {"project-authored", "third-party", "generated", "interoperability-derived"}
+PROVENANCE_STATUSES = {"reviewed", "needs-review", "unresolved"}
 REQUIRED = ("id", "source", "destination", "profiles", "origin", "license")
 COMPONENT_KEYS = REQUIRED + ("public_header", "group", "note", "upstream")
 
@@ -581,7 +582,14 @@ def attributions(m, profile):
         e = next((e for e in provenance if
                   (src.startswith(e["path"][:-2]) if e["path"].endswith("/**") else
                    fnmatch.fnmatchcase(src, e["path"]) and ("/" in e["path"] or "/" not in src))), None)
-        if e is None or e["status"] == "unresolved":
+        if e is None:
+            raise ManifestError(f"{src}: missing or unresolved provenance")
+        for field in ("origin", "license", "copyright", "status"):
+            if not isinstance(e.get(field), str) or not e[field].strip():
+                raise ManifestError(f"{src}: provenance lacks {field}")
+        if e["status"] not in PROVENANCE_STATUSES:
+            raise ManifestError(f"{src}: unknown provenance status {e['status']!r}")
+        if e["status"] == "unresolved":
             raise ManifestError(f"{src}: missing or unresolved provenance")
         if e["license"] != c["license"] or e["origin"] != c["origin"]:
             raise ManifestError(f"{src}: manifest and provenance disagree")

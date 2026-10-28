@@ -340,7 +340,7 @@ def audit_repo(root=ROOT, report_path=None):
             need += 1
     r.check("provenance coverage (Gate 1)", len(files), fails)
     if need:
-        r.notes.append(f"{need} files are needs-review (provenance recorded, a question open); a release that ships one needs its decision in docs/legal/release-decisions/")
+        r.notes.append(f"{need} files are needs-review (provenance recorded, a question open)")
 
     # Gate 2.
     check_artifacts(r, files, read, prov.get("artifact_allowlist", {}).get("files", []))
@@ -549,8 +549,6 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
                 fails.append(f"{dst} ({c['source']}): no provenance entry")
             elif e["status"] == "unresolved":
                 fails.append(f"{dst} ({c['source']}): provenance unresolved; it may not ship")
-            elif e["status"] == "needs-review":
-                r.notes.append(f"{dst}: needs-review ({e.get('issue', '')}); its release decision must exist before publication")
         r.check("shipped provenance (Gate 1/B)", len(expected), fails)
         check_artifacts(r, names, lambda f: content[f], prov.get("artifact_allowlist", {}).get("files", []))
 
