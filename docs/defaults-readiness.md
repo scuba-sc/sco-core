@@ -2,7 +2,7 @@
 
 Reviewed 2026-10-25 against the public source at `4d05e738e88022a458e161a0abcd19b301d01889`, with SDK **2.4.0**, plugin ABI **1.1**, and game pack **0.8.0** as the compatibility baseline. This review identifies the work needed for comprehensive defaults. It records no new Windows, launcher, or game run and changes no capability, source flag, release approval, or provenance decision.
 
-The published `sdk-v2.4.0-rc.1` source is `48d7055ef49e1b073ec59e4ce8ded7a6006329eb`. That archive snapshot, current source changes, and final signed release approval are separate. This document is a source review for the development branch, not a statement that published RC1 bytes include its changes.
+The published `sdk-v2.4.0-rc.1` source is `48d7055ef49e1b073ec59e4ce8ded7a6006329eb`. That archive snapshot, current source changes, and final release are separate. This document is a source review for the development branch, not a statement that published RC1 bytes include its changes.
 
 ## Implemented defaults in this development change
 

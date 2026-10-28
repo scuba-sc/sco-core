@@ -4,7 +4,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-- Keep release decisions with the maintainer while preserving exact-file review and signed promotion checks.
+- Promote exact attested SDK candidate bytes using GitHub release permissions, without per-file release paperwork or a separate maintainer signature.
 
 - Drain deferred audio owner cleanup after one-shot faults and nested releases, with bounded failure handling.
 

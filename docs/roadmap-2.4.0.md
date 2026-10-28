@@ -30,8 +30,7 @@ integration branches.
 | host-source-sc | `sco-sdk-host-source-sc-2.4.0.zip` | Standalone host-source kit with optional game implementation |
 
 The manifest in `sdk/components.json` defines actual membership. Compatibility
-metadata binds overlays to exact base bytes. Local packaging does not authorize
-distribution; each selected file still needs applicable provenance review.
+metadata binds overlays to exact base bytes. Local packaging does not publish a release.
 
 ## Current contract inventory
 
@@ -91,12 +90,11 @@ compatibility information, not an endorsement or in-game verification.
 - Validate the final frozen source: ABI/native/binding tests, catalogue, legal and
   documentation gates, five-profile archive checks and reproducibility.
 - Require hosted checks on the exact builder commit and retain archive hashes.
-- Resolve per-profile provenance and native-index distribution decisions; historical
-  approvals do not authorize new bytes. The [native-index restriction](legal/release-decisions/2026-10-14-native-index.md)
-  still requires a new applicable human decision for selected candidate metadata.
+- Preserve the [RC2 native-index and registry scope](legal/release-decisions/2026-10-27-rc2-discovery-metadata.md)
+  for its recorded bytes, and verify actual candidate metadata.
 - For RC2, retain an extracted-kit consumer receipt bound to the exact candidate
   source, archive hashes, workflow index and target host; source-tree tests alone
   do not establish that path or upgrade an installed consumer.
 - Release candidate 1 is published (`sdk-v2.4.0-rc.1`, every file attested). Remaining:
-  the maintainer's signing, the final `sdk-v2.4.0` tag and publication, and the deployed
-  documentation procedure. No approval or in-game result is implied by this plan.
+  the final `sdk-v2.4.0` tag and publication and the deployed documentation procedure.
+  No release or in-game result is implied by this plan.

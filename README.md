@@ -29,7 +29,7 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 
 The current SDK is **2.4.0**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** (unchanged
 since 2.3.0), published as [release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1)
-(tag `sdk-v2.4.0-rc.1`, the repository's latest release; the final signed `sdk-v2.4.0` follows). Download
+(tag `sdk-v2.4.0-rc.1`, the repository's latest release; the final `sdk-v2.4.0` follows). Download
 `sco-sdk-2.4.0.zip` (or `sco-sdk-core-2.4.0.zip`) and `SHA256SUMS` from that release page and
 check the digest as in [Start your first plugin](docs/getting-started.md), or build an archive
 with `python3 sdk/package.py`. See the [2.4.0 release notes](docs/releases/sdk-v2.4.0.md); nothing

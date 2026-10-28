@@ -111,16 +111,14 @@ Use the [planning receipt](../sdk/skills/sco-plan-sdk-work/references/roadmap.md
 and [input/evidence receipt](../sdk/skills/sco-build-check-package/references/inputs.md#receipt-template).
 Mark unexecuted Windows, launcher, host-load and game checks separately; **not run
 in game** remains the boundary here. Final candidate checks on the exact builder
-commit, per-profile provenance review, signing and publication remain human gates.
-In particular, selecting native-index/status metadata in a manifest does not lift
-the [native-index distribution restriction](legal/release-decisions/2026-10-14-native-index.md).
-Do not distribute new candidate bytes without the applicable maintainer decision.
+commit and publication remain distinct. The [RC2 metadata decision](legal/release-decisions/2026-10-27-rc2-discovery-metadata.md)
+records the native-index and registry scope for those RC2 bytes.
 
 ## Verification and maintenance
 
 Run `python3 tools/test_sdk_workflows.py`, the MCP test suite, and packaging tests when changing workflows/discovery. The workflow tests check deterministic indexes, malformed inputs, transformed archive byte hashes, composition, checksums and actual stdio retrieval/refusals. Existing archive example proofs exercise language/toolchain paths. Start each task with `sco-plan-sdk-work`: bind its roadmap source/hash and goal to measurable acceptance, record public contract IDs, prove dependencies use the extracted plugin SDK, then route to implementation. The canonical roadmap ships as `docs/roadmap.md`; no hand-copied status snapshot is maintained in the skills. A fresh-agent evaluation should use only an extracted candidate kit and a bounded author-owned task, record commands and exact replies, and mark Windows/launcher/game checks separately.
 
-Change bundle version when instructions/resources change; the registry and each entrypoint must agree. Do not copy API declarations into skills. Preserve the published RC/main/final-release distinction and explicit owner deferrals during upgrades. Generated metadata and new workflow sources remain `needs-review` until a human completes provenance review. The generic host API also defaults external plugins on when the host supplies a
+Change bundle version when instructions/resources change; the registry and each entrypoint must agree. Do not copy API declarations into skills. Preserve the published RC/main/final-release distinction and explicit owner deferrals during upgrades. The generic host API also defaults external plugins on when the host supplies a
 nonempty plugin root. Explicit disable markers/host policy still apply; an empty
 root never discovers the current directory. [Backend readiness](defaults-readiness.md)
 reviews all 37 recorded OFF capabilities and each required safeguard. APIs remain
