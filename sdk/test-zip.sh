@@ -330,7 +330,7 @@ PY
   if [ "${SCO_FAST_AOT:-0}" = "1" ]; then
     AOT_FLAGS=(-p:SCO_FAST_AOT=1)
   fi
-  dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]}" -o "$WORK/cs_publish"
+  dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]+"${AOT_FLAGS[@]}"}" -o "$WORK/cs_publish"
   mkdir -p "$WORK/cs/cs_hello"
   cp "$WORK/cs_publish/$LIB" "$WORK/cs/cs_hello/cs_hello.dll"
   cp "$ROOT/examples/cs_hello/plugin.ini" "$WORK/cs/cs_hello/"
@@ -342,7 +342,7 @@ PY
   # The C# scaffold: tools/sco-new-plugin.py --lang csharp, published against this kit (-p:ScoSdk).
   "$PY" "$ROOT/tools/sco-new-plugin.py" --id scaf_cs --lang csharp --with-menu --services game.actors \
     --out "$WORK/scaf_cs" > /dev/null
-  dotnet publish "$WORK/scaf_cs/scaf_cs.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]}" -p:ScoSdk="$ROOT" \
+  dotnet publish "$WORK/scaf_cs/scaf_cs.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]+"${AOT_FLAGS[@]}"}" -p:ScoSdk="$ROOT" \
     -o "$WORK/scaf_cs_publish"
   mkdir -p "$WORK/cs/scaf_cs"
   cp "$WORK/scaf_cs_publish/scaf_cs.${LIB##*.}" "$WORK/cs/scaf_cs/scaf_cs.dll"
