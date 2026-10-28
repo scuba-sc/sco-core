@@ -101,13 +101,13 @@ typedef struct sc_game_vehicle_seat {
 /* game.mission.changed: a mission the game.missions service can see changed state, phase or
  * completed-objective count since the last tick. Like game.zone.changed it has no rows of its
  * own: it polls the game.missions status reads and publishes on a change, so it fires only where
- * a game.missions backend is bound (a production adapter, gated on offline admission) and the
- * mission set is non-empty. It is a notification, not a stream: a mission that changes state
+ * an admitted game.missions backend is bound and the polled mission set is non-empty. The
+ * current default has no native mission backend. It is a notification, not a stream: a mission that changes state
  * between two publishes reports only the newest state, and a mission that appears, changes and
  * vanishes between two publishes can be missed. mission_id is the game.missions id (opaque, not a
  * key to store across sessions). old_state is the state the game pack last published for this
- * id; on a mission's first sighting there is no old state and the event reports the change to the
- * current state. */
+ * id and session; on first sighting in a session, old_state equals new_state. An empty poll
+ * does not clear the cache; a later nonempty poll prunes absent IDs, and service stop resets it. */
 typedef struct sc_game_mission_changed {
     uint32_t size;
     uint32_t _pad;

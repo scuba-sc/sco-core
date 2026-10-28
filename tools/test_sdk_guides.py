@@ -254,6 +254,16 @@ class CheckTests(SyntheticTree):
 
 
 class RealTreeTests(unittest.TestCase):
+    def test_mission_and_audio_boundaries_reach_guide_index(self):
+        data = guides.build(ROOT, SHA)
+        sections = {s['heading']: s for s in data['sections'] if s['doc'] == 'docs/game-services.md'}
+        mission = sections['Mission event polling and session boundaries']['text']
+        audio = sections['Audio ownership and cleanup']['text']
+        for phrase in ('session', 'empty poll', 'no native mission backend'):
+            self.assertIn(phrase, mission)
+        for phrase in ('play_once', 'cleanup', 'does not clear', 'No native audio backend'):
+            self.assertIn(phrase, audio)
+
     def test_real_allowlist_builds_within_bounds(self):
         data = guides.build(ROOT, SHA)
         guides.validate(data)

@@ -141,6 +141,25 @@ The game pack puts low-volume events on the kernel event bus (design decision 8;
 
 **Vehicle seat probe.** The seat hooks install when their rows are OK and only log, because nothing in the exe says which actor a seat transition belongs to or that the link is a vehicle seat (it may be a chair or a bed). Each Enter and Exit logs `[game] vehicle_seat probe: Enter|Exit: state=0x… host=0x… localActor=0x… parents: <id> '<name>' > …` (your player's chain of parent entities, up to 4; at most 100 lines a session). Board a pilot seat, a turret, a station chair and a bed, and read which lines say which. That decides the actor filter and the vehicle test; then the capability goes on.
 
+### Mission event polling and session boundaries
+
+`game.mission.changed` compares admitted, accepted-mission observations by mission ID and session.
+On first sight in a session, `old_state` equals `new_state`. An empty poll is not evidence that
+the mission list is empty and does not clear the cache; a later nonempty poll prunes absent IDs,
+and service stop resets it. Terminal status can still be observed. Intermediate changes can be
+missed. The current default has no native mission backend; synthetic tests are not game proof.
+
+### Audio ownership and cleanup
+
+Table publication does not prove a provider is available. Trigger operations require a resolve/play/stop
+backend; one-shot requires resolve/play_once and its own capability. Both require the cleanup hook and
+live-owner admission. Owner release drains owned effects, including releases made during callbacks; a failed stop stays tracked for retry and
+latches new operations unavailable. A later successful retry does not clear that latch. A
+`play_once` call may have been accepted even if concurrent release makes it return unavailable;
+do not assume it was rolled back or retry it automatically. `game.audio.triggers` and
+`game.audio.play_once` are independent capabilities. No native audio backend ships in this
+source; see the packaged [audio contract](game/audio.md) for version and lifetime details.
+
 ## Internal game-pack helpers
 
 Not services: no table, no `query_service`. Functions in `src/game/services/` (library `sco_game_services`, Windows only) that a product links and calls, because they read live game objects a signature row can't express. They run under SEH, answer 0 on a fault, and give a stable reason string. The game thread only.
