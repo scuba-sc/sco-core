@@ -51,8 +51,8 @@ under `sdk/docs` the `url` is a repository path, not a link; in the kit that gui
 
 **Published RC2 and historical RC1.** RC2 was published on 2026-10-28 and is the
 latest release. Its tag points to source commit
-`844e136ccb280ad8cb43f73bc43c9447e8f6799d`; later `main` commits do not change
-the release archive bytes. RC1 is historical. Keep each selected kit's source
+identified in the [release notes](releases/sdk-v2.4.0.md); later `main` commits
+do not change the release archive bytes. RC1 is historical. Keep each selected kit's source
 and archive identity distinct.
 
 **Published RC2 and historical RC1 behavior.** The published RC2 kit has the
@@ -100,16 +100,16 @@ and indexed content on startup; negotiate the available tools after connecting.
 
 Download the combined kit and its `SHA256SUMS` from the latest published
 [RC2 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
-into an empty directory. The release API records
-`sco-sdk-2.4.0.zip` with SHA-256
-`51a7ce266d087bcbeac39c92f26a6f905b4473883dd7ed6f0f5ca823fa88c88e`.
-Compare the release checksum file with that digest before extraction.
+into an empty directory. Set `EXPECTED_SHA256` (or `$ExpectedSha256` in
+PowerShell) to the independently recorded combined-archive digest in the
+[RC2 release notes](releases/sdk-v2.4.0.md#published-rc2-archive-identity).
+Compare that value with the downloaded archive and checksum file before extraction.
 
 macOS and Linux (on macOS use `shasum -a 256 -c -`):
 
 ```sh
 set -e
-EXPECTED_SHA256=51a7ce266d087bcbeac39c92f26a6f905b4473883dd7ed6f0f5ca823fa88c88e
+: "${EXPECTED_SHA256:?Set EXPECTED_SHA256 from the RC2 release notes}"
 gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
 grep ' sco-sdk-2.4.0.zip$' SHA256SUMS | sha256sum -c -
 python3 - "$EXPECTED_SHA256" <<'PY'
@@ -125,7 +125,7 @@ test -f "$SDK/sdk-catalogue.json"
 Windows PowerShell:
 
 ```powershell
-$ExpectedSha256 = "51a7ce266d087bcbeac39c92f26a6f905b4473883dd7ed6f0f5ca823fa88c88e"
+if (!$ExpectedSha256) { throw 'Set ExpectedSha256 from the RC2 release notes' }
 gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
 if ($LASTEXITCODE -ne 0) { throw 'RC2 download failed' }
 $expected = ((Get-Content SHA256SUMS | Where-Object { $_ -match ' sco-sdk-2\.4\.0\.zip$' }) -split '\s+')[0]

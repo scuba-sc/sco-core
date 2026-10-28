@@ -22,9 +22,15 @@ reference behind it.
 ```
 <!-- release-scope:end -->
 
-<a id="historical-rc2-candidate-status"></a>
+## Published RC2 archive identity
 
-## Historical RC2 candidate status before publication
+The release API records the combined `sco-sdk-2.4.0.zip` archive with SHA-256
+`51a7ce266d087bcbeac39c92f26a6f905b4473883dd7ed6f0f5ca823fa88c88e`.
+Verify the downloaded archive and its release `SHA256SUMS` against this identity.
+
+<a id="historical-rc2-candidate-status-before-publication"></a>
+
+## Historical RC2 candidate status
 
 Before publication on 2026-10-28, tag `sdk-v2.4.0-rc.2` identified candidate source
 `b7541dc91802f5fa1b050151bbc82e0e47834b6f`; the
