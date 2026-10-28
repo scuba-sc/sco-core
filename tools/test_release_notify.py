@@ -289,12 +289,44 @@ class NotifyTests(unittest.TestCase):
         self.assert_refused("do not exactly match")
 
     def test_manifest_schema_and_duplicate_keys_are_refused(self):
-        self.manifest["schema_version"] = 2
+        self.manifest["schema_version"] = 4
         self.update_manifest(self.manifest)
         self.assert_refused("schema or tag")
         asset = next(a for a in self.assets if a["name"] == "release.json")
         self.set_asset_bytes(asset["id"], b'{"schema_version":3,"tag":"a","tag":"b"}')
         self.assert_refused("duplicate JSON keys")
+
+    def test_historical_release_and_receipt_are_verified(self):
+        historical_source = "b" * 40
+        self.manifest["schema_version"] = 2
+        self.manifest["source"]["sha"] = historical_source
+        self.manifest["distribution"] = {"status": "approved-for-publication"}
+        self.update_manifest(self.manifest)
+        manifest_bytes = json.dumps(self.manifest).encode()
+        signature = b"-----BEGIN SSH SIGNATURE-----\nsynthetic\n"
+        path = f"docs/legal/release-decisions/{TAG}.json"
+        self.git.set(("cat-file", "blob", f"{APPROVAL}:{path}"), 0, manifest_bytes)
+        self.git.set(("cat-file", "blob", f"{APPROVAL}:{path}.sig"), 0, signature)
+        self.git.set(("merge-base", "--is-ancestor", historical_source, APPROVAL), 0)
+        self.git.set(("merge-base", "--is-ancestor", historical_source, PAGES), 0)
+        self.assets.append({"id": 999, "name": "release.json.sig", "size": len(signature), "state": "uploaded"})
+        self.set_asset_bytes(999, signature)
+        self.prior_run(400, event="push", branch=TAG)
+        self.set_artifacts("receipt", [self.artifact(77, "receipt", 400,
+                            self.receipt(400, source_sha=historical_source))])
+        code, out, err = self.prepare()
+        self.assertEqual(code, 0, err)
+        self.assertIn("already delivered", out)
+        self.assertEqual(self.outputs()["action"], "skip")
+        self.assertEqual(self.web.posts, [])
+        self.set_asset_bytes(999, b"changed")
+        self.assert_refused("signature differs from the tagged commit")
+        self.set_asset_bytes(999, signature)
+        self.git.set(("merge-base", "--is-ancestor", historical_source, APPROVAL), 1)
+        self.assert_refused("not an ancestor")
+        self.git.set(("merge-base", "--is-ancestor", historical_source, APPROVAL), 0)
+        self.git.set(("cat-file", "blob", f"{APPROVAL}:{path}"), 0, b"different")
+        self.assert_refused("manifest differs from the tagged commit")
 
     def test_manifest_metadata_mismatch_is_refused(self):
         asset = next(a for a in self.assets if a["name"] == "release.json")

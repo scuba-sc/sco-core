@@ -4,7 +4,8 @@
 Publication and completion are distinct. Completion requires:
 - a unique published GitHub Release (not draft, not prerelease) for the tag;
 - the tag peeling remotely and locally to the exact source commit in the published
-  unsigned release.json, and sdk/VERSION at that commit matching the tag;
+  unsigned release.json, and sdk/VERSION at that commit matching the tag; historical
+  schema-2 releases instead retain their committed approval and signature checks;
 - every release asset matching the manifest by name, size and SHA-256;
 - the deployed Pages catalogue reporting this SDK and game-pack version from a
   source commit that contains the release source (and --docs-sha, when given),
@@ -199,11 +200,15 @@ def load_manifest(data, repo, tag):
         record = json.loads(data, object_pairs_hook=pairs, parse_constant=constant)
     except (ValueError, UnicodeError, RecursionError) as exc:
         raise Refusal("manifest is not valid JSON") from exc
-    if (not isinstance(record, dict) or record.get("schema_version") != 3
-            or record.get("tag") != tag):
+    if (not isinstance(record, dict) or type(record.get("schema_version")) is not int
+            or record["schema_version"] not in (2, 3) or record.get("tag") != tag):
         raise Refusal("manifest schema or tag does not match")
+    legacy = record["schema_version"] == 2
+    if legacy and (not isinstance(record.get("distribution"), dict)
+                   or record["distribution"].get("status") != "approved-for-publication"):
+        raise Refusal("historical manifest does not approve publication")
     source = record.get("source")
-    if (not isinstance(source, dict) or source.get("repo") != repo
+    if (not isinstance(source, dict) or (not legacy and source.get("repo") != repo)
             or not isinstance(source.get("sha"), str) or not SHA.fullmatch(source["sha"])):
         raise Refusal("manifest source repository or SHA is invalid")
     artifacts = record.get("artifacts")
@@ -222,7 +227,7 @@ def load_manifest(data, repo, tag):
     return record
 
 
-def verify_assets(repo, release_id, tag, client):
+def verify_assets(repo, release_id, tag, tag_sha, client, git_run):
     assets = [asset for page in api_pages(client, f"repos/{repo}/releases/{release_id}/assets?per_page=100")
               for asset in page]
     names = [asset.get("name") for asset in assets]
@@ -236,7 +241,14 @@ def verify_assets(repo, release_id, tag, client):
                             "-H", "Accept: application/octet-stream")
     manifest = load_manifest(manifest_bytes, repo, tag)
     listed = {artifact["name"]: artifact for artifact in manifest["artifacts"]}
-    if set(names) != set(listed) | {"release.json"}:
+    approval = {"release.json": manifest_bytes}
+    if manifest["schema_version"] == 2:
+        path = f"docs/legal/release-decisions/{tag}.json"
+        committed = blob(git_run, tag_sha, path)
+        if manifest_bytes != committed:
+            raise Refusal("published historical manifest differs from the tagged commit")
+        approval["release.json.sig"] = blob(git_run, tag_sha, path + ".sig")
+    if set(names) != set(listed) | set(approval):
         raise Refusal("release assets do not exactly match the manifest")
     for asset in sorted(assets, key=lambda item: item["name"]):
         name = asset["name"]
@@ -244,8 +256,10 @@ def verify_assets(repo, release_id, tag, client):
             "api", f"repos/{repo}/releases/assets/{asset['id']}",
             "-H", "Accept: application/octet-stream")
         digest = hashlib.sha256(data).hexdigest()
-        if name != "release.json" and (len(data) != listed[name]["size"]
-                                       or digest != listed[name]["sha256"]):
+        if name in approval:
+            if data != approval[name]:
+                raise Refusal("published historical signature differs from the tagged commit: " + name)
+        elif len(data) != listed[name]["size"] or digest != listed[name]["sha256"]:
             raise Refusal("release asset differs from the manifest: " + name)
         if asset.get("size") != len(data) or asset.get("digest") not in (None, "sha256:" + digest):
             raise Refusal("release asset metadata differs from its bytes: " + name)
@@ -345,9 +359,12 @@ def verify_completion(repo, tag, docs_sha=None, routes=(), client=github, git_ru
     code, local = git_run("rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}")
     if code or local.decode("ascii", "replace").strip() != approval_sha:
         raise Refusal("local tag does not peel to the published tagged commit")
-    manifest, assets = verify_assets(repo, release["id"], tag, client)
+    manifest, assets = verify_assets(repo, release["id"], tag, approval_sha, client, git_run)
     source_sha = manifest["source"]["sha"]
-    if source_sha != approval_sha:
+    if manifest["schema_version"] == 2:
+        if not is_ancestor(git_run, source_sha, approval_sha):
+            raise Refusal("historical manifest source is not an ancestor of the tagged commit")
+    elif source_sha != approval_sha:
         raise Refusal("manifest source does not match the tagged commit")
     if blob(git_run, approval_sha, "sdk/VERSION").decode("utf-8", "replace").strip() != version:
         raise Refusal("sdk/VERSION at the tagged commit does not match the tag")
