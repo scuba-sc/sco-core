@@ -1720,6 +1720,23 @@ class CompatibilityReleaseTests(ServerCase):
         self.assertIs(record["built_source_sha_matches"], True)
         self.assertIs(data["coordinate_matches"]["source_sha"], False)
 
+    def test_current_release_asset_is_not_a_checkout_approval(self):
+        root, catalogue = self.release_root({}, signatures=())
+        # A schema-3 asset is not searched, even if a local copy exists at the root.
+        (root / "release.json").write_text(json.dumps({"schema_version": 3, "tag": "sdk-v1.2.3",
+                                                       "source": {"sha": SYNTHETIC_SHA}}))
+        release = self.release({"tag": "sdk-v1.2.3", "source_sha": SYNTHETIC_SHA}, root, catalogue)["release"]
+        self.assertEqual((release["state"], release["records"]), ("no_matching_approval_record", []))
+        self.assertEqual((release["signature_verification"], release["publication"]),
+                         ("not_performed", "not_checked"))
+        self.assertTrue(any("release asset" in line and "not read" in line for line in release["conclusions"]))
+        # A schema-3 file in the old checkout directory also cannot match as schema 2.
+        record = root / "docs/legal/release-decisions/sdk-v1.2.3.json"
+        record.write_text((root / "release.json").read_text())
+        release = self.release({"tag": "sdk-v1.2.3"}, root, catalogue)["release"]
+        self.assertEqual(release["state"], "no_matching_approval_record")
+        self.assertEqual(release["records"][0]["format"], "unrecognized")
+
     def test_tag_with_other_source_does_not_match(self):
         root, catalogue = self.release_root()
         release = self.release({"tag": "sdk-v1.2.3", "source_sha": OTHER_SHA}, root, catalogue)["release"]
