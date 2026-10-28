@@ -1,22 +1,22 @@
 # sco-core SDK 2.4.0 roadmap
 
 SDK **2.4.0**, optional Star Citizen game pack **0.8.0**, frozen plugin ABI
-**1.1**. Release candidate 1 is published as the repository's latest release,
-[`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1); the final signed
+**1.1**. The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) is the intended location
+for published RC2 assets; a tag or candidate build alone does not establish publication. The final
 `sdk-v2.4.0` release follows. This roadmap is not a release announcement.
 Contract presence, implementation, default availability, synthetic validation and
 in-game acceptance are separate. No game behavior is certified here.
 
-RC2 preparation below describes current source and the consumer checks owed by a
-candidate built from it. It does not announce an RC2 archive or change the
-published RC1 bytes. See the [RC2 consumer reconciliation](agent-workflows.md#rc2-consumer-reconciliation)
+RC2 is tagged and its candidate archives have been built; as of 2026-10-28 it
+has not been published. See [RC2 status](releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
+The checks below do not change the published RC1 bytes. See the [RC2 consumer reconciliation](agent-workflows.md#rc2-consumer-reconciliation)
 for the bounded issue contracts and acceptance path.
 
 ## Scope
 
 This roadmap covers the SDK and its developer tooling. Engine, studio and product
 releases are separate; they are not SDK 2.4.0 completion criteria. Consumers adopt
-published, checksum-verified archives (today the release candidate 1 archives) rather than
+published, checksum-verified archives for their selected release rather than
 integration branches.
 
 ## Distribution profiles
@@ -69,9 +69,9 @@ Local build/check tools require a separately configured `--project-root`.
 Runtime inspection is a separate default-off launcher with its own six-read allowlist.
 
 Published RC1 retains its six-tool default and twelve tools with `--extended-tools`;
-it contains no workflow bundle/index. The six consumer skills (bundle 0.2.1), their
-source-bound index and fourteen-tool default belong to updated source/candidate
-kits. Use the [consumer workflows](agent-workflows.md), [agent integration](agent-integration.md)
+it contains no workflow bundle/index. The six consumer skills, their source-bound index and fourteen-tool default
+belong to updated source/candidate kits; read the selected kit manifest for its
+bundle version. Use the [consumer workflows](agent-workflows.md), [agent integration](agent-integration.md)
 and [SDK/MCP tutorial](sdk-mcp-tutorial.md) for the matching input path.
 
 ## Community plugin directory
@@ -96,5 +96,6 @@ compatibility information, not an endorsement or in-game verification.
   source, archive hashes, workflow index and target host; source-tree tests alone
   do not establish that path or upgrade an installed consumer.
 - Release candidate 1 is published (`sdk-v2.4.0-rc.1`, every file attested). Remaining:
-  the final `sdk-v2.4.0` tag and publication and the deployed documentation procedure.
+  RC2 publication, the final `sdk-v2.4.0` tag and publication, and the corresponding
+  deployed documentation procedure.
   No release or in-game result is implied by this plan.

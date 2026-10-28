@@ -129,9 +129,9 @@ capability qualifies. After that it refuses demoting the entry. It renders the l
 the Stability column of the [service table](game/status.md#service-tables-and-capabilities),
 with `-` for a signature-row group.
 
-In SDK 2.4.0 (release candidate 1) the registry labels 13 game-pack service tables Stable and 20
-Experimental, and the `game.*` event bus Stable. The Stability column of the status table
-is the current list.
+The SDK source registry labels game-pack service tables Stable or Experimental and
+the `game.*` event bus Stable. The Stability column of the status table is the
+current list; check the selected kit's registry for its own snapshot.
 
 ## What this page does not cover
 

@@ -192,6 +192,23 @@ class ArchiveAndMCP(unittest.TestCase):
                 with zipfile.ZipFile(io.BytesIO(raw)) as archive:
                     for name, (data, _) in entries.items():
                         self.assertEqual(archive.read(top + '/' + name), data)
+                    if profile == 'legacy':
+                        # The kit snapshot must describe RC2 without presenting RC1 as its current release.
+                        readme = archive.read(top + '/README.md').decode()
+                        lua = archive.read(top + '/docs/lua.md').decode()
+                        mcp = archive.read(top + '/tools/sco-core-mcp/README.md').decode()
+                        guide_index = json.loads(archive.read(top + '/sdk-guides.json'))
+                        self.assertIn('This guide covers RC2 workflows', readme)
+                        self.assertIn('sdk-v2.4.0-rc.2', readme)
+                        self.assertIn('This guide covers RC2 workflows', lua)
+                        self.assertIn('sdk-v2.4.0-rc.2', mcp)
+                        for text in (readme, lua, mcp):
+                            self.assertNotIn('latest release', ' '.join(text.lower().split()))
+                        sections = [s for s in guide_index['sections']
+                                    if s['doc'] == 'docs/getting-started.md']
+                        self.assertTrue(any('RC2 release page' in s['text'] for s in sections))
+                        self.assertFalse(any('latest release' in ' '.join(s['text'].lower().split())
+                                             for s in sections))
                 sums = entries['SHA256SUMS'][0].decode()
                 self.assertIn(workflows.digest(entries['sdk-workflows.json'][0]) + '  sdk-workflows.json\n', sums)
         overlay = pkg.select(self.manifest, 'game-sc')

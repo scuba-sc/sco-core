@@ -3,13 +3,12 @@
 This is one complete path from a published SDK archive to a checked, renamed C
 plugin, then Windows game deployment. You do not need a sco-core checkout.
 
-The current SDK is **2.4.0**, with Star Citizen game pack **0.8.0** and plugin
-ABI **1.1** (unchanged since 2.3.0). It is published as **release candidate 1**,
-the repository's latest release, tag `sdk-v2.4.0-rc.1`:
-[SDK 2.4.0 release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1).
-It is the only SDK release on the release page, and the archive names, digests
-and commands below use it. The final `sdk-v2.4.0` release
-follows; until then, build against release candidate 1. Nothing new in 2.4.0
+SDK **2.4.0 RC2** uses Star Citizen game pack **0.8.0** and plugin ABI **1.1**
+(unchanged since 2.3.0). The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) is the intended
+download location when its assets are published. A tag or CI artifact alone does not establish
+publication: if the page or assets are unavailable, use a separately supplied, checksum-identified
+candidate or select another published release. The RC1 example and checksums below are historical
+and apply only to RC1. Check the selected kit and host identities separately. Nothing new in 2.4.0
 has been run in game.
 
 ## 1. Choose a language and archive
@@ -89,7 +88,37 @@ Earlier revisions of this page ran the same steps on macOS. On Windows, use a
 shell that supports these shell blocks (Git Bash works), or perform the
 download/extraction in the browser and use the linked Windows CMake recipe.
 
-### Download SDK 2.4.0 release candidate 1
+### Download SDK 2.4.0 release candidate 2
+
+Once the RC2 release and its assets are available, run the following in an empty directory.
+The checksum file must come from that same release; compare its archive digest with the
+release's independently recorded asset identity by setting `EXPECTED_SHA256` before running
+the commands. If the page or assets are unavailable,
+stop and use a separately supplied, checksum-identified candidate instead.
+
+```sh
+env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.0.zip' -p SHA256SUMS
+python3 - "$EXPECTED_SHA256" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+import zipfile
+archive = Path("sco-sdk-core-2.4.0.zip")
+entries = dict(line.split(None, 1)[::-1] for line in Path("SHA256SUMS").read_text().splitlines() if line.strip())
+if hashlib.sha256(archive.read_bytes()).hexdigest() != entries[archive.name] or entries[archive.name].lower() != sys.argv[1].lower():
+    raise SystemExit("SHA256 mismatch: stop; do not extract or build")
+if Path("sco-sdk-core-2.4.0").exists():
+    raise SystemExit("Extraction destination already exists; choose an empty directory")
+with zipfile.ZipFile(archive) as sdk:
+    sdk.extractall(".")
+print(archive.name + ": SHA256 OK")
+PY
+```
+
+### Historical RC1 download
+
+The following example and digest apply only to RC1. Choose this instead of the RC2
+block above when intentionally reproducing the historical RC1 path.
 
 ```sh
 env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.0-rc.1 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.0.zip' -p SHA256SUMS
@@ -126,7 +155,7 @@ Only extract archives from the trusted project release.
 
 From the same working directory:
 
-### Build SDK 2.4.0 release candidate 1
+### Build the selected SDK 2.4.0 kit
 
 ```sh
 cmake -S sco-sdk-core-2.4.0 -B sdk-build -DCMAKE_BUILD_TYPE=Release

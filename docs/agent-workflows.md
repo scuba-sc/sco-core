@@ -48,8 +48,9 @@ The builder takes inputs only from the explicit `sdk/skills/manifest.json` allow
 ## RC2 consumer reconciliation
 
 This is the bounded consumer-workflow portion of [SDK 2.4.0 preparation](roadmap-2.4.0.md).
-RC2 means a candidate to be built and evaluated from updated source; no RC2
-publication is asserted here. Published RC1, candidate archives, the product's
+RC2 identifies a tagged source and CI-built candidate; it is not a published
+release as of 2026-10-28. See [RC2 status](releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
+Published RC1, candidate archives, the product's
 host revision and final release approval have separate identities. The following
 issues explain demand for contracts already present in source. Their proposals
 are not API declarations, and this reconciliation does not close them or certify
@@ -62,7 +63,7 @@ their full acceptance.
 | [#192](https://github.com/scuba-sc/sco-core/issues/192), partial pack application | `PackApplyPolicy::BestEffort` is explicit opt-in with `PackApplyReceipt`; Atomic remains default. `sco-dcb lint <pack>...` checks syntax; `sco-dcb check <file.dcb> <pack>...` also needs the database. The issue's one-input example is not the implemented CLI. [Pack contract](datacore.md#packs-lint-check-show-diff) | `tests/test_datacore_pack.cpp`, `tests/dcb_pack.cmake` |
 | [#194](https://github.com/scuba-sc/sco-core/issues/194), action vocabulary | `game.input` 1.0 has **1,297** actions, ids 1..1297, re-derived on 4.10.197.2878. The older 1,267-member proposal is superseded by source evidence. Lookup is metadata only; no input dispatch or binding API is implied. [Contract](game/input.md) | `tests/abi_game_input.c`, `tests/test_input.cpp` |
 | [#195](https://github.com/scuba-sc/sco-core/issues/195), respawn completion | `game.loadout.respawn_completed` deliberately carries only the size-prefixed 8-byte occurrence marker (`size`, padding), with occurrences within a tick coalesced. It has no proposed entity/result fields and is not per-slot success. The producer seam is tested; the native hook remains unresolved and the capability OFF. [Lifecycle](game/loadout.md#respawn-completed-event-gameloadoutrespawn_completed) | `tests/abi_game_events.c`, `tests/game_contracts/loadout/test_loadout.cpp` |
-| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and published RC1 inventory. Updated candidate bytes still need their own archive build and approval. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
+| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and published RC1 inventory. Use the actual candidate archive and its independently recorded identity. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
 
 Additional current-source contracts are not contained in published RC1:
 
@@ -73,8 +74,8 @@ Additional current-source contracts are not contained in published RC1:
 | [Position-only relocation 1.1](game/relocation-position.md) | Query 1.1, check the complete `request_position` member and `game.relocation.position`, and preserve offline/owner and observation guards. The default native adapter supplies no position callbacks; the capability is OFF. |
 | [Widgets 1.3](../sdk/docs/widgets.md#numeric-presentation-13) | Query 1.3, check the full member extent and numeric-presentation feature before submitting the extended node. Host and language support are independent of the SDK used to compile. |
 
-These boundaries are current-source descriptions, not a claim that an RC2 archive
-exists or that the installed product host supplies the capabilities. Synthetic
+These boundaries are source descriptions; a built candidate does not establish
+that the installed product host supplies the capabilities. Synthetic
 fixtures are not gameplay acceptance.
 
 For example, the [quantum contract](quantum.md#availability-and-evidence)

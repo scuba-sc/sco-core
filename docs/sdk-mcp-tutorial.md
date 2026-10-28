@@ -2,9 +2,9 @@
 
 ## Standalone developer-kit workflow
 
-**SDK 2.4.0 is published as release candidate 1**
-([`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
-release; the final signed `sdk-v2.4.0` follows). Its combined kit, composed
+**SDK 2.4.0 RC2** is the candidate for this workflow. Use the [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
+when its assets are published; a tag or candidate artifact alone does not establish publication.
+The combined kit, composed
 core-plus-game overlay and host-source kit supply the discovery launcher,
 `sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
 gameplay acceptance claim. Core-only profiles do not contain the game catalogue.
@@ -15,7 +15,9 @@ default discovery tools, or twelve with `--extended-tools`; it does not provide
 the workflow bundle described below.
 
 The complete workflow in this tutorial instead needs a separately sourced,
-matching updated-source developer kit, catalogue and workflow index. Record the
+matching updated-source developer kit, catalogue and workflow index. RC2 has a
+[recorded tagged candidate](releases/sdk-v2.4.0.md#historical-rc2-candidate-status),
+but was not published as of 2026-10-28. Record the
 source revision and archive digest, verify the inventory, and extract to an empty
 directory. For a source checkout, build matching metadata as described in the
 [discovery README](../tools/sco-core-mcp/README.md) and
@@ -383,15 +385,19 @@ are not game-session proof. See [contracts](contracts.md) and
 
 ## 2. Obtain SDK and build your own copies in isolation
 
-The archive proofs accept exactly one published SDK: the `SDK_ROOT` pinned in
-sc-offline's `tools/check_inspector_sdk.py`, with its sha256. That pin can lag
-the newest sco-core release, so read it from your sc-offline checkout rather than
-from this page, then download that archive and its adjacent `SHA256SUMS` from the
-matching human-published release on the
-[releases page](https://github.com/scuba-sc/sco-core/releases). SDK 2.4.0 is
-published as release candidate 1, so its archives sit under the tag
-`sdk-v2.4.0-rc.1`. Releases before 2.4.0 no longer have downloads; a pin to one
-of them has to move to 2.4.0 first.
+By default, the archive proofs use the SDK and digest pinned by the selected
+sc-offline checkout. That pin can lag sco-core, so obtain its matching published
+archive and `SHA256SUMS` from the
+[releases page](https://github.com/scuba-sc/sco-core/releases); as of 2026-10-28
+the product pin is RC1. Newer product checkers also accept an explicitly supplied
+candidate with its source, profile and archive/checksum identities; inspect the
+selected checker's `--help` and verify those inputs. Candidate preflight does not
+change the product pin or establish a published release. The tutorial wrapper and
+`verify_extract` calls below use the default published pin and do not accept those
+candidate overrides. For candidate preflight, invoke a supported individual feature
+checker separately with all its required identity flags and a matching host-source
+fixture where required. Earlier SDK release downloads were withdrawn; their tags
+alone do not supply archives.
 Set absolute paths to the product source, downloaded archive/checksums and a new
 work root **outside either checkout**. Do not use host/submodule include trees.
 
@@ -399,7 +405,7 @@ work root **outside either checkout**. Do not use host/submodule include trees.
 set -eu
 PRODUCT_SOURCE=/absolute/path/to/sc-offline
 SDK_NAME=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import check_inspector_sdk as c; print(c.SDK_ROOT)' "$PRODUCT_SOURCE/tools")
-echo "download $SDK_NAME.zip from the release page (SDK 2.4.0: tag sdk-v2.4.0-rc.1)"
+echo "obtain $SDK_NAME.zip and SHA256SUMS for the selected product pin"
 ARCHIVE=/absolute/path/to/$SDK_NAME.zip
 SUMS=/absolute/path/to/SHA256SUMS
 WORK=/absolute/new/path/tutorial-dev

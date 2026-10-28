@@ -95,9 +95,9 @@ Client-specific instructions live in the integration guide, not in this index.
 1. [Contributing](../CONTRIBUTING.md) and [building/testing](building.md):
    source policy, named tests, CI and product adoption.
 2. [Changelog](../CHANGELOG.md), [SDK 2.4.0 notes](releases/sdk-v2.4.0.md) and the
-   [SDK 2.4.0 release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1)
-   (the repository's latest and only SDK release; the final `sdk-v2.4.0`
-   follows): keep SDK/package, plugin ABI and game-pack version coordinates distinct.
+   [SDK 2.4.0 RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
+   (use when assets are published; a tag alone is not a release).
+   [RC2 candidate history](releases/sdk-v2.4.0.md#historical-rc2-candidate-status): keep SDK/package, plugin ABI and game-pack version coordinates distinct.
 3. [Release checklist](legal/release-checklist.md) and
    [release decisions](legal/release-decisions/README.md): candidate versus
    candidate verification versus actual publication; releases are maintainer acts.
