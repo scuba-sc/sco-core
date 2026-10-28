@@ -4,7 +4,7 @@ This is one complete path from a published SDK archive to a checked, renamed C
 plugin, then Windows game deployment. You do not need a sco-core checkout.
 
 SDK **2.4.0 RC2** uses Star Citizen game pack **0.8.0** and plugin ABI **1.1**
-(unchanged since 2.3.0). The [RC2 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
+(unchanged since 2.3.0). The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
 is the latest published release. Its tag points to source commit
 `844e136ccb280ad8cb43f73bc43c9447e8f6799d`; later `main` commits do not change the
 released archive bytes. RC1 examples and checksums below are historical and apply
