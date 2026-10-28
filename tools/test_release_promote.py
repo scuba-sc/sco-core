@@ -71,142 +71,6 @@ class PromotionTests(unittest.TestCase):
         self.metadata = {"expired": False, "workflow_run": {"id": 123}}
         self.members = [("sdk.zip", b"archive"), ("sdk.spdx.json", b"sbom")]
 
-    def fetch(self):
-        self.github.add(("api", f"repos/{REPO}/actions/runs/123"), self.builder_run)
-        self.github.add(("api", f"repos/{REPO}/actions/artifacts/456"), self.metadata)
-        self.github.add(("api", f"repos/{REPO}/actions/artifacts/456/zip"), archive(self.members))
-        return promote.fetch_candidate(self.approval, REPO, self.root / "payload", self.github)
-
-    def test_fetch_exact_approved_artifact_bytes(self):
-        self.assertEqual(self.fetch(), 123)
-        self.assertEqual({p.name: p.read_bytes() for p in (self.root / "payload").iterdir()},
-                         dict(self.members))
-        self.assertEqual(len(self.github.calls), 3)
-
-
-    def assert_fetch_refused(self, message):
-        with self.assertRaisesRegex(promote.Refusal, message):
-            self.fetch()
-
-    def test_fetch_extra_member(self):
-        self.members.append(("extra.zip", b"unapproved"))
-        self.assert_fetch_refused("unexpected, duplicate or unsafe")
-
-    def test_fetch_missing_member(self):
-        self.members.pop()
-        self.assert_fetch_refused("exactly the approved file set")
-
-    def test_fetch_duplicate_member(self):
-        self.members.append(self.members[0])
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            self.assert_fetch_refused("unexpected, duplicate or unsafe")
-
-    def test_fetch_path_traversal_member(self):
-        self.members.append(("../escape.zip", b"unapproved"))
-        self.assert_fetch_refused("unexpected, duplicate or unsafe")
-        self.assertFalse((self.root / "escape.zip").exists())
-
-    def test_fetch_absolute_path_member(self):
-        self.members.append(("/escape.zip", b"unapproved"))
-        self.assert_fetch_refused("unexpected, duplicate or unsafe")
-
-    def test_fetch_nested_member(self):
-        self.members.append(("nested/sdk.zip", b"unapproved"))
-        self.assert_fetch_refused("unexpected, duplicate or unsafe")
-
-    def test_fetch_backslash_member(self):
-        self.members.append(("..\\escape.zip", b"unapproved"))
-        self.assert_fetch_refused("unexpected, duplicate or unsafe")
-
-    def test_fetch_symlink_member(self):
-        member = zipfile.ZipInfo("sdk.zip")
-        member.create_system = 3
-        member.external_attr = (stat.S_IFLNK | 0o777) << 16
-        self.members[0] = (member, b"../escape.zip")
-        self.assert_fetch_refused("unexpected, duplicate or unsafe")
-        self.assertFalse((self.root / "payload/sdk.zip").exists())
-
-    def test_fetch_directory_member(self):
-        self.members.append(("folder/", b""))
-        self.assert_fetch_refused("unexpected, duplicate or unsafe")
-
-    def test_fetch_expired_artifact(self):
-        self.metadata["expired"] = True
-        self.assert_fetch_refused("expired or belongs")
-        self.assertFalse(any(args[-1].endswith("/zip") for args in self.github.calls))
-
-    def test_fetch_different_builder_run(self):
-        self.metadata["workflow_run"]["id"] = 999
-        self.assert_fetch_refused("expired or belongs")
-
-    def test_fetch_wrong_source_and_attempt_are_refused(self):
-        for field, value in (("head_sha", "b" * 40), ("run_attempt", 2)):
-            with self.subTest(field=field):
-                self.builder_run[field] = value
-                self.assert_fetch_refused("builder source, attempt or workflow mismatch")
-                self.assertFalse(any(args[-1].endswith("/zip") for args in self.github.calls))
-                self.github = FakeGitHub()
-                self.builder_run[field] = SHA if field == "head_sha" else 1
-
-    def test_fetch_approved_workflow_mismatch_refused(self):
-        self.approval["builder"]["workflow_path"] = ".github/workflows/other.yml"
-        self.assert_fetch_refused("builder source, attempt or workflow mismatch")
-
-    def test_fetch_wrong_builder_workflow(self):
-        self.builder_run["path"] = ".github/workflows/other.yml"
-        self.assert_fetch_refused("not a successful main")
-
-    def test_fetch_wrong_builder_branch(self):
-        self.builder_run["head_branch"] = "feature"
-        self.assert_fetch_refused("not a successful main")
-
-    def test_fetch_wrong_builder_event(self):
-        self.builder_run["event"] = "push"
-        self.assert_fetch_refused("not a successful main")
-
-    def test_fetch_unfinished_builder(self):
-        self.builder_run["status"] = "in_progress"
-        self.assert_fetch_refused("not a successful main")
-
-    def test_fetch_failed_builder(self):
-        self.builder_run["conclusion"] = "failure"
-        self.assert_fetch_refused("not a successful main")
-
-    def test_fetch_duplicate_approved_name(self):
-        self.approval["artifacts"].append(self.approval["artifacts"][0])
-        self.assert_fetch_refused("unsafe, duplicate or reserved")
-        self.assertEqual(self.github.calls, [])
-
-    def test_fetch_reserved_approved_names(self):
-        for name in ("release.json", "release.json.sig"):
-            with self.subTest(name=name):
-                self.approval["artifacts"][0]["name"] = name
-                self.assert_fetch_refused("unsafe, duplicate or reserved")
-
-    def test_fetch_unsafe_approved_names(self):
-        for name in ("../escape.zip", "/escape.zip", "nested/file", "..\\file", "", 1):
-            with self.subTest(name=name):
-                self.approval["artifacts"][0]["name"] = name
-                self.assert_fetch_refused("unsafe, duplicate or reserved")
-
-    def test_fetch_empty_inventory(self):
-        self.approval["artifacts"] = []
-        self.assert_fetch_refused("empty approved payload")
-
-    def test_fetch_invalid_run_ids(self):
-        for value in (True, False, 0, -1, "123", 1.5, None):
-            with self.subTest(value=value):
-                self.approval["builder"]["run_id"] = value
-                self.assert_fetch_refused("invalid builder run ID or artifact ID")
-        self.assertEqual(self.github.calls, [])
-
-    def test_fetch_invalid_artifact_ids(self):
-        for value in (True, False, 0, -1, "456", 1.5, None):
-            with self.subTest(value=value):
-                self.approval["artifacts"][0]["artifact_id"] = value
-                self.assert_fetch_refused("invalid builder run ID or artifact ID")
-
     def prerequisite_fixtures(self):
         checks, runs = [], {}
         required = {"cmake": ("linux", "kernel-only", "windows"),
@@ -377,14 +241,11 @@ class PromotionTests(unittest.TestCase):
         self.runner = self.root / "runner"
         self.runner.mkdir()
         self.manifest = self.root / "approval.json"
-        self.signature = self.root / "approval.json.sig"
         self.manifest.write_text(json.dumps(self.approval) + "\n")
-        self.signature.write_bytes(b"synthetic signature\n")
         self.asset_bytes = dict(self.members)
         for name, data in self.members:
             (self.payload / name).write_bytes(data)
-        self.asset_bytes.update({"release.json": self.manifest.read_bytes(),
-                                 "release.json.sig": self.signature.read_bytes()})
+        self.asset_bytes.update({"release.json": self.manifest.read_bytes()})
         self.assets = [{"id": i, "name": name, "size": len(data), "state": "uploaded",
                         "updated_at": "2026-01-01T00:00:00Z"}
                        for i, (name, data) in enumerate(self.asset_bytes.items(), 700)]
@@ -393,8 +254,7 @@ class PromotionTests(unittest.TestCase):
         self.assets_command = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases/600/assets?per_page=100")
         self.create_command = ("release", "create", TAG,
                                *[str(self.payload / name) for name, _ in self.members],
-                               str(self.runner / "release-approval/release.json"),
-                               str(self.runner / "release-approval/release.json.sig"),
+                               str(self.runner / "release-inventory/release.json"),
                                "--repo", REPO, "--draft", "--verify-tag", "--title", "sco-core SDK 9.9.9",
                                "--notes-file", str(self.runner / "notes.md"))
 
@@ -408,7 +268,7 @@ class PromotionTests(unittest.TestCase):
                              "-H", "Accept: application/octet-stream"),
                             self.asset_bytes[asset["name"]])
         if not configure_only:
-            return promote.create_draft(REPO, TAG, self.manifest, self.signature, self.payload,
+            return promote.create_draft(REPO, TAG, self.manifest, self.payload,
                                         self.runner, self.root / "downloaded", "9.9.9", self.github)
 
     def test_draft_exact_assets_round_trip(self):
@@ -433,7 +293,7 @@ class PromotionTests(unittest.TestCase):
         self.draft.update(tag_name=rc, prerelease=True)
         self.create_command = tuple("sco-core SDK 9.9.9-rc.2" if part == "sco-core SDK 9.9.9" else part for part in (self.create_command[0], self.create_command[1], rc, *self.create_command[3:], "--prerelease"))
         self.create_draft(configure_only=True)
-        self.assertEqual(promote.create_draft(REPO, rc, self.manifest, self.signature, self.payload,
+        self.assertEqual(promote.create_draft(REPO, rc, self.manifest, self.payload,
                                              self.runner, self.root / "downloaded", "9.9.9", self.github), 600)
         (self.runner / "draft-assets.json").write_text(json.dumps(self.assets))
         self.github.add(self.releases_command, [[self.draft]])
@@ -499,14 +359,9 @@ class PromotionTests(unittest.TestCase):
 
     def test_draft_manifest_bytes_mismatch(self):
         self.draft_fixtures()
-        # Even JSON-equivalent bytes must match the committed signature input exactly.
+        # Even JSON-equivalent bytes must match the verified inventory.
         self.asset_bytes["release.json"] = json.dumps(self.approval, indent=2).encode()
-        self.assert_draft_refused("approval differs")
-
-    def test_draft_signature_bytes_mismatch(self):
-        self.draft_fixtures()
-        self.asset_bytes["release.json.sig"] = b"different synthetic signature"
-        self.assert_draft_refused("approval differs")
+        self.assert_draft_refused("inventory differs")
 
     def publication(self, releases=None, assets=None, published=None, configure_only=False):
         (self.runner / "draft-assets.json").write_text(json.dumps(self.assets))
@@ -641,21 +496,6 @@ class PromotionTests(unittest.TestCase):
                 "GITHUB_RUN_ID": "123", "ARTIFACT_ID": "456",
                 "GITHUB_STEP_SUMMARY": str(self.root / "summary")}
 
-    def test_cli_fetch_writes_run_id_output(self):
-        self.assertTrue(callable(getattr(promote, "main", None)), "CLI has not been extracted")
-        decisions = self.root / "docs/legal/release-decisions"
-        decisions.mkdir(parents=True)
-        (decisions / f"{TAG}.json").write_text(json.dumps(self.approval))
-        self.github.add(("api", f"repos/{REPO}/actions/runs/123"), self.builder_run)
-        self.github.add(("api", f"repos/{REPO}/actions/artifacts/456"), self.metadata)
-        self.github.add(("api", f"repos/{REPO}/actions/artifacts/456/zip"), archive(self.members))
-        (self.root / "output").write_text("existing=kept\n")
-        with contextlib.chdir(self.root):
-            self.assertEqual(promote.main(["fetch"], self.cli_environment(), self.github), 0)
-        self.assertEqual((self.root / "output").read_text(), "existing=kept\nrun-id=123\n")
-        self.assertEqual((self.root / "payload/sdk.zip").read_bytes(), b"archive")
-
-
     def test_cli_prerequisites(self):
         self.prerequisites(*self.prerequisite_fixtures(), configure_only=True)
         self.assertEqual(promote.main(["prerequisites"], self.cli_environment(), self.github), 0)
@@ -663,10 +503,7 @@ class PromotionTests(unittest.TestCase):
 
     def test_cli_draft_records_id_only_after_round_trip(self):
         self.draft_fixtures()
-        decisions = self.root / "docs/legal/release-decisions"
-        decisions.mkdir(parents=True)
-        (decisions / f"{TAG}.json").write_bytes(self.manifest.read_bytes())
-        (decisions / f"{TAG}.json.sig").write_bytes(self.signature.read_bytes())
+        (self.root / "release.json").write_bytes(self.manifest.read_bytes())
         # Workflows use relative payload paths, and an absolute runner temporary path.
         paths = {str(self.payload / name): str(Path("payload") / name) for name, _ in self.members}
         self.create_command = tuple(paths.get(arg, arg) for arg in self.create_command)
@@ -708,19 +545,6 @@ class PromotionTests(unittest.TestCase):
             self.assertEqual(promote.main(["untrusted-input"], {}, self.github), 1)
         self.assertEqual(error.getvalue(), "refused: invalid command arguments\n")
 
-    def test_cli_corrupt_zip_is_refused_without_traceback(self):
-        decisions = self.root / "docs/legal/release-decisions"
-        decisions.mkdir(parents=True)
-        (decisions / f"{TAG}.json").write_text(json.dumps(self.approval))
-        self.github.add(("api", f"repos/{REPO}/actions/runs/123"), self.builder_run)
-        self.github.add(("api", f"repos/{REPO}/actions/artifacts/456"), self.metadata)
-        self.github.add(("api", f"repos/{REPO}/actions/artifacts/456/zip"), b"not a zip")
-        error = io.StringIO()
-        with contextlib.chdir(self.root), contextlib.redirect_stderr(error):
-            self.assertEqual(promote.main(["fetch"], self.cli_environment(), self.github), 1)
-        self.assertEqual(error.getvalue(), "refused: promotion input unavailable\n")
-        self.assertFalse((self.root / "output").exists())
-
     def test_github_client_uses_binary_boundary(self):
         with mock.patch.object(promote.subprocess, "check_output", return_value=b"binary data") as command:
             self.assertEqual(promote.github("api", "endpoint"), b"binary data")
@@ -733,117 +557,83 @@ class PromotionTests(unittest.TestCase):
             with self.assertRaisesRegex(promote.Refusal, "^GitHub command unavailable$"):
                 promote.github("api", "endpoint")
 
-    def test_fetch_multiple_artifacts_are_sorted_and_exact(self):
-        self.approval["artifacts"][0]["artifact_id"] = 457
-        self.github.add(("api", f"repos/{REPO}/actions/runs/123"), self.builder_run)
-        for artifact_id, members in ((456, [self.members[1]]), (457, [self.members[0]])):
-            self.github.add(("api", f"repos/{REPO}/actions/artifacts/{artifact_id}"), self.metadata)
-            self.github.add(("api", f"repos/{REPO}/actions/artifacts/{artifact_id}/zip"), archive(members))
-        self.assertEqual(promote.fetch_candidate(self.approval, REPO, self.root / "payload", self.github), 123)
-        self.assertEqual([args[-1] for args in self.github.calls if args[-1].endswith("/zip")],
-                         [f"repos/{REPO}/actions/artifacts/456/zip", f"repos/{REPO}/actions/artifacts/457/zip"])
 
-    def test_fetch_member_from_wrong_approved_artifact_is_refused(self):
-        self.approval["artifacts"][1]["artifact_id"] = 457
-        # A globally approved name still cannot come from a different approved artifact ID.
-        self.assert_fetch_refused("unexpected, duplicate or unsafe")
-
-
-class SignedPromotionTests(unittest.TestCase):
-    """Exercise fake GitHub round trips against the real signed-verifier CLI."""
+class CandidateFetchTests(unittest.TestCase):
     def setUp(self):
-        self.fixture = verify_tests.ReleaseVerifyTests("test_valid_release")
-        self.addCleanup(self.fixture.doCleanups)
+        self.fixture = verify_tests.ReleaseVerifyTests('test_valid_unsigned_inventory')
         self.fixture.setUp()
-        workflow = self.fixture.root / ".github/workflows/release-candidate.yml"
-        workflow.write_text("name: candidate\n")
-        self.fixture.command("git", "add", str(workflow))
-        self.fixture.command("git", "-c", "user.name=maintainer", "-c", "user.email=maintainer@example.invalid", "commit", "-qm", "candidate fixture")
-        self.fixture.sha = self.fixture.command("git", "rev-parse", "HEAD").stdout.decode().strip()
-        self.fixture.record["source"]["sha"] = self.fixture.sha
-        self.fixture.record["builder"].update(workflow_path=".github/workflows/release-candidate.yml", workflow_sha=self.fixture.sha)
-        self.fixture.write_record()
-        self.fixture.sign()
-        self.root = self.fixture.root
-        self.client = FakeGitHub()
-        self.runner = self.root / "runner"
-        self.runner.mkdir()
-        self.payload = self.root / "candidate"
-        self.downloaded = self.root / "downloaded"
-        self.bytes = {p.name: p.read_bytes() for p in self.fixture.payload.iterdir()}
-        self.assets_command = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases/600/assets?per_page=100")
-        self.releases_command = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases?per_page=100")
-        self.draft = {"id": 600, "tag_name": TAG, "draft": True, "prerelease": False}
-        output = contextlib.redirect_stdout(io.StringIO())
-        output.__enter__()
-        self.addCleanup(output.__exit__, None, None, None)
+        self.addCleanup(self.fixture.doCleanups)
+        self.github = FakeGitHub()
+        self.run = {'path': promote.verify.WORKFLOW, 'event': 'workflow_dispatch',
+                    'head_branch': 'main', 'head_sha': self.fixture.sha, 'run_attempt': 1,
+                    'status': 'completed', 'conclusion': 'success'}
+        self.members = [(p.name, p.read_bytes()) for p in self.fixture.payload.iterdir()]
+        self.metadata = {'name': 'release-candidate', 'expired': False, 'workflow_run': {'id': 123}}
 
-    def fetch(self, changed=False):
-        self.client.add(("api", f"repos/{REPO}/actions/runs/123"), {
-            "path": ".github/workflows/release-candidate.yml", "head_branch": "main",
-            "event": "workflow_dispatch", "head_sha": self.fixture.sha, "run_attempt": 1, "status": "completed", "conclusion": "success",
-        })
-        self.client.add(("api", f"repos/{REPO}/actions/artifacts/456"),
-                        {"expired": False, "workflow_run": {"id": 123}})
-        members = dict(self.bytes)
-        if changed:
-            members["sdk.zip"] = b"rebuilt"
-        self.client.add(("api", f"repos/{REPO}/actions/artifacts/456/zip"), archive(members.items()))
-        return promote.fetch_candidate(self.fixture.record, REPO, self.payload, self.client)
+    def fetch(self, data=None):
+        data = archive(self.members) if data is None else data
+        self.metadata.setdefault('size_in_bytes', len(data))
+        self.metadata.setdefault('digest', 'sha256:' + hashlib.sha256(data).hexdigest())
+        self.github.add(('api', f'repos/{REPO}/actions/runs/123'), self.run)
+        self.github.add(('api', f'repos/{REPO}/actions/artifacts/456'), self.metadata)
+        self.github.add(('api', f'repos/{REPO}/actions/artifacts/456/zip'), data)
+        with contextlib.chdir(self.fixture.root):
+            return promote.fetch_candidate(REPO, TAG, self.fixture.sha, 123, 456,
+                                           self.fixture.root / 'candidate', self.fixture.manifest, self.github)
 
-    def draft_round_trip(self, changed=False):
-        members = dict(self.bytes)
-        if changed:
-            members["sdk.zip"] = b"rebuilt"
-        members.update({"release.json": self.fixture.manifest.read_bytes(),
-                        "release.json.sig": (self.root / "release.json.sig").read_bytes()})
-        self.assets = [{"id": i, "name": name, "size": len(data), "state": "uploaded",
-                        "updated_at": "2026-01-01T00:00:00Z"}
-                       for i, (name, data) in enumerate(members.items(), 700)]
-        self.client.add(self.releases_command, [[]], [[self.draft]])
-        self.client.add(("release", "create", TAG,
-                         *[str(self.payload / a["name"]) for a in self.fixture.record["artifacts"]],
-                         str(self.runner / "release-approval/release.json"),
-                         str(self.runner / "release-approval/release.json.sig"),
-                         "--repo", REPO, "--draft", "--verify-tag", "--title", "sco-core SDK 9.9.9",
-                         "--notes-file", str(self.runner / "notes.md")), b"")
-        self.client.add(self.assets_command, [self.assets])
-        for asset in self.assets:
-            self.client.add(("api", f"repos/{REPO}/releases/assets/{asset['id']}",
-                             "-H", "Accept: application/octet-stream"), members[asset["name"]])
-        return promote.create_draft(REPO, TAG, self.fixture.manifest, self.root / "release.json.sig",
-                                    self.payload, self.runner, self.downloaded, "9.9.9", self.client)
-
-    def test_offline_signed_candidate_draft_publish_round_trip(self):
-        # The GitHub calls are fixtures; signature, git, inventory and hash checks are real.
+    def test_valid_unsigned_download_and_inventory(self):
         self.assertEqual(self.fetch(), 123)
-        first = self.fixture.verify(**{"payload-dir": self.payload})
-        self.assertEqual(first.returncode, 0, first.stderr)
-        self.assertEqual(self.draft_round_trip(), 600)
-        second = self.fixture.verify(**{"payload-dir": self.downloaded})
-        self.assertEqual(second.returncode, 0, second.stderr)
-        self.client.add(self.releases_command, [[self.draft]])
-        self.client.add(self.assets_command, [self.assets])
-        self.client.add(("release", "edit", TAG, "--repo", REPO, "--draft=false"), b"")
-        self.client.add(("api", f"repos/{REPO}/releases/600"),
-                        dict(self.draft, draft=False, html_url="https://example.invalid/release"))
-        self.assertEqual(promote.publish_draft(REPO, TAG, 600, self.runner, self.client),
-                         "https://example.invalid/release")
+        self.fixture.payload = self.fixture.root / 'candidate'
+        self.fixture.record = json.loads(self.fixture.manifest.read_text())
+        self.assertEqual(self.fixture.run_verify().returncode, 0)
+        self.assertEqual(self.fixture.record['builder']['run_attempt'], 1)
+        self.assertFalse((self.fixture.root / 'release.json.sig').exists())
 
-    def test_fetch_changed_candidate_bytes(self):
-        self.fetch(changed=True)
-        self.fixture.assert_refused(self.fixture.verify(**{"payload-dir": self.payload}),
-                                    "artifact SHA256 mismatch")
-        self.assertFalse(any(call[:2] == ("release", "create") for call in self.client.calls))
+    def test_run_identity_and_failed_build_refused(self):
+        for field, value in [('path', 'other'), ('event', 'push'), ('head_branch', 'other'),
+                             ('head_sha', 'a' * 40), ('run_attempt', 2),
+                             ('status', 'in_progress'), ('conclusion', 'failure')]:
+            with self.subTest(field=field):
+                original = self.run[field]
+                self.run[field] = value
+                with self.assertRaises(promote.Refusal): self.fetch()
+                self.assertFalse(any(c[-1].endswith('/zip') for c in self.github.calls))
+                self.github = FakeGitHub()
+                self.run[field] = original
 
-    def test_draft_payload_bytes_mismatch(self):
-        self.fetch()
-        self.assertEqual(self.fixture.verify(**{"payload-dir": self.payload}).returncode, 0)
-        self.draft_round_trip(changed=True)
-        self.fixture.assert_refused(self.fixture.verify(**{"payload-dir": self.downloaded}),
-                                    "artifact SHA256 mismatch")
-        self.assertFalse(any(call[:2] == ("release", "edit") for call in self.client.calls))
+    def test_artifact_identity_and_integrity_refused(self):
+        for field, value in [('expired', True), ('name', 'other'), ('workflow_run', {'id': 999}),
+                             ('digest', 'sha256:' + '0' * 64), ('size_in_bytes', 1)]:
+            with self.subTest(field=field):
+                original = dict(self.metadata)
+                self.metadata[field] = value
+                with self.assertRaises(promote.Refusal): self.fetch()
+                self.metadata = original
+                self.github = FakeGitHub()
 
+    def test_extra_missing_duplicate_traversal_and_symlink_refused(self):
+        for mode in ('extra', 'missing', 'duplicate', 'traversal', 'symlink'):
+            with self.subTest(mode=mode):
+                members = self.members.copy()
+                if mode == 'extra': members.append(('extra.zip', b'extra'))
+                if mode == 'missing': members.pop()
+                if mode == 'duplicate': members[-1] = members[0]
+                if mode == 'traversal': members[-1] = ('../escape', b'bad')
+                if mode == 'symlink':
+                    member = zipfile.ZipInfo(members[-1][0])
+                    member.create_system = 3
+                    member.external_attr = (stat.S_IFLNK | 0o777) << 16
+                    members[-1] = (member, b'target')
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', UserWarning)
+                    self.members = members
+                    with self.assertRaises(promote.Refusal): self.fetch()
+                import shutil
+                shutil.rmtree(self.fixture.root / 'candidate', ignore_errors=True)
+                self.members = [(p.name, p.read_bytes()) for p in self.fixture.payload.iterdir()]
+                self.metadata = {'name': 'release-candidate', 'expired': False, 'workflow_run': {'id': 123}}
+                self.github = FakeGitHub()
+        self.assertFalse((self.fixture.root.parent / 'escape').exists())
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+if __name__ == '__main__':
+    unittest.main()
