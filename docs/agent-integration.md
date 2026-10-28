@@ -46,6 +46,10 @@ under `sdk/docs` the `url` is a repository path, not a link; in the kit that gui
 `docs/` (see [Find the SDK folder](#find-the-sdk-folder)). See the
 [release notes](releases/sdk-v2.4.0.md#known-issues-in-release-candidate-1).
 
+**RC2 and published RC1.** As of 2026-10-28, RC2 has a tagged source and CI-built
+candidate but no published release. See [RC2 status](releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
+A selected candidate kit retains its own source and archive identity.
+
 **Current source versus published RC1.** The fourteen-tool default and workflow bundle
 on this page describe current source and candidate kits built from it. The already
 published RC1 archive keeps its original six-tool default and twelve tools with
@@ -88,7 +92,47 @@ Then skip the RC1-specific download and extraction below and continue at
 [Choose a profile](#choose-a-profile). The server checks catalogue/index coordinates
 and indexed content on startup; negotiate the available tools after connecting.
 
-### Published RC1 option: download and verify the kit
+### RC2 release option
+
+When the [RC2 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
+and its assets are available, download the combined kit and its `SHA256SUMS` into
+an empty directory. A tag alone does not establish publication. If the assets are
+unavailable, use the separately supplied kit procedure above. Compare the digest
+with the release's independently recorded asset identity before extraction: set
+`EXPECTED_SHA256` (or `$ExpectedSha256` in PowerShell) to that digest first.
+
+macOS and Linux (on macOS use `shasum -a 256 -c -`):
+
+```sh
+set -e
+gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
+grep ' sco-sdk-2.4.0.zip$' SHA256SUMS | sha256sum -c -
+python3 - "$EXPECTED_SHA256" <<'PY'
+import hashlib, pathlib, sys
+if hashlib.sha256(pathlib.Path('sco-sdk-2.4.0.zip').read_bytes()).hexdigest().lower() != sys.argv[1].lower():
+    raise SystemExit('Expected SHA-256 mismatch; stop')
+PY
+mkdir sdk-kit && unzip -q sco-sdk-2.4.0.zip -d sdk-kit
+SDK="$PWD/sdk-kit/sco-sdk-2.4.0"
+test -f "$SDK/sdk-catalogue.json"
+```
+
+Windows PowerShell:
+
+```powershell
+gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
+if ($LASTEXITCODE -ne 0) { throw 'RC2 download failed' }
+$expected = ((Get-Content SHA256SUMS | Where-Object { $_ -match ' sco-sdk-2\.4\.0\.zip$' }) -split '\s+')[0]
+if (!$expected -or !$ExpectedSha256 -or (Get-FileHash sco-sdk-2.4.0.zip -Algorithm SHA256).Hash -ine $expected -or $expected -ine $ExpectedSha256) { throw 'SHA256 mismatch; stop' }
+Expand-Archive sco-sdk-2.4.0.zip -DestinationPath sdk-kit
+$SDK = (Join-Path (Resolve-Path sdk-kit).Path 'sco-sdk-2.4.0') -replace '\\', '/'
+if (!(Test-Path "$SDK/sdk-catalogue.json")) { throw 'Not the SDK folder' }
+```
+
+Then continue at [Choose a profile](#choose-a-profile). Confirm the extracted
+compatibility, catalogue and workflow index identities as described above.
+
+### Historical RC1 option: download and verify the kit
 
 Download `sco-sdk-2.4.0.zip` and `SHA256SUMS` from the
 [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1)
@@ -516,7 +560,7 @@ Common failures:
 | `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is the older published RC1 server. Current source defaults to fourteen; grant the fourteen exact names for that profile. RC1 needs `--extended-tools` for its twelve supported names and has no workflow tools. |
 | The server does not start on Windows, or the Microsoft Store opens | `python3` is not a standard Windows command. Use `py` with `-3`, or an absolute `python.exe` (`py -3 -c "import sys; print(sys.executable)"` prints its path). |
 | The client disconnects while initializing | The client does not support protocol `2025-11-25`. Update the client. |
-| `check_compatibility` says a `tag` does not match the advertised pattern | Known issue in release candidate 1: the tag pattern is `sdk-vMAJOR.MINOR.PATCH`, so `sdk-v2.4.0-rc.1` is refused. Compare `sdk_version` and `game_pack_version` instead. |
+| `check_compatibility` says a `tag` does not match the advertised pattern | The current historical-record lookup accepts `sdk-vMAJOR.MINOR.PATCH` only, so RC1 and RC2 suffixes are refused. Compare `sdk_version`, `game_pack_version` and `source_sha`, and verify the archive digest separately; these checks do not prove publication. |
 | `search_guides` text says 2.4.0 is not on the release page | Known issue in release candidate 1, described at the top of this section. The [docs site](https://scuba-sc.github.io/sco-core/) supersedes the kit's guides. |
 
 ### Workflow discovery and missing indexes

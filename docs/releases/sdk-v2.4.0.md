@@ -1,13 +1,12 @@
-# sco-core SDK 2.4.0 (release notes, release candidate 1)
+# sco-core SDK 2.4.0 release notes
 
 Final tag `sdk-v2.4.0`, combined archive `sco-sdk-2.4.0.zip`.
-**Status: release candidate 1 published.** On 2026-10-21 the five archives were published as the
+**RC1 history.** On 2026-10-21 the five archives were published as the
 release [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
-release-candidate workflow from `main` commit `48d7055`, with every file attested. It is the only
+release-candidate workflow from `main` commit `48d7055`, with every file attested. As of 2026-10-28 it was the only
 SDK release on the release page: the 2.0.0 to 2.3.0 release downloads were withdrawn (their tags
 remain in git). The final `sdk-v2.4.0` release is pending; nothing here authorizes approval,
-tagging or that publication. It is marked as the repository's latest
-release. The release workflow publishes the CHANGELOG section
+tagging or that publication. The release workflow publishes the CHANGELOG section
 [`## sdk-v2.4.0`](../../CHANGELOG.md) as the final release's notes; this page is the longer
 reference behind it.
 
@@ -16,6 +15,18 @@ reference behind it.
 {"tag":"sdk-v2.4.0","sdk_version":"2.4.0","game_pack_version":"0.8.0","plugin_abi":"1.1","profiles":["core","game-sc","legacy","core-source","host-source-sc"]}
 ```
 <!-- release-scope:end -->
+
+## Historical RC2 candidate status
+
+On 2026-10-28, tag `sdk-v2.4.0-rc.2` identified source
+`b7541dc91802f5fa1b050151bbc82e0e47834b6f`; the
+[release-candidate workflow run](https://github.com/scuba-sc/sco-core/actions/runs/40639676639)
+produced candidate artifacts from that source. At that date the RC2 release and
+downloads were not published; RC1 remained the published SDK. Check the
+[release page](https://github.com/scuba-sc/sco-core/releases) for later publication.
+A tag or CI artifact is not a published release. Keep the selected archive hash,
+source and host identities separate. A later documentation edit does not change
+the already built candidate archives.
 
 ## Release candidate 1 archives
 
@@ -137,10 +148,10 @@ availability or game acceptance.
 
 The bus event `game.loadout.respawn_completed` is also on `main`: production capability OFF, native hook unresolved, not run in game (F-INTAKE-004). #185's in-game hold was resolved by the owner's acceptance of static evidence; inventory 1.1 is **not run in game**.
 
-### Unpublished current-source additions for RC2 evaluation
+### Post-RC1 additions included in RC2 source
 
-The following changes are in current source after RC1. They do not alter the
-published RC1 archive tables or establish an RC2 archive, release or download.
+The following changes are in RC2 source after RC1. They do not alter the
+published RC1 archives or establish an RC2 release or download.
 
 - [Inventory 1.2 logical layouts](../game/inventory.md#logical-layout-observations-12)
   copy bounded observations; the production host has no layout producer and the
@@ -155,11 +166,11 @@ published RC1 archive tables or establish an RC2 archive, release or download.
 
 These source contracts and synthetic fixtures do not certify native behavior or
 an extracted candidate. Candidate archive hashes, inventory, source and host
-identity must be established from the actual candidate when one is built.
+identity must be established from the actual selected candidate archives.
 
 ### RC2 in-game evidence
 
-For the proposed `sdk-v2.4.0-rc.2` candidate, the owner deferred in-game
+For `sdk-v2.4.0-rc.2`, the owner deferred in-game
 validation. **Not run in game** remains the result; this is not a test pass or
 proof of native behavior. This candidate-only decision does not establish final
 2.4.0 acceptance or waive the other release and provenance checks.
@@ -265,10 +276,10 @@ evidence. Every row is "not run in game".
   They are the first native work after 2.4.0.
 
 The current manifest selects native-index/status metadata for game-sc, legacy
-and host-source-sc, with source-matched generated catalogues. Selection is not
-publication approval. The earlier
-[native-index distribution restriction](../legal/release-decisions/2026-10-14-native-index.md)
-requires a new applicable maintainer decision before those bytes are released.
+and host-source-sc, with source-matched generated catalogues. The
+[RC2 metadata scope record](../legal/release-decisions/2026-10-27-rc2-discovery-metadata.md)
+identifies the selected source files and profiles. Recheck that scope if the files
+or profiles change; selection does not itself publish a release.
 
 ## Engineering limits
 

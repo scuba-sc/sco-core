@@ -35,7 +35,7 @@ only, with `public_header: false`. `sdk/add_host_adapter_components.py` validate
 real files/provenance before adding their exact membership; it is idempotent and
 refuses any conflicting plugin profile membership. No placeholder files are used.
 
-The kit is published as `sco-sdk-host-source-sc-2.4.0.zip` in
+The RC1 kit was published as `sco-sdk-host-source-sc-2.4.0.zip` in
 [SDK 2.4.0 release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1)
 (tag `sdk-v2.4.0-rc.1`, SHA-256
 `5ca76ff9dac6bbaa183c6f308d610e08d9c1b0daf6ebda6458e222277406dfc6`; see the

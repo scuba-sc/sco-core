@@ -47,13 +47,16 @@ optional and default-off; static discovery never certifies gameplay or performs 
 
 ## Using an extracted SDK archive
 
-**SDK 2.4.0 is published as release candidate 1**
-([`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
-release; the final `sdk-v2.4.0` follows). It bundles this launcher, a
-compiler-built `sdk-catalogue.json` and the matching guide sections
-`sdk-guides.json` in the combined kit (`sco-sdk-2.4.0.zip`), the `game-sc` overlay
-and the `host-source-sc` kit. The guides and READMEs inside the release candidate 1
-kit predate its publication; see the known issue in the
+RC2 has a tagged source and CI-built candidate; as of 2026-10-28 it has no
+published release. See [RC2 status](../../docs/releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
+Use matching source, archive, catalogue and workflow identities for any supplied kit.
+
+The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) is the intended location for published RC2
+assets. A tag or candidate artifact does not establish publication; if assets are unavailable,
+use a separately supplied, checksum-identified kit. The combined kit (`sco-sdk-2.4.0.zip`),
+matching `game-sc` overlay and `host-source-sc` kit include the discovery launcher,
+compiler-built `sdk-catalogue.json` and matching `sdk-guides.json`. Historical RC1
+has its own earlier launcher and frozen guides; see the known issue in the
 [integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 
 Use the combined kit directly, or compose the game overlay over the exact core
@@ -251,8 +254,7 @@ the result only when supplied, so existing callers see the same fields:
 | `member_extent` | integer bytes 1-65535; requires `service` | `extent_within_catalogue_size`: the extent fits the catalogue table size |
 
 The `tag` pattern has no pre-release suffix, so the release candidate tag
-`sdk-v2.4.0-rc.1` is refused as not matching the advertised pattern; compare
-`sdk_version` and `game_pack_version` instead. The input schema advertises the
+`sdk-v2.4.0-rc.1` and `sdk-v2.4.0-rc.2` are refused as not matching the advertised pattern, including on current source. Compare `sdk_version`, `game_pack_version` and `source_sha` instead, and verify the archive digest separately. The input schema advertises the
 patterns and `dependentRequired`. Arguments outside it, a malformed value,
 `min_version`/`member_extent` without `service`, or an unknown service are refused
 as tool errors. `service_table` describes the
