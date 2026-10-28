@@ -22,6 +22,7 @@ struct Fixture {
     bool fail_play = false, fault_once = false, release_once = false, revoke_play = false, recurse = false;
     sco::sdk::game::Audio* consumer = nullptr;
     sco_plugin* release_during_play = nullptr;
+    sco_plugin* release_during_stop = nullptr;
 };
 int hook_calls[6]{};
 void Hook1(const void*) { ++hook_calls[0]; }
@@ -58,6 +59,10 @@ sco_result Play(void* ctx, uint64_t key, uint64_t* out) {
 }
 sco_result Stop(void* ctx, uint64_t key) {
     auto& f = *static_cast<Fixture*>(ctx); CHECK(key>=10); ++f.stops;
+    if (f.release_during_stop) {
+        auto* owner=f.release_during_stop; f.release_during_stop=nullptr;
+        CHECK(sco::Release(owner)==sco::Result::Ok);
+    }
     if (f.fail_stop || key == f.fail_stop_key) return SCO_FAILED;
     CHECK(f.active>0 && key < 512 && f.active_keys[key]);
     if (key < 512) f.active_keys[key] = false;
@@ -73,7 +78,7 @@ sco_result PlayOnce(void* ctx, uint64_t key) {
     return f.fail_play ? SCO_FAILED : SCO_OK;
 }
 }
-int main(int argc, char**) {
+int main(int argc, char** argv) {
     sco::SetGameThread();
     CHECK(G::AddGameReleaseHook(Hook1)==sco::Result::Ok);
     CHECK(G::AddGameReleaseHook(Hook2)==sco::Result::Ok);
@@ -124,10 +129,54 @@ int main(int argc, char**) {
     CHECK(B.Open(api,b)==SCO_OK);
     const auto foreign_once=f.once;
     CHECK(B.PlayOnce(ta)==SCO_FAILED && f.once==foreign_once); // foreign owner: no callout
-    f.fault_once=true;
+    CHECK(B.Resolve("cue",tb)==SCO_OK);
+    CHECK(B.Play(tb,pb)==SCO_OK && A.Play(ta,pa)==SCO_OK && f.active==2);
+    const bool nested_cleanup = argc > 1 && std::strcmp(argv[1], "nested-cleanup") == 0;
+    const bool nested_failure = argc > 1 && std::strcmp(argv[1], "nested-cleanup-failure") == 0;
+    if (nested_cleanup || nested_failure) {
+        // B's earlier slot was already visited when A's stop releases B.
+        const uint64_t b_effect=f.next-2;
+        if (nested_failure) f.fail_stop_key=b_effect;
+        f.release_during_stop=b;
+        CHECK(sco::Release(a)==sco::Result::Ok);
+        CHECK(f.stops==2); // no immediate repeated attempt after a failed stop
+        if (nested_failure) {
+            CHECK(f.active==1 && f.active_keys[b_effect] && !sco::caps::Has("game.audio.triggers"));
+            CHECK(G::StopAudio()==sco::Result::Failed && f.active==1);
+            f.fail_stop_key=0;
+            CHECK(G::StopAudio()==sco::Result::Failed && f.active==0);
+        } else {
+            CHECK(f.active==0);
+            CHECK(G::StopAudio()==sco::Result::Ok);
+        }
+        std::printf("audio nested cleanup: %d passed, %d failed\n",passed,failed);
+        return failed ? 1 : 0;
+    }
+    const auto stops_before_fault=f.stops;
+    const bool fault_cleanup_failure = argc > 1 && std::strcmp(argv[1], "fault-cleanup-failure") == 0;
+    const uint64_t a_effect=f.next-1;
+    if (fault_cleanup_failure) f.fail_stop_key=a_effect;
+    f.fault_once=true; f.release_once=true; f.release_during_play=a;
     CHECK(A.PlayOnce(ta)==SCO_CRASHED && f.once==foreign_once+1);
-    f.fault_once=false;
+    f.fault_once=false; f.release_during_play=nullptr;
+    if (fault_cleanup_failure) {
+        CHECK(f.active==2 && f.stops==stops_before_fault+1 && f.active_keys[a_effect]);
+        CHECK(!sco::caps::Has("game.audio.play_once") && !sco::caps::Has("game.audio.triggers"));
+        CHECK(B.Stop(pb)==SCO_OK && f.active==1 && f.active_keys[a_effect]);
+        CHECK(G::StopAudio()==sco::Result::Failed && f.active==1 && f.active_keys[a_effect]);
+        f.fail_stop_key=0;
+        CHECK(G::StopAudio()==sco::Result::Failed && f.active==0 && !f.active_keys[a_effect]);
+        CHECK(G::StartAudio({&f,Resolve,Play,Stop,PlayOnce})==sco::Result::Failed);
+        std::printf("audio fault cleanup failure: %d passed, %d failed\n",passed,failed);
+        return failed ? 1 : 0;
+    }
+    // A release deferred during a faulting callout must drain before return,
+    // without stopping another owner's independently tracked effect.
+    CHECK(f.active==1 && f.stops==stops_before_fault+1);
+    CHECK(B.Stop(pb)==SCO_OK && f.active==0);
     CHECK(!sco::caps::Has("game.audio.play_once") && sco::caps::Has("game.audio.triggers"));
+    a=sco::host::NewPlugin("audio_a_after_fault"); CHECK(A.Open(api,a)==SCO_OK);
+    CHECK(A.Resolve("cue",ta)==SCO_OK);
     const auto resolves_before_fresh=f.resolves;
     CHECK(A.Resolve("fresh-after-once-fault",repeat)==SCO_OK && repeat!=0 && repeat!=ta);
     CHECK(f.resolves==resolves_before_fresh+1); // uncached name reaches the resolver after the fault

@@ -28,7 +28,7 @@ struct Backend {
 // Start refuses replacement; Stop must follow consumer unload. Faults require process restart.
 Result Start(const Backend& backend = {}, bool shared_release_hook = false);
 Result Stop();
-// Game-thread snapshot of the ACTIVE accepted missions' statuses for game.mission.changed
+// Game-thread snapshot of owned accepted missions' statuses for game.mission.changed
 // (events.cpp). Returns 0 without a bound backend, off admission, off the game thread, or in
 // any fault/stopping state; never publishes and never throws. Fills up to cap entries.
 uint32_t PollStatuses(sc_mission_status* out, uint32_t cap);

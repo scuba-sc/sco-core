@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Drain deferred audio owner cleanup after one-shot faults and nested releases, with bounded failure handling.
+
+- Guard mission-event polling against callback faults, reentry, shutdown and stale
+  or failed acceptance receipts, and scope event-cache IDs to their sessions.
+  Synthetic checks only; not run in game.
+
 - Reconcile current-source widget, MCP, host-source and RC2 consumer guidance while preserving published RC1 coordinates and provider limits.
 
 - Reconcile the development roadmap and contract inventory with current source, keeping RC1 downloads and RC2 and final acceptance distinct.

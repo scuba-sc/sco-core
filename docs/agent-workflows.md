@@ -13,11 +13,21 @@ Current source contains six focused skills for developers building extensions, t
 
 Read an entrypoint only when its task applies, then its relevant references. These are portable Markdown skills; open the files directly or follow your agent client's supported skill installation process. The SDK never writes agent configuration or automatically installs/activates them. Keep the complete bundle together because workflows share references.
 
+For direct-file use, give an agent with access to the extracted kit the path
+`<SDK>/skills/sco-plan-sdk-work/SKILL.md` and ask it to read that file and the
+relevant linked references for the task. The other five entrypoints are siblings
+under `<SDK>/skills/`; preserve the entire `skills/` directory, including the
+manifest and reference files, so cross-workflow links resolve. In a source kit the
+corresponding path is `<source-root>/sdk/skills/sco-plan-sdk-work/SKILL.md`.
+Reading these files provides instructions to the agent; it does not install or
+activate a skill in a client. Client-specific installation, if desired, follows
+that client's own instructions and requires access to the complete bundle.
+
 ## Archive and source discovery
 
 `core` and `legacy` kits place the bundle under `skills/`; source kits preserve `sdk/skills/`. Each base kit also has `sdk-workflows.json`. The `game-sc` overlay uses its exact matching core kit's workflow bundle and overwrites none of it. The index embeds entrypoint/reference text, descriptions, bundle/baseline/SDK/source coordinates and SHA-256 hashes of the **actual packaged Markdown after link rewriting**. SHA256SUMS, ATTRIBUTIONS and the SPDX SBOM also cover these files. Hashes identify bytes; human review/release approval remains separate.
 
-The [discovery server](../tools/sco-core-mcp/README.md) exposes all fourteen read-only discovery tools by default, including `list_workflows` and `get_workflow`:
+The [discovery server](../tools/sco-core-mcp/README.md) exposes all fourteen read-only discovery tools by default, including `list_workflows` and `get_workflow`. The following launcher requires a combined `legacy` plugin kit or the `game-sc` overlay composed over its exact matching `core` kit, with both `tools/sco-core-mcp/server.py` and `sdk-catalogue.json` present under `$SDK`. A standalone `core` or `core-source` kit lacks those files; use the direct-file path above. A `host-source-sc` kit includes the server and catalogue but is a host-source input, not a plugin kit:
 
 ```sh
 python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK"
@@ -66,6 +76,13 @@ Additional current-source contracts are not contained in published RC1:
 These boundaries are current-source descriptions, not a claim that an RC2 archive
 exists or that the installed product host supplies the capabilities. Synthetic
 fixtures are not gameplay acceptance.
+
+For example, the [quantum contract](quantum.md#availability-and-evidence)
+describes a conditional Windows game-pack adapter in this source. Its existence
+does not establish that a particular product host has configured it, passed
+admission, or verified it in game. Check the product's exact host source pin and
+observed capability separately from the plugin kit version; an unavailable or
+untested provider does not by itself mean that an adapter is absent from source.
 
 For an RC2 consumer evaluation:
 

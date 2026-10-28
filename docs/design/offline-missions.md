@@ -46,6 +46,11 @@ retrying it. Last-phase advance marks completion only; there is no automatic pay
 A backend success means its effect completed synchronously; delayed operations require
 a different future contract, not optimistically returning OK here.
 
+The internal mission-event poll uses the same guarded admission and session ledger.
+It excludes failed accepts and retired owners, contains callback faults, and stops
+calling the backend during shutdown. A terminal status remains observable for event
+delivery. These checks do not establish a native mission provider.
+
 ## Abandonment and user-authored content
 
 Abandonment is an owned once-only effect. Completed missions refuse it; repeated

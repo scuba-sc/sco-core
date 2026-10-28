@@ -390,6 +390,9 @@ done
   $(obj asan "$ROOT/src/game/services/audio.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_audio"
 "$OUT/test_audio"
 "$OUT/test_audio" owner-cleanup
+"$OUT/test_audio" fault-cleanup-failure
+"$OUT/test_audio" nested-cleanup
+"$OUT/test_audio" nested-cleanup-failure
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_entity_lookup.cpp" \
   $(obj asan "$ROOT/src/game/services/entity_lookup.cpp") -o "$OUT/test_entity_lookup"
 "$OUT/test_entity_lookup"
@@ -422,6 +425,12 @@ done
 # cross-thread tests (test_runtime, test_host) don't already cover under both sets.
 "$CXX" "${FLAGS[@]}" -I "$ROOT/src" -fsanitize=address,undefined "$ROOT/tests/test_death_events.cpp" "${HOST_ASAN[@]}" -o "$OUT/test_death_events"
 "$OUT/test_death_events"
+"$CXX" "${FLAGS[@]}" -I "$ROOT/src" -fsanitize=address,undefined "$ROOT/tests/test_mission_events.cpp" $(obj asan "$ROOT/src/game/services/offline_missions.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_mission_events"
+"$OUT/test_mission_events"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_offline_missions.cpp" $(obj asan "$ROOT/src/game/services/offline_missions.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_offline_missions"
+"$OUT/test_offline_missions"
+"$OUT/test_offline_missions" --poll-fault
+echo "offline missions poll fault: PASS (synthetic backend, no game)"
 
 # Detours over small functions written into executable memory (x86-64 only; skipped elsewhere).
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_hook.cpp" $(obj asan "$ROOT/src/hook/sco_hook.cpp") -o "$OUT/test_hook"

@@ -6967,6 +6967,17 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-src-game-services-mission_events.h",
+      "source": "src/game/services/mission_events.h",
+      "destination": "src/game/services/mission_events.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
       "id": "host-source-sc-src-game-services-death_events.h",
       "source": "src/game/services/death_events.h",
       "destination": "src/game/services/death_events.h",
@@ -7709,6 +7720,17 @@
       "id": "host-source-sc-tests-test_datacore_service.cpp",
       "source": "tests/test_datacore_service.cpp",
       "destination": "tests/test_datacore_service.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
+      "id": "host-source-sc-tests-test_mission_events.cpp",
+      "source": "tests/test_mission_events.cpp",
+      "destination": "tests/test_mission_events.cpp",
       "profiles": [
         "host-source-sc"
       ],
