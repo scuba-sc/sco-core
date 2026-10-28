@@ -2,8 +2,10 @@
 
 ## Standalone developer-kit workflow
 
-**SDK 2.4.0 RC2** is the candidate for this workflow. Use the [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
-when its assets are published; a tag or candidate artifact alone does not establish publication.
+**SDK 2.4.0 RC2** is the published release for this workflow. Download the matching
+developer kit from the [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
+and verify its digest against that release's `SHA256SUMS`; a tag or candidate artifact
+alone does not establish publication.
 The combined kit, composed
 core-plus-game overlay and host-source kit supply the discovery launcher,
 `sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
@@ -14,16 +16,14 @@ against RC1 `SHA256SUMS` and retain its compatibility inventory. RC1 provides si
 default discovery tools, or twelve with `--extended-tools`; it does not provide
 the workflow bundle described below.
 
-The complete workflow in this tutorial instead needs a separately sourced,
-matching updated-source developer kit, catalogue and workflow index. RC2 has a
-[recorded tagged candidate](releases/sdk-v2.4.0.md#historical-rc2-candidate-status),
-but was not published as of 2026-10-28. Record the
-source revision and archive digest, verify the inventory, and extract to an empty
-directory. For a source checkout, build matching metadata as described in the
+The complete workflow uses the published RC2 combined kit, which includes the
+matching catalogue and workflow index. Verify the archive against RC2 `SHA256SUMS`
+and extract it to an empty directory. For a source checkout, build matching
+metadata as described in the
 [discovery README](../tools/sco-core-mcp/README.md) and
 [workflow guide](agent-workflows.md#archive-and-source-discovery). A local build
-is not an official candidate or permission to distribute it. Do not pair RC1
-archive bytes with the site's changing mainline catalogue or a different index.
+is not the published release asset or permission to distribute it. Do not pair
+RC1 archive bytes with the site's changing mainline catalogue or a different index.
 
 Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client supporting
 protocol `2025-11-25`. Building a scaffold additionally needs CMake 3.20+ and a
@@ -34,7 +34,7 @@ consume a bundled one.
 ### Connect the client
 
 Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit),
-using the separately verified updated-source kit for the steps below. Set
+using the published RC2 combined kit for the steps below. Set
 `SDK_ROOT` to the folder that directly contains its `sdk-catalogue.json` and
 `sdk-workflows.json`; register `sco-core-sdk` in your client and verify the
 connection. This tutorial uses the current-source **SDK developer profile**: fourteen read-only
@@ -42,20 +42,19 @@ tools by default. Explicit `--minimal-tools` retains the six catalogue tools and
 leaves out scaffolding, validation, native/guide and workflow discovery. The
 legacy `--extended-tools` and `--workflow-tools` aliases are no longer needed.
 The published RC1 server is unchanged: append `--extended-tools` for its twelve
-tools, and use a separately pinned updated-source kit for the new workflow tools
-and defaults.
+tools; workflow tools and the fourteen-tool default are in the published RC2 kit.
 
 To start the server by hand, with absolute paths on the machine running the client:
 
 ```sh
-python3 /absolute/path/to/updated-sdk-root/tools/sco-core-mcp/server.py \
-  --catalogue /absolute/path/to/updated-sdk-root/sdk-catalogue.json \
-  --repo-root /absolute/path/to/updated-sdk-root
+python3 /absolute/path/to/sdk-rc2-root/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/sdk-rc2-root/sdk-catalogue.json \
+  --repo-root /absolute/path/to/sdk-rc2-root
 ```
 
 This command waits for MCP messages on stdin; it is not a shell prompt. On
 Windows use `py -3` with drive-qualified paths, for example
-`C:/absolute/path/to/updated-sdk-root/tools/sco-core-mcp/server.py`. On macOS/Linux use
+`C:/absolute/path/to/sdk-rc2-root/tools/sco-core-mcp/server.py`. On macOS/Linux use
 `python3`, or an absolute Python executable if the client does not inherit shell `PATH`.
 
 The fourteen default tools do not add runtime access; list their exact names in
@@ -65,7 +64,7 @@ reviewed generator code in-process.
 
 ### Start with the roadmap workflow
 
-On an updated-source kit call `list_workflows {}`, then
+On the published RC2 kit call `list_workflows {}`, then
 `get_workflow {"id":"sco-plan-sdk-work"}`. Read its returned references as needed,
 map the task to the pinned roadmap goal and public contracts, and record observable
 acceptance before continuing below. This workflow bundle is absent from published

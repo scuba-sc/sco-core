@@ -4,12 +4,13 @@ This is one complete path from a published SDK archive to a checked, renamed C
 plugin, then Windows game deployment. You do not need a sco-core checkout.
 
 SDK **2.4.0 RC2** uses Star Citizen game pack **0.8.0** and plugin ABI **1.1**
-(unchanged since 2.3.0). The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) is the intended
-download location when its assets are published. A tag or CI artifact alone does not establish
-publication: if the page or assets are unavailable, use a separately supplied, checksum-identified
-candidate or select another published release. The RC1 example and checksums below are historical
-and apply only to RC1. Check the selected kit and host identities separately. Nothing new in 2.4.0
-has been run in game.
+(unchanged since 2.3.0). The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
+is the latest published release. Its tag points to source commit
+`844e136ccb280ad8cb43f73bc43c9447e8f6799d`; later `main` commits do not change the
+released archive bytes. RC1 examples and checksums below are historical and apply
+only to RC1. Verify the selected archive against that release's `SHA256SUMS` and
+check the kit and host identities separately. Nothing new in 2.4.0 has been run
+in game.
 
 ## 1. Choose a language and archive
 
@@ -37,7 +38,9 @@ line) and `lua` (`plugin.ini` and `main.lua`; Lua has no service lookup, so
 language's folder holds and how to check it. A generated plugin that passes the
 checkers has not been run in game.
 
-### SDK 2.4.0 release candidate 1 assets
+<a id="sdk-240-release-candidate-1-assets"></a>
+
+### Historical SDK 2.4.0 release candidate 1 assets
 
 Every archive below is attached to the `sdk-v2.4.0-rc.1` release, together with
 `SHA256SUMS` and one `<archive>.spdx.json` SBOM per archive. The SHA-256 column
@@ -88,15 +91,15 @@ Earlier revisions of this page ran the same steps on macOS. On Windows, use a
 shell that supports these shell blocks (Git Bash works), or perform the
 download/extraction in the browser and use the linked Windows CMake recipe.
 
-### Download SDK 2.4.0 release candidate 2
+### Download the published SDK 2.4.0 release candidate 2
 
-Once the RC2 release and its assets are available, run the following in an empty directory.
-The checksum file must come from that same release; compare its archive digest with the
-release's independently recorded asset identity by setting `EXPECTED_SHA256` before running
-the commands. If the page or assets are unavailable,
-stop and use a separately supplied, checksum-identified candidate instead.
+Run the following in an empty directory. The release API records
+`sco-sdk-core-2.4.0.zip` with SHA-256
+`052189fde7d3f1f7720e634a1480e6a8b86638b8f61607b45025ac317d0186ea`;
+the script compares that value with the checksum file from the same release.
 
 ```sh
+EXPECTED_SHA256=052189fde7d3f1f7720e634a1480e6a8b86638b8f61607b45025ac317d0186ea
 env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.0.zip' -p SHA256SUMS
 python3 - "$EXPECTED_SHA256" <<'PY'
 import hashlib

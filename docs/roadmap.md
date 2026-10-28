@@ -5,10 +5,12 @@ is today, what SDK 2.4.0 is meant to deliver, and where it goes after that. It i
 release promise: there are no dates, and a feature named here exists only when its contract,
 implementation and evidence say so in [game capability status](game/status.md) and the release notes.
 
-SDK 2.4.0 RC2 is the candidate for this roadmap. The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
-is the intended location for published assets; a tag or CI candidate does not establish
-publication. [Release notes](releases/sdk-v2.4.0.md) retain the RC1 and RC2 history;
-the final `sdk-v2.4.0` release follows.
+SDK 2.4.0 RC2 is the latest published release. Its assets are on the
+[RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2),
+and its tag points to source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`.
+Later `main` commits do not change those released bytes. The final `sdk-v2.4.0`
+release is still pending. [Release notes](releases/sdk-v2.4.0.md) retain the
+RC1 and RC2 history.
 
 ## How to read status on this page
 
@@ -69,10 +71,11 @@ must have the right to contribute what you send.
 supported language, validate it without the game, and deploy it on a compatible host, without
 reverse engineering anything.
 
-Status: **release candidate 1 published** (`sdk-v2.4.0-rc.1`, with the five
-archives). RC2 is a tagged candidate and was not published as of 2026-10-28;
-the final `sdk-v2.4.0` release follows. Plugin ABI 1.1 stays byte-identical. Star
-Citizen game pack 0.8.0 on verified build 4.10.197.2878. Nothing new in 2.4.0 has been run in game.
+Status: the latest published release is **RC2** (`sdk-v2.4.0-rc.2`, with five
+archives, built from source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`).
+RC1 is historical; the final `sdk-v2.4.0` release is still pending. Plugin ABI
+1.1 stays byte-identical. Star Citizen game pack 0.8.0 targets verified build
+4.10.197.2878. Nothing new in 2.4.0 has been run in game.
 
 ### Developer kit
 
