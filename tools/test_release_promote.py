@@ -247,7 +247,7 @@ class PromotionTests(unittest.TestCase):
             (self.payload / name).write_bytes(data)
         self.asset_bytes.update({"release.json": self.manifest.read_bytes()})
         self.assets = [{"id": i, "name": name, "size": len(data), "state": "uploaded",
-                        "updated_at": "2026-01-01T00:00:00Z"}
+                        "updated_at": "2026-01-01T00:00:00Z", "digest": "sha256:" + hashlib.sha256(data).hexdigest()}
                        for i, (name, data) in enumerate(self.asset_bytes.items(), 700)]
         self.draft = {"id": 600, "tag_name": TAG, "draft": True, "prerelease": False}
         self.releases_command = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases?per_page=100")
@@ -295,12 +295,7 @@ class PromotionTests(unittest.TestCase):
         self.create_draft(configure_only=True)
         self.assertEqual(promote.create_draft(REPO, rc, self.manifest, self.payload,
                                              self.runner, self.root / "downloaded", "9.9.9", self.github), 600)
-        (self.runner / "draft-assets.json").write_text(json.dumps(self.assets))
-        self.github.add(self.releases_command, [[self.draft]])
-        self.github.add(self.assets_command, [self.assets])
-        self.github.add(("release", "edit", rc, "--repo", REPO, "--draft=false"), b"")
-        self.github.add(("api", f"repos/{REPO}/releases/600"), dict(self.draft, draft=False, html_url="https://example.invalid/rc"))
-        self.assertEqual(promote.publish_draft(REPO, rc, 600, self.runner, self.github), "https://example.invalid/rc")
+        self.publication(tag=rc, published=dict(self.draft, draft=False, html_url="https://example.invalid/rc"))
 
     def test_wrong_prerelease_state_refused(self):
         self.draft_fixtures()
@@ -363,17 +358,22 @@ class PromotionTests(unittest.TestCase):
         self.asset_bytes["release.json"] = json.dumps(self.approval, indent=2).encode()
         self.assert_draft_refused("inventory differs")
 
-    def publication(self, releases=None, assets=None, published=None, configure_only=False):
+    def publication(self, releases=None, assets=None, published=None, configure_only=False,
+                    tag=TAG, post_assets=None, before_tag=SHA, after_tag=SHA, post_releases=None):
         (self.runner / "draft-assets.json").write_text(json.dumps(self.assets))
-        self.github.add(self.releases_command, [[self.draft]] if releases is None else releases)
-        self.github.add(self.assets_command, [self.assets] if assets is None else assets)
-        self.edit_command = ("release", "edit", TAG, "--repo", REPO, "--draft=false")
-        self.github.add(self.edit_command, b"")
-        self.github.add(("api", f"repos/{REPO}/releases/600"),
-                        dict(self.draft, draft=False, html_url=f"https://github.com/{REPO}/releases/tag/{TAG}")
-                        if published is None else published)
+        released = dict(self.draft, draft=False, html_url=f"https://github.com/{REPO}/releases/tag/{tag}") if published is None else published
+        self.github.add(self.releases_command, [[self.draft]] if releases is None else releases,
+                        [[released]] if post_releases is None else post_releases)
+        self.github.add(self.assets_command, [self.assets] if assets is None else assets,
+                        [self.assets] if post_assets is None else post_assets)
+        self.edit_command = ("api", "--method", "PATCH", f"repos/{REPO}/releases/600", "-F", "draft=false")
+        self.github.add(self.edit_command, released)
+        self.github.add(("api", f"repos/{REPO}/git/ref/tags/{tag}"),
+                        {"object": {"type": "commit", "sha": before_tag}},
+                        {"object": {"type": "commit", "sha": after_tag}})
+        self.github.add(("api", f"repos/{REPO}/releases/600"), released)
         if not configure_only:
-            return promote.publish_draft(REPO, TAG, 600, self.runner, self.github)
+            return promote.publish_draft(REPO, tag, 600, SHA, self.runner, self.github)
 
     def test_publish_same_verified_draft(self):
         self.assertTrue(callable(getattr(promote, "publish_draft", None)),
@@ -381,7 +381,7 @@ class PromotionTests(unittest.TestCase):
         self.draft_fixtures()
         self.assertEqual(self.publication(), f"https://github.com/{REPO}/releases/tag/{TAG}")
         self.assertIn(self.edit_command, self.github.calls)
-        self.assertEqual(self.github.calls[-1], ("api", f"repos/{REPO}/releases/600"))
+        self.assertEqual(self.github.calls[-1], self.releases_command)
 
 
     def assert_publish_refused(self, message, **kwargs):
@@ -439,6 +439,9 @@ class PromotionTests(unittest.TestCase):
     def test_publish_asset_state_changed(self):
         self.changed_inventory("state", "starter")
 
+    def test_publish_asset_digest_changed(self):
+        self.changed_inventory("digest", "sha256:" + "0" * 64)
+
     def test_publish_asset_updated_at_changed(self):
         self.changed_inventory("updated_at", "2026-02-01T00:00:00Z")
 
@@ -466,6 +469,66 @@ class PromotionTests(unittest.TestCase):
         self.draft_fixtures()
         with self.assertRaisesRegex(promote.Refusal, "was not published"):
             self.publication(published=dict(self.draft, draft=False, tag_name="sdk-v0.0.0"))
+
+    def test_publish_refuses_remote_tag_mismatch_before_patch(self):
+        self.draft_fixtures()
+        self.assert_publish_refused("remote tag does not match", before_tag="b" * 40)
+
+    def test_publish_detects_tag_move_during_patch(self):
+        self.draft_fixtures()
+        with self.assertRaisesRegex(promote.Refusal, "remote tag changed.*may already be public"):
+            self.publication(after_tag="b" * 40)
+        self.assertIn(self.edit_command, self.github.calls)
+
+    def test_publish_detects_asset_changes_during_patch(self):
+        for field, value in (("id", 999), ("digest", "sha256:" + "0" * 64),
+                             ("size", 999), ("updated_at", "2026-02-01T00:00:00Z")):
+            with self.subTest(field=field):
+                if not hasattr(self, 'assets'):
+                    self.draft_fixtures()
+                changed = copy.deepcopy(self.assets)
+                changed[0][field] = value
+                with self.assertRaisesRegex(promote.Refusal, "release assets changed.*may already be public"):
+                    self.publication(post_assets=[changed])
+                self.assertIn(self.edit_command, self.github.calls)
+                self.github = FakeGitHub()
+
+    def test_publish_detects_duplicate_release_after_patch(self):
+        self.draft_fixtures()
+        published = dict(self.draft, draft=False)
+        with self.assertRaisesRegex(promote.Refusal, "no longer unique.*may already be public"):
+            self.publication(post_releases=[[published, dict(published, id=601)]])
+        self.assertIn(self.edit_command, self.github.calls)
+
+    def test_annotated_remote_tag_peeling_and_replacement(self):
+        sha = "c" * 40
+        self.github.add(("api", f"repos/{REPO}/git/ref/tags/{TAG}"), {"object": {"type": "tag", "sha": sha}})
+        self.github.add(("api", f"repos/{REPO}/git/tags/{sha}"), {"object": {"type": "commit", "sha": SHA}})
+        self.assertEqual(promote.remote_tag(REPO, TAG, self.github), (("tag", sha), SHA))
+
+    def test_publish_reports_uncertain_patch_outcome(self):
+        self.draft_fixtures()
+        self.publication(configure_only=True)
+        github = self.github
+        def interrupted(*args):
+            if args == self.edit_command:
+                raise promote.Refusal("GitHub command unavailable")
+            return github(*args)
+        with self.assertRaisesRegex(promote.Refusal, "may already be public; investigate immediately"):
+            promote.publish_draft(REPO, TAG, 600, SHA, self.runner, interrupted)
+
+    def test_changed_annotated_tag_object_with_same_commit_refused(self):
+        self.draft_fixtures()
+        self.publication(configure_only=True)
+        first, second = 'b' * 40, 'c' * 40
+        self.github.add(("api", f"repos/{REPO}/git/ref/tags/{TAG}"),
+                        {"object": {"type": "tag", "sha": first}},
+                        {"object": {"type": "tag", "sha": second}})
+        for tag_sha in (first, second):
+            self.github.add(("api", f"repos/{REPO}/git/tags/{tag_sha}"),
+                            {"object": {"type": "commit", "sha": SHA}})
+        with self.assertRaisesRegex(promote.Refusal, "remote tag changed.*may already be public"):
+            promote.publish_draft(REPO, TAG, 600, SHA, self.runner, self.github)
 
     def test_candidate_summary_inventory(self):
         self.assertTrue(callable(getattr(promote, "candidate_summary", None)),
@@ -521,7 +584,7 @@ class PromotionTests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             self.assertEqual(promote.main(["publish"], self.cli_environment(), self.github), 0)
         self.assertEqual(output.getvalue(), f"https://github.com/{REPO}/releases/tag/{TAG}\n")
-        self.assertEqual(self.github.calls[-1], ("api", f"repos/{REPO}/releases/600"))
+        self.assertEqual(self.github.calls[-1], self.releases_command)
 
     def test_cli_summary(self):
         dist = self.root / "dist"

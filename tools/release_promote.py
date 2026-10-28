@@ -212,11 +212,33 @@ def create_draft(repo, tag, manifest, payload, runner_temp, downloaded, version,
 
 
 def asset_identity(items):
-    return sorted((a["id"], a["name"], a["size"], a["state"], a["updated_at"]) for a in items)
+    return sorted((a["id"], a["name"], a["size"], a["state"], a["updated_at"], a.get("digest")) for a in items)
 
 
-def publish_draft(repo, tag, release_id, runner_temp, client=github):
-    """Publish only the same unique draft with its unchanged verified inventory."""
+def remote_tag(repo, tag, client):
+    """Read the ref and peel annotated tags, with a finite bound and no guessing."""
+    ref = api(client, f"repos/{repo}/git/ref/tags/{tag}")["object"]
+    initial = (ref["type"], ref["sha"])
+    seen = set()
+    for _ in range(16):
+        kind, sha = ref["type"], ref["sha"]
+        if not isinstance(sha, str) or not verify.SHA.fullmatch(sha) or sha in seen:
+            raise Refusal("remote tag object is invalid")
+        seen.add(sha)
+        if kind == "commit":
+            return initial, sha
+        if kind != "tag":
+            raise Refusal("remote tag does not point to a commit")
+        ref = api(client, f"repos/{repo}/git/tags/{sha}")["object"]
+    raise Refusal("remote tag nesting exceeds limit")
+
+
+def publish_draft(repo, tag, release_id, source_sha, runner_temp, client=github):
+    """Publish by ID, then recheck the tag and assets.
+
+    Concurrent contents writers remain trusted: checks detect observed changes but
+    cannot prevent or reverse a transient publication between API calls.
+    """
     base = base_tag(tag)
     if base is None:
         raise Refusal("invalid release tag")
@@ -229,12 +251,29 @@ def publish_draft(repo, tag, release_id, runner_temp, client=github):
     original = json.loads((runner_temp / "draft-assets.json").read_bytes())
     if asset_identity(assets) != asset_identity(original):
         raise Refusal("draft asset inventory changed after verification")
-    client("release", "edit", tag, "--repo", repo, "--draft=false")
-    published = api(client, f"repos/{repo}/releases/{release_id}")
-    if (published["draft"] or published["tag_name"] != tag
-            or published.get("prerelease") is not prerelease):
-        raise Refusal("the verified draft was not published")
-    return published["html_url"]
+    tag_identity, peeled = remote_tag(repo, tag, client)
+    if peeled != source_sha:
+        raise Refusal("remote tag does not match verified source")
+    # An error on this request may occur after GitHub has applied it. Never
+    # claim the release is still a draft when publication outcome is uncertain.
+    try:
+        client("api", "--method", "PATCH", f"repos/{repo}/releases/{release_id}", "-F", "draft=false")
+        published = api(client, f"repos/{repo}/releases/{release_id}")
+        if (published["id"] != release_id or published["draft"] or published["tag_name"] != tag
+                or published.get("prerelease") is not prerelease):
+            raise Refusal("the verified draft was not published")
+        post_tag, post_sha = remote_tag(repo, tag, client)
+        if (post_tag, post_sha) != (tag_identity, source_sha):
+            raise Refusal("remote tag changed during publication")
+        if asset_identity(release_assets(repo, release_id, client)) != asset_identity(original):
+            raise Refusal("release assets changed during publication")
+        releases = tagged_releases(repo, tag, client)
+        if len(releases) != 1 or releases[0]["id"] != release_id or releases[0]["draft"]:
+            raise Refusal("published release is no longer unique")
+        return published["html_url"]
+    except (Refusal, OSError, ValueError, KeyError, TypeError) as exc:
+        detail = str(exc) if isinstance(exc, Refusal) else "publication verification unavailable"
+        raise Refusal(detail + "; release may already be public; investigate immediately") from exc
 
 
 def candidate_summary(summary_path, dist, tag, sha, run_id, artifact_id):
@@ -281,7 +320,7 @@ def main(argv=None, environ=None, client=github):
                 with open(env["GITHUB_ENV"], "a") as output:
                     output.write(f"DRAFT_RELEASE_ID={release_id}\n")
             else:
-                print(publish_draft(repo, tag, int(env["DRAFT_RELEASE_ID"]), Path(env["RUNNER_TEMP"]), client))
+                print(publish_draft(repo, tag, int(env["DRAFT_RELEASE_ID"]), env["GITHUB_SHA"], Path(env["RUNNER_TEMP"]), client))
     except (Refusal, verify.Refusal, OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile):
         exc = sys.exc_info()[1]
         print("refused: " + (str(exc) if isinstance(exc, Refusal) else "promotion input unavailable"),
