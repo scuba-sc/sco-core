@@ -19,14 +19,11 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE = '/sco-core'
 SOURCE_ROOT = 'https://github.com/scuba-sc/sco-core/blob/'
 RELEASES = 'https://github.com/scuba-sc/sco-core/releases/tag/'
-# Most recent SDK release verified as published: its notes docs/releases/<tag>.md declare the
-# archives the portal offers. A preview links here instead of deriving a tag from its own
-# sdk_version, which may name an unpublished version.
+# Offline fixture for local/PR previews. Deployments supply freshly verified release
+# metadata; neither value is a live-release selector.
 PUBLISHED_RELEASE = 'sdk-v2.4.0'
-# The GitHub release that holds those archives: PUBLISHED_RELEASE itself, or one of its release
-# candidates (<tag>-rc.N).
-# SDK 2.4.0 is out as release candidate 1; set this to PUBLISHED_RELEASE once the final is published.
 PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0-rc.1'
+PUBLISHED_METADATA = None
 DOWNLOADS = 'https://github.com/scuba-sc/sco-core/releases/download/'
 COMMITS = 'https://github.com/scuba-sc/sco-core/commit/'
 # The same delimited block tools/doc_release_gate.py checks against packaging.
@@ -277,18 +274,23 @@ def published_stage():
         raise ValueError('PUBLISHED_DOWNLOAD_TAG must be PUBLISHED_RELEASE or one of its -rc.N tags')
     if match[1]:
         return ('Published release candidate',
-                'release candidate ' + match[1] + ', attested assets; the final release follows')
-    return 'Published release', 'immutable approved assets'
+                'release candidate ' + match[1] + '; the final release follows')
+    return 'Published release', 'published assets; verify their identity'
 
 
 def banner(catalogue, release_tag, category):
     label = 'release ' + release_tag if release_tag else 'development preview'
     published = release_tag or PUBLISHED_DOWNLOAD_TAG
-    stage = 'immutable approved assets' if release_tag else published_stage()[1]
+    stage = 'published assets; verify their identity' if release_tag else published_stage()[1]
+    published_source = (' · release source `' + PUBLISHED_METADATA['source_sha'] + '`'
+                        if PUBLISHED_METADATA and not release_tag else '')
+    release_label = 'Published release' if PUBLISHED_METADATA or release_tag else 'Offline release fixture'
+    if not PUBLISHED_METADATA and not release_tag:
+        stage = 'offline fixture; not current publication data'
     return ('<div data-pagefind-ignore="index">\n\n:::caution[Catalogue snapshot — ' + label + ']\n'
             + 'SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
             + '** · source `' + catalogue['source_sha'] + '`\n'
-            + 'Published release: [' + published + '](' + RELEASES + quote(published, safe='') + ')'
+            + release_label + ': [' + published + '](' + RELEASES + quote(published, safe='') + ')' + published_source
             + (' (' + stage + ').\n' if release_tag
                else ' (' + stage + '; this development preview is not an approved release).\n')
             + '<span data-pagefind-filter="Type:' + esc(category) + '">Source-backed inventory is not a runtime '
@@ -330,6 +332,8 @@ def published_profiles(root, scope):
             raise ValueError('Published profile lacks a packaging definition or guide: ' + name)
         version = scope[VERSION_KEYS[profile['version_from']]]
         archive = profile['zip'].format(version=version, game_pack_version=version) + '.zip'
+        if PUBLISHED_METADATA is not None:
+            archive = PUBLISHED_METADATA['archives'][name]
         if not re.fullmatch(r'[a-z0-9][a-z0-9.-]*\.zip', archive):
             raise ValueError('Unsafe archive name for profile ' + name)
         cards.append({'profile': name, 'archive': archive, 'version': version,
@@ -345,13 +349,16 @@ def repo_link(target, sha, doc_routes):
     return source_link(path, sha) + ('#' + fragment if fragment else '')
 
 
-def profile_cards(cards, sha, doc_routes):
+def profile_cards(cards, sha, doc_routes, pinned_release=False):
     """Archive cards for each published profile: name, archive, version, purpose, guide and checksum link."""
     out = ['<ul class="sco-profiles not-content">']
     for card in cards:
         relation = ('Includes ' + ', '.join(card['includes']) if card['includes']
                     else 'Requires ' + card['requires'] if card['requires'] else 'Standalone')
         guide, guide_label = PROFILE_GUIDES[card['profile']]
+        path, _, fragment = guide.partition('#')
+        guide_url = (source_link(path, sha) + ('#' + fragment if fragment else '')
+                     if pinned_release else repo_link(guide, sha, doc_routes))
         out += ['<li class="sco-profile" data-profile="' + esc(card['profile']) + '" data-archive="'
                 + esc(card['archive']) + '" data-version="' + esc(card['version']) + '">',
                 '<h3>' + esc(card['profile']) + '</h3>',
@@ -359,7 +366,7 @@ def profile_cards(cards, sha, doc_routes):
                 '<p class="sco-profile__meta"><span class="sco-pill">' + esc(card['version']) + '</span> '
                 + esc(relation) + '</p>',
                 '<p>' + esc(card['about']) + '</p>',
-                '<p class="sco-profile__links"><a href="' + esc(repo_link(guide, sha, doc_routes)) + '">'
+                '<p class="sco-profile__links"><a href="' + esc(guide_url) + '">'
                 + esc(guide_label) + '</a><a href="' + esc(route('index') + '#verify-' + card['profile'])
                 + '">Verify checksum</a></p>',
                 '</li>']
@@ -373,9 +380,13 @@ def release_portal(root, catalogue, release_tag, doc_routes):
     if notes not in doc_routes:
         raise ValueError('Published release notes must be an allowlisted input: ' + notes)
     scope = release_scope((root / notes).read_text(encoding='utf-8'), PUBLISHED_RELEASE)
+    if PUBLISHED_METADATA is not None:
+        scope = {key: PUBLISHED_METADATA[key] for key in ('sdk_version', 'game_pack_version', 'plugin_abi', 'profiles')} | {'tag': PUBLISHED_RELEASE}
     cards = published_profiles(root, scope)
     sha = catalogue['source_sha']
     status, stage = published_stage()
+    if PUBLISHED_METADATA is None:
+        status, stage = 'Offline release fixture', 'offline fixture; not current publication data'
     tag = quote(PUBLISHED_DOWNLOAD_TAG, safe='')
 
     def facts(pairs):
@@ -388,7 +399,7 @@ def release_portal(root, catalogue, release_tag, doc_routes):
         '<span class="sco-status sco-status--published">' + esc(status) + '</span>',
         '<h3 id="track-published"><a href="' + esc(RELEASES + tag) + '">' + esc(PUBLISHED_DOWNLOAD_TAG)
         + '</a></h3>',
-        facts([('SDK', esc(scope['sdk_version'])), ('Game pack', esc(scope['game_pack_version'])),
+        facts(([('Source', '<a href="' + esc(COMMITS + PUBLISHED_METADATA['source_sha']) + '">' + esc(PUBLISHED_METADATA['source_sha']) + '</a>')] if PUBLISHED_METADATA else []) + [('SDK', esc(scope['sdk_version'])), ('Game pack', esc(scope['game_pack_version'])),
                ('Plugin ABI', esc(scope['plugin_abi'])), ('Archives', str(len(cards)) + ' profiles')]),
         '<p class="sco-track__note">' + esc(stage[0].upper() + stage[1:]) + '. <a href="'
         + esc(route(doc_routes[notes])) + '">Release notes</a></p>',
@@ -408,11 +419,14 @@ def release_portal(root, catalogue, release_tag, doc_routes):
                ('SDK', esc(catalogue['sdk_version'])), ('Game pack', esc(catalogue['game_pack_version']))]),
         '<p class="sco-track__note">' + esc(note) + '</p>',
         '</section>']
+    profile_source = PUBLISHED_METADATA['source_sha'] if PUBLISHED_METADATA else sha
+    profile_basis = ('the verified release identity' if PUBLISHED_METADATA else
+                     'the release-scope declaration in the ' + scope['tag'] + ' release notes')
     out = ['\n## Releases', '<div class="sco-tracks not-content">', *published, *preview, '</div>',
            '\n## Choose an archive',
-           'Archives published in ' + PUBLISHED_DOWNLOAD_TAG + '. Profiles and versions come from the '
-           'release-scope declaration in the ' + scope['tag'] + ' release notes.\n',
-           *profile_cards(cards, sha, doc_routes)]
+           ('Archives published in ' if PUBLISHED_METADATA else 'Offline archive fixture for ') + PUBLISHED_DOWNLOAD_TAG + '. Profiles and versions come from '
+           + profile_basis + '.\n',
+           *profile_cards(cards, profile_source, doc_routes, pinned_release=PUBLISHED_METADATA is not None)]
     out += ['\n## Verify a download',
             'Each archive\'s SHA-256 digest is listed in the release\'s [SHA256SUMS](' + DOWNLOADS + tag
             + '/SHA256SUMS). Download it and the archive into one folder, then check that archive\'s line: '
@@ -699,7 +713,7 @@ def hub_body(key, blurb, catalogue, doc_routes, titles, services, natives, profi
     out = [blurb + '\n']
     if key == 'start':
         out += ['## Guides', guides, '\n## SDK profiles',
-                'Archives published in ' + PUBLISHED_DOWNLOAD_TAG + '. Each card links to its guide and to the checksum '
+                ('Archives published in ' if PUBLISHED_METADATA else 'Offline archive fixture for ') + PUBLISHED_DOWNLOAD_TAG + '. Each card links to its guide and to the checksum '
                 'steps on the [home page](' + route('index') + '#verify-a-download).\n', *profiles]
     elif key == 'sdks':
         languages = cards([(route('languages/' + language), LANGUAGE_LABELS[language] + ' language mappings',
@@ -806,8 +820,12 @@ def generate(root, catalogue, output, release_tag=None):
     if catalogue.get('schema_version') != 1 or not re.fullmatch(r'[0-9a-f]{40}', catalogue.get('source_sha', '')):
         raise ValueError('Expected schema 1 and an immutable full source SHA')
     if release_tag:
-        if release_tag != 'sdk-v' + catalogue['sdk_version']:
+        if PUBLISHED_METADATA is None or PUBLISHED_METADATA['tag'] != release_tag:
+            raise ValueError('Release build requires matching supplied published metadata')
+        if not re.fullmatch(re.escape('sdk-v' + catalogue['sdk_version']) + r'(?:-rc\.[1-9][0-9]*)?', release_tag):
             raise ValueError('Release tag does not match SDK version')
+        if PUBLISHED_METADATA['source_sha'] != catalogue['source_sha']:
+            raise ValueError('Published release source does not match the catalogue')
         tag_sha = subprocess.check_output(['git', 'rev-parse', 'refs/tags/' + release_tag + '^{}'], cwd=root, text=True).strip()
         if tag_sha != catalogue['source_sha']:
             raise ValueError('Release tag does not identify the catalogue source')
@@ -854,14 +872,26 @@ def generate(root, catalogue, output, release_tag=None):
         titles[name] = plain_title(title[1] if title else PurePosixPath(name).stem)
         text = re.sub(r'^#\s+[^\n]+\n', '', text, count=1, flags=re.M)
         text = rewrite_links(text, name, catalogue['source_sha'], doc_routes)
+        if PUBLISHED_METADATA and name in {
+                'docs/releases/sdk-v2.4.0.md', 'docs/roadmap.md',
+                'docs/game/status.md',
+                'docs/agent-integration.md'}:
+            text = ('> **Current published SDK:** [' + PUBLISHED_METADATA['tag'] + ']('
+                    + RELEASES + PUBLISHED_METADATA['tag'] + ') · release source `'
+                    + PUBLISHED_METADATA['source_sha'] + '`. Dated status and candidate '
+                    'records below describe the state when written; see the release for current assets.\n\n'
+                    + text)
         if doc_routes[name] in pages:
             raise ValueError('Generated route collision: ' + name)
         pages[doc_routes[name]] = page(titles[name], text, catalogue, release_tag, 'Guides')
     groups = sidebar(doc_routes, titles, services, natives)
     notes = 'docs/releases/' + PUBLISHED_RELEASE + '.md'
-    profiles = profile_cards(published_profiles(root, release_scope((root / notes).read_text(encoding='utf-8'),
-                                                                    PUBLISHED_RELEASE)),
-                             catalogue['source_sha'], doc_routes)
+    profile_scope = release_scope((root / notes).read_text(encoding='utf-8'), PUBLISHED_RELEASE)
+    if PUBLISHED_METADATA is not None:
+        profile_scope = {key: PUBLISHED_METADATA[key] for key in ('sdk_version', 'game_pack_version', 'plugin_abi', 'profiles')} | {'tag': PUBLISHED_RELEASE}
+    profile_source = PUBLISHED_METADATA['source_sha'] if PUBLISHED_METADATA else catalogue['source_sha']
+    profiles = profile_cards(published_profiles(root, profile_scope), profile_source, doc_routes,
+                             pinned_release=PUBLISHED_METADATA is not None)
     for key, label, blurb in HUBS:
         pages['hubs/' + key] = page(label, hub_body(key, blurb, catalogue, doc_routes, titles, services,
                                                      natives, profiles), catalogue, release_tag, 'Overview')
@@ -895,10 +925,40 @@ def generate(root, catalogue, output, release_tag=None):
     (output / SIDEBAR).write_text(json.dumps(groups, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     public = output / 'public'
     public.mkdir(parents=True, exist_ok=True)
+    release_metadata_path = public / 'published-release.json'
+    if PUBLISHED_METADATA is not None:
+        release_metadata_path.write_text(json.dumps(PUBLISHED_METADATA, sort_keys=True, indent=2) + '\n', encoding='utf-8')
+    else:
+        release_metadata_path.unlink(missing_ok=True)
     (public / 'sdk-catalogue.json').write_text(json.dumps(catalogue, sort_keys=True, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     # The validated index, byte for byte: the page and the download state the same rows.
     (public / NATIVE_DOWNLOAD).write_text(natives_text, encoding='utf-8')
     return len(records), len(services), len(pages)
+
+
+def use_published_metadata(data):
+    """Use a separately resolved release for the published track; preview stays catalogue-bound."""
+    global PUBLISHED_RELEASE, PUBLISHED_DOWNLOAD_TAG, PUBLISHED_METADATA
+    expected = {'schema_version', 'tag', 'source_sha', 'release_id', 'sdk_version', 'game_pack_version', 'plugin_abi', 'profiles', 'archives', 'asset_digests'}
+    if not isinstance(data, dict) or set(data) != expected or data['schema_version'] != 1:
+        raise ValueError('Invalid published release metadata')
+    sdk, game, abi, tag = (data[k] for k in ('sdk_version', 'game_pack_version', 'plugin_abi', 'tag'))
+    if (not all(isinstance(v, str) for v in (sdk, game, abi, tag, data['source_sha']))
+            or not re.fullmatch(r'\d+\.\d+\.\d+', sdk) or not re.fullmatch(r'\d+\.\d+\.\d+', game)
+            or not re.fullmatch(r'\d+\.\d+', abi) or not re.fullmatch(r'[0-9a-f]{40}', data['source_sha'])
+            or not re.fullmatch(re.escape('sdk-v' + sdk) + r'(?:-rc\.[1-9][0-9]*)?', tag)):
+        raise ValueError('Invalid published release coordinates')
+    profiles = ['core', 'game-sc', 'legacy', 'core-source', 'host-source-sc']
+    archives = {'core': f'sco-sdk-core-{sdk}.zip', 'game-sc': f'sco-sdk-game-sc-{game}.zip',
+                'legacy': f'sco-sdk-{sdk}.zip', 'core-source': f'sco-sdk-core-source-{sdk}.zip',
+                'host-source-sc': f'sco-sdk-host-source-sc-{sdk}.zip'}
+    required = set(archives.values()) | {n[:-4] + '.spdx.json' for n in archives.values()} | {'SHA256SUMS'}
+    digests = data['asset_digests']
+    if (data['profiles'] != profiles or data['archives'] != archives or type(data['release_id']) is not int or data['release_id'] <= 0
+            or not isinstance(digests, dict) or set(digests) not in (required, required | {'release.json'})
+            or any(not isinstance(v, str) or not re.fullmatch(r'sha256:[0-9a-f]{64}', v) for v in digests.values())):
+        raise ValueError('Invalid published release profiles')
+    PUBLISHED_RELEASE, PUBLISHED_DOWNLOAD_TAG, PUBLISHED_METADATA = 'sdk-v' + sdk, tag, data
 
 
 if __name__ == '__main__':
@@ -907,7 +967,10 @@ if __name__ == '__main__':
     parser.add_argument('--catalogue', type=Path)
     parser.add_argument('--out', type=Path)
     parser.add_argument('--release-tag', help='Existing sdk-v tag matching the source SHA; otherwise development preview')
+    parser.add_argument('--published-metadata', type=Path, help='Verified published release metadata')
     args = parser.parse_args()
+    if args.published_metadata:
+        use_published_metadata(json.loads(args.published_metadata.read_text(encoding='utf-8')))
     catalogue_path = args.catalogue or args.root / 'dist/sdk-catalogue.json'
     result = generate(args.root, json.loads(catalogue_path.read_text(encoding='utf-8')), args.out or args.root / 'site', args.release_tag)
     print('Generated %d record pages, %d service indexes, %d total pages' % result)

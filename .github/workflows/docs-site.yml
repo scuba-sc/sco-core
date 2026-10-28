@@ -1,13 +1,17 @@
 name: docs-site
 
 # PRs build read-only artifacts; only trusted main events publish to Pages.
-# The daily schedule only runs the read-only live-site freshness check.
+# The daily schedule retries release discovery and also checks live-site freshness.
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: '23 5 * * *'
 
@@ -16,9 +20,12 @@ permissions:
 
 jobs:
   docs-site:
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_dispatch' && github.event.workflow_run.path == '.github/workflows/release.yml' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      source: ${{ steps.identity.outputs.source }}
+      release_digest: ${{ steps.published.outputs.digest }}
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
@@ -27,6 +34,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -34,12 +42,31 @@ jobs:
           package-manager-cache: false
 
       - name: Build the catalogue for the exact checked-out source
+        id: identity
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          echo "source=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           python3 tools/sdk_catalogue.py build --out dist/sdk-catalogue.json --source-sha "$SOURCE_SHA"
 
+      - name: Test release discovery and refusal behavior
+        run: python3 site/scripts/test_published_release.py
+
+      - name: Resolve the release and verify published manifest and asset metadata
+        if: github.event_name != 'pull_request'
+        id: published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 site/scripts/published_release.py --repo "$GITHUB_REPOSITORY" --out dist/published-release.json
+          echo "digest=$(sha256sum dist/published-release.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
       - name: Generate the documentation source
-        run: python3 site/scripts/gen.py
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            python3 site/scripts/gen.py
+          else
+            python3 site/scripts/gen.py --published-metadata dist/published-release.json
+          fi
 
       - name: Install locked site dependencies and build
         working-directory: site
@@ -48,7 +75,9 @@ jobs:
           npm run build
 
       - name: Validate the built site and refusal checks
-        run: python3 site/scripts/test_site.py --built site/dist
+        run: |
+          if [ -f dist/published-release.json ]; then export SCO_PUBLISHED_METADATA=dist/published-release.json; fi
+          python3 site/scripts/test_site.py --built site/dist
 
       - name: Upload the static documentation artifact
         if: github.event_name == 'pull_request'
@@ -60,7 +89,7 @@ jobs:
           retention-days: 14
 
       - name: Upload the validated Pages artifact
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_run' || github.event_name == 'schedule')
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           name: github-pages
@@ -69,11 +98,12 @@ jobs:
           include-hidden-files: false
 
   deploy:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_run' || github.event_name == 'schedule')
     needs: docs-site
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
@@ -83,6 +113,22 @@ jobs:
       group: docs-site-pages
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.docs-site.outputs.source }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refuse a stale source or changed published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SOURCE: ${{ needs.docs-site.outputs.source }}
+          EXPECTED_RELEASE_DIGEST: ${{ needs.docs-site.outputs.release_digest }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$EXPECTED_SOURCE"
+          python3 site/scripts/published_release.py --repo "$GITHUB_REPOSITORY" --out "$RUNNER_TEMP/published-release.json" --live-url https://scuba-sc.github.io/sco-core/
+          test "$(sha256sum "$RUNNER_TEMP/published-release.json" | cut -d' ' -f1)" = "$EXPECTED_RELEASE_DIGEST"
+
       - name: Deploy the validated documentation
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

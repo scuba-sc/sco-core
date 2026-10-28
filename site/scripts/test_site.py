@@ -18,6 +18,10 @@ import zlib
 
 import gen
 
+# CI tests the same verified release metadata used by the generator.
+if os.environ.get('SCO_PUBLISHED_METADATA'):
+    gen.use_published_metadata(json.loads(Path(os.environ['SCO_PUBLISHED_METADATA']).read_text()))
+
 ROOT = Path(__file__).resolve().parents[2]
 BUILT = None
 # Tokens assembled from fragments so this test file never matches its own denylist.
@@ -170,6 +174,72 @@ def git_track(root):
 
 
 class SiteTests(unittest.TestCase):
+    def test_no_metadata_build_removes_stale_public_release_file(self):
+        saved = gen.PUBLISHED_METADATA
+        try:
+            gen.PUBLISHED_METADATA = None
+            with tempfile.TemporaryDirectory(prefix='site-stale-release-') as work:
+                output = Path(work)
+                public = output / 'public'
+                public.mkdir()
+                (public / 'published-release.json').write_text('{"stale": true}')
+                gen.generate(ROOT, self.catalogue, output)
+                self.assertFalse((public / 'published-release.json').exists())
+                guide = output / 'src/content/docs' / (gen.guide_id('docs/releases/sdk-v2.4.0.md') + '.md')
+                self.assertNotIn('Current published SDK:', guide.read_text())
+        finally:
+            gen.PUBLISHED_METADATA = saved
+
+    def test_tag_alone_does_not_claim_a_published_release(self):
+        saved = gen.PUBLISHED_METADATA
+        try:
+            gen.PUBLISHED_METADATA = None
+            with tempfile.TemporaryDirectory(prefix='site-tag-only-') as work:
+                with self.assertRaisesRegex(ValueError, 'requires matching supplied published metadata'):
+                    gen.generate(ROOT, self.catalogue, Path(work), 'sdk-v' + self.catalogue['sdk_version'])
+        finally:
+            gen.PUBLISHED_METADATA = saved
+
+    def test_published_profile_guides_use_release_source(self):
+        import test_published_release as fixture
+        rel, data = fixture.build()
+        meta = fixture.r.resolve(fixture.REPO, fixture.client_for(rel, data), fixture.fake_git)
+        saved = gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG, gen.PUBLISHED_METADATA
+        try:
+            gen.use_published_metadata(meta)
+            catalogue = deepcopy(self.catalogue)
+            catalogue['source_sha'] = 'd' * 40
+            with tempfile.TemporaryDirectory(prefix='site-published-source-') as work:
+                output = Path(work)
+                gen.generate(ROOT, catalogue, output)
+                for name in ('index.md', 'hubs/start.md'):
+                    text = (output / 'src/content/docs' / name).read_text()
+                    for guide, _ in gen.PROFILE_GUIDES.values():
+                        path, _, fragment = guide.partition('#')
+                        url = gen.source_link(path, meta['source_sha']) + ('#' + fragment if fragment else '')
+                        self.assertIn(url, text)
+                guide_names = {'docs/releases/sdk-v2.4.0.md', 'docs/roadmap.md',
+                               'docs/game/status.md', 'docs/agent-integration.md'}
+                self.assertTrue(guide_names <= set(gen.inputs(ROOT)))
+                for name in guide_names:
+                    guide = output / 'src/content/docs' / (gen.guide_id(name) + '.md')
+                    text = guide.read_text()
+                    self.assertIn('Current published SDK:', text)
+                    self.assertIn(meta['tag'], text)
+                    self.assertIn(meta['source_sha'], text)
+                    self.assertIn('Dated status and candidate records below', text)
+                final_release, final_data = fixture.build(tag='sdk-v2.4.0')
+                final_meta = fixture.r.resolve(fixture.REPO, fixture.client_for(final_release, final_data), fixture.fake_git)
+                gen.use_published_metadata(final_meta)
+                gen.generate(ROOT, catalogue, output)
+                guide = output / 'src/content/docs' / (gen.guide_id('docs/releases/sdk-v2.4.0.md') + '.md')
+                self.assertIn('[sdk-v2.4.0](' + gen.RELEASES + 'sdk-v2.4.0)', guide.read_text())
+                gen.use_published_metadata(meta)
+                with self.assertRaisesRegex(ValueError, 'Published release source does not match'):
+                    gen.generate(ROOT, catalogue, output, meta['tag'])
+        finally:
+            gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG, gen.PUBLISHED_METADATA = saved
+
     @classmethod
     def setUpClass(cls):
         cls.catalogue = json.loads((ROOT / 'dist/sdk-catalogue.json').read_text())
