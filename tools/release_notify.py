@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that a published SDK release is complete, then announce it exactly once.
+"""Verify that a published SDK release is complete, then send a receipted announcement.
 
 Publication and completion are distinct. Completion requires:
 - a unique published GitHub Release (not draft, not prerelease) for the tag;
@@ -16,6 +16,9 @@ artifacts: an attempt marker is persisted before the POST and a receipt after it
 A valid delivered receipt turns later runs into a no-op. An attempt without a
 definitive outcome halts every later run, because a timeout after sending is not
 permission to resend; a maintainer confirms the channel by hand first.
+The workflows retain these artifacts for 90 days. After history expires or is
+deleted, this tool cannot detect an earlier delivery; check the channel before
+replaying an old release. The receipts are not a durable exactly-once guarantee.
 
 Exit codes: 0 verified, delivered or already delivered; 1 refused or definitively
 not delivered; 3 ambiguous delivery state (halt, never retried automatically).
