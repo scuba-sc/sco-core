@@ -8,7 +8,7 @@ ABI **1.1** (unchanged since 2.3.0). It is published as **release candidate 1**,
 the repository's latest release, tag `sdk-v2.4.0-rc.1`:
 [SDK 2.4.0 release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1).
 It is the only SDK release on the release page, and the archive names, digests
-and commands below use it. The final signed `sdk-v2.4.0` release
+and commands below use it. The final `sdk-v2.4.0` release
 follows; until then, build against release candidate 1. Nothing new in 2.4.0
 has been run in game.
 
@@ -118,8 +118,8 @@ In a browser, download both files from
 (`SHA256SUMS` and `sco-sdk-core-2.4.0.zip`). The release-level `SHA256SUMS`
 checks archive bytes; the similarly named file **inside** the SDK covers
 extracted files. A checksum downloaded alongside an archive is an integrity
-check, not independent signer authentication. Maintainers' signed approval and
-verification process is described in the [release checklist](legal/release-checklist.md).
+check, not independent signer authentication. The release verification process is described in
+the [release checklist](legal/release-checklist.md).
 Only extract archives from the trusted project release.
 
 ## 4. Build the checker, copy and rename the template

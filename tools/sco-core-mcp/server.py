@@ -137,10 +137,10 @@ GAME_STATUS_STABILITY = {"Stable": "stable", "Experimental": "experimental", "-"
 GAME_STATUS_TABLE = re.compile(r"`([^`]+)` \(\[`([^`/]+)`\]\([^)\s]+\)\)")
 SIGCHECK_LEVEL = re.compile(r"row resolved on ([0-9][0-9.]*) \(sigcheck\)")
 RELEASE_CONCLUSIONS = [
-    "Approval records are read from the --repo-root checkout; a record committed only at its release tag is absent elsewhere, so no matching record is not proof that no release exists.",
-    "built_source_sha is the approved candidate's built source commit. The release tag names a later approval-only commit that adds the record; the two are distinct and this server does not resolve tags.",
-    "No signature is verified here: tools/release_verify.py checks the detached SSH signature against independently trusted allowed signers, the payload and the approval-only descendant.",
-    "approved-for-publication records a decision, not that a release was published; publication is not checked."]
+    "Historical approval records are read only from the --repo-root checkout. Current unsigned schema-3 release.json is a release asset and is not read here; no matching record is not proof that no release exists.",
+    "For historical schema-2 records, built_source_sha identifies the candidate source; the tag named an approval-only commit. This server does not resolve tags.",
+    "No signature or payload is verified here. A present signature file is not evidence of a valid signature.",
+    "approved-for-publication records a historical decision, not that a release was published; publication is not checked."]
 STATUS_CAVEAT = (
     "Language mappings describe source-backed exposure, not live availability. "
     "Capability gating, signature resolution and game-session evidence are separate; "
@@ -184,8 +184,8 @@ TOOLS = [
          {**SYMBOL, "language": LANGUAGE}, ("symbol_or_id",)),
     tool("get_capability_status", "Read language exposure, absent-capability contracts, recorded evidence state and the table's stability label, "
          "not running-game status.", SYMBOL, ("symbol_or_id",)),
-    tool("check_compatibility", "Compare exact SDK/game-pack/source coordinates with catalogue metadata, optionally read a release approval record "
-         "(no signature verification) and compare a service's minimum version and member extent with the catalogue table; not runtime certification.",
+    tool("check_compatibility", "Compare exact SDK/game-pack/source coordinates with catalogue metadata, optionally read historical checkout approval records "
+         "(no signature verification or publication check) and compare a service's minimum version and member extent with the catalogue table; not runtime certification.",
          {"sdk_version": string_schema(), "game_pack_version": string_schema(),
           "tag": {**string_schema(32), "pattern": TAG_PATTERN},
           "source_sha": {**string_schema(40), "pattern": SHA_PATTERN},
@@ -2033,7 +2033,7 @@ class Server:
         result = {"state": "unavailable", "records": [], "signature_verification": "not_performed",
                   "publication": "not_checked", "conclusions": RELEASE_CONCLUSIONS}
         if self.repo_root is None:
-            return result | {"reason": "No --repo-root: approval records are read only from a configured checkout"}
+            return result | {"reason": "No --repo-root: historical approval records are read only from a configured checkout"}
         if tag is not None:
             names = [tag + ".json"]
         else:

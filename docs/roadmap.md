@@ -8,7 +8,7 @@ implementation and evidence say so in [game capability status](game/status.md) a
 The current SDK is 2.4.0, published on 2026-10-21 as
 [release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) (tag `sdk-v2.4.0-rc.1`, the
 latest release; [release notes](releases/sdk-v2.4.0.md)). It is the only SDK release on the
-release page. The final signed `sdk-v2.4.0` release follows.
+release page. The final `sdk-v2.4.0` release follows.
 
 ## How to read status on this page
 
@@ -70,7 +70,7 @@ supported language, validate it without the game, and deploy it on a compatible 
 reverse engineering anything.
 
 Status: **release candidate 1 published** (`sdk-v2.4.0-rc.1`, the latest release, with the five
-archives); the final signed `sdk-v2.4.0` release follows. Plugin ABI 1.1 stays byte-identical. Star
+archives); the final `sdk-v2.4.0` release follows. Plugin ABI 1.1 stays byte-identical. Star
 Citizen game pack 0.8.0 on verified build 4.10.197.2878. Nothing new in 2.4.0 has been run in game.
 
 ### Developer kit
@@ -127,9 +127,8 @@ without starting over later:
   assistant with no access to the source gets to a checked plugin without help.
 - **An in-game smoke run:** a plugin built from the 2.4.0 archive loads, runs a command and unloads.
 - **The release itself:** the final source passes every check and hosted CI on that exact commit, the
-  five archives are rebuilt and hashed, every shipped file has a provenance decision, the maintainer
-  approves, signs, tags and publishes, and the docs site switches to 2.4.0. Nothing on this page is
-  that approval.
+  five archives are built and hashed, the maintainer tags and promotes the verified candidate, and
+  the docs site switches to 2.4.0. Nothing on this page publishes a release.
 
 Progress on each of these is counted on the [one-page roadmap](https://scuba-sc.github.io/sco-core/roadmap/).
 

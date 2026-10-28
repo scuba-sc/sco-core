@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Promote approved candidate bytes without rebuilding.
+"""Promote candidate bytes without rebuilding.
 
 All GitHub I/O passes through one injectable function accepting gh arguments and
-returning stdout bytes. Payload/signature verification remains release_verify's
+returning stdout bytes. Payload verification remains release_verify's
 responsibility; workflows retain those checks before and after the draft round trip.
 """
 import argparse
@@ -19,6 +19,7 @@ import zipfile
 
 sys.dont_write_bytecode = True
 from doc_release_gate import base_tag
+import release_verify as verify
 
 
 class Refusal(Exception):
@@ -47,45 +48,59 @@ def positive_id(value):
     return value
 
 
-def fetch_candidate(approval, repo, payload, client=github):
-    """Download only the signed inventory's exact immutable artifact IDs."""
-    run_id = positive_id(approval["builder"]["run_id"])
-    names, artifact_ids = set(), {}
-    for artifact in approval["artifacts"]:
-        name = artifact["name"]
-        if (not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name)
-                or name in {"release.json", "release.json.sig"} or name in names):
-            raise Refusal("unsafe, duplicate or reserved payload name")
-        names.add(name)
-        artifact_ids.setdefault(positive_id(artifact["artifact_id"]), set()).add(name)
-    if not names:
-        raise Refusal("empty approved payload")
+def fetch_candidate(repo, tag, source_sha, run_id, artifact_id, payload, manifest, client=github):
+    """Fetch a single immutable candidate and generate its unsigned inventory."""
+    run_id, artifact_id = positive_id(run_id), positive_id(artifact_id)
     run = api(client, f"repos/{repo}/actions/runs/{run_id}")
-    if (run["path"] != ".github/workflows/release-candidate.yml"
-            or run["event"] != "workflow_dispatch" or run["head_branch"] != "main"
-            or run["status"] != "completed" or run["conclusion"] != "success"):
-        raise Refusal("approved builder is not a successful main release-candidate run")
-    if (run.get("head_sha") != approval["source"]["sha"]
-            or run.get("run_attempt") != approval["builder"]["run_attempt"]
-            or run["path"] != approval["builder"]["workflow_path"]):
-        raise Refusal("builder source, attempt or workflow mismatch")
+    if (run["path"] != verify.WORKFLOW or run["event"] != "workflow_dispatch"
+            or run["head_branch"] != "main" or run["status"] != "completed"
+            or run["conclusion"] != "success"):
+        raise Refusal("builder is not a successful main release-candidate run")
+    # Artifact metadata identifies the run but not its attempt. A fresh dispatch
+    # removes ambiguity between artifacts from different attempts of the same run.
+    if run.get("head_sha") != source_sha or run.get("run_attempt") != 1:
+        raise Refusal("builder source or attempt mismatch; use a fresh dispatch")
+    metadata = api(client, f"repos/{repo}/actions/artifacts/{artifact_id}")
+    if (metadata["expired"] or metadata["workflow_run"]["id"] != run_id
+            or metadata["name"] != "release-candidate"):
+        raise Refusal("artifact is expired, wrong name, or belongs to another run")
+    expected = verify.expected_payload(Path.cwd(), source_sha, tag)
+    if type(metadata.get("size_in_bytes")) is not int or not 0 < metadata["size_in_bytes"] <= 2 * 1024**3:
+        raise Refusal("candidate artifact archive size invalid")
+    data = client("api", f"repos/{repo}/actions/artifacts/{artifact_id}/zip")
+    if (metadata.get("size_in_bytes") != len(data) or
+            metadata.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest()):
+        raise Refusal("candidate artifact archive digest or size mismatch")
     payload.mkdir()
     downloaded = set()
-    for artifact_id in sorted(artifact_ids):
-        metadata = api(client, f"repos/{repo}/actions/artifacts/{artifact_id}")
-        if metadata["expired"] or metadata["workflow_run"]["id"] != run_id:
-            raise Refusal("artifact is expired or belongs to another builder run")
-        data = client("api", f"repos/{repo}/actions/artifacts/{artifact_id}/zip")
-        with zipfile.ZipFile(io.BytesIO(data)) as bundle:
-            for member in bundle.infolist():
-                # upload-artifact stores a flat payload. Never extract arbitrary paths.
-                if (member.filename not in artifact_ids[artifact_id] or member.filename in downloaded
-                        or member.is_dir() or stat.S_ISLNK(member.external_attr >> 16)):
-                    raise Refusal("unexpected, duplicate or unsafe candidate member")
-                (payload / member.filename).write_bytes(bundle.read(member))
-                downloaded.add(member.filename)
-    if downloaded != names:
-        raise Refusal("candidate does not contain exactly the approved file set")
+    with zipfile.ZipFile(io.BytesIO(data)) as bundle:
+        members = bundle.infolist()
+        if len(members) != len(expected) or sum(m.file_size for m in members) > 2 * 1024**3:
+            raise Refusal("candidate archive has invalid member count or size")
+        for member in members:
+            mode = member.external_attr >> 16
+            if (member.filename not in expected or member.filename in downloaded
+                    or member.is_dir() or member.file_size > 1024**3
+                    or stat.S_IFMT(mode) not in (0, stat.S_IFREG)):
+                raise Refusal("unexpected, duplicate or unsafe candidate member")
+            (payload / member.filename).write_bytes(bundle.read(member))
+            downloaded.add(member.filename)
+    if downloaded != set(expected):
+        raise Refusal("candidate does not contain exactly the expected file set")
+    artifacts = []
+    for name in sorted(expected):
+        size, digest = verify.digest_file(payload / name)
+        artifacts.append({"name": name, "role": expected[name], "size": size,
+                          "sha256": digest, "artifact_id": artifact_id})
+    dependencies = verify.dependencies(Path.cwd(), source_sha)
+    record = {"schema_version": 3, "tag": tag,
+              "source": {"repo": repo, "sha": source_sha,
+                         "dependencies": [{"path": path, "sha": sha} for path, sha in sorted(dependencies.items())]},
+              "components_manifest_sha256": hashlib.sha256(verify.git(Path.cwd(), "show", source_sha + ":sdk/components.json")).hexdigest(),
+              "builder": {"workflow_path": verify.WORKFLOW, "workflow_sha": source_sha,
+                          "run_id": run_id, "run_attempt": run["run_attempt"]},
+              "profiles": verify.PROFILES, "artifacts": artifacts}
+    manifest.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return run_id
 
 
@@ -148,26 +163,25 @@ def release_assets(repo, release_id, client):
             for asset in page]
 
 
-def create_draft(repo, tag, manifest, signature, payload, runner_temp, downloaded, version, client=github):
+def create_draft(repo, tag, manifest, payload, runner_temp, downloaded, version, client=github):
     """Create a complete draft and round-trip its exact asset set by numeric ID.
 
     The caller must verify the downloaded payload before calling publish_draft.
     Refusals deliberately leave an unpublished draft available for investigation.
     """
-    approval = json.loads(manifest.read_bytes())
+    record = json.loads(manifest.read_bytes())
     if base_tag(tag) != "sdk-v" + version:
         raise Refusal("release tag does not match SDK version")
     prerelease = tag != base_tag(tag)
-    names = [artifact["name"] for artifact in approval["artifacts"]]
-    staging = runner_temp / "release-approval"
+    names = [artifact["name"] for artifact in record["artifacts"]]
+    staging = runner_temp / "release-inventory"
     staging.mkdir()
     (staging / "release.json").write_bytes(manifest.read_bytes())
-    (staging / "release.json.sig").write_bytes(signature.read_bytes())
     # gh release create does not itself refuse an existing draft.
     if tagged_releases(repo, tag, client):
         raise Refusal("a draft or published release already exists for this tag")
     client("release", "create", tag, *[str(payload / name) for name in names],
-           str(staging / "release.json"), str(staging / "release.json.sig"),
+           str(staging / "release.json"),
            "--repo", repo, "--draft", "--verify-tag", "--title", f"sco-core SDK {tag[5:]}",
            "--notes-file", str(runner_temp / "notes.md"), *(["--prerelease"] if prerelease else []))
     # GET /releases/tags/{tag} retrieves published releases, not drafts.
@@ -178,9 +192,9 @@ def create_draft(repo, tag, manifest, signature, payload, runner_temp, downloade
     release_id = matches[0]["id"]
     assets = release_assets(repo, release_id, client)
     (runner_temp / "draft-assets.json").write_text(json.dumps(assets))
-    expected = set(names) | {"release.json", "release.json.sig"}
+    expected = set(names) | {"release.json"}
     if len(assets) != len(expected) or {asset["name"] for asset in assets} != expected:
-        raise Refusal("draft assets do not exactly match the approved release set")
+        raise Refusal("draft assets do not exactly match the verified release set")
     downloaded.mkdir()
     for asset in assets:
         if asset["state"] != "uploaded":
@@ -189,21 +203,42 @@ def create_draft(repo, tag, manifest, signature, payload, runner_temp, downloade
         data = client("api", f"repos/{repo}/releases/assets/{asset['id']}",
                       "-H", "Accept: application/octet-stream")
         (downloaded / asset["name"]).write_bytes(data)
-    # The downloaded approval must equal the committed approval byte for byte.
-    for name, original in (("release.json", manifest), ("release.json.sig", signature)):
-        path = downloaded / name
-        if path.read_bytes() != original.read_bytes():
-            raise Refusal("draft approval differs from the committed approval")
-        path.unlink()  # release_verify requires only manifest payload files here.
+    # The inventory itself is transported and round-tripped byte-for-byte.
+    path = downloaded / "release.json"
+    if path.read_bytes() != manifest.read_bytes():
+        raise Refusal("draft inventory differs from verified inventory")
+    path.unlink()
     return release_id
 
 
 def asset_identity(items):
-    return sorted((a["id"], a["name"], a["size"], a["state"], a["updated_at"]) for a in items)
+    return sorted((a["id"], a["name"], a["size"], a["state"], a["updated_at"], a.get("digest")) for a in items)
 
 
-def publish_draft(repo, tag, release_id, runner_temp, client=github):
-    """Publish only the same unique draft with its unchanged verified inventory."""
+def remote_tag(repo, tag, client):
+    """Read the ref and peel annotated tags, with a finite bound and no guessing."""
+    ref = api(client, f"repos/{repo}/git/ref/tags/{tag}")["object"]
+    initial = (ref["type"], ref["sha"])
+    seen = set()
+    for _ in range(16):
+        kind, sha = ref["type"], ref["sha"]
+        if not isinstance(sha, str) or not verify.SHA.fullmatch(sha) or sha in seen:
+            raise Refusal("remote tag object is invalid")
+        seen.add(sha)
+        if kind == "commit":
+            return initial, sha
+        if kind != "tag":
+            raise Refusal("remote tag does not point to a commit")
+        ref = api(client, f"repos/{repo}/git/tags/{sha}")["object"]
+    raise Refusal("remote tag nesting exceeds limit")
+
+
+def publish_draft(repo, tag, release_id, source_sha, runner_temp, client=github):
+    """Publish by ID, then recheck the tag and assets.
+
+    Concurrent contents writers remain trusted: checks detect observed changes but
+    cannot prevent or reverse a transient publication between API calls.
+    """
     base = base_tag(tag)
     if base is None:
         raise Refusal("invalid release tag")
@@ -216,16 +251,33 @@ def publish_draft(repo, tag, release_id, runner_temp, client=github):
     original = json.loads((runner_temp / "draft-assets.json").read_bytes())
     if asset_identity(assets) != asset_identity(original):
         raise Refusal("draft asset inventory changed after verification")
-    client("release", "edit", tag, "--repo", repo, "--draft=false")
-    published = api(client, f"repos/{repo}/releases/{release_id}")
-    if (published["draft"] or published["tag_name"] != tag
-            or published.get("prerelease") is not prerelease):
-        raise Refusal("the verified draft was not published")
-    return published["html_url"]
+    tag_identity, peeled = remote_tag(repo, tag, client)
+    if peeled != source_sha:
+        raise Refusal("remote tag does not match verified source")
+    # An error on this request may occur after GitHub has applied it. Never
+    # claim the release is still a draft when publication outcome is uncertain.
+    try:
+        client("api", "--method", "PATCH", f"repos/{repo}/releases/{release_id}", "-F", "draft=false")
+        published = api(client, f"repos/{repo}/releases/{release_id}")
+        if (published["id"] != release_id or published["draft"] or published["tag_name"] != tag
+                or published.get("prerelease") is not prerelease):
+            raise Refusal("the verified draft was not published")
+        post_tag, post_sha = remote_tag(repo, tag, client)
+        if (post_tag, post_sha) != (tag_identity, source_sha):
+            raise Refusal("remote tag changed during publication")
+        if asset_identity(release_assets(repo, release_id, client)) != asset_identity(original):
+            raise Refusal("release assets changed during publication")
+        releases = tagged_releases(repo, tag, client)
+        if len(releases) != 1 or releases[0]["id"] != release_id or releases[0]["draft"]:
+            raise Refusal("published release is no longer unique")
+        return published["html_url"]
+    except (Refusal, OSError, ValueError, KeyError, TypeError) as exc:
+        detail = str(exc) if isinstance(exc, Refusal) else "publication verification unavailable"
+        raise Refusal(detail + "; release may already be public; investigate immediately") from exc
 
 
 def candidate_summary(summary_path, dist, tag, sha, run_id, artifact_id):
-    """Append every candidate file's approval inputs to the workflow summary."""
+    """Append candidate IDs and file hashes to the workflow summary."""
     with summary_path.open("a") as summary:
         summary.write(f"## Candidate for {tag}\n\n")
         summary.write(f"Source SHA: `{sha}`\n\n")
@@ -255,21 +307,21 @@ def main(argv=None, environ=None, client=github):
             candidate_summary(Path(env["GITHUB_STEP_SUMMARY"]), Path("dist"), env["RELEASE_TAG"],
                               env["GITHUB_SHA"], env["GITHUB_RUN_ID"], env["ARTIFACT_ID"])
         else:
-            repo, tag = env["GITHUB_REPOSITORY"], env["GITHUB_REF_NAME"]
-            manifest = Path("docs/legal/release-decisions") / f"{tag}.json"
+            repo, tag = env["GITHUB_REPOSITORY"], env["RELEASE_TAG"]
+            manifest = Path("release.json")
             if command == "fetch":
-                run_id = fetch_candidate(json.loads(manifest.read_bytes()), repo, Path("payload"), client)
+                run_id = fetch_candidate(repo, tag, env["GITHUB_SHA"], int(env["RUN_ID"]),
+                                         int(env["ARTIFACT_ID"]), Path("payload"), manifest, client)
                 with open(env["GITHUB_OUTPUT"], "a") as output:
                     output.write(f"run-id={run_id}\n")
             elif command == "draft":
-                release_id = create_draft(repo, tag, manifest, manifest.with_suffix(".json.sig"),
-                                          Path("payload"), Path(env["RUNNER_TEMP"]), Path("downloaded"),
+                release_id = create_draft(repo, tag, manifest, Path("payload"), Path(env["RUNNER_TEMP"]), Path("downloaded"),
                                           env["VERSION"], client)
                 with open(env["GITHUB_ENV"], "a") as output:
                     output.write(f"DRAFT_RELEASE_ID={release_id}\n")
             else:
-                print(publish_draft(repo, tag, int(env["DRAFT_RELEASE_ID"]), Path(env["RUNNER_TEMP"]), client))
-    except (Refusal, OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile):
+                print(publish_draft(repo, tag, int(env["DRAFT_RELEASE_ID"]), env["GITHUB_SHA"], Path(env["RUNNER_TEMP"]), client))
+    except (Refusal, verify.Refusal, OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile):
         exc = sys.exc_info()[1]
         print("refused: " + (str(exc) if isinstance(exc, Refusal) else "promotion input unavailable"),
               file=sys.stderr)

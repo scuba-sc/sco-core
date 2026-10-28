@@ -1,8 +1,7 @@
 # IP policy
 
 How sco-core keeps track of where its code comes from and what it may distribute. It is an
-engineering policy, not legal advice; questions it can't settle go to the maintainer and, where they
-matter, to qualified counsel.
+engineering policy, not legal advice; the maintainer decides release readiness.
 
 ## Licence
 
@@ -17,7 +16,7 @@ matter, to qualified counsel.
   headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms; whether the
   GPL applies to a particular plugin depends on how it is built and on applicable law. This is option A
   of [docs/legal/plugin-licensing-options.md](docs/legal/plugin-licensing-options.md), chosen by the
-  maintainer on 2026-10-11 and pending counsel's review ([decision](docs/legal/release-decisions/2026-10-11-plugin-licence.md)).
+  maintainer on 2026-10-11 ([decision](docs/legal/release-decisions/2026-10-11-plugin-licence.md)).
 
 ## Copyright holder
 
@@ -49,17 +48,15 @@ A maintainer doesn't merge a PR whose answers are missing or unclear.
 
 ## Unresolved or disputed material
 
-1. Open an issue labelled `provenance` with the file, the question and what is known.
-2. Mark the file `unresolved` in `docs/legal/provenance.json`. A release that would ship it is blocked
-   (release hardening Gate B) until it is resolved, rewritten or removed.
-3. A takedown request or rights claim goes to the maintainer at once; the affected file is withheld
-   from the next release while it is assessed. Git history is never rewritten to hide where something
-   came from.
+Material with unknown or disputed origin or rights is not distributed until it is resolved, rewritten
+or removed. Mark it `unresolved` in `docs/legal/provenance.json` so the audit can refuse it. A
+takedown request or rights claim goes to the maintainer; affected material is withheld while assessed.
+Git history is never rewritten to hide where something came from.
 
 ## Records
 
 - `sdk/components.json`: every SDK file's origin, licence and release profile.
-- `docs/legal/provenance.json`: origin and review status by path, for the whole repository. Review is by path scope; individual files are re-reviewed when a PR changes them.
+- `docs/legal/provenance.json`: source, origin and licence metadata by path for package attribution and audits. A `needs-review` status does not require a separate per-file release decision; `unresolved` remains blocked by the audit.
 - `docs/legal/third-party-inventory.md`: vendored code with versions and hashes.
 - `docs/legal/release-hardening-baseline.md`: the starting point of this work.
 - `REUSE.toml` and `LICENSES/`: the same record in the [REUSE](https://reuse.software/) format, generated from `provenance.json` (`tools/ip_audit.py reuse-toml`).
@@ -69,6 +66,5 @@ A maintainer doesn't merge a PR whose answers are missing or unclear.
 `tools/ip_audit.py` checks these records against the repository and every SDK zip (coverage, unresolved
 entries, refused binaries, vendored-file hashes, licences and notices, core isolation, SPDX SBOMs);
 `.github/workflows/ip-compliance.yml` runs it with `reuse lint` and the negative tests
-(`tools/test_ip_audit.py`) on every pull request. A release also needs a person's approval record:
-[docs/legal/release-checklist.md](docs/legal/release-checklist.md). Passing checks are evidence for
-that decision, not a substitute for it.
+(`tools/test_ip_audit.py`) on every pull request. Release preparation and artifact verification are
+described in the [release checklist](docs/legal/release-checklist.md).

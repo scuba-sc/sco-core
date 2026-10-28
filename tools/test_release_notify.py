@@ -17,7 +17,7 @@ REPO = "example/sdk"
 TAG = "sdk-v9.9.9"
 TAG_OBJECT = "f" * 40
 APPROVAL = "a" * 40
-SOURCE = "b" * 40
+SOURCE = APPROVAL
 PAGES = "c" * 40
 DOCS = "d" * 40
 OTHER = "e" * 40
@@ -96,14 +96,13 @@ class NotifyTests(unittest.TestCase):
         self.files = {"SHA256SUMS": b"sums\n", "sco-sdk-9.9.9.zip": b"sdk zip bytes",
                       "sco-sdk-game-sc-1.2.3.zip": b"game pack bytes"}
         self.manifest = {
-            "schema_version": 2, "tag": TAG,
+            "schema_version": 3, "tag": TAG,
             "source": {"repo": REPO, "sha": SOURCE, "dependencies": []},
             "artifacts": [{"name": name, "role": "zip", "size": len(data),
                            "sha256": hashlib.sha256(data).hexdigest(), "artifact_id": 9}
                           for name, data in sorted(self.files.items())],
-            "distribution": {"status": "approved-for-publication"}}
+            "profiles": ["core", "game-sc"]}
         self.manifest_bytes = json.dumps(self.manifest, indent=2).encode() + b"\n"
-        self.sig = b"-----BEGIN SSH SIGNATURE-----\nsynthetic\n-----END SSH SIGNATURE-----\n"
         self.gh, self.git, self.web = FakeGitHub(), FakeGit(), FakeWeb()
         self.release = {"id": RELEASE_ID, "tag_name": TAG, "draft": False, "prerelease": False,
                         "published_at": "2026-10-13T22:42:09Z",
@@ -115,7 +114,7 @@ class NotifyTests(unittest.TestCase):
                     {"ref": f"refs/tags/{TAG}", "object": {"type": "tag", "sha": TAG_OBJECT}})
         self.gh.set(("api", f"repos/{REPO}/git/tags/{TAG_OBJECT}"),
                     {"object": {"type": "commit", "sha": APPROVAL}})
-        blobs = dict(self.files, **{"release.json": self.manifest_bytes, "release.json.sig": self.sig})
+        blobs = dict(self.files, **{"release.json": self.manifest_bytes})
         self.assets = []
         for index, (name, data) in enumerate(sorted(blobs.items()), start=1):
             asset = {"id": 100 + index, "name": name, "size": len(data), "state": "uploaded"}
@@ -128,11 +127,8 @@ class NotifyTests(unittest.TestCase):
         for kind in ("receipt", "attempt"):
             self.set_artifacts(kind, [])
         self.git.set(("rev-parse", "--verify", "--quiet", f"refs/tags/{TAG}^{{commit}}"), 0, APPROVAL.encode() + b"\n")
-        for path, data in ((f"docs/legal/release-decisions/{TAG}.json", self.manifest_bytes),
-                           (f"docs/legal/release-decisions/{TAG}.json.sig", self.sig),
-                           ("sdk/VERSION", b"9.9.9\n"), ("CHANGELOG.md", CHANGELOG.encode())):
+        for path, data in (("sdk/VERSION", b"9.9.9\n"), ("CHANGELOG.md", CHANGELOG.encode())):
             self.git.set(("cat-file", "blob", f"{APPROVAL}:{path}"), 0, data)
-        self.git.set(("merge-base", "--is-ancestor", SOURCE, APPROVAL), 0)
         for sha in (PAGES, DOCS, OTHER):
             self.git.set(("cat-file", "-t", sha), 0, b"commit\n")
         self.git.set(("merge-base", "--is-ancestor", SOURCE, PAGES), 0)
@@ -156,7 +152,7 @@ class NotifyTests(unittest.TestCase):
                      f"repos/{REPO}/actions/artifacts?name=release-notify-{kind}-{TAG}&per_page=100"),
                     [{"total_count": len(artifacts), "artifacts": artifacts}])
 
-    def prior_run(self, run_id, path=".github/workflows/release.yml", event="push", branch=TAG):
+    def prior_run(self, run_id, path=".github/workflows/release.yml", event="workflow_dispatch", branch="main"):
         self.gh.set(("api", f"repos/{REPO}/actions/runs/{run_id}"),
                     {"path": path, "event": event, "head_branch": branch,
                      "head_repository": {"full_name": REPO}})
@@ -200,12 +196,12 @@ class NotifyTests(unittest.TestCase):
         self.assertFalse((self.work / "attempt.json").exists())
         self.assertEqual(self.web.posts, [])
 
-    def test_verify_reports_distinct_approval_source_and_docs_identities(self):
+    def test_verify_reports_tag_source_and_docs_identities(self):
         code, out, err = self.invoke("verify", "--tag", TAG)
         self.assertEqual(code, 0, err)
         record = json.loads(out)
         self.assertEqual((record["approval_sha"], record["source_sha"], record["docs_sha"]), (APPROVAL, SOURCE, PAGES))
-        self.assertEqual((record["release_id"], record["asset_count"]), (RELEASE_ID, 5))
+        self.assertEqual((record["release_id"], record["asset_count"]), (RELEASE_ID, 4))
         self.assertEqual((record["sdk_version"], record["game_pack_version"]), ("9.9.9", "1.2.3"))
         self.assertEqual(self.web.posts, [])
 
@@ -260,7 +256,7 @@ class NotifyTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("sdk-vX.Y.Z", err)
         self.git.set(("rev-parse", "--verify", "--quiet", f"refs/tags/{TAG}^{{commit}}"), 0, OTHER.encode())
-        self.assert_refused("approval commit")
+        self.assert_refused("tagged commit")
 
     def test_duplicate_release_for_tag_is_refused(self):
         self.gh.set(("api", "--paginate", "--slurp", f"repos/{REPO}/releases?per_page=100"),
@@ -270,15 +266,72 @@ class NotifyTests(unittest.TestCase):
     def test_asset_digest_mismatches_are_refused(self):
         zip_asset = next(a for a in self.assets if a["name"] == "sco-sdk-9.9.9.zip")
         self.set_asset_bytes(zip_asset["id"], b"sdk zip bytez")
-        self.assert_refused("differs from the signed manifest: sco-sdk-9.9.9.zip")
+        self.assert_refused("differs from the manifest: sco-sdk-9.9.9.zip")
 
-    def test_approval_asset_and_inventory_mismatches_are_refused(self):
-        signed = next(a for a in self.assets if a["name"] == "release.json.sig")
-        self.set_asset_bytes(signed["id"], b"other signature")
-        self.assert_refused("published approval differs")
-        self.set_asset_bytes(signed["id"], self.sig)
-        self.assets.append({"id": 999, "name": "extra.zip", "size": 1, "state": "uploaded"})
+    def update_manifest(self, record):
+        data = json.dumps(record).encode()
+        asset = next(a for a in self.assets if a["name"] == "release.json")
+        asset["size"] = len(data)
+        asset.pop("digest", None)
+        self.set_asset_bytes(asset["id"], data)
+
+    def test_manifest_source_and_inventory_mismatches_are_refused(self):
+        self.manifest["source"]["sha"] = OTHER
+        self.update_manifest(self.manifest)
+        self.assert_refused("source does not match the tagged commit")
+        self.manifest["source"]["sha"] = SOURCE
+        self.manifest["source"]["repo"] = "other/repo"
+        self.update_manifest(self.manifest)
+        self.assert_refused("source repository or SHA")
+        self.manifest["source"]["repo"] = REPO
+        self.update_manifest(self.manifest)
+        self.assets.append({"id": 999, "name": "release.json.sig", "size": 1, "state": "uploaded"})
         self.assert_refused("do not exactly match")
+
+    def test_manifest_schema_and_duplicate_keys_are_refused(self):
+        self.manifest["schema_version"] = 4
+        self.update_manifest(self.manifest)
+        self.assert_refused("schema or tag")
+        asset = next(a for a in self.assets if a["name"] == "release.json")
+        self.set_asset_bytes(asset["id"], b'{"schema_version":3,"tag":"a","tag":"b"}')
+        self.assert_refused("duplicate JSON keys")
+
+    def test_historical_release_and_receipt_are_verified(self):
+        historical_source = "b" * 40
+        self.manifest["schema_version"] = 2
+        self.manifest["source"]["sha"] = historical_source
+        self.manifest["distribution"] = {"status": "approved-for-publication"}
+        self.update_manifest(self.manifest)
+        manifest_bytes = json.dumps(self.manifest).encode()
+        signature = b"-----BEGIN SSH SIGNATURE-----\nsynthetic\n"
+        path = f"docs/legal/release-decisions/{TAG}.json"
+        self.git.set(("cat-file", "blob", f"{APPROVAL}:{path}"), 0, manifest_bytes)
+        self.git.set(("cat-file", "blob", f"{APPROVAL}:{path}.sig"), 0, signature)
+        self.git.set(("merge-base", "--is-ancestor", historical_source, APPROVAL), 0)
+        self.git.set(("merge-base", "--is-ancestor", historical_source, PAGES), 0)
+        self.assets.append({"id": 999, "name": "release.json.sig", "size": len(signature), "state": "uploaded"})
+        self.set_asset_bytes(999, signature)
+        self.prior_run(400, event="push", branch=TAG)
+        self.set_artifacts("receipt", [self.artifact(77, "receipt", 400,
+                            self.receipt(400, source_sha=historical_source))])
+        code, out, err = self.prepare()
+        self.assertEqual(code, 0, err)
+        self.assertIn("already delivered", out)
+        self.assertEqual(self.outputs()["action"], "skip")
+        self.assertEqual(self.web.posts, [])
+        self.set_asset_bytes(999, b"changed")
+        self.assert_refused("signature differs from the tagged commit")
+        self.set_asset_bytes(999, signature)
+        self.git.set(("merge-base", "--is-ancestor", historical_source, APPROVAL), 1)
+        self.assert_refused("not an ancestor")
+        self.git.set(("merge-base", "--is-ancestor", historical_source, APPROVAL), 0)
+        self.git.set(("cat-file", "blob", f"{APPROVAL}:{path}"), 0, b"different")
+        self.assert_refused("manifest differs from the tagged commit")
+
+    def test_manifest_metadata_mismatch_is_refused(self):
+        asset = next(a for a in self.assets if a["name"] == "release.json")
+        asset["size"] += 1
+        self.assert_refused("metadata differs from its bytes: release.json")
 
     def test_stale_or_unknown_pages_is_refused(self):
         cases = (("sdk_version", "9.9.8", "stale Pages"), ("game_pack_version", "1.2.2", "stale Pages"),
@@ -340,6 +393,21 @@ class NotifyTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("ignored receipt artifact 78", out)
         self.assertEqual(self.outputs()["action"], "send")
+
+    def test_dispatch_receipt_from_non_main_is_ignored(self):
+        self.prior_run(401, branch="feature")
+        self.set_artifacts("receipt", [self.artifact(78, "receipt", 401, self.receipt(401))])
+        code, out, err = self.prepare()
+        self.assertEqual(code, 0, err)
+        self.assertIn("ignored receipt artifact 78", out)
+        self.assertEqual(self.outputs()["action"], "send")
+
+    def test_legacy_push_receipt_still_prevents_duplicate(self):
+        self.prior_run(400, event="push", branch=TAG)
+        self.set_artifacts("receipt", [self.artifact(77, "receipt", 400, self.receipt(400))])
+        code, out, err = self.prepare()
+        self.assertEqual(code, 0, err)
+        self.assertIn("already delivered", out)
 
     def test_mismatched_receipt_identity_does_not_count_as_delivered(self):
         self.prior_run(400)

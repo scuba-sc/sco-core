@@ -1,9 +1,8 @@
 # Plugin licensing: options for decision
 
-**Status: option A chosen by the maintainer on 2026-10-11, pending counsel's review**
+**Status: option A chosen by the maintainer on 2026-10-11**
 ([decision](release-decisions/2026-10-11-plugin-licence.md)). The statements now use option A's wording. This document lays out the options;
-it is not legal advice, and none of its descriptions of how licences apply has been reviewed by a
-lawyer.
+it is not legal advice.
 
 ## The question
 

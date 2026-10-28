@@ -1,27 +1,28 @@
 name: release
 
-# Promote, never rebuild: a pushed sdk-v<version> tag must contain the reviewed release.json
-# at docs/legal/release-decisions/<tag>.json and its .json.sig SSH signature. release-candidate.yml
-# builds the bytes first; the maintainer copies its run/artifact IDs and complete hash inventory,
-# signs with ssh-keygen -Y sign -n sco-release-v1, commits both approval files, then tags.
-# verify downloads only the approved artifact IDs and checks the signature, payload and provenance.
-# publish uploads a complete DRAFT, lists and re-downloads every asset, re-verifies, then publishes.
-# Both jobs use environment release; its SCO_RELEASE_ALLOWED_SIGNERS variable must hold the
-# trusted SSH allowed_signers content. Only publish has repository write access.
-# notify then verifies completion (published release, peeled approval tag, asset digests, deployed
-# Pages) and posts one receipted announcement through tools/release_notify.py. Releases published
-# with GITHUB_TOKEN trigger no release event, so discord.yml never sees them; its workflow_dispatch
-# replay uses the same script, artifact names and per-tag concurrency group.
-
+# Promote a previously built main candidate; never rebuild its release bytes.
+# The protected release environment remains the authorization boundary.
 on:
-  push:
-    tags: ['sdk-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing SDK tag pointing at the candidate source
+        required: true
+        type: string
+      run_id:
+        description: Successful release-candidate run ID
+        required: true
+        type: string
+      artifact_id:
+        description: Immutable release-candidate artifact ID
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -32,50 +33,45 @@ jobs:
     permissions:
       contents: read
       actions: read
+      attestations: read
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      RUN_ID: ${{ inputs.run_id }}
+      ARTIFACT_ID: ${{ inputs.artifact_id }}
     outputs:
-      run-id: ${{ steps.payload.outputs.run-id }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0 # Manifest source must equal this tag or be its approval-only ancestor.
+          fetch-depth: 0 # Resolve the existing tag and its source commit.
 
-      - name: Load trusted signers from the release environment
-        env:
-          ALLOWED_SIGNERS: ${{ vars.SCO_RELEASE_ALLOWED_SIGNERS }}
+      - name: Require main dispatch and an existing tag at this exact source
         run: |
-          if [ -z "${ALLOWED_SIGNERS//[[:space:]]/}" ]; then
-            echo 'no trusted signer configured'; exit 1
-          fi
-          printf '%s\n' "$ALLOWED_SIGNERS" > "$RUNNER_TEMP/allowed_signers"
-          echo "ALLOWED_SIGNERS_FILE=$RUNNER_TEMP/allowed_signers" >> "$GITHUB_ENV"
+          test "$GITHUB_REF" = refs/heads/main
+          git check-ref-format "refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")" = "$GITHUB_SHA"
 
-      - name: Download the approved candidate by exact artifact IDs
+      - name: Download the exact candidate and generate its inventory
         id: payload
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 tools/release_promote.py fetch
+        run: python3 tools/release_promote.py fetch
 
-      - name: Verify the signed approval and complete payload
-        env:
-          RUN_ID: ${{ steps.payload.outputs.run-id }}
+      - name: Verify the candidate inventory, profiles, checksums and bytes
         run: |
-          python3 tools/release_verify.py verify \
-            --manifest "docs/legal/release-decisions/$GITHUB_REF_NAME.json" \
-            --signature "docs/legal/release-decisions/$GITHUB_REF_NAME.json.sig" \
-            --allowed-signers "$ALLOWED_SIGNERS_FILE" --payload-dir payload \
-            --tag "$GITHUB_REF_NAME" --source-sha "$GITHUB_SHA" --run-id "$RUN_ID"
+          python3 tools/release_verify.py verify --manifest release.json --payload-dir payload \
+            --tag "$RELEASE_TAG" --source-sha "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" \
+            --run-id "$RUN_ID" --artifact-id "$ARTIFACT_ID"
 
-      - name: Verify provenance for every approved payload file
+      - name: Verify provenance for every candidate payload file
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           for file in payload/*; do
             gh attestation verify "$file" --repo "$GITHUB_REPOSITORY" \
               --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-candidate.yml" \
-              --deny-self-hosted-runners
+              --source-digest "$GITHUB_SHA" --source-ref refs/heads/main --deny-self-hosted-runners
           done
 
       - name: Transfer only the verified bytes to publish
@@ -83,7 +79,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verified-release-payload
-          path: payload/*
+          path: |
+            payload/*
+            release.json
           if-no-files-found: error
           retention-days: 7
 
@@ -94,6 +92,10 @@ jobs:
     environment: release
     permissions:
       contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      RUN_ID: ${{ inputs.run_id }}
+      ARTIFACT_ID: ${{ inputs.artifact_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -104,82 +106,78 @@ jobs:
         with:
           artifact-ids: ${{ needs.verify.outputs.artifact-id }}
           merge-multiple: true
-          path: payload
+          path: transfer
 
-      - name: Load trusted signers from the release environment
-        env:
-          ALLOWED_SIGNERS: ${{ vars.SCO_RELEASE_ALLOWED_SIGNERS }}
+      - name: Restore the verified inventory and payload
         run: |
-          if [ -z "${ALLOWED_SIGNERS//[[:space:]]/}" ]; then
-            echo 'no trusted signer configured'; exit 1
-          fi
-          printf '%s\n' "$ALLOWED_SIGNERS" > "$RUNNER_TEMP/allowed_signers"
-          echo "ALLOWED_SIGNERS_FILE=$RUNNER_TEMP/allowed_signers" >> "$GITHUB_ENV"
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")" = "$GITHUB_SHA"
+          mv transfer/release.json release.json
+          mv transfer/payload payload
 
       - name: The tag matches sdk/VERSION and has a CHANGELOG section
         run: |
           v=$(tr -d '\r\n' < sdk/VERSION)
-          if ! python3 -c 'import sys; from tools.doc_release_gate import base_tag; sys.exit(base_tag(sys.argv[1]) != "sdk-v" + sys.argv[2])' "$GITHUB_REF_NAME" "$v"; then
-            echo "tag $GITHUB_REF_NAME does not match sdk/VERSION ($v)"; exit 1
+          if ! python3 -c 'import sys; from tools.doc_release_gate import base_tag; sys.exit(base_tag(sys.argv[1]) != "sdk-v" + sys.argv[2])' "$RELEASE_TAG" "$v"; then
+            echo "tag $RELEASE_TAG does not match sdk/VERSION ($v)"; exit 1
           fi
           awk -v t="sdk-v$v" '
             $0 ~ "^## " { if (on) exit; if (index($0, "## " t " ") == 1 || $0 == "## " t) { on = 1; next } }
             on { print }' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
-            echo "CHANGELOG.md has no '## $GITHUB_REF_NAME' section"; exit 1
+            echo "CHANGELOG.md has no '## $RELEASE_TAG' section"; exit 1
           fi
-          if [ "$GITHUB_REF_NAME" != "sdk-v$v" ]; then
-            { printf 'Release candidate %s; not the final SDK release.\n\n' "$GITHUB_REF_NAME"; cat "$RUNNER_TEMP/notes.md"; } > "$RUNNER_TEMP/candidate-notes.md"
+          if [ "$RELEASE_TAG" != "sdk-v$v" ]; then
+            { printf 'Release candidate %s; not the final SDK release.\n\n' "$RELEASE_TAG"; cat "$RUNNER_TEMP/notes.md"; } > "$RUNNER_TEMP/candidate-notes.md"
             mv "$RUNNER_TEMP/candidate-notes.md" "$RUNNER_TEMP/notes.md"
           fi
           echo "VERSION=$v" >> "$GITHUB_ENV"
 
-      - name: Re-check the transfer, create a complete draft, and re-download its exact assets
+      - name: Re-check the transfer, create a complete draft, and verify the downloaded assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ needs.verify.outputs.run-id }}
         run: |
-          python3 tools/release_verify.py verify \
-            --manifest "docs/legal/release-decisions/$GITHUB_REF_NAME.json" \
-            --signature "docs/legal/release-decisions/$GITHUB_REF_NAME.json.sig" \
-            --allowed-signers "$ALLOWED_SIGNERS_FILE" --payload-dir payload \
-            --tag "$GITHUB_REF_NAME" --source-sha "$GITHUB_SHA" --run-id "$RUN_ID"
+          python3 tools/release_verify.py verify --manifest release.json --payload-dir payload \
+            --tag "$RELEASE_TAG" --source-sha "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" \
+            --run-id "$RUN_ID" --artifact-id "$ARTIFACT_ID"
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")" = "$GITHUB_SHA"
           python3 tools/release_promote.py draft
-          python3 tools/release_verify.py verify \
-            --manifest "docs/legal/release-decisions/$GITHUB_REF_NAME.json" \
-            --signature "docs/legal/release-decisions/$GITHUB_REF_NAME.json.sig" \
-            --allowed-signers "$ALLOWED_SIGNERS_FILE" --payload-dir downloaded \
-            --tag "$GITHUB_REF_NAME" --source-sha "$GITHUB_SHA" --run-id "$RUN_ID"
-          # A failure above intentionally leaves a draft for investigation, never a public release.
+          python3 tools/release_verify.py verify --manifest release.json --payload-dir downloaded \
+            --tag "$RELEASE_TAG" --source-sha "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY" \
+            --run-id "$RUN_ID" --artifact-id "$ARTIFACT_ID"
+          # Failure leaves an unpublished draft for investigation.
 
       - name: Publish only the same unique, verified draft
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")" = "$GITHUB_SHA"
           python3 tools/release_promote.py publish
 
   notify:
     needs: publish
-    if: ${{ !contains(github.ref_name, '-rc.') }}
+    if: ${{ !contains(inputs.tag, '-rc.') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
       actions: read   # read prior attempt markers and receipts
     concurrency:
-      group: release-notify-${{ github.ref_name }}
+      group: release-notify-${{ inputs.tag }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0 # The tag, its approval files and main's deployed Pages commit.
+          fetch-depth: 0 # The tag and main's deployed Pages commit.
 
       - name: Verify release completion and the prior delivery state
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           python3 tools/release_notify.py prepare --tag "$RELEASE_TAG" --work "$RUNNER_TEMP/release-notify"

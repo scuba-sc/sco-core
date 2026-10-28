@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Verify that a published SDK release is complete, then announce it exactly once.
+"""Verify that a published SDK release is complete, then send a receipted announcement.
 
-Approval, publication and completion are distinct. Completion requires:
+Publication and completion are distinct. Completion requires:
 - a unique published GitHub Release (not draft, not prerelease) for the tag;
-- the tag peeling, remotely and locally, to the approval commit that carries the
-  signed docs/legal/release-decisions/<tag>.json, whose source.sha is a distinct
-  identity that must be an ancestor of that commit;
-- every release asset matching the signed manifest by name, size and SHA-256, and
-  release.json / release.json.sig equal byte for byte to the committed approval;
+- the tag peeling remotely and locally to the exact source commit in the published
+  unsigned release.json, and sdk/VERSION at that commit matching the tag; historical
+  schema-2 releases instead retain their committed approval and signature checks;
+- every release asset matching the manifest by name, size and SHA-256;
 - the deployed Pages catalogue reporting this SDK and game-pack version from a
   source commit that contains the release source (and --docs-sha, when given),
   plus the allowlisted routes under the Pages base answering 200.
@@ -17,6 +16,9 @@ artifacts: an attempt marker is persisted before the POST and a receipt after it
 A valid delivered receipt turns later runs into a no-op. An attempt without a
 definitive outcome halts every later run, because a timeout after sending is not
 permission to resend; a maintainer confirms the channel by hand first.
+The workflows retain these artifacts for 90 days. After history expires or is
+deleted, this tool cannot detect an earlier delivery; check the channel before
+replaying an old release. The receipts are not a durable exactly-once guarantee.
 
 Exit codes: 0 verified, delivered or already delivered; 1 refused or definitively
 not delivered; 3 ambiguous delivery state (halt, never retried automatically).
@@ -55,6 +57,7 @@ RECEIPT_SCHEMA = "sco-release-notify-receipt/1"
 # Only these workflow runs can hold the webhook secret; artifacts from any other run
 # (for example a fork pull request) can neither suppress nor block an announcement.
 TRUSTED_RUNS = {(".github/workflows/release.yml", "push"),
+                (".github/workflows/release.yml", "workflow_dispatch"),
                 (".github/workflows/discord.yml", "workflow_dispatch")}
 MAX_BODY = 8 * 1024 * 1024
 MAX_RECORD = 1024 * 1024
@@ -150,7 +153,7 @@ def positive_int(value):
 def blob(git_run, sha, path):
     code, out = git_run("cat-file", "blob", f"{sha}:{path}")
     if code:
-        raise Refusal("committed file unavailable at the approval commit: " + path)
+        raise Refusal("committed file unavailable at the tagged commit: " + path)
     return out
 
 
@@ -184,56 +187,86 @@ def peeled_tag(repo, tag, client):
     raise Refusal("remote tag does not peel to a commit")
 
 
-def load_manifest(data, tag):
+def load_manifest(data, repo, tag):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise Refusal("manifest has duplicate JSON keys")
+            result[key] = value
+        return result
+
+    def constant(_value):
+        raise Refusal("manifest has a non-finite JSON number")
+
     try:
-        record = json.loads(data)
-    except ValueError as exc:
-        raise Refusal("signed manifest is not valid JSON") from exc
-    if (not isinstance(record, dict) or record.get("schema_version") != 2
-            or record.get("tag") != tag
-            or (record.get("distribution") or {}).get("status") != "approved-for-publication"):
-        raise Refusal("signed manifest does not approve this tag for publication")
-    source = (record.get("source") or {}).get("sha")
-    if not isinstance(source, str) or not SHA.fullmatch(source):
-        raise Refusal("signed manifest source SHA is invalid")
+        record = json.loads(data, object_pairs_hook=pairs, parse_constant=constant)
+    except (ValueError, UnicodeError, RecursionError) as exc:
+        raise Refusal("manifest is not valid JSON") from exc
+    if (not isinstance(record, dict) or type(record.get("schema_version")) is not int
+            or record["schema_version"] not in (2, 3) or record.get("tag") != tag):
+        raise Refusal("manifest schema or tag does not match")
+    legacy = record["schema_version"] == 2
+    if legacy and (not isinstance(record.get("distribution"), dict)
+                   or record["distribution"].get("status") != "approved-for-publication"):
+        raise Refusal("historical manifest does not approve publication")
+    source = record.get("source")
+    if (not isinstance(source, dict) or (not legacy and source.get("repo") != repo)
+            or not isinstance(source.get("sha"), str) or not SHA.fullmatch(source["sha"])):
+        raise Refusal("manifest source repository or SHA is invalid")
     artifacts = record.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
-        raise Refusal("signed manifest has no artifacts")
+        raise Refusal("manifest has no artifacts")
     names = set()
     for artifact in artifacts:
         name = artifact.get("name") if isinstance(artifact, dict) else None
-        if (not isinstance(name, str) or name in names or name in ("release.json", "release.json.sig")
+        if (not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name)
+                or name in names or name in ("release.json", "release.json.sig")
                 or not positive_int(artifact.get("size"))
                 or not isinstance(artifact.get("sha256"), str)
                 or not re.fullmatch(r"[0-9a-f]{64}", artifact["sha256"])):
-            raise Refusal("signed manifest artifact inventory is invalid")
+            raise Refusal("manifest artifact inventory is invalid")
         names.add(name)
     return record
 
 
-def verify_assets(repo, release_id, manifest, manifest_bytes, sig_bytes, client):
-    listed = {artifact["name"]: artifact for artifact in manifest["artifacts"]}
-    approval = {"release.json": manifest_bytes, "release.json.sig": sig_bytes}
+def verify_assets(repo, release_id, tag, tag_sha, client, git_run):
     assets = [asset for page in api_pages(client, f"repos/{repo}/releases/{release_id}/assets?per_page=100")
               for asset in page]
     names = [asset.get("name") for asset in assets]
-    if len(names) != len(set(names)) or set(names) != set(listed) | set(approval):
-        raise Refusal("release assets do not exactly match the signed manifest")
+    if len(names) != len(set(names)) or names.count("release.json") != 1:
+        raise Refusal("release assets do not contain exactly one manifest")
+    for asset in assets:
+        if asset.get("state") != "uploaded" or not positive_int(asset.get("id")):
+            raise Refusal("release asset is incomplete: " + str(asset.get("name")))
+    manifest_asset = next(asset for asset in assets if asset["name"] == "release.json")
+    manifest_bytes = client("api", f"repos/{repo}/releases/assets/{manifest_asset['id']}",
+                            "-H", "Accept: application/octet-stream")
+    manifest = load_manifest(manifest_bytes, repo, tag)
+    listed = {artifact["name"]: artifact for artifact in manifest["artifacts"]}
+    approval = {"release.json": manifest_bytes}
+    if manifest["schema_version"] == 2:
+        path = f"docs/legal/release-decisions/{tag}.json"
+        committed = blob(git_run, tag_sha, path)
+        if manifest_bytes != committed:
+            raise Refusal("published historical manifest differs from the tagged commit")
+        approval["release.json.sig"] = blob(git_run, tag_sha, path + ".sig")
+    if set(names) != set(listed) | set(approval):
+        raise Refusal("release assets do not exactly match the manifest")
     for asset in sorted(assets, key=lambda item: item["name"]):
         name = asset["name"]
-        if asset.get("state") != "uploaded" or not positive_int(asset.get("id")):
-            raise Refusal("release asset is incomplete: " + name)
-        data = client("api", f"repos/{repo}/releases/assets/{asset['id']}",
-                      "-H", "Accept: application/octet-stream")
+        data = manifest_bytes if name == "release.json" else client(
+            "api", f"repos/{repo}/releases/assets/{asset['id']}",
+            "-H", "Accept: application/octet-stream")
         digest = hashlib.sha256(data).hexdigest()
         if name in approval:
             if data != approval[name]:
-                raise Refusal("published approval differs from the signed commit: " + name)
+                raise Refusal("published historical signature differs from the tagged commit: " + name)
         elif len(data) != listed[name]["size"] or digest != listed[name]["sha256"]:
-            raise Refusal("release asset differs from the signed manifest: " + name)
+            raise Refusal("release asset differs from the manifest: " + name)
         if asset.get("size") != len(data) or asset.get("digest") not in (None, "sha256:" + digest):
             raise Refusal("release asset metadata differs from its bytes: " + name)
-    return len(assets)
+    return manifest, len(assets)
 
 
 def pages_location(repo):
@@ -328,20 +361,20 @@ def verify_completion(repo, tag, docs_sha=None, routes=(), client=github, git_ru
     approval_sha = peeled_tag(repo, tag, client)
     code, local = git_run("rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}")
     if code or local.decode("ascii", "replace").strip() != approval_sha:
-        raise Refusal("local tag does not peel to the published approval commit")
-    manifest_bytes = blob(git_run, approval_sha, f"docs/legal/release-decisions/{tag}.json")
-    sig_bytes = blob(git_run, approval_sha, f"docs/legal/release-decisions/{tag}.json.sig")
-    manifest = load_manifest(manifest_bytes, tag)
+        raise Refusal("local tag does not peel to the published tagged commit")
+    manifest, assets = verify_assets(repo, release["id"], tag, approval_sha, client, git_run)
     source_sha = manifest["source"]["sha"]
-    if not is_ancestor(git_run, source_sha, approval_sha):
-        raise Refusal("manifest source is not an ancestor of the approval commit")
+    if manifest["schema_version"] == 2:
+        if not is_ancestor(git_run, source_sha, approval_sha):
+            raise Refusal("historical manifest source is not an ancestor of the tagged commit")
+    elif source_sha != approval_sha:
+        raise Refusal("manifest source does not match the tagged commit")
     if blob(git_run, approval_sha, "sdk/VERSION").decode("utf-8", "replace").strip() != version:
-        raise Refusal("sdk/VERSION at the approval commit does not match the tag")
+        raise Refusal("sdk/VERSION at the tagged commit does not match the tag")
     packs = {m.group(1) for m in (GAME_PACK.fullmatch(a["name"]) for a in manifest["artifacts"]) if m}
     if len(packs) != 1:
-        raise Refusal("signed manifest does not name exactly one game pack version")
+        raise Refusal("manifest does not name exactly one game pack version")
     game_pack = packs.pop()
-    assets = verify_assets(repo, release["id"], manifest, manifest_bytes, sig_bytes, client)
 
     pages_sha, pages_url, notes_url = verify_pages(repo, tag, version, game_pack, source_sha,
                                                    docs_sha, routes, git_run, web)
@@ -378,7 +411,6 @@ def build_payload(completion, notes):
         "fields": [
             {"name": "SDK", "value": completion["sdk_version"], "inline": True},
             {"name": "Game pack", "value": completion["game_pack_version"], "inline": True},
-            {"name": "Approval commit", "value": commit(completion["approval_sha"]), "inline": True},
             {"name": "Source commit", "value": commit(completion["source_sha"]), "inline": True},
             {"name": "Docs", "value": completion["notes_url"], "inline": False}],
         "footer": {"text": "sco-core · game core and plugin SDK for sc-offline"}}
@@ -515,7 +547,7 @@ def prepare(repo, tag, work, env, docs_sha=None, routes=(), client=github, git_r
     write_json(work / "attempt.json", attempt)
     write_outputs(env, {"action": "send", "attempt-artifact": artifact_name("attempt", tag),
                         "receipt-artifact": artifact_name("receipt", tag)})
-    print(f"completion verified for {tag}: release {completion['release_id']}, approval "
+    print(f"completion verified for {tag}: release {completion['release_id']}, tag commit "
           f"{completion['approval_sha']}, source {completion['source_sha']}, docs {completion['docs_sha']}")
     return 0
 

@@ -2,7 +2,7 @@
 
 Reviewed 2026-10-25 against the public source at `4d05e738e88022a458e161a0abcd19b301d01889`, with SDK **2.4.0**, plugin ABI **1.1**, and game pack **0.8.0** as the compatibility baseline. This review identifies the work needed for comprehensive defaults. It records no new Windows, launcher, or game run and changes no capability, source flag, release approval, or provenance decision.
 
-The published `sdk-v2.4.0-rc.1` source is `48d7055ef49e1b073ec59e4ce8ded7a6006329eb`. That archive snapshot, current source changes, and final signed release approval are separate. This document is a source review for the development branch, not a statement that published RC1 bytes include its changes.
+The published `sdk-v2.4.0-rc.1` source is `48d7055ef49e1b073ec59e4ce8ded7a6006329eb`. That archive snapshot, current source changes, and final release are separate. This document is a source review for the development branch, not a statement that published RC1 bytes include its changes.
 
 ## Implemented defaults in this development change
 
@@ -117,6 +117,6 @@ Each resulting implementation task should name a roadmap milestone and the publi
 2. Build the smallest author-owned plugin using public headers and matching contracts/catalogue; add a synthetic/mock case for each changed availability, size/version, lifetime and cleanup decision.
 3. Record whether the work changes discovery, build inclusion, service publication, native readiness or actual gameplay behavior. Test each changed layer rather than using success in an earlier layer as proof of a later one.
 4. For a native readiness change, retain the specific prerequisite from the table, the fail-closed/refusal cases, named Windows target evidence and separately recorded owner-run game observation. Missing game access leaves that gate open while supported SDK/mock work proceeds.
-5. Update registry/docs/receipts from observed results and keep published RC bytes, development source and final release approval distinct. A human provenance/release decision remains a separate step.
+5. Update registry/docs/receipts from observed results and keep published RC bytes, development source and final release distinct.
 
 This review's suggested next actions are comprehensive public discovery and workflow routing first; complete profile configuration and reproducible SDK-only consumer checks second; then prioritized native adapter/probe tasks with their existing safeguards and roadmap acceptance criteria. No capability listed above becomes implemented or game-verified merely because its interface is visible by default.

@@ -49,7 +49,7 @@ optional and default-off; static discovery never certifies gameplay or performs 
 
 **SDK 2.4.0 is published as release candidate 1**
 ([`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), the latest
-release; the final signed `sdk-v2.4.0` follows). It bundles this launcher, a
+release; the final `sdk-v2.4.0` follows). It bundles this launcher, a
 compiler-built `sdk-catalogue.json` and the matching guide sections
 `sdk-guides.json` in the combined kit (`sco-sdk-2.4.0.zip`), the `game-sc` overlay
 and the `host-source-sc` kit. The guides and READMEs inside the release candidate 1
@@ -198,7 +198,7 @@ disconnect. This is not support for older protocol semantics.
 configurations pass it explicitly to avoid dependence on inherited
 environment variables. `--repo-root` is optional: without it, `get_example` returns
 record-listed paths only, not file contents, and engine natives, the scaffold, status
-evidence and release-approval records are `unavailable`. With it, examples are read
+evidence and historical release-approval records are `unavailable`. With it, examples are read
 within that root under the restrictions below. Use absolute paths in client
 configuration; do not depend on the client's working directory.
 
@@ -224,7 +224,7 @@ first; any other argument name is refused:
 | `list_services` | none | Discover public service tables, versions, sizes, member counts and [stability](#stability) labels. |
 | `get_example` | `symbol_or_id`; optional: `language` | Return a selected record's listed example paths, and optionally their bounded contents. |
 | `get_capability_status` | `symbol_or_id` | Read documented capability evidence, limitations, the record's [evidence state](#evidence-state) and its table's [stability](#stability); not a live availability probe. |
-| `check_compatibility` | optional: `sdk_version`, `game_pack_version`, `tag`, `source_sha`, `service`, `min_version`, `member_extent` | Compare requested coordinates with catalogue metadata, read a [release approval record](#release-approval-records) and check a service's minimum version and member extent; not a runtime compatibility test. |
+| `check_compatibility` | optional: `sdk_version`, `game_pack_version`, `tag`, `source_sha`, `service`, `min_version`, `member_extent` | Compare requested coordinates with catalogue metadata, read [historical checkout approval records](#release-approval-records) and check a service's minimum version and member extent; does not verify publication, signatures or runtime compatibility. |
 
 `symbol_or_id` takes a table-qualified symbol such as `sc_actors_v1.spawn_npc` or
 the record's stable id such as `sc-actors-v1-spawn-npc`; `search_api` results
@@ -261,26 +261,30 @@ or shorter, so check `table->size` and a non-NULL pointer before calling.
 
 ### Release approval records
 
-With `--repo-root`, a `tag` reads `docs/legal/release-decisions/<tag>.json`; a
-`source_sha` alone scans the `sdk-v*.json` records there (at most 64). Without a
-root, `release.state` is `unavailable`. Otherwise it is `matching_approval_record`
-when a schema-2 approval's filename, `tag` and built source SHA all agree with the
-request, and `no_matching_approval_record` otherwise. Each record reports its
-`format` (`approval_schema_v2`, `legacy_unsigned_v1`, `unrecognized`,
-`unparseable` or `unreadable`), `built_source_sha`, `distribution_status`,
-`approved_at` and whether a detached `.json.sig` file is `present`.
+This lookup reads historical checkout records only. With `--repo-root`, a `tag`
+reads `docs/legal/release-decisions/<tag>.json`; a `source_sha` alone scans the
+`sdk-v*.json` records there (at most 64). It does not fetch GitHub release assets.
+The unsigned schema-3 `release.json` for the current promotion process is a release
+asset, so this lookup does not inspect or match it. No matching checkout record is
+not evidence that no release exists.
 
-- `built_source_sha` is the candidate's built source commit. The release tag points
-  at a later, approval-only commit that adds the record. They are different
-  commits, and this server does not resolve tags.
-- `signature_verification` is always `not_performed`. Verifying the SSH signature,
-  payload and approval-only descendant is
-  [`tools/release_verify.py`](../release_verify.py)'s job, with independently
-  trusted allowed signers. A present `.sig` file is not a valid signature.
+Without a root, `release.state` is `unavailable`. Otherwise it is
+`matching_approval_record` when a historical schema-2 approval's filename, `tag`
+and built source SHA agree with the request, and `no_matching_approval_record`
+otherwise. Each record reports its `format` (`approval_schema_v2`,
+`legacy_unsigned_v1`, `unrecognized`, `unparseable` or `unreadable`). A recognized
+schema-2 record also reports `built_source_sha`, `distribution_status`,
+`approved_at` and whether its detached `.json.sig` file is `present`.
+
+- For historical schema-2 approvals, `built_source_sha` is the candidate's built
+  source commit; the release tag named a later approval-only commit. The server
+  does not resolve tags.
+- `signature_verification` is always `not_performed`. A present `.sig` file does
+  not establish that the signature is valid; the payload is not verified either.
 - `publication` is always `not_checked`. `approved-for-publication` records a
-  decision, not a published release.
-- A record is committed at its release tag, so a branch without it reports no
-  match. That is not proof that no release exists.
+  historical decision, not a published release.
+- Historical records may be absent from the configured checkout even when they
+  exist at a release tag.
 
 Every discovery tool (all fourteen in the default profile) advertises
 these MCP annotations; the development tools advertise
@@ -671,7 +675,7 @@ Rules that hold for every client:
   offer three execution tools, which need their own exact client permissions. Never
   use a wildcard.
 - Removing `--repo-root` and its path disables `get_example` contents, the engine-native
-  tools, the scaffold, status and stability evidence and release-approval lookups. The
+  tools, the scaffold, status and stability evidence and historical release-approval lookups. The
   guide tools still work when `sdk-guides.json` sits beside the catalogue. Do it only to
   keep example contents from the client or its model provider.
 - No API keys, tokens, or secrets are needed.

@@ -48,6 +48,30 @@ class RealManifest(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp)
 
+    def test_packaging_preserves_pending_provenance_and_rejects_unknown_metadata(self):
+        provenance = json.loads(pkg.read("docs/legal/provenance.json"))
+        component = next(c for c in pkg.select(self.m, "core") if c["source"] == "include/sco_api.h")
+        original_read = pkg.read
+        def records_with(**changes):
+            doc = copy.deepcopy(provenance)
+            doc["entries"].insert(0, {"path": component["source"], "origin": component["origin"],
+                                      "license": component["license"], "copyright": "test holder",
+                                      "status": "needs-review", **changes})
+            def read(path):
+                return json.dumps(doc).encode() if path == "docs/legal/provenance.json" else original_read(path)
+            with unittest.mock.patch.object(pkg, "read", side_effect=read):
+                return pkg.attributions(self.m, "core")
+        record = records_with()[pkg.destination(self.m, "core", component)]
+        self.assertEqual(record["status"], "needs-review")
+        self.assertEqual(record["copyright"], "test holder")
+        for changes, message in (({"status": "unknown"}, "unknown provenance status"),
+                                 ({"status": "unresolved"}, "unresolved provenance"),
+                                 ({"copyright": ""}, "provenance lacks copyright"),
+                                 ({"license": ""}, "provenance lacks license"),
+                                 ({"origin": "unknown"}, "manifest and provenance disagree")):
+            with self.subTest(changes=changes), self.assertRaisesRegex(pkg.ManifestError, message):
+                records_with(**changes)
+
     def test_rc2_discovery_metadata_profile_selection(self):
         # The RC2 scope decision retains both files in the game-bearing kits only.
         expected = {"game-sc", "legacy", "host-source-sc"}

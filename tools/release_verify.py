@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
-"""Fail-closed verification of a maintainer-signed release and its flat payload.
-
-Run from the source checkout (including initialized recursive submodules).
-The exact manifest bytes, not a reserialized JSON object, are signed.
-Allowed signers must be supplied explicitly from an independent trust source.
-"""
+"""Verify an unsigned inventory and its exact candidate payload."""
 import argparse
-import datetime
 import hashlib
 import os
 from pathlib import Path
@@ -16,8 +10,8 @@ import subprocess
 import sys
 
 sys.dont_write_bytecode = True
-from ip_audit import (APPROVAL_SCHEMA, AuditError, ROOT, load_json_strict,
-                      parse_rfc3339, reserved_problem, trailing_problem, validate_schema)
+from ip_audit import AuditError, load_json_strict, reserved_problem, trailing_problem
+from doc_release_gate import base_tag
 
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 BASENAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,179}\Z")
@@ -52,26 +46,11 @@ def commit(root, sha):
 
 
 def publication_source(root, built_sha, published_sha):
-    """Publish the built commit or an approval-only descendant, never different source."""
+    """The tag must name exactly the candidate source commit."""
     commit(root, built_sha)
     commit(root, published_sha)
-    if built_sha == published_sha:
-        return
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(root), "merge-base", "--is-ancestor", built_sha, published_sha],
-            capture_output=True, timeout=30)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Refusal("git results unavailable (merge-base --is-ancestor)") from exc
-    if result.returncode == 1:
-        raise Refusal("source SHA is not an ancestor of the published commit")
-    if result.returncode:
-        raise Refusal("git results unavailable (merge-base --is-ancestor)")
-    changed = git(root, "diff", "--no-ext-diff", "--no-renames", "--name-only", "-z",
-                  built_sha, published_sha, "--")
-    for path in changed.split(b"\0"):
-        if path and not path.startswith(b"docs/legal/release-decisions/"):
-            raise Refusal("non-approval path changed: " + repr(os.fsdecode(path)))
+    if built_sha != published_sha:
+        raise Refusal("tag source SHA differs from candidate source")
 
 
 def dependencies(root, sha, prefix=""):
@@ -133,53 +112,52 @@ def digest_file(path):
     return size, digest.hexdigest()
 
 
-def signature(args, data):
-    # An approval checkout must never supply its own authorization policy.
-    root = Path(os.fsdecode(git(Path.cwd(), "rev-parse", "--show-toplevel")).strip()).resolve()
-    if args.allowed_signers.resolve().is_relative_to(root):
-        raise Refusal("trust file is inside the checkout")
-    try:
-        result = subprocess.run(
-            ["ssh-keygen", "-Y", "verify", "-f", str(args.allowed_signers),
-             "-I", "sco-maintainer", "-n", "sco-release-v1", "-s", str(args.signature)],
-            input=data, capture_output=True, timeout=30)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Refusal("signature verification unavailable") from exc
-    if result.returncode:
-        raise Refusal("maintainer signature verification failed")
+PROFILES = ["core", "game-sc", "legacy", "core-source", "host-source-sc"]
+WORKFLOW = ".github/workflows/release-candidate.yml"
 
 
-def timestamp(text):
-    """Validate RFC 3339 with the shared parser, preserving fractional seconds for age checks."""
-    if parse_rfc3339(text) is None:
-        return None
-    return datetime.datetime.fromisoformat(text[:-1] + "+00:00" if text[-1:] in ("Z", "z") else text)
+def expected_payload(root, sha, tag):
+    version = git(root, "show", sha + ":sdk/VERSION").decode().strip()
+    header = git(root, "show", sha + ":include/sc_game_pack.h").decode()
+    match = re.search(r'^#define SCO_GAME_PACK_VERSION "([0-9.]+)"$', header, re.M)
+    if not match or base_tag(tag) != "sdk-v" + version:
+        raise Refusal("tag or game pack version mismatch")
+    bases = [f"sco-sdk-core-{version}", f"sco-sdk-game-sc-{match.group(1)}",
+             f"sco-sdk-{version}", f"sco-sdk-core-source-{version}",
+             f"sco-sdk-host-source-sc-{version}"]
+    return {**{base + ".zip": ("source" if base in bases[3:] else "zip") for base in bases},
+            **{base + ".spdx.json": "sbom" for base in bases}, "SHA256SUMS": "checksums"}
+
+
+def record_shape(record):
+    """Reject malformed inventories without relying on an approval schema."""
+    def fields(value, keys):
+        return type(value) is dict and set(value) == set(keys)
+    if not fields(record, ("schema_version", "tag", "source", "components_manifest_sha256", "builder", "profiles", "artifacts")) or type(record["schema_version"]) is not int or record["schema_version"] != 3:
+        raise Refusal("invalid inventory fields")
+    source, builder = record["source"], record["builder"]
+    if not fields(source, ("repo", "sha", "dependencies")) or not isinstance(source["repo"], str) or not isinstance(source["sha"], str) or not SHA.fullmatch(source["sha"]) or type(source["dependencies"]) is not list:
+        raise Refusal("invalid source fields")
+    if not fields(builder, ("workflow_path", "workflow_sha", "run_id", "run_attempt")) or builder["workflow_path"] != WORKFLOW or builder["workflow_sha"] != source["sha"] or type(builder["run_id"]) is not int or builder["run_id"] <= 0 or type(builder["run_attempt"]) is not int or builder["run_attempt"] != 1:
+        raise Refusal("invalid builder fields")
+    if record["profiles"] != PROFILES or not isinstance(record["tag"], str) or base_tag(record["tag"]) is None or not isinstance(record["components_manifest_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", record["components_manifest_sha256"]) or type(record["artifacts"]) is not list:
+        raise Refusal("invalid inventory fields")
+    for dep in source["dependencies"]:
+        if not fields(dep, ("path", "sha")) or not isinstance(dep["path"], str) or not isinstance(dep["sha"], str) or not SHA.fullmatch(dep["sha"]):
+            raise Refusal("invalid dependency fields")
+    for item in record["artifacts"]:
+        if not fields(item, ("name", "role", "size", "sha256", "artifact_id")) or not isinstance(item["name"], str) or not isinstance(item["role"], str) or type(item["size"]) is not int or item["size"] < 0 or not isinstance(item["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) or type(item["artifact_id"]) is not int or item["artifact_id"] <= 0:
+            raise Refusal("invalid artifact fields")
 
 
 def verify(args):
     failures = []
     try:
-        data = args.manifest.read_bytes()
-        record = load_json_strict(data)
-        schema = load_json_strict((Path(ROOT) / APPROVAL_SCHEMA).read_bytes())
-        errors = []
-        validate_schema(record, schema, "$", errors)
-    except (OSError, AuditError) as exc:
-        # Input can contain secrets. Do not echo values, paths or parser/subprocess messages.
-        return [str(exc) if isinstance(exc, AuditError) and str(exc) in
-                ("duplicate JSON key", "non-finite JSON number", "invalid JSON")
-                else "manifest or schema unavailable"]
-    if errors:
-        # Validator errors include raw values. Replace them with stable, value-free diagnostics.
-        for error in errors:
-            where = error.split(":", 1)[0]
-            if not re.fullmatch(r"\$(?:\.[A-Za-z_][A-Za-z_0-9]*|\[\d+\])*", where):
-                where = "$"
-            reason = "unknown property" if "unknown property" in error else "invalid or missing field"
-            failures.append(f"{where}: {reason}")
-        return failures
-    if record["schema_version"] != 2:
-        return ["signed manifest schema_version must be 2"]
+        record = load_json_strict(args.manifest.read_bytes())
+        record_shape(record)
+    except (OSError, AuditError, Refusal) as exc:
+        return [str(exc) if isinstance(exc, Refusal) or isinstance(exc, AuditError) and str(exc) in
+                ("duplicate JSON key", "non-finite JSON number", "invalid JSON") else "inventory unavailable"]
 
     def check(action):
         try:
@@ -188,25 +166,18 @@ def verify(args):
             exc = sys.exc_info()[1]
             failures.append(str(exc) if isinstance(exc, Refusal) else "check unavailable")
 
-    check(lambda: signature(args, data))
     if record["tag"] != args.tag:
         failures.append("tag mismatch")
+    if record["source"]["repo"] != args.repo:
+        failures.append("repository mismatch")
     if not SHA.fullmatch(args.source_sha):
         failures.append("source-sha must be a full lowercase SHA")
     else:
         check(lambda: publication_source(Path.cwd(), record["source"]["sha"], args.source_sha))
-    if args.run_id is not None and record["builder"]["run_id"] != args.run_id:
+    if record["builder"]["run_id"] != args.run_id:
         failures.append("builder run id mismatch")
-    if record["distribution"]["status"] != "approved-for-publication":
-        failures.append("distribution is not approved for publication")
-    now = timestamp(args.now) if args.now is not None else datetime.datetime.now(datetime.timezone.utc)
-    approved = timestamp(record["approved_at"])
-    if now is None or approved is None or args.max_age_days < 0:
-        failures.append("invalid verification time or age limit")
-    elif approved > now:
-        failures.append("approval is in the future")
-    elif now - approved > datetime.timedelta(days=args.max_age_days):
-        failures.append("approval expired")
+    if any(a["artifact_id"] != args.artifact_id for a in record["artifacts"]):
+        failures.append("artifact id mismatch")
 
     def source():
         root, sha = Path.cwd(), record["source"]["sha"]
@@ -219,7 +190,7 @@ def verify(args):
         if not tree.startswith(b"100644 blob "):
             raise Refusal("builder workflow unavailable or not a regular file")
         # The promotion fetch binds the dispatch run's head SHA and workflow path
-        # to this source. Require the approved workflow blob to be that source's
+        # to this source. Require the inventory workflow blob to be that source's
         # regular file, while allowing a distinct commit with identical contents.
         source_tree = git(root, "ls-tree", "-z", sha, "--", builder["workflow_path"])
         if not source_tree.startswith(b"100644 blob ") or source_tree != tree:
@@ -246,6 +217,9 @@ def verify(args):
                 raise Refusal("case-colliding artifact names")
             folded.add(name.casefold())
             listed[name] = artifact
+        expected = expected_payload(Path.cwd(), record["source"]["sha"], args.tag)
+        if {name: item["role"] for name, item in listed.items()} != expected:
+            raise Refusal("candidate payload does not match expected SDK profiles")
         files = payload_files(args.payload_dir)
         if files.keys() - listed.keys():
             failures.append("extra payload file")
@@ -257,6 +231,10 @@ def verify(args):
                 failures.append("artifact size mismatch")
             if digest != listed[name]["sha256"]:
                 failures.append("artifact SHA256 mismatch")
+        if "SHA256SUMS" in files and listed.keys() <= files.keys():
+            expected_sums = "".join(f"{listed[name]['sha256']}  {name}\n" for name in sorted(listed) if name != "SHA256SUMS")
+            if files["SHA256SUMS"].read_bytes() != expected_sums.encode():
+                failures.append("SHA256SUMS mismatch")
 
     check(payload)
     return failures
@@ -285,15 +263,13 @@ def main(argv=None):
     parser = Parser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True, parser_class=Parser)
     v = sub.add_parser("verify")
-    for option in ("manifest", "signature", "allowed-signers", "payload-dir"):
+    for option in ("manifest", "payload-dir"):
         v.add_argument("--" + option, type=Path, required=True)
     v.add_argument("--tag", required=True)
-    v.add_argument("--source-sha", required=True,
-                   help="full SHA of the commit being published (tagged commit); the manifest source "
-                        "must equal it or be its ancestor with only docs/legal/release-decisions/ changed")
-    v.add_argument("--run-id", type=int)
-    v.add_argument("--max-age-days", type=int, default=7)
-    v.add_argument("--now")
+    v.add_argument("--source-sha", required=True)
+    v.add_argument("--repo", required=True)
+    v.add_argument("--run-id", type=int, required=True)
+    v.add_argument("--artifact-id", type=int, required=True)
     i = sub.add_parser("inventory")
     i.add_argument("--payload-dir", type=Path, required=True)
     i.add_argument("--out", type=Path, required=True)

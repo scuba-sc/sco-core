@@ -246,16 +246,15 @@ class DocReleaseGateTests(unittest.TestCase):
         self.repo.set("docs/getting-started.md", "# Start\n\nDownload the latest release.\n")
         self.assert_refused(gate.GETTING_STARTED)
 
-    def write_approval(self, record, signed=True):
+    def write_approval(self, record):
         path = self.repo.root / "docs/legal/release-decisions/sdk-v2.1.0.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(record))
-        if signed:
-            Path(str(path) + ".sig").write_text("signature")
         return "docs/legal/release-decisions/sdk-v2.1.0.json"
 
-    def test_signed_approval_profiles_match(self):
-        for record in ({"schema_version": 2, "tag": "sdk-v2.1.0", "profiles": FIVE},
+    def test_unsigned_approval_profiles_match(self):
+        for record in ({"schema_version": 3, "tag": "sdk-v2.1.0", "profiles": FIVE},
+                       {"schema_version": 2, "tag": "sdk-v2.1.0", "profiles": FIVE},
                        {"schema_version": 1, "release_tag": "sdk-v2.1.0", "profiles": FIVE}):
             with self.subTest(version=record["schema_version"]):
                 out = self.assert_passes("--approval", self.write_approval(record))
@@ -264,8 +263,6 @@ class DocReleaseGateTests(unittest.TestCase):
     def test_approval_refusals(self):
         approval = "docs/legal/release-decisions/sdk-v2.1.0.json"
         self.assert_refused("not found", "--approval", approval)
-        self.write_approval({"tag": "sdk-v2.1.0", "profiles": FIVE}, signed=False)
-        self.assert_refused(".sig", "--approval", approval)
         cases = ({"tag": "sdk-v2.1.0", "profiles": FIVE[:3]},
                  {"tag": "sdk-v2.0.0", "profiles": FIVE},
                  ["not", "an", "object"])

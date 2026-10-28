@@ -3,8 +3,8 @@ name: release-candidate
 # Build once on the selected main commit, after every mandatory check succeeds on that SHA.
 # Dispatch with the prospective sdk-v<version> tag (no tag is created here). The single immutable
 # release-candidate artifact contains all five SDK archives, their SBOMs and SHA256SUMS.
-# Copy its run ID, artifact ID, file sizes and hashes from the summary into release.json, review,
-# sign and commit the approval, then tag. release.yml promotes those exact bytes without rebuilding.
+# Tag the candidate source and dispatch release.yml with its run and artifact IDs; the release
+# workflow verifies and promotes those exact bytes without rebuilding.
 # Repository access is read-only; only candidate can mint provenance attestations, not releases.
 
 on:
@@ -126,7 +126,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Approval inputs (copy every file, including SHA256SUMS)
+      - name: Candidate inventory (including SHA256SUMS)
         env:
           ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
           RELEASE_TAG: ${{ inputs.tag }}

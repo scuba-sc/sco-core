@@ -277,7 +277,7 @@ def published_stage():
         raise ValueError('PUBLISHED_DOWNLOAD_TAG must be PUBLISHED_RELEASE or one of its -rc.N tags')
     if match[1]:
         return ('Published release candidate',
-                'release candidate ' + match[1] + ', attested assets; the final signed release follows')
+                'release candidate ' + match[1] + ', attested assets; the final release follows')
     return 'Published release', 'immutable approved assets'
 
 
