@@ -49,8 +49,9 @@ A maintainer doesn't merge a PR whose answers are missing or unclear.
 ## Unresolved or disputed material
 
 Material with unknown or disputed origin or rights is not distributed until it is resolved, rewritten
-or removed. A takedown request or rights claim goes to the maintainer; affected material is withheld
-while assessed. Git history is never rewritten to hide where something came from.
+or removed. Mark it `unresolved` in `docs/legal/provenance.json` so the audit can refuse it. A
+takedown request or rights claim goes to the maintainer; affected material is withheld while assessed.
+Git history is never rewritten to hide where something came from.
 
 ## Records
 

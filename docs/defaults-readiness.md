@@ -117,6 +117,6 @@ Each resulting implementation task should name a roadmap milestone and the publi
 2. Build the smallest author-owned plugin using public headers and matching contracts/catalogue; add a synthetic/mock case for each changed availability, size/version, lifetime and cleanup decision.
 3. Record whether the work changes discovery, build inclusion, service publication, native readiness or actual gameplay behavior. Test each changed layer rather than using success in an earlier layer as proof of a later one.
 4. For a native readiness change, retain the specific prerequisite from the table, the fail-closed/refusal cases, named Windows target evidence and separately recorded owner-run game observation. Missing game access leaves that gate open while supported SDK/mock work proceeds.
-5. Update registry/docs/receipts from observed results and keep published RC bytes, development source and final release approval distinct. A human provenance/release decision remains a separate step.
+5. Update registry/docs/receipts from observed results and keep published RC bytes, development source and final release distinct.
 
 This review's suggested next actions are comprehensive public discovery and workflow routing first; complete profile configuration and reproducible SDK-only consumer checks second; then prioritized native adapter/probe tasks with their existing safeguards and roadmap acceptance criteria. No capability listed above becomes implemented or game-verified merely because its interface is visible by default.

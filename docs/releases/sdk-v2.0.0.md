@@ -19,7 +19,7 @@ SDK 2.0.0 is a major packaging/profile and release-process change, not a plugin 
 
 Choose `sco-sdk-core-2.0.0.zip` for neutral plugin development, overlay `sco-sdk-game-sc-0.3.0.zip` for the Star Citizen extension, or use the combined `sco-sdk-2.0.0.zip` legacy profile. `sco-sdk-core-source-2.0.0.zip` is the independently buildable kernel source kit. Keep the extension's separate metadata when overlaying it; update tooling that assumed one combined archive. See [SDK profiles](../../sdk/README.md) and [building](../building.md).
 
-Releases now build once in `release-candidate.yml` on an exact green main commit. Publication promotes only those immutable, audited bytes after the maintainer signs a complete hash-bound approval; a green candidate is not approval and does not create a tag. See the [release checklist](../legal/release-checklist.md#releasing).
+For SDK 2.0.0, the release process built once in `release-candidate.yml` on an exact green main commit and promoted immutable, audited bytes after a maintainer-signed approval. See the [release checklist](../legal/release-checklist.md#releasing).
 
 ## Compatibility
 

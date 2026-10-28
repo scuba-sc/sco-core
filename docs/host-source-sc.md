@@ -41,7 +41,7 @@ The kit is published as `sco-sdk-host-source-sc-2.4.0.zip` in
 `5ca76ff9dac6bbaa183c6f308d610e08d9c1b0daf6ebda6458e222277406dfc6`; see the
 [2.4.0 release notes](releases/sdk-v2.4.0.md)). The profile was first scoped by the
 [SDK 2.1.0 host-source scope decision](legal/release-decisions/2026-10-13-sdk-v2.1.0-host-source.md);
-the final signed `sdk-v2.4.0` release follows the candidate. The SDK workflow exercises the extracted
+the final `sdk-v2.4.0` release follows the candidate. The SDK workflow exercises the extracted
 archive on Linux and Windows/MSVC; the candidate workflow includes its zip and
 SBOM sidecar and exercises the exact candidate zip. To test an existing archive,
 set `SCO_HOST_SOURCE_ARCHIVE` when invoking the standalone archive test above.

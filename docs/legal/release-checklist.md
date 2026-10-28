@@ -13,9 +13,9 @@ it does not rebuild them.
   metadata, exercises each archive, and writes checksums and build attestations.
 - Promotion checks the selected candidate run, artifact, tag and source commit; verifies the exact
   payload, checksums, profiles and attestations; and checks every asset after a draft round trip.
-- `needs-review` is informational metadata. Files with unresolved origin or rights and prohibited
-  material remain blocked by the repository and package audits. Required licences and notices remain
-  in the packages.
+- `needs-review` is informational metadata. The repository and package audits block entries marked
+  `unresolved` and prohibited material; they do not infer unrecorded source or rights disputes.
+  Required licences and notices remain in the packages.
 
 ## Needs a person
 
@@ -26,8 +26,10 @@ it does not rebuild them.
 - After publication, check the deployed documentation and release assets. Final releases use the
   existing receipted announcement workflow; release candidates do not send that notification.
 
-No separate per-file release decision or maintainer SSH signature is required. Build attestations
-identify the workflow and source that produced bytes; they do not themselves authorize a release.
+No separate per-file release decision or maintainer SSH signature is required. The workflow creates
+an unsigned `release.json` inventory from the selected candidate and publishes it with the payload.
+Build attestations identify the workflow and source that produced bytes; they do not themselves
+authorize a release.
 
 ## Releasing
 
