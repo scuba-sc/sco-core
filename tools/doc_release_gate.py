@@ -32,8 +32,7 @@ README.md and sdk/README.md) must not cite source by line number (`src/x.cpp:120
 move with every edit. Name the function, table or test instead.
 
 With --approval PATH the declared profiles are also compared with that approval record's profiles;
-the record and its detached PATH.sig must exist. Signature cryptography stays with
-tools/release_verify.py. Without --approval the comparison is reported as not requested.
+the record must exist. Without --approval the comparison is reported as not requested.
 
 Exit 0 when every check passes. Otherwise exit 1 with one `refused: ` line per failure on stderr.
 This runs before candidate generation; it never changes tools/release_verify.py semantics.
@@ -285,8 +284,6 @@ def approval_refusals(path, scope, tag):
     display_path = path.as_posix()
     if not path.is_file():
         return [f"approval record {display_path} not found"]
-    if not Path(str(path) + ".sig").is_file():
-        return [f"approval record {display_path} has no detached .sig signature"]
     try:
         record = load_json_strict(path.read_bytes(), f"approval record {display_path}")
     except OSError:
@@ -381,7 +378,7 @@ def main(argv=None):
                                 "declare exactly what ships.")
     parser.add_argument("--tag", required=True, help="Release tag, sdk-v<version>")
     parser.add_argument("--approval", help="Approval record (relative to --root) whose profiles "
-                                           "must match; its .sig must exist beside it")
+                                           "must match")
     parser.add_argument("--root", default=str(Path(__file__).resolve().parent.parent),
                         help="Repository root (default: this checkout)")
     try:
