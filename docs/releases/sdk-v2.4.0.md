@@ -1,11 +1,17 @@
 # sco-core SDK 2.4.0 release notes
 
 Final tag `sdk-v2.4.0`, combined archive `sco-sdk-2.4.0.zip`.
+**Current publication.** The latest published SDK release is
+[`sdk-v2.4.0-rc.2`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2),
+published on 2026-10-28. Its tag points to source commit
+`844e136ccb280ad8cb43f73bc43c9447e8f6799d`; later `main` commits do not change
+the attached release bytes. The final `sdk-v2.4.0` release remains pending.
+
 **RC1 history.** On 2026-10-21 the five archives were published as the
 release [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
-release-candidate workflow from `main` commit `48d7055`, with every file attested. As of 2026-10-28 it was the only
-SDK release on the release page: the 2.0.0 to 2.3.0 release downloads were withdrawn (their tags
-remain in git). The final `sdk-v2.4.0` release is pending; nothing here authorizes approval,
+release-candidate workflow from `main` commit `48d7055`, with every file attested. Before RC2 was
+published later on 2026-10-28, it was the only SDK release on the release page: the 2.0.0 to 2.3.0
+release downloads were withdrawn (their tags remain in git). Nothing here authorizes approval,
 tagging or that publication. The release workflow publishes the CHANGELOG section
 [`## sdk-v2.4.0`](../../CHANGELOG.md) as the final release's notes; this page is the longer
 reference behind it.
@@ -16,17 +22,18 @@ reference behind it.
 ```
 <!-- release-scope:end -->
 
-## Historical RC2 candidate status
+<a id="historical-rc2-candidate-status"></a>
 
-On 2026-10-28, tag `sdk-v2.4.0-rc.2` identified source
+## Historical RC2 candidate status before publication
+
+Before publication on 2026-10-28, tag `sdk-v2.4.0-rc.2` identified candidate source
 `b7541dc91802f5fa1b050151bbc82e0e47834b6f`; the
 [release-candidate workflow run](https://github.com/scuba-sc/sco-core/actions/runs/40639676639)
-produced candidate artifacts from that source. At that date the RC2 release and
-downloads were not published; RC1 remained the published SDK. Check the
-[release page](https://github.com/scuba-sc/sco-core/releases) for later publication.
-A tag or CI artifact is not a published release. Keep the selected archive hash,
-source and host identities separate. A later documentation edit does not change
-the already built candidate archives.
+produced candidate artifacts from that source. At that point the RC2 release and
+downloads were not published; RC1 remained the published SDK. The later published
+release tag points to source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`.
+Keep the published archive hash, release source and host identities separate. A
+later documentation edit does not change the already built release archives.
 
 ## Release candidate 1 archives
 
@@ -150,8 +157,8 @@ The bus event `game.loadout.respawn_completed` is also on `main`: production cap
 
 ### Post-RC1 additions included in RC2 source
 
-The following changes are in RC2 source after RC1. They do not alter the
-published RC1 archives or establish an RC2 release or download.
+The following changes are in the published RC2 source after RC1. They do not
+alter the published RC1 archives or certify native behavior.
 
 - [Inventory 1.2 logical layouts](../game/inventory.md#logical-layout-observations-12)
   copy bounded observations; the production host has no layout producer and the
@@ -164,15 +171,15 @@ published RC1 archives or establish an RC2 release or download.
 - [Widgets 1.3 numeric presentation](../../sdk/docs/widgets.md#numeric-presentation-13)
   requires a supporting host and explicit version, extent and feature checks.
 
-These source contracts and synthetic fixtures do not certify native behavior or
-an extracted candidate. Candidate archive hashes, inventory, source and host
-identity must be established from the actual selected candidate archives.
+These source contracts and synthetic fixtures do not certify native behavior.
+Archive hashes, inventory, release source and host identity must be established
+from the actual selected release archives.
 
 ### RC2 in-game evidence
 
 For `sdk-v2.4.0-rc.2`, the owner deferred in-game
 validation. **Not run in game** remains the result; this is not a test pass or
-proof of native behavior. This candidate-only decision does not establish final
+proof of native behavior. This RC2-specific decision does not establish final
 2.4.0 acceptance or waive the other release and provenance checks.
 
 ### Steps to the final release

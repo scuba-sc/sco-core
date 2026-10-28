@@ -1,15 +1,17 @@
 # sco-core SDK 2.4.0 roadmap
 
 SDK **2.4.0**, optional Star Citizen game pack **0.8.0**, frozen plugin ABI
-**1.1**. The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) is the intended location
-for published RC2 assets; a tag or candidate build alone does not establish publication. The final
-`sdk-v2.4.0` release follows. This roadmap is not a release announcement.
+**1.1**. The latest published release is
+[RC2](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2), whose
+tag points to source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`.
+Later `main` commits do not change those released archive bytes. The final
+`sdk-v2.4.0` release is still pending. This roadmap is not a release announcement.
 Contract presence, implementation, default availability, synthetic validation and
 in-game acceptance are separate. No game behavior is certified here.
 
-RC2 is tagged and its candidate archives have been built; as of 2026-10-28 it
-has not been published. See [RC2 status](releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
-The checks below do not change the published RC1 bytes. See the [RC2 consumer reconciliation](agent-workflows.md#rc2-consumer-reconciliation)
+RC2 was published on 2026-10-28 and is the current release baseline. The
+[release notes](releases/sdk-v2.4.0.md) retain the prepublication history. The
+checks below do not change published RC1 or RC2 bytes. See the [RC2 consumer reconciliation](agent-workflows.md#rc2-consumer-reconciliation)
 for the bounded issue contracts and acceptance path.
 
 ## Scope
@@ -21,7 +23,7 @@ integration branches.
 
 ## Distribution profiles
 
-| Profile | Release candidate 1 archive | Purpose |
+| Profile | Published RC2 archive | Purpose |
 |---|---|---|
 | core | `sco-sdk-core-2.4.0.zip` | Game-neutral plugin headers, bindings, examples and tools |
 | game-sc | `sco-sdk-game-sc-0.8.0.zip` | Optional overlay over the exact compatible core archive |
@@ -92,10 +94,11 @@ compatibility information, not an endorsement or in-game verification.
 - Require hosted checks on the exact builder commit and retain archive hashes.
 - Preserve the [RC2 native-index and registry scope](legal/release-decisions/2026-10-27-rc2-discovery-metadata.md)
   for its recorded bytes, and verify actual candidate metadata.
-- For RC2, retain an extracted-kit consumer receipt bound to the exact candidate
+- For RC2, retain an extracted-kit consumer receipt bound to the exact release
   source, archive hashes, workflow index and target host; source-tree tests alone
   do not establish that path or upgrade an installed consumer.
-- Release candidate 1 is published (`sdk-v2.4.0-rc.1`, every file attested). Remaining:
-  RC2 publication, the final `sdk-v2.4.0` tag and publication, and the corresponding
-  deployed documentation procedure.
-  No release or in-game result is implied by this plan.
+- RC2 is published as the latest GitHub release. The docs-site run for source
+  commit `72dc30c8e10d9ca7365dd9d67dc57c0c86ed9a20` passed and deployed that
+  commit's site, verifying all 12 RC2 release asset digests ([run 40760191439, attempt 2](https://github.com/scuba-sc/sco-core/actions/runs/40760191439/attempts/2)).
+  Remaining: the gates above and the final `sdk-v2.4.0` tag and publication. No
+  release approval or in-game result is implied by this plan.

@@ -31,12 +31,15 @@ protocol `2025-11-25`, the only version the server speaks; a client that cannot 
 it disconnects when it initializes. The kit needs no compiler, Clang, network service
 or credentials.
 
-**Known issue in release candidate 1.** The kit's bundled guides (`sdk-guides.json`,
+**Known issue in the published RC2 kit.** Its bundled guides (`sdk-guides.json`,
 served by `search_guides` and `get_guide_section`) and the READMEs inside it were
-frozen before publication. They can say that 2.4.0 is not on the release page and
-that 2.3.0 is the newest published SDK. Both are out of date: the
-[docs site](https://scuba-sc.github.io/sco-core/) and `main` supersede them, and the
-final 2.4.0 kit will be built from current docs. The guide links are out of date
+frozen with the release source before publication. For example, the bundled
+`agent-workflows.md` still says RC2 is unpublished. That statement is stale: RC2
+is now the latest published SDK release. The
+[GitHub release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
+is the publication-status source of truth; later source and documentation edits
+do not change the published archive bytes. The final 2.4.0 kit will be built from
+current docs. The guide links are out of date
 too: for a `docs/` page, the `url` in a `search_guides` result names the previous
 docs-site address (`scubamount.github.io`), which now returns 404. Replace that host
 with `scuba-sc.github.io` and keep the path. The docs site publishes release notes for
@@ -46,24 +49,25 @@ under `sdk/docs` the `url` is a repository path, not a link; in the kit that gui
 `docs/` (see [Find the SDK folder](#find-the-sdk-folder)). See the
 [release notes](releases/sdk-v2.4.0.md#known-issues-in-release-candidate-1).
 
-**RC2 and published RC1.** As of 2026-10-28, RC2 has a tagged source and CI-built
-candidate but no published release. See [RC2 status](releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
-A selected candidate kit retains its own source and archive identity.
+**Published RC2 and historical RC1.** RC2 was published on 2026-10-28 and is the
+latest release. Its tag points to source commit
+`844e136ccb280ad8cb43f73bc43c9447e8f6799d`; later `main` commits do not change
+the release archive bytes. RC1 is historical. Keep each selected kit's source
+and archive identity distinct.
 
-**Current source versus published RC1.** The fourteen-tool default and workflow bundle
-on this page describe current source and candidate kits built from it. The already
-published RC1 archive keeps its original six-tool default and twelve tools with
+**Published RC2 and historical RC1 behavior.** The published RC2 kit has the
+fourteen-tool default and matching workflow bundle documented on this page. The
+older RC1 archive keeps its original six-tool default and twelve tools with
 `--extended-tools`; it has no workflow index or workflow tools. When using that
-unchanged archive, append `--extended-tools` to the developer launchers below and
-expect twelve tools. Use a separately pinned, checksummed candidate built from the
-updated source for the fourteen-tool workflow. Do not replace RC1 files silently or
-claim the new defaults were verified in its published bytes.
+unchanged historical archive, append `--extended-tools` to the developer launchers
+below and expect twelve tools. Current `main` can contain later source-only changes;
+do not imply they are in the published RC2 bytes.
 
-### Use a separately supplied current-source kit
+### Optional separately supplied source build
 
-For a combined `legacy` plugin kit built from current source, obtain the archive, its expected
+For a combined `legacy` plugin kit built outside the published release, obtain the archive, its expected
 SHA-256 and source revision from the person or process supplying that kit. This is
-a separate option from the published RC1 download below; a locally built archive is
+a separate option from the published RC2 download below; a locally built archive is
 not a release asset. Verify the digest before extracting into an empty directory.
 For example, on macOS or Linux, set `ARCHIVE` to its absolute path and `EXPECTED`
 to the separately recorded digest, then run:
@@ -92,19 +96,20 @@ Then skip the RC1-specific download and extraction below and continue at
 [Choose a profile](#choose-a-profile). The server checks catalogue/index coordinates
 and indexed content on startup; negotiate the available tools after connecting.
 
-### RC2 release option
+### Published RC2 release (current)
 
-When the [RC2 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
-and its assets are available, download the combined kit and its `SHA256SUMS` into
-an empty directory. A tag alone does not establish publication. If the assets are
-unavailable, use the separately supplied kit procedure above. Compare the digest
-with the release's independently recorded asset identity before extraction: set
-`EXPECTED_SHA256` (or `$ExpectedSha256` in PowerShell) to that digest first.
+Download the combined kit and its `SHA256SUMS` from the latest published
+[RC2 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2)
+into an empty directory. The release API records
+`sco-sdk-2.4.0.zip` with SHA-256
+`51a7ce266d087bcbeac39c92f26a6f905b4473883dd7ed6f0f5ca823fa88c88e`.
+Compare the release checksum file with that digest before extraction.
 
 macOS and Linux (on macOS use `shasum -a 256 -c -`):
 
 ```sh
 set -e
+EXPECTED_SHA256=51a7ce266d087bcbeac39c92f26a6f905b4473883dd7ed6f0f5ca823fa88c88e
 gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
 grep ' sco-sdk-2.4.0.zip$' SHA256SUMS | sha256sum -c -
 python3 - "$EXPECTED_SHA256" <<'PY'
@@ -120,6 +125,7 @@ test -f "$SDK/sdk-catalogue.json"
 Windows PowerShell:
 
 ```powershell
+$ExpectedSha256 = "51a7ce266d087bcbeac39c92f26a6f905b4473883dd7ed6f0f5ca823fa88c88e"
 gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
 if ($LASTEXITCODE -ne 0) { throw 'RC2 download failed' }
 $expected = ((Get-Content SHA256SUMS | Where-Object { $_ -match ' sco-sdk-2\.4\.0\.zip$' }) -split '\s+')[0]
@@ -170,7 +176,7 @@ PowerShell. (`Get-FileHash` prints upper-case hex; the script lowers it to match
 mismatch and download both files again. A checksum file
 downloaded beside its archive only catches a damaged download, so also compare the
 digest with the one in the
-[asset table](getting-started.md#sdk-240-release-candidate-1-assets): PowerShell prints
+[historical RC1 asset table](getting-started.md#historical-sdk-240-release-candidate-1-assets): PowerShell prints
 it, and `sha256sum sco-sdk-2.4.0.zip` (`shasum -a 256` on macOS) prints it for a shell.
 What a checksum downloaded beside its archive does and does not establish is described
 in [Download, verify, extract](getting-started.md#3-download-verify-extract).
@@ -561,7 +567,7 @@ Common failures:
 | The server does not start on Windows, or the Microsoft Store opens | `python3` is not a standard Windows command. Use `py` with `-3`, or an absolute `python.exe` (`py -3 -c "import sys; print(sys.executable)"` prints its path). |
 | The client disconnects while initializing | The client does not support protocol `2025-11-25`. Update the client. |
 | `check_compatibility` says a `tag` does not match the advertised pattern | The current historical-record lookup accepts `sdk-vMAJOR.MINOR.PATCH` only, so RC1 and RC2 suffixes are refused. Compare `sdk_version`, `game_pack_version` and `source_sha`, and verify the archive digest separately; these checks do not prove publication. |
-| `search_guides` text says 2.4.0 is not on the release page | Known issue in release candidate 1, described at the top of this section. The [docs site](https://scuba-sc.github.io/sco-core/) supersedes the kit's guides. |
+| `search_guides` text says RC2 is not published | The immutable published RC2 kit contains a prepublication guide snapshot. This source guide corrects that text; the [GitHub release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) is the publication-status source of truth. |
 
 ### Workflow discovery and missing indexes
 
