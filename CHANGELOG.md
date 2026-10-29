@@ -10,6 +10,10 @@ What each change means for plugin authors and for products built on sco-core (sc
   registries fail closed. Static metadata only; no host or game query. Published
   RC2 catalogue and launcher bytes are unchanged.
 
+- Retained-widget action buttons show their captions inside the control. Captions
+  are rendered literally, so UTF-8, percent signs and ImGui `##`/`###` markers
+  cannot alter the button identity or hide text; an empty caption uses Activate.
+
 - Promote exact attested SDK candidate bytes using GitHub release permissions, without per-file release paperwork or a separate maintainer signature.
 
 - Drain deferred audio owner cleanup after one-shot faults and nested releases, with bounded failure handling.
@@ -313,6 +317,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - DataCore pack receipts now report final committed counts after atomic rollback
   or emission failure, rather than successful operations in a discarded trial.
+- Automate candidate readiness: an eligible candidate can be dispatched from the
+  readiness workflow, and a separate unsigned `release-review` bundle is assembled for
+  the maintainer to read. Approval, signing, tagging and publication stay manual.
+
 
 See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).
 

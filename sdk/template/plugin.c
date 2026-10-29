@@ -2,7 +2,9 @@
  * my_plugin: start here. Copy sdk/template/ to a new folder, then:
  *   1. pick an id: 1-31 characters from a-z, 0-9 and _ (not sco, host, menu or game),
  *   2. replace every "my_plugin" in this file, plugin.ini and CMakeLists.txt with it,
- *   3. build: cmake -S . -B build && cmake --build build && cmake --install build --prefix out
+ *   3. build, pointing at the unpacked SDK once this folder is outside it:
+ *      cmake -S . -B build -DSCO_SDK=/path/to/unpacked-sco-sdk && cmake --build build
+ *      && cmake --install build --prefix out
  *
  * Reference: docs/api-v1.md in the SDK. License: GPL-3.0 (see LICENSE in the SDK); plugins
  * built against sco_api.h are GPL-3.0 too, with no linking exception.
