@@ -121,7 +121,6 @@ ImVec2 CalcTextSize(const char* begin, const char* end, bool hide, float) {
 }
 ImU32 GetColorU32(ImGuiCol, float) { return 0xffffffffu; }
 void* MemAlloc(size_t n) { return std::malloc(n); }
-void MemFree(void* p) { std::free(p); }
 ImDrawList* GetWindowDrawList() { static ImDrawList list(nullptr); return &list; }
 bool Checkbox(const char*, bool* value) { *value = !*value; return !Disabled(); }
 bool SliderScalar(const char*, ImGuiDataType type, void* value, const void* minimum, const void* maximum, const char* format, ImGuiSliderFlags flags) {
