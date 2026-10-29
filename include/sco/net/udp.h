@@ -38,6 +38,9 @@ public:
     // true when a datagram is waiting (now or within ms), false on timeout or error.
     bool Wait(uint32_t ms);
     uint16_t Port() const { return port_; }
+    // SO_RCVBUF in bytes as the OS reports it (0 if unavailable). Open() raises the
+    // buffer so a peer burst between pumps cannot overflow the small OS default.
+    uint32_t RecvBufBytes() const;
 
 private:
     static std::unique_ptr<Socket> OpenBound(uint16_t port, const Endpoint& bindEndpoint, std::string* why);

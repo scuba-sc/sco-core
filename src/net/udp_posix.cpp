@@ -66,6 +66,13 @@ std::unique_ptr<Socket> Socket::OpenBound(uint16_t port, const Endpoint& bindEnd
         ::close(fd);
         return nullptr;
     }
+    // A burst between pumps overflows the 213KB Linux default rcvbuf, so the kernel
+    // drops unreliable datagrams. FORCE needs CAP_NET_ADMIN; RCVBUF clamps to rmem_max.
+    const int rcvbuf = 1 << 21;
+#ifdef __linux__
+    ::setsockopt(fd, SOL_SOCKET, SO_RCVBUFFORCE, &rcvbuf, sizeof rcvbuf);
+#endif
+    ::setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof rcvbuf);
     std::unique_ptr<Socket> s(new Socket());
     s->fd_ = static_cast<uintptr_t>(fd);
     s->port_ = ntohs(sa.sin_port);
@@ -73,6 +80,12 @@ std::unique_ptr<Socket> Socket::OpenBound(uint16_t port, const Endpoint& bindEnd
 }
 
 Socket::~Socket() { ::close(Fd(fd_)); }
+
+uint32_t Socket::RecvBufBytes() const {
+    int v = 0;
+    socklen_t n = sizeof v;
+    return ::getsockopt(Fd(fd_), SOL_SOCKET, SO_RCVBUF, &v, &n) == 0 ? static_cast<uint32_t>(v) : 0u;
+}
 
 bool Socket::Send(const Endpoint& to, const uint8_t* data, size_t len) {
     if (to.family != Endpoint::kIpv4) return false;
