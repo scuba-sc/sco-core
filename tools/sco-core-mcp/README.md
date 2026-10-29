@@ -533,7 +533,7 @@ automatically offers the tools. Without project roots they are absent and calls
 to their names are refused as unknown. `--enable-dev-tools` remains a compatibility
 flag and still requires a project root. Add each name to the client allowlist
 explicitly; three execution tools plus the default fifteen discovery tools means
-seventeen offered tools:
+eighteen offered tools:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
