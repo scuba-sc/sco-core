@@ -63,8 +63,10 @@ states are separate. A mock is not a game provider, and a sigcheck is not gamepl
 The offline owner reports an 11-plugin release roster: Creative and Discord are
 disabled; Mining is staged with `enabled=false`; `gear_presets` and `loadout` are
 development-only; TitanLink and `voxel_bridge` are excluded optional bridges.
-Treat those as product packaging/default facts. They do not prove the matching
-core provider is absent or available, and sc-mp remains a separate consumer.
+The owner also reports five GCC14 plugin build blockers fixed without warning
+suppression and all 12 synthetic tests passing. Treat these as product
+packaging/default and local test facts. They do not prove the matching core
+provider is absent or available, and sc-mp remains a separate consumer.
 
 | Consumer need | Existing sco-core contract and evidence | Integration gap and owner action |
 |---|---|---|
