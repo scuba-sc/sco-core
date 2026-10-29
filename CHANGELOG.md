@@ -307,6 +307,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - DataCore pack receipts now report final committed counts after atomic rollback
   or emission failure, rather than successful operations in a discarded trial.
+- Automate candidate readiness: an eligible candidate can be dispatched from the
+  readiness workflow, and a separate unsigned `release-review` bundle is assembled for
+  the maintainer to read. Approval, signing, tagging and publication stay manual.
+
 
 See the [SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md).
 
