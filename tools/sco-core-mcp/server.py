@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tools-only MCP 2025-11-25 server for SDK catalogue schema 1; configured project roots enable local development tools.
+"""Tools-only MCP 2025-11-25 server for SDK catalogue schemas 1-2; configured project roots enable local development tools.
 
 By default: no SDK invocation, subprocesses, network access, or filesystem writes.
 Stdout is reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr.
@@ -49,6 +49,8 @@ MAX_EXAMPLE = 256 * 1024
 MAX_EXAMPLES = 16
 LANGUAGES = ("c", "cpp", "csharp", "lua")
 PROVENANCE_KEYS = ("schema_version", "sdk_version", "game_pack_version", "source_sha")
+CATALOGUE_KEYS_V1 = set(PROVENANCE_KEYS) | {"contract_context", "tables", "records"}
+CATALOGUE_KEYS_V2 = CATALOGUE_KEYS_V1 | {"status_registry_sha256"}
 RECORD_KEYS = {
     "id", "kind", "symbol", "table", "service", "version_macro", "source_header",
     "signature", "member_extent", "table_size", "since", "purpose",
@@ -68,6 +70,7 @@ DISTRIBUTION_STATUSES = {"approved-for-publication", "internal-only", "hold"}
 GAME_STATUS = ("docs", "game", "status.md")
 STATUS_REGISTRY = ("sdk", "status_registry.json")
 MAX_REGISTRY = 1024 * 1024
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 REGISTRY_KINDS = {"service", "event_bus", "signature_rows"}
 REGISTRY_DEFAULTS = {"ON", "OFF", "none"}
 REGISTRY_LEVELS = {"sigcheck_resolved", "in_game_verified", "off_pending_probe",
@@ -144,7 +147,7 @@ RELEASE_CONCLUSIONS = [
 STATUS_CAVEAT = (
     "Language mappings describe source-backed exposure, not live availability. "
     "Capability gating, signature resolution and game-session evidence are separate; "
-    "an enabled capability does not prove an operation worked in game. "
+    "a source-matched status registry is static metadata and does not prove an operation worked in game. "
     "Consult docs/game/status.md and the contract context. No works flag is inferred."
 )
 STABILITY_CONCLUSIONS = [
@@ -153,7 +156,7 @@ STABILITY_CONCLUSIONS = [
     "experimental: a later SDK minor may replace it with a new table under a distinct service name and its own header; the old name then "
     "stays published, marked deprecated, for at least one further SDK minor release. See docs/stability.md.",
     "The sco_api root table, plugin entry points and every sco.* host table are stable by that promise. A game-pack table's label (any include/sc_*.h table) is read "
-    "from sdk/status_registry.json (else docs/game/status.md) beneath --repo-root at server start, not bound to the catalogue source_sha.",
+    "from sdk/status_registry.json beneath --repo-root at server start; source_binding reports whether schema-2 registry bytes match this catalogue. Schema-1 status is unbound.",
     "unknown: no --repo-root, the status source is unavailable, refused or predates stability labels, or it has no entry for the table.",
     "Stability is not availability or evidence: a stable table's capability can be OFF or answer SCO_UNAVAILABLE, and nothing here was run in game."]
 
@@ -208,6 +211,10 @@ WIDGET_NODE = {
         "items": {"type": ["array", "null"], "maxItems": 1024, "items": {"type": "string", "maxLength": 1024}}}}
 # Extended discovery is on by default; --minimal-tools preserves the original six-name profile.
 EXTENDED_TOOLS = [
+    tool("get_service_status", "Read a catalogue service's tables and complete static capability/evidence rows by service name, "
+         "including capabilities that have no method mapping. Status is usable only when the registry digest matches this catalogue; "
+         "it is not a running-host probe.",
+         {"service": string_schema(128)}, ("service",)),
     tool("list_engine_natives", "List signature rows of sdk/native_index.json beneath --repo-root, filtered by subsystem, tier or a "
          "case-insensitive substring of id, hash, subsystem, source or capability, one bounded page per call; symbolic hashes only.",
          {"subsystem": string_schema(64), "tier": {"type": "integer", "minimum": 1, "maximum": 4},
@@ -345,9 +352,15 @@ def load_catalogue(path):
     require(len(raw) <= MAX_CATALOGUE, "Catalogue exceeds 16 MiB")
     data = parse_json(raw.decode("utf-8"))
     require(isinstance(data, dict), "Catalogue must be an object")
-    require(type(data.get("schema_version")) is int and data["schema_version"] == 1,
-            "Unsupported catalogue schema_version; expected 1")
-    require(set(data) == set(PROVENANCE_KEYS) | {"contract_context", "tables", "records"}, "Invalid catalogue keys")
+    schema = data.get("schema_version")
+    require(type(schema) is int and schema in (1, 2),
+            "Unsupported catalogue schema_version; expected 1 or 2")
+    expected_keys = CATALOGUE_KEYS_V1 if schema == 1 else CATALOGUE_KEYS_V2
+    require(set(data) == expected_keys, "Invalid catalogue keys")
+    if schema == 2:
+        require(isinstance(data["status_registry_sha256"], str)
+                and SHA256_PATTERN.fullmatch(data["status_registry_sha256"]),
+                "Invalid status registry SHA-256")
     require(all(nonempty(data[k]) and len(data[k]) <= 128 for k in ("sdk_version", "game_pack_version")), "Invalid version coordinates")
     require(isinstance(data["source_sha"], str) and re.fullmatch(r"[0-9a-f]{40}", data["source_sha"]), "Invalid source SHA")
     context = data["contract_context"]
@@ -450,8 +463,8 @@ def reject_symlinks(base, parts):
             raise ToolError("Symlink example paths are refused")
 
 
-def read_example(root, parts, limit=MAX_EXAMPLE):
-    """Open a catalogue-supplied relative path inside the configured root.
+def read_example_bytes(root, parts, limit=MAX_EXAMPLE):
+    """Open a catalogue-supplied relative path inside the configured root as bounded bytes.
 
     The root is operator-configured and therefore trusted: symlinks in it are
     followed. Every component the catalogue supplies is opened without following
@@ -492,7 +505,12 @@ def read_example(root, parts, limit=MAX_EXAMPLE):
         raw = stream.read(limit + 1)
     if len(raw) > limit:
         raise ToolError("Example exceeds %d KiB" % (limit // 1024))
-    return raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    return raw
+
+
+def read_example(root, parts, limit=MAX_EXAMPLE):
+    """Read a contained UTF-8 example, normalizing its line endings for tool output."""
+    return read_example_bytes(root, parts, limit).decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def read_recorded_example(root, parts, limit=MAX_EXAMPLE):
@@ -512,6 +530,16 @@ def read_recorded_example(root, parts, limit=MAX_EXAMPLE):
         if len(parts) < 2 or parts[0] != "sdk" or os.path.lexists(os.path.join(root, "sdk")):
             raise
     return read_example(root, parts[1:], limit)
+
+
+def read_recorded_example_bytes(root, parts, limit=MAX_EXAMPLE):
+    """Read a bounded file's raw bytes from a checkout or extracted SDK layout."""
+    try:
+        return read_example_bytes(root, parts, limit)
+    except FileNotFoundError:
+        if len(parts) < 2 or parts[0] != "sdk" or os.path.lexists(os.path.join(root, "sdk")):
+            raise
+    return read_example_bytes(root, parts[1:], limit)
 
 
 def list_contained_directory(root, parts):
@@ -1742,6 +1770,8 @@ class Server:
         self.dev = dev_tools
         self.enabled = {definition["name"] for definition in self.tools}
         self.provenance = {key: catalogue[key] for key in PROVENANCE_KEYS}
+        if "status_registry_sha256" in catalogue:
+            self.provenance["status_registry_sha256"] = catalogue["status_registry_sha256"]
         self.repo_root = Path(os.path.abspath(repo_root)) if repo_root is not None else None
         self.records = {key: record for record in catalogue["records"] for key in (record["id"], record["symbol"])}
         self.search_fields = [(r, [(r["symbol"].casefold(), 100), (r["id"].casefold(), 90),
@@ -1749,7 +1779,8 @@ class Server:
                               for r in catalogue["records"]]
         self.state = "new"
         self.calls = deque()
-        self.game_status, self.game_status_source, self.game_status_reason = self.load_game_status()
+        (self.game_status, self.game_status_source, self.game_status_reason,
+         self.game_status_binding) = self.load_game_status()
         self.natives = self.natives_by_key = None
         self.natives_reason = "Not loaded"
         if extended_tools:
@@ -1903,33 +1934,62 @@ class Server:
             raise ToolError("Unknown guide section; pass a doc and anchor that search_guides returned")
         return {"section": section, "guides": context, "conclusions": GUIDE_CONCLUSIONS}
 
-    def load_game_status(self):
-        """Return (rows by catalogue table, source, None) or (None, source, reason).
+    def status_binding(self, state, observed=None):
+        expected = self.catalogue.get("status_registry_sha256")
+        result = {"state": state, "matches_catalogue": state == "matched"}
+        if expected is not None:
+            result["catalogue_status_registry_sha256"] = expected
+        if observed is not None:
+            result["observed_status_registry_sha256"] = observed
+        return result
 
-        sdk/status_registry.json is preferred. docs/game/status.md is read only when the
-        registry is absent; a registry that exists but is refused is reported, not bypassed.
+    def load_game_status(self):
+        """Return (rows by catalogue table, source, reason, source binding).
+
+        Schema-2 catalogues bind the registry by its raw SHA-256 and refuse mismatches.
+        Schema-1 catalogues can still read status, but the response labels it unbound.
+        docs/game/status.md is only a fallback when no registry file exists.
         """
         if self.repo_root is None:
-            return None, GAME_STATUS, "No --repo-root: sdk/status_registry.json and docs/game/status.md are not read"
+            return (None, GAME_STATUS, "No --repo-root: sdk/status_registry.json and docs/game/status.md are not read",
+                    self.status_binding("unavailable"))
+        expected = self.catalogue.get("status_registry_sha256")
         try:
-            text = read_recorded_example(self.repo_root, STATUS_REGISTRY, MAX_REGISTRY)
+            raw = read_recorded_example_bytes(self.repo_root, STATUS_REGISTRY, MAX_REGISTRY)
         except FileNotFoundError:
-            text = None
-        except (OSError, UnicodeError, ToolError):
-            return None, STATUS_REGISTRY, "sdk/status_registry.json unreadable beneath --repo-root (symlink, not a regular file or over 1 MiB)"
-        if text is not None:
+            raw = None
+        except (OSError, ToolError):
+            return (None, STATUS_REGISTRY,
+                    "sdk/status_registry.json unreadable beneath --repo-root (symlink, not a regular file or over 1 MiB)",
+                    self.status_binding("unavailable"))
+        if raw is not None:
+            observed = hashlib.sha256(raw).hexdigest()
+            if expected is not None and observed != expected:
+                binding = self.status_binding("mismatch", observed)
+                return (None, STATUS_REGISTRY,
+                        "sdk/status_registry.json SHA-256 does not match the catalogue; status refused",
+                        binding)
+            binding = self.status_binding("matched" if expected is not None else "unbound", observed)
             try:
-                return parse_status_registry(text, self.catalogue["tables"]), STATUS_REGISTRY, None
-            except (ValueError, TypeError, RecursionError) as error:
-                return None, STATUS_REGISTRY, "sdk/status_registry.json refused: " + str(error)
+                text = raw.decode("utf-8")
+                return parse_status_registry(text, self.catalogue["tables"]), STATUS_REGISTRY, None, binding
+            except (ValueError, TypeError, RecursionError, UnicodeError) as error:
+                return None, STATUS_REGISTRY, "sdk/status_registry.json refused: " + str(error), binding
+        if expected is not None:
+            return (None, STATUS_REGISTRY,
+                    "sdk/status_registry.json is missing; the catalogue requires its matching registry",
+                    self.status_binding("unavailable"))
         try:
             text = read_example(self.repo_root, GAME_STATUS)
         except (OSError, UnicodeError, ToolError):
-            return None, GAME_STATUS, "docs/game/status.md unavailable beneath --repo-root"
+            return (None, GAME_STATUS, "docs/game/status.md unavailable beneath --repo-root",
+                    self.status_binding("unbound"))
         try:
-            return parse_game_status(text, self.catalogue["tables"]), GAME_STATUS, None
+            return (parse_game_status(text, self.catalogue["tables"]), GAME_STATUS, None,
+                    self.status_binding("unbound"))
         except ValueError as error:
-            return None, GAME_STATUS, "docs/game/status.md service table refused: " + str(error)
+            return (None, GAME_STATUS, "docs/game/status.md service table refused: " + str(error),
+                    self.status_binding("unbound"))
 
     def load_natives(self):
         """Return (index, entries by id and hash, None) or (None, None, reason)."""
@@ -1963,7 +2023,8 @@ class Server:
         state["sigcheck_receipt"] = {"state": "unknown", "reason": "No per-method sigcheck receipt is recorded; see service_status"}
         state["gameplay_receipt"] = {"state": "unknown", "reason": "No machine-readable gameplay receipt exists; this server never reports in-game verification"}
         base = {"scope": "service", "source": "/".join(self.game_status_source),
-                "snapshot": "Read from --repo-root at server start; not bound to the catalogue source_sha"}
+                "snapshot": "Read from --repo-root at server start; static metadata, not a running host",
+                "source_binding": self.game_status_binding}
         if self.game_status is None:
             state["service_status"] = {**base, "state": "unavailable", "reason": self.game_status_reason, "rows": []}
         elif record["table"] not in self.game_status:
@@ -1989,6 +2050,7 @@ class Server:
     def stability_context(self):
         context = {"document": "docs/stability.md", "game_source": "/".join(self.game_status_source),
                    "game_state": "unavailable" if self.game_status is None else "read",
+                   "source_binding": self.game_status_binding,
                    "conclusions": STABILITY_CONCLUSIONS}
         if self.game_status is None:
             context["reason"] = self.game_status_reason
@@ -2085,6 +2147,39 @@ class Server:
             "A runtime provider table can be older or shorter: still check table->size covers the member extent and the pointer is non-NULL before calling."]
         return result
 
+    def service_status(self, service):
+        matches = [(name, table) for name, table in sorted(self.catalogue["tables"].items())
+                   if table["service"] == service]
+        if not matches:
+            raise ToolError("Unknown service; use list_services")
+        tables = [{"table": name, "version": table["version"], "size": table["size"],
+                   "member_count": len(table["members"]), "stability": self.stability(name, table["source_header"])}
+                  for name, table in matches]
+        game_tables = [(name, table) for name, table in matches
+                       if table["source_header"].startswith("include/sc_")]
+        if not game_tables:
+            status = {"scope": "neutral", "state": "not_applicable", "source": None,
+                      "source_binding": {"state": "not_applicable", "matches_catalogue": None},
+                      "groups": [], "rows": []}
+        elif self.game_status is None:
+            status = {"scope": "game-pack", "state": "unavailable",
+                      "source": "/".join(self.game_status_source), "source_binding": self.game_status_binding,
+                      "reason": self.game_status_reason, "groups": [], "rows": []}
+        else:
+            groups = [{"table": name, **self.game_status[name]}
+                      for name, _ in game_tables if name in self.game_status]
+            rows = [{"table": group["table"], **row}
+                    for group in groups for row in group.get("rows", [])]
+            status = {"scope": "game-pack", "state": "rows_found" if groups else "no_rows",
+                      "source": "/".join(self.game_status_source), "source_binding": self.game_status_binding,
+                      "groups": groups, "rows": rows}
+        return {"service": service, "tables": tables, "service_status": status,
+                "status_caveat": STATUS_CAVEAT,
+                "conclusions": [
+                    "This is a static registry snapshot. It does not query a running host, service provider, or game.",
+                    "Each status row keeps its declared default and evidence tier; ON or a resolved signature does not prove gameplay.",
+                    "Use get_symbol for the callable contract. A status row with no method mapping does not add an SDK operation."]}
+
     def symbol(self, key):
         if key not in self.records:
             raise ToolError("Unknown symbol or stable ID; use search_api")
@@ -2146,6 +2241,8 @@ class Server:
                                   "stability": self.stability(name, table["source_header"])}
                                  for name, table in sorted(self.catalogue["tables"].items())],
                     "stability_context": self.stability_context()}
+        if name == "get_service_status":
+            return self.service_status(args["service"])
         if name == "check_compatibility":
             coordinates = {k: self.catalogue[k] for k in PROVENANCE_KEYS[1:]}
             result = {"requested": args, "catalogue_coordinates": coordinates,

@@ -2,7 +2,7 @@
 name: sco-build-check-package
 description: "Build or adapt an SCO SDK extension in C, C++, C# NativeAOT, Lua or a data pack. Use for consumers choosing contracts, scaffolding, building and checking a plugin before distribution."
 metadata:
-  version: "0.2.2"
+  version: "0.2.3"
 ---
 
 # Build, check and package an SCO consumer
@@ -15,7 +15,7 @@ Produce an author-owned extension with reproducible checks and an explicit targe
 
 Read [input and evidence rules](references/inputs.md) before running kit tools. Record behavior, unique plugin ID, language, target OS/architecture and product/host revision. When no feature is specified, a neutral command with an optional widgets panel is a useful bounded example. Data packs require an existing consumer for their format.
 
-Use the selected kit's public headers, per-method contract records and contract rules. Plugin kits place these records in `contracts/`; source kits retain them in `sdk/contracts/`. References inside records to repository evidence and tests identify source context and may not be local to the kit. Use the matching `sdk-catalogue.json` when present; if a needed input is missing, report the gap. If MCP is available, inspect `tools/list` and its schemas before choosing tools: profiles and versions differ. Use available `list_services`, `search_api` (language tokens `c`, `cpp`, `csharp`, `lua`), `get_symbol`, `get_example`, `get_capability_status` and `check_compatibility`; resolve procedures with guide and workflow tools where offered. Discovery grants no build or runtime access. Direct kit references and CLI tools remain valid when MCP is unavailable. Never mix a moving catalogue with a pinned kit.
+Use the selected kit's public headers, per-method contract records and contract rules. Plugin kits place these records in `contracts/`; source kits retain them in `sdk/contracts/`. References inside records to repository evidence and tests identify source context and may not be local to the kit. Use the matching `sdk-catalogue.json` when present; if a needed input is missing, report the gap. If MCP is available, inspect `tools/list` and its schemas before choosing tools: profiles and versions differ. Use available `list_services`, `get_service_status`, `search_api` (language tokens `c`, `cpp`, `csharp`, `lua`), `get_symbol`, `get_example`, `get_capability_status` and `check_compatibility`; resolve procedures with guide and workflow tools where offered. A service-status result is a static registry snapshot: require `source_binding.state == "matched"` for a schema-2 catalogue, preserve `unbound` for older schema-1 catalogues, and do not infer a live provider from it. Discovery grants no build or runtime access. Direct kit references and CLI tools remain valid when MCP is unavailable. Never mix a moving catalogue with a pinned kit.
 
 For each used method retain record ID, version, whole-member extent, result/buffer semantics, ownership, thread/callback rules and cleanup. Apply documented mandatory root ABI preconditions; guard optional/appended root members and service tables for presence, version, size through the whole pointer and non-NULL callback. `unspecified` supplies no guarantee. Stability, capability availability, signature resolution and game verification are separate facts.
 

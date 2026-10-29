@@ -116,6 +116,7 @@ class SnapshotTests(unittest.TestCase):
         changes = {
             'source': lambda c: c.update(source_sha='0' * 40),
             'version': lambda c: c.update(sdk_version='99.0.0'),
+            'status-registry': lambda c: c.update(status_registry_sha256='0' * 64),
             'signature': lambda c: c['records'][0].update(signature='void (*)(void)'),
             'example': lambda c: c['records'][0].update(examples=['sdk/examples/absent/no.c']),
             'link': lambda c: c.update(note='https://github.com/scuba-sc/sco-core/blob/main/include/sco_api.h'),

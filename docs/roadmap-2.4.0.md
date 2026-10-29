@@ -61,7 +61,7 @@ See [contracts](contracts.md), [game capability status](game/status.md) and
 
 ## MCP developer workflow
 
-The current-source stdio discovery server uses protocol `2025-11-25`: fourteen
+The current-source stdio discovery server uses protocol `2025-11-25`: fifteen
 read-only discovery tools by default, including `list_workflows` and `get_workflow`.
 `--minimal-tools` selects the original six catalogue tools; `--extended-tools`
 and `--workflow-tools` remain compatibility aliases. Discovery exposes recorded
@@ -71,9 +71,9 @@ Local build/check tools require a separately configured `--project-root`.
 Runtime inspection is a separate default-off launcher with its own six-read allowlist.
 
 Published RC1 retains its six-tool default and twelve tools with `--extended-tools`;
-it contains no workflow bundle/index. The six consumer skills, their source-bound index and fourteen-tool default
-belong to updated source/candidate kits; read the selected kit manifest for its
-bundle version. Use the [consumer workflows](agent-workflows.md), [agent integration](agent-integration.md)
+it contains no workflow bundle/index. Published RC2 retains its fourteen-tool default.
+The current-source service-status tool and matching catalogue schema are source changes;
+they do not alter RC2 bytes. Read the selected kit manifest for its bundle version. Use the [consumer workflows](agent-workflows.md), [agent integration](agent-integration.md)
 and [SDK/MCP tutorial](sdk-mcp-tutorial.md) for the matching input path.
 
 ## Community plugin directory

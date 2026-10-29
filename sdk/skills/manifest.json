@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "bundle_version": "0.2.2",
+  "bundle_version": "0.2.3",
   "baseline_sdk": "2.4.0",
   "skills": [
     {

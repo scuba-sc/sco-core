@@ -44,8 +44,8 @@ sco-core instead of a game build, and a game patch is fixed once here instead of
 
 Consumer agents start with [roadmap and SDK planning](../sdk/skills/sco-plan-sdk-work/SKILL.md).
 The workflow records this document's source/hash, goal, public contracts and observable
-acceptance, then carries implementation through archive-only checks. The default discovery
-profile exposes the complete fourteen-tool SDK/skill surface; constrained clients can select
+acceptance, then carries implementation through archive-only checks. The current-source discovery
+profile exposes the complete fifteen-tool SDK/skill surface; constrained clients can select
 `--minimal-tools`. [Defaults readiness](defaults-readiness.md) records experimental backend
 prerequisites. Default availability is a goal; backend implementation and evidence remain
 separate requirements.

@@ -6,8 +6,10 @@ The published `sdk-v2.4.0-rc.1` source is `48d7055ef49e1b073ec59e4ce8ded7a600632
 
 ## Implemented defaults in this development change
 
-All fourteen read-only discovery/workflow tools are offered by default; the six-tool
-profile is selected with `--minimal-tools`. Build/check execution is offered once
+At the reviewed source revision, all fourteen read-only discovery/workflow tools were
+offered by default; current source has since added one static service-status tool, while
+published RC2 retains fourteen. The six-tool profile is selected with `--minimal-tools`.
+Build/check execution is offered once
 an operator configures project roots, retaining fixed commands and confinement.
 `Platform::pluginsEnabled` now defaults true, but discovery still requires an
 explicit nonempty `pluginRoot`; false retains the built-ins-only path. Tests cover

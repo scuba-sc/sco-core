@@ -2,14 +2,14 @@
 name: sco-report-sdk-gap
 description: "Prepare a minimal, privacy-safe report of a missing or broken public SCO SDK contract, documentation or tool encountered by a consumer. Use for SDK gaps, unsupported consumer features or upstream handoffs."
 metadata:
-  version: "0.2.2"
+  version: "0.2.3"
 ---
 
 # Report a public SDK gap
 
 Start with [roadmap and SDK planning](../sco-plan-sdk-work/SKILL.md), retaining its goal, public-contract boundary and acceptance record through this task.
 
-Apply the version and availability resolution in [input/evidence rules](../sco-build-check-package/references/inputs.md) to the selected kit and target. Reduce the desired behavior to the smallest public consumer example. Inspect the selected kit's headers, available contract records/catalogue, language mappings, capability status, docs and examples before declaring an API missing. Inspect negotiated MCP `tools/list` and schemas: use available discovery tools for contract and status evidence, never assume they inspect a running host or search issues. Search current issues/PRs only through an authorized issue-tracker route; retain links and actual acceptance state, or mark duplicate search `not_run` with the reason.
+Apply the version and availability resolution in [input/evidence rules](../sco-build-check-package/references/inputs.md) to the selected kit and target. Reduce the desired behavior to the smallest public consumer example. Inspect the selected kit's headers, available contract records/catalogue, language mappings, capability status, docs and examples before declaring an API missing. Inspect negotiated MCP `tools/list` and schemas: use `get_service_status` if offered, retaining its source-binding state and treating rows as static; older kits may use method-level `get_capability_status` and direct registry files. Never assume these sources inspect a running host or search issues. Search current issues/PRs only through an authorized issue-tracker route; retain links and actual acceptance state, or mark duplicate search `not_run` with the reason.
 
 Classify the first supported finding, recording uncertainty and multiple contributing causes when needed:
 

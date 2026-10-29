@@ -11,7 +11,7 @@ launcher of one of two layouts:
   and no sdk/ folder);
 * checkout: the maintainer layout, with dist/sdk-catalogue.json under the repository root.
 
-A block offers comprehensive SDK discovery by default (fourteen tools), or the
+A block offers comprehensive SDK discovery by default (fifteen tools), or the
 explicit minimal profile (--minimal-tools, six tools), and a `tools` allowlist must name exactly that
 profile's tools. The Claude Code and Codex commands (which quote `$SDK`, set by the guide's
 "Find the SDK folder" block) and the Codex TOML table must repeat the same arguments. Each
@@ -48,7 +48,7 @@ README = ROOT / 'tools/sco-core-mcp/README.md'
 CATALOGUE = Path(os.environ.get('SCO_CORE_MCP_TEST_CATALOGUE') or ROOT / 'dist/sdk-catalogue.json')
 MINIMAL_TOOLS = ['search_api', 'get_symbol', 'list_services', 'get_example',
                  'get_capability_status', 'check_compatibility']
-EXTENDED_TOOLS = MINIMAL_TOOLS + ['list_engine_natives', 'get_engine_native',
+EXTENDED_TOOLS = MINIMAL_TOOLS + ['get_service_status', 'list_engine_natives', 'get_engine_native',
                                   'validate_manifest_and_widgets', 'generate_plugin_scaffold',
                                   'search_guides', 'get_guide_section', 'list_workflows', 'get_workflow']
 SCRIPT = '/tools/sco-core-mcp/server.py'
@@ -133,7 +133,7 @@ def validate(envelope, name, entry):
         raise ValueError('Unexpected launcher arguments')
     developer = args[5:] != ['--minimal-tools']
     if 'tools' in entry and entry['tools'] != (EXTENDED_TOOLS if developer else MINIMAL_TOOLS):
-        raise ValueError('The tools allowlist must name exactly the six or fourteen tools of the profile')
+        raise ValueError('The tools allowlist must name exactly the six or fifteen tools of the profile')
     return layout, base, developer
 
 
@@ -364,8 +364,11 @@ class IntegrationTests(unittest.TestCase):
             layout, _, developer = validate(*block)
             overrides = {'catalogue': CATALOGUE} if layout == 'checkout' else {}
             with self.subTest(layout=layout, developer=developer, command=block[2]['command']):
+                calls = [('list_services', {})]
+                if developer:
+                    calls.append(('get_service_status', {'service': 'game.missions'}))
                 result, replies = self.launch(block, self.kit if layout == 'kit' else ROOT,
-                                              ('list_services', {}), **overrides)
+                                              *calls, **overrides)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(replies[1]['result']['protocolVersion'], '2025-11-25')
                 tools = replies[2]['result']['tools']
@@ -376,6 +379,11 @@ class IntegrationTests(unittest.TestCase):
                 self.assertFalse(replies[3]['result'].get('isError', False))
                 self.assertEqual(replies[3]['result']['structuredContent']['provenance']['source_sha'],
                                  self.catalogue['source_sha'])
+                if developer:
+                    status = replies[4]['result']['structuredContent']['service_status']
+                    expected_binding = 'matched' if self.catalogue['schema_version'] == 2 else 'unbound'
+                    self.assertEqual(status['source_binding']['state'], expected_binding)
+                    self.assertEqual(status['state'], 'rows_found')
 
     def test_kit_failure_modes_look_as_the_guide_says(self):
         block = next(b for b in self.blocks if validate(*b)[0] == 'kit' and validate(*b)[2])
@@ -408,7 +416,7 @@ class IntegrationTests(unittest.TestCase):
         # unavailable with checkout paths in the reason, and the stability labels are unknown.
         result, replies = self.launch(block, self.kit, *calls, **{'repo-root': self.work})
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(replies[2]['result']['tools']), 14)
+        self.assertEqual(len(replies[2]['result']['tools']), 15)
         self.assertTrue(replies[3]['result']['structuredContent']['reason'].startswith(
             'sdk/native_index.json unavailable beneath --repo-root'))
         self.assertTrue(replies[4]['result']['structuredContent']['reason'].startswith(

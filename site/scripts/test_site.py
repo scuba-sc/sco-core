@@ -346,17 +346,30 @@ class SiteTests(unittest.TestCase):
             gen.mapping_rows(record, self.catalogue['source_sha'])
 
     def test_invalid_inputs_fail_closed(self):
-        for key, value in [('source_sha', 'main'), ('schema_version', 2)]:
+        for key, value in [('source_sha', 'main'), ('schema_version', 3)]:
             bad = deepcopy(self.catalogue)
             bad[key] = value
             with tempfile.TemporaryDirectory(prefix='site-test-') as work:
                 with self.assertRaises(ValueError):
                     gen.generate(ROOT, bad, Path(work))
+        bad = deepcopy(self.catalogue)
+        bad['status_registry_sha256'] = 'invalid'
+        with tempfile.TemporaryDirectory(prefix='site-test-') as work:
+            with self.assertRaises(ValueError):
+                gen.generate(ROOT, bad, Path(work))
         with tempfile.TemporaryDirectory(prefix='site-test-') as work:
             root = Path(work)
             (root / 'site').mkdir()
+            (root / 'sdk').mkdir()
+            shutil.copyfile(ROOT / 'sdk/status_registry.json', root / 'sdk/status_registry.json')
             (root / 'site/public-inputs.json').write_text(json.dumps({'schema_version': 1, 'docs': ['docs/design/hidden.md']}))
             with self.assertRaises(ValueError):
+                gen.generate(root, self.catalogue, root / 'output')
+        with tempfile.TemporaryDirectory(prefix='site-test-registry-') as work:
+            root = Path(work)
+            (root / 'sdk').mkdir()
+            (root / 'sdk/status_registry.json').write_bytes(b'{"schema_version":1}')
+            with self.assertRaisesRegex(ValueError, 'digest does not match'):
                 gen.generate(root, self.catalogue, root / 'output')
 
     def test_leak_detector_negative_arms(self):
@@ -383,6 +396,7 @@ class SiteTests(unittest.TestCase):
                 doc.write('\n' + SENTINELS[0] + '\n')
             (root / 'sdk').mkdir()
             shutil.copyfile(ROOT / 'sdk/components.json', root / 'sdk/components.json')
+            shutil.copyfile(ROOT / 'sdk/status_registry.json', root / 'sdk/status_registry.json')
             shutil.copyfile(ROOT / gen.NATIVE_INDEX, root / gen.NATIVE_INDEX)
             output = root / 'site'
             output.mkdir()

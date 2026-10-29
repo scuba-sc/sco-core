@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Synthetic refusal tests for the compiler-backed SDK catalogue gate."""
+import hashlib
 import json
 import os
 import re
@@ -95,7 +96,7 @@ class CatalogueTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix='sdk_catalogue_test_')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        paths = {'docs/contracts.md', 'sdk/VERSION'}
+        paths = {'docs/contracts.md', 'sdk/VERSION', 'sdk/status_registry.json'}
         paths.update(p.relative_to(ROOT).as_posix() for p in (ROOT / 'include').glob('*.h'))
         paths.update(p.relative_to(ROOT).as_posix() for p in (ROOT / 'sdk/contracts').glob('*.json'))
         for record in catalogue.load_records(ROOT):
@@ -328,6 +329,32 @@ class CatalogueTests(unittest.TestCase):
         with self.assertRaisesRegex(catalogue.CatalogueError, '40-hex'):
             catalogue.build(self.root, 'main')
 
+    def test_status_registry_digest_is_bounded_and_refuses_symlinks(self):
+        registry = self.root / 'sdk/status_registry.json'
+        saved = registry.read_bytes()
+        self.assertEqual(catalogue.status_registry_sha256(self.root), hashlib.sha256(saved).hexdigest())
+        registry.write_bytes(b'x' * (catalogue.STATUS_REGISTRY_MAX + 1))
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'exceeds 1 MiB'):
+            catalogue.status_registry_sha256(self.root)
+        registry.write_bytes(saved)
+        target = self.root / 'sdk/registry-copy.json'
+        target.write_bytes(saved)
+        registry.unlink()
+        try:
+            registry.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest('Symlinks are unavailable on this filesystem')
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'must not cross a symlink'):
+            catalogue.status_registry_sha256(self.root)
+        registry.unlink()
+        registry.write_bytes(saved)
+        sdk_dir = self.root / 'sdk'
+        real_sdk_dir = self.root / 'registry-dir'
+        sdk_dir.rename(real_sdk_dir)
+        sdk_dir.symlink_to(real_sdk_dir, target_is_directory=True)
+        with self.assertRaisesRegex(catalogue.CatalogueError, 'must not cross a symlink'):
+            catalogue.status_registry_sha256(self.root)
+
     def test_two_builds_byte_identical(self):
         outputs = [self.root / 'first.json', self.root / 'second.json']
         for output in outputs:
@@ -340,9 +367,13 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(result['source_sha'], SHA)
         self.assertEqual(result['sdk_version'], (self.root / 'sdk/VERSION').read_text().strip())
         self.assertEqual(result['game_pack_version'], '0.8.0')
+        self.assertEqual(result['schema_version'], catalogue.CATALOGUE_SCHEMA_VERSION)
+        self.assertEqual(result['status_registry_sha256'], catalogue.status_registry_sha256(self.root))
+        self.assertRegex(result['status_registry_sha256'], r'^[0-9a-f]{64}$')
         self.assertNotIn(str(self.root), outputs[0].read_text())
         self.assertEqual(set(result), {'schema_version', 'sdk_version', 'game_pack_version',
-                                       'source_sha', 'contract_context', 'tables', 'records'})
+                                       'source_sha', 'status_registry_sha256', 'contract_context',
+                                       'tables', 'records'})
         self.assertIn('argument-definition stride', result['contract_context']['reading_rules'])
         self.assertIn('64 open cursors', result['tables']['sco_storage_v1']['context'])
 
