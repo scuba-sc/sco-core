@@ -751,7 +751,7 @@ class PromotionTests(unittest.TestCase):
         for status, conclusion in (("queued", None), ("in_progress", None), ("completed", "success")):
             with self.subTest(status=status):
                 self.github = FakeGitHub()
-                run = {"id": 900, "run_number": 1, "run_attempt": 1,
+                run = {"id": 900, "run_number": 1, "run_attempt": 1, "event": "workflow_dispatch",
                        "path": ".github/workflows/release-candidate.yml", "head_branch": "main",
                        "head_sha": SHA, "status": status, "conclusion": conclusion}
                 event = self.auto_fixture([run])
@@ -760,11 +760,43 @@ class PromotionTests(unittest.TestCase):
                                      "duplicate-suppressed")
                 self.assertFalse(any(call[1].endswith("/dispatches") for call in self.github.calls))
 
+    def test_auto_candidate_waits_while_a_mandatory_workflow_is_still_running(self):
+        # Every mandatory workflow triggers readiness as it completes, so the first triggers
+        # arrive before the last sibling finishes. That is a wait, not a failure: a red run on
+        # main for a normal intermediate state trains people to ignore the workflow.
+        event = self.auto_fixture()
+        key = ("api", "--paginate", "--slurp",
+               f"repos/{REPO}/actions/workflows/cmake.yml/runs?branch=main&event=push&head_sha={SHA}&per_page=100")
+        run = dict(self.readiness_fixtures()[0], status="in_progress", conclusion=None)
+        self.github.responses[key] = [[{"workflow_runs": [run]}]]
+        result = promote.auto_candidate(REPO, event, self.root, self.github)
+        self.assertTrue(result.startswith("waiting: "), result)
+        self.assertIn("still running: cmake", result)
+        self.assertFalse(any(call[1].endswith("/dispatches") for call in self.github.calls))
+
+    def test_auto_candidate_ignores_its_own_readiness_run_when_looking_for_candidates(self):
+        # This readiness run is itself a release-candidate.yml run on main at the same SHA, so
+        # counting workflow_run entries as candidates suppressed every dispatch. Only a
+        # dispatched (workflow_dispatch) run may suppress, and never the current run.
+        own = {"id": 901, "run_number": 2, "run_attempt": 1, "event": "workflow_run",
+               "path": ".github/workflows/release-candidate.yml", "head_branch": "main",
+               "head_sha": SHA, "status": "in_progress", "conclusion": None}
+        event = self.auto_fixture([own])
+        self.github.add(("api", f"repos/{REPO}/git/ref/heads/main"), {"object": {"sha": SHA}})
+        dispatch = ("api", f"repos/{REPO}/actions/workflows/release-candidate.yml/dispatches",
+                    "-X", "POST", "-f", "ref=main", "-f", f"inputs[tag]={TAG}",
+                    "-f", f"inputs[expected_source_sha]={SHA}")
+        self.github.add(dispatch, b"")
+        with mock.patch.object(promote.subprocess, "run", return_value=mock.Mock(returncode=0)), \
+                mock.patch.dict("os.environ", {"GITHUB_RUN_ID": "901"}):
+            self.assertEqual(promote.auto_candidate(REPO, event, self.root, self.github), "dispatched")
+        self.assertEqual(self.github.calls.count(dispatch), 1)
+
     def test_auto_candidate_failed_or_cancelled_candidate_requires_deliberate_retry(self):
         for conclusion in ("failure", "cancelled"):
             with self.subTest(conclusion=conclusion):
                 self.github = FakeGitHub()
-                run = {"id": 900, "run_number": 1, "run_attempt": 1,
+                run = {"id": 900, "run_number": 1, "run_attempt": 1, "event": "workflow_dispatch",
                        "path": ".github/workflows/release-candidate.yml", "head_branch": "main",
                        "head_sha": SHA, "status": "completed", "conclusion": conclusion}
                 event = self.auto_fixture([run])
