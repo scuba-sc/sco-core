@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Retained-widget action buttons show their captions inside the control. Captions
+  are rendered literally, so UTF-8, percent signs and ImGui `##`/`###` markers
+  cannot alter the button identity or hide text; an empty caption uses Activate.
+
 - Promote exact attested SDK candidate bytes using GitHub release permissions, without per-file release paperwork or a separate maintainer signature.
 
 - Drain deferred audio owner cleanup after one-shot faults and nested releases, with bounded failure handling.

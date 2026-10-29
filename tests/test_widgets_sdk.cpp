@@ -10,6 +10,7 @@
 #include "imgui.h"
 #include <string>
 #include <vector>
+#include <cstdlib>
 #endif
 
 static int pass = 0, fail = 0;
@@ -69,6 +70,9 @@ struct Receiver {
 // is deliberately not part of the portable SDK test.
 static std::vector<std::string> texts;
 static std::vector<int> numeric_ids;
+static std::vector<std::string> captions, button_ids;
+static std::vector<ImVec2> button_sizes;
+static float available_width = 1000.0f;
 static std::vector<bool> disabled_stack;
 static std::string panel_namespace;
 static int group_depth = 0, id_depth = 0, same_lines = 0, cells = 0;
@@ -96,7 +100,29 @@ void EndGroup() { --group_depth; }
 void SameLine(float, float) { ++same_lines; }
 void BeginDisabled(bool disabled) { disabled_stack.push_back(disabled); }
 void EndDisabled() { disabled_stack.pop_back(); }
-bool Button(const char*, const ImVec2&) { return !Disabled(); }
+bool Button(const char* id, const ImVec2& size) {
+    button_ids.emplace_back(id); button_sizes.push_back(size); return !Disabled();
+}
+ImGuiStyle& GetStyle() { static ImGuiStyle style; return style; }
+float GetFontSize() { return 17.0f; }
+float GetFrameHeight() { return 17.0f + 2 * GetStyle().FramePadding.y; }
+ImVec2 GetContentRegionAvail() { return ImVec2(available_width, 1000.0f); }
+ImVec2 GetCursorScreenPos() { return ImVec2(0, 0); }
+ImVec2 CalcTextSize(const char* begin, const char* end, bool hide, float) {
+    CHECK(!hide);
+    const char* finish = end ? end : begin + std::strlen(begin);
+    size_t longest = 0, current = 0, lines = 1;
+    for (const char* p = begin; p != finish; ++p) {
+        if (*p == '\n') { if (current > longest) longest = current; current = 0; ++lines; }
+        else ++current;
+    }
+    if (current > longest) longest = current;
+    return ImVec2(float(longest) * 8.0f, 17.0f * float(lines));
+}
+ImU32 GetColorU32(ImGuiCol, float) { return 0xffffffffu; }
+void* MemAlloc(size_t n) { return std::malloc(n); }
+void MemFree(void* p) { std::free(p); }
+ImDrawList* GetWindowDrawList() { static ImDrawList list(nullptr); return &list; }
 bool Checkbox(const char*, bool* value) { *value = !*value; return !Disabled(); }
 bool SliderScalar(const char*, ImGuiDataType type, void* value, const void* minimum, const void* maximum, const char* format, ImGuiSliderFlags flags) {
     CHECK(flags & ImGuiSliderFlags_AlwaysClamp);
@@ -133,6 +159,16 @@ void PopStyleColor(int count) { style_depth -= count; }
 bool BeginItemTooltip() { ++tooltips; return true; }
 void EndTooltip() {}
 } // namespace ImGui
+ImGuiStyle::ImGuiStyle() { FramePadding = ImVec2(9, 5); }
+ImDrawList::ImDrawList(ImDrawListSharedData*) {}
+ImDrawList::~ImDrawList() {}
+void ImDrawListSplitter::ClearFreeMemory() {}
+void ImDrawList::AddText(ImFont*, float, const ImVec2& pos, ImU32,
+                         const char* begin, const char* end, float, const ImVec4* clip) {
+    captions.emplace_back(begin, end);
+    CHECK(clip && !button_sizes.empty() && clip->z == button_sizes.back().x && clip->w == button_sizes.back().y);
+    CHECK(pos.x == ImGui::GetStyle().FramePadding.x && pos.y == ImGui::GetStyle().FramePadding.y);
+}
 static void TestAdapter() {
     sco::widgets::Panel panel;
     panel.id = "test.main";
@@ -165,7 +201,8 @@ static void TestAdapter() {
     CHECK(!texts.empty() && texts.front() == panel.title);
     size_t labels = 0;
     for (const auto& text : texts) if (text == "Label %n##plain") ++labels;
-    CHECK(labels == panel.nodes.size());
+    CHECK(labels == panel.nodes.size() - 2);
+    CHECK(captions.size() == 2 && captions[0] == "Label %n##plain" && captions[1] == "Label %n##plain");
     CHECK(numeric_ids.size() >= panel.nodes.size());
     const uint32_t kinds[] = {SCO_WIDGET_BUTTON, SCO_WIDGET_TOGGLE, SCO_WIDGET_SLIDER,
                              SCO_WIDGET_COMBO, SCO_WIDGET_LIST, SCO_WIDGET_TEXT_INPUT};
@@ -202,6 +239,44 @@ static void TestAdapter() {
     CHECK(events.size() == 3); // Nested button/toggle/slider inherit row disable.
     for (const auto& event : events) CHECK(event.node_id >= 7);
     CHECK(id_depth == 0 && group_depth == 0 && disabled_stack.empty());
+}
+static void TestButtonCaptions() {
+    struct CaptionCase { const char* text; float width, height; };
+    const CaptionCase cases[] = {
+        {"Launch ship", 88.0f, 17.0f},
+        {"Создать корабль", 232.0f, 17.0f},
+        {"100% ##literal###visible", 192.0f, 17.0f},
+        {"First line\nSecond line", 88.0f, 34.0f},
+        {"%n %s", 40.0f, 17.0f},
+        {"", 64.0f, 17.0f},
+    };
+    for (const auto& test : cases) for (bool disabled : {false, true}) {
+        const char* text = test.text;
+        sco::widgets::Panel p; p.id = "buttons";
+        sco::widgets::Node n; n.kind = SCO_WIDGET_BUTTON; n.id = 77; n.label = text;
+        n.flags = disabled ? SCO_WIDGET_DISABLED : 0;
+        n.severity = SCO_WIDGET_SEVERITY_WARNING; p.nodes.push_back(n);
+        for (float width : {1.0f, 80.0f, 1000.0f}) {
+            available_width = width; captions.clear(); button_ids.clear(); button_sizes.clear(); texts.clear();
+            std::vector<sco::widgets::Event> events;
+            sco::widgets::ImGuiRenderer().Render(p, events);
+            CHECK(captions.size() == 1 && captions[0] == (*text ? text : "Activate"));
+            CHECK(button_ids.size() == 1 && button_ids[0] == "##action");
+            // Natural size like ImGui::Button, independent of the available width.
+            CHECK(button_sizes.size() == 1);
+            if (button_sizes.size() == 1) {
+                // Independent expected glyph metrics for this test shim (8 px per UTF-8 byte).
+                CHECK(button_sizes[0].x == test.width + 2 * ImGui::GetStyle().FramePadding.x &&
+                      button_sizes[0].y == test.height + 2 * ImGui::GetStyle().FramePadding.y);
+            }
+            CHECK(events.size() == (disabled ? 0u : 1u));
+            if (!events.empty()) CHECK(events[0].node_id == 77 && events[0].kind == SCO_WIDGET_BUTTON);
+            CHECK(p.nodes[0].label == text && id_depth == 0 && group_depth == 0 && disabled_stack.empty());
+            bool warning = false; for (const auto& t : texts) warning |= t == "Warning:";
+            CHECK(warning); // Severity stays visible even though the duplicate label is removed.
+        }
+    }
+    available_width = 1000.0f;
 }
 // 1.1 presentation: severity as text plus color, tooltips, and paged LIST/TABLE windows.
 static void TestAdapter11() {
@@ -355,6 +430,7 @@ int main() {
     TestAdapter();
     TestAdapter11();
     TestAdapter13();
+    TestButtonCaptions();
 #endif
     std::printf("widgets SDK: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
