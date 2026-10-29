@@ -47,8 +47,8 @@ optional and default-off; static discovery never certifies gameplay or performs 
 
 ## Using an extracted SDK archive
 
-RC2 was published on 2026-10-28; its immutable source is `844e136ccb280ad8cb43f73bc43c9447e8f6799d`.
-See the [release notes](../../docs/releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication).
+RC2 was published on 2026-10-28; its source, archive and release checksums are recorded in the
+[release notes](../../docs/releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication).
 Use matching source, archive, catalogue and workflow identities for any supplied kit.
 
 The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) holds the published RC2
