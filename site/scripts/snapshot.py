@@ -173,7 +173,7 @@ def validate_catalogue(source, sha, catalogue, package):
     for name, table in catalogue['tables'].items():
         require(set(table) == {'context', 'members', 'service', 'size', 'source_header', 'version', 'version_macro'},
                 'catalogue table fields mismatch')
-        members = [r['symbol'].split('.')[-1] for r in sorted(
+        members = [r['symbol'].split('.', 1)[1] for r in sorted(
             (r for r in methods if r['table'] == name), key=lambda r: r['member_extent'])]
         require(table['members'] == members, 'catalogue table member inventory mismatch')
         header = (source / safe_path(table['source_header'])).read_text(encoding='utf-8')
@@ -195,7 +195,7 @@ def validate_catalogue(source, sha, catalogue, package):
             require(all(table[key] == record[field] for key, field in (
                 ('size', 'table_size'), ('source_header', 'source_header'), ('service', 'service'),
                 ('version_macro', 'version_macro'))), 'catalogue table metadata differs from contracts')
-            require(record['symbol'].split('.')[-1] in table['members'], 'catalogue table member missing')
+            require(record['symbol'].split('.', 1)[1] in table['members'], 'catalogue table member missing')
     for ref in re.findall(r'https://github\.com/scuba-sc/sco-core/(?:blob|tree)/([^/\s)]+)',
                           json.dumps(catalogue)):
         require(ref == sha, 'floating or unrelated source link')
