@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace sco::widgets {
@@ -74,20 +75,19 @@ bool Pager(const Node& node, int32_t& row) {
     return pressed;
 }
 // Severity is spelled out as text as well as colored, so it never relies on color alone.
-void Label(const Node& node) {
+void Label(const Node& node, bool withLabel = true) {
     const char* name = nullptr;
     ImVec4 color;
     switch (node.severity) {
     case SCO_WIDGET_SEVERITY_INFO: name = "Info:"; color = ImVec4(0.55f, 0.75f, 1.0f, 1.0f); break;
     case SCO_WIDGET_SEVERITY_WARNING: name = "Warning:"; color = ImVec4(1.0f, 0.8f, 0.3f, 1.0f); break;
     case SCO_WIDGET_SEVERITY_ERROR: name = "Error:"; color = ImVec4(1.0f, 0.45f, 0.45f, 1.0f); break;
-    default: Plain(node.label); return;
+    default: if (withLabel) Plain(node.label); return;
     }
     ImGui::PushStyleColor(ImGuiCol_Text, color);
     EndScope style{[] { ImGui::PopStyleColor(); }};
     ImGui::TextUnformatted(name);
-    ImGui::SameLine();
-    Plain(node.label);
+    if (withLabel) { ImGui::SameLine(); Plain(node.label); }
 }
 int32_t Options(const Node& node) {
     int32_t index = node.index;
@@ -123,13 +123,27 @@ void RenderNode(const Panel& panel, size_t& cursor, std::vector<Event>& events, 
         EndScope group{ImGui::EndGroup};
         ImGui::BeginDisabled(disabled);
         EndScope enabled{ImGui::EndDisabled};
-        Label(node);
+        Label(node, node.kind != SCO_WIDGET_BUTTON);
         switch (node.kind) {
         case SCO_WIDGET_LABEL:
             break;
-        case SCO_WIDGET_BUTTON:
-            changed = ImGui::Button("Activate");
+        case SCO_WIDGET_BUTTON: {
+            const std::string_view caption = node.label.empty() ? std::string_view("Activate") : std::string_view(node.label);
+            const ImGuiStyle& style = ImGui::GetStyle();
+            const ImVec2 pos = ImGui::GetCursorScreenPos();
+            // Natural size, as ImGui::Button computes it. Never derived from the available width:
+            // auto-resizing windows and popups would feed that back and shrink the button to 1 px.
+            const ImVec2 text = ImGui::CalcTextSize(caption.data(), caption.data() + caption.size(), false);
+            const float width = text.x + 2 * style.FramePadding.x;
+            const float height = text.y + 2 * style.FramePadding.y;
+            // The node ID remains the identity; plugin text never enters ImGui's ##/### parser.
+            changed = ImGui::Button("##action", ImVec2(width, height));
+            const ImVec2 textPos(pos.x + style.FramePadding.x, pos.y + style.FramePadding.y);
+            const ImVec4 clip(pos.x, pos.y, pos.x + width, pos.y + height);
+            ImGui::GetWindowDrawList()->AddText(nullptr, ImGui::GetFontSize(), textPos,
+                ImGui::GetColorU32(ImGuiCol_Text), caption.data(), caption.data() + caption.size(), 0.0f, &clip);
             break;
+        }
         case SCO_WIDGET_TOGGLE: {
             bool value = node.value != 0;
             changed = ImGui::Checkbox("##value", &value);
