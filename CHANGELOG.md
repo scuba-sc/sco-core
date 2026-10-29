@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Automatic release-candidate readiness waits instead of failing while a mandatory workflow is
+  still running (every workflow triggers it as it completes, so early triggers are normal), and
+  it no longer counts its own readiness run as an existing candidate: only a dispatched
+  `workflow_dispatch` run suppresses a dispatch. No tag, release or approval changes hands here.
+
 - Add `get_service_status` for service-level capability/evidence discovery, and
   bind schema-2 catalogues to the exact `sdk/status_registry.json` bytes. Schema-1
   catalogues remain readable with explicit `unbound` status; mismatched schema-2

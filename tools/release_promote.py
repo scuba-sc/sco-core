@@ -28,6 +28,15 @@ class Refusal(Exception):
     """A promotion prerequisite could not be established."""
 
 
+class Pending(Refusal):
+    """A prerequisite is still running; the caller may wait rather than fail.
+
+    A readiness run is triggered by each mandatory workflow as it completes, so the first
+    triggers always arrive before the last sibling finishes. That is a normal state, not a
+    broken prerequisite, and the final trigger does the real validation.
+    """
+
+
 def github(*args):
     """The only GitHub client boundary, for JSON, binary downloads and writes."""
     try:
@@ -194,10 +203,12 @@ def verified_readiness(repo, sha, client) -> ReadinessEvidence:
                 and run.get("repository", {}).get("full_name") == repo
                 and run.get("head_repository", {}).get("full_name") == repo]
         if not runs:
-            raise Refusal(f"mandatory workflow missing: {workflow}")
+            raise Pending(f"mandatory workflow has not started: {workflow}")
         run = max(runs, key=lambda item: (item["run_number"], item["run_attempt"]))
         run_id, attempt = positive_id(run["id"]), positive_id(run["run_attempt"])
-        if run.get("status") != "completed" or run.get("conclusion") != "success":
+        if run.get("status") != "completed":
+            raise Pending(f"mandatory workflow is still running: {workflow}")
+        if run.get("conclusion") != "success":
             raise Refusal(f"latest mandatory workflow is not successful: {workflow}")
         pages = api_pages(client, f"repos/{repo}/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100")
         owned_jobs = [job for page in pages for job in page["jobs"]]
@@ -206,7 +217,9 @@ def verified_readiness(repo, sha, client) -> ReadinessEvidence:
             if len(matches) != 1:
                 raise Refusal(f"mandatory job missing or duplicated: {workflow}/{name}")
             job = matches[0]
-            if job.get("status") != "completed" or job.get("conclusion") != "success":
+            if job.get("status") != "completed":
+                raise Pending(f"mandatory job is still running: {workflow}/{name}")
+            if job.get("conclusion") != "success":
                 raise Refusal(f"mandatory job is not successful: {workflow}/{name}")
             jobs.append({"workflow": workflow, "path": path, "run_id": run_id,
                          "attempt": attempt, "head_sha": sha, "id": positive_id(job["id"]),
@@ -237,7 +250,10 @@ def auto_candidate(repo, event, root, client=github):
     if (trigger.get("repository", {}).get("full_name") != repo
             or trigger.get("head_repository", {}).get("full_name") != repo):
         raise Refusal("workflow_run repository is not the trusted repository")
-    readiness = verified_readiness(repo, sha, client)
+    try:
+        readiness = verified_readiness(repo, sha, client)
+    except Pending as exc:
+        return f"waiting: {exc}"
     source_jobs = [job for job in readiness["jobs"] if job["path"] == payload["path"]]
     if (not source_jobs or any(job["run_id"] != event_id or job["attempt"] != event_attempt
                                for job in source_jobs)):
@@ -256,9 +272,14 @@ def auto_candidate(repo, event, root, client=github):
     if tagged_releases(repo, tag, client):
         raise Refusal("a draft or published release already exists for this tag")
     pages = api_pages(client, f"repos/{repo}/actions/workflows/release-candidate.yml/runs?branch=main&head_sha={sha}&per_page=100")
+    # Only a dispatched run is a candidate. This readiness run shares the workflow path, the
+    # branch and the SHA, so counting workflow_run entries would suppress every dispatch.
+    current_run = os.environ.get("GITHUB_RUN_ID", "")
     candidates = [run for page in pages for run in page["workflow_runs"]
                   if run.get("path") == ".github/workflows/release-candidate.yml"
-                  and run.get("head_branch") == "main" and run.get("head_sha") == sha]
+                  and run.get("head_branch") == "main" and run.get("head_sha") == sha
+                  and run.get("event") == "workflow_dispatch"
+                  and str(run.get("id")) != current_run]
     if any(run.get("status") in ("queued", "in_progress")
            or run.get("status") == "completed" and run.get("conclusion") == "success"
            for run in candidates):
