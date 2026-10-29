@@ -579,6 +579,8 @@ static void TestUdpCores() {
         std::printf("  (no UDP sockets: %s)\n", why.c_str());
         return;
     }
+    // Open() must lift the receive buffer past the OS default a 8-peer burst overflows.
+    CHECK(sa->RecvBufBytes() >= 1u << 20);
     CHECK(sa->Port() != 0 && sb->Port() != 0 && sa->Port() != sb->Port());
     // Datagrams both ways, and a cut one is reported longer than the buffer.
     Endpoint toB;

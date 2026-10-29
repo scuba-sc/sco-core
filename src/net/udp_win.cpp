@@ -82,6 +82,9 @@ std::unique_ptr<Socket> Socket::OpenBound(uint16_t port, const Endpoint& bindEnd
         WSACleanup();
         return nullptr;
     }
+    // Same overflow as the POSIX socket: 8 peers burst between pumps.
+    const int rcvbuf = 1 << 21;
+    ::setsockopt(fd, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&rcvbuf), sizeof rcvbuf);
     std::unique_ptr<Socket> s(new Socket());
     s->fd_ = static_cast<uintptr_t>(fd);
     s->port_ = ntohs(sa.sin_port);
@@ -91,6 +94,13 @@ std::unique_ptr<Socket> Socket::OpenBound(uint16_t port, const Endpoint& bindEnd
 Socket::~Socket() {
     ::closesocket(Fd(fd_));
     WSACleanup();
+}
+
+uint32_t Socket::RecvBufBytes() const {
+    int v = 0;
+    int n = sizeof v;
+    return ::getsockopt(Fd(fd_), SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char*>(&v), &n) == 0
+        ? static_cast<uint32_t>(v) : 0u;
 }
 
 bool Socket::Send(const Endpoint& to, const uint8_t* data, size_t len) {
