@@ -294,6 +294,9 @@
 {"id":"source.audio.h","source":"src/game/services/audio.h","destination":"src/game/services/audio.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
 {"id":"test.audio","source":"tests/test_audio.cpp","destination":"tests/test_audio.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
 {"id":"abi.audio","source":"tests/abi_audio.c","destination":"tests/abi_audio.c","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"game-contract"},
+{"id":"source.audio_engine.cpp","source":"src/game/services/audio_engine.cpp","destination":"src/game/services/audio_engine.cpp","profiles":["host-source-sc"],"origin":"interoperability-derived","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+{"id":"source.audio_engine.h","source":"src/game/services/audio_engine.h","destination":"src/game/services/audio_engine.h","profiles":["host-source-sc"],"origin":"interoperability-derived","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
+{"id":"test.audio_engine","source":"tests/test_audio_engine.cpp","destination":"tests/test_audio_engine.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc"},
     {"id":"docs.sdk-developer-mvp","source":"docs/sdk-developer-mvp.md","destination":"docs/sdk-developer-mvp.md","profiles":["game-sc","host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only"},
     {
       "id": "datacore-live-include-sc_datacore_live.h",

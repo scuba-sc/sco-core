@@ -76,8 +76,17 @@ A backend fault (`CRASHED`) turns `game.audio.play_once` off until the process
 restarts, surviving a service stop and start, and leaves a healthy
 `game.audio.triggers` mode working, including resolving new names.
 
-**Native status:** no native backend ships in this version. The host publishes
-the 1.1 table with `game.audio.play_once` OFF. A native backend is held until it
-can confirm the shared game object is still registered when the sound is
-submitted; that check is not yet established. Synthetic provider tests only;
-not run in game.
+**Native status:** the one-shot adapter exists in
+[`audio_engine.cpp`](../src/game/services/audio_engine.cpp) and resolves the three
+Wwise entry points by exported name from the client's own export directory
+(`?PostEvent@SoundEngine@AK@@...ExternalSourceInfo...`, `?GetIDFromString@SoundEngine@AK@@YAIPEBD@Z`,
+`?IsInitialized@SoundEngine@AK@@YA_NXZ`; read from the 4.10.197.2878 LIVE client,
+sha256 `ddba788f…4310c2a`). Exports are not the missing piece. The adapter refuses
+to install without a grounded witness that the audio pump's shared game object is
+still registered when a submission lands, so `SCO_AUDIO_NATIVE=1` resolves the
+exports, logs the refusal, and the host still publishes the 1.1 table with both
+capabilities OFF. Nothing is posted. A moved or renamed export fails the install
+instead of guessing. `tests/test_audio_engine.cpp` drives the adapter over a fake
+export table: the pinned names, the refusal, the accepted/rejected/faulted
+submission mapping and the fault latch. Synthetic only; no native audio, no
+audible output, not run in game.

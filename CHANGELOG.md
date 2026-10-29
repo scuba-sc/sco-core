@@ -14,6 +14,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Drain deferred audio owner cleanup after one-shot faults and nested releases, with bounded failure handling.
 
+- Add the native `game.audio.play_once` adapter: it resolves the Wwise one-shot exports by name
+  from the client's export directory and refuses to install without a grounded witness that the
+  audio pump's game object is still registered at submission. `SCO_AUDIO_NATIVE=1` resolves and
+  refuses; both audio capabilities stay OFF. Synthetic fake-resolver tests only; not run in game.
+
 - Guard mission-event polling against callback faults, reentry, shutdown and stale
   or failed acceptance receipts, and scope event-cache IDs to their sessions.
   Synthetic checks only; not run in game.

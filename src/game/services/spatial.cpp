@@ -20,6 +20,7 @@
 #include "inventory_host.h"
 #include "container_contents.h"
 #include "audio.h"
+#include "audio_engine.h"
 #include "reputation.h"
 #include "loadout.h"
 #include "input.h"
@@ -521,7 +522,10 @@ Result Start() {
     if (r != Result::Ok) { Stop(); return r; }
     r = StartProductionContainerContents(); // empty until a grounded host-owned provider is configured
     if (r != Result::Ok) { Stop(); return r; }
-    r = StartAudio(); // publishes v1.1 unavailable; no native backend until a registration witness is grounded
+    // The native one-shot backend installs only when the Wwise exports resolve and a registration
+    // witness is grounded; today it refuses, and the service still publishes 1.1 with both
+    // capabilities OFF.
+    r = StartAudio(ConfigureProductionAudio());
     if (r != Result::Ok) { Stop(); return r; }
     r = StartGameRules(); // metadata available; live reads still require a verified backend
     if (r != Result::Ok) { Stop(); return r; }

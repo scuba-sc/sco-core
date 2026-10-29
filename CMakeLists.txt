@@ -399,6 +399,7 @@ if(SCO_GAME_SC AND WIN32)
                                        src/game/services/world.cpp src/game/services/world_control.cpp src/game/services/world_free_cam.cpp src/game/services/gamerules.cpp src/game/services/inventory.cpp
                                        src/game/services/inventory_walk.cpp src/game/services/inventory_engine.cpp src/game/services/inventory_host.cpp src/game/services/inventory_layout.cpp
                                        src/game/services/container_contents.cpp src/game/services/audio.cpp
+                                       src/game/services/audio_engine.cpp
                                        src/game/services/events.cpp
                                        src/game/services/entities.cpp src/game/services/entity_lookup.cpp src/game/services/creative.cpp
                                        src/game/services/owned.cpp src/game/services/prefabs.cpp
@@ -1519,6 +1520,11 @@ if(SCO_BUILD_TESTS)
       add_test(NAME cvars_engine_callback_console COMMAND test_cvars_engine callback-console)
       add_test(NAME cvars_engine_lease_replace COMMAND test_cvars_engine lease-replace)
       add_test(NAME cvars_engine_lease_admission COMMAND test_cvars_engine lease-admission)
+      add_executable(test_audio_engine tests/test_audio_engine.cpp src/game/services/audio.cpp src/game/services/audio_engine.cpp)
+      target_include_directories(test_audio_engine PRIVATE "${SCO_INCLUDE_DIR}")
+      target_link_libraries(test_audio_engine PRIVATE sco_host)
+      sco_project_target(test_audio_engine)
+      add_test(NAME audio_engine_native COMMAND test_audio_engine)
       add_executable(test_cvars_production tests/test_cvars_production.cpp src/game/services/cvars_engine.cpp src/game/services/cvars.cpp src/game/services/cvars_production.cpp)
       target_link_libraries(test_cvars_production PRIVATE sco_host sco_game_admission)
       sco_project_target(test_cvars_production)
