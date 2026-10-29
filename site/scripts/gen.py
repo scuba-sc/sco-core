@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Render schema-1 SDK contracts and explicitly selected public engineering docs.
+"""Render SDK contract catalogue schemas 1-2 and selected public engineering docs.
 
 No source files, examples, tests or unlisted docs are copied into the site.
 Source evidence is linked at the catalogue's immutable commit.
 """
 import argparse
 from collections import Counter
+import hashlib
 import html
 import json
 from pathlib import Path, PurePosixPath
@@ -817,8 +818,28 @@ def render_record(record, catalogue, doc_routes):
 
 def generate(root, catalogue, output, release_tag=None):
     root, output = Path(root).resolve(), Path(output).resolve()
-    if catalogue.get('schema_version') != 1 or not re.fullmatch(r'[0-9a-f]{40}', catalogue.get('source_sha', '')):
-        raise ValueError('Expected schema 1 and an immutable full source SHA')
+    schema = catalogue.get('schema_version')
+    expected = ({'schema_version', 'sdk_version', 'game_pack_version', 'source_sha',
+                 'contract_context', 'tables', 'records'} if schema == 1 else
+                {'schema_version', 'sdk_version', 'game_pack_version', 'source_sha',
+                 'status_registry_sha256', 'contract_context', 'tables', 'records'} if schema == 2 else None)
+    if (expected is None or set(catalogue) != expected
+            or not re.fullmatch(r'[0-9a-f]{40}', catalogue.get('source_sha', ''))
+            or (schema == 2 and not re.fullmatch(r'[0-9a-f]{64}', catalogue.get('status_registry_sha256', '')))):
+        raise ValueError('Expected catalogue schema 1 or 2 with valid provenance')
+    if schema == 2:
+        registry_path = root / 'sdk/status_registry.json'
+        if not no_symlink_component(root, 'sdk/status_registry.json') or not registry_path.is_file():
+            raise ValueError('Catalogue status-registry source is unavailable or unsafe')
+        try:
+            with registry_path.open('rb') as source:
+                registry = source.read((1 << 20) + 1)
+        except OSError as error:
+            raise ValueError('Catalogue status-registry source is unavailable or unsafe') from error
+        if len(registry) > (1 << 20):
+            raise ValueError('Catalogue status-registry source exceeds 1 MiB')
+        if hashlib.sha256(registry).hexdigest() != catalogue['status_registry_sha256']:
+            raise ValueError('Catalogue status-registry digest does not match source')
     if release_tag:
         if PUBLISHED_METADATA is None or PUBLISHED_METADATA['tag'] != release_tag:
             raise ValueError('Release build requires matching supplied published metadata')

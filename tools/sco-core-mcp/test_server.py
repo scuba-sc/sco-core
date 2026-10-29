@@ -35,9 +35,9 @@ TOOLS = {
     "get_capability_status", "check_compatibility",
 }
 ORIGINAL_ORDER = ["search_api", "get_symbol", "list_services", "get_example", "get_capability_status", "check_compatibility"]
-EXTENDED_ORDER = ORIGINAL_ORDER + ["list_engine_natives", "get_engine_native", "validate_manifest_and_widgets",
-                                   "generate_plugin_scaffold", "search_guides", "get_guide_section",
-                                   "list_workflows", "get_workflow"]
+EXTENDED_ORDER = ORIGINAL_ORDER + ["get_service_status", "list_engine_natives", "get_engine_native",
+                                   "validate_manifest_and_widgets", "generate_plugin_scaffold", "search_guides",
+                                   "get_guide_section", "list_workflows", "get_workflow"]
 DEV_ORDER = ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
 SCAFFOLDER = ROOT / "sdk" / "tools" / "sco-new-plugin.py"
 PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source_sha"}
@@ -284,7 +284,10 @@ class ServerCase(unittest.TestCase):
         self.assertEqual(result.get("isError", False), is_error, result)
         structured = result["structuredContent"]
         expected = data if data is not None else fixture()
-        self.assertEqual(structured["provenance"], {key: expected[key] for key in PROVENANCE_KEYS})
+        expected_provenance = {key: expected[key] for key in PROVENANCE_KEYS}
+        if "status_registry_sha256" in expected:
+            expected_provenance["status_registry_sha256"] = expected["status_registry_sha256"]
+        self.assertEqual(structured["provenance"], expected_provenance)
         text = [item["text"] for item in result["content"] if item.get("type") == "text"]
         self.assertTrue(text, result)
         self.assertEqual(json.loads(text[0]), structured)
@@ -908,6 +911,24 @@ class AdditionalBoundaryTests(ServerCase):
 
 
 class LanguageMetadataTests(ServerCase):
+    def test_schema_two_catalogue_requires_a_sha256_digest(self):
+        server = importlib.import_module("server")
+        data = fixture()
+        data["schema_version"] = 2
+        data["status_registry_sha256"] = "a" * 64
+        _, path = self.temporary_catalogue(data)
+        self.assertEqual(server.load_catalogue(path), data)
+        for invalid in (None, "short", "A" * 64):
+            with self.subTest(invalid=invalid):
+                candidate = dict(data)
+                if invalid is None:
+                    del candidate["status_registry_sha256"]
+                else:
+                    candidate["status_registry_sha256"] = invalid
+                path.write_text(json.dumps(candidate), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Invalid catalogue keys|Invalid status registry SHA-256"):
+                    server.load_catalogue(path)
+
     def test_nested_table_member_matches_complete_path(self):
         server = importlib.import_module("server")
         data = fixture()
@@ -1153,6 +1174,67 @@ class RegistryEvidenceTests(ServerCase):
         self.assertEqual(state["gameplay_receipt"]["state"], "unknown")
         self.assertNotIn("in_game_verified", json.dumps(state))
         self.assertEqual(status["stability"], "stable")
+        self.assertEqual(status["source_binding"]["state"], "unbound")
+
+    def test_get_service_status_lists_capabilities_without_a_method_lookup(self):
+        data, root, catalogue = self.registry_root()
+        client = self.start(catalogue=catalogue, repo_root=root, extended=True)
+        result = self.result(client.call("get_service_status", {"service": "game.sample"}), data=data)
+        self.assertEqual(result["service"], "game.sample")
+        self.assertEqual(result["tables"][0]["table"], "sc_sample_v1")
+        status = result["service_status"]
+        self.assertEqual((status["state"], status["source"]), ("rows_found", "sdk/status_registry.json"))
+        self.assertEqual(status["source_binding"]["state"], "unbound")
+        self.assertIn("game.sample.watch", [row.get("name") for row in status["rows"]])
+        self.assertIn("sample field", [row["capability"] for row in status["rows"]])
+        self.assertIn("does not query a running host", result["conclusions"][0])
+
+    def test_get_service_status_marks_game_independent_services(self):
+        client = self.start(extended=True)
+        result = self.result(client.call("get_service_status", {"service": "sco.sample"}))
+        self.assertEqual(result["service_status"]["state"], "not_applicable")
+        self.assertEqual(result["service_status"]["scope"], "neutral")
+        self.assertEqual(result["service_status"]["rows"], [])
+
+    def test_get_service_status_rejects_unknown_services(self):
+        result = self.result(self.start(extended=True).call(
+            "get_service_status", {"service": "game.missing"}), is_error=True)
+        self.assertIn("Unknown service", result["error"])
+
+    def bind_catalogue(self, data, root, catalogue, expected_sha=None):
+        data["schema_version"] = 2
+        if expected_sha is None:
+            expected_sha = hashlib.sha256((root / "sdk/status_registry.json").read_bytes()).hexdigest()
+        data["status_registry_sha256"] = expected_sha
+        catalogue.write_text(json.dumps(data), encoding="utf-8")
+        return data, root, catalogue
+
+    def test_status_registry_digest_is_returned_and_matched(self):
+        data, root, catalogue = self.registry_root()
+        self.bind_catalogue(data, root, catalogue)
+        client = self.start(catalogue=catalogue, repo_root=root, extended=True)
+        result = self.result(client.call("get_service_status", {"service": "game.sample"}), data=data)
+        self.assertEqual(result["provenance"]["status_registry_sha256"], data["status_registry_sha256"])
+        self.assertEqual(result["service_status"]["source_binding"]["state"], "matched")
+        self.assertIs(result["service_status"]["source_binding"]["matches_catalogue"], True)
+
+    def test_status_registry_digest_mismatch_refuses_status(self):
+        data, root, catalogue = self.registry_root()
+        self.bind_catalogue(data, root, catalogue, "f" * 64)
+        client = self.start(catalogue=catalogue, repo_root=root, extended=True)
+        result = self.result(client.call("get_service_status", {"service": "game.sample"}), data=data)
+        self.assertEqual(result["service_status"]["state"], "unavailable")
+        self.assertEqual(result["service_status"]["source_binding"]["state"], "mismatch")
+        self.assertEqual(result["service_status"]["rows"], [])
+
+    def test_status_registry_required_when_catalogue_binds_it(self):
+        data, root, catalogue = self.registry_root(registry=None)
+        self.bind_catalogue(data, root, catalogue, "f" * 64)
+        client = self.start(catalogue=catalogue, repo_root=root, extended=True)
+        result = self.result(client.call("get_service_status", {"service": "game.sample"}), data=data)
+        self.assertEqual(result["service_status"]["state"], "unavailable")
+        self.assertIn("matching registry", result["service_status"]["reason"])
+        self.assertNotEqual(result["service_status"]["source"], "docs/game/status.md")
 
     def test_registry_stability_reaches_both_tools(self):
         for label, expected in (("stable", "stable"), ("experimental", "experimental"), (None, "unknown")):

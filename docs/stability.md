@@ -129,6 +129,13 @@ capability qualifies. After that it refuses demoting the entry. It renders the l
 the Stability column of the [service table](game/status.md#service-tables-and-capabilities),
 with `-` for a signature-row group.
 
+The current-source MCP tool `get_service_status` exposes all static rows for a
+service, including rows that do not map to a method. Its schema-2 catalogue records
+the SHA-256 of the exact registry bytes. `source_binding.state == "matched"` means
+those bytes match; schema-1 catalogues report `unbound`, and a schema-2 mismatch
+makes status unavailable. This binds two static files and does not observe a running
+provider or game.
+
 The SDK source registry labels game-pack service tables Stable or Experimental and
 the `game.*` event bus Stable. The Stability column of the status table is the
 current list; check the selected kit's registry for its own snapshot.

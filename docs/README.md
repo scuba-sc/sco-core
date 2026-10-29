@@ -79,8 +79,8 @@ For where the SDK is going and how to contribute, read the [roadmap](roadmap.md)
 2. [SDK to MCP to plugin](sdk-mcp-tutorial.md): discover a contract, request a
    scaffold, validate manifest/widgets and run the native checker.
 3. [MCP server authority](../tools/sco-core-mcp/README.md): six default tools (minimal
-   profile), six opt-in discovery tools (the SDK developer profile of twelve, including
-   guide search with `search_guides` and `get_guide_section`)
+   profile), seven extended discovery tools plus two workflow tools (the current-source
+   SDK developer profile of fifteen, including `get_service_status` and guide search)
    and three opt-in development tools, allowlist, provenance, limits and separate
    administrator-owned runner settings.
 4. [Reference snapshots](reference-snapshots.md): bind discovery/examples to

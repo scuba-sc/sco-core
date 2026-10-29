@@ -37,8 +37,9 @@ Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-u
 using the published RC2 combined kit for the steps below. Set
 `SDK_ROOT` to the folder that directly contains its `sdk-catalogue.json` and
 `sdk-workflows.json`; register `sco-core-sdk` in your client and verify the
-connection. This tutorial uses the current-source **SDK developer profile**: fourteen read-only
-tools by default. Explicit `--minimal-tools` retains the six catalogue tools and
+connection. Current source uses the **SDK developer profile**: fifteen read-only
+tools by default. Published RC2 has fourteen; it predates `get_service_status` and
+catalogue schema 2. Explicit `--minimal-tools` retains the six catalogue tools and
 leaves out scaffolding, validation, native/guide and workflow discovery. The
 legacy `--extended-tools` and `--workflow-tools` aliases are no longer needed.
 The published RC1 server is unchanged: append `--extended-tools` for its twelve
@@ -57,8 +58,9 @@ Windows use `py -3` with drive-qualified paths, for example
 `C:/absolute/path/to/sdk-rc2-root/tools/sco-core-mcp/server.py`. On macOS/Linux use
 `python3`, or an absolute Python executable if the client does not inherit shell `PATH`.
 
-The fourteen default tools do not add runtime access; list their exact names in
-client allowlists. A root permits bounded example/metadata reads and lets the scaffold
+The published RC2's fourteen default tools do not add runtime access; list their exact names in
+client allowlists. Current-source schema-2 catalogues also bind static status rows to
+the registry bytes. A root permits bounded example/metadata reads and lets the scaffold
 tool, and the guide tools when no `sdk-guides.json` is present, execute that root's
 reviewed generator code in-process.
 
@@ -76,6 +78,10 @@ refuses startup. These tools serve embedded reference text and execute no code.
 ### Discover one contract
 
 After initialization, inspect `tools/list` and call `list_services` with `{}`.
+With current source, `get_service_status` lists static rows for a service, including
+methodless rows. `source_binding.state` must be `matched` before using them as evidence
+for that catalogue. The result does not query a provider or running game. This tool is
+absent from published RC2; use its method-level `get_capability_status` there.
 Then send these separate `tools/call` parameter objects:
 
 ```json
@@ -490,8 +496,8 @@ command invocation or gameplay mutation.
 ## Optional runtime observations — default OFF, separate acceptance
 
 The historical walkthrough above uses **only the six static discovery tools** (the
-minimal profile when explicitly launched with `--minimal-tools`); the standalone
-workflow at the top uses the fourteen current-source default discovery tools. Runtime MCP is an optional independently implemented/reviewed
+minimal profile when explicitly launched with `--minimal-tools`); current source offers
+fifteen default discovery tools and published RC2 offers fourteen. Runtime MCP is an optional independently implemented/reviewed
 feature under
 [runtime MCP design](design/runtime-mcp.md); do not enable it to make the example
 compile. The default launcher advertises no `runtime_*` names. Consult `tools/list`

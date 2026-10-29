@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Add `get_service_status` for service-level capability/evidence discovery, and
+  bind schema-2 catalogues to the exact `sdk/status_registry.json` bytes. Schema-1
+  catalogues remain readable with explicit `unbound` status; mismatched schema-2
+  registries fail closed. Static metadata only; no host or game query. Published
+  RC2 catalogue and launcher bytes are unchanged.
+
 - Retained-widget action buttons show their captions inside the control. Captions
   are rendered literally, so UTF-8, percent signs and ImGui `##`/`###` markers
   cannot alter the button identity or hide text; an empty caption uses Activate.

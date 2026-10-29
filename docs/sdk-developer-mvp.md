@@ -13,8 +13,8 @@ Windows and macOS/Linux launchers and how to verify the connection. For a client
 reads an `mcpServers` object, the entry is the following. The SDK folder is the folder that
 directly contains `sdk-catalogue.json`, `sco-sdk-2.4.0` for the combined kit; use absolute
 paths, and on Windows `py` with `-3` as the first argument. Discovery now defaults to
-fourteen tools including workflow retrieval; use `--minimal-tools` for six catalogue tools.
-Published RC1 bytes retain their older defaults until a new kit is approved and published.
+fifteen tools including service status and workflow retrieval; use `--minimal-tools` for six catalogue tools.
+Published RC2 bytes retain their fourteen-tool profile until a newer kit is approved and published.
 
 ```json
 {
@@ -35,8 +35,12 @@ Published RC1 bytes retain their older defaults until a new kit is approved and 
 
 Start with `list_workflows` and `get_workflow` for `sco-plan-sdk-work`: retain the
 roadmap source/goal, public SDK contract boundary and measurable acceptance.
-Discover a service with `search_api`; read `get_symbol` and
-`get_capability_status` before using it. `get_example` reads record-listed code.
+Discover a service with `list_services` and `get_service_status`, then read
+`get_symbol` and `get_capability_status` for each operation before using it.
+`get_service_status` is a static registry snapshot and only binds to a schema-2
+catalogue when the registry's byte digest matches; it never probes a running
+provider. Published RC2 predates this tool and keeps its schema-1 catalogue.
+`get_example` reads record-listed code.
 `list_engine_natives` exposes symbolic names and evidence tiers, not addresses.
 `validate_manifest_and_widgets` checks configuration/tree invariants.
 `generate_plugin_scaffold` returns project files without writing or building them.

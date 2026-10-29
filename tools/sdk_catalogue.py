@@ -3,10 +3,12 @@
 
 Records live in sdk/contracts. check also pins their rendered row cells to
  docs/contracts.md, so changing either editable representation alone fails.
-extract validates and emits the current header inventory; build emits schema 1.
+extract validates and emits the current header inventory; build emits catalogue schema 2,
+including the exact status-registry digest used to bind static evidence to this catalogue.
 No timestamps, absolute paths, compiler IDs or implicit Git state enter output.
 """
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,6 +22,8 @@ import abi_snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
+CATALOGUE_SCHEMA_VERSION = 2
+STATUS_REGISTRY_MAX = 1024 * 1024
 RECORD_KEYS = {
     'id', 'kind', 'symbol', 'table', 'service', 'version_macro', 'source_header',
     'signature', 'member_extent', 'table_size', 'since', 'purpose',
@@ -440,13 +444,29 @@ def contract_context(root, inventory):
             'remaining_gaps': sections['Explicit remaining gaps']}
 
 
+def status_registry_sha256(root):
+    """Hash the exact registry bytes included beside the catalogue in an SDK kit."""
+    source_path = root / 'sdk/status_registry.json'
+    require(not (root / 'sdk').is_symlink() and not source_path.is_symlink(),
+            'sdk/status_registry.json must not cross a symlink')
+    path = local_path(root, 'sdk/status_registry.json')
+    require(path.stat().st_size <= STATUS_REGISTRY_MAX,
+            'sdk/status_registry.json exceeds 1 MiB')
+    raw = path.read_bytes()
+    require(len(raw) <= STATUS_REGISTRY_MAX,
+            'sdk/status_registry.json exceeds 1 MiB')
+    return hashlib.sha256(raw).hexdigest()
+
+
 def build(root, source_sha, clang=None):
     require(re.fullmatch(r'[0-9a-f]{40}', source_sha) is not None,
             '--source-sha must be an explicit full lowercase 40-hex commit')
     records, inventory = validate(root, clang)
     context = contract_context(root, inventory)
-    return {'schema_version': SCHEMA_VERSION, 'sdk_version': (root / 'sdk/VERSION').read_text().strip(),
+    registry_sha256 = status_registry_sha256(root)
+    return {'schema_version': CATALOGUE_SCHEMA_VERSION, 'sdk_version': (root / 'sdk/VERSION').read_text().strip(),
             'game_pack_version': inventory['game_pack_version'], 'source_sha': source_sha,
+            'status_registry_sha256': registry_sha256,
             'contract_context': context, 'tables': inventory['tables'], 'records': records}
 
 

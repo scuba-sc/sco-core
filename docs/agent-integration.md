@@ -3,7 +3,7 @@
 For durable consumer procedures, start with the [roadmap-driven workflow skills](agent-workflows.md). Workflow discovery, scaffolding, validation, guides and API discovery are available together in the default profile.
 
 The local [`tools/sco-core-mcp`](../tools/sco-core-mcp/README.md) server exposes
-read-only **discovery** tools over stdio: fourteen by default, or the original six
+read-only **discovery** tools over stdio: fifteen by default, or the original six
 with explicit `--minimal-tools`. It reads the same compiler-backed catalogue as the static
 reference site. It does not call SDK methods, run a game, or provide an HTTP
 endpoint, and by default it compiles nothing. GitHub Pages cannot host it.
@@ -238,11 +238,14 @@ Current source offers these profiles:
 
 | Profile | Server flag | Tools |
 | --- | --- | --- |
-| **SDK developer profile (recommended default)** | none | 14 read-only tools |
+| **SDK developer profile (recommended default)** | none | 15 read-only tools |
 | **Minimal profile** | `--minimal-tools` | 6 read-only catalogue tools |
 
 The original six are `search_api`, `get_symbol`, `list_services`, `get_example`,
 `get_capability_status` and `check_compatibility`. The default also offers
+`get_service_status`, which lists service tables and their static capability/evidence rows;
+schema-2 catalogues bind those rows to the exact registry bytes and schema-1 catalogues report
+the status as unbound. It does not probe a host. The default also offers
 `list_engine_natives`, `get_engine_native`, `validate_manifest_and_widgets`,
 `generate_plugin_scaffold`, `search_guides`, `get_guide_section`, `list_workflows`
 and `get_workflow`. The legacy `--extended-tools` and `--workflow-tools` flags are
@@ -494,6 +497,7 @@ launching the server**:
         "get_example",
         "get_capability_status",
         "check_compatibility",
+        "get_service_status",
         "list_engine_natives",
         "get_engine_native",
         "validate_manifest_and_widgets",
@@ -525,7 +529,7 @@ separate, see
 2. Check that the server is connected. In Claude Code, `claude mcp list` or `/mcp`
    shows `sco-core-sdk` as connected; approve a project-scoped server first. In other
    clients, open the MCP or tools panel and look for `sco-core-sdk` running.
-3. Check `tools/list`: fourteen tools for the current-source default developer
+3. Check `tools/list`: fifteen tools for the current-source default developer
    profile, six for explicit `--minimal-tools`, all with `readOnlyHint: true`. The
    unchanged published RC1 developer profile has twelve instead. Ask the agent to list the server's tools
    if your client has no tools view.
@@ -563,7 +567,7 @@ Common failures:
 | `sco-core-mcp: catalogue refused: FileNotFoundError`, exit code 1, and the client shows the server as failed or disconnected | `server.py` started, but the `--catalogue` file does not exist: for example a checkout's `dist/sdk-catalogue.json` path in a kit, or the extract folder in place of `sco-sdk-2.4.0`. Run the same existence check. |
 | The server connects, but `get_example` returns `Example unavailable: requires a contained regular UTF-8 file without symlinks`; `list_engine_natives` or `generate_plugin_scaffold` return `unavailable` with a `reason` such as `sdk/native_index.json unavailable beneath --repo-root`; `list_services` shows `stability_context.game_state` `unavailable` | `--repo-root` is not the SDK folder: it is one level too high, another folder, or left out (left out, `get_example` instead returns paths only with `paths_only: true`). The server starts anyway. The messages use checkout paths (`sdk/...`); a kit has no `sdk/` folder, and those files sit at its root (`native_index.json`, `tools/sco-new-plugin.py`), so nothing is missing from the kit. Set `--repo-root` to the SDK folder and restart; step 5 above checks it. |
 | A usage block that ends with `server.py: error: unrecognized arguments: ...`, `server.py: error: --catalogue or SCO_CORE_CATALOGUE is required` or `server.py: error: argument --repo-root: expected one argument`, exit code 2 | An argument is malformed: a flag and its value were joined in one `args` element (`"--catalogue C:/..."`), `--catalogue` is missing, or a flag has no value. Make every flag and every value its own element, in the order under [Register the server in your client](#register-the-server-in-your-client). |
-| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is the older published RC1 server. Current source defaults to fourteen; grant the fourteen exact names for that profile. RC1 needs `--extended-tools` for its twelve supported names and has no workflow tools. |
+| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is an older published kit. Current source defaults to fifteen; published RC2 has fourteen and RC1 needs `--extended-tools` for its twelve supported names and has no workflow tools. |
 | The server does not start on Windows, or the Microsoft Store opens | `python3` is not a standard Windows command. Use `py` with `-3`, or an absolute `python.exe` (`py -3 -c "import sys; print(sys.executable)"` prints its path). |
 | The client disconnects while initializing | The client does not support protocol `2025-11-25`. Update the client. |
 | `check_compatibility` says a `tag` does not match the advertised pattern | The current historical-record lookup accepts `sdk-vMAJOR.MINOR.PATCH` only, so RC1 and RC2 suffixes are refused. Compare `sdk_version`, `game_pack_version` and `source_sha`, and verify the archive digest separately; these checks do not prove publication. |
@@ -739,7 +743,7 @@ first and `C:/` paths.
 ```
 
 For the comprehensive default in your own checkout, remove `"--minimal-tools"`
-from `args` and list all fourteen names in `tools`. Build the workflow index beside
+from `args` and list all fifteen names in `tools`. Build the workflow index beside
 the catalogue with `python3 tools/sdk_workflows.py --root . --out dist/sdk-workflows.json`.
 A missing default index leaves the two workflow names listed but calls report
 `Workflow index unavailable`; an explicit missing index, or any malformed/hash-
@@ -769,7 +773,7 @@ context. Check that context rather than guessing a runner path or promising the
 cloud agent's setup also prepares code review.
 
 GitHub code review excludes tools whose `tools/list` response omits
-`annotations.readOnlyHint` or sets it to false. All fourteen discovery tools return:
+`annotations.readOnlyHint` or sets it to false. All fifteen current-source discovery tools return:
 
 ```json
 {

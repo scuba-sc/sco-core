@@ -134,10 +134,23 @@ def archive_contents(data, top, expected):
 
 
 def validate_catalogue(source, sha, catalogue, package):
-    require(set(catalogue) == {'schema_version', 'source_sha', 'sdk_version', 'game_pack_version',
-                               'records', 'tables', 'contract_context'}, 'catalogue fields mismatch')
-    require(catalogue.get('schema_version') == 1 and catalogue.get('source_sha') == sha,
+    schema = catalogue.get('schema_version')
+    fields = {'schema_version', 'source_sha', 'sdk_version', 'game_pack_version',
+              'records', 'tables', 'contract_context'}
+    if schema == 2:
+        fields.add('status_registry_sha256')
+    require(set(catalogue) == fields, 'catalogue fields mismatch')
+    require(schema in (1, 2) and catalogue.get('source_sha') == sha,
             'catalogue source/schema mismatch')
+    if schema == 2:
+        registry_path = source / 'sdk/status_registry.json'
+        require(not (source / 'sdk').is_symlink() and not registry_path.is_symlink()
+                and registry_path.is_file(), 'catalogue status-registry source is unavailable or unsafe')
+        with registry_path.open('rb') as registry_file:
+            registry = registry_file.read((1 << 20) + 1)
+        require(len(registry) <= (1 << 20), 'catalogue status-registry source exceeds 1 MiB')
+        require(catalogue.get('status_registry_sha256') == digest(registry),
+                'catalogue status-registry digest mismatch')
     require(catalogue.get('sdk_version') == package.sdk_version()
             and catalogue.get('game_pack_version') == package.game_pack()[0], 'catalogue version mismatch')
     records = []
@@ -160,7 +173,7 @@ def validate_catalogue(source, sha, catalogue, package):
     for name, table in catalogue['tables'].items():
         require(set(table) == {'context', 'members', 'service', 'size', 'source_header', 'version', 'version_macro'},
                 'catalogue table fields mismatch')
-        members = [r['symbol'].split('.')[-1] for r in sorted(
+        members = [r['symbol'].split('.', 1)[1] for r in sorted(
             (r for r in methods if r['table'] == name), key=lambda r: r['member_extent'])]
         require(table['members'] == members, 'catalogue table member inventory mismatch')
         header = (source / safe_path(table['source_header'])).read_text(encoding='utf-8')
@@ -182,7 +195,7 @@ def validate_catalogue(source, sha, catalogue, package):
             require(all(table[key] == record[field] for key, field in (
                 ('size', 'table_size'), ('source_header', 'source_header'), ('service', 'service'),
                 ('version_macro', 'version_macro'))), 'catalogue table metadata differs from contracts')
-            require(record['symbol'].split('.')[-1] in table['members'], 'catalogue table member missing')
+            require(record['symbol'].split('.', 1)[1] in table['members'], 'catalogue table member missing')
     for ref in re.findall(r'https://github\.com/scuba-sc/sco-core/(?:blob|tree)/([^/\s)]+)',
                           json.dumps(catalogue)):
         require(ref == sha, 'floating or unrelated source link')
@@ -205,7 +218,8 @@ def plan(root, sha, catalogue_path, archives, channel):
         records = validate_catalogue(source, sha, catalogue, package)
         package_inputs = {'sdk/package.py', 'sdk/components.json', 'sdk/VERSION', 'include/sco_api.h',
                           'include/sc_game_pack.h', 'docs/legal/provenance.json'}
-        inputs = package_inputs | {'tools/sdk_catalogue.py', 'tools/abi_snapshot.py', 'docs/contracts.md'}
+        inputs = package_inputs | {'tools/sdk_catalogue.py', 'tools/abi_snapshot.py',
+                                   'docs/contracts.md', 'sdk/status_registry.json'}
         inputs |= {p.relative_to(source).as_posix() for p in (source / 'sdk/contracts').glob('*.json')}
         for record in records:
             inputs.add(record['source_header'])

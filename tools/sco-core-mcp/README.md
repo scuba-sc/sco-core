@@ -1,6 +1,6 @@
 # sco-core SDK discovery MCP server
 
-[Consumer workflow discovery](../../docs/agent-workflows.md) is included in the default fourteen-tool profile. Start with `sco-plan-sdk-work` to tie the task to the roadmap and public SDK. It reads `sdk-workflows.json` beside the catalogue or an operator-selected `--workflows` file, requires matching SDK/source coordinates, and serves only embedded indexed text.
+[Consumer workflow discovery](../../docs/agent-workflows.md) is included in the current-source fifteen-tool profile. Start with `sco-plan-sdk-work` to tie the task to the roadmap and public SDK. It reads `sdk-workflows.json` beside the catalogue or an operator-selected `--workflows` file, requires matching SDK/source coordinates, and serves only embedded indexed text.
 
 Development-only, read-only discovery of the public sco-core SDK contracts through
 MCP over stdio. The server uses only the standard library of Python 3.9 or newer
@@ -12,7 +12,7 @@ projects are offered automatically when the operator configures project roots.
 
 [Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
 implements the fixed runtime tool surface. This discovery executable remains
-credentials-free, with fourteen read-only discovery tools by default. Explicit
+credentials-free, with fifteen read-only discovery tools in current source. Explicit
 `--minimal-tools` retains the original six catalogue tools. The default developer
 profile includes [extended discovery](#extended-tools-default) and workflow retrieval.
 The separate launcher supersedes the historical same-server placement in the
@@ -31,7 +31,7 @@ It downloads and verifies the kit, defines the SDK folder (the folder that direc
 `sdk-catalogue.json`), gives each client's configuration and says how to verify the
 connection. This README does not repeat those configurations. Two profiles are used
 in current-source examples: **SDK developer profile (recommended default)** with
-fourteen read-only tools, and **minimal profile** with explicit `--minimal-tools`
+fifteen read-only tools, and **minimal profile** with explicit `--minimal-tools`
 and six catalogue tools. The legacy `--extended-tools` and `--workflow-tools` flags
 remain accepted aliases and are no longer needed; they cannot be combined with
 `--minimal-tools`.
@@ -47,14 +47,13 @@ optional and default-off; static discovery never certifies gameplay or performs 
 
 ## Using an extracted SDK archive
 
-RC2 has a tagged source and CI-built candidate; as of 2026-10-28 it has no
-published release. See [RC2 status](../../docs/releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
+RC2 was published on 2026-10-28; its source, archive and release checksums are recorded in the
+[release notes](../../docs/releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication).
 Use matching source, archive, catalogue and workflow identities for any supplied kit.
 
-The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) is the intended location for published RC2
-assets. A tag or candidate artifact does not establish publication; if assets are unavailable,
-use a separately supplied, checksum-identified kit. The combined kit (`sco-sdk-2.4.0.zip`),
-matching `game-sc` overlay and `host-source-sc` kit include the discovery launcher,
+The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) holds the published RC2
+assets. The combined kit (`sco-sdk-2.4.0.zip`), matching `game-sc` overlay and
+`host-source-sc` kit include the discovery launcher,
 compiler-built `sdk-catalogue.json` and matching `sdk-guides.json`. Historical RC1
 has its own earlier launcher and frozen guides; see the known issue in the
 [integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
@@ -68,10 +67,12 @@ extraction directory or an uncomposed overlay. The
 `host-source-sc` archive retains repository layout. Core and core-source profiles
 remain game-neutral and contain neither this game catalogue nor its launcher.
 
-The published RC1 launcher retains its original six-tool default and twelve with
-`--extended-tools`; it has no workflow tools/index. The fourteen-tool default
-described here applies to updated source and independently pinned candidate kits
-built from it, not to unchanged RC1 bytes. Append `--extended-tools` to a developer
+The published RC2 launcher has its fourteen-tool default and matching workflow index.
+It does not include `get_service_status` or the schema-2 catalogue described for current
+source. The older published RC1 launcher retains its original six-tool default and twelve
+with `--extended-tools`; it has no workflow tools/index. The fifteen-tool default
+described here applies to updated source and kits built from it, not to RC2 bytes.
+Append `--extended-tools` to a developer
 launcher for RC1 compatibility and expect twelve. For an updated-source kit, this
 command uses the default developer profile (append `--minimal-tools` for six):
 
@@ -212,8 +213,8 @@ server before relying on the new snapshot. The server does not regenerate it.
 ## Tools and explicit allowlist
 
 These are the original six catalogue tools, retained alone by explicit
-`--minimal-tools`. The default developer profile also includes the six
-[extended tools](#extended-tools-default) and two workflow tools below, fourteen
+`--minimal-tools`. The default developer profile also includes the seven
+[extended tools](#extended-tools-default) and two workflow tools below, fifteen
 read-only tools in total. Three [development tools](#development-tools-opt-in)
 are additionally offered when the operator configures project roots. List the
 exact names of your profile explicitly, not with a wildcard.
@@ -288,7 +289,7 @@ schema-2 record also reports `built_source_sha`, `distribution_status`,
 - Historical records may be absent from the configured checkout even when they
   exist at a release tag.
 
-Every discovery tool (all fourteen in the default profile) advertises
+Every current-source discovery tool (all fifteen in the default profile) advertises
 these MCP annotations; the development tools advertise
 [different ones](#development-tools-opt-in):
 
@@ -308,16 +309,17 @@ methods mentioned in the returned contracts read-only or safe to invoke.
 
 <a id="extended-tools-opt-in"></a>
 
-These six developer tools and the two workflow tools are included by default.
-`--minimal-tools` omits all eight and offers exactly the original six catalogue
+These seven extended tools and the two workflow tools are included by default.
+`--minimal-tools` omits all nine and offers exactly the original six catalogue
 tools when no project roots are configured. The legacy `--extended-tools` and
 `--workflow-tools` flags remain compatibility aliases, not prerequisites. Add
-the default fourteen names to client allowlists explicitly.
+the default fifteen names to client allowlists explicitly.
 [The integration guide](../../docs/agent-integration.md#choose-a-profile) explains
 which reviewed generator code the developer tools can run:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
+| `get_service_status` | `service` | List catalogue tables for a service and its static capability/evidence rows, including rows without method mappings. Schema-2 catalogues bind the registry by SHA-256; schema-1 data is marked unbound. This is not a running-host probe. |
 | `list_engine_natives` | optional: `subsystem`, `tier`, `query`, `limit`, `cursor` | Page through `sdk/native_index.json`, filtered by `subsystem`, `tier` (1-4) or a case-insensitive `query` substring of id, hash, subsystem, source or capability. |
 | `get_engine_native` | `id_or_hash` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
 | `validate_manifest_and_widgets` | `plugin_ini`; optional: `folder`, `widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
@@ -530,8 +532,8 @@ The operator configures at least one `--project-root DIR`; the server then
 automatically offers the tools. Without project roots they are absent and calls
 to their names are refused as unknown. `--enable-dev-tools` remains a compatibility
 flag and still requires a project root. Add each name to the client allowlist
-explicitly; three execution tools plus the default fourteen discovery tools means
-seventeen offered tools:
+explicitly; three execution tools plus the default fifteen discovery tools means
+eighteen offered tools:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
@@ -672,7 +674,7 @@ Rules that hold for every client:
 - On Windows use `py` with `-3` as the first argument, or an absolute `python.exe`. A
   standard Windows Python install has `py` but not `python3`, and a `python3` alias can
   be the Microsoft Store stub.
-- The default client allowlist names all fourteen discovery tools; explicit
+- The current-source default client allowlist names all fifteen discovery tools; explicit
   `--minimal-tools` uses only the original six. Configured project roots additionally
   offer three execution tools, which need their own exact client permissions. Never
   use a wildcard.
@@ -748,7 +750,7 @@ Prepare the runner before enabling this configuration:
 
 GitHub warns that configured MCP tools may be used autonomously without asking
 for approval, and recommends specific read-only tool allowlists. Copilot code
-review requires `annotations.readOnlyHint: true` on tools it uses. All fourteen
+review requires `annotations.readOnlyHint: true` on tools it uses. All fifteen current-source
 default discovery tools, including the six in this minimal allowlist, set that
 annotation, but annotations and an allowlist are not a sandbox for the
 client itself. Do not add a wildcard or assume this restricts the client's other
@@ -763,7 +765,7 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | `catalogue refused: FileNotFoundError`, exit code 1 | `server.py` started, but the `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
 | Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
-| Developer/workflow tool is unknown | Remove `--minimal-tools` and grant the fourteen exact default names in the client. The older published RC1 launcher needs `--extended-tools` for twelve tools and has no workflow tools. |
+| Developer/workflow tool is unknown | Remove `--minimal-tools` and grant the fifteen exact current-source names in the client. Published RC2 has fourteen; RC1 needs `--extended-tools` for twelve tools and has no workflow tools. |
 | Development tool is unknown or refused | Configure an operator `--project-root`; current source offers execution tools automatically. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
 | Scaffold/native metadata unavailable | `--repo-root` must be the SDK folder, not its parent folder: the server starts either way. Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
 | Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |
@@ -874,13 +876,13 @@ behavioral guarantees, or changes the runtime's capability gates.
 ## Evidence state
 
 `get_symbol` and `get_capability_status` return an `evidence_state` object for the
-selected record. The server computes it from the schema 1 catalogue and, for
+selected record. The server computes it from catalogue schema 1 or 2 and, for
 game-pack records, from `sdk/status_registry.json` under `--repo-root`
-(`status_registry.json` at the root of a kit), or from `docs/game/status.md` when there
-is no registry. The catalogue
-is unchanged and still `schema_version` 1, so its consumers (including the docs
-site generator) are unaffected. Each state is reported only where a
-machine-readable or strictly parsed source exists; otherwise it is `unknown`.
+(`status_registry.json` at the root of a kit). Schema 2 binds the raw registry bytes
+to `status_registry_sha256`; a mismatch or missing registry makes the state unavailable.
+Schema 1 can read the registry or its legacy `docs/game/status.md` fallback, but marks
+that status unbound. The docs site generator accepts both catalogue schemas. Each state is
+reported only where a machine-readable or strictly parsed source exists; otherwise it is `unknown`.
 
 | Field | Values | Source |
 |---|---|---|
@@ -897,11 +899,13 @@ Game-pack records also carry `service_status`. It is **service-scoped**. When
 `sdk/status_registry.json` (`status_registry.json` in a kit) exists, its rows are the
 capabilities of the `service`
 entry whose `service` and header file name both match the record's catalogue
-table. Otherwise they are the rows of the
+table. For schema 1 only, a missing registry falls back to the rows of the
 `| Table | Version | Stability | Capability | Default | Evidence |` table in
 `docs/game/status.md` (or the five-column table without Stability that older
 archives carry) whose backticked service and linked header both match.
-`service_status.source` names the file used. Each row keeps `capability`, `default` (`ON`, `OFF` or
+`service_status.source` names the file used, and `service_status.source_binding` reports
+`matched`, `unbound`, `mismatch` or `unavailable` with the catalogue and observed registry
+digests where available. Each row keeps `capability`, `default` (`ON`, `OFF` or
 `none`) and `evidence` verbatim, plus an `evidence_level`:
 `row_resolved_sigcheck` (with `game_build`), `off_pending_in_game_confirmation`,
 `blocked`, or `unclassified` for any other text, including in-game claims.
@@ -939,8 +943,9 @@ generated from it.
   the registry or table is malformed. Any row with the wrong cell count, an unknown default
   or a missing separator refuses the whole table rather than half-reading it.
 
-The registry or status document is read from the configured root when the server starts. It
-is not bound to the catalogue's `source_sha`. Its sigcheck rows are dated to the
+The registry or legacy status document is read from the configured root when the server starts.
+A schema-2 catalogue binds the exact registry bytes; schema-1 catalogues report `unbound`.
+Its sigcheck rows are dated to the
 build named in each row, and none of it is evidence that an operation worked in
 a game session.
 
@@ -965,6 +970,7 @@ was read. Values:
   or it has no entry for the table.
 
 A game-pack label comes from the same source as `service_status` and is read at
-server start, not bound to the catalogue's `source_sha`. Stability is not
+server start; `stability_context.source_binding` reports whether a schema-2 catalogue
+matches the status registry. Stability is not
 availability or evidence: a `stable` table's capability can be OFF or answer
 `SCO_UNAVAILABLE`, and no label says anything was run in game.

@@ -411,7 +411,8 @@ class RealManifest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         replies = {reply["id"]: reply for reply in map(json.loads, result.stdout.splitlines())}
         tools = replies[2]["result"]["tools"]
-        self.assertEqual(len(tools), 14)
+        self.assertEqual(len(tools), 15)
+        self.assertIn("get_service_status", [tool["name"] for tool in tools])
         self.assertEqual([tool["name"] for tool in tools][-2:], ["list_workflows", "get_workflow"])
         self.assertTrue(all(tool["annotations"]["readOnlyHint"] for tool in tools))
         for index in range(3, 13):

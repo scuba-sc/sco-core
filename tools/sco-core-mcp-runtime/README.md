@@ -1,8 +1,8 @@
 # Local runtime MCP (development-only)
 
 Separate from credentials-free [`../sco-core-mcp/server.py`](../sco-core-mcp/README.md).
-Current-source discovery offers fourteen read-only tools by default: six catalogue,
-six extended discovery and two consumer-workflow tools. Explicit `--minimal-tools`
+Current-source discovery offers fifteen read-only tools by default: six catalogue,
+seven extended discovery and two consumer-workflow tools. Explicit `--minimal-tools`
 retains the original six catalogue tools; `--extended-tools` and `--workflow-tools`
 are compatibility aliases. The unchanged published RC1 launcher still defaults to
 six tools (twelve with `--extended-tools`) and has no workflow index. Use the

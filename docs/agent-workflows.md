@@ -1,6 +1,6 @@
 # Consumer workflows for agents
 
-Current source contains six focused skills for developers building extensions, targeting the **SDK 2.4.0** baseline. Check the selected kit’s workflow manifest and index for the actual bundle version and source identity; source changes do not modify the already published RC1 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
+Current source contains six focused skills for developers building extensions, targeting the **SDK 2.4.0** baseline. Check the selected kit’s workflow manifest and index for the actual bundle version and source identity; source changes do not modify the already published RC1/RC2 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
 
 | Task | Entrypoint |
 | --- | --- |
@@ -27,7 +27,7 @@ that client's own instructions and requires access to the complete bundle.
 
 `core` and `legacy` kits place the bundle under `skills/`; source kits preserve `sdk/skills/`. Each base kit also has `sdk-workflows.json`. The `game-sc` overlay uses its exact matching core kit's workflow bundle and overwrites none of it. The index embeds entrypoint/reference text, descriptions, bundle/baseline/SDK/source coordinates and SHA-256 hashes of the **actual packaged Markdown after link rewriting**. SHA256SUMS, ATTRIBUTIONS and the SPDX SBOM also cover these files. Hashes identify bytes; human review/release approval remains separate.
 
-The [discovery server](../tools/sco-core-mcp/README.md) exposes all fourteen read-only discovery tools by default, including `list_workflows` and `get_workflow`. The following launcher requires a combined `legacy` plugin kit or the `game-sc` overlay composed over its exact matching `core` kit, with both `tools/sco-core-mcp/server.py` and `sdk-catalogue.json` present under `$SDK`. A standalone `core` or `core-source` kit lacks those files; use the direct-file path above. A `host-source-sc` kit includes the server and catalogue but is a host-source input, not a plugin kit:
+The [discovery server](../tools/sco-core-mcp/README.md) exposes all fifteen read-only discovery tools by default, including `get_service_status`, `list_workflows` and `get_workflow`. The following launcher requires a combined `legacy` plugin kit or the `game-sc` overlay composed over its exact matching `core` kit, with both `tools/sco-core-mcp/server.py` and `sdk-catalogue.json` present under `$SDK`. A standalone `core` or `core-source` kit lacks those files; use the direct-file path above. A `host-source-sc` kit includes the server and catalogue but is a host-source input, not a plugin kit:
 
 ```sh
 python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK"
@@ -44,6 +44,71 @@ python3 tools/sdk_workflows.py --root . --out /path/beside/catalogue/sdk-workflo
 ```
 
 The builder takes inputs only from the explicit `sdk/skills/manifest.json` allowlist, validates frontmatter/version/links and rejects symlink inputs. Run without `--out` to validate. `sdk/package.py` generates the index from the selected transformed payload. Do not use dirty-source output as evidence that published bytes match a commit.
+
+## Cross-repository capability integration inventory
+
+This campaign separates the published baseline from current source. Published RC2 is
+SDK 2.4.0 source `844e136ccb280ad8cb43f73bc43c9447e8f6799d`; sco-core `main` at the
+campaign start is `0c977d3229012ab7bdf70e17da24dd2189fc4f40`, after the #289 receive-buffer
+change. Current engine, offline and multiplayer pins still consume RC2. A current-source
+catalogue, mock, signature match or synthetic test does not change those archive bytes or
+prove a native provider ran in game.
+
+Use these labels when checking each feature: **mapped** means a public header/contract
+names the operation; **synthetic** means a fake provider or stand-in test covers selected
+rules; **native** means source includes a game backend; **sigcheck** means rows were
+reported resolved on the named executable; **tested** names the test suite that ran. These
+states are separate. A mock is not a game provider, and a sigcheck is not gameplay proof.
+
+The offline owner reports an 11-plugin release roster: Creative and Discord are
+disabled; Mining is staged with `enabled=false`; `gear_presets` and `loadout` are
+development-only; TitanLink and `voxel_bridge` are excluded optional bridges.
+The owner also reports five GCC14 plugin build blockers fixed without warning
+suppression and all 12 synthetic tests passing. Treat these as product
+packaging/default and local test facts. They do not prove the matching core
+provider is absent or available, and sc-mp remains a separate consumer.
+
+| Consumer need | Existing sco-core contract and evidence | Integration gap and owner action |
+|---|---|---|
+| scuba-engine studio and plugin profiles | The frozen plugin root is `sco_api` 1.1 (128 bytes). Game calls use their own versioned `sc_*` tables. Engine #35/#36 added selected profile loading and bounded plugin snapshots; a later owner-reported local engine patch `30067f4` adds the four-plugin app-suite profile and stable `widgets` 1.2 tags through owned node snapshots. Its owner reports 75/76 full-suite tests passing, with the known RC2 eight-peer failure remaining. These local changes are not part of the pinned RC2 source or evidence of native gameplay. | Keep a mock per service separate from native status. Map each enabled profile to exact service versions and full member extents, and add engine-owned mock tables as new public contracts are adopted. Promote one common published kit and matching host pin together; the current engine pin remains RC2. |
+| sc-offline build, world and entity writes | The named contracts exist: `game.entities` 1.2 includes spawn/despawn and transform methods; `spawn.entities` 1.2 provides product spawn helpers; `game.world.control` 1.1 includes filtered ray queries. In current core status, lookup rows and filtered-ray support are synthetic/OFF, while entity transform/spawn rows have static sigcheck records. Existing core issues [#223](https://github.com/scuba-sc/sco-core/issues/223), [#224](https://github.com/scuba-sc/sco-core/issues/224) and [#225](https://github.com/scuba-sc/sco-core/issues/225) cover adjacent entity, ray and coordinate surfaces. | Map each Build action to a callable method, capability, fallback and test. The main gaps are provider readiness and target evidence; do not treat methodless sigcheck rows or the synthetic ray provider as live support. Extend or close existing core issues from current product evidence instead of opening duplicate contracts. |
+| sc-offline crew, spawn, NPC, seat and flight-ready behavior | The named contracts exist: `game.actors` 1.1, `game.entities` 1.2, `spawn.entities` 1.2 and `game.vehicles` 1.0 contain actor/entity spawn and seat/flight-ready methods. Selected actor/entity/vehicle rows have static sigcheck records; they do not prove each operation worked in game. | Map each Crew/Spawn action to its exact method/provider and an owner test. The main gaps are provider readiness and operation-level evidence. Retain owner-scoped cleanup and session-valid IDs. The existing vehicle contract already names seat/eject/power-on; do not propose a duplicate contract from feature wording alone. |
+| sc-offline contracts, mining and creative modules | `game.missions` 1.0 has offer/accept/status/advance/abandon/ingest contracts and a callback/provider seam with synthetic tests; no production Windows provider is installed, and the registry remains OFF. The provider must satisfy admission and the operation-specific callbacks before calls can be ready. `game.mining` 1.0 exists but is OFF; its native adapter is unverified on Windows/game. `game.creative` 1.0 has mapped operations and static signature rows; the offline owner reports its product module disabled. | Keep provider readiness and product enablement distinct. Missions needs a grounded production adapter and readiness evidence; mining needs native verification and target evidence; creative needs an explicit product-policy decision. Do not read the core's static rows as offline plugin policy. |
+| sc-offline teleport, quantum, inspector and gear presets | The named tables exist: `game.relocation` 1.1, `teleport.spatial` 1.0, `game.spatial` 1.0 and `game.quantum` 1.0. Position-only relocation is OFF/synthetic; quantum control has a conditional backend and synthetic tests. Inspector reads map across actor, entity, actor-stat, GameRules and inventory contracts. `game.inventory.layout` 1.2 (`snapshot_layout`) exists but is OFF/synthetic and has no production native producer. | Resolve each inspector field and travel action to a versioned method, ready provider and owner test. These are mainly provider/readiness gaps rather than absent contract names. Gear presets require the missing production inventory-layout producer; do not use inventory item-category vocabulary as a substitute. Quantum's conditional backend and synthetic tests are not independent game acceptance. |
+| sc-mp multiplayer and hosting | `sco.net` 1.0 supplies peer/channel transport; `game.private_session` 1.0 requests Host/Join/Leave; `game.spatial` supplies copied zone observations with expiring epochs; entity/actor contracts can build product-owned objects. Current contracts do not provide durable world identity or authoritative shared simulation. The current sc-mp lane reports two-client loopback lifecycle tests passing 7/7; its backend remains co-presence/forwarding. | Keep listen host, relay-only transport and authoritative-world hosting as separate modes. Reuse the existing transport/session APIs, then get owner agreement on the minimum context/authority boundary before assigning a contract or ABI. |
+
+For multiplayer review, the minimum context requirement is a read-only, copied, size-prefixed
+v1 snapshot that distinguishes local, listen-host and client roles; carries an opaque session
+context ID, monotonic epoch, provider-owned world/instance ID and authority peer only while
+valid; and invalidates on leave, admission loss, provider stop, or world/authority replacement.
+Relay is a transport role, not a world mode. Do not derive IDs from zone handles or endpoints.
+The existing `game.private_session` response means a request was accepted, not connected; its
+state has no session/world identity. `sco.net` peer IDs are scoped to one transport session,
+and `game.spatial` zone IDs/epochs are volatile observations.
+
+A separate authority-provider boundary is a proposal for owner review, not an approved API:
+accept only bounded typed intents tied to the current session, epoch, world, entity owner,
+schema and tick; validate on the owning game thread; let the authority provider assign
+ownership and publish accepted state; and cancel queued work on provider unload. Missing
+provider/admission, stale identities, wrong role/direction, malformed or oversized messages,
+unknown schemas and unowned entities must fail closed. Agree on the service owner, lifecycle,
+version and test evidence before a header is designed; no authority ABI is implemented here.
+
+### Integration order
+
+1. Use current-source `get_service_status` to reconcile a service's static rows with its
+   exact schema-2 catalogue digest. It discovers methodless rows; it does not establish a
+   configured provider or host runtime state.
+2. For each product feature, record the selected published kit and host pin, service/table
+   version, member extent, capability/default, provider kind (mock, synthetic, native),
+   owner tests, fallback and target evidence still owed. Keep product defaults separate from
+   SDK registry defaults.
+3. Only after that inventory shows a shared contract is absent should core consider a new
+   size-prefixed surface. Preserve the frozen C ABI, opaque/session-scoped IDs and explicit
+   owner cleanup. Product owners add their mocks/adapters and tests against the same contract.
+4. Move every cooperating repo to one latest **published** kit after a maintainer release
+   decision. Until then, new source changes remain proposals and consumers keep their verified
+   RC2 pins. In-game validation remains a separate deferred gate.
 
 ## RC2 consumer reconciliation
 
@@ -97,7 +162,7 @@ For an RC2 consumer evaluation:
 2. Select the published RC2 archive and verify its release `SHA256SUMS` and
    inventory before extracting it into an empty directory. Compose `game-sc` only over its exact matching core
    archive; keep host-source kits separate. Read the six skills directly or use
-   the matching catalogue/workflow index. Confirm fourteen discovery tools by
+   the matching catalogue/workflow index. Confirm the published RC2 kit's fourteen discovery tools by
    default and six with `--minimal-tools`; runtime tools require their independent
    admission path.
 3. Carry the task through the matching build/debug/package/upgrade workflow. Keep

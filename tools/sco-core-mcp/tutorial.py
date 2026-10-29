@@ -16,7 +16,10 @@ import sys
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 ALLOWLIST = ('search_api', 'get_symbol', 'list_services', 'get_example',
-             'get_capability_status', 'check_compatibility')
+             'get_capability_status', 'check_compatibility', 'get_service_status',
+             'list_engine_natives', 'get_engine_native', 'validate_manifest_and_widgets',
+             'generate_plugin_scaffold', 'search_guides', 'get_guide_section',
+             'list_workflows', 'get_workflow')
 
 
 def require(condition, reason):
@@ -95,6 +98,7 @@ def main():
     def call(name, arguments):
         return request('tools/call', {'name': name, 'arguments': arguments})
     call('list_services', {})
+    service_status = call('get_service_status', {'service': 'game.missions'})
     search = call('search_api', {'query': 'spawn_npc', 'service': 'game.actors', 'language': 'cpp'})
     symbols = ['sc_actors_v1.spawn_npc', 'sc_actors_v1.despawn',
                'sc_actors_v1.health', 'sc_entities_v1.get_transform', 'sc_spatial_v1.player_pose']
@@ -107,7 +111,8 @@ def main():
                                                  'game_pack_version': args.game_pack_version})
     # No runtime flag or adapter. Runtime and mutating names must stay unavailable.
     refused = [call(name, {}) for name in ('runtime_get_host_info', 'invoke_command', 'sco.reload')]
-    completed = subprocess.run([sys.executable, str(HERE / 'server.py'), '--catalogue', str(args.catalogue)],
+    completed = subprocess.run([sys.executable, str(HERE / 'server.py'), '--catalogue', str(args.catalogue),
+                                '--repo-root', str(ROOT)],
                                input=''.join(json.dumps(m) + '\n' for m in messages),
                                text=True, capture_output=True, timeout=30, check=True)
     responses = [json.loads(line) for line in completed.stdout.splitlines()]
@@ -125,6 +130,9 @@ def main():
                 require(response['result']['structuredContent']['provenance']['source_sha'] == args.source_sha,
                         'Stale catalogue source SHA')
     require(indexed[search]['result']['structuredContent']['total_matches'] > 0, 'Empty service search')
+    status = indexed[service_status]['result']['structuredContent']['service_status']
+    require(status['source_binding']['state'] == 'matched', 'Static service status is not bound to this catalogue')
+    require(status['state'] == 'rows_found', 'Service status rows are unavailable')
     for symbol, identifier in discovered:
         data = indexed[identifier]['result']['structuredContent']
         record = data['record']
