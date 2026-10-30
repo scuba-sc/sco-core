@@ -90,6 +90,27 @@ class Inputs(unittest.TestCase):
                 workflows.generate(self.root)
             self.assertEqual(path.read_text(), text)
 
+    def test_generate_preserves_crlf_outside_contract(self):
+        path = self.root / workflows.BLOCK_PATH
+        original = path.read_bytes().replace(b'\n', b'\r\n')
+        path.write_bytes(original)
+        workflows.generate(self.root)
+        self.assertEqual(path.read_bytes(), original)
+        workflows.build(self.root, SHA)
+
+    def test_generate_refuses_symlink_without_writing_target(self):
+        path = self.root / workflows.BLOCK_PATH
+        target = self.root / 'outside.md'
+        original = path.read_bytes().replace(b'| `get_symbol` |', b'| `stale_symbol` |')
+        target.write_bytes(original)
+        path.unlink()
+        path.symlink_to(target)
+        manifest = (self.root / workflows.MANIFEST).read_bytes()
+        with self.assertRaisesRegex(ValueError, 'Symlink'):
+            workflows.generate(self.root)
+        self.assertEqual(target.read_bytes(), original)
+        self.assertEqual((self.root / workflows.MANIFEST).read_bytes(), manifest)
+
     def test_check_rejects_output_without_writing(self):
         output = self.root / 'untouched'
         output.write_bytes(b'original')

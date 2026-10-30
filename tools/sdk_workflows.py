@@ -165,15 +165,16 @@ def generate(root):
     manifest['mcp'] = {'protocol': server.PROTOCOL_VERSION, 'server_version': server.SERVER_VERSION,
                        'tools': {name: digest(encoded(schema)) for name, schema in tools.items()}}
     path = root / BLOCK_PATH
-    text = path.read_text()
-    block = contract_block(manifest, tools)
+    text = read_public(root, BLOCK_PATH).decode('utf-8')
+    newline = '\r\n' if '\r\n' in text else '\n'
+    block = contract_block(manifest, tools).replace('\n', newline)
     if BLOCK_START not in text and BLOCK_END not in text:
-        text = text.replace('## Receipt template', block + '\n\n## Receipt template')
+        text = text.replace('## Receipt template', block + newline + newline + '## Receipt template')
     else:
         start, end = block_extent(text)
         text = text[:start] + block + text[end:]
     (root / MANIFEST).write_bytes(encoded(manifest))
-    path.write_text(text)
+    path.write_bytes(text.encode('utf-8'))
 
 
 def build(root, source_sha, paths=None, entries=None):
