@@ -29,6 +29,7 @@ static sco::Image FakeImage() {
     memset(g_mem, 0xCC, sizeof(g_mem));
     sco::Image img;
     img.base = g_mem;
+    img.size = sizeof(g_mem);
     img.text = { g_mem + 0x100, 0x100 };
     img.rdata = { g_mem + 0x300, 0x100 };
     memset(img.rdata.base, 0, img.rdata.size);

@@ -33,7 +33,6 @@
 namespace sco::game {
 namespace {
 
-using rows::InText;
 
 constexpr const char* kNameSwitch =
     "83 FA 1C 0F 87 ?? ?? ?? ?? 48 63 C2 48 8D 15 ?? ?? ?? ?? 8B 8C 82 ?? ?? ?? ?? 48 03 CA FF E1";
@@ -46,8 +45,19 @@ constexpr const char* kGetStatBody = "48 63 C2 48 8B 94 C1 ?? ?? ?? ?? 48 85 D2 
 constexpr size_t kArrayDisp = 7;
 
 bool InImage(const Image& img, const uint8_t* p, size_t n) {
-    return img.base && img.size && p >= img.base && p <= img.base + img.size &&
-           static_cast<size_t>(img.base + img.size - p) >= n;
+    return rows::InImage(img, p, n);
+}
+bool Code(const Image& img, const uint8_t* p, size_t n) {
+    return InImage(img, img.text.base, img.text.size) && rows::InText(img, p, n);
+}
+const uint8_t* Offset(const Image& img, const uint8_t* p, size_t off, size_t n, bool text) {
+    if (off > static_cast<size_t>(PTRDIFF_MAX)) return nullptr;
+    if (text && !InImage(img, img.text.base, img.text.size)) return nullptr;
+    return text ? rows::TextAt(img, p, static_cast<ptrdiff_t>(off), n)
+                : rows::ImageAt(img, p, static_cast<ptrdiff_t>(off), n);
+}
+const uint8_t* Target(const Image& img, const uint8_t* insn) {
+    return Code(img, insn, 7) ? rows::CheckedRip(img, insn, 3, 7) : nullptr;
 }
 
 bool NameIs(const Image& img, const uint8_t* s, const char* want) {
@@ -56,20 +66,21 @@ bool NameIs(const Image& img, const uint8_t* s, const char* want) {
 }
 
 SigResult ResolveStatNames(const Image& img, const SigResolveContext&) {
+    if (!Code(img, img.text.base, img.text.size)) return SigFail("invalid .text range");
     SigResult r = SigPattern(img.text, kNameSwitch);
     if (r.state != SigState::Ok) return r;
     if (!img.base || !img.size) return SigFail("no image base to follow the name table from");
-    if (RipTarget(r.at + kBaseLea, 3, 7) != img.base) return SigFail("the name function's base lea isn't the image base");
+    if (Target(img, Offset(img, r.at, kBaseLea, 7, true)) != img.base) return SigFail("the name function's base lea isn't the image base");
     uint32_t tableRva = 0;
     memcpy(&tableRva, r.at + kTableDisp, sizeof(tableRva));
-    const uint8_t* table = img.base + tableRva;
+    const uint8_t* table = Offset(img, img.base, tableRva, 4u * actor_stats::kNameCount, false);
     if (!InImage(img, table, 4u * actor_stats::kNameCount)) return SigFail("the name table is outside the image");
     for (const actor_stats::Entry& e : actor_stats::kEntries) {
         uint32_t caseRva = 0;
         memcpy(&caseRva, table + 4u * static_cast<unsigned>(e.index), sizeof(caseRva));
-        const uint8_t* c = img.base + caseRva;
-        if (!InText(img, c, 8) || !BytesMatch(c, kNameCase)) return SigFail("a stat name case changed shape");
-        if (!NameIs(img, RipTarget(c, 3, 7), e.name)) return SigFail("a stat index no longer has its expected name");
+        const uint8_t* c = Offset(img, img.base, caseRva, 8, true);
+        if (!Code(img, c, 8) || !BytesMatch(c, kNameCase)) return SigFail("a stat name case changed shape");
+        if (!NameIs(img, Target(img, c), e.name)) return SigFail("a stat index no longer has its expected name");
     }
     return r;
 }
@@ -77,7 +88,7 @@ SigResult ResolveStatNames(const Image& img, const SigResolveContext&) {
 SigResult ResolveStatArray(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* fn = ctx.Sig("actor.get_stat");
     if (!fn) return SigFail("actor.get_stat missing");
-    if (!InText(img, fn, 21) || !BytesMatch(fn, kGetStatBody)) return SigFail("GetStat's body changed (record array read)");
+    if (!Code(img, fn, 21) || !BytesMatch(fn, kGetStatBody)) return SigFail("GetStat's body changed (record array read)");
     return SigOk(fn + kArrayDisp);
 }
 
@@ -86,18 +97,21 @@ constexpr const char* kAdjustPrologue =
     "4C 89 4C 24 20 55 41 54 41 56 48 8D AC 24 ?? ?? ?? ?? B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 2B E0 4C 63 E2 4C 8B F1";
 
 SigResult ResolveAdjustStat(const Image& img, const SigResolveContext&) {
+    if (!Code(img, img.text.base, img.text.size)) return SigFail("invalid .text range");
     SigResult r = SigPattern(img.text, kAdjustPrologue);
     if (r.state != SigState::Ok) return r;
+    if (!InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata range");
     const uint8_t* label = FindCString(img.rdata, kAdjustLabel);
     if (!label) return SigFail("the AdjustStatValue label isn't in .rdata");
-    if (!img.text.base || img.text.size < 8) return SigFail("no .text");
+    if (!Code(img, img.text.base, img.text.size) || img.text.size < 7) return SigFail("no .text");
     int leas = 0;
-    for (const uint8_t* p = img.text.base, *end = img.text.base + img.text.size - 7; p < end; ++p) {
+    for (size_t off = 0; off <= img.text.size - 7; ++off) {
+        const uint8_t* p = rows::TextAt(img, img.text.base, static_cast<ptrdiff_t>(off), 7);
         if ((p[0] != 0x48 && p[0] != 0x4C) || p[1] != 0x8D || (p[2] & 0xC7) != 0x05) continue;
-        if (p + 7 + Rel32(p + 3) != label) continue;
+        if (Target(img, p) != label) continue;
         if (FunctionStart(img, p) != r.at) return SigFail("an AdjustStatValue label lea is outside the matched function");
         ++leas;
-        p += 6;
+        off += 6;
     }
     if (!leas) return SigFail("the matched function doesn't load the AdjustStatValue label");
     return r;
@@ -110,10 +124,11 @@ static_assert(actor_stats::kStatusEntity == 0x1F8 && actor_stats::kEntityHasAuth
 static_assert(actor_stats::kRecordDef == 0x90 && actor_stats::kDefLocalChange == 0x2A, "kAuthorityGate pins these");
 
 SigResult ResolveStatAuthority(const Image& img, const SigResolveContext& ctx) {
+    if (!Code(img, img.text.base, img.text.size)) return SigFail("invalid .text range");
     SigResult r = SigPattern(img.text, kAuthorityGate);
     if (r.state != SigState::Ok) return r;
     const uint8_t* adjust = ctx.Sig("actor.adjust_stat");
-    if (!adjust) return SigFail("actor.adjust_stat missing");
+    if (!adjust || !Code(img, adjust, 1)) return SigFail("actor.adjust_stat missing or outside .text");
     if (FunctionStart(img, r.at) != adjust) return SigFail("the authority gate isn't inside AdjustStatValue");
     return r;
 }

@@ -115,7 +115,7 @@ void CopiesAndStates() {
     for (size_t i = 0; i < capCount; ++i) CHECK(std::string(before[i].name) == after[i].name && before[i].ready == after[i].ready && std::string(before[i].reason) == after[i].reason);
     std::thread wrong([&] { CHECK(!store.Begin(plugins, {}, {}, 1100)); CHECK(!store.Advance(1100)); store.Reset(); CHECK(store.Latest() == first); }); wrong.join();
     CHECK(!store.Begin(plugins, {}, {}, 1099)); // no more than one refresh/sec
-    uint8_t bytes[]{0x11, 0x22, 0x22, 0x00}; sco::Image image{}; image.text = {bytes, sizeof(bytes)};
+    uint8_t bytes[]{0x11, 0x22, 0x22, 0x00}; sco::Image image{}; image.base = bytes; image.size = sizeof(bytes); image.text = {bytes, sizeof(bytes)};
     CHECK(registry->Resolve(image) == sco::SigRegistryStatus::Ok);
     CHECK(sco::InstallHostSignatureRegistry(registry, nullptr));
     auto beforeCapture = registry->Snapshot();

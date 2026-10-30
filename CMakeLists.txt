@@ -882,6 +882,73 @@ if(SCO_BUILD_TESTS)
 
   endif()
 
+  if(SCO_GAME_SC)
+    # Isolated row fixtures inject Sig/SigPattern; linking sco_core would pull
+    # the real registry into those fixtures. Link the scanner alone instead.
+    add_library(sco_issue302_scan STATIC src/sco_scan.cpp)
+    target_include_directories(sco_issue302_scan PUBLIC "${SCO_INCLUDE_DIR}")
+    sco_project_target(sco_issue302_scan)
+    function(sco_issue302_test target source)
+      add_executable(${target} tests/${source} tests/issue302_signature_support.cpp ${ARGN})
+      target_link_libraries(${target} PRIVATE sco_issue302_scan)
+      sco_project_target(${target})
+      # These fixtures use assert for checks, including in Release builds.
+      if(MSVC)
+        target_compile_options(${target} PRIVATE /UNDEBUG)
+      else()
+        target_compile_options(${target} PRIVATE -UNDEBUG)
+      endif()
+      add_test(NAME ${target} COMMAND ${target})
+      set_tests_properties(${target} PROPERTIES LABELS "issue302" TIMEOUT 30)
+    endfunction()
+    sco_issue302_test(issue302_asop_bounds issue302_asop_bounds.cpp)
+    foreach(mode jump gate inventory)
+      add_test(NAME issue302_asop_${mode} COMMAND issue302_asop_bounds ${mode})
+      set_tests_properties(issue302_asop_${mode} PROPERTIES LABELS "issue302" TIMEOUT 30)
+    endforeach()
+    sco_issue302_test(issue302_gamerules_bounds issue302_gamerules_bounds.cpp src/game/gamerules_sigs.cpp)
+    sco_issue302_test(issue302_pak_bounds issue302_pak_bounds.cpp src/game/pak_sigs.cpp)
+    sco_issue302_test(issue302_row_bounds issue302_row_bounds.cpp src/game/mining_sigs.cpp)
+    sco_issue302_test(issue302_actors_bounds test_actors_bounds_302.cpp)
+    add_test(NAME issue302_actors_final COMMAND issue302_actors_bounds final)
+    sco_issue302_test(issue302_contracts_bounds test_contracts_bounds_302.cpp)
+    sco_issue302_test(issue302_actor_inventory_bounds test_issue302_actor_inventory_bounds.cpp
+      src/game/actor_stats_sigs.cpp src/game/inventory_sigs.cpp)
+    sco_issue302_test(issue302_datacore_bounds test_issue302_datacore_bounds.cpp)
+    sco_issue302_test(issue302_entities_bounds test_issue302_entities_events_bounds.cpp)
+    sco_issue302_test(issue302_events_bounds test_issue302_events_bounds.cpp)
+    sco_issue302_test(issue302_feature_teleport_bounds test_issue302_feature_teleport_bounds.cpp)
+    sco_issue302_test(issue302_gamerules_final_lea test_issue302_gamerules_final_lea.cpp src/game/gamerules_sigs.cpp)
+    sco_issue302_test(issue302_gamerules_mining_bounds test_issue302_gamerules_mining_bounds.cpp)
+    sco_issue302_test(issue302_mining_final_lea test_issue302_mining_final_lea.cpp src/game/mining_sigs.cpp)
+    sco_issue302_test(issue302_offline_bounds test_issue302_offline_bounds.cpp)
+    sco_issue302_test(issue302_pak_hangar_bounds test_issue302_pak_hangar_bounds.cpp
+      src/game/pak_sigs.cpp src/game/hangar_sigs.cpp)
+    add_test(NAME issue302_pak_hangar_wrapped COMMAND issue302_pak_hangar_bounds wrapped)
+    sco_issue302_test(issue302_remaining_row_census test_issue302_remaining_row_census.cpp
+      src/game/offline_sigs.cpp src/game/gamerules_sigs.cpp src/game/mining_sigs.cpp
+      src/game/entities_sigs.cpp src/game/events_sigs.cpp src/game/system_sigs.cpp
+      src/game/pak_sigs.cpp src/game/hangar_sigs.cpp src/game/asop_sigs.cpp src/game/atc_sigs.cpp)
+    file(GLOB _issue302_row_sources "${CMAKE_CURRENT_SOURCE_DIR}/src/game/*_sigs.cpp")
+    sco_issue302_test(issue302_section_image_bounds test_issue302_section_image_bounds.cpp ${_issue302_row_sources})
+    sco_issue302_test(issue302_shared_bounds test_issue302_shared_bounds.cpp)
+    add_executable(issue302_registry_bounds tests/test_issue302_registry_bounds.cpp src/sco_signatures.cpp)
+    target_link_libraries(issue302_registry_bounds PRIVATE sco_issue302_scan)
+    sco_project_target(issue302_registry_bounds)
+    if(MSVC)
+      target_compile_options(issue302_registry_bounds PRIVATE /UNDEBUG)
+    else()
+      target_compile_options(issue302_registry_bounds PRIVATE -UNDEBUG)
+    endif()
+    add_test(NAME issue302_registry_bounds COMMAND issue302_registry_bounds)
+    set_tests_properties(issue302_registry_bounds PROPERTIES LABELS "issue302" TIMEOUT 30)
+    add_test(NAME issue302_shared_guard COMMAND issue302_shared_bounds guard)
+    sco_issue302_test(issue302_system_bounds test_issue302_system_bounds.cpp)
+    sco_issue302_test(issue302_world_bounds test_world_bounds_302.cpp)
+    set_tests_properties(issue302_actors_final issue302_pak_hangar_wrapped issue302_shared_guard
+      PROPERTIES LABELS "issue302" TIMEOUT 30)
+  endif()
+
   # The sco.ui table pin (tests/abi_ui.c), the same three ways.
   set(_abi_ui_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_ui.cpp")
   file(CONFIGURE OUTPUT "${_abi_ui_cxx}"

@@ -21,6 +21,15 @@ using rows::ResolveFn;
 using rows::ResolveRip;
 using rows::RipSpec;
 
+// Guard conversion of table offsets before using shared range accessors.
+const uint8_t* LocalTextAt(const Image& img, const uint8_t* p, size_t off, size_t n) {
+    return off <= static_cast<size_t>(PTRDIFF_MAX)
+        ? rows::TextAt(img, p, static_cast<ptrdiff_t>(off), n) : nullptr;
+}
+const uint8_t* LocalRip(const Image& img, const uint8_t* p, size_t off, size_t disp, size_t len) {
+    return rows::CheckedRip(img, LocalTextAt(img, p, off, len), disp, len);
+}
+
 SigResult Missing()        { return { SigState::Missing, nullptr, 0, nullptr }; }
 SigResult Ambiguous(int n) { return { SigState::Ambiguous, nullptr, n, nullptr }; }
 
@@ -28,13 +37,17 @@ SigResult Ambiguous(int n) { return { SigState::Ambiguous, nullptr, n, nullptr }
 // address order. Returns the total; up to `max` are written to `out`.
 int RipRefs(const Section& text, uint8_t reg0, uint8_t reg1, uint8_t reg2, const uint8_t* target,
             const uint8_t** out, int max) {
-    if (!text.base || text.size < 7 || !target) return 0;
+    if (!rows::InRange(text, text.base, text.size) || text.size < 7 || !target) return 0;
     int n = 0;
-    const uint8_t* const end = text.base + text.size - 7;
-    for (const uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<const uint8_t*>(memchr(p, reg0, static_cast<size_t>(end - p)));
-        if (!p) break;
-        if (p[1] == reg1 && p[2] == reg2 && p + 7 + Rel32(p + 3) == target) {
+    for (size_t i = 0; i <= text.size - 7; ++i) {
+        const uint8_t* p = text.base + i;
+        const uintptr_t addr = reinterpret_cast<uintptr_t>(p);
+        if (addr > UINTPTR_MAX - 7) continue;
+        uintptr_t dest = addr + 7;
+        const int64_t delta = Rel32(p + 3);
+        if (delta < 0) { const uintptr_t d = static_cast<uintptr_t>(-delta); if (d > dest) continue; dest -= d; }
+        else { const uintptr_t d = static_cast<uintptr_t>(delta); if (d > UINTPTR_MAX - dest) continue; dest += d; }
+        if (p[0] == reg0 && p[1] == reg1 && p[2] == reg2 && static_cast<uintptr_t>(dest) == reinterpret_cast<uintptr_t>(target)) {
             if (n < max) out[n] = p;
             ++n;
         }
@@ -45,7 +58,9 @@ int RipRefs(const Section& text, uint8_t reg0, uint8_t reg1, uint8_t reg2, const
 bool ChecksMatch(const Image& img, const uint8_t* at, const Check* checks, size_t n, const char** why) {
     for (size_t i = 0; i < n; ++i) {
         const Check& c = checks[i];
-        if (!rows::InText(img, at + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(at + c.off, c.bytes)) {
+        const uint8_t* check = LocalTextAt(img, at, c.off, rows::PatternBytes(c.bytes));
+        if (!check) { *why = "function check outside .text"; return false; }
+        if (!BytesMatch(check, c.bytes)) {
             *why = c.why;
             return false;
         }
@@ -64,9 +79,11 @@ template <const CallSpec& S>
 SigResult ResolveCall(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* from = ctx.Sig(S.from);
     if (!from) return SigFail("source row missing");
-    if (!rows::InText(img, from + S.off, 5) || from[S.off] != 0xE8) return SigFail(S.why);
-    const uint8_t* t = RipTarget(from + S.off, 1, 5);
-    if (!rows::InText(img, t, 1)) return SigFail("call target outside .text");
+    const uint8_t* call = LocalTextAt(img, from, S.off, 5);
+    if (!call) return SigFail("call instruction outside .text");
+    if (*call != 0xE8) return SigFail(S.why);
+    const uint8_t* t = LocalRip(img, call, 0, 1, 5);
+    if (!LocalTextAt(img, t, 0, 1)) return SigFail("call target outside .text");
     return SigOk(t);
 }
 
@@ -102,8 +119,10 @@ constexpr Check kClassSiteChecks[] = {
 SigResult ResolveClassSite(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* dump = ctx.Sig("entities.dump");
     if (!dump) return SigFail("source row missing");
-    const uint8_t* fn = RipTarget(dump + 0x3B, 3, 7);
-    if (!rows::InText(img, fn, 0xBD)) return SigFail("the lambda is outside .text");
+    const uint8_t* insn = LocalTextAt(img, dump, 0x3B, 7);
+    if (!insn) return SigFail("lambda instruction outside .text");
+    const uint8_t* fn = rows::CheckedRip(img, insn, 3, 7);
+    if (!LocalTextAt(img, fn, 0, 0xBD)) return SigFail("the lambda is outside .text");
     const char* why = nullptr;
     if (!ChecksMatch(img, fn, kClassSiteChecks, std::size(kClassSiteChecks), &why)) return SigFail(why);
     return SigOk(fn);
@@ -114,15 +133,20 @@ SigResult ResolveClassSite(const Image& img, const SigResolveContext& ctx) {
 // The function that loads `label` with `r0 r1 r2` (a RIP-relative lea) exactly once, whose
 // FunctionStart is `leaOff` bytes before that lea.
 SigResult LabelFunction(const Image& img, const char* label, uint8_t r0, uint8_t r1, uint8_t r2, size_t leaOff) {
+    if (!LocalTextAt(img, img.text.base, 0, img.text.size)) return SigFail("invalid .text");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* str = FindCString(img.rdata, label);
     if (!str) return SigFail("the label isn't in .rdata");
     const uint8_t* refs[4] = {};
     const int n = RipRefs(img.text, r0, r1, r2, str, refs, 4);
     if (n == 0) return Missing();
     if (n > 1) return Ambiguous(n);
+    if (!rows::ImageAt(img, img.pdata.base, 0, img.pdata.size)) return SigFail("invalid .pdata");
     const uint8_t* fn = FunctionStart(img, refs[0]);
     if (!fn) return SigFail("no .pdata entry for the function");
-    if (static_cast<size_t>(refs[0] - fn) != leaOff) return SigFail("the label isn't loaded where it was");
+    if (!rows::TextAt(img, fn, 0, 1)) return SigFail("function start outside .text");
+    if (reinterpret_cast<uintptr_t>(refs[0]) < reinterpret_cast<uintptr_t>(fn) ||
+        reinterpret_cast<uintptr_t>(refs[0]) - reinterpret_cast<uintptr_t>(fn) != leaOff) return SigFail("the label isn't loaded where it was");
     return SigOk(fn);
 }
 

@@ -353,6 +353,16 @@ SigRegistryStatus SignatureRegistry::ResolveImpl(const Image& image, std::shared
         Storage<Frame> stack(impl_->budget.get());
         Storage<uint8_t> visiting(impl_->budget.get());
         visiting.resize(graph->rows.size());
+    const auto imageBase = reinterpret_cast<uintptr_t>(image.base);
+    const auto sectionValid = [&](const Section& section) {
+        if (!section.base && !section.size) return true;
+        const auto at = reinterpret_cast<uintptr_t>(section.base);
+        return imageBase && image.size && image.size <= UINTPTR_MAX - imageBase && at >= imageBase &&
+            at - imageBase <= image.size && section.size <= image.size - (at - imageBase);
+    };
+    if (!sectionValid(image.text) || !sectionValid(image.rdata) || !sectionValid(image.pdata)) {
+        for (size_t i = 0; i < graph->rows.size(); ++i) result->Set(i, SigFail("declared section outside the image"));
+    } else {
         for (size_t root = 0; root < graph->rows.size(); ++root) {
             if (result->results[root].state != SigState::NotRun) continue;
             visiting[root] = 1; stack.push_back({root, 0, false});
@@ -384,13 +394,36 @@ SigRegistryStatus SignatureRegistry::ResolveImpl(const Image& image, std::shared
                 if (row.resolve) r = row.resolve(image, ctx);
                 else if (row.hasPattern) {
                     r = SigPattern(image.text, row.pattern.c_str());
-                    if (r.state == SigState::Ok && row.ripDisp > 0)
-                        r.at = RipTarget(r.at, static_cast<size_t>(row.ripDisp), static_cast<size_t>(row.ripSize));
+        if (r.state == SigState::Ok && row.ripDisp > 0) {
+            const auto source = reinterpret_cast<uintptr_t>(r.at);
+            const auto text = reinterpret_cast<uintptr_t>(image.text.base);
+            const auto base = reinterpret_cast<uintptr_t>(image.base);
+            const auto disp = static_cast<size_t>(row.ripDisp);
+            const auto size = row.ripSize > 0 ? static_cast<size_t>(row.ripSize) : 0;
+            if (!base || !image.size || image.size > UINTPTR_MAX - base) {
+                r = SigFail("image range missing or invalid");
+            } else if (!text || image.text.size > UINTPTR_MAX - text || source < text ||
+                       source - text > image.text.size || size > image.text.size - (source - text)) {
+                r = SigFail("RIP source instruction outside .text");
+            } else if (disp > size || size - disp < sizeof(int32_t)) {
+                r = SigFail("RIP displacement outside instruction");
+            } else {
+                const auto next = source + size;
+                const int32_t delta = Rel32(r.at + disp);
+                const auto magnitude = delta < 0 ? uintptr_t{0} - static_cast<uintptr_t>(delta) : static_cast<uintptr_t>(delta);
+                const bool overflow = delta < 0 ? magnitude > next : magnitude > UINTPTR_MAX - next;
+                const auto target = delta < 0 ? next - magnitude : next + magnitude;
+                if (overflow || target < base || target - base >= image.size)
+                    r = SigFail("RIP target outside the image");
+                else r.at = reinterpret_cast<uint8_t*>(target);
+            }
+        }
                 } else r = SigFail("row has neither a pattern nor a resolver");
                 if (r.state == SigState::Ok && !r.at) r = SigFail("resolver returned no address");
                 result->Set(i, r);
                 visiting[i] = 0; stack.pop_back();
             }
+        }
         }
         auto snapshot = std::allocate_shared<SignatureSnapshot>(BudgetAllocator<SignatureSnapshot>(impl_->budget), SignatureSnapshot::Token{}, std::move(result));
         std::shared_ptr<const SignatureSnapshot> published = std::move(snapshot);

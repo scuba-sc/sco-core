@@ -22,21 +22,33 @@ using rows::ResolveFn;
 using rows::ResolveRip;
 using rows::RipSpec;
 
+
+const uint8_t* RdataString(const Image& img, const char* value) {
+    return rows::InImage(img, img.rdata.base, img.rdata.size) ? FindCString(img.rdata, value) : nullptr;
+}
+
 SigResult Missing()        { return { SigState::Missing, nullptr, 0, nullptr }; }
 SigResult Ambiguous(int n) { return { SigState::Ambiguous, nullptr, n, nullptr }; }
 
 // Every `reg0 reg1 reg2 disp32` RIP-relative instruction in .text whose target is `target`, in
 // address order (FindRipLea's scan, not stopping at the first). Returns the total count; up to
 // `max` are written to `out`.
-int RipRefs(const Section& text, uint8_t reg0, uint8_t reg1, uint8_t reg2, const uint8_t* target,
+int RipRefs(const Image& img, uint8_t reg0, uint8_t reg1, uint8_t reg2, const uint8_t* target,
             const uint8_t** out, int max) {
-    if (!text.base || text.size < 7 || !target) return 0;
+    const Section& text = img.text;
+    if (!text.base || text.size < 7 || text.size > static_cast<size_t>(PTRDIFF_MAX) || !rows::InText(img, text.base, text.size) ||
+        !rows::InImage(img, target, 1)) return 0;
     int n = 0;
-    const uint8_t* const end = text.base + text.size - 7;
-    for (const uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<const uint8_t*>(memchr(p, reg0, static_cast<size_t>(end - p)));
+    // Seven-byte extent includes the final possible instruction.
+    const size_t last = text.size - 7;
+    for (size_t off = 0; off <= last; ++off) {
+        const uint8_t* begin = rows::TextAt(img, text.base, static_cast<ptrdiff_t>(off), last - off + 1);
+        const uint8_t* p = static_cast<const uint8_t*>(memchr(begin, reg0, last - off + 1));
         if (!p) break;
-        if (p[1] == reg1 && p[2] == reg2 && p + 7 + Rel32(p + 3) == target) {
+        off = static_cast<size_t>(p - text.base);
+        // memchr's capped start range guarantees the complete seven-byte instruction.
+        if (p[0] == reg0 && p[1] == reg1 && p[2] == reg2 &&
+            rows::CheckedRip(img, p, 3, 7) == target) {
             if (n < max) out[n] = p;
             ++n;
         }
@@ -55,9 +67,10 @@ template <const CallSpec& S>
 SigResult ResolveCall(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* from = ctx.Sig(S.from);
     if (!from) return SigFail("source row missing");
-    if (!rows::InText(img, from + S.off, 5) || from[S.off] != 0xE8) return SigFail(S.why);
-    const uint8_t* t = RipTarget(from + S.off, 1, 5);
-    if (!rows::InText(img, t, 1)) return SigFail("call target outside .text");
+    const uint8_t* call = rows::TextAt(img, from, S.off, 5);
+    if (!call || *call != 0xE8) return SigFail(S.why);
+    const uint8_t* t = rows::CheckedRip(img, call, 1, 5);
+    if (!rows::TextAt(img, t, 0, 1)) return SigFail("call target outside .text");
     return SigOk(t);
 }
 
@@ -92,34 +105,40 @@ constexpr size_t kHelperComponentsLoad = 0x10A;
 
 const char* HelperSlots(const Image& img, const uint8_t* f, const SigResolveContext& ctx) {
     for (const Check& c : kHelperSlotChecks)
-        if (!rows::InText(img, f + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(f + c.off, c.bytes)) return c.why;
+        if (const uint8_t* q = rows::TextAt(img, f, c.off, rows::PatternBytes(c.bytes)); !q || !BytesMatch(q, c.bytes)) return c.why;
     const uint8_t* es = ctx.Sig("teleport.entity_system");
     for (size_t off : kHelperEntitySystemLoads)
-        if (!BytesMatch(f + off + 1, "8B ?? ?? ?? ?? ??") || RipTarget(f + off, 3, 7) != es)
+        if (const uint8_t* q = rows::TextAt(img, f, off, 7); !q || !BytesMatch(q + 1, "8B ?? ?? ?? ?? ??") || rows::CheckedRip(img, q, 3, 7) != es)
             return "the helper's entity system loads don't read teleport.entity_system";
-    if (!BytesMatch(f + kHelperComponentsLoad, "48 8B 0D") || RipTarget(f + kHelperComponentsLoad, 3, 7) != es + 8)
+    const uint8_t* components = rows::TextAt(img, f, kHelperComponentsLoad, 7);
+    const uint8_t* expected = rows::ImageAt(img, es, 8, 1);
+    if (!components || !expected || !BytesMatch(components, "48 8B 0D") || rows::CheckedRip(img, components, 3, 7) != expected)
         return "the components global isn't teleport.entity_system+8 (+0x10a)";
     return nullptr;
 }
 
 SigResult ResolveLandingHelper(const Image& img, const SigResolveContext& ctx) {
-    const uint8_t* msg = FindCString(img.rdata, "Landing Area could not be found.");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    const uint8_t* msg = RdataString(img, "Landing Area could not be found.");
     if (!msg) return SigFail("the Landing Area message isn't in .rdata");
     const uint8_t* refs[kLandingAreaRefs] = {};
-    const int n = RipRefs(img.text, 0x4C, 0x8D, 0x0D, msg, refs, kLandingAreaRefs);
+    const int n = RipRefs(img, 0x4C, 0x8D, 0x0D, msg, refs, kLandingAreaRefs);
     if (n == 0) return SigFail("the Landing Area message isn't referenced");
     if (n != kLandingAreaRefs) return SigFail("Landing Area message: the reference count changed");
-    const uint8_t* f = refs[0] - 0x59;
+    const uint8_t* f = rows::TextAt(img, refs[0], -static_cast<ptrdiff_t>(0x59), 1);
+    if (!f) return SigFail("landing helper outside .text");
     for (const Check& c : kHelperChecks)
-        if (!rows::InText(img, f + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(f + c.off, c.bytes)) return SigFail(c.why);
+        if (const uint8_t* q = rows::TextAt(img, f, c.off, rows::PatternBytes(c.bytes)); !q || !BytesMatch(q, c.bytes)) return SigFail(c.why);
     if (const char* why = HelperSlots(img, f, ctx)) return SigFail(why);
     return SigOk(f);
 }
 
 // The team tag is an imm8 the spawner passes back to the team category call: the row is its address.
-SigResult ResolveTeamTag(const Image&, const SigResolveContext& ctx) {
+SigResult ResolveTeamTag(const Image& img, const SigResolveContext& ctx) {
     uint8_t* f = ctx.Sig("spawn.landing_helper");
-    return f ? SigOk(f + 0x50) : SigFail("source row missing");
+    if (!f) return SigFail("source row missing");
+    const uint8_t* tag = rows::TextAt(img, f, 0x50, 1);
+    return tag ? SigOk(tag) : SigFail("team tag outside .text");
 }
 
 constexpr CallSpec kTeamCategory{ "spawn.landing_helper", 0x051, "no call at +0x051" };
@@ -146,12 +165,14 @@ constexpr Check kSeatCallbackChecks[] = {
 SigResult ResolveSeatCallback(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* s = ctx.Sig("spawn.find_seat");
     if (!s) return SigFail("source row missing");
-    if (!rows::InText(img, s + 0x21C, 7) || !BytesMatch(s + 0x21C, "48 8D 05")) return SigFail("seat picker changed at +0x21c");
+    const uint8_t* lea = rows::TextAt(img, s, 0x21C, 7);
+    if (!lea || !BytesMatch(lea, "48 8D 05")) return SigFail("seat picker changed at +0x21c");
     for (const Check& c : kSeatChecks)
-        if (!rows::InText(img, s + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(s + c.off, c.bytes)) return SigFail(c.why);
-    const uint8_t* cb = RipTarget(s + 0x21C, 3, 7);
+        if (const uint8_t* q = rows::TextAt(img, s, c.off, rows::PatternBytes(c.bytes)); !q || !BytesMatch(q, c.bytes)) return SigFail(c.why);
+    const uint8_t* cb = rows::CheckedRip(img, lea, 3, 7);
+    if (!rows::InText(img, cb, 1)) return SigFail("seat callback outside .text");
     for (const Check& c : kSeatCallbackChecks)
-        if (!rows::InText(img, cb + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(cb + c.off, c.bytes)) return SigFail(c.why);
+        if (const uint8_t* q = rows::TextAt(img, cb, c.off, rows::PatternBytes(c.bytes)); !q || !BytesMatch(q, c.bytes)) return SigFail(c.why);
     return SigOk(cb);
 }
 
@@ -177,15 +198,17 @@ SigResult ResolveSeatInteractable(const Image& img, const SigResolveContext& ctx
     const uint8_t* es = ctx.Sig("teleport.entity_system");
     if (!cb || !es) return SigFail("source row missing");
     const Check& g = kSeatGateCheck;
-    if (!rows::InText(img, cb + g.off, rows::PatternBytes(g.bytes)) || !BytesMatch(cb + g.off, g.bytes)) return SigFail(g.why);
-    const uint8_t* f = RipTarget(cb + 0x22, 1, 5);
-    if (!rows::InText(img, f, 0x74)) return SigFail("interactable getter outside .text");
+    const uint8_t* gate = rows::TextAt(img, cb, g.off, rows::PatternBytes(g.bytes));
+    if (!gate || !BytesMatch(gate, g.bytes)) return SigFail(g.why);
+    const uint8_t* f = rows::CheckedRip(img, rows::TextAt(img, gate, 8, 5), 1, 5);
+    if (!rows::TextAt(img, f, 0, 0x74)) return SigFail("interactable getter outside .text");
     for (const Check& c : kSeatInteractableChecks)
-        if (!BytesMatch(f + c.off, c.bytes)) return SigFail(c.why);
-    if (RipTarget(f + 0x5B, 3, 7) != es + 8) return SigFail("the getter's components global isn't teleport.entity_system+8");
-    const uint8_t* name = RipTarget(f + 0x62, 3, 7);
+        if (const uint8_t* q = rows::TextAt(img, f, c.off, rows::PatternBytes(c.bytes)); !q || !BytesMatch(q, c.bytes)) return SigFail(c.why);
+    const uint8_t* expected = rows::ImageAt(img, es, 8, 1);
+    if (!expected || rows::CheckedRip(img, rows::TextAt(img, f, 0x5B, 7), 3, 7) != expected) return SigFail("the getter's components global isn't teleport.entity_system+8");
+    const uint8_t* name = rows::CheckedRip(img, rows::TextAt(img, f, 0x62, 7), 3, 7);
     const size_t n = strlen(kSeatInteractable) + 1;
-    if (!img.rdata.base || name < img.rdata.base || name + n > img.rdata.base + img.rdata.size || memcmp(name, kSeatInteractable, n) != 0)
+    if (!rows::InImage(img, name, n) || !rows::RangeAt(img.rdata, name, 0, n) || memcmp(name, kSeatInteractable, n) != 0)
         return SigFail("the getter doesn't name IInteractableComponent (+0x062)");
     return SigOk(f);
 }
@@ -202,16 +225,17 @@ constexpr CallSpec kSeatPriority{ "spawn.seat_callback", 0x0D6, "seat callback c
 // ---- spawner: entity lookup by name (Daymar) ----------------------------------------------------
 
 SigResult ResolveFindEntityByName(const Image& img, const SigResolveContext&) {
-    const uint8_t* fmsg = FindCString(img.rdata, "FindEntityByName_SlowDebugCodeOnly: %s");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    const uint8_t* fmsg = RdataString(img, "FindEntityByName_SlowDebugCodeOnly: %s");
     if (!fmsg) return SigFail("the FindEntityByName message isn't in .rdata");
     const uint8_t* refs[16] = {};
-    const int n = RipRefs(img.text, 0x48, 0x8D, 0x0D, fmsg, refs, 16);
+    const int n = RipRefs(img, 0x48, 0x8D, 0x0D, fmsg, refs, 16);
     if (n > 16) return SigFail("more FindEntityByName references than the row checks");
     const uint8_t* found = nullptr;
     int hits = 0;
     for (int i = 0; i < n; ++i) {
-        const uint8_t* f = refs[i] - 0x36;
-        if (refs[i] - img.text.base >= 0x36 && BytesMatch(f, "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 40 48 C7 02 00 00 00 00")) {
+        const uint8_t* f = rows::TextAt(img, refs[i], -static_cast<ptrdiff_t>(0x36), 22);
+        if (f && BytesMatch(f, "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 40 48 C7 02 00 00 00 00")) {
             found = f;
             ++hits;
         }
@@ -223,9 +247,12 @@ SigResult ResolveFindEntityByName(const Image& img, const SigResolveContext&) {
 
 // ---- spawner: the Flight Ready event sender ------------------------------------------------------
 
-bool Contains(const uint8_t* from, const uint8_t* to, const char* pattern) {
-    for (const uint8_t* q = from; q < to; ++q)
-        if (BytesMatch(q, pattern)) return true;
+bool Contains(const Image& img, const uint8_t* from, const uint8_t* to, const char* pattern) {
+    const auto a = reinterpret_cast<uintptr_t>(from), b = reinterpret_cast<uintptr_t>(to);
+    const size_t n = rows::PatternBytes(pattern);
+    if (!n || b < a || !rows::InText(img, from, b - a) || b - a < n) return false;
+    for (size_t off = 0; off <= b - a - n; ++off)
+        if (BytesMatch(rows::TextAt(img, from, static_cast<ptrdiff_t>(off), n), pattern)) return true;
     return false;
 }
 
@@ -234,26 +261,34 @@ bool Contains(const uint8_t* from, const uint8_t* to, const char* pattern) {
 // The senders are found through their references to the file name string rather than by a fixed byte
 // pattern, because game updates keep adding events with identical code.
 SigResult ResolveFlightReady(const Image& img, const SigResolveContext&) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const Section& text = img.text;
-    const uint8_t* header = FindCString(img.rdata, "C:\\workspace\\CryEngine\\Code\\CryEngine\\CryCommon\\Events/ISC/Dashboards.h");
+    const uint8_t* header = RdataString(img, "C:\\workspace\\CryEngine\\Code\\CryEngine\\CryCommon\\Events/ISC/Dashboards.h");
     if (!header) return SigFail("the Dashboards.h path isn't in .rdata");
-    if (text.size < 0x208) return Missing();
+    if (!text.base || text.size < 0x206 || text.size > static_cast<size_t>(PTRDIFF_MAX) || !rows::InText(img, text.base, text.size) ||
+        !rows::InImage(img, header, 1)) return Missing();
     const uint8_t* found = nullptr;
     int hits = 0;
-    const uint8_t* const end = text.base + text.size - 8;
-    for (const uint8_t* p = text.base + 0x200; p < end; ++p) {
-        p = static_cast<const uint8_t*>(memchr(p, 0x8D, static_cast<size_t>(end - p)));
-        if (!p) break;
-        if ((p[-1] != 0x48 && p[-1] != 0x4C) || (p[1] & 0xC7) != 0x05 || p + 6 + Rel32(p + 2) != header) continue;
-        const uint8_t* lea = p - 1;
+    // p denotes the opcode byte after the REX prefix. The last LEA ends at .text's end.
+    for (size_t off = 0x200; off <= text.size - 6; ++off) {
+        const uint8_t* lea = rows::TextAt(img, text.base, static_cast<ptrdiff_t>(off - 1), 7);
+        if (!BytesMatch(lea, "48 8D 15") || rows::CheckedRip(img, lea, 3, 7) != header) continue;
         const uint8_t* start = nullptr;
-        for (const uint8_t* q = lea; q > lea - 0x60 && q > text.base + 2; --q)
-            if (q[-1] == 0xCC && q[-2] == 0xCC) { start = q; break; }
-        if (!start || !BytesMatch(lea, "48 8D 15")) continue;
+        for (ptrdiff_t back = 0; back < 0x60; ++back) {
+            const uint8_t* q = rows::TextAt(img, lea, -back - 2, 2);
+            if (!q) break;
+            if (q[0] == 0xCC && q[1] == 0xCC) {
+                start = rows::TextAt(img, q, 2, 4); break;
+            }
+        }
+        if (!start) continue;
         uint32_t line = 0;
-        for (const uint8_t* q = start; q + 6 <= lea; ++q)
+        const size_t span = static_cast<size_t>(lea - start);
+        for (size_t i = 0; i + 6 <= span; ++i) {
+            const uint8_t* q = rows::TextAt(img, start, static_cast<ptrdiff_t>(i), 6);
             if (q[0] == 0x41 && q[1] == 0xB8) memcpy(&line, q + 2, 4);
-        if (line == 0x49 && BytesMatch(start, "48 89 5C 24") && Contains(start, lea, "48 8B FA") && Contains(start, lea, "4C 89 44 24")) {
+        }
+        if (line == 0x49 && BytesMatch(start, "48 89 5C 24") && Contains(img, start, lea, "48 8B FA") && Contains(img, start, lea, "4C 89 44 24")) {
             found = start;
             ++hits;
         }
@@ -266,18 +301,19 @@ SigResult ResolveFlightReady(const Image& img, const SigResolveContext&) {
 // ---- spawner: noclip's fly speed -----------------------------------------------------------------
 
 SigResult ResolveFlySpeed(const Image& img, const SigResolveContext&) {
-    const uint8_t* speedName = FindCString(img.rdata, "g_FlyModeSpeedScaler");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    const uint8_t* speedName = RdataString(img, "g_FlyModeSpeedScaler");
     if (!speedName) return SigFail("g_FlyModeSpeedScaler isn't in .rdata");
     const uint8_t* refs[16] = {};
-    const int n = RipRefs(img.text, 0x48, 0x8D, 0x15, speedName, refs, 16);
+    const int n = RipRefs(img, 0x48, 0x8D, 0x15, speedName, refs, 16);
     if (n > 16) return SigFail("more g_FlyModeSpeedScaler references than the row checks");
     const uint8_t* found = nullptr;
     int hits = 0;
     for (int i = 0; i < n; ++i)
-        if (refs[i] - img.text.base >= 0x14 && BytesMatch(refs[i] - 0x14, "4C 8D 87")) { found = refs[i] - 0x14; ++hits; }
+        if (const uint8_t* q = rows::TextAt(img, refs[i], -static_cast<ptrdiff_t>(0x14), kFlySpeedDisp + 4); q && BytesMatch(q, "4C 8D 87")) { found = q; ++hits; }
     if (!hits) return Missing();
     if (hits > 1) return Ambiguous(hits);
-    const int32_t off = Rel32(found + kFlySpeedDisp);
+    const int32_t off = Rel32(rows::TextAt(img, found, kFlySpeedDisp, 4));
     if (off <= 0 || off >= 0x4000) return SigFail("fly speed field offset out of range");
     return SigOk(found);
 }
@@ -285,12 +321,15 @@ SigResult ResolveFlySpeed(const Image& img, const SigResolveContext&) {
 // ---- spawner: god mode ---------------------------------------------------------------------------
 
 SigResult ResolveGodModeCall(const Image& img, const SigResolveContext&) {
-    const uint8_t* godMsg = FindCString(img.rdata, "Actor [$$] has changed GodMode State from [$$] to [$$]");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+    const uint8_t* godMsg = RdataString(img, "Actor [$$] has changed GodMode State from [$$] to [$$]");
     if (!godMsg) return SigFail("the GodMode State message isn't in .rdata");
     SigResult r = SigPattern(img.text, "49 8B 8E 08 02 00 00 41 0F B6 D4 48 81 C1 F0 27 00 00 E8");
     if (r.state != SigState::Ok) return r;
     const uint8_t* p = r.at;
-    if (p - img.text.base < 0x64 || !BytesMatch(p - 0x64, "4C 8D 0D") || RipTarget(p - 0x64, 3, 7) != godMsg)
+    const uint8_t* lea = rows::TextAt(img, p, -static_cast<ptrdiff_t>(0x64), 7);
+    if (!lea || !BytesMatch(lea, "4C 8D 0D") || rows::CheckedRip(img, lea, 3, 7) != godMsg)
         return SigFail("the GodMode State message isn't loaded at -0x064");
     return r;
 }
@@ -298,8 +337,10 @@ SigResult ResolveGodModeCall(const Image& img, const SigResolveContext&) {
 SigResult ResolveSetGodMode(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* p = ctx.Sig("spawn.god_mode_call");
     if (!p) return SigFail("source row missing");
-    const uint8_t* set = RipTarget(p + 0x12, 1, 5);
-    if (!rows::InText(img, set, 0x10)) return SigFail("god mode setter outside .text");
+    const uint8_t* call = rows::TextAt(img, p, 0x12, 5);
+    if (!call || *call != 0xE8) return SigFail("god mode call outside .text or changed");
+    const uint8_t* set = rows::CheckedRip(img, call, 1, 5);
+    if (!rows::TextAt(img, set, 0, 0x10)) return SigFail("god mode setter outside .text");
     if (!BytesMatch(set, "48 89 5C 24 08 57 48 83 EC 20 88 91")) return SigFail("god mode setter changed at +0x000");
     return SigOk(set);
 }
@@ -317,17 +358,19 @@ constexpr Check kPrefabChecks[] = {
 };
 
 SigResult ResolvePrefabSite(const Image& img, const SigResolveContext&) {
-    const uint8_t* fmt = FindCString(img.rdata, "ObjectContainers\\%s");
-    const uint8_t* ocName = FindCString(img.rdata, "ocFilename");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    const uint8_t* fmt = RdataString(img, "ObjectContainers\\%s");
+    const uint8_t* ocName = RdataString(img, "ocFilename");
     if (!fmt || !ocName) return SigFail("ObjectContainers\\%s or ocFilename isn't in .rdata");
     const uint8_t* refs[kObjectContainersRefs] = {};
-    const int n = RipRefs(img.text, 0x48, 0x8D, 0x15, fmt, refs, kObjectContainersRefs);
+    const int n = RipRefs(img, 0x48, 0x8D, 0x15, fmt, refs, kObjectContainersRefs);
     if (n == 0) return SigFail("ObjectContainers\\%s isn't referenced");
     if (n != kObjectContainersRefs) return SigFail("ObjectContainers\\%s: the reference count changed");
     const uint8_t* s = refs[0];
     for (const Check& c : kPrefabChecks)
-        if (!rows::InText(img, s + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(s + c.off, c.bytes)) return SigFail(c.why);
-    if (RipTarget(s + 0x72, 3, 7) != ocName) return SigFail("prefab spawn doesn't load ocFilename at +0x72");
+        if (const uint8_t* q = rows::TextAt(img, s, c.off, rows::PatternBytes(c.bytes)); !q || !BytesMatch(q, c.bytes)) return SigFail(c.why);
+    const uint8_t* lea = rows::TextAt(img, s, 0x72, 7);
+    if (!lea || rows::CheckedRip(img, lea, 3, 7) != ocName) return SigFail("prefab spawn doesn't load ocFilename at +0x72");
     return SigOk(s);
 }
 
@@ -340,9 +383,11 @@ constexpr CallSpec kPrefabAttrTypeId{ "spawn.prefab_site", 0xA0, "prefab spawn c
 constexpr const char* kRemoveEntityPrologue = "48 89 5C 24 08 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57";
 
 const char* DirectRemoveExtra(const Image& img, const uint8_t* at, const SigResolveContext&) {
+    if (!rows::InImage(img, img.pdata.base, img.pdata.size)) return "invalid .pdata";
     const uint8_t* fn = FunctionStart(img, at);
     if (!fn) return "no .pdata entry for the internal remove call";
-    return at - fn < 0x700 ? nullptr : "the internal remove call is past +0x700 of its function";
+    const uintptr_t a = reinterpret_cast<uintptr_t>(at), b = reinterpret_cast<uintptr_t>(fn);
+    return a >= b && a - b < 0x700 ? nullptr : "the internal remove call is past +0x700 of its function";
 }
 constexpr FnSpec kDirectRemoveCall{ "48 8B D3 49 8B CD E8 ?? ?? ?? ?? 84 C0 74 0A 49 23 DC 81 4B 08 00 10 00 00",
                                     nullptr, 0, DirectRemoveExtra };
@@ -350,9 +395,10 @@ constexpr FnSpec kDirectRemoveCall{ "48 8B D3 49 8B CD E8 ?? ?? ?? ?? 84 C0 74 0
 SigResult ResolveRemoveEntity(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* call = ctx.Sig("npc.direct_remove_call");
     if (!call) return SigFail("source row missing");
+    if (!rows::InImage(img, img.pdata.base, img.pdata.size)) return SigFail("invalid .pdata");
     const uint8_t* fn = FunctionStart(img, call);
     if (!fn) return SigFail("no .pdata entry for the internal remove call");
-    if (!BytesMatch(fn, kRemoveEntityPrologue)) return SigFail("RemoveEntity changed at +0x000");
+    if (!rows::TextAt(img, fn, 0, rows::PatternBytes(kRemoveEntityPrologue)) || !BytesMatch(fn, kRemoveEntityPrologue)) return SigFail("RemoveEntity changed at +0x000");
     return SigOk(fn);
 }
 
@@ -381,20 +427,21 @@ constexpr Check kLoadoutChecks[] = {
 };
 
 SigResult ResolveLoadoutLoader(const Image& img, const SigResolveContext&) {
-    const uint8_t* folder = FindCString(img.rdata, "Scripts/Loadouts/Player");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    const uint8_t* folder = RdataString(img, "Scripts/Loadouts/Player");
     if (!folder) return SigFail("Scripts/Loadouts/Player isn't in .rdata");
     const uint8_t* refs[16] = {};
-    const int n = RipRefs(img.text, 0x48, 0x8D, 0x15, folder, refs, 16);
+    const int n = RipRefs(img, 0x48, 0x8D, 0x15, folder, refs, 16);
     if (n > 16) return SigFail("more Scripts/Loadouts/Player references than the row checks");
     const uint8_t* found = nullptr;
     const char* why = nullptr;
     int hits = 0;
     for (int i = 0; i < n; ++i) {
-        const uint8_t* h = refs[i] - 0x44;
-        if (refs[i] - img.text.base < 0x44 || !rows::InText(img, h, 0x9F)) continue;
+        const uint8_t* h = rows::TextAt(img, refs[i], -static_cast<ptrdiff_t>(0x44), 0x9F);
+        if (!h) continue;
         const char* fail = nullptr;
         for (const Check& c : kLoadoutChecks)
-            if (!BytesMatch(h + c.off, c.bytes)) { fail = c.why; break; }
+            if (const uint8_t* q = rows::TextAt(img, h, c.off, rows::PatternBytes(c.bytes)); !q || !BytesMatch(q, c.bytes)) { fail = c.why; break; }
         if (fail) { if (!why) why = fail; continue; }
         found = h;
         ++hits;
@@ -419,13 +466,16 @@ constexpr FnSpec kLoadoutHandle{
     "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 30 48 8D 05 ?? ?? ?? ?? 48 8B FA 48 89 44 24 40 48 8D 99 40 04 00 00 48 8B F1 E8 ?? ?? ?? ?? 44 8B 40 18",
     nullptr, 0, nullptr};
 const char* CheckLoadoutContainer(const Image& img, const uint8_t* at, const SigResolveContext&) {
-    if (!rows::InText(img, at + 0xc2, 1) || at[0xbb] != 0x4c || at[0xbc] != 0x8d || at[0xbd] != 0x05)
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
+    const uint8_t* lea = rows::TextAt(img, at, 0xbb, 7);
+    if (!lea || !BytesMatch(lea, "4C 8D 05"))
         return "attached-container type-name instruction changed";
-    const uint8_t* name = RipTarget(at + 0xbb, 3, 7);
-    const uint8_t* expected = FindCString(img.rdata, "IItemPortContainer");
+    const uint8_t* name = rows::CheckedRip(img, lea, 3, 7);
+    const uint8_t* expected = RdataString(img, "IItemPortContainer");
     return expected && name == expected ? nullptr : "attached-container type-name changed";
 }
 SigResult ResolveLoadoutContainer(const Image& img, const SigResolveContext& ctx) {
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     uint8_t* matches[4]{};
     const int count = FindPattern(img.text,
         "40 53 57 48 83 EC 38 48 8D 05 ?? ?? ?? ?? 48 8B F9 48 89 44 24 50 48 8D 99 40 04 00 00 E8 ?? ?? ?? ?? 8B 50 18 39 53 08 75 05 FE 43 0C EB 2D BA 01 00 00 00",

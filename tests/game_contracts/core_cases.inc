@@ -179,7 +179,7 @@ static void TestPakRows() {
     img.pdata = {};
     ResolveGameFixture(img);
     r = GameResult("pak.datacore_loader");
-    CHECK(r->state == S::Failed && strcmp(r->why, "no .pdata entry for the DCB size message's function") == 0);
+    CHECK(r->state == S::Failed && strcmp(r->why, "invalid .pdata/image") == 0);
 
     l = PakImage(img, true);
     l.loader[0x2300] = 0xCC;   // no close call

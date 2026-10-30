@@ -19,9 +19,26 @@ using namespace features;
 SigResult Missing()          { return { SigState::Missing, nullptr, 0, nullptr }; }
 SigResult Ambiguous(int n)   { return { SigState::Ambiguous, nullptr, n, nullptr }; }
 
+bool FeaturesValidSection(const Image& img, const Section& section) {
+    const uintptr_t b = reinterpret_cast<uintptr_t>(img.base), a = reinterpret_cast<uintptr_t>(section.base);
+    return img.base && img.size && section.base && section.size && img.size <= UINTPTR_MAX - b &&
+           a >= b && a - b <= img.size && section.size <= img.size - (a - b);
+}
+
+const uint8_t* FeatureTextAt(const Image& img, const uint8_t* p, ptrdiff_t off, size_t n) {
+    return FeaturesValidSection(img, img.text) && rows::InText(img, p, 0)
+        ? rows::TextAt(img, p, off, n) : nullptr;
+}
+
+const uint8_t* FeatureRip(const Image& img, const uint8_t* p, ptrdiff_t off, size_t disp, size_t len) {
+    return rows::CheckedRip(img, FeatureTextAt(img, p, off, len), disp, len);
+}
+
 // ---- noclip: the SFlyMode request wrapper (spawner.cpp) --------------------------------------
 
 SigResult ResolveFlyMode(const Image& img, const SigResolveContext&) {
+    if (!FeaturesValidSection(img, img.text)) return SigFail("invalid image .text range");
+    if (!FeaturesValidSection(img, img.rdata)) return SigFail("invalid image .rdata range");
     const uint8_t* label = FindCString(img.rdata,
         "unsigned short __cdecl CSCActorActionHandler::Request<struct SCActorActionHandlerActions::SFlyMode,"
         "const enum ESCActorFlyMode&>(const enum ESCActorFlyMode &)");
@@ -31,14 +48,25 @@ SigResult ResolveFlyMode(const Image& img, const SigResolveContext&) {
     if (n > 64) return SigFail("more request wrappers than the row checks");
     uint8_t* found = nullptr;
     int hits = 0;
+    bool truncated = false;
+    bool outside = false;
     for (int i = 0; i < n; ++i) {
-        const uint8_t* req = RipTarget(wrappers[i], 0xE, 0x12);
-        if (rows::InText(img, req, 0xB5) && BytesMatch(req + 0xAE, "48 8D 05") && RipTarget(req + 0xAE, 3, 7) == label) {
-            found = wrappers[i];
-            ++hits;
-        }
+        if (!FeatureTextAt(img, wrappers[i], 0, 0x12)) { truncated = true; continue; }
+        const uint8_t* req = FeatureRip(img, wrappers[i], 0, 0xE, 0x12);
+        if (!req) { outside = true; continue; }
+        if (!rows::InText(img, req, 1)) { outside = true; continue; }
+        const uint8_t* lea = FeatureTextAt(img, req, 0xAE, 7);
+        if (!lea) { truncated = true; continue; }
+        if (!BytesMatch(lea, "48 8D 05")) continue;
+        const uint8_t* loaded = FeatureRip(img, req, 0xAE, 3, 7);
+        if (!loaded) { outside = true; continue; }
+        if (loaded == label) { found = wrappers[i]; ++hits; }
     }
-    if (!hits) return Missing();
+    if (!hits) {
+        if (truncated) return SigFail("truncated request wrapper or target");
+        if (outside) return SigFail("request wrapper or label target outside the image/.text");
+        return Missing();
+    }
     if (hits > 1) return Ambiguous(hits);
     return SigOk(found);
 }
@@ -46,6 +74,7 @@ SigResult ResolveFlyMode(const Image& img, const SigResolveContext&) {
 // ---- Clear NPCs: the entity system's RemoveEntity calls (npc.cpp) ----------------------------
 
 SigResult ResolveRemoveEntityCall(const Image& img, const SigResolveContext& ctx) {
+    if (!FeaturesValidSection(img, img.text)) return SigFail("invalid image .text range");
     const uint8_t* es = ctx.Sig("teleport.entity_system");
     uint8_t* sites[16] = {};
     const int n = FindPattern(img.text, "48 8B 0D ?? ?? ?? ?? 48 8B 13 48 8B 01 FF 90 ?? ?? ?? ?? 48 83 C3 08 48 3B DF 75 E4",
@@ -55,7 +84,7 @@ SigResult ResolveRemoveEntityCall(const Image& img, const SigResolveContext& ctx
     uint8_t* first = nullptr;
     int32_t slot = 0;
     for (int i = 0; i < n; ++i) {
-        if (RipTarget(sites[i], 3, 7) != es) continue;
+        if (!es || FeatureRip(img, sites[i], 0, 3, 7) != es) continue;
         const int32_t s = Rel32(sites[i] + kRemoveSlotDisp);
         if (slot && s != slot) return SigFail("RemoveEntity call sites disagree on the vtable slot");
         slot = s;
@@ -69,6 +98,8 @@ SigResult ResolveRemoveEntityCall(const Image& img, const SigResolveContext& ctx
 // ---- quantum: the EntityEffectSystem tag sender (quantum.cpp) --------------------------------
 
 SigResult ResolveSendEffectTag(const Image& img, const SigResolveContext&) {
+    if (!FeaturesValidSection(img, img.text)) return SigFail("invalid image .text range");
+    if (!FeaturesValidSection(img, img.rdata)) return SigFail("invalid image .rdata range");
     const uint8_t* header = FindCString(img.rdata,
         "C:\\workspace\\CryEngine\\Code\\CryEngine\\CryCommon\\Events/VFX/EntityEffectSystem.h");
     if (!header) return SigFail("the EntityEffectSystem.h path isn't in .rdata");
@@ -78,9 +109,19 @@ SigResult ResolveSendEffectTag(const Image& img, const SigResolveContext&) {
     if (n > 32) return SigFail("more effect senders than the row checks");
     uint8_t* found = nullptr;
     int hits = 0;
-    for (int i = 0; i < n; ++i)
-        if (RipTarget(senders[i] + 0x25, 3, 7) == header) { found = senders[i]; ++hits; }
-    if (!hits) return Missing();
+    bool truncated = false;
+    bool outside = false;
+    for (int i = 0; i < n; ++i) {
+        if (!FeatureTextAt(img, senders[i], 0x25, 7)) { truncated = true; continue; }
+        const uint8_t* loaded = FeatureRip(img, senders[i], 0x25, 3, 7);
+        if (!loaded) { outside = true; continue; }
+        if (loaded == header) { found = senders[i]; ++hits; }
+    }
+    if (!hits) {
+        if (truncated) return SigFail("truncated effect sender instruction");
+        if (outside) return SigFail("effect sender label target outside the image");
+        return Missing();
+    }
     if (hits > 1) return Ambiguous(hits);
     return SigOk(found);
 }
@@ -94,15 +135,18 @@ constexpr const char* kReputationForms[] = {
 };
 
 SigResult ResolveReputationServices(const Image& img, const SigResolveContext&) {
+    if (!FeaturesValidSection(img, img.text)) return SigFail("invalid image .text range");
+    if (!FeaturesValidSection(img, img.rdata)) return SigFail("invalid image .rdata range");
     const uint8_t* msg = FindCString(img.rdata, "Couldn't access reputation service internal");
     const uint8_t* lea = msg ? FindRipLea(img.text, 0x4C, 0x8D, 0x05, msg) : nullptr;
     if (!lea) return SigFail("the reputation service message isn't referenced");
-    for (int back = 0; back < 0x120; ++back)
-        if (BytesMatch(lea - back, kServicesLoad)) {
-            const uint8_t* g = RipTarget(lea - back, 3, 7);
-            if (img.base && img.size && (g < img.base || g >= img.base + img.size)) return SigFail("RIP target outside the image");
-            return SigOk(g);
+    for (int back = 0; back < 0x120; ++back) {
+        const uint8_t* at = FeatureTextAt(img, lea, -back, rows::PatternBytes(kServicesLoad));
+        if (at && BytesMatch(at, kServicesLoad)) {
+            const uint8_t* g = FeatureRip(img, at, 0, 3, 7);
+            return rows::InImage(img, g, sizeof(uintptr_t)) ? SigOk(g) : SigFail("RIP target outside the image");
         }
+    }
     return SigFail("no services load before the reputation service message");
 }
 
@@ -116,7 +160,7 @@ int ReputationSites(const Image& img, uint8_t** out, int max, const SigResolveCo
         const int found = FindPattern(img.text, form, sites, 32);
         if (found > 32) return -1;
         for (int i = 0; i < found; ++i)
-            if (RipTarget(sites[i], 3, 7) == services) {
+            if (services && FeatureRip(img, sites[i], 0, 3, 7) == services) {
                 if (n == max) return -1;
                 out[n++] = sites[i];
             }
@@ -126,6 +170,7 @@ int ReputationSites(const Image& img, uint8_t** out, int max, const SigResolveCo
 
 template <int K>
 SigResult ResolveReputationCheck(const Image& img, const SigResolveContext& ctx) {
+    if (!FeaturesValidSection(img, img.text)) return SigFail("invalid image .text range");
     uint8_t* sites[kReputationChecks] = {};
     if (ReputationSites(img, sites, kReputationChecks, ctx) != kReputationChecks)
         return SigFail("reputation service checks: the call site count changed");
@@ -136,6 +181,7 @@ SigResult ResolveReputationCheck(const Image& img, const SigResolveContext& ctx)
 
 template <int K>
 SigResult ResolveOrLoop(const Image& img, const SigResolveContext&) {
+    if (!FeaturesValidSection(img, img.text)) return SigFail("invalid image .text range");
     uint8_t* sites[kOrLoopSites + 1] = {};
     const int n = FindPattern(img.text,
         "44 8B A4 24 E8 00 00 00 8B 8C 24 D8 00 00 00 FF C3 48 FF C6 49 81 C7 90 00 00 00 "

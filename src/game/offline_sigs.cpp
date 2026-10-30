@@ -19,9 +19,19 @@ using namespace offline;
 using rows::Check;
 using rows::FnSpec;
 using rows::InText;
+using rows::TextAt;
+using rows::ImageAt;
+using rows::CheckedRip;
 using rows::ResolveFn;
 using rows::ResolveRip;
 using rows::RipSpec;
+
+const uint8_t* BoundedCString(const Image& img, const Section& section, const char* value) {
+    return rows::InImage(img, section.base, section.size) ? FindCString(section, value) : nullptr;
+}
+uint8_t* BoundedRipLea(const Image& img, const Section& text, uint8_t a, uint8_t b, uint8_t c, const uint8_t* target) {
+    return rows::InText(img, text.base, text.size) ? FindRipLea(text, a, b, c, target) : nullptr;
+}
 
 SigResult Missing()          { return { SigState::Missing, nullptr, 0, nullptr }; }
 SigResult Ambiguous(int n)   { return { SigState::Ambiguous, nullptr, n, nullptr }; }
@@ -29,7 +39,8 @@ SigResult Ambiguous(int n)   { return { SigState::Ambiguous, nullptr, n, nullptr
 // An .rdata string the patches point code at.
 template <const char* S>
 SigResult ResolveString(const Image& img, const SigResolveContext&) {
-    const uint8_t* s = FindCString(img.rdata, S);
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    const uint8_t* s = BoundedCString(img, img.rdata, S);
     return s ? SigOk(s) : Missing();
 }
 
@@ -47,21 +58,23 @@ constexpr char kUser[]       = "%USER%";
 // -1 when "sessionGuid" isn't in .rdata.
 int HandshakeSites(const Image& img, uint8_t** out, int max, bool& sameFlag) {
     const Section& text = img.text;
-    const uint8_t* guid = FindCString(img.rdata, "sessionGuid");
+    const uint8_t* guid = BoundedCString(img, img.rdata, "sessionGuid");
     if (!guid) return -1;
     const uint8_t* flag = nullptr;
     sameFlag = true;
     int n = 0;
-    uint8_t* const end = text.base + text.size - 32;
-    for (uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<uint8_t*>(memchr(p, 0x44, static_cast<size_t>(end - p)));
+    if (!rows::InText(img, text.base, text.size) || text.size < 31) return 0;
+    uint8_t* const end = text.base + text.size - 31;
+    for (uint8_t* p = text.base; p <= end; ++p) {
+        p = static_cast<uint8_t*>(memchr(p, 0x44, static_cast<size_t>(end - p) + 1));
         if (!p) break;
         if (p[1] != 0x38 || (p[2] & 0xC7) != 0x05 || p[7] != 0x0F || p[8] != 0x84) continue;
         bool loadsGuid = false;
         for (const uint8_t* q = p + 13; q < p + 25; ++q)
-            if (q[0] == 0x48 && q[1] == 0x8D && q[2] == 0x15 && q + 7 + Rel32(q + 3) == guid) { loadsGuid = true; break; }
+            if (q[0] == 0x48 && q[1] == 0x8D && q[2] == 0x15 && CheckedRip(img, q, 3, 7) == guid) { loadsGuid = true; break; }
         if (!loadsGuid) continue;
-        const uint8_t* cmpTarget = p + 7 + Rel32(p + 3);
+        const uint8_t* cmpTarget = CheckedRip(img, p, 3, 7);
+        if (!cmpTarget) continue;
         if (flag && cmpTarget != flag) sameFlag = false;
         flag = cmpTarget;
         if (n < max) out[n] = p;
@@ -72,6 +85,8 @@ int HandshakeSites(const Image& img, uint8_t** out, int max, bool& sameFlag) {
 
 template <int K>
 SigResult ResolveHandshake(const Image& img, const SigResolveContext&) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     uint8_t* sites[kHandshakeSites] = {};
     bool same = true;
     const int n = HandshakeSites(img, sites, kHandshakeSites, same);
@@ -87,24 +102,29 @@ constexpr RipSpec kIsOnlineFlag{ "offline.handshake_gate.1", 0, 3, 7 };
 // ---- megamap keeps record-name case ----------------------------------------------------------
 
 SigResult ResolveMegamapCall(const Image& img, const SigResolveContext&) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const Section& text = img.text;
     static const uint8_t kToLowerPrologue[] = { 0x4C, 0x8B, 0x09, 0x4C, 0x8B, 0xD1, 0x41, 0x0F, 0xB6, 0x01, 0x84, 0xC0 };
-    const uint8_t* help = FindCString(img.rdata, "Load a map, same usage as 'megamap' cvar.");
+    const uint8_t* help = BoundedCString(img, img.rdata, "Load a map, same usage as 'megamap' cvar.");
     if (!help) return SigFail("the map command's help text isn't in .rdata");
-    uint8_t* reg = FindRipLea(text, 0x48, 0x8D, 0x15, help);
+    uint8_t* reg = BoundedRipLea(img, text, 0x48, 0x8D, 0x15, help);
     if (!reg) return SigFail("the map command's help text isn't referenced");
     const uint8_t* handler = nullptr;
-    for (uint8_t* q = reg + 7; q < reg + 7 + 32; ++q)
-        if (q[0] == 0x4C && q[1] == 0x8D && q[2] == 0x05) { handler = q + 7 + Rel32(q + 3); break; }
-    if (!handler || handler < text.base || handler >= text.base + text.size - 0x80)
+    for (ptrdiff_t off = 7; off < 7 + 32; ++off) {
+        const uint8_t* q = TextAt(img, reg, off, 7);
+        if (!q) break;
+        if (q[0] == 0x4C && q[1] == 0x8D && q[2] == 0x05) { handler = CheckedRip(img, q, 3, 7); break; }
+    }
+    if (!handler || !InText(img, handler, 0x80))
         return SigFail("no map handler (lea r8) after the registration");
     static const uint8_t leaRcx[] = { 0x48, 0x8D, 0x4C, 0x24, 0x30, 0xE8 };
     const uint8_t* call = nullptr;
     int hits = 0;
     for (const uint8_t* h = handler; h < handler + 0x60; ++h) {
         if (memcmp(h, leaRcx, 6) != 0 || memcmp(h + 10, leaRcx, 6) != 0) continue;
-        const uint8_t* callee = h + 20 + Rel32(h + 16);
-        if (callee < text.base || callee + sizeof(kToLowerPrologue) > text.base + text.size) continue;
+        const uint8_t* callee = CheckedRip(img, h + 15, 1, 5);
+        if (!InText(img, callee, sizeof(kToLowerPrologue))) continue;
         if (memcmp(callee, kToLowerPrologue, sizeof(kToLowerPrologue)) != 0) continue;
         call = h + 15;
         ++hits;
@@ -117,19 +137,21 @@ SigResult ResolveMegamapCall(const Image& img, const SigResolveContext&) {
 // ---- boot into PU ------------------------------------------------------------------------------
 
 SigResult ResolveBootFrontend(const Image& img, const SigResolveContext&) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const Section& text = img.text;
-    const uint8_t* frontend   = FindCString(img.rdata, "Frontend_Main");
-    const uint8_t* scFrontend = FindCString(img.rdata, "SC_Frontend");
+    const uint8_t* frontend   = BoundedCString(img, img.rdata, "Frontend_Main");
+    const uint8_t* scFrontend = BoundedCString(img, img.rdata, "SC_Frontend");
     if (!frontend || !scFrontend) return SigFail("Frontend_Main / SC_Frontend isn't in .rdata");
     uint8_t* site = nullptr;
     int hits = 0;
+    if (!rows::InText(img, text.base, text.size) || text.size < 14) return Missing();
     uint8_t* const end = text.base + text.size - 14;
-    for (uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<uint8_t*>(memchr(p, 0x4C, static_cast<size_t>(end - p)));
-        if (!p) break;
-        if (p[1] != 0x8D || p[2] != 0x05 || p + 7 + Rel32(p + 3) != scFrontend) continue;
+    for (uint8_t* p = text.base; p <= end; ++p) {
+        if (*p != 0x4C) continue;
+        if (p[1] != 0x8D || p[2] != 0x05 || CheckedRip(img, p, 3, 7) != scFrontend) continue;
         const uint8_t* q = p + 7;
-        if (q[0] != 0x48 || q[1] != 0x8D || q[2] != 0x15 || q + 7 + Rel32(q + 3) != frontend) continue;
+        if (q[0] != 0x48 || q[1] != 0x8D || q[2] != 0x15 || CheckedRip(img, q, 3, 7) != frontend) continue;
         if (!site) site = p;
         ++hits;
     }
@@ -142,16 +164,19 @@ SigResult ResolveBootFrontend(const Image& img, const SigResolveContext&) {
 
 template <int K>
 SigResult ResolveOfflineDb(const Image& img, const SigResolveContext&) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const Section& text = img.text;
-    const uint8_t* offlineDb = FindCString(img.rdata, "Libs/OfflineDB");
+    const uint8_t* offlineDb = BoundedCString(img, img.rdata, "Libs/OfflineDB");
     if (!offlineDb) return SigFail("Libs/OfflineDB isn't in .rdata");
     uint8_t* sites[kOfflineDbSites] = {};
     int n = 0;
+    if (!rows::InText(img, text.base, text.size) || text.size < 7) return Missing();
     uint8_t* const end = text.base + text.size - 7;
-    for (uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<uint8_t*>(memchr(p, 0x4C, static_cast<size_t>(end - p)));
+    for (uint8_t* p = text.base; p <= end; ++p) {
+        p = static_cast<uint8_t*>(memchr(p, 0x4C, static_cast<size_t>(end - p) + 1));
         if (!p) break;
-        if (p[1] != 0x8D || p[2] != 0x05 || p + 7 + Rel32(p + 3) != offlineDb) continue;
+        if (p[1] != 0x8D || p[2] != 0x05 || CheckedRip(img, p, 3, 7) != offlineDb) continue;
         if (n < kOfflineDbSites) sites[n] = p;
         ++n;
     }
@@ -162,20 +187,23 @@ SigResult ResolveOfflineDb(const Image& img, const SigResolveContext&) {
 
 // ---- ASOP / fleet manager on the offline shard -------------------------------------------------
 
-const char* AsopGateOpenExtra(const Image&, const uint8_t* at, const SigResolveContext& ctx) {
-    const uint8_t* persisted = ctx.Sig("offline.is_online_flag") + 1;
-    return RipTarget(at + 7, 3, 7) == persisted ? nullptr : "cmp at +7 doesn't read is_online_flag+1";
+const char* AsopGateOpenExtra(const Image& img, const uint8_t* at, const SigResolveContext& ctx) {
+    const uint8_t* persisted = ImageAt(img, ctx.Sig("offline.is_online_flag"), 1, 1);
+    const uint8_t* cmp = TextAt(img, at, 7, 7);
+    return persisted && cmp && CheckedRip(img, cmp, 3, 7) == persisted ? nullptr : "cmp at +7 doesn't read is_online_flag+1";
 }
 constexpr FnSpec kAsopGateOpen{
     "44 89 AD D0 00 00 00 44 38 2D ?? ?? ?? ?? 0F 85 ?? ?? ?? ?? 48 8B 51 08 48 8D 8D D0 00 00 00 E8", nullptr, 0,
     AsopGateOpenExtra };
 
 const char* AsopGateValidationExtra(const Image& img, const uint8_t* at, const SigResolveContext& ctx) {
-    const uint8_t* persisted = ctx.Sig("offline.is_online_flag") + 1;
-    if (RipTarget(at, 2, 7) != persisted) return "cmp at +0 doesn't read is_online_flag+1";
-    const uint8_t* msg = FindCString(img.rdata, "Can only perform ASOP operations in the PU.");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
+    const uint8_t* persisted = ImageAt(img, ctx.Sig("offline.is_online_flag"), 1, 1);
+    if (!persisted || CheckedRip(img, at, 2, 7) != persisted) return "cmp at +0 doesn't read is_online_flag+1";
+    const uint8_t* msg = BoundedCString(img, img.rdata, "Can only perform ASOP operations in the PU.");
     if (!msg) return "the ASOP-in-the-PU message isn't in .rdata";
-    return RipTarget(at + 27, 3, 7) == msg ? nullptr : "lea r9 at +0x1b doesn't load the ASOP-in-the-PU message";
+    const uint8_t* lea = TextAt(img, at, 27, 7);
+    return lea && CheckedRip(img, lea, 3, 7) == msg ? nullptr : "lea r9 at +0x1b doesn't load the ASOP-in-the-PU message";
 }
 constexpr FnSpec kAsopGateValidation{
     "80 3D ?? ?? ?? ?? 00 75 ?? 48 8D 44 24 60 C7 44 24 60 E3 00 00 00 48 89 44 24 70 4C 8D 0D", nullptr, 0,
@@ -184,11 +212,14 @@ constexpr FnSpec kAsopGateValidation{
 // ---- landing zones don't destroy spawned ships -------------------------------------------------
 
 const char* ImpoundExtra(const Image& img, const uint8_t* f, const SigResolveContext&) {
-    const uint8_t* msg = FindCString(img.rdata, "$$: Vehicle '$$' [$$] impounded (or destroyed) by restricted area '$$' [$$]");
-    const uint8_t* tag = FindCString(img.rdata, "Boundary Violation");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
+    const uint8_t* msg = BoundedCString(img, img.rdata, "$$: Vehicle '$$' [$$] impounded (or destroyed) by restricted area '$$' [$$]");
+    const uint8_t* tag = BoundedCString(img, img.rdata, "Boundary Violation");
     if (!msg || !tag) return "the impound log strings aren't in .rdata";
-    if (RipTarget(f + 0x59, 3, 7) != msg) return "lea r9 at +0x59 doesn't load the impound message";
-    if (RipTarget(f + 0x79, 3, 7) != tag) return "lea r8 at +0x79 doesn't load \"Boundary Violation\"";
+    const uint8_t* messageLea = TextAt(img, f, 0x59, 7);
+    const uint8_t* tagLea = TextAt(img, f, 0x79, 7);
+    if (!messageLea || CheckedRip(img, messageLea, 3, 7) != msg) return "lea r9 at +0x59 doesn't load the impound message";
+    if (!tagLea || CheckedRip(img, tagLea, 3, 7) != tag) return "lea r8 at +0x79 doesn't load \"Boundary Violation\"";
     return nullptr;
 }
 constexpr Check kImpoundChecks[] = {
@@ -206,14 +237,17 @@ constexpr char kUseOnlineMissions[] = "contract_broker.use_online_mission_servic
 
 template <const char* Name>
 SigResult ResolveCvarDefault(const Image& img, const SigResolveContext&) {
-    const uint8_t* name = FindCString(img.rdata, Name);
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+    const uint8_t* name = BoundedCString(img, img.rdata, Name);
     if (!name) return SigFail("the cvar name isn't in .rdata");
-    uint8_t* lea = FindRipLea(img.text, 0x48, 0x8D, 0x15, name);
+    uint8_t* lea = BoundedRipLea(img, img.text, 0x48, 0x8D, 0x15, name);
     if (!lea) return SigFail("the cvar name isn't referenced");
-    if (!InText(img, lea - 0xF, 9)) return SigFail("registration outside .text");
-    if (!BytesMatch(lea - 6, "41 B9 01 00 00 00")) return SigFail("layout changed at lea-0x6 (mov r9d, 1)");
-    if (!BytesMatch(lea - 0xF, "4C 8D 43")) return SigFail("layout changed at lea-0xf (lea r8, [rbx+..])");
-    return SigOk(lea - 6);
+    const uint8_t* registration = TextAt(img, lea, -0xF, 0xF);
+    if (!registration) return SigFail("registration outside .text");
+    if (!BytesMatch(registration + 9, "41 B9 01 00 00 00")) return SigFail("layout changed at lea-0x6 (mov r9d, 1)");
+    if (!BytesMatch(registration, "4C 8D 43")) return SigFail("layout changed at lea-0xf (lea r8, [rbx+..])");
+    return SigOk(registration + 9);
 }
 
 // ---- party/group checks without the social service ---------------------------------------------
@@ -225,27 +259,37 @@ int SocialGroupSites(const Image& img, uint8_t** out, int max) {
     static const uint8_t kSlotB0[4] = { 0xB0, 0x00, 0x00, 0x00 };
     const uint8_t* global = nullptr;
     int n = 0;
-    uint8_t* const end = text.base + text.size - 0xA0;
-    for (uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<uint8_t*>(memchr(p, 0x48, static_cast<size_t>(end - p)));   // same sites, fewer compares
+    if (!rows::InText(img, text.base, text.size) || text.size < 7) return 0;
+    uint8_t* const end = text.base + text.size - 7;
+    for (uint8_t* p = text.base; p <= end; ++p) {
+        p = static_cast<uint8_t*>(memchr(p, 0x48, static_cast<size_t>(end - p) + 1));
         if (!p) break;
         if (p[1] != 0x8B || p[2] != 0x0D) continue;
         const uint8_t* call = nullptr;
-        for (const uint8_t* q = p + 7; q < p + 7 + 0x30 && !call; ++q)
+        for (ptrdiff_t off = 7; off < 7 + 0x30 && !call; ++off) {
+            const uint8_t* q = TextAt(img, p, off, 6);
+            if (!q) break;
             if (q[0] == 0x48 && q[1] == 0x8B && q[2] == 0x01 && q[3] == 0xFF && q[4] == 0x50 && q[5] == 0x18) call = q + 6;
+        }
         if (!call) continue;
         const uint8_t* social = nullptr;
-        for (const uint8_t* q = call; q < call + 0x18 && !social; ++q) {
-            if ((q[0] == 0x48 || q[0] == 0x4C) && q[1] == 0x8B && (q[2] & 0xC0) == 0x40 && q[3] == 0x70) social = q + 4;
+        for (ptrdiff_t off = 0; off < 0x18 && !social; ++off) {
+            const uint8_t* q = TextAt(img, call, off, 3);
+            if (!q) break;
+            if ((q[0] == 0x48 || q[0] == 0x4C) && q[1] == 0x8B && (q[2] & 0xC0) == 0x40 && InText(img, q, 4) && q[3] == 0x70) social = q + 4;
             else if (q[0] == 0xFF && (q[1] & 0xF8) == 0x50 && q[2] == 0x70) social = q + 3;
         }
         if (!social) continue;
         bool sameGroup = false;
-        for (const uint8_t* q = social; q < social + 0x50 && !sameGroup; ++q)
-            sameGroup = ((q[0] == 0x48 || q[0] == 0x4C) && q[1] == 0x8B && (q[2] & 0xC0) == 0x80 && !memcmp(q + 3, kSlotB0, 4))
+        for (ptrdiff_t off = 0; off < 0x50 && !sameGroup; ++off) {
+            const uint8_t* q = TextAt(img, social, off, 6);
+            if (!q) break;
+            sameGroup = ((q[0] == 0x48 || q[0] == 0x4C) && q[1] == 0x8B && (q[2] & 0xC0) == 0x80 && InText(img, q, 7) && !memcmp(q + 3, kSlotB0, 4))
                      || (q[0] == 0xFF && (q[1] & 0xF8) == 0x90 && !memcmp(q + 2, kSlotB0, 4));
+        }
         if (!sameGroup) continue;
-        const uint8_t* g = p + 7 + Rel32(p + 3);
+        const uint8_t* g = CheckedRip(img, p, 3, 7);
+        if (!g) continue;
         if (global && g != global) return -1;
         global = g;
         if (n < max) out[n] = p;
@@ -256,6 +300,7 @@ int SocialGroupSites(const Image& img, uint8_t** out, int max) {
 
 template <int K>
 SigResult ResolveSocialGroup(const Image& img, const SigResolveContext&) {
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     uint8_t* sites[kSocialGroupSites] = {};
     const int n = SocialGroupSites(img, sites, kSocialGroupSites);
     if (n < 0) return SigFail("social-group queries: the sites load different globals");
@@ -270,12 +315,20 @@ constexpr RipSpec kServicesEnv{ "offline.social_group.1", 0, 3, 7 };
 
 // The next `lea r64, [rip+target]` (48/4C 8D, mod/rm = rip) at or after `from`.
 const uint8_t* FindLeaFrom(const Section& text, const uint8_t* target, const uint8_t* from) {
-    const uint8_t* const end = text.base + text.size - 7;
-    for (const uint8_t* p = from; target && p < end; ++p) {
-        p = static_cast<const uint8_t*>(memchr(p, 0x8D, static_cast<size_t>(end - p)));
-        if (!p) break;
-        if (p > text.base && (p[-1] == 0x48 || p[-1] == 0x4C) && (p[1] & 0xC7) == 0x05 && p + 6 + Rel32(p + 2) == target)
-            return p - 1;
+    if (!target || !rows::InRange(text, text.base, text.size) || text.size < 7 ||
+        !rows::InRange(text, from, 7)) return nullptr;
+    const uint8_t* const end = text.base + text.size - 6;
+    for (const uint8_t* opcode = from + 1; opcode <= end; ++opcode) {
+        opcode = static_cast<const uint8_t*>(memchr(opcode, 0x8D, static_cast<size_t>(end - opcode) + 1));
+        if (!opcode) break;
+        const uint8_t* p = opcode - 1;
+        if ((p[0] != 0x48 && p[0] != 0x4C) || (p[2] & 0xC7) != 0x05) continue;
+        const uint8_t* next = rows::RangeAt(text, p, 7, 0);
+        const auto address = reinterpret_cast<uintptr_t>(next);
+        const int32_t disp = Rel32(p + 3);
+        const uintptr_t magnitude = disp < 0 ? uintptr_t{0} - static_cast<uintptr_t>(disp) : static_cast<uintptr_t>(disp);
+        if (!(disp < 0 ? magnitude > address : magnitude > UINTPTR_MAX - address) &&
+            (disp < 0 ? address - magnitude : address + magnitude) == reinterpret_cast<uintptr_t>(target)) return p;
     }
     return nullptr;
 }
@@ -289,17 +342,22 @@ constexpr char kEcho[]      = "echo::v1::EchoService";
 // the reference, with the stream prologue) that references the service's lambda name.
 template <const char* Service, int K, int N>
 SigResult ResolveServiceStream(const Image& img, const SigResolveContext&) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+    if (!rows::InImage(img, img.base, img.size) ||
+        !rows::InImage(img, img.pdata.base, img.pdata.size)) return SigFail("invalid .pdata/image");
     char name[256];
     std::snprintf(name, sizeof(name),
                   "auto __cdecl CAsyncClient<class sc::external::services::%s>::CreateClientStream::<lambda_3>::operator ()(const char *) const",
                   Service);
-    const uint8_t* s = FindCString(img.rdata, name);
+    const uint8_t* s = BoundedCString(img, img.rdata, name);
     if (!s) return SigFail("the stream lambda's name isn't in .rdata");
     uint8_t* fns[N] = {};
     int n = 0;
-    for (const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base); lea; lea = FindLeaFrom(img.text, s, lea + 8)) {
+    for (const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base); lea; lea = FindLeaFrom(img.text, s, TextAt(img, lea, 8, 0))) {
         uint8_t* fn = FunctionStart(img, lea);
-        if (!fn || lea - fn > 0x200) continue;
+        if (!fn || !InText(img, fn, 12) || reinterpret_cast<uintptr_t>(fn) > reinterpret_cast<uintptr_t>(lea) ||
+            reinterpret_cast<uintptr_t>(lea) - reinterpret_cast<uintptr_t>(fn) > 0x200) continue;
         if (!BytesMatch(fn, "48 89 5C 24 18 55 56 57 41 56 41 57")) continue;
         if (n < N) fns[n] = fn;
         ++n;
@@ -312,16 +370,19 @@ SigResult ResolveServiceStream(const Image& img, const SigResolveContext&) {
 // ---- remote console only on this PC -------------------------------------------------------------
 
 SigResult ResolveRemoteConsoleBind(const Image& img, const SigResolveContext&) {
-    const uint8_t* s = FindCString(img.rdata, "Remote console listening on: %u\n");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+    const uint8_t* s = BoundedCString(img, img.rdata, "Remote console listening on: %u\n");
     if (!s) return SigFail("the remote console's listening line isn't in .rdata");
     const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base);
     if (!lea) return SigFail("the remote console's listening line isn't referenced");
-    if (FindLeaFrom(img.text, s, lea + 8)) return SigFail("the listening line is referenced more than once");
-    if (!InText(img, lea - 0x100, 0x100)) return SigFail("the listening line's reference is too close to the start of .text");
+    if (FindLeaFrom(img.text, s, TextAt(img, lea, 8, 0))) return SigFail("the listening line is referenced more than once");
+    const uint8_t* start = TextAt(img, lea, -0x100, 0x100);
+    if (!start) return SigFail("the listening line's reference is too close to the start of .text");
     const uint8_t* at = nullptr;
     int hits = 0;
-    for (const uint8_t* p = lea - 0x100; p < lea; ++p)
-        if (BytesMatch(p, "33 C9 FF 15 ?? ?? ?? ?? 0F B7 CB 66 89 7C 24 48 89 44 24 4C")) {
+    for (const uint8_t* p = start; p < lea; ++p)
+        if (InText(img, p, 20) && BytesMatch(p, "33 C9 FF 15 ?? ?? ?? ?? 0F B7 CB 66 89 7C 24 48 89 44 24 4C")) {
             if (!at) at = p;
             ++hits;
         }
@@ -342,9 +403,11 @@ constexpr FnSpec kInstanceGroupQuery{
 constexpr RipSpec kServicesManager{ "elevator.instance_group_query", 0x5B, 3, 7 };
 
 const char* EntitlementsExtra(const Image& img, const uint8_t* f, const SigResolveContext&) {
-    const uint8_t* msg = FindCString(img.rdata, "QueryEntitlements failed with error: $$");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
+    const uint8_t* msg = BoundedCString(img, img.rdata, "QueryEntitlements failed with error: $$");
     if (!msg) return "the QueryEntitlements error line isn't in .rdata";
-    return RipTarget(f + 0x55, 3, 7) == msg ? nullptr : "lea r9 at +0x55 doesn't load the QueryEntitlements error line";
+    const uint8_t* lea = TextAt(img, f, 0x55, 7);
+    return lea && CheckedRip(img, lea, 3, 7) == msg ? nullptr : "lea r9 at +0x55 doesn't load the QueryEntitlements error line";
 }
 constexpr Check kEntitlementsChecks[] = {
     { 0x55, "4C 8D 0D", "layout changed at +0x055" },   // lea r9, ["QueryEntitlements failed with error: $$"]
@@ -354,13 +417,15 @@ constexpr FnSpec kEntitlementsResult{
     kEntitlementsChecks, std::size(kEntitlementsChecks), EntitlementsExtra };
 
 SigResult ResolveTakeoffCommand(const Image& img, const SigResolveContext&) {
-    const uint8_t* usage = FindCString(img.rdata,
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+    const uint8_t* usage = BoundedCString(img, img.rdata,
         "Invalid arguments. Usage: g_ATC_requestTakeOff <atc_name (autocompletable)> [<ship_archetype>] [<pad_name_filter>]");
     if (!usage) return SigFail("the g_ATC_requestTakeOff usage line isn't in .rdata");
-    uint8_t* lea = FindRipLea(img.text, 0x48, 0x8D, 0x15, usage);
+    uint8_t* lea = BoundedRipLea(img, img.text, 0x48, 0x8D, 0x15, usage);
     if (!lea) return SigFail("the g_ATC_requestTakeOff usage line isn't referenced");
-    uint8_t* cmd = lea - 0x1CD;
-    if (!InText(img, cmd, 0x195)) return SigFail("the command would start outside .text");
+    const uint8_t* cmd = TextAt(img, lea, -0x1CD, 0x195);
+    if (!cmd) return SigFail("the command would start outside .text");
     if (!BytesMatch(cmd, "40 55 53 48 8B EC 48 83 EC 78")) return SigFail("layout changed at +0x000");
     if (!BytesMatch(cmd + 0x72, "E8")) return SigFail("layout changed at +0x072");
     if (!BytesMatch(cmd + 0xA9, "E8")) return SigFail("layout changed at +0x0a9");
@@ -376,10 +441,12 @@ constexpr RipSpec kRequestTakingOff{ "fleet.takeoff_command", 0x190, 1, 5 };
 SigResult ResolveQuitFastShutdown(const Image& img, const SigResolveContext& ctx) {
     uint8_t* q = ctx.Sig("system.quit");
     if (!q) return SigFail("source row missing");
-    uint8_t* t = q + 0x31A;
-    if (!InText(img, t, 34)) return SigFail("CSystem::Quit +0x31a outside .text");
-    if (!BytesMatch(t, "49 8B 8E ?? ?? ?? ?? 48 85 C9 74 0A 48 8B 01 FF 50 10 85 C0 75 0E "
-                       "41 80 BE ?? ?? ?? ?? 00 0F 84"))
+    constexpr const char* pattern =
+        "49 8B 8E ?? ?? ?? ?? 48 85 C9 74 0A 48 8B 01 FF 50 10 85 C0 75 0E "
+        "41 80 BE ?? ?? ?? ?? 00 0F 84";
+    const uint8_t* t = TextAt(img, q, 0x31A, rows::PatternBytes(pattern));
+    if (!t) return SigFail("CSystem::Quit +0x31a outside .text");
+    if (!BytesMatch(t, pattern))
         return SigFail("CSystem::Quit's fast-shutdown test moved (+0x31a)");
     return SigOk(t);
 }

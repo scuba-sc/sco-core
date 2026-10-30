@@ -8,6 +8,7 @@
 #include "sco/game/pak.h"
 #include "sco/scan.h"
 #include "sco/signatures.h"
+#include "sig_rows.h"
 
 namespace sco::game {
 
@@ -20,29 +21,33 @@ constexpr size_t kCryPakLoadBytes = 30;
 constexpr size_t kCryPakWindow = 0x400;    // the CryPak load is in the loader's first 0x400 bytes
 constexpr size_t kSlotWindow = 0x2400;     // the slot calls are in its first 0x2400 bytes
 
-bool InText(const Image& img, const uint8_t* p, size_t n) {
-    return p >= img.text.base && p <= img.text.base + img.text.size
-        && static_cast<size_t>(img.text.base + img.text.size - p) >= n;
-}
+using rows::InText;
 
 // The loader: the function holding `lea r9, [rip+"DCB file is smaller than expected"]`.
 SigResult ResolveLoader(const Image& img, const SigResolveContext&) {
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InImage(img, img.base, img.size) ||
+        !rows::InImage(img, img.pdata.base, img.pdata.size)) return SigFail("invalid .pdata/image");
     const uint8_t* msg = FindCString(img.rdata, kDcbSmaller);
     if (!msg) return { SigState::Missing, nullptr, 0, nullptr };
     uint8_t* site = FindRipLea(img.text, 0x4C, 0x8D, 0x0D, msg);
     if (!site) return SigFail("DCB size message isn't referenced");
     uint8_t* loader = FunctionStart(img, site);
     if (!loader) return SigFail("no .pdata entry for the DCB size message's function");
-    if (!InText(img, loader, 24) || !BytesMatch(loader, kLoaderPrologue)) return SigFail("loader prologue changed");
+    if (!InText(img, loader, 24)) return SigFail("loader prologue outside .text");
+    if (!BytesMatch(loader, kLoaderPrologue)) return SigFail("loader prologue changed");
     // Every other lea r9 of the message must be in the same function.
     int sites = 1;
-    for (uint8_t* p = site + 1; InText(img, p, 7);) {
-        const Section rest{ p, static_cast<size_t>(img.text.base + img.text.size - p) };
+    const auto textBase = reinterpret_cast<uintptr_t>(img.text.base);
+    size_t off = static_cast<size_t>(reinterpret_cast<uintptr_t>(site) - textBase) + 1;
+    while (off <= img.text.size && img.text.size - off >= 7) {
+        const Section rest{ img.text.base + off, img.text.size - off };
         uint8_t* next = FindRipLea(rest, 0x4C, 0x8D, 0x0D, msg);
         if (!next) break;
         ++sites;
         if (FunctionStart(img, next) != loader) return { SigState::Ambiguous, nullptr, sites, "DCB size message used by two functions" };
-        p = next + 1;
+        off = static_cast<size_t>(reinterpret_cast<uintptr_t>(next) - textBase) + 1;
     }
     return SigOk(loader);
 }
@@ -52,11 +57,12 @@ SigResult ResolveCryPak(const Image& img, const SigResolveContext& ctx) {
     uint8_t* loader = ctx.Sig("pak.datacore_loader");
     if (!loader) return SigFail("pak.datacore_loader missing");
     if (!InText(img, loader, kCryPakWindow + kCryPakLoadBytes)) return SigFail("loader too close to the end of .text");
-    uint8_t* global = nullptr;
+    const uint8_t* global = nullptr;
     int found = 0;
     for (size_t i = 0; i < kCryPakWindow; ++i) {
         if (!BytesMatch(loader + i, kCryPakLoad)) continue;
-        uint8_t* g = RipTarget(loader + i, 3, 7);
+        const uint8_t* g = rows::CheckedRip(img, loader + i, 3, 7);
+        if (!g) return SigFail("CryPak global outside the image");
         ++found;
         if (!global) global = g;
         else if (g != global) return { SigState::Ambiguous, nullptr, found, "two CryPak globals in the loader" };
