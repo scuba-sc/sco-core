@@ -3,6 +3,8 @@
 import contextlib
 import io
 import json
+import re
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -351,6 +353,19 @@ class DocReleaseGateTests(unittest.TestCase):
                       + "ab" * 32 + ", with 160 records.\n")
         self.assert_passes()
 
+    def test_mcp_final_and_published_candidate_coordinates(self):
+        for doc in gate.MCP_DOCS:
+            with self.subTest(doc=doc):
+                original = self.repo.files[doc]
+                for tag in ("sdk-v2.1.0", "sdk-v2.1.0-rc.2"):
+                    self.repo.set(doc, mcp_doc("2.1.0", "0.4.0")
+                                  + f"\nPublished download: {tag}.\n")
+                    self.assert_passes()
+                self.repo.set(doc, mcp_doc("2.1.0", "0.4.0")
+                              + "\nDownload sdk-v2.0.0-rc.2.\n")
+                self.assert_refused("quotes version 2.0.0")
+                self.repo.set(doc, original)
+
     def test_mcp_doc_missing_refused(self):
         (self.repo.root / gate.MCP_DOCS[3]).unlink()
         self.assert_refused(f"{gate.MCP_DOCS[3]} is missing or unreadable")
@@ -364,6 +379,27 @@ class DocReleaseGateTests(unittest.TestCase):
     def test_repository_public_docs_cite_no_source_lines(self):
         notes = f"docs/releases/sdk-v{(REPO_ROOT / 'sdk/VERSION').read_text().strip()}.md"
         self.assertEqual(gate.citation_refusals(REPO_ROOT, notes), [])
+
+    def test_release_workflow_extracts_final_changelog_section_for_candidate(self):
+        workflow = (REPO_ROOT / ".github/workflows/release.yml").read_text()
+        match = re.search(r"awk -v t=\"sdk-v\$v\" '(.*?)' CHANGELOG\.md", workflow, re.S)
+        if match is None:
+            self.fail("release workflow changelog extraction not found")
+        changelog = ("# Changelog\n## sdk-v2.4.0 (pending)\nFinal section\n"
+                     "### Details\nDetail\n## sdk-v2.3.0 (old)\nOld section\n")
+        result = subprocess.run(["awk", "-v", "t=sdk-v2.4.0", match.group(1)],
+                                input=changelog, text=True, capture_output=True, check=True)
+        self.assertIn("Final section", result.stdout)
+        self.assertIn("Detail", result.stdout)
+        self.assertNotIn("Old section", result.stdout)
+        # RC tag normalization must select the same final section.
+        self.assertEqual(gate.base_tag("sdk-v2.4.0-rc.2"), "sdk-v2.4.0")
+        actual = subprocess.run(["awk", "-v", "t=sdk-v2.4.0", match.group(1)],
+                                input=(REPO_ROOT / "CHANGELOG.md").read_text(),
+                                text=True, capture_output=True, check=True)
+        self.assertIn("get_service_status", actual.stdout)
+        self.assertIn("game.audio.play_once", actual.stdout)
+        self.assertNotIn("## sdk-v2.3.0", actual.stdout)
 
     def test_repository_workflow_and_components_profiles_agree(self):
         self.assertEqual(gate.workflow_profiles(REPO_ROOT), gate.components_profiles(REPO_ROOT))
