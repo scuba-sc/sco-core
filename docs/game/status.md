@@ -116,7 +116,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | | `game.vehicles.seat` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | | `game.vehicles.flight_ready` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | `game.world.control` ([`sc_world_control.h`](../../include/sc_world_control.h)) | 1.1 | Experimental | `game.world.raycast_filtered_many` (`raycast_filtered_many`) | OFF | Bounded scoped multi-hit policy and lifecycle tests; no native grid/hit adapter, not run in game |
-| | | | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
+| | | | `game.world.raycast_filtered` (`raycast_filtered`) | OFF | Synthetic policy only; no verified offline engine adapter: the native single-hit seam installs nothing without the resolved zone/world/grid and a skip-request lifetime; no Windows/game proof |
 | | | | `game.world.free_camera` (`camera_acquire`) | OFF | Synthetic policy only; no verified offline engine adapter, no Windows/game proof |
 | `game.world` ([`sc_world.h`](../../include/sc_world.h)) | 1.1 | Stable | `game.world.raycast` | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
