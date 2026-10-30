@@ -5,6 +5,7 @@
 #include "sco/app.h"
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 namespace sco::game::host {
 enum class Session : uint32_t { Unknown, Offline, Online };
@@ -17,7 +18,7 @@ struct Admission {
     Check officialNetwork = Check::Unknown;
     Check targetProcess = Check::Unknown;
 };
-enum class Phase : uint32_t { Idle, Preparing, Prepared, Starting, Running, Stopping, Stopped, Failed };
+enum class Phase : uint32_t { Idle, Preparing, Prepared, Activating, Activated, Starting, Running, Stopping, Stopped, Failed };
 enum class QuitPolicy : uint32_t { Required, External };
 enum class DataCoreHook : uint32_t { Required, External };
 enum class ConsumerRetirement : uint32_t { Quiesced, Retained };
@@ -30,31 +31,33 @@ struct Snapshot {
 struct Options {
     uint32_t size = sizeof(Options); // C++ source contract, not frozen sco_api or a wire ABI
     Admission (*inspect)() = nullptr; // synchronous, thread-safe, non-reentrant OS evidence; exceptions refuse
-    const Image* image = nullptr;    // Image object and original bytes readable through Prepare
+    const Image* image = nullptr;    // readable through Prepare
+    std::shared_ptr<const void> imageOwner; // owns image bytes and mapped code
+    std::shared_ptr<const void> resolverOwner; // owns resolver provider code/state
     QuitPolicy quit = QuitPolicy::Required; // External only when shell supplies BeforeQuit
     uint32_t tickIntervalMs = 100;    // 0 = every shell pass; <= INT32_MAX
-    // platform.dataCore starts the service in Prepare, before an early engine load.
+    // platform.dataCore starts the service in Activate, before an early engine load.
     // Requires dataRoot and no builtins (early discovery runs no plugin code).
     DataCoreHook dataCoreHook = DataCoreHook::Required;
     uint64_t maxDataCoreBytes = 512ull << 20; // bounded base read for Data/Game2.dcb
     app::Platform platform;          // image/registerSignatures MUST be null: owned here
     // Native live reads are OFF by default. The shell must keep engine execution
-    // quiesced before Prepare and until it returns; late Prepare is insufficient.
+    // quiesced before Activate and until it returns; late activation is insufficient.
     bool nativeDataCoreReads = false;
     bool preEngineQuiesced = false;
     // 0 means allocator-limited; otherwise registry, graph and snapshot allocations
     // share this byte budget, including snapshots retained by readers.
     size_t signatureRegistryBudgetBytes = 0;
     // Optional early DataCore requirement check. Null or an exception means not
-    // available. Runs synchronously during Prepare, possibly before the game thread,
+    // available. Runs synchronously during Activate, possibly before the game thread,
     // after admission and against the installed frozen snapshot; it must be
     // side-effect-free and not retain the name or snapshot references. The callback
-    // and context must remain valid through Prepare.
+    // and context must remain valid through Activate.
     bool (*earlyDataRequirement)(const char* name, const SignatureSnapshot& snapshot, void* context) = nullptr;
     void* earlyDataContext = nullptr;
     // Called at most once after core admission closes and before any pak, app,
-    // plugin or dependent service teardown. A failed Prepare can call it on the
-    // Prepare thread; Stop calls it on the game thread. Quiesced asserts a durable gate:
+    // plugin or dependent service teardown. A failed Activate can call it on the
+    // Activate thread; Stop calls it on the game thread. Quiesced asserts a durable gate:
     // product admission is closed, entered product and game-service/native readers
     // have drained, and asynchronous product/engine callbacks or service readers
     // cannot enter through all dependent cleanup. It must
@@ -77,7 +80,9 @@ struct Options {
 // Resolved addresses and installed hooks borrow the image/module and resolver provider code.
 // Keep those valid through all consumers and hooks; a retained snapshot is not an image lease.
 Result Prepare(const Options& options);
-// Re-inspects admission before any publication. Prepared only; no feature fallback tick.
+// Native mutation requires a durable platform reader barrier; refusal is retryable.
+Result Activate();
+// Start activates a prepared candidate for compatibility, then starts it.
 Result Start();
 // Shell invokes from its game-thread message/tick adapter; first pass is immediate.
 // Unsigned elapsed time handles clock wrap. Rechecks admission BEFORE cadence or callbacks.

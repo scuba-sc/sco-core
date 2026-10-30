@@ -57,7 +57,9 @@ int main(int argc,char** argv){
     uint8_t image_bytes[8192]{};
     sco::Image image{image_bytes,{image_bytes,4096},{image_bytes+4096,4096},{},0,sizeof(image_bytes)};
     gh::Options options;options.inspect=Inspect;options.image=&image;options.quit=gh::QuitPolicy::External;options.retireConsumer=RetireConsumer;
+    auto ownerToken = std::make_shared<int>(1); options.imageOwner = ownerToken; options.resolverOwner = ownerToken;
     CHECK(gh::Prepare(options)==sco::Result::Ok);
+    CHECK(gh::Activate()==sco::Result::Ok);
     CHECK(gh::Start()==sco::Result::Ok);
     CHECK(cs::StartSpawn()==sco::Result::Ok);
     CHECK(cs::SpawnReleaseHooked());

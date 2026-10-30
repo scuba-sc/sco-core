@@ -76,6 +76,7 @@ int main(int argc, char** argv) {
     sco::Image image{bytes, {bytes, 4096}, {bytes + 4096, 4096}, {}, 0, sizeof(bytes)};
     gh::Options o;
     o.inspect = Inspect; o.image = &image; o.quit = gh::QuitPolicy::External;
+    auto ownerToken = std::make_shared<int>(1); o.imageOwner = ownerToken; o.resolverOwner = ownerToken;
     o.platform.dataRoot = root;
     o.platform.pluginRoot = root / "plugins";
     o.platform.pluginsEnabled = true;
@@ -94,8 +95,13 @@ int main(int argc, char** argv) {
     }
     const sco::Result prepared = gh::Prepare(o);
     CHECK(capabilityCalls == 0); // Prepare can precede the game thread
+    CHECK(prepared == sco::Result::Ok);
+    CHECK(requirementCalls == 0);
+    CHECK(!sco::datacore::service::Started());
+    const sco::Result activated = gh::Activate();
+    CHECK(capabilityCalls == 0);
     if (mode == "admission") {
-        CHECK(prepared == sco::Result::Unavailable);
+        CHECK(activated == sco::Result::Unavailable);
         CHECK(gh::Status().phase == gh::Phase::Failed && requirementCalls > 0);
         CHECK(shutdownCalls == 1 && !sco::datacore::service::Started());
         CHECK(!sco::AcquireHostSignatureSnapshot());
@@ -103,7 +109,7 @@ int main(int argc, char** argv) {
         std::printf("game_host_data %s: %d failures\n", mode.c_str(), failures);
         return failures ? 1 : 0;
     }
-    CHECK(prepared == sco::Result::Ok);
+    CHECK(activated == sco::Result::Ok);
     CHECK(!sco::caps::Has("fixture.early"));
     CHECK((mode == "plain" || mode == "null" || partial) ? requirementCalls == 0 : requirementCalls > 0);
     CHECK(sco::datacore::service::Started());

@@ -19,12 +19,25 @@ static gh::Admission Inspect() { ++inspections; return evidence; }
 static int ticks = 0, tasks = 0;
 static int shutdownCalls = 0, exitCalls = 0, serviceStops = 0;
 static bool productClosed = false, controlTick = false, partialStartup = false;
-static std::string shutdownPolicy = "true";
 static int shutdownContext;
+static bool barrierEnabled = true;
+static std::string barrierPolicy;
+static int barrierCalls = 0;
+static bool NativeBarrier(void* ctx) {
+    CHECK(ctx == &shutdownContext);
+    ++barrierCalls;
+    CHECK(gh::Prepare(gh::Options{}) == sco::Result::BadArg);
+    CHECK(gh::Activate() == sco::Result::BadArg);
+    CHECK(gh::Start() == sco::Result::BadArg);
+    if (!barrierEnabled && barrierPolicy == "throw") throw std::runtime_error("synthetic barrier fault");
+    return barrierEnabled;
+}
+static std::string shutdownPolicy = "true";
 static gh::ConsumerRetirement RetireConsumer(void* ctx) {
     ++shutdownCalls;
     CHECK(ctx == &shutdownContext && gh::Status().phase == (partialStartup ? gh::Phase::Starting : gh::Phase::Stopping));
     CHECK(!gh::FreshAdmissionAllowed() && exitCalls == 0 && serviceStops == 0);
+    CHECK(gh::Activate() == sco::Result::BadArg); // lifecycle reentry cannot activate during retirement
     if (evidence.session == gh::Session::Unknown) CHECK(controlTick); // the Tick control frame must not wait on itself
     if (shutdownPolicy == "throw") throw std::runtime_error("synthetic product shutdown fault");
     if (shutdownPolicy == "retained") return gh::ConsumerRetirement::Retained;
@@ -81,6 +94,11 @@ int main(int argc, char** argv) {
     const bool failureStop = mode.rfind("shutdown-", 0) == 0;
     const bool failureLoss = mode.rfind("loss-", 0) == 0;
     const bool failureQuit = mode.rfind("quit-", 0) == 0;
+    const bool barrierFailure = mode.rfind("barrier-", 0) == 0;
+    if (barrierFailure) {
+        barrierPolicy = mode.substr(8);
+        if (barrierPolicy != "null" && barrierPolicy != "false" && barrierPolicy != "throw") return 2;
+    }
     partialStartup = mode.rfind("partial-", 0) == 0;
     if (failureStop || failureLoss || failureQuit || partialStartup) {
         shutdownPolicy = mode.substr(mode.find('-') + 1);
@@ -100,6 +118,11 @@ int main(int argc, char** argv) {
     o.retireConsumer = shutdownPolicy == "null" ? nullptr : RetireConsumer;
     o.consumerContext = &shutdownContext;
     o.platform.hostService = {&shutdownContext, HostServiceStart, HostServiceTick, HostServiceStop};
+    if (barrierFailure) {
+        o.platform.gameServices = true;
+        o.platform.gameReadersQuiesced = barrierPolicy == "null" ? nullptr : NativeBarrier;
+        o.platform.gameReadersContext = &shutdownContext;
+    }
     if (partialStartup) o.platform.setCapabilities = FailCapabilities;
     // Unknown evidence refuses before signature resolution or host startup.
     CHECK(gh::Prepare(o) == sco::Result::Unavailable);
@@ -123,8 +146,12 @@ int main(int argc, char** argv) {
     uint8_t bytes[8192]{};
     sco::Image image{bytes, {bytes, 4096}, {bytes + 4096, 4096}, {}, 0, sizeof(bytes)};
     o.image = &image;
+    auto ownerToken = std::make_shared<int>(1); o.imageOwner = ownerToken; o.resolverOwner = ownerToken;
     if (missingQuit) {
-        CHECK(gh::Prepare(o) == sco::Result::Unavailable);
+        o.platform.gameReadersQuiesced = NativeBarrier; o.platform.gameReadersContext = &shutdownContext;
+        CHECK(gh::Prepare(o) == sco::Result::Ok);
+        CHECK(!gh::Status().quitHookInstalled && loads == 0);
+        CHECK(gh::Activate() == sco::Result::Unavailable);
         CHECK(gh::Status().phase == gh::Phase::Failed && !gh::Status().quitHookInstalled);
         CHECK(gh::Start() == sco::Result::BadArg && loads == 0);
         return failures ? 1 : 0;
@@ -132,9 +159,26 @@ int main(int argc, char** argv) {
     CHECK(gh::Prepare(o) == sco::Result::Ok);
     CHECK(gh::Status().phase == gh::Phase::Prepared);
     CHECK(gh::Prepare(o) == sco::Result::BadArg);
+    CHECK(loads == 0 && !gh::Status().quitHookInstalled && !gh::Status().dataCoreActive);
+    if (barrierFailure) {
+        barrierEnabled = false;
+        CHECK(!sco::AcquireHostSignatureRegistry());
+        CHECK(gh::Activate() == sco::Result::Unavailable);
+        CHECK(gh::Status().phase == gh::Phase::Prepared);
+        CHECK(!sco::AcquireHostSignatureRegistry() && loads == 0 && !gh::Status().dataCoreActive);
+        if (barrierPolicy != "null") {
+            barrierEnabled = true;
+            CHECK(gh::Activate() == sco::Result::Ok);
+            CHECK(gh::Status().phase == gh::Phase::Activated && sco::AcquireHostSignatureRegistry());
+        }
+        return failures ? 1 : 0;
+    }
+    CHECK(!sco::AcquireHostSignatureRegistry());
+    CHECK(gh::Activate() == sco::Result::Ok);
+    CHECK(gh::Activate() == sco::Result::BadArg);
     evidence.session = gh::Session::Online; // revalidate before publication
     CHECK(gh::Start() == sco::Result::Unavailable);
-    CHECK(gh::Status().phase == gh::Phase::Prepared);
+    CHECK(gh::Status().phase == gh::Phase::Activated);
     evidence.session = gh::Session::Offline;
     if (partialStartup) {
         const auto owner = sco::AcquireHostSignatureRegistry();
@@ -173,6 +217,18 @@ int main(int argc, char** argv) {
     CHECK(sco::Post(Task, nullptr) == sco::Result::Ok);
     const auto owner = sco::AcquireHostSignatureRegistry();
     CHECK(owner && sco::caps::Set("fixture.shutdown", true) == sco::Result::Ok);
+    if (barrierFailure) {
+        barrierEnabled = false;
+        CHECK(gh::Stop() == sco::Result::Failed);
+        CHECK(gh::Status().phase == gh::Phase::Failed && sco::AcquireHostSignatureRegistry() == owner);
+        CHECK(!sco::caps::Has("fixture.shutdown") && !gh::FreshAdmissionAllowed());
+        CHECK(productClosed && shutdownCalls == 1 && exitCalls == 0 && serviceStops == 0);
+        CHECK(sco::QueuedTasks() == 1);
+        CHECK(barrierPolicy == "null" ? barrierCalls == 0 : barrierCalls >= 1);
+        CHECK(gh::Stop() == sco::Result::Unavailable);
+        std::printf("game_host %s: %d checks, %d failures\n", mode.c_str(), checks, failures);
+        return failures ? 1 : 0;
+    }
     if (failureStop || failureLoss || failureQuit) {
         if (failureLoss) {
             evidence.session = gh::Session::Unknown;

@@ -8,7 +8,7 @@ this adapter. During development, test against an exact source candidate and mat
 artifacts/checksums across consumers; a later stable SDK and pin transition remain a
 release decision. Windows and in-game behavior of this change have not been verified.
 
-## Admission, resolve, start
+## Admission, prepare, activate, start
 
 1. The shell collects fresh OS evidence: correct target process, anti-cheat absent,
    official-network access blocked, and positively known offline session. All
@@ -18,13 +18,19 @@ release decision. Windows and in-game behavior of this change have not been veri
    any row or resolving the original image. It copies options, registers the game
    signature tables atomically, freezes and resolves them, and installs the sealed
    registry. Missing rows stay unavailable. Signature setup or ownership failure
-   refuses preparation.
+   refuses preparation. Resolution must be pure: resolvers must not mutate engine
+   state or install hooks. This is a precondition supplied by the resolver, not a
+   property that the host can infer from a successful resolution.
    The original image must be readable, with nonempty text/rdata; the adapter is
    not a general arbitrary-pointer validator. Prepare runs outside loader lock.
-3. On the actual game thread, `Start()` re-inspects admission and calls `app::Start`
+3. `Activate()` rechecks admission and registry ownership before installing the quit
+   and DataCore transports and preparing early DataCore. The shell must establish the
+   required quiescence before activation; preparation alone does not install hooks or
+   start the early service. Do not let the engine load DataCore until activation succeeds.
+4. On the actual game thread, `Start()` re-inspects admission and calls `app::Start`
    exactly once. Platform image/registerSignatures are rejected: resolution has a
    single owner. Other platform inputs follow `sco/app.h` lifetime rules.
-4. `Stop()` runs on the game thread, outside callouts/reload. Before destructive
+5. `Stop()` runs on the game thread, outside callouts/reload. Before destructive
    teardown, the host calls `retireConsumer(context)` at most once, including on
    failed preparation paths with dependent resources. `ConsumerRetirement::Quiesced`
    asserts a durable product-consumer gate through cleanup; null, `Retained` or an
@@ -60,7 +66,9 @@ opts.platform.gameReadersQuiesced = NativeBarrierHeld; // verifies barrier held 
 opts.platform.gameReadersContext = readerState;
 // No image/registerSignatures/beforeDependentStop in opts.platform; host owns those.
 auto prepared = sco::game::host::Prepare(opts);
-// Later, from the game thread, only when prepared == Result::Ok:
+// With the required engine quiescence held, only when prepared == Result::Ok:
+auto activated = sco::game::host::Activate();
+// Later, from the game thread, only when activated == Result::Ok:
 auto started = sco::game::host::Start();
 ```
 
@@ -70,10 +78,10 @@ policy. Admission must not silently treat an inspection failure as absence.
 
 The optional `earlyDataRequirement` callback currently receives the requirement
 name, a reference to the installed immutable snapshot, and the product's context;
-it runs synchronously during `Prepare`, possibly before the game thread, and must
+it runs synchronously during `Activate`, possibly before the game thread, and must
 be side-effect-free. It must not retain the name or snapshot references. A null
 callback or exception means unavailable; callback code and context must remain
-valid through `Prepare`. The existing `platform.setCapabilities` callback instead
+valid through `Activate`. The existing `platform.setCapabilities` callback instead
 runs on the app game thread after the registry owner is pinned.
 
 ## Tick adapter
@@ -92,7 +100,7 @@ proves loss during a throttled pass does not execute a queued task.
 
 ## Quit adapter
 
-By default Prepare requires the validated `system.quit` target and installs its
+By default Activate requires the validated `system.quit` target and installs its
 entry detour through the shared hook owner. Failure/missing row refuses startup,
 not a silent WM_QUIT-only fallback. The adapter calls `BeforeQuit()` synchronously
 before the engine original on **both** normal and fast shutdown. It reads no
@@ -115,7 +123,7 @@ Windows hook/game proof remains owed.
 
 ## DataCore timing
 
-With Platform dataCore enabled, Prepare starts the service and indexes folder
+With Platform dataCore enabled, Activate starts the service and indexes folder
 manifests/data packs without running plugin code; builtin inputs are refused on
 this early route. Required CryPak transport is installed before engine load,
 using the validated pak rows and a bounded Data/Game2.dcb transform. Start does
@@ -131,7 +139,7 @@ a plugin service. The synthetic game_host_data fixture proves an early pack
 load survives Start and late producers refuse after Stop. It does not prove
 Windows CryPak hooks. Early discovery can only enforce manifest/readiness known
 at that time, not predict a future plugin-load fault. Hosts must not enable
-engine loading before Prepare completes.
+engine loading before Activate completes.
 
 ## Decision pending owner / migration limits
 

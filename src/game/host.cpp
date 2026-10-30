@@ -30,6 +30,8 @@
 #pragma comment(lib, "oleaut32.lib")
 #endif
 
+namespace sco::app { bool HasRetainedGameHooks() noexcept; }
+
 namespace sco::game::host {
 namespace {
 std::atomic<Phase> phase{Phase::Idle};
@@ -201,25 +203,25 @@ Result FailPrepare(Result result, bool uncertainNativeState) {
 }
 }
 Result Prepare(const Options& o) {
-    if (phase.load() != Phase::Idle) return Result::BadArg;
+    Phase expected = Phase::Idle;
+    if (!phase.compare_exchange_strong(expected, Phase::Preparing)) return Result::BadArg;
     if (o.size < sizeof(Options) || !o.inspect || o.tickIntervalMs > 0x7fffffffu ||
         o.platform.image || o.platform.registerSignatures || o.platform.beforeDependentStop ||
         (o.quit != QuitPolicy::Required && o.quit != QuitPolicy::External) ||
         (o.dataCoreHook != DataCoreHook::Required && o.dataCoreHook != DataCoreHook::External) ||
         (o.platform.dataCore && (o.platform.dataRoot.empty() || o.platform.nBuiltins ||
                                 !o.maxDataCoreBytes || o.maxDataCoreBytes > vfs::kMaxFileSize)))
-        return Result::BadArg;
-    phase = Phase::Preparing; // also prevents admission callback reentry
+        { phase = Phase::Idle; return Result::BadArg; }
     if (o.nativeDataCoreReads && (!o.preEngineQuiesced || !o.platform.dataCore ||
         o.dataCoreHook!=DataCoreHook::Required || !o.platform.gameServices)) { phase=Phase::Idle; return Result::BadArg; }
 #if !defined(SCO_GAME_SERVICES)
     if(o.nativeDataCoreReads) {phase=Phase::Idle;return Result::Unavailable;}
 #endif
     try { options = o; } catch (...) { phase = Phase::Idle; return Result::Failed; }
-    if (!Admitted()) { phase = Phase::Idle; return Result::Unavailable; }
-    if (!o.image || !o.image->base || !o.image->size || !o.image->text.base ||
+    if (!Admitted()) { options.imageOwner.reset(); options.resolverOwner.reset(); phase = Phase::Idle; return Result::Unavailable; }
+    if (!o.imageOwner || !o.resolverOwner || !o.image || !o.image->base || !o.image->size || !o.image->text.base ||
         !o.image->text.size || !o.image->rdata.base || !o.image->rdata.size) {
-        phase = Phase::Idle; return Result::BadArg;
+        options.imageOwner.reset(); options.resolverOwner.reset(); phase = Phase::Idle; return Result::BadArg;
     }
     try {
         auto candidate = std::make_shared<SignatureRegistry>(o.signatureRegistryBudgetBytes);
@@ -227,24 +229,45 @@ Result Prepare(const Options& o) {
         if (registration.status != SigRegistryStatus::Ok) {
             Log("[game-host] signature registration failed: %s (table %zu, row %zu)",
                 SigRegistryStatusName(registration.status), registration.table, registration.row);
+            options.imageOwner.reset(); options.resolverOwner.reset();
             phase = Phase::Failed; return Result::Failed;
         }
         auto status = candidate->Freeze();
         if (status != SigRegistryStatus::Ok) {
             Log("[game-host] signature freeze failed: %s", SigRegistryStatusName(status));
+            options.imageOwner.reset(); options.resolverOwner.reset();
             phase = Phase::Failed; return Result::Failed;
         }
-        status = candidate->Resolve(*o.image);
+        status = candidate->Resolve(*o.image, o.imageOwner, o.resolverOwner);
+        options.imageOwner.reset(); options.resolverOwner.reset();
         if (status != SigRegistryStatus::Ok) {
             Log("[game-host] signature resolution failed: %s", SigRegistryStatusName(status));
             phase = Phase::Failed; return Result::Failed;
         }
         if (!Admitted()) { phase = Phase::Failed; return Result::Unavailable; }
-        if (!InstallHostSignatureRegistry(candidate, InvalidateBeforeHostInstall)) {
-            Log("[game-host] signature registry already owned");
-            phase = Phase::Failed; return Result::Failed;
-        }
         signatureRegistry = std::move(candidate);
+        resolved = true;
+        phase = Phase::Prepared;
+        return Result::Ok;
+    } catch (...) {
+        signatureRegistry.reset(); options.imageOwner.reset(); options.resolverOwner.reset(); resolved = false;
+        phase = Phase::Failed; return Result::Failed;
+    }
+}
+Result Activate() {
+    Phase expected = Phase::Prepared;
+    if (!phase.compare_exchange_strong(expected, Phase::Activating)) return Result::BadArg;
+    if (!Admitted()) { phase = Phase::Prepared; return Result::Unavailable; }
+    if ((options.quit == QuitPolicy::Required ||
+         (options.platform.dataCore && options.dataCoreHook == DataCoreHook::Required) ||
+         options.nativeDataCoreReads || options.platform.gameServices) && !NativeBarrierHeld()) {
+        phase = Phase::Prepared; return Result::Unavailable;
+    }
+    if (!Admitted()) { phase = Phase::Prepared; return Result::Unavailable; }
+    try {
+        if (!InstallHostSignatureRegistry(signatureRegistry, InvalidateBeforeHostInstall)) {
+            phase = Phase::Failed; signatureRegistry.reset(); resolved = false; return Result::Failed;
+        }
         if (!PinHostSignatureRegistry(signatureRegistry)) {
             if (!ReleaseSignatureRegistry()) RevokeFailedHostCapabilities();
             Log("[game-host] could not pin signature registry");
@@ -271,7 +294,7 @@ Result Prepare(const Options& o) {
 #endif
         if (!AdmittedAndOwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, nativeAttempted);
         detail::SetFreshInspector(options.inspect);
-        phase = Phase::Prepared;
+        phase = Phase::Activated;
         return Result::Ok;
     } catch (...) {
         // A throwing setup can have retained native resources. Do not tear them
@@ -283,13 +306,17 @@ Result Prepare(const Options& o) {
     }
 }
 Result Start() {
-    if (phase.load() != Phase::Prepared) return Result::BadArg;
-    phase = Phase::Starting;
+    if (phase.load() == Phase::Prepared) {
+        const auto result = Activate();
+        if (result != Result::Ok) return result;
+    }
+    Phase expected = Phase::Activated;
+    if (!phase.compare_exchange_strong(expected, Phase::Starting)) return Result::BadArg;
     if (!OwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, options.nativeDataCoreReads);
     if (!Admitted()) {
         // Preserve the existing retry on admission refusal before startup work.
         if (!OwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, options.nativeDataCoreReads);
-        phase = Phase::Prepared; return Result::Unavailable;
+        phase = Phase::Activated; return Result::Unavailable;
     }
     if (!OwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, options.nativeDataCoreReads);
     detail::SetFreshAdmissionEnabled(true);
@@ -333,12 +360,13 @@ Result Stop() {
     const Phase p = phase.load();
     if (p == Phase::Idle || p == Phase::Stopped) return Result::Ok;
     if (!OnGameThread()) return Result::WrongThread;
-    if (p == Phase::Stopping) return Result::Ok;
+    if (p == Phase::Stopping) return Result::Unavailable;
     if (p != Phase::Running) return Result::Unavailable;
     if (sco::detail::InCallout()) return Result::Unavailable;
+    Phase expected = Phase::Running;
+    if (!phase.compare_exchange_strong(expected, Phase::Stopping)) return Result::Unavailable;
     const bool cleanupAdmitted = FreshAdmissionAllowed();
     detail::SetFreshAdmissionEnabled(false); // retained workers must pass through before teardown
-    phase = Phase::Stopping;
     // A failed or absent shutdown proof leaves all dependent producers, providers,
     // code and registry state intact. An instant "no readers" observation is not
     // enough: the product must keep admission closed for the rest of the process.
@@ -373,7 +401,7 @@ Result Stop() {
     dataActive = false;
     // Quit and native DataCore lifecycle detours are process-retained. Their
     // image and provider code must stay live, so keep the host registry pinned.
-    if (quitInstalled.load() || options.nativeDataCoreReads) {
+    if (quitInstalled.load() || options.nativeDataCoreReads || app::HasRetainedGameHooks()) {
         if (signatureRegistry) WithHostSignatureRegistry(signatureRegistry, InvalidateHostCapabilities);
         Log("[game-host] process-retained hooks keep the signature registry pinned");
         phase = Phase::Failed; return Result::Failed;
@@ -397,7 +425,7 @@ vfs::Result TransformDataCore(vfs::BaseIo& base, uint64_t size, std::vector<vfs:
     std::lock_guard<std::mutex> hold(dataMutex);
     const Phase p = phase.load();
     if (!dataActive || !dataInputs ||
-        (p != Phase::Prepared && p != Phase::Starting && p != Phase::Running) || !Admitted())
+        (p != Phase::Activating && p != Phase::Activated && p != Phase::Starting && p != Phase::Running) || !Admitted())
         return {"offline DataCore admission unavailable"};
     if (!size || size > options.maxDataCoreBytes || size > std::numeric_limits<size_t>::max())
         return {"DataCore base exceeds host byte limit"};
