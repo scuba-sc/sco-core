@@ -2,7 +2,9 @@
 #include "sco/app.h"
 #include "sco/caps.h"
 #include "sco/game/services.h"
+#include "sco/log.h"
 #include "sco/signature_registry.h"
+#include <cstring>
 #include <cstdio>
 #include <memory>
 #include <stdexcept>
@@ -15,6 +17,12 @@ namespace {
 std::string mode;
 std::vector<std::string> calls;
 int token = 0, barrierCalls = 0, capabilityCalls = 0;
+void ThrowingSink(const char* line) {
+    if ((mode == "throw-log-start" && std::strstr(line, "game services not started")) ||
+        (mode == "throw-log-summary" && std::strstr(line, "game services left retained state")) ||
+        (mode == "throw-log-stop" && std::strstr(line, "dependent teardown refused")))
+        throw std::runtime_error("synthetic log sink fault");
+}
 void SetCapabilities() {
     ++capabilityCalls;
     CHECK(sco::caps::Set("fixture.game", true) == sco::Result::Ok);
@@ -50,7 +58,7 @@ Result Start() {
         if (mode == "throw-stage-2") calls.emplace_back("actors-started");
         throw std::bad_alloc();
     }
-    return mode == "partial-fail" || mode == "partial-clean" ? Result::Failed : Result::Ok;
+    return mode == "partial-fail" || mode == "partial-clean" || mode.rfind("throw-log-", 0) == 0 ? Result::Failed : Result::Ok;
 }
 Result Stop() {
     calls.emplace_back("stop");
@@ -66,7 +74,9 @@ int main(int argc, char** argv) {
     mode = argv[1];
     if (mode != "true" && mode != "false" && mode != "null" && mode != "throw" &&
         mode != "stop-false" && mode != "stop-throw" && mode != "stop-fail" && mode != "finalize-fail" &&
-        mode != "partial-fail" && mode != "partial-clean" && mode != "throw-stage-1" && mode != "throw-stage-2" && mode != "dependent-retained" && mode != "dependent-throw") return 2;
+        mode != "partial-fail" && mode != "partial-clean" && mode != "throw-stage-1" && mode != "throw-stage-2" &&
+        mode != "throw-log-start" && mode != "throw-log-summary" && mode != "throw-log-stop" && mode != "dependent-retained" && mode != "dependent-throw") return 2;
+    if (mode.rfind("throw-log-", 0) == 0) sco::SetLogSink(ThrowingSink);
     sco::SetGameThread();
     sco::Image image{}; // empty registry and synthetic image; no image address is dereferenced
     sco::app::Platform platform;
@@ -95,9 +105,10 @@ int main(int argc, char** argv) {
     }
     const auto owner = sco::AcquireHostSignatureRegistry();
     CHECK(owner && owner->Snapshot());
-    if (mode == "partial-fail" || mode == "partial-clean" || mode == "throw-stage-1" || mode == "throw-stage-2") {
+    if (mode == "partial-fail" || mode == "partial-clean" || mode == "throw-stage-1" || mode == "throw-stage-2" || mode.rfind("throw-log-", 0) == 0) {
         CHECK(!started);
-        if (mode == "throw-stage-1") CHECK((calls == std::vector<std::string>{"quiesced", "start", "spawn-started", "quiesced"}));
+        if (mode == "throw-log-start") CHECK((calls == std::vector<std::string>{"quiesced", "start"}));
+        else if (mode == "throw-stage-1") CHECK((calls == std::vector<std::string>{"quiesced", "start", "spawn-started", "quiesced"}));
         else if (mode == "throw-stage-2") CHECK((calls == std::vector<std::string>{"quiesced", "start", "spawn-started", "actors-started", "quiesced"}));
         else CHECK((calls == std::vector<std::string>{"quiesced", "start", "quiesced"}));
     } else {

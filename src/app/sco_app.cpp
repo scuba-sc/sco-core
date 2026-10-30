@@ -513,16 +513,16 @@ Result StartSubsystems(const Platform& pf) {
     if (pf.gameServices) {
 #ifdef SCO_GAME_SERVICES
         if (!ConfirmGameReaderBarrier(pf)) {
-            Log("[app] game-service startup refused: native reader barrier unavailable");
             g_gameServicesStartFailed = true;
+            Log("[app] game-service startup refused: native reader barrier unavailable");
         } else {
             g_gameServicesAttempted = true;
             Result gr = Result::Failed;
             try { gr = game::services::Start(); } catch (...) {}
             g_gameServicesPublished = gr == Result::Ok;
             if (gr != Result::Ok) {
-                Log("[app] game services not started: %s", ResultName(gr));
                 g_gameServicesStartFailed = true;
+                Log("[app] game services not started: %s", ResultName(gr));
             }
         }
 #else
@@ -685,9 +685,10 @@ bool IsHostMenuPanel(const char* id) {
 
 bool Start(const Platform& platform) {
     if (g_started || g_teardownFailed) {
-        Log("[app] start refused: already started or teardown incomplete");
+        try { Log("[app] start refused: already started or teardown incomplete"); } catch (...) {}
         return false;
     }
+    try {
     SetGameThread();
     sco::detail::SetRuntimeStopping(false);
     g_diagnostics.Reset();
@@ -704,8 +705,8 @@ bool Start(const Platform& platform) {
 
     const Result cr = StartSubsystems(pf);
     if (g_gameServicesStartFailed) {
-        Log("[app] game services left retained state; stopping startup");
         g_started = true;
+        try { Log("[app] game services left retained state; stopping startup"); } catch (...) {}
         Stop();
         return false;
     }
@@ -726,6 +727,17 @@ bool Start(const Platform& platform) {
     LoadPlugins(pf, api, opts);
     FinalizeStartup(pf);
     return true;
+    } catch (...) {
+        // Startup can have installed consumers even if its aggregate state was
+        // never published. Refuse restart before running any fallible report.
+        g_teardownFailed = true;
+        sco::detail::SetRuntimeStopping(true);
+        try {
+            if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+            else WithNoHostSignatureRegistry(RevokeCapabilities);
+        } catch (...) {}
+        return false;
+    }
 }
 
 void Tick(uint32_t nowMs) {
@@ -764,12 +776,12 @@ Result Stop() {
     if (g_gameServicesAttempted && !ConfirmGameReaderBarrier(g_platform)) productReady = false;
 #endif
     if (!productReady) {
-        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
-        else WithNoHostSignatureRegistry(RevokeCapabilities);
-        Log("[app] dependent teardown refused; backing state remains retained");
         g_teardownFailed = true;
         sco::detail::SetRuntimeStopping(true); // close admission without unloading retained providers
         g_stopping = false;
+        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+        else WithNoHostSignatureRegistry(RevokeCapabilities);
+        try { Log("[app] dependent teardown refused; backing state remains retained"); } catch (...) {}
         return Result::Failed;
     }
     g_diagnosticWorker.Stop(); // revoke and close BEFORE any exit/unload callout
