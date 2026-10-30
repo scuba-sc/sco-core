@@ -270,6 +270,56 @@ int main() {
           (state.flags&SC_ASOP_SELECTION_FILE_KNOWN) && !(state.flags&SC_ASOP_SELECTION_FILE_PRESENT));
     CHECK(sco::Release(recovery)==sco::Result::Ok);
     CHECK(S::Stop()==sco::Result::Ok);
+    // Busy-class gate: a removed class whose ship is in play refuses the write, keeps the
+    // saved list, and reports EDIT_CONFLICT with REASON_BUSY; ROW_BUSY marks the rows.
+    file.read_result=S::FileResult::Ok;
+    file.document.bytes="# ASOP ship selection, one class per line.\nTest_Ship_A\nTest_Ship_B\n";
+    static std::string busy_name;
+    static auto busy_cb=[](void*, const char* name)->bool { return busy_name==name; };
+    S::Options busy_options;
+    busy_options.file={&file,MemoryFile::Read,MemoryFile::Replace};
+    busy_options.catalogue={"Test_Ship_A","Test_Ship_B"};
+    busy_options.busy_context=nullptr;
+    busy_options.class_busy=busy_cb;
+    CHECK(S::Start(busy_options)==sco::Result::Ok);
+    auto* gate=sco::host::NewPlugin("asop_selection_busy_gate");
+    raw=nullptr;CHECK(api->query_service(SC_ASOP_SELECTION_NAME,SC_ASOP_SELECTION_VERSION,&raw)==SCO_OK);
+    table=static_cast<const sc_asop_selection_v1*>(raw);state={};state.size=sizeof(state);
+    CHECK(table->state(gate,&state)==SCO_OK && (state.flags&SC_ASOP_SELECTION_FILE_KNOWN));
+    sc_asop_selection_read rows_query{};rows_query.size=sizeof(rows_query);
+    rows_query.kind=SC_ASOP_SELECTION_ROWS_FILE;rows_query.session=state.session;rows_query.revision=state.file_revision;
+    sc_asop_selection_row gate_rows[2]{};for(auto& r:gate_rows)r.size=sizeof(r);
+    uint32_t rows_count=0,rows_more=0;
+    busy_name="Test_Ship_A";
+    CHECK(table->rows(gate,&rows_query,gate_rows,sizeof(gate_rows[0]),2,&rows_count,&rows_more)==SCO_OK);
+    CHECK(rows_count==2 && (gate_rows[0].flags&SC_ASOP_SELECTION_ROW_BUSY) && !(gate_rows[1].flags&SC_ASOP_SELECTION_ROW_BUSY));
+    uint64_t gate_lease=0,gate_id=0;
+    CHECK(table->acquire(gate,state.session,&gate_lease)==SCO_OK);
+    sc_asop_selection_class keep[1]{};keep[0].size=sizeof(keep[0]);
+    std::memcpy(keep[0].class_name,"Test_Ship_B",12);
+    sc_asop_selection_request gate_request{};gate_request.size=sizeof(gate_request);
+    gate_request.session=state.session;gate_request.file_revision=state.file_revision;
+    std::memcpy(gate_request.file_digest,state.file_digest,32);gate_request.client_key=1;
+    gate_request.classes=keep;gate_request.count=1;gate_request.class_stride=sizeof(keep[0]);
+    CHECK(table->replace(gate,gate_lease,&gate_request,&gate_id)==SCO_OK);
+    const std::string before_busy=file.document.bytes;
+    CHECK(S::Pump()==sco::Result::Ok && file.document.bytes==before_busy);
+    receipt.size=sizeof(receipt);
+    CHECK(table->status(gate,gate_lease,gate_id,&receipt)==SCO_OK &&
+          receipt.phase==SC_ASOP_SELECTION_EDIT_CONFLICT && receipt.reason==SC_ASOP_SELECTION_REASON_BUSY);
+    CHECK(table->state(gate,&state)==SCO_OK && (state.flags&SC_ASOP_SELECTION_FILE_KNOWN));
+    // Re-saving the same set with the busy class kept succeeds.
+    sc_asop_selection_class keep_both[2]{};for(auto& k:keep_both)k.size=sizeof(k);
+    std::memcpy(keep_both[0].class_name,"Test_Ship_A",12);
+    std::memcpy(keep_both[1].class_name,"Test_Ship_B",12);
+    gate_request.classes=keep_both;gate_request.count=2;gate_request.client_key=2;
+    uint64_t keep_id=0;
+    CHECK(table->replace(gate,gate_lease,&gate_request,&keep_id)==SCO_OK);
+    CHECK(S::Pump()==sco::Result::Ok);
+    receipt.size=sizeof(receipt);
+    CHECK(table->status(gate,gate_lease,keep_id,&receipt)==SCO_OK && receipt.phase==SC_ASOP_SELECTION_FILE_COMMITTED);
+    CHECK(sco::Release(gate)==sco::Result::Ok);
+    CHECK(S::Stop()==sco::Result::Ok);
     std::printf("asop_selection: %d passed, %d failed\n",passed,failed);
     return failed?1:0;
 }
