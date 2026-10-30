@@ -94,7 +94,7 @@
       "stability": "experimental",
       "capabilities": [
         {"name":"game.world.raycast_filtered_many","methods":["raycast_filtered_many"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Bounded scoped multi-hit policy and lifecycle tests; no native grid/hit adapter, not run in game","evidence_source":"docs/design/world-control.md"},
-        {"name": "game.world.raycast_filtered", "methods": ["raycast_filtered"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified offline engine adapter, no Windows/game proof", "evidence_source": "docs/design/world-control.md"},
+        {"name": "game.world.raycast_filtered", "methods": ["raycast_filtered"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified offline engine adapter: the native single-hit seam installs nothing without the resolved zone/world/grid and a skip-request lifetime; no Windows/game proof", "evidence_source": "docs/design/world-control.md"},
         {"name": "game.world.free_camera", "methods": ["camera_acquire"], "default": "OFF", "evidence_level": "synthetic_only", "evidence": "Synthetic policy only; no verified offline engine adapter, no Windows/game proof", "evidence_source": "docs/design/world-control.md"}
       ]
     },
