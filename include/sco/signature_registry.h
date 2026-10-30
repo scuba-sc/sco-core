@@ -17,8 +17,9 @@ struct SigRegistrationResult { SigRegistryStatus status; size_t table; size_t ro
 const char* SigRegistryStatusName(SigRegistryStatus) noexcept;
 
 // All returned pointers, including SigResult::why, are valid while this snapshot is held.
-// The image behind at and the executable code of resolvers are borrowed from the host;
-// keeping a snapshot does not keep either alive or make an address valid after unload.
+// Legacy Resolve borrows the image and resolver code. The owning overload retains
+// provider-supplied owners; their correctness is a provider precondition, not
+// an exclusion barrier or a validation of address provenance.
 class SignatureSnapshot {
     struct Token {};
 public:
@@ -53,6 +54,9 @@ public:
     // Prelinks dependencies. A snapshot is published only by successful Resolve.
     SigRegistryStatus Freeze() noexcept;
     SigRegistryStatus Resolve(const Image& image) noexcept;
+    // Both owners must be nonempty and actually retain the image and resolver code.
+    SigRegistryStatus Resolve(const Image& image, std::shared_ptr<const void> imageOwner,
+                              std::shared_ptr<const void> resolverOwner) noexcept;
     // Before host installation, seal a resolved registry against further resolution.
     // Requires the single writer; independent unsealed registries can re-resolve.
     SigRegistryStatus SealForHost() noexcept;
@@ -60,6 +64,8 @@ public:
     size_t UsedBytes() const noexcept;
     size_t BudgetBytes() const noexcept;
 private:
+    SigRegistryStatus ResolveImpl(const Image& image, std::shared_ptr<const void> imageOwner,
+                                  std::shared_ptr<const void> resolverOwner) noexcept;
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

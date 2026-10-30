@@ -176,6 +176,59 @@ static void TestBudgetDuringPublication() {
     }
     CHECK(observed);
 }
+static void TestOwnedSnapshots() {
+    auto image = std::make_shared<unsigned char>(42);
+    auto code = std::make_shared<int>(7); // stand-in for a provider's code-module owner
+    std::weak_ptr<unsigned char> imageWeak = image;
+    std::weak_ptr<int> codeWeak = code;
+    std::shared_ptr<const sco::SignatureSnapshot> held;
+    {
+        sco::SignatureRegistry registry;
+        sco::SigDef d[] = {{"row", nullptr, 0, 0, AtBase, {}}}; sco::SignatureTable t{d, 1};
+        CHECK(registry.RegisterTables(&t, 1).status == SigRegistryStatus::Ok);
+        CHECK(registry.Freeze() == SigRegistryStatus::Ok);
+        CHECK(registry.Resolve(ImageFor(image.get()), {}, code) == SigRegistryStatus::InvalidArgument);
+        CHECK(registry.Resolve(ImageFor(image.get()), image, {}) == SigRegistryStatus::InvalidArgument);
+        CHECK(registry.Resolve(ImageFor(image.get()), {}, {}) == SigRegistryStatus::InvalidArgument);
+        CHECK(!registry.Snapshot());
+        CHECK(registry.Resolve(ImageFor(image.get()), image, code) == SigRegistryStatus::Ok);
+        held = registry.Snapshot();
+        unsigned char replacement{};
+        CHECK(registry.Resolve(ImageFor(&replacement)) == SigRegistryStatus::Ok);
+        image.reset(); code.reset();
+        CHECK(!imageWeak.expired() && !codeWeak.expired());
+    }
+    CHECK(!imageWeak.expired() && !codeWeak.expired());
+    CHECK(held && *held->Lookup("row")->at == 42);
+    held.reset();
+    CHECK(imageWeak.expired() && codeWeak.expired());
+}
+static void TestOwnedBudgetFailure() {
+    bool observed = false;
+    for (size_t limit = 1024; limit <= 32768 && !observed; limit += 64) {
+        try {
+            sco::SignatureRegistry registry(limit);
+            sco::SigDef d[] = {{"one", nullptr, 0, 0, AtBase, {}}, {"two", nullptr, 0, 0, AtBase, {}}};
+            sco::SignatureTable t{d, 2};
+            auto first = std::make_shared<unsigned char>(1), second = std::make_shared<unsigned char>(2);
+            auto code = std::make_shared<int>(1), nextCode = std::make_shared<int>(2);
+            if (registry.RegisterTables(&t, 1).status != SigRegistryStatus::Ok || registry.Freeze() != SigRegistryStatus::Ok || registry.Resolve(ImageFor(first.get()), first, code) != SigRegistryStatus::Ok) continue;
+            auto old = registry.Snapshot();
+            std::weak_ptr<unsigned char> failedImage = second;
+            std::weak_ptr<int> failedCode = nextCode;
+            const size_t before = registry.UsedBytes();
+            auto status = registry.Resolve(ImageFor(second.get()), second, nextCode);
+            if (status == SigRegistryStatus::BudgetExceeded) {
+                observed = true;
+                CHECK(registry.Snapshot() == old && old->Lookup("one")->at == first.get());
+                CHECK(registry.UsedBytes() == before);
+                second.reset(); nextCode.reset();
+                CHECK(failedImage.expired() && failedCode.expired());
+            }
+        } catch (const std::bad_alloc&) {}
+    }
+    CHECK(observed);
+}
 static void TestPublication() {
     constexpr size_t n = 64;
     std::vector<std::string> ids(n); std::vector<sco::SigDef> defs(n);
@@ -201,7 +254,7 @@ static void TestPublication() {
     CHECK(errors.load() == 0);
 }
 int main() {
-    TestOwnershipAndAtomicBatch(); TestSnapshotsAndFailure(); TestReentry(); TestHostSeal(); TestDeepGraph(); TestBudget(); TestBudgetDuringPublication(); TestPublication();
+    TestOwnershipAndAtomicBatch(); TestSnapshotsAndFailure(); TestReentry(); TestHostSeal(); TestDeepGraph(); TestBudget(); TestBudgetDuringPublication(); TestOwnedSnapshots(); TestOwnedBudgetFailure(); TestPublication();
     std::printf("signature registry: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

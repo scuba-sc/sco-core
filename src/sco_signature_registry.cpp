@@ -94,6 +94,7 @@ struct SignatureSnapshot::Impl {
         results[i] = r;
     }
     std::shared_ptr<const Graph> graph;
+    std::shared_ptr<const void> imageOwner, resolverOwner;
     std::pmr::vector<SigResult> results;
     std::pmr::vector<std::pmr::string> reasons;
 };
@@ -211,6 +212,16 @@ SigRegistryStatus SignatureRegistry::Freeze() noexcept {
 }
 
 SigRegistryStatus SignatureRegistry::Resolve(const Image& image) noexcept {
+    return ResolveImpl(image, {}, {});
+}
+SigRegistryStatus SignatureRegistry::Resolve(const Image& image, std::shared_ptr<const void> imageOwner,
+                                              std::shared_ptr<const void> resolverOwner) noexcept {
+    if (!imageOwner || !resolverOwner || !imageOwner.use_count() || !resolverOwner.use_count())
+        return SigRegistryStatus::InvalidArgument;
+    return ResolveImpl(image, std::move(imageOwner), std::move(resolverOwner));
+}
+SigRegistryStatus SignatureRegistry::ResolveImpl(const Image& image, std::shared_ptr<const void> imageOwner,
+                                                  std::shared_ptr<const void> resolverOwner) noexcept {
     if (impl_->busy) return SigRegistryStatus::Busy;
     auto graph = impl_->graph;
     if (!graph->frozen) return SigRegistryStatus::NotFrozen;
@@ -218,6 +229,8 @@ SigRegistryStatus SignatureRegistry::Resolve(const Image& image) noexcept {
     struct BusyGuard { bool& busy; explicit BusyGuard(bool& b) : busy(b) { busy = true; } ~BusyGuard() { busy = false; } } guard(impl_->busy);
     try {
         auto result = std::allocate_shared<SignatureSnapshot::Impl>(BudgetAllocator<SignatureSnapshot::Impl>(impl_->budget), graph);
+        result->imageOwner = std::move(imageOwner);
+        result->resolverOwner = std::move(resolverOwner);
         struct State { const Graph* graph; SignatureSnapshot::Impl* result; } state{graph.get(), result.get()};
         auto lookup = +[](const void* p, const char* id) noexcept -> uint8_t* {
             if (!id) return nullptr;
