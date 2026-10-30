@@ -16,8 +16,7 @@ release decision. Windows and in-game behavior of this change have not been veri
    unknown. A launcher flag or a plugin capability is not sufficient evidence.
 2. `Prepare(options)` refuses online/unknown/present evidence before registering
    any row or resolving the original image. It copies options, registers the game
-   signature tables atomically, freezes and resolves them, and installs the sealed
-   registry. Missing rows stay unavailable. Signature setup or ownership failure
+   signature tables atomically, freezes and resolves a private candidate without installing or publishing it. Missing rows stay unavailable. Signature setup or ownership failure
    refuses preparation. Resolution must be pure: resolvers must not mutate engine
    state or install hooks. This is a precondition supplied by the resolver, not a
    property that the host can infer from a successful resolution.
@@ -40,7 +39,7 @@ release decision. Windows and in-game behavior of this change have not been veri
    applicable teardown. The barrier excludes in-flight and new native readers and
    target execution throughout the phase, permits safe synchronous cleanup reentry,
    and excludes the current quit control frame; a point-in-time sample is insufficient.
-   A failed cleanup also retains dependencies. Process-retained quit or native
+   A failed cleanup also retains dependencies. Process-retained quit, mining (including an uncertain installation), or native
    DataCore detours keep the registry, image and provider code through process exit
    and make `Stop` return `Failed` even after services stop. Wrong-thread stop cannot
    claim completion. The product must independently prove hook-installation safety;
@@ -55,6 +54,8 @@ is safe to observe from other threads, not an authorization grant.
 sco::game::host::Options opts;
 opts.inspect = InspectOfflineEnvironment; // OS shell; unknown on every failed probe
 opts.image = &originalImage;
+opts.imageOwner = mappedImageOwner; // must actually own mapping, not a dummy token
+opts.resolverOwner = resolverModuleOwner; // must actually retain all resolver code
 opts.platform.hostVersion = "synthetic-host 1.0";
 opts.platform.dataRoot = "data";
 opts.platform.pluginRoot = "data/plugins";
@@ -155,3 +156,12 @@ call sites migrate, and Windows/game acceptance is supplied.
 Evidence: synthetic `game_host` CTest only, no game image or bytes. Not run in
 game; Windows/MSVC, loader hooks, anti-cheat evidence collection, actual network
 blocking and renderer behavior are not verified by this fixture.
+
+## Remaining exclusion boundary
+
+The private `src/lifecycle_gate.h` helper proves cooperative close-before-drain
+and scoped cleanup reentry in synthetic tests only. It is intentionally not wired
+as a product barrier: every entry into borrowed image/provider code must participate,
+and unmanaged native target execution plus Windows instruction-patch synchronization
+remain unproven. sc-offline a46edb1 startup refusal must remain in force. Nonempty
+owner handles are conditional provider guarantees, not ownership provenance checks.

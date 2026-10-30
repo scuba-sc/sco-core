@@ -24,7 +24,10 @@ struct SigResult {
     const char* why     = nullptr;   // static string; set for Failed / Blocked
 };
 
-// A resolver sees this registry's in-progress results. It must not retain the context or throw.
+// Trusted resolver precondition: bounded read-only image access, no engine/global
+// mutation, hook installation, publication, lifecycle calls, retained context or throws.
+// Image contains writable pointers: const is not enforcement or a sandbox.
+// Exception handling cannot roll back resolver side effects. Keep resolver code live.
 class SigResolveContext {
 public:
     uint8_t* Sig(const char* id) const noexcept;

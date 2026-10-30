@@ -253,7 +253,23 @@ static void TestPublication() {
     for (auto& thread : readers) thread.join();
     CHECK(errors.load() == 0);
 }
+// Negative control: const Image is not transitive constness. This intentionally
+// violating callback demonstrates why preparation purity remains a trust contract.
+static sco::SigResult Impure(const sco::Image& i, const sco::SigResolveContext&) {
+    *i.base = 42; return sco::SigOk(i.base);
+}
+static void TestPurityIsNotEnforced() {
+    unsigned char byte = 0;
+    sco::SigDef def{"impure", nullptr, 0, 0, Impure, {}};
+    sco::SignatureTable table{&def, 1};
+    sco::SignatureRegistry registry;
+    CHECK(registry.RegisterTables(&table, 1).status == SigRegistryStatus::Ok);
+    CHECK(registry.Freeze() == SigRegistryStatus::Ok);
+    CHECK(registry.Resolve(ImageFor(&byte)) == SigRegistryStatus::Ok);
+    CHECK(byte == 42); // not a success claim about read-only preparation
+}
 int main() {
+    TestPurityIsNotEnforced();
     TestOwnershipAndAtomicBatch(); TestSnapshotsAndFailure(); TestReentry(); TestHostSeal(); TestDeepGraph(); TestBudget(); TestBudgetDuringPublication(); TestOwnedSnapshots(); TestOwnedBudgetFailure(); TestPublication();
     std::printf("signature registry: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
