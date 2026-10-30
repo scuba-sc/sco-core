@@ -228,13 +228,15 @@ SigRegistryStatus SignatureRegistry::Resolve(const Image& image) noexcept {
             return r.state == SigState::Ok ? r.at : nullptr;
         };
         SigResolveContext ctx(&state, lookup);
-        struct Frame { size_t row, next; };
+        // A NotRun callback may be attempted again by a later root or dependent, but
+        // each individual parent must inspect the result after its child returns.
+        struct Frame { size_t row, next; bool attempted; };
         std::pmr::vector<Frame> stack(impl_->budget.get());
         std::pmr::vector<uint8_t> visiting(impl_->budget.get());
         visiting.resize(graph->rows.size(), 0);
         for (size_t root = 0; root < graph->rows.size(); ++root) {
             if (result->results[root].state != SigState::NotRun) continue;
-            visiting[root] = 1; stack.push_back({root, 0});
+            visiting[root] = 1; stack.push_back({root, 0, false});
             while (!stack.empty()) {
                 const size_t i = stack.back().row;
                 const auto& row = graph->rows[i];
@@ -244,15 +246,19 @@ SigRegistryStatus SignatureRegistry::Resolve(const Image& image) noexcept {
                         result->Set(i, SigFail("needs an unknown signature"));
                         visiting[i] = 0; stack.pop_back(); continue;
                     }
-                    if (result->results[dep].state == SigState::NotRun) {
+                    if (result->results[dep].state == SigState::NotRun && !stack.back().attempted) {
                         if (visiting[dep]) result->Set(dep, SigFail("circular dependency"));
-                        else { visiting[dep] = 1; stack.push_back({dep, 0}); continue; }
+                        else {
+                            stack.back().attempted = true;
+                            visiting[dep] = 1; stack.push_back({dep, 0, false}); continue;
+                        }
                     }
                     if (result->results[dep].state != SigState::Ok) {
                         result->Set(i, {SigState::Blocked, nullptr, 0, graph->rows[dep].id.c_str()});
                         visiting[i] = 0; stack.pop_back(); continue;
                     }
                     ++stack.back().next;
+                    stack.back().attempted = false;
                     continue;
                 }
                 SigResult r;

@@ -18,7 +18,7 @@ struct Spec {
     const char* pattern = nullptr;
     int disp = 0;
     int size = 0;
-    int mode = 0; // 0 = pattern, 1 = success, 2 = failure, 3 = null success, 4 = lookup
+    int mode = 0; // 0 = pattern, 1 = success, 2 = failure, 3 = null success, 4 = lookup, 5..10 = explicit states
     std::string read;
 };
 static std::vector<Spec> specs;
@@ -42,7 +42,28 @@ template <int I> static sco::SigResult Callback(const sco::Image& img CONTEXT) {
         uint8_t* p = READ_SIG(row.read.c_str());
         return p ? sco::SigOk(p) : sco::SigFail("context lookup unavailable");
     }
+    if (row.mode >= 5 && row.mode <= 10)
+        return {static_cast<sco::SigState>(row.mode - 5), img.base + 120 + I, 7, "explicit callback state"};
     return sco::SigOk(img.base + 120 + I);
+}
+static void CallbackStates() {
+    specs = {
+        {"state.not_run", {}, nullptr, 0, 0, 5, {}},
+        {"state.first_dependent", {"state.not_run"}, nullptr, 0, 0, 1, {}},
+        {"state.second_dependent", {"state.not_run"}, nullptr, 0, 0, 1, {}},
+        {"state.ok", {}, nullptr, 0, 0, 6, {}},
+        {"state.missing", {}, nullptr, 0, 0, 7, {}},
+        {"state.ambiguous", {}, nullptr, 0, 0, 8, {}},
+        {"state.failed", {}, nullptr, 0, 0, 9, {}},
+        {"state.blocked", {}, nullptr, 0, 0, 10, {}},
+        {"state.forward_dependent", {"state.forward_not_run"}, nullptr, 0, 0, 1, {}},
+        {"state.forward_not_run", {}, nullptr, 0, 0, 5, {}},
+        {"state.ok_dependent", {"state.ok"}, nullptr, 0, 0, 1, {}},
+        {"state.missing_dependent", {"state.missing"}, nullptr, 0, 0, 1, {}},
+        {"state.ambiguous_dependent", {"state.ambiguous"}, nullptr, 0, 0, 1, {}},
+        {"state.failed_dependent", {"state.failed"}, nullptr, 0, 0, 1, {}},
+        {"state.blocked_dependent", {"state.blocked"}, nullptr, 0, 0, 1, {}}
+    };
 }
 static constexpr sco::SigResolver callbacks[] = {
     Callback<0>, Callback<1>, Callback<2>, Callback<3>, Callback<4>, Callback<5>,
@@ -112,6 +133,7 @@ static void PrintResult(const char* id, const sco::SigResult* r) {
 int main(int argc, char** argv) {
     if (argc != 2) return 2;
     if (std::strcmp(argv[1], "fixed") == 0) Fixed();
+    else if (std::strcmp(argv[1], "callback_states") == 0) CallbackStates();
     else if (std::strcmp(argv[1], "chain") == 0) Chain();
     else Generated(static_cast<unsigned>(std::strtoul(argv[1], nullptr, 10)));
     std::vector<sco::SigDef> defs(specs.size());

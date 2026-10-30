@@ -109,6 +109,8 @@ struct Platform {
     // them first (Platform::registerSignatures, or its own registry resolution). Off by default: a product
     // turns it on once it no longer publishes those names itself. Builds without the game pack's
     // services (SCO_GAME_SC off, or not Windows) log "[app] game services not built" and go on.
+    // A failed or throwing service startup can leave partially installed native state. The app
+    // retains its backing state until process exit and refuses restart in that case.
     bool gameServices = false;
     // The host must hold a durable barrier before game-service start and before any teardown.
     // True certifies no in-flight/new native readers or target execution throughout that phase,

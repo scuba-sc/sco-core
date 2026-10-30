@@ -128,6 +128,9 @@ services or plugins start. Individual missing rows are recorded in the snapshot 
 leave their capabilities unavailable. `setCapabilities` runs on the app game thread
 after the host owner is pinned. Call `app::Stop` on the game thread and keep the
 image and providers alive until teardown is safely complete. See [the host kit](api.md#scoapph-the-host-kit).
+If attempted game-service startup fails or throws, partial provider installation is
+not assumed to be quiescent: the app retains its backing state and refuses restart.
+The image and provider code must remain valid until process exit in that case.
 
 **Plugin load order.** Inside `Start`, built-in plugins load first, in the product's list order. Discovered plugins (native and Lua; data packs are indexed after the loads) follow in folder order, except that a plugin loads after every plugin its `requires` names, either by id (`requires = b`) or through one of its services (`requires = b.svc`; a service name starts with its provider's id, so the id is enough to know the provider before anything runs). `Discover` resolves this once the whole folder list is known: names the host or the game pack already published (`sco.storage`, `game.vehicles`) and capabilities count as provided, a built-in's id counts too, a cycle is refused (`requires cycle: a -> b -> a`), and so is a name nobody provides (`requires service x.y: no plugin provides it`). `LoadOrder` gives the order (a stable topological sort: the lowest folder index that is free goes next) and `UnmetRequires` re-checks just before each load that every provider really is `Loaded`, so a provider that fails to load refuses its dependents instead of starting them without it. Unload runs in reverse load order. Details: [Plugins § Load order](plugins.md#load-order-and-requires).
 

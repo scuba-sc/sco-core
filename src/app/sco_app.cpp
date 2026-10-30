@@ -758,6 +758,9 @@ Result Stop() {
     try { if (g_platform.beforeDependentStop) productReady = g_platform.beforeDependentStop(g_platform.beforeDependentStopContext); }
     catch (...) { productReady = false; }
 #ifdef SCO_GAME_SERVICES
+    // A failed startup can have installed providers before the aggregate
+    // started flag is set. Their partial cleanup is not proven quiescent.
+    if (g_gameServicesAttempted && g_gameServicesStartFailed) productReady = false;
     if (g_gameServicesAttempted && !ConfirmGameReaderBarrier(g_platform)) productReady = false;
 #endif
     if (!productReady) {

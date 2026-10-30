@@ -45,6 +45,11 @@ const sco::plugins::Builtin builtin{"fixture", Query, Load, Unload};
 namespace sco::game::services {
 Result Start() {
     calls.emplace_back("start");
+    if (mode == "throw-stage-1" || mode == "throw-stage-2") {
+        calls.emplace_back("spawn-started");
+        if (mode == "throw-stage-2") calls.emplace_back("actors-started");
+        throw std::bad_alloc();
+    }
     return mode == "partial-fail" || mode == "partial-clean" ? Result::Failed : Result::Ok;
 }
 Result Stop() {
@@ -61,7 +66,7 @@ int main(int argc, char** argv) {
     mode = argv[1];
     if (mode != "true" && mode != "false" && mode != "null" && mode != "throw" &&
         mode != "stop-false" && mode != "stop-throw" && mode != "stop-fail" && mode != "finalize-fail" &&
-        mode != "partial-fail" && mode != "partial-clean" && mode != "dependent-retained" && mode != "dependent-throw") return 2;
+        mode != "partial-fail" && mode != "partial-clean" && mode != "throw-stage-1" && mode != "throw-stage-2" && mode != "dependent-retained" && mode != "dependent-throw") return 2;
     sco::SetGameThread();
     sco::Image image{}; // empty registry and synthetic image; no image address is dereferenced
     sco::app::Platform platform;
@@ -79,21 +84,22 @@ int main(int argc, char** argv) {
     }
     const bool started = sco::app::Start(platform);
     CHECK(capabilityCalls == 1);
-    if (mode == "false" || mode == "null" || mode == "throw" || mode == "partial-clean") {
+    if (mode == "false" || mode == "null" || mode == "throw") {
         CHECK(!started);
         CHECK(!sco::AcquireHostSignatureRegistry() && !sco::caps::Has("fixture.game"));
         if (mode == "null") CHECK(calls.empty());
         else if (mode == "false" || mode == "throw") CHECK((calls == std::vector<std::string>{"quiesced"}));
-        else CHECK((calls == std::vector<std::string>{"quiesced", "start", "quiesced", "stop", "finalize"}));
         CHECK(sco::app::Stop() == sco::Result::Ok);
         std::printf("game-service shutdown %s: %d checks, %d failures\n", mode.c_str(), checks, failures);
         return failures ? 1 : 0;
     }
     const auto owner = sco::AcquireHostSignatureRegistry();
     CHECK(owner && owner->Snapshot());
-    if (mode == "partial-fail") {
+    if (mode == "partial-fail" || mode == "partial-clean" || mode == "throw-stage-1" || mode == "throw-stage-2") {
         CHECK(!started);
-        CHECK((calls == std::vector<std::string>{"quiesced", "start", "quiesced", "stop"}));
+        if (mode == "throw-stage-1") CHECK((calls == std::vector<std::string>{"quiesced", "start", "spawn-started", "quiesced"}));
+        else if (mode == "throw-stage-2") CHECK((calls == std::vector<std::string>{"quiesced", "start", "spawn-started", "actors-started", "quiesced"}));
+        else CHECK((calls == std::vector<std::string>{"quiesced", "start", "quiesced"}));
     } else {
         CHECK(started && sco::caps::Has("fixture.game"));
         CHECK((calls == std::vector<std::string>{"quiesced", "start"}));

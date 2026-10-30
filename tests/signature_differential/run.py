@@ -26,8 +26,8 @@ def blob_hash(path):
     data = path.read_bytes()
     return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
 
-def run(cmd, cwd=None):
-    return subprocess.run([str(x) for x in cmd], cwd=cwd, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def run(cmd, cwd=None, timeout=None):
+    return subprocess.run([str(x) for x in cmd], cwd=cwd, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -76,12 +76,19 @@ def main():
             # cl.exe writes object files to its working directory during a combined build.
             run(baseline_cmd, cwd=tmp)
             run(candidate_cmd, cwd=tmp)
-        for case in ["fixed", "chain", *(str(n) for n in range(args.seeds))]:
-            before, after = run([baseline, case]).stdout, run([candidate, case]).stdout
+        for case in ["fixed", "callback_states", "chain", *(str(n) for n in range(args.seeds))]:
+            before, after = run([baseline, case], timeout=10).stdout, run([candidate, case], timeout=10).stdout
             if case == "fixed":
                 for expected in ("ROW test.forward 1 1 16 -", "ROW test.undeclared 4 0 -1 context lookup unavailable", "ROW test.cycle_a 5 0 -1 test.cycle_b", "ROW test.cycle_b 5 0 -1 test.cycle_a", "ROW test.self 5 0 -1 test.self", "ROW test.rip 1 1 100 -", "ROW test.forward 5 0 -1 test.unique"):
                     if expected not in before:
                         raise AssertionError(f"baseline sanity check missing: {expected}")
+            if case == "callback_states":
+                for expected in ("ROW state.not_run 0 7 120 explicit callback state",
+                                 "ROW state.first_dependent 5 0 -1 state.not_run",
+                                 "ROW state.forward_dependent 5 0 -1 state.forward_not_run",
+                                 "CALLS 0 0 0 3 4 5 6 7 9 9 10"):
+                    if expected not in before:
+                        raise AssertionError(f"baseline callback-state sanity check missing: {expected}")
             lines = before.splitlines()
             starts = [i for i, line in enumerate(lines) if line.startswith("PASS ")]
             if len(starts) != 3 or lines[starts[0] + 1:starts[1]] != lines[starts[2] + 1:]:
@@ -90,7 +97,7 @@ def main():
                 diff = list(difflib.unified_diff(before.splitlines(), after.splitlines(), fromfile="baseline", tofile="candidate", lineterm=""))
                 raise AssertionError(f"case {case} differed:\n" + "\n".join(diff[:120]))
         mode = "prebuilt; sanitizer instrumentation controlled by build" if prebuilt else ("ASan+UBSan" if args.sanitize else "unsanitized")
-        print(f"signature differential: {args.seeds + 2} scenarios, three resolutions each, 0 differences ({mode})")
+        print(f"signature differential: {args.seeds + 3} scenarios, three resolutions each, 0 differences ({mode})")
 
 if __name__ == "__main__":
     try:
@@ -101,3 +108,5 @@ if __name__ == "__main__":
         if e.stderr:
             print(e.stderr, end="", file=sys.stderr)
         raise SystemExit(e.returncode or 1)
+    except subprocess.TimeoutExpired as e:
+        raise SystemExit(f"signature differential timed out after {e.timeout}s: {e.cmd}")

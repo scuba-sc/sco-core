@@ -1924,7 +1924,7 @@ if(SCO_BUILD_TESTS)
       sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service sco_diagnostics_ipc
       sco_datacore_service sco_game_sc sco_game_diagnostics sco_private_session)
     sco_project_target(test_app_game_service_shutdown)
-    foreach(_mode true false null throw stop-fail finalize-fail partial-fail partial-clean stop-false stop-throw dependent-retained dependent-throw)
+    foreach(_mode true false null throw stop-fail finalize-fail partial-fail partial-clean throw-stage-1 throw-stage-2 stop-false stop-throw dependent-retained dependent-throw)
       add_test(NAME app_game_service_${_mode} COMMAND test_app_game_service_shutdown ${_mode})
     endforeach()
   endif()
