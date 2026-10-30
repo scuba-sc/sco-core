@@ -3,13 +3,14 @@
 #include <atomic>
 #include <limits>
 #include <memory_resource>
+#include <mutex>
 #include <new>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
+#include <cstring>
+#include <type_traits>
+#include <utility>
 
 namespace sco {
 namespace {
@@ -50,34 +51,139 @@ template<class T> struct BudgetAllocator {
     void deallocate(T* p, size_t n) noexcept { budget->deallocate(p, n * sizeof(T), alignof(T)); }
     template<class U> bool operator==(const BudgetAllocator<U>& a) const noexcept { return budget == a.budget; }
 };
-struct Hash {
-    using is_transparent = void;
-    size_t operator()(std::string_view s) const noexcept { return std::hash<std::string_view>{}(s); }
+// These storage primitives deliberately have allocation-free constructors and
+// moves. MSVC's checked STL containers allocate iterator proxies even in noexcept
+// constructors/moves; a rejecting budget resource must never reach those paths.
+class Text {
+public:
+    explicit Text(Budget* budget) noexcept : budget_(budget) {}
+    Text(Budget* budget, const char* text) : Text(budget) { *this = text; }
+    Text(Text&& other) noexcept : budget_(other.budget_), data_(std::exchange(other.data_, nullptr)), bytes_(std::exchange(other.bytes_, 0)) {}
+    Text& operator=(Text&& other) noexcept {
+        if (this != &other) { clear(); budget_ = other.budget_; data_ = std::exchange(other.data_, nullptr); bytes_ = std::exchange(other.bytes_, 0); }
+        return *this;
+    }
+    ~Text() { clear(); }
+    Text(const Text&) = delete;
+    Text& operator=(const Text&) = delete;
+    Text& operator=(const char* text) {
+        const size_t length = std::strlen(text);
+        if (length == std::numeric_limits<size_t>::max()) throw std::length_error("signature text");
+        const size_t bytes = length + 1;
+        auto* copy = static_cast<char*>(budget_->allocate(bytes, alignof(char)));
+        std::memcpy(copy, text, bytes);
+        clear(); data_ = copy; bytes_ = bytes;
+        return *this;
+    }
+    const char* c_str() const noexcept { return data_ ? data_ : ""; }
+    operator std::string_view() const noexcept { return {c_str(), bytes_ ? bytes_ - 1 : 0}; }
+private:
+    void clear() noexcept { if (data_) budget_->deallocate(data_, bytes_, alignof(char)); data_ = nullptr; bytes_ = 0; }
+    Budget* budget_;
+    char* data_ = nullptr;
+    size_t bytes_ = 0;
 };
-struct Equal {
-    using is_transparent = void;
-    bool operator()(std::string_view a, std::string_view b) const noexcept { return a == b; }
+template<class T> class Storage {
+    static_assert(std::is_nothrow_move_constructible_v<T>);
+public:
+    explicit Storage(Budget* budget) noexcept : budget_(budget) {}
+    ~Storage() { while (size_) pop_back(); if (data_) budget_->deallocate(data_, capacity_ * sizeof(T), alignof(T)); }
+    Storage(const Storage&) = delete;
+    Storage& operator=(const Storage&) = delete;
+    Storage(Storage&& other) noexcept : budget_(other.budget_), data_(std::exchange(other.data_, nullptr)), size_(std::exchange(other.size_, 0)), capacity_(std::exchange(other.capacity_, 0)) {}
+    Storage& operator=(Storage&&) = delete;
+    size_t size() const noexcept { return size_; }
+    size_t max_size() const noexcept { return std::numeric_limits<size_t>::max() / sizeof(T); }
+    bool empty() const noexcept { return size_ == 0; }
+    T& operator[](size_t i) noexcept { return data_[i]; }
+    const T& operator[](size_t i) const noexcept { return data_[i]; }
+    T& back() noexcept { return data_[size_ - 1]; }
+    T* begin() noexcept { return data_; }
+    T* end() noexcept { return size_ ? data_ + size_ : data_; }
+    void reserve(size_t n) {
+        if (n <= capacity_) return;
+        if (n > max_size()) throw std::length_error("signature storage");
+        auto* next = static_cast<T*>(budget_->allocate(n * sizeof(T), alignof(T)));
+        for (size_t i = 0; i < size_; ++i) { new (next + i) T(std::move(data_[i])); data_[i].~T(); }
+        if (data_) budget_->deallocate(data_, capacity_ * sizeof(T), alignof(T));
+        data_ = next; capacity_ = n;
+    }
+    template<class... Args> void emplace_back(Args&&... args) {
+        if (size_ == capacity_) {
+            if (size_ == max_size()) throw std::length_error("signature storage");
+            reserve(capacity_ > max_size() / 2 ? max_size() : (capacity_ ? capacity_ * 2 : 1));
+        }
+        new (data_ + size_) T(std::forward<Args>(args)...); ++size_;
+    }
+    void push_back(T value) { emplace_back(std::move(value)); }
+    void pop_back() noexcept { data_[--size_].~T(); }
+    void resize(size_t n) { reserve(n); while (size_ < n) emplace_back(); while (size_ > n) pop_back(); }
+    void swap(Storage& other) noexcept { std::swap(data_, other.data_); std::swap(size_, other.size_); std::swap(capacity_, other.capacity_); }
+private:
+    Budget* budget_;
+    T* data_ = nullptr;
+    size_t size_ = 0, capacity_ = 0;
 };
 constexpr size_t unknown = std::numeric_limits<size_t>::max();
+class Index {
+    struct Entry { std::string_view key; size_t value = unknown; bool occupied = false; };
+public:
+    explicit Index(Budget* budget) noexcept : budget_(budget), entries_(budget) {}
+    size_t find(std::string_view key) const noexcept {
+        if (entries_.empty()) return unknown;
+        size_t slot = std::hash<std::string_view>{}(key) & (entries_.size() - 1);
+        for (size_t n = 0; n < entries_.size(); ++n) {
+            const auto& e = entries_[slot];
+            if (!e.occupied) return unknown;
+            if (e.value != unknown && e.key == key) return e.value;
+            slot = (slot + 1) & (entries_.size() - 1);
+        }
+        return unknown;
+    }
+    void reserve(size_t count) {
+        size_t n = 8;
+        while (count > n / 2) { if (n > entries_.max_size() / 2) throw std::length_error("signature index"); n *= 2; }
+        if (n <= entries_.size()) return;
+        Storage<Entry> next(budget_); next.resize(n);
+        entries_.swap(next);
+        for (auto& e : next) if (e.value != unknown) insert(e.key, e.value);
+    }
+    void insert(std::string_view key, size_t value) noexcept {
+        size_t slot = std::hash<std::string_view>{}(key) & (entries_.size() - 1);
+        while (entries_[slot].value != unknown) slot = (slot + 1) & (entries_.size() - 1);
+        entries_[slot] = {key, value, true};
+    }
+    void erase(std::string_view key) noexcept {
+        size_t slot = std::hash<std::string_view>{}(key) & (entries_.size() - 1);
+        while (entries_[slot].occupied) {
+            auto& e = entries_[slot];
+            if (e.value != unknown && e.key == key) { e.key = {}; e.value = unknown; return; }
+            slot = (slot + 1) & (entries_.size() - 1);
+        }
+    }
+private:
+    Budget* budget_;
+    Storage<Entry> entries_;
+};
 struct Definition {
-    explicit Definition(std::pmr::memory_resource* r) : id(r), pattern(r), needs(r) {}
+    explicit Definition(Budget* r) : id(r), pattern(r), needs(r) {}
     Definition(Definition&&) noexcept = default;
-    Definition& operator=(Definition&&) noexcept = default;
+    Definition& operator=(Definition&&) = delete;
     Definition(const Definition&) = delete;
     Definition& operator=(const Definition&) = delete;
-    std::pmr::string id, pattern;
+    Text id, pattern;
     bool hasPattern = false;
     int ripDisp = 0, ripSize = 0;
     SigResolver resolve = nullptr;
-    std::pmr::vector<std::pmr::string> needs;
+    Storage<Text> needs;
     std::array<size_t, kMaxSigNeeds> deps{};
 };
 struct Graph {
     explicit Graph(std::shared_ptr<Budget> b) : budget(std::move(b)), rows(budget.get()), index(budget.get()) {}
     // Keep the resource alive until all of its containers have been destroyed.
     std::shared_ptr<Budget> budget;
-    std::pmr::vector<Definition> rows;
-    std::pmr::unordered_map<std::pmr::string, size_t, Hash, Equal> index;
+    Storage<Definition> rows;
+    Index index;
     bool frozen = false;
 };
 }
@@ -87,7 +193,7 @@ struct SignatureSnapshot::Impl {
         : graph(std::move(g)), results(graph->budget.get()), reasons(graph->budget.get()) {
         results.resize(graph->rows.size());
         reasons.reserve(graph->rows.size());
-        for (size_t i = 0; i < graph->rows.size(); ++i) reasons.emplace_back();
+        for (size_t i = 0; i < graph->rows.size(); ++i) reasons.emplace_back(graph->budget.get());
     }
     void Set(size_t i, SigResult r) {
         if (r.why) { reasons[i] = r.why; r.why = reasons[i].c_str(); }
@@ -95,15 +201,16 @@ struct SignatureSnapshot::Impl {
     }
     std::shared_ptr<const Graph> graph;
     std::shared_ptr<const void> imageOwner, resolverOwner;
-    std::pmr::vector<SigResult> results;
-    std::pmr::vector<std::pmr::string> reasons;
+    Storage<SigResult> results;
+    Storage<Text> reasons;
 };
 struct SignatureRegistry::Impl {
     explicit Impl(size_t bytes) : budget(std::make_shared<Budget>(bytes)),
         graph(std::allocate_shared<Graph>(BudgetAllocator<Graph>(budget), budget)) {}
     std::shared_ptr<Budget> budget;
     std::shared_ptr<Graph> graph;
-    std::atomic<std::shared_ptr<const SignatureSnapshot>> published;
+    mutable std::mutex publishedMutex;
+    std::shared_ptr<const SignatureSnapshot> published;
     bool busy = false;
     bool hostSealed = false;
 };
@@ -119,7 +226,7 @@ const SigResult* SignatureSnapshot::ResultAt(size_t i) const noexcept {
 const SigResult* SignatureSnapshot::Lookup(const char* id) const noexcept {
     if (!id) return nullptr;
     const auto it = impl_->graph->index.find(id);
-    return it == impl_->graph->index.end() ? nullptr : &impl_->results[it->second];
+    return it == unknown ? nullptr : &impl_->results[it];
 }
 uint8_t* SigResolveContext::Sig(const char* id) const noexcept { return lookup_(state_, id); }
 
@@ -153,22 +260,23 @@ SigRegistrationResult SignatureRegistry::RegisterTables(const SignatureTable* ta
     auto& graph = *impl_->graph;
     size_t committed = graph.rows.size();
     try {
-        std::pmr::vector<Definition> staged(graph.budget.get());
-        std::pmr::unordered_set<std::pmr::string, Hash, Equal> stagedIds(graph.budget.get());
+        Storage<Definition> staged(graph.budget.get());
+        Index stagedIds(graph.budget.get());
         for (t = 0; t < count; ++t) {
             if (!tables[t].rows && tables[t].count) return {SigRegistryStatus::InvalidArgument, t, 0};
             for (r = 0; r < tables[t].count; ++r) {
                 const auto& def = tables[t].rows[r];
                 if (!def.id) return {SigRegistryStatus::InvalidArgument, t, r};
-                if (graph.index.find(def.id) != graph.index.end() || stagedIds.find(def.id) != stagedIds.end())
+                if (graph.index.find(def.id) != unknown || stagedIds.find(def.id) != unknown)
                     return {SigRegistryStatus::DuplicateId, t, r};
                 Definition row(graph.budget.get());
                 row.id = def.id;
                 row.hasPattern = def.pattern != nullptr;
                 if (def.pattern) row.pattern = def.pattern;
                 row.ripDisp = def.ripDisp; row.ripSize = def.ripSize; row.resolve = def.resolve;
-                for (const char* need : def.needs) { if (!need) break; row.needs.emplace_back(need); }
-                stagedIds.emplace(row.id);
+                for (const char* need : def.needs) { if (!need) break; row.needs.emplace_back(graph.budget.get(), need); }
+                stagedIds.reserve(staged.size() + 1);
+                stagedIds.insert(row.id, staged.size());
                 staged.push_back(std::move(row));
             }
         }
@@ -177,10 +285,8 @@ SigRegistrationResult SignatureRegistry::RegisterTables(const SignatureTable* ta
         graph.rows.reserve(committed + staged.size());
         graph.index.reserve(committed + staged.size());
         for (auto& row : staged) {
-            auto [it, inserted] = graph.index.emplace(row.id, graph.rows.size());
-            if (!inserted) throw std::logic_error("duplicate after staging");
-            try { graph.rows.push_back(std::move(row)); }
-            catch (...) { graph.index.erase(it); throw; }
+            graph.index.insert(row.id, graph.rows.size());
+            graph.rows.push_back(std::move(row));
         }
         return {SigRegistryStatus::Ok, 0, 0};
     } catch (...) {
@@ -204,7 +310,7 @@ SigRegistryStatus SignatureRegistry::Freeze() noexcept {
     for (auto& row : graph.rows) {
         for (size_t i = 0; i < row.needs.size(); ++i) {
             const auto it = graph.index.find(row.needs[i]);
-            row.deps[i] = it == graph.index.end() ? unknown : it->second;
+            row.deps[i] = it;
         }
     }
     graph.frozen = true;
@@ -236,17 +342,17 @@ SigRegistryStatus SignatureRegistry::ResolveImpl(const Image& image, std::shared
             if (!id) return nullptr;
             const auto& s = *static_cast<const State*>(p);
             const auto it = s.graph->index.find(id);
-            if (it == s.graph->index.end()) return nullptr;
-            const auto& r = s.result->results[it->second];
+            if (it == unknown) return nullptr;
+            const auto& r = s.result->results[it];
             return r.state == SigState::Ok ? r.at : nullptr;
         };
         SigResolveContext ctx(&state, lookup);
         // A NotRun callback may be attempted again by a later root or dependent, but
         // each individual parent must inspect the result after its child returns.
         struct Frame { size_t row, next; bool attempted; };
-        std::pmr::vector<Frame> stack(impl_->budget.get());
-        std::pmr::vector<uint8_t> visiting(impl_->budget.get());
-        visiting.resize(graph->rows.size(), 0);
+        Storage<Frame> stack(impl_->budget.get());
+        Storage<uint8_t> visiting(impl_->budget.get());
+        visiting.resize(graph->rows.size());
         for (size_t root = 0; root < graph->rows.size(); ++root) {
             if (result->results[root].state != SigState::NotRun) continue;
             visiting[root] = 1; stack.push_back({root, 0, false});
@@ -288,7 +394,10 @@ SigRegistryStatus SignatureRegistry::ResolveImpl(const Image& image, std::shared
         }
         auto snapshot = std::allocate_shared<SignatureSnapshot>(BudgetAllocator<SignatureSnapshot>(impl_->budget), SignatureSnapshot::Token{}, std::move(result));
         std::shared_ptr<const SignatureSnapshot> published = std::move(snapshot);
-        impl_->published.store(std::move(published), std::memory_order_release);
+        {
+            std::lock_guard<std::mutex> lock(impl_->publishedMutex);
+            impl_->published.swap(published);
+        }
         return SigRegistryStatus::Ok;
     } catch (const BudgetExceeded&) { return SigRegistryStatus::BudgetExceeded; }
     catch (const std::bad_alloc&) { return SigRegistryStatus::OutOfMemory; }
@@ -298,11 +407,12 @@ SigRegistryStatus SignatureRegistry::ResolveImpl(const Image& image, std::shared
 SigRegistryStatus SignatureRegistry::SealForHost() noexcept {
     if (impl_->busy) return SigRegistryStatus::Busy;
     if (!impl_->graph->frozen) return SigRegistryStatus::NotFrozen;
-    if (!impl_->published.load(std::memory_order_acquire)) return SigRegistryStatus::NotResolved;
+    if (!Snapshot()) return SigRegistryStatus::NotResolved;
     impl_->hostSealed = true;
     return SigRegistryStatus::Ok;
 }
 std::shared_ptr<const SignatureSnapshot> SignatureRegistry::Snapshot() const noexcept {
-    return impl_->published.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> lock(impl_->publishedMutex);
+    return impl_->published;
 }
 } // namespace sco

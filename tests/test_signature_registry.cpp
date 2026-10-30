@@ -169,6 +169,7 @@ static void TestBudgetDuringPublication() {
             auto status = registry.Resolve(ImageFor(&second));
             if (status == SigRegistryStatus::BudgetExceeded) {
                 observed = true;
+                std::printf("publication retained-snapshot budget boundary: %zu bytes\n", limit);
                 CHECK(registry.Snapshot() == old && old->Lookup("one")->at == &first);
                 CHECK(registry.UsedBytes() <= registry.BudgetBytes());
             }
@@ -229,6 +230,57 @@ static void TestOwnedBudgetFailure() {
     }
     CHECK(observed);
 }
+static char boundaryReason[1024];
+static sco::SigResult BoundaryReason(const sco::Image&, const sco::SigResolveContext&) { return sco::SigFail(boundaryReason); }
+static void TestBudgetBoundaries() {
+    std::memset(boundaryReason, 'x', sizeof(boundaryReason) - 1);
+    // Exercise every byte boundary, not just a 64-byte grid: storage layouts and
+    // allocation granularity differ between standard-library implementations.
+    unsigned char first{}, second{};
+    size_t registrationFailures = 0, resolutionFailures = 0, retainedFailures = 0, successes = 0;
+    for (size_t limit = 256; limit <= 4096; ++limit) {
+        try {
+            sco::SignatureRegistry registry(limit);
+            sco::SigDef seed[] = {{"seed", nullptr, 0, 0, AtBase, {}}};
+            sco::SignatureTable one{seed, 1};
+            if (registry.RegisterTables(&one, 1).status != SigRegistryStatus::Ok) continue;
+            sco::SigDef extra[] = {
+                {"dependent.long.identifier", nullptr, 0, 0, AtBase, {"seed"}},
+                {"reason.long.identifier", nullptr, 0, 0, BoundaryReason, {}}
+            };
+            sco::SignatureTable two{extra, 2};
+            const auto registration = registry.RegisterTables(&two, 1).status;
+            CHECK(registration == SigRegistryStatus::Ok || registration == SigRegistryStatus::BudgetExceeded);
+            if (registration != SigRegistryStatus::Ok) ++registrationFailures;
+            CHECK(registry.UsedBytes() <= limit);
+            CHECK(registry.Freeze() == SigRegistryStatus::Ok);
+            const size_t before = registry.UsedBytes();
+            const auto status = registry.Resolve(ImageFor(&first));
+            CHECK(status == SigRegistryStatus::Ok || status == SigRegistryStatus::BudgetExceeded);
+            if (status != SigRegistryStatus::Ok) {
+                ++resolutionFailures;
+                CHECK(!registry.Snapshot() && registry.UsedBytes() == before);
+                continue;
+            }
+            ++successes;
+            auto old = registry.Snapshot();
+            CHECK(old && old->Count() == (registration == SigRegistryStatus::Ok ? 3u : 1u));
+            CHECK(old->Lookup("seed") && old->Lookup("seed")->at == &first);
+            CHECK((old->Lookup("dependent.long.identifier") != nullptr) == (registration == SigRegistryStatus::Ok));
+            const size_t publishedBytes = registry.UsedBytes();
+            const auto again = registry.Resolve(ImageFor(&second));
+            CHECK(again == SigRegistryStatus::Ok || again == SigRegistryStatus::BudgetExceeded);
+            if (again == SigRegistryStatus::BudgetExceeded) {
+                ++retainedFailures;
+                CHECK(registry.Snapshot() == old && registry.UsedBytes() == publishedBytes);
+            }
+            CHECK(old->Lookup("seed")->at == &first && registry.UsedBytes() <= limit);
+        } catch (const std::bad_alloc&) { /* Construction is allowed to throw. */ }
+    }
+    CHECK(registrationFailures && resolutionFailures && retainedFailures && successes);
+    std::printf("budget boundaries: registration=%zu resolution=%zu retained=%zu success=%zu\n",
+                registrationFailures, resolutionFailures, retainedFailures, successes);
+}
 static void TestPublication() {
     constexpr size_t n = 64;
     std::vector<std::string> ids(n); std::vector<sco::SigDef> defs(n);
@@ -271,6 +323,7 @@ static void TestPurityIsNotEnforced() {
 int main() {
     TestPurityIsNotEnforced();
     TestOwnershipAndAtomicBatch(); TestSnapshotsAndFailure(); TestReentry(); TestHostSeal(); TestDeepGraph(); TestBudget(); TestBudgetDuringPublication(); TestOwnedSnapshots(); TestOwnedBudgetFailure(); TestPublication();
+    TestBudgetBoundaries();
     std::printf("signature registry: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

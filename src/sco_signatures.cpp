@@ -1,60 +1,69 @@
 #include "sco/signatures.h"
 #include "sco/signature_registry.h"
 #include "sco/log.h"
-#include <atomic>
 #include <memory>
 #include <mutex>
 #include <limits>
 
 namespace sco {
 namespace {
-// Composition writers and capability transitions serialize; readers acquire leases atomically.
+// Ownership transitions serialize separately from short-lived registry publication locks.
 std::mutex g_hostOwnership;
 size_t g_hostPins = 0;
-std::atomic<std::shared_ptr<SignatureRegistry>> g_hostRegistry;
+std::mutex g_hostRegistryMutex;
+std::shared_ptr<SignatureRegistry> g_hostRegistry;
+
+std::shared_ptr<SignatureRegistry> LoadHostRegistry() noexcept {
+    std::lock_guard<std::mutex> lock(g_hostRegistryMutex);
+    return g_hostRegistry;
+}
+void StoreHostRegistry(const std::shared_ptr<SignatureRegistry>& registry) noexcept {
+    std::lock_guard<std::mutex> lock(g_hostRegistryMutex);
+    g_hostRegistry = registry;
+}
 }
 
 bool InstallHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
                                   void (*beforeInstall)() noexcept) noexcept {
     if (!registry) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (g_hostPins || g_hostRegistry.load(std::memory_order_acquire) ||
+    if (g_hostPins || LoadHostRegistry() ||
         registry->SealForHost() != SigRegistryStatus::Ok) return false;
     if (beforeInstall) beforeInstall();
-    g_hostRegistry.store(registry, std::memory_order_release);
+    StoreHostRegistry(registry);
     return true;
 }
 bool ClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
                                 void (*beforeClear)() noexcept) noexcept {
     if (!registry) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (g_hostPins || g_hostRegistry.load(std::memory_order_acquire) != registry) return false;
+    if (g_hostPins || LoadHostRegistry() != registry) return false;
     if (beforeClear) beforeClear();
-    g_hostRegistry.store({}, std::memory_order_release);
+    StoreHostRegistry({});
     return true;
 }
 bool UnpinAndClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
                                         void (*beforeClear)() noexcept) noexcept {
     if (!registry) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (g_hostPins != 1 || g_hostRegistry.load(std::memory_order_acquire) != registry) return false;
+    if (g_hostPins != 1 || LoadHostRegistry() != registry) return false;
     if (beforeClear) beforeClear();
     g_hostPins = 0;
-    g_hostRegistry.store({}, std::memory_order_release);
+    StoreHostRegistry({});
     return true;
 }
 bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& registry,
                                void (*callback)() noexcept) noexcept {
     if (!registry || !callback) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (g_hostRegistry.load(std::memory_order_acquire) != registry) return false;
+    if (LoadHostRegistry() != registry) return false;
     callback();
     return true;
 }
 bool WithNoHostSignatureRegistry(void (*callback)() noexcept) noexcept {
     if (!callback) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (g_hostRegistry.load(std::memory_order_acquire)) return false;
+    if (LoadHostRegistry()) return false;
     callback();
     return true;
 }
@@ -62,32 +71,32 @@ bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& r
                                void (*callback)(void*) noexcept, void* context) noexcept {
     if (!registry || !callback) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (g_hostRegistry.load(std::memory_order_acquire) != registry) return false;
+    if (LoadHostRegistry() != registry) return false;
     callback(context);
     return true;
 }
 bool WithNoHostSignatureRegistry(void (*callback)(void*) noexcept, void* context) noexcept {
     if (!callback) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (g_hostRegistry.load(std::memory_order_acquire)) return false;
+    if (LoadHostRegistry()) return false;
     callback(context);
     return true;
 }
 bool PinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected) noexcept {
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (g_hostRegistry.load(std::memory_order_acquire) != expected ||
+    if (LoadHostRegistry() != expected ||
         g_hostPins == std::numeric_limits<size_t>::max()) return false;
     ++g_hostPins;
     return true;
 }
 bool UnpinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected) noexcept {
     std::lock_guard<std::mutex> lock(g_hostOwnership);
-    if (!g_hostPins || g_hostRegistry.load(std::memory_order_acquire) != expected) return false;
+    if (!g_hostPins || LoadHostRegistry() != expected) return false;
     --g_hostPins;
     return true;
 }
 std::shared_ptr<const SignatureRegistry> AcquireHostSignatureRegistry() noexcept {
-    return g_hostRegistry.load(std::memory_order_acquire);
+    return LoadHostRegistry();
 }
 std::shared_ptr<const SignatureSnapshot> AcquireHostSignatureSnapshot() noexcept {
     auto registry = AcquireHostSignatureRegistry();
