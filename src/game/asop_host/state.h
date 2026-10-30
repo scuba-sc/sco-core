@@ -27,5 +27,7 @@ void LogFleet();
 void LogHangars();
 void SetFleetCaps();
 void SetHangarCaps();
+// Rebuild the fleet slot table from the current catalog; game thread only, g_shipsLock held by caller.
+void RebuildFleetShips();
 #endif
 } // namespace sco::game::asop_host

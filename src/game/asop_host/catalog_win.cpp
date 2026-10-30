@@ -16,16 +16,21 @@ constexpr uint16_t kUrnType = 0x1606;
 constexpr uint8_t  kUrnKindUuid = 3;
 constexpr uint8_t  kUrnIdGuid = 2;
 constexpr uint64_t kShipUrnMarker = 0x53434F4600000000ull;
-struct FleetShip { char name[64]; uint64_t guid[2]; };
+// Append-only slot table: a ship's URN id is kShipUrnMarker | slot, and slots are never
+// removed, so stored/in-transit records keep resolving to the right class across mid-session
+// rebuilds of the owned list. Retired entitlement buffers are kept for process lifetime.
+struct FleetSlot { char name[64]; uint64_t guid[2] = {0,0}; uintptr_t cls = 0; bool selected = false; };
 // Same bound as the spawn menu (spawner.cpp kMaxMenuShips): ships.txt holds 1102 entries, and the
 // old 1024 here dropped the last 78 from the fleet manager without saying so.
 constexpr int kMaxFleetShips = 2048;
 
-static FleetShip* g_ships = nullptr;
-static int        g_shipCount = 0;
-static uint8_t*   g_fakeEntitlements = nullptr;
-static SRWLOCK    g_shipsLock = SRWLOCK_INIT;
-static bool       g_shipsBuilt = false;
+static FleetSlot   g_slots[kMaxFleetShips];
+static int         g_slotCount = 0;
+static uintptr_t   g_slotClasses[kMaxFleetShips];
+static uint8_t*    g_fakeEntitlements = nullptr;
+static int         g_activeCount = 0;
+static SRWLOCK     g_shipsLock = SRWLOCK_INIT;
+static bool        g_shipsBuilt = false;
 
 
 using EntitlementsFn=void(__fastcall*)(uintptr_t,uintptr_t);
@@ -39,8 +44,8 @@ static void FindClassGuids(uintptr_t registry, const uintptr_t* classes) {
     while (sp) {
         const uintptr_t n = stack[--sp];
         const uintptr_t cls = Rd<uintptr_t>(n + 0x30);
-        for (int i = 0; i < g_shipCount; ++i)
-            if (classes[i] == cls) { g_ships[i].guid[0] = Rd<uint64_t>(n + 0x20); g_ships[i].guid[1] = Rd<uint64_t>(n + 0x28); }
+        for (int i = 0; i < g_slotCount; ++i)
+            if (classes[i] == cls) { g_slots[i].guid[0] = Rd<uint64_t>(n + 0x20); g_slots[i].guid[1] = Rd<uint64_t>(n + 0x28); }
         for (size_t off : { size_t(0x00), size_t(0x10) }) {
             const uintptr_t c = Rd<uintptr_t>(n + off);
             if (c && !Rd<uint8_t>(c + 0x19) && sp < 256) stack[sp++] = c;
@@ -48,55 +53,82 @@ static void FindClassGuids(uintptr_t registry, const uintptr_t* classes) {
     }
 }
 
-static int BuildFleetShips() {
-    if (!EntitySystem()) return 0;
-    static FleetShip ships[kMaxFleetShips];
-    static uintptr_t classes[kMaxFleetShips];
-    g_ships = ships;
+// Build (first call) or rebuild (Reconfigure) the slot table from the current catalog.
+// Slots append only; a re-added name reuses its slot; retired entitlement buffers are
+// never freed so engine-held pointers stay valid. Caller holds g_shipsLock exclusive.
+static void BuildFleetShips() {
+    if (!EntitySystem()) { g_activeCount = 0; return; }
     int missing = 0;
     const uintptr_t registry = VCall<uintptr_t>(EntitySystem(), 0xC0);
+    for (int i = 0; i < g_slotCount; ++i) g_slots[i].selected = false;
     for (size_t i=0; i<catalog.count; ++i) {
         const char* name=catalog.names[i].data();
         const uintptr_t cls=VCall<uintptr_t>(registry,0x20,name);
         if (!cls) { ++missing; continue; }
-        strncpy_s(ships[g_shipCount].name,name,_TRUNCATE);
-        classes[g_shipCount++]=cls;
+        int slot = -1;
+        for (int j = 0; j < g_slotCount; ++j)
+            if (_stricmp(g_slots[j].name, name) == 0) { slot = j; break; }
+        if (slot < 0) {
+            if (g_slotCount >= kMaxFleetShips) { ++missing; continue; }
+            slot = g_slotCount++;
+            strncpy_s(g_slots[slot].name, name, _TRUNCATE);
+        }
+        g_slots[slot].selected = true;
+        g_slots[slot].cls = cls;
     }
-    FindClassGuids(registry, classes);
-
-    int kept = 0;
-    for (int i = 0; i < g_shipCount; ++i) {
-        uint64_t guid[2] = { ships[i].guid[0], ships[i].guid[1] };
-        if ((guid[0] | guid[1]) && VCall<uintptr_t>(registry, 0x18, guid) == classes[i]) ships[kept++] = ships[i];
-        else Log("[fleet] no class GUID for '%s' (skipped)", ships[i].name);
+    // Resolve GUIDs for all known slots (active and retired) so a retired slot's
+    // stored records keep resolving if it is re-added later.
+    for (int i = 0; i < g_slotCount; ++i) g_slotClasses[i] = g_slots[i].cls;
+    FindClassGuids(registry, g_slotClasses);
+    g_activeCount = 0;
+    for (int i = 0; i < g_slotCount; ++i) {
+        if (!g_slots[i].selected) continue;
+        uint64_t guid[2] = { g_slots[i].guid[0], g_slots[i].guid[1] };
+        if ((guid[0] | guid[1]) && VCall<uintptr_t>(registry, 0x18, guid) == g_slots[i].cls) ++g_activeCount;
+        else { ++missing; Log("[fleet] no class GUID for '%s' (skipped)", g_slots[i].name); }
     }
-    g_shipCount = kept;
 
-    g_fakeEntitlements = static_cast<uint8_t*>(calloc(kept ? kept : 1, kEntitlementSize));
-    for (int i = 0; g_fakeEntitlements && i < kept; ++i) {
-        uint8_t* e = g_fakeEntitlements + i * kEntitlementSize;
+    uint8_t* entitlements = static_cast<uint8_t*>(calloc(g_activeCount ? g_activeCount : 1, kEntitlementSize));
+    if (!entitlements) { g_activeCount = 0; Log("[fleet] out of memory building the ship list"); return; }
+    int written = 0;
+    for (int i = 0; i < g_slotCount; ++i) {
+        if (!g_slots[i].selected || !(g_slots[i].guid[0] | g_slots[i].guid[1])) continue;
+        uint8_t* e = entitlements + written * kEntitlementSize;
         *reinterpret_cast<uint16_t*>(e + 0x00) = kUrnType;
         e[0x08] = kUrnKindUuid;
         *reinterpret_cast<uint64_t*>(e + 0x10) = kShipUrnMarker | static_cast<uint32_t>(i);
         e[0x20] = kUrnIdGuid;
         e[0x50] = 3;
         *reinterpret_cast<uint32_t*>(e + 0x54) = 1;
-        memcpy(e + 0x58, ships[i].guid, 16);
+        memcpy(e + 0x58, g_slots[i].guid, 16);
+        ++written;
     }
-    if (!g_fakeEntitlements) g_shipCount = 0;
-    Log("[fleet] %d ships available in the fleet manager (%d unknown names)", g_shipCount, missing);
-    return g_shipCount;
+    // The previous buffer stays allocated for process lifetime: the engine may still hold
+    // pointers into it, and one leaked buffer per rebuild (bounded by user saves) is the
+    // accepted growth policy.
+    g_fakeEntitlements = entitlements;
+    g_activeCount = written;
+    Log("[fleet] %d ships available in the fleet manager (%d unknown names)", g_activeCount, missing);
 }
 
 static int EnsureFleetShips() {
     AcquireSRWLockExclusive(&g_shipsLock);
     if (!g_shipsBuilt) {
         g_shipsBuilt = true;
-        __try { BuildFleetShips(); } __except (EXCEPTION_EXECUTE_HANDLER) { g_shipCount = 0; Log("[fleet] fault while building the ship list"); }
+        __try { BuildFleetShips(); } __except (EXCEPTION_EXECUTE_HANDLER) { g_activeCount = 0; Log("[fleet] fault while building the ship list"); }
     }
-    const int n = g_shipCount;
+    const int n = g_activeCount;
     ReleaseSRWLockExclusive(&g_shipsLock);
     return n;
+}
+
+// Reconfigure entry point: rebuild the slot table from the current catalog. Game thread
+// only. Before the first build this only refreshes names; afterwards it swaps in a new
+// entitlement buffer containing only the selected slots, keeping every retired buffer.
+void RebuildFleetShips() {
+    AcquireSRWLockExclusive(&g_shipsLock);
+    __try { BuildFleetShips(); } __except (EXCEPTION_EXECUTE_HANDLER) { g_activeCount = 0; Log("[fleet] fault while rebuilding the ship list"); }
+    ReleaseSRWLockExclusive(&g_shipsLock);
 }
 
 static void __fastcall Hook_EntitlementsResult(uintptr_t self, uintptr_t result) {
@@ -121,9 +153,11 @@ static void __fastcall Hook_EntitlementsResult(uintptr_t self, uintptr_t result)
     g_origEntitlementsResult(self, reinterpret_cast<uintptr_t>(&fake));
 }
 
+// Returns the stable slot index for a synthetic entitlement URN, or -1. Works for
+// retired slots too: stored/in-transit records of a deselected class keep resolving.
 int FleetShipIndexOfUrnId(const uint64_t id[2]) {
     AcquireSRWLockShared(&g_shipsLock);
-    const int count = g_shipsBuilt ? g_shipCount : 0;
+    const int count = g_shipsBuilt ? g_slotCount : 0;
     ReleaseSRWLockShared(&g_shipsLock);
     for (int i = 0; i < 2; ++i)
         for (const uint64_t q : { id[i], _byteswap_uint64(id[i]) })
@@ -134,9 +168,10 @@ int FleetShipIndexOfUrnId(const uint64_t id[2]) {
 
 const char* FleetShipClass(int index) {
     AcquireSRWLockShared(&g_shipsLock);
-    const int count = g_shipsBuilt ? g_shipCount : 0;
+    const int count = g_shipsBuilt ? g_slotCount : 0;
+    const char* name = index >= 0 && index < count ? g_slots[index].name : nullptr;
     ReleaseSRWLockShared(&g_shipsLock);
-    return index >= 0 && index < count ? g_ships[index].name : nullptr;
+    return name;
 }
 
 // Selection busy gate: is any ship of this class stored, retrieved, delivering or queued
@@ -146,9 +181,9 @@ bool FleetClassBusy(const char* name) {
     if (!name) return false;
     AcquireSRWLockShared(&g_shipsLock);
     int index = -1;
-    const int count = g_shipsBuilt ? g_shipCount : 0;
+    const int count = g_shipsBuilt ? g_slotCount : 0;
     for (int i = 0; i < count; ++i)
-        if (_stricmp(g_ships[i].name, name) == 0) { index = i; break; }
+        if (_stricmp(g_slots[i].name, name) == 0) { index = i; break; }
     ReleaseSRWLockShared(&g_shipsLock);
     return index >= 0 && ShipIsBusy(index);
 }
@@ -193,7 +228,7 @@ static int SlotShipIndex(uintptr_t slot) {
         if (Rd<uint16_t>(urn) != kUrnType || Rd<uint8_t>(urn + 0x20) != kUrnIdGuid) return -1;
         const uint64_t id = Rd<uint64_t>(urn + 0x10);
         const int i = static_cast<int>(static_cast<uint32_t>(id));
-        return (id & 0xFFFFFFFF00000000ull) == kShipUrnMarker && i < g_shipCount ? i : -1;
+        return (id & 0xFFFFFFFF00000000ull) == kShipUrnMarker && i < g_slotCount ? i : -1;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return -1;
     }
@@ -231,9 +266,9 @@ static void __fastcall Hook_RetrieveVehicle(uintptr_t asop, uintptr_t slot) {
     if (i < 0 || Fleet_RetrieveActive()) { g_origRetrieveVehicle(asop, slot); return; }
     uint64_t atc = 0;
     __try { atc = Rd<uint64_t>(asop + kAsopAtcId); } __except (EXCEPTION_EXECUTE_HANDLER) {}
-    if (const char* err = RequestShipFromAtc(atc, LocalPlayerEntityId(), g_ships[i].name))
-        Log("[fleet] retrieve %s failed: %s", g_ships[i].name, err);
-    else Log("[fleet] retrieve %s: asked the spaceport ATC for a hangar/pad", g_ships[i].name);
+    if (const char* err = RequestShipFromAtc(atc, LocalPlayerEntityId(), g_slots[i].name))
+        Log("[fleet] retrieve %s failed: %s", g_slots[i].name, err);
+    else Log("[fleet] retrieve %s: asked the spaceport ATC for a hangar/pad", g_slots[i].name);
 }
 
 bool InstallCatalog() {

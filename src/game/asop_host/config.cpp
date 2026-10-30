@@ -55,6 +55,24 @@ Result Start(const Config& c) {
     return status.installed ? Result::Ok : Result::Unavailable;
 #endif
 }
+Result Reconfigure(const Config& c) {
+    std::unique_lock guard(lock);
+    if (!status.configured || status.stopped) return Result::Unavailable;
+    if (!admitted.load()) return Result::AdmissionRefused;
+    if (c.catalog != settings.catalog) return Result::InvalidConfig;
+    Catalog next;
+    const auto validation=next.Configure(c);
+    if(validation!=Result::Ok) return validation;
+    catalog=next;
+    status.catalogCount=catalog.count;
+    guard.unlock(); // The rebuild touches engine memory; never run under the status mutex.
+#ifdef _WIN32
+    RebuildFleetShips();
+#else
+    return Result::Unavailable;
+#endif
+    return Result::Ok;
+}
 Status Snapshot() {
     std::lock_guard guard(lock); Status copy=status;
 #ifdef _WIN32
