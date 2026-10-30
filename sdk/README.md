@@ -267,7 +267,18 @@ cmake --build ../my_radar/build --target check
 
    ```sh
    cmake -S . -B build -DSCO_SDK=/path/to/unpacked-sco-sdk
+   cmake --build build
    ```
+
+5. Check it without the game. `sco-plugin-check` comes from building and installing this SDK
+   (`cmake --install build --prefix sdk-out` at the SDK root gives `sdk-out/bin/sco-plugin-check`):
+
+   ```sh
+   cmake --install build --prefix plugin-out
+   sdk-out/bin/sco-plugin-check plugin-out/data/plugins/my_plugin
+   ```
+
+   The install lands in `plugin-out/data/plugins/my_plugin/`, the folder the checker takes.
 
 The template registers one command, `my_plugin.ping`. [`examples/hello/hello.c`](examples/hello/hello.c) adds `has()`, events and a command with an argument. The [API reference](../docs/api-v1.md) covers every function.
 
