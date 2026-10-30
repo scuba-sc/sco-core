@@ -61,7 +61,7 @@ int main() {
             for (int section = 0; section < 3; ++section) {
               for (int shape = 0; shape < 3; ++shape) {
                 sco::Image img{};
-                img.base = bytes.data(); img.size = bytes.size();
+                img.base = bytes.data(); img.size = static_cast<uint32_t>(bytes.size());
                 img.text = {bytes.data(), 4096};
                 img.rdata = {bytes.data() + 4096, 2048};
                 img.pdata = {bytes.data() + 6144, 2048};
@@ -88,7 +88,7 @@ int main() {
         return tables[0].rows[0];
     };
     sco::Image valid{};
-    valid.base = bytes.data(); valid.size = bytes.size();
+    valid.base = bytes.data(); valid.size = static_cast<uint32_t>(bytes.size());
     valid.text = {bytes.data(), 4096}; valid.rdata = {bytes.data() + 4096, 2048};
     sco::currentImage = &valid;
     const auto missing = find("spawn.landing_helper").resolve(valid);
