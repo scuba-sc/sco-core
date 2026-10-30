@@ -5,8 +5,8 @@
 #include <vector>
 #include <algorithm>
 namespace sco {
-uint8_t* source = nullptr;
-uint8_t* Sig(const char*) { return source; }
+uint8_t* fixtureSource = nullptr;
+uint8_t* Sig(const char*) { return fixtureSource; }
 SigResult SigPattern(const Section&, const char*) { return {}; }
 }
 #include "../src/game/features_sigs.cpp"
@@ -19,7 +19,7 @@ SigResult SigPattern(const Section&, const char*) { return {}; }
 namespace {
 std::function<sco::SigResult(const sco::SigResolveContext&)> fixtureCall;
 sco::SigResult fixtureResult;
-sco::SigResult fixtureDependency(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(sco::source); }
+sco::SigResult fixtureDependency(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(sco::fixtureSource); }
 sco::SigResult fixtureTarget(const sco::Image&, const sco::SigResolveContext& ctx) { fixtureResult = fixtureCall(ctx); return sco::SigOk(nullptr); }
 sco::SigResult withContext(std::function<sco::SigResult(const sco::SigResolveContext&)> call) {
     fixtureCall = std::move(call);
@@ -39,10 +39,10 @@ int main() {
     auto check = [&](bool ok, const char* name) { if (!ok) { std::printf("FAIL %s\n", name); ++failures; } };
     std::vector<uint8_t> data(1024);
     Image img{}; img.base = data.data(); img.size = static_cast<uint32_t>(data.size()); img.text = {data.data(), 64};
-    source = data.data() + 60;
+    fixtureSource = data.data() + 60;
     auto r = withContext([&](const sco::SigResolveContext& ctx) { return game::kTeleportSignatures[1].resolve(img, ctx); });
     check(r.state == SigState::Failed && r.at == nullptr, "teleport truncated derived instruction");
-    source = data.data(); img.text.size = 128;
+    fixtureSource = data.data(); img.text.size = 128;
     int32_t displacement = 0; std::memcpy(data.data() + 0x27, &displacement, 4);
     img.base = nullptr; img.size = 0;
     r = withContext([&](const sco::SigResolveContext& ctx) { return game::kTeleportSignatures[1].resolve(img, ctx); });
@@ -50,16 +50,16 @@ int main() {
     img.base = data.data(); img.size = static_cast<uint32_t>(data.size());
     r = withContext([&](const sco::SigResolveContext& ctx) { return game::kTeleportSignatures[1].resolve(img, ctx); });
     check(r.state == SigState::Ok && r.at == data.data() + 0x2b, "teleport valid RIP target");
-    source = nullptr;
+    fixtureSource = nullptr;
     r = withContext([&](const sco::SigResolveContext& ctx) { return game::kTeleportSignatures[1].resolve(img, ctx); });
-    check(r.state == SigState::Failed && r.at == nullptr, "teleport missing source");
+    check(r.state == SigState::Failed && r.at == nullptr, "teleport missing fixtureSource");
     const char header[] = "C:\\workspace\\CryEngine\\Code\\CryEngine\\CryCommon\\Events/VFX/EntityEffectSystem.h";
     std::memcpy(data.data()+512, header, sizeof header); img.rdata = {data.data()+512, sizeof header};
     const uint8_t sender[] = {0x48,0x89,0x5c,0x24,0x08,0x57,0x48,0x83,0xec,0x50,0x8b,0x05,0,0,0,0,0x48,0x8b,0xfa,0x4c,0x89,0x44,0x24,0x20,0x48,0x8b,0xd9,0x85,0xc0,0x75,0x19,0x41,0xb8,0x17,0,0,0,0x48,0x8d,0x15};
     std::memcpy(data.data(), sender, sizeof sender); img.text.size = sizeof sender + 1;
     r = withContext([&](const sco::SigResolveContext& ctx) { return game::kFeatureSignatures[2].resolve(img, ctx); });
     check(r.state == SigState::Failed && r.why && std::strstr(r.why, "truncat"), "effect sender truncated displacement reason");
-    std::fill(data.begin(), data.end(), 0);
+    std::fill(data.begin(), data.end(), uint8_t{0});
     const char label[] = "unsigned short __cdecl CSCActorActionHandler::Request<struct SCActorActionHandlerActions::SFlyMode,const enum ESCActorFlyMode&>(const enum ESCActorFlyMode &)";
     std::memcpy(data.data()+512, label, sizeof label); img.rdata = {data.data()+512, sizeof label};
     const uint8_t wrapper[] = {0x89,0x54,0x24,0x10,0x48,0x83,0xec,0x28,0x48,0x8d,0x54,0x24,0x38,0xe8};
@@ -73,7 +73,7 @@ int main() {
     for (int effect = 0; effect < 2; ++effect) {
         for (int outside = 0; outside < 2; ++outside) {
             for (int hits = 0; hits <= 2; ++hits) {
-                std::fill(data.begin(), data.end(), 0);
+                std::fill(data.begin(), data.end(), uint8_t{0});
                 img.base = data.data(); img.size = static_cast<uint32_t>(data.size());
                 img.text = {data.data(), 512}; img.rdata = {data.data() + 512, 512};
                 const char* wanted = effect ? header : label;
@@ -114,14 +114,14 @@ int main() {
     }
     // Slot zero must not act as both an observed value and the unseen sentinel.
     for (bool invalidFirst : {true, false}) {
-        std::fill(data.begin(), data.end(), 0);
+        std::fill(data.begin(), data.end(), uint8_t{0});
         img.base = data.data(); img.size = static_cast<uint32_t>(data.size());
-        img.text = {data.data(), 512}; source = data.data() + 768;
+        img.text = {data.data(), 512}; fixtureSource = data.data() + 768;
         const uint8_t site[] = {0x48,0x8B,0x0D,0,0,0,0,0x48,0x8B,0x13,0x48,0x8B,0x01,0xFF,0x90,0,0,0,0,0x48,0x83,0xC3,0x08,0x48,0x3B,0xDF,0x75,0xE4};
         for (int i = 0; i < 2; ++i) {
             auto* at = data.data() + 64 + i * 64;
             std::memcpy(at, site, sizeof site);
-            const int32_t disp = static_cast<int32_t>(source - (at + 7));
+            const int32_t disp = static_cast<int32_t>(fixtureSource - (at + 7));
             std::memcpy(at + 3, &disp, 4);
             const int32_t slot = (i == 0) == invalidFirst ? 0 : 0x80;
             std::memcpy(at + game::kRemoveSlotDisp, &slot, 4);
