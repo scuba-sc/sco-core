@@ -51,6 +51,7 @@ sco_result Request(sco_plugin* self, uint32_t on) {
         try { installed = backend.install(); } catch (...) { Fault(); }
     }
     if (installed) hooked.store(true);
+    else if (hookAttempted.load() && !faulted.load()) Fault(); // no retry after uncertain mutation
     busy = false;
     return SCO_OK;
 }

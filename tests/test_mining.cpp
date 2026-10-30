@@ -80,6 +80,7 @@ int main(int argc, char** argv) {
     assert(svc->request(a, 1) == SCO_OK && installs == 1);
     assert(MiningHookRetained());
     if (!installMode.empty()) {
+        assert(svc->request(a, 1) == SCO_OK && installs == 1); // terminal, no retry
         StopMining();
         assert(MiningHookRetained()); // refusal/throw cannot prove rollback
         assert(MiningCellFlags(1, 2, 0, 6) == 6);
