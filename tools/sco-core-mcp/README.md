@@ -52,7 +52,10 @@ RC2 was published on 2026-10-28; its source, archive and release checksums are r
 Use matching source, archive, catalogue and workflow identities for any supplied kit.
 
 The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) holds the published RC2
-assets. The combined kit (`sco-sdk-2.4.0.zip`), matching `game-sc` overlay and
+assets. The intended final coordinate is `sdk-v2.4.0` with combined archive
+`sco-sdk-2.4.0.zip`; it is not published yet. Continue using the RC2 link and its
+checksums until the final release exists and its own archive identity is verified.
+The combined kit (`sco-sdk-2.4.0.zip`), matching `game-sc` overlay and
 `host-source-sc` kit include the discovery launcher,
 compiler-built `sdk-catalogue.json` and matching `sdk-guides.json`. Historical RC1
 has its own earlier launcher and frozen guides; see the known issue in the

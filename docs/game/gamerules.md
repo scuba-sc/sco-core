@@ -38,6 +38,26 @@ backend access. Backend exceptions and native faults return `SCO_FAILED` once,
 then latch reads unavailable until process restart. Recursive reads and lifecycle
 replacement from a backend callback refuse. Output is copied only after success.
 
+### Native seam (K-40)
+
+`InstallNativeGameRules` takes a route of three parts and installs nothing unless all three are
+present: the `IGameRulesParamsModule` instance, a read-only accessor for the params blob, and a
+host-owned change counter. The accessor is the missing piece — the only route this project has
+grounded applies state, so production resolves nothing and refuses, naming the first missing part.
+The refusal is not a placeholder: it is the same shape `game.audio.play_once` ships with, and the
+capability stays OFF either way.
+
+An installed route copies the blob only when the counter moved. A read at an unchanged generation
+returns the previous copy, so a value cannot change between two reads the host counted as one
+change; a counter of zero means the host has no valid count and the read is refused rather than
+answered from a stale copy. The accessor fills named fields only: the seam writes `size` itself, so
+a route cannot report a layout this build does not have and no field is shifted. The ABI's own
+`generation` field stays what the game reported; the counter is host bookkeeping and never crosses
+the header.
+
+Not grounded, not enabled, not run in game: no build has a read-only accessor for the blob.
+
+
 `services::StartGameRules(backend)` publishes the table. With no backend bound (default
 production config) `read` returns `SCO_UNAVAILABLE`; the capability stays OFF. A host
 binds a backend only after grounding the layout on its exact build (rule 8 evidence:

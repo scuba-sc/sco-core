@@ -16,6 +16,11 @@ What each change means for plugin authors and for products built on sco-core (sc
   DataCore hooks also retain them through exit. Hook-installation quiescence, Windows
   and in-game acceptance remain unverified; synthetic coverage is not game acceptance. See [registry contract](docs/api.md#scosignaturesh-and-scosignature_registryh-the-registry).
 
+## sdk-v2.4.0 (RC2 published 2026-10-28; final release pending)
+
+**Prepared release-line changes; final publication is pending.** These source changes
+do not alter the published RC2 archives.
+
 - Automatic release-candidate readiness waits instead of failing while a mandatory workflow is
   still running (every workflow triggers it as it completes, so early triggers are normal), and
   it no longer counts its own readiness run as an existing candidate: only a dispatched
@@ -127,8 +132,6 @@ What each change means for plugin authors and for products built on sco-core (sc
   disable remains available and empty roots never scan the current directory.
   A readiness review covers all 37 recorded OFF experimental capabilities and
   their remaining backend/probe prerequisites. These changes are absent from published RC1.
-
-## sdk-v2.4.0 (release candidate 1 published 2026-10-21 as sdk-v2.4.0-rc.1; final release pending)
 
 - DataCore deep clones now refuse excessive recursion, invalid array ranges and
   count limits without leaving a partial clone or consuming its output ID.

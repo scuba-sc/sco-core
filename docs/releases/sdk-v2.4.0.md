@@ -107,10 +107,12 @@ disk, not that a feature has been seen working.
   backend yet); guarded native reads of the game's in-memory DataCore records (`game.datacore_live`,
   explicit opt-in, no writes); guarded native reads of four integer CVars (`game.cvars`, opt-in). A
   native CVar write is refused in production, and a regression test pins that.
-- Contracts only, natively unavailable (maintainer scope decision, 2026-10-21): filtered single-hit
-  rays, exact class-name entity lookup, value-change GameRules reads and fire-and-forget audio. Plugins
-  can be written and tested against their synthetic providers today; in the game these calls answer
-  unavailable until the native side is grounded, which is the first work after 2.4.0.
+- Contracts only, natively unavailable: filtered single-hit rays, exact class-name entity lookup,
+  value-change GameRules reads and fire-and-forget audio. The 2.4.0 scope record
+  ([2026-10-29](../legal/release-decisions/2026-10-29-sdk-v2.4.0-scope.md)) puts these four rows
+  (K-39..K-42) in the release line and supersedes the 2026-10-21 sequencing. Plugins can be written
+  and tested against their synthetic providers; in the game these calls answer unavailable, and each
+  native seam installs nothing until its route is grounded.
 
 ## Versions
 
@@ -180,6 +182,34 @@ alter the published RC1 archives or certify native behavior.
 These source contracts and synthetic fixtures do not certify native behavior.
 Archive hashes, inventory, release source and host identity must be established
 from the actual selected release archives.
+
+### Post-RC2 additions in the final source
+
+These landed after `sdk-v2.4.0-rc.2` and are in the final source. Each ships the
+contract, a synthetic provider and a refusal path. None is enabled, and none is
+in-game evidence.
+
+- **K-39 `game.audio.play_once`** resolves the three Wwise entry points by exported
+  name from the client's export directory. Exports are not the missing piece: the
+  adapter refuses to install without a grounded witness that the audio pump's shared
+  game object is still registered when a submission lands, so nothing is posted and
+  both audio capabilities stay OFF ([audio](../game/audio.md)).
+- **K-40 `game.gamerules.read`** has a native seam that installs only with a read-only
+  accessor for the params blob and a host-owned change counter. No read-only accessor
+  is grounded, so production resolves nothing, refuses and names the first missing
+  part, and the read stays OFF ([gamerules](../game/gamerules.md)).
+- **K-41 `game.entities.lookup`** has a native point-lookup seam that installs only with
+  the registry receiver lifetime. Ungrounded, so no native adapter binds and the
+  capability stays OFF ([entities](../game/entities.md)).
+- **K-42 `game.world.raycast_filtered`** has a native single-hit seam that installs only
+  with the resolved zone, world and grid references and a skip-request lifetime.
+  Ungrounded, so the synthetic policy remains the only behaviour and the capability
+  stays OFF ([world](../game/world.md)).
+
+Scope is not enablement. The four rows ship the contract, the synthetic provider and
+the refusal, and [the game status table](../game/status.md) records each as OFF.
+**Not run in game** is the current result for the intended final release; V7 remains
+deferred, not waived. The RC2 deferral does not establish final acceptance.
 
 ### RC2 in-game evidence
 
@@ -261,12 +291,12 @@ evidence. Every row is "not run in game".
 | `game.cvars.write` | OFF; production native port refuses writes | `synthetic_only` | Setter/restore mechanics and actual host-stop cleanup tested; native lifetime across callbacks and leases remains ungrounded |
 | `game.actor_stats.read` | ON when its rows resolve | `sigcheck_resolved` | Real reads; rows resolve on 4.10.197.2878; units and ranges of each stat unconfirmed |
 | `game.actor_stats.write` | OFF; product switch plus fresh offline admission | `off_pending_probe` | Real adjust through the game's own function; whether local-only writes persist is unknown; nothing is restored on unload |
-| `game.gamerules.read` | OFF | `synthetic_only` | Contract and wrappers; no backend bound, so calls answer unavailable; `list_params` serves static definitions. Native value-change read held (scope decision 2026-10-21) |
+| `game.gamerules.read` | OFF | `synthetic_only` | Contract and wrappers; no backend bound, so calls answer unavailable; `list_params` serves static definitions. The native seam refuses without a grounded read-only accessor and a host-owned change counter (K-40) |
 | `game.audio.triggers` | OFF | `synthetic_only` | Owner-bound trigger and playback tokens on a synthetic provider; no native or audible verification |
-| `game.audio.play_once` | OFF | `synthetic_only` | Fire-and-forget on a synthetic provider; OK means accepted only; no native backend (scope decision 2026-10-21) |
+| `game.audio.play_once` | OFF | `synthetic_only` | Fire-and-forget on a synthetic provider; OK means accepted only. The Wwise exports resolve, and the adapter refuses to install without a registration witness (K-39) |
 | `game.datacore_live` | OFF; explicit native read opt-in | `synthetic_only` | Guarded native reads tested on synthetic hosts; activation needs pre-engine quiescence; writes unavailable |
-| `game.entities.lookup` | OFF | `synthetic_only` | Copied lookup on a synthetic provider; native exact class-name lookup held (scope decision 2026-10-21) |
-| `game.world.raycast_filtered` | OFF | `synthetic_only` | Filtered rays with copied results on a synthetic provider; native single-hit held (scope decision 2026-10-21) |
+| `game.entities.lookup` | OFF | `synthetic_only` | Copied lookup on a synthetic provider; the native point-lookup seam refuses without the registry receiver lifetime (K-41) |
+| `game.world.raycast_filtered` | OFF | `synthetic_only` | Filtered rays with copied results on a synthetic provider; the native single-hit seam refuses without the resolved zone, world and grid references and a skip-request lifetime (K-42) |
 | `game.input.registry` | ON (metadata only) | `synthetic_only` | 1,297 named actions, ids 1..1297 on 4.10.197.2878; no injection |
 | `game.events.loadout_respawn_completed` | OFF | `synthetic_only` | Event contract; native hook unresolved |
 | `game.build.info` | ON | `synthetic_only` | Pure metadata, no rows |
@@ -282,11 +312,11 @@ evidence. Every row is "not run in game".
   does not write it. Console command execution for quantum control is not offered.
 - sco.net server-host and the larger session limit are not part of the kernel.
 - Any change to a `sco_api` table.
-- Native backends for filtered single-hit rays, exact class-name entity lookup, value-change
-  GameRules reads and fire-and-forget audio (maintainer scope decision, 2026-10-21). Their contracts
-  ship with synthetic providers; natively they answer unavailable and install no hook, because the
-  evidence does not yet show that the game objects each call touches stay valid for the whole call.
-  They are the first native work after 2.4.0.
+- Enabled native backends for filtered single-hit rays, exact class-name entity lookup, value-change
+  GameRules reads and fire-and-forget audio. Their contracts and synthetic providers ship and each
+  seam refuses without its grounded route, because the evidence does not yet show that the game
+  objects each call touches stay valid for the whole call. Scope is not enablement: the rows are in
+  the 2.4.0 release line (K-39..K-42) and every capability stays OFF.
 
 The current manifest selects native-index/status metadata for game-sc, legacy
 and host-source-sc, with source-matched generated catalogues. The

@@ -260,14 +260,30 @@ cmake --build ../my_radar/build --target check
 
 ## Start your own native plugin
 
-1. Copy `template\` to a new folder outside the SDK.
-2. Pick an id: 1-31 characters from `a-z`, `0-9` and `_`, not `sco`, `host`, `menu` or `game`. It is the folder name, the `id` in `plugin.ini`, the `name` in `sco_plugin_info` and the prefix of every command (`<id>.<action>`).
-3. Replace every `my_plugin` in `plugin.c`, `plugin.ini` and `CMakeLists.txt` with it.
-4. Build, pointing at the unpacked SDK:
+1. From the unpacked SDK root, build and install the SDK to get the checker, then copy the template outside the SDK. These commands use a POSIX shell; on Windows, run them in a shell such as Git Bash:
 
    ```sh
-   cmake -S . -B build -DSCO_SDK=/path/to/unpacked-sco-sdk
+   SDK="$PWD"
+   cmake -S "$SDK" -B "$SDK/build" -DCMAKE_BUILD_TYPE=Release
+   cmake --build "$SDK/build" --config Release
+   cmake --install "$SDK/build" --config Release --prefix "$SDK/sdk-out"
+   cp -R "$SDK/template" "$SDK/../my_plugin"
+   cd "$SDK/../my_plugin"
    ```
+
+   Use a fresh `my_plugin` destination. The checker is `sdk-out/bin/sco-plugin-check` under the SDK root (`sco-plugin-check.exe` on Windows).
+2. Pick an id: 1-31 characters from `a-z`, `0-9` and `_`, not `sco`, `host`, `menu` or `game`. It is the folder name, the `id` in `plugin.ini`, the `name` in `sco_plugin_info` and the prefix of every command (`<id>.<action>`).
+3. To use an id other than `my_plugin`, replace every `my_plugin` in `plugin.c`, `plugin.ini` and `CMakeLists.txt` with it. The commands below use the unchanged template id `my_plugin`; substitute your id in the checker path if you renamed it.
+4. From the copied template folder, build and install the plugin, then check the installed folder without the game:
+
+   ```sh
+   cmake -S . -B build -DSCO_SDK="$SDK" -DCMAKE_BUILD_TYPE=Release
+   cmake --build build --config Release
+   cmake --install build --config Release --prefix "$PWD/plugin-out"
+   "$SDK/sdk-out/bin/sco-plugin-check" "$PWD/plugin-out/data/plugins/my_plugin"
+   ```
+
+   On Windows use `"$SDK/sdk-out/bin/sco-plugin-check.exe"` for the last command. `--config Release` selects the same configuration for build and install with multi-config generators such as Visual Studio; `CMAKE_BUILD_TYPE` selects it for single-config generators. The checker is a stand-in, not a game test.
 
 The template registers one command, `my_plugin.ping`. [`examples/hello/hello.c`](examples/hello/hello.c) adds `has()`, events and a command with an argument. The [API reference](../docs/api-v1.md) covers every function.
 
