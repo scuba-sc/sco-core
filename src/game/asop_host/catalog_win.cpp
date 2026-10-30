@@ -139,6 +139,20 @@ const char* FleetShipClass(int index) {
     return index >= 0 && index < count ? g_ships[index].name : nullptr;
 }
 
+// Selection busy gate: is any ship of this class stored, retrieved, delivering or queued
+// this session? Runs on the game thread under the selection service's lock, so it may
+// only take the fleet and ships locks (both ordered after it).
+bool FleetClassBusy(const char* name) {
+    if (!name) return false;
+    AcquireSRWLockShared(&g_shipsLock);
+    int index = -1;
+    const int count = g_shipsBuilt ? g_shipCount : 0;
+    for (int i = 0; i < count; ++i)
+        if (_stricmp(g_ships[i].name, name) == 0) { index = i; break; }
+    ReleaseSRWLockShared(&g_shipsLock);
+    return index >= 0 && ShipIsBusy(index);
+}
+
 
 bool HookFunction(uint8_t* target,size_t stolen,void* detour,void** original) {
     return target && sco::hook::InstallDetour(target,stolen,detour,original)==sco::hook::Error::None;

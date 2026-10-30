@@ -801,10 +801,13 @@ void PublishViews(DWORD now) {
 }
 
 bool ShipIsBusy(int ship) {
-    return Contains(g_stored, [ship](const StoredShip& s) { return s.ship == ship; })
+    if (Contains(g_stored, [ship](const StoredShip& s) { return s.ship == ship; })
         || Contains(g_retrieved, [ship](const RetrievedShip& r) { return r.ship == ship; })
         || Contains(g_deliveries, [ship](const Delivery& d) { return d.ship == ship; })
-        || Contains(g_padSpawns, [ship](const PadSpawn& p) { return p.ship == ship; });
+        || Contains(g_padSpawns, [ship](const PadSpawn& p) { return p.ship == ship; })) return true;
+    // Also a delivery still queued by a hook, not yet drained into g_deliveries.
+    Lock l;
+    return Contains(g_deliverQueue, [ship](const DeliverRequest& r) { return FleetShipIndexOfUrnId(r.urn) == ship; });
 }
 
 // StoreVehicle with the player's personal inventory at the station .
