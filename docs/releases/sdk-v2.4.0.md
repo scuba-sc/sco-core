@@ -208,8 +208,8 @@ in-game evidence.
 
 Scope is not enablement. The four rows ship the contract, the synthetic provider and
 the refusal, and [the game status table](../game/status.md) records each as OFF.
-**Not run in game** remains the result for the final release; the rc.2 deferral does
-not establish acceptance.
+**Not run in game** is the current result for the intended final release; V7 remains
+deferred, not waived. The RC2 deferral does not establish final acceptance.
 
 ### RC2 in-game evidence
 
