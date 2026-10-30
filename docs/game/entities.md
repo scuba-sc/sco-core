@@ -41,3 +41,17 @@ The addresses `game.entities` uses, from Appendix B of [game world spikes](../de
 | `entities.delete_entity` | `CEntitySystem::DeleteEntity`: both of its labels (count 1 each, +0x6C and +0x16B) lead to the same `FunctionStart` | the prologue, +0x26, the handle mask at +0xBB |
 
 Capability groups (`sco::game::entities::Capabilities`): `entities.class_name` (class_of), `entities.enumerate` (query_radius), `entities.stream_hooks` (watch). `keep` (1.1) reads no game memory and needs no row of its own: it is the `game.entities.spawn` capability's, like `despawn`. What the rows can't pin, and the constants that stay `false` until an in-game run: [game services](../game-services.md).
+
+## Native point-lookup seam (K-41)
+
+`InstallNativeEntityLookup` takes the class registry instance, an exact class-name lookup and a
+registry teardown generation, and installs nothing unless all three are present. The receiver
+lifetime is the missing piece: the registry can be torn down and the class records it answers are
+only valid through the copy, so production resolves nothing and refuses with the first missing
+part. The capability stays OFF either way.
+
+The seam wires `name` only and leaves `classes` and `component` null: it is a point lookup, never a
+snapshot provider, and it cannot be mistaken for one. A registry generation that moved since
+install means the registry was torn down, so the seam answers `SCO_UNAVAILABLE` rather than handing
+out a stale class id; a host-issued id of zero is refused as `SCO_FAILED` because zero is not a
+class. Not grounded, not enabled, not run in game.

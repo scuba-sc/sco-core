@@ -122,7 +122,7 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | | | | `game.world.camera` (position, rotation, zone) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | | `game.world.free_camera_flag` (`free_camera_flag`, read-only) | OFF | OFF pending in-game confirmation |
 | | | | camera field of view | none | BLOCKED |
-| `game.entities` ([`sc_entities.h`](../../include/sc_entities.h)) | 1.2 | Stable | `game.entities.lookup` (`list_classes`, `find_class`, `find_by_name`, `component`) | OFF | Copied registry/name/typed-presence provider policy and ABI tests; no native adapter, not run in game |
+| `game.entities` ([`sc_entities.h`](../../include/sc_entities.h)) | 1.2 | Stable | `game.entities.lookup` (`list_classes`, `find_class`, `find_by_name`, `component`) | OFF | Copied registry/name/typed-presence provider policy and ABI tests; the native point-lookup seam installs nothing without the registry receiver lifetime, so no native adapter binds; not run in game |
 | | | | `game.entities.transform` (`alive`, `get_transform`, `set_transform`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | | `game.entities.spawn` (`spawn`, `despawn`, `keep`) | ON | row resolved on 4.10.196.36804 (sigcheck) |
 | | | | `game.entities.class_of` | ON | row resolved on 4.10.196.36804 (sigcheck) |
