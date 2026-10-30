@@ -1,3 +1,4 @@
+#include "sco/signature_registry.h"
 #include "../src/game/offline_sigs.cpp"
 #include <cassert>
 #include <cstring>
@@ -11,6 +12,52 @@ SigResult SigPattern(const Section& s, const char* pattern) {
     uint8_t* at = nullptr;
     int n = FindPattern(s, pattern, &at, 1);
     return n == 1 ? SigOk(at) : SigResult{SigState::Missing, nullptr, n, nullptr};
+}
+}
+
+// Capture a real registry-owned resolver context while retaining direct-call coverage.
+namespace issue302_context {
+static const sco::Image* image;
+static sco::SigResolver resolver;
+static uint8_t* dependency;
+static sco::SigResult result;
+static sco::SigResult Dependency(const sco::Image&, const sco::SigResolveContext&) {
+    return dependency ? sco::SigOk(dependency) : sco::SigFail("missing fixture dependency");
+}
+static sco::SigResult Invoke(const sco::Image&, const sco::SigResolveContext& context) {
+    result = resolver(*image, context);
+    static uint8_t marker;
+    return sco::SigOk(&marker);
+}
+static sco::SigResult Run(const sco::Image& img, sco::SigResolver fn, uint8_t* dep = nullptr) {
+    image = &img; resolver = fn; dependency = dep; result = {};
+    const sco::SigDef rows[] = {
+        {"source", nullptr, 0, 0, Dependency, {}},
+        {"system.quit", nullptr, 0, 0, Dependency, {}},
+        {"offline.is_online_flag", nullptr, 0, 0, Dependency, {}},
+        {"fixture", nullptr, 0, 0, Invoke, {}}
+    };
+    const sco::SignatureTable table{rows, 4};
+    sco::SignatureRegistry registry;
+    assert(registry.RegisterTables(&table, 1).status == sco::SigRegistryStatus::Ok);
+    assert(registry.Freeze() == sco::SigRegistryStatus::Ok);
+    assert(registry.Resolve({}) == sco::SigRegistryStatus::Ok);
+    return result;
+}
+}
+namespace issue302_context {
+static const uint8_t* extraAt;
+static const char* extraResult;
+static const char* (*extra)(const sco::Image&, const uint8_t*, const sco::SigResolveContext&);
+static sco::SigResult ExtraResolver(const sco::Image& img, const sco::SigResolveContext& ctx) {
+    extraResult = extra(img, extraAt, ctx);
+    return sco::SigFail("fixture");
+}
+static const char* RunExtra(const sco::Image& img, const uint8_t* at,
+    const char* (*fn)(const sco::Image&, const uint8_t*, const sco::SigResolveContext&)) {
+    extra = fn; extraAt = at; extraResult = nullptr;
+    Run(img, ExtraResolver, sco::dependency);
+    return extraResult;
 }
 }
 namespace {
@@ -33,7 +80,7 @@ void boot() {
     Fixture f(14);
     auto* a = f.str(0, "Frontend_Main"); auto* b = f.str(32, "SC_Frontend");
     f.rip(0, b, 0x4c, 0x05); f.rip(7, a);
-    auto r = sco::game::ResolveBootFrontend(f.img);
+    auto r = issue302_context::Run(f.img, sco::game::ResolveBootFrontend, sco::dependency);
     assert(r.state == sco::SigState::Ok && r.at == f.img.text.base);
 }
 void shortScans() {
@@ -44,7 +91,7 @@ void shortScans() {
         f.img.text.size = n;
         assert(sco::game::HandshakeSites(f.img, sites, 32, same) == 0);
         assert(sco::game::SocialGroupSites(f.img, sites, 32) == 0);
-        assert(sco::game::ResolveOfflineDb<1>(f.img).state != sco::SigState::Ok);
+        assert(issue302_context::Run(f.img, sco::game::ResolveOfflineDb<1>, sco::dependency).state != sco::SigState::Ok);
         assert(!sco::game::FindLeaFrom(f.img.text, f.img.rdata.base, f.img.text.base));
     }
 }
@@ -55,20 +102,20 @@ void extras() {
     f.str(128, "Boundary Violation");
     f.rip(0x59, f.img.rdata.base, 0x4c, 0x0d);
     f.rip(0x79, f.img.rdata.base + 128, 0x4c, 0x05);
-    assert(ImpoundExtra(f.img, f.img.text.base));
+    assert(issue302_context::RunExtra(f.img, f.img.text.base, ImpoundExtra));
     f.str(256, "QueryEntitlements failed with error: $$");
     f.rip(0x55, f.img.rdata.base + 256, 0x4c, 0x0d);
     f.img.text.size = 0x58;
-    assert(EntitlementsExtra(f.img, f.img.text.base));
+    assert(issue302_context::RunExtra(f.img, f.img.text.base, EntitlementsExtra));
     f.img.text.size = 30; sco::dependency = f.img.rdata.base;
     f.str(384, "Can only perform ASOP operations in the PU.");
     f.rip(27, f.img.rdata.base + 384, 0x4c, 0x0d);
     auto* p = f.img.text.base; p[0] = 0x80; p[1] = 0x3d;
     int32_t d = static_cast<int32_t>((sco::dependency + 1) - (p + 7));
     std::memcpy(p + 2, &d, 4);
-    assert(AsopGateValidationExtra(f.img, p));
+    assert(issue302_context::RunExtra(f.img, p, AsopGateValidationExtra));
     sco::dependency = nullptr;
-    assert(AsopGateOpenExtra(f.img, p));
+    assert(issue302_context::RunExtra(f.img, p, AsopGateOpenExtra));
 }
 void megamap() {
     Fixture f(7); auto* help = f.str(0, "Load a map, same usage as 'megamap' cvar.");
@@ -78,9 +125,9 @@ void megamap() {
     const uint8_t prologue[] = {0x4c,0x8b,0x09,0x4c,0x8b,0xd1,0x41,0x0f,0xb6,0x01,0x84,0xc0};
     std::memcpy(f.bytes.data() + 512, prologue, sizeof(prologue));
     int32_t d = 512 - 84; std::memcpy(f.bytes.data() + 80, &d, 4);
-    assert(sco::game::ResolveMegamapCall(f.img).state != sco::SigState::Ok);
+    assert(issue302_context::Run(f.img, sco::game::ResolveMegamapCall, sco::dependency).state != sco::SigState::Ok);
     f.img.text.size = 524;
-    assert(sco::game::ResolveMegamapCall(f.img).state == sco::SigState::Ok);
+    assert(issue302_context::Run(f.img, sco::game::ResolveMegamapCall, sco::dependency).state == sco::SigState::Ok);
 }
 void exactTail() {
     issue302::GuardPages memory;
@@ -93,25 +140,25 @@ void exactTail() {
     sco::Image img{};
     img.base = memory.data; img.size = static_cast<uint32_t>(memory.page);
     img.text = {text, 7}; img.rdata = {help, 64};
-    assert(sco::game::ResolveMegamapCall(img).state != sco::SigState::Ok);
+    assert(issue302_context::Run(img, sco::game::ResolveMegamapCall, sco::dependency).state != sco::SigState::Ok);
 }
 void boundaryResolvers() {
     using namespace sco::game;
     Fixture f(7);
     auto* cvar = f.str(0, kUseService); f.rip(0, cvar);
-    assert(ResolveCvarDefault<kUseService>(f.img).state != sco::SigState::Ok);
+    assert(issue302_context::Run(f.img, ResolveCvarDefault<kUseService>, sco::dependency).state != sco::SigState::Ok);
     auto* usage = f.str(128, "Invalid arguments. Usage: g_ATC_requestTakeOff <atc_name (autocompletable)> [<ship_archetype>] [<pad_name_filter>]");
     f.rip(0, usage);
-    assert(ResolveTakeoffCommand(f.img).state != sco::SigState::Ok);
+    assert(issue302_context::Run(f.img, ResolveTakeoffCommand, sco::dependency).state != sco::SigState::Ok);
     auto* console = f.str(384, "Remote console listening on: %u\n");
     f.img.text.size = 263; f.rip(256, console);
     const uint8_t bind[] = {0x33,0xc9,0xff,0x15,0,0,0,0,0x0f,0xb7,0xcb,0x66,0x89,0x7c,0x24,0x48,0x89,0x44,0x24,0x4c};
     std::memcpy(f.bytes.data() + 250, bind, sizeof(bind));
     f.rip(256, console);
-    assert(ResolveRemoteConsoleBind(f.img).state != sco::SigState::Ok);
+    assert(issue302_context::Run(f.img, ResolveRemoteConsoleBind, sco::dependency).state != sco::SigState::Ok);
     sco::dependency = reinterpret_cast<uint8_t*>(UINTPTR_MAX - 4);
-    assert(ResolveQuitFastShutdown(f.img).state != sco::SigState::Ok);
-    assert(AsopGateOpenExtra(f.img, f.img.text.base));
+    assert(issue302_context::Run(f.img, ResolveQuitFastShutdown, sco::dependency).state != sco::SigState::Ok);
+    assert(issue302_context::RunExtra(f.img, f.img.text.base, AsopGateOpenExtra));
     sco::dependency = nullptr;
     assert(!FindLeaFrom(f.img.text, console, nullptr));
     assert(!FindLeaFrom(f.img.text, console, reinterpret_cast<uint8_t*>(1)));
@@ -149,9 +196,9 @@ void scanEndpoints() {
     auto* db = f.str(64, "Libs/OfflineDB");
     std::memset(p, 0, 31); f.rip(0, db, 0x4c, 0x05); f.rip(7, db, 0x4c, 0x05);
     f.img.text.size = 14;
-    assert(ResolveOfflineDb<2>(f.img).state == sco::SigState::Ok);
+    assert(issue302_context::Run(f.img, ResolveOfflineDb<2>, sco::dependency).state == sco::SigState::Ok);
     f.img.text.size = 13;
-    assert(ResolveOfflineDb<2>(f.img).state != sco::SigState::Ok);
+    assert(issue302_context::Run(f.img, ResolveOfflineDb<2>, sco::dependency).state != sco::SigState::Ok);
 }
 void fastShutdownTail() {
     const uint8_t pattern[] = {
@@ -165,7 +212,7 @@ void fastShutdownTail() {
         std::memcpy(test, pattern, available < sizeof pattern ? available : sizeof pattern);
         sco::Image img{}; img.base = memory.data; img.size = static_cast<uint32_t>(memory.page);
         img.text = {q, 0x31A + available}; sco::dependency = q;
-        auto r = sco::game::ResolveQuitFastShutdown(img);
+        auto r = issue302_context::Run(img, sco::game::ResolveQuitFastShutdown, sco::dependency);
         if (available < sizeof pattern) {
             assert(r.state == sco::SigState::Failed && !r.at && r.why && std::strstr(r.why, "outside .text"));
         } else {
@@ -173,7 +220,7 @@ void fastShutdownTail() {
                 std::fprintf(stderr, "FAIL fastshutdown available=%zu: %s\n", available, r.why ? r.why : "no reason");
             assert(r.state == sco::SigState::Ok && r.at == test);
             test[0] ^= 1;
-            r = sco::game::ResolveQuitFastShutdown(img);
+            r = issue302_context::Run(img, sco::game::ResolveQuitFastShutdown, sco::dependency);
             assert(r.state == sco::SigState::Failed && !r.at && r.why && std::strstr(r.why, "moved"));
         }
     }

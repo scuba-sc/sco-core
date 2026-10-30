@@ -883,9 +883,8 @@ if(SCO_BUILD_TESTS)
   endif()
 
   if(SCO_GAME_SC)
-    # Isolated row fixtures inject Sig/SigPattern; linking sco_core would pull
-    # the real registry into those fixtures. Link the scanner alone instead.
-    add_library(sco_issue302_scan STATIC src/sco_scan.cpp)
+    # Isolated fixtures use owned registries and synthetic signature patterns.
+    add_library(sco_issue302_scan STATIC src/sco_scan.cpp src/sco_signature_registry.cpp)
     target_include_directories(sco_issue302_scan PUBLIC "${SCO_INCLUDE_DIR}")
     sco_project_target(sco_issue302_scan)
     function(sco_issue302_test target source)

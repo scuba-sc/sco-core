@@ -490,7 +490,7 @@ constexpr StrFnSpec kHelperSpawned{ "Succeeded to spawn delivery mission helper.
 constexpr const char* kMissionSettings =
     "48 8B 05 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? C5 FA 10 88 74 01 00 00 48 8B 01 C5 F2 5A C9 48 FF A0 20 03 00 00";
 
-SigResult ResolveMissionSettings(const Image& img) {
+SigResult ResolveMissionSettings(const Image& img, const SigResolveContext&) {
     if (!Mapped(img, img.text)) return SigFail("text range outside image");
     const SigResult r = SigPattern(img.text, kMissionSettings);
     if (r.state != SigState::Ok) return r;

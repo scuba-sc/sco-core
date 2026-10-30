@@ -70,7 +70,7 @@ static void TestOwnershipAndAtomicBatch() {
     CHECK(registry.Snapshot() == nullptr);
     CHECK(registry.RegisterTables(&bad, 1).status == SigRegistryStatus::Frozen);
     bytes[0] = 0xAA; bytes[1] = 0xBB;
-    auto image = ImageFor(bytes); image.text = {bytes, sizeof(bytes)};
+    auto image = ImageFor(bytes); image.size = sizeof(bytes); image.text = {bytes, sizeof(bytes)};
     CHECK(registry.Resolve(image) == SigRegistryStatus::Ok);
     auto snapshot = registry.Snapshot();
     CHECK(snapshot && snapshot->Count() == 4);

@@ -9,12 +9,31 @@ SigResult SigPattern(const Section& text, const char* pattern) {
     return n == 1 ? SigOk(p) : SigResult{n ? SigState::Ambiguous : SigState::Missing, nullptr, n, nullptr};
 }
 }
+#include "sco/signature_registry.h"
+#include <functional>
+namespace {
+std::function<const char*(const sco::SigResolveContext&)> fixtureCall;
+const char* fixtureResult;
+sco::SigResult fixtureTarget(const sco::Image&, const sco::SigResolveContext& ctx) {
+    fixtureResult = fixtureCall(ctx); return sco::SigOk(nullptr);
+}
+const char* withContext(std::function<const char*(const sco::SigResolveContext&)> call) {
+    fixtureCall = std::move(call);
+    sco::SigDef row{"fixture.target", nullptr, 0, 0, fixtureTarget, {nullptr}};
+    sco::SignatureTable table{&row, 1};
+    sco::SignatureRegistry registry;
+    if (registry.RegisterTables(&table, 1).status != sco::SigRegistryStatus::Ok ||
+        registry.Freeze() != sco::SigRegistryStatus::Ok ||
+        registry.Resolve(sco::Image{}) != sco::SigRegistryStatus::Ok) std::abort();
+    return fixtureResult;
+}
+}
 int main() {
     auto p = static_cast<uint8_t*>(std::malloc(1)); *p = 0xe8;
     sco::Image img{}; img.base = p; img.size = 1; img.text = {p, 1};
-    assert(std::strcmp(sco::game::HealthExtra(img, p), "status accessor call outside .text") == 0);
-    assert(sco::game::StateExtra(img, p) != nullptr);
-    assert(sco::game::SpawnExtra(img, p) != nullptr);
+    assert(std::strcmp(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::HealthExtra(img, p, ctx); }), "status accessor call outside .text") == 0);
+    assert(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::StateExtra(img, p, ctx); }) != nullptr);
+    assert(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::SpawnExtra(img, p, ctx); }) != nullptr);
     std::free(p);
     uint8_t bytes[8] = {0, 0x48, 0x8d, 0x05, 0, 0, 0, 0};
     const uint8_t* refs[1]{};
@@ -30,20 +49,20 @@ int main() {
         std::memcpy(storage + off + 1, &d, 4);
     };
     call(0,128); call(0x1d,128); call(0xd,200); call(0x2a,200);
-    assert(sco::game::HealthExtra(img, storage) == nullptr);
-    assert(sco::game::StateExtra(img, storage) == nullptr);
+    assert(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::HealthExtra(img, storage, ctx); }) == nullptr);
+    assert(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::StateExtra(img, storage, ctx); }) == nullptr);
     img.text.size = 128 + sizeof(accessor) - 1;
-    assert(std::strcmp(sco::game::HealthExtra(img, storage), "status accessor outside .text") == 0);
+    assert(std::strcmp(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::HealthExtra(img, storage, ctx); }), "status accessor outside .text") == 0);
     // Keep the accessor before the site so a short final displacement is reached.
     std::memcpy(storage, accessor, sizeof(accessor));
     call(200,0); call(200+0x1d,0); call(200+0xd,64); call(200+0x2a,64);
     img.text.size = 200+0x2e;
-    assert(std::strcmp(sco::game::HealthExtra(img, storage+200), "GetStat call outside .text") == 0);
+    assert(std::strcmp(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::HealthExtra(img, storage+200, ctx); }), "GetStat call outside .text") == 0);
     img.text.size = 200+0x2f;
-    assert(sco::game::HealthExtra(img, storage+200) == nullptr);
+    assert(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::HealthExtra(img, storage+200, ctx); }) == nullptr);
     img.text = {storage, sizeof(storage)};
     img.rdata = {reinterpret_cast<uint8_t*>(UINTPTR_MAX - 1), 8};
-    assert(std::strcmp(sco::game::SpawnExtra(img, storage), "invalid .rdata") == 0);
+    assert(std::strcmp(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::SpawnExtra(img, storage, ctx); }), "invalid .rdata") == 0);
     assert(std::strcmp(sco::game::LabelFunction(img, "label", 0x48, 0x8d, 0x05, nullptr).why, "invalid .rdata") == 0);
     img.rdata = {storage + 256, 6}; std::memcpy(storage + 256, "label", 6);
     storage[0] = 0x48; storage[1] = 0x8d; storage[2] = 0x05;

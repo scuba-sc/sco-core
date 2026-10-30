@@ -1,3 +1,4 @@
+#include "sco/signature_registry.h"
 #include "sco/scan.h"
 #include "sco/signatures.h"
 #include <cassert>
@@ -10,14 +11,45 @@ uint8_t* Sig(const char*) { return nullptr; }
 
 SigResult SigPattern(const Section&, const char*) { return {}; }
 }
+
+// Capture a real registry-owned resolver context while retaining direct-call coverage.
+namespace issue302_context {
+static const sco::Image* image;
+static sco::SigResolver resolver;
+static uint8_t* dependency;
+static sco::SigResult result;
+static sco::SigResult Dependency(const sco::Image&, const sco::SigResolveContext&) {
+    return dependency ? sco::SigOk(dependency) : sco::SigFail("missing fixture dependency");
+}
+static sco::SigResult Invoke(const sco::Image&, const sco::SigResolveContext& context) {
+    result = resolver(*image, context);
+    static uint8_t marker;
+    return sco::SigOk(&marker);
+}
+static sco::SigResult Run(const sco::Image& img, sco::SigResolver fn, uint8_t* dep = nullptr) {
+    image = &img; resolver = fn; dependency = dep; result = {};
+    const sco::SigDef rows[] = {
+        {"source", nullptr, 0, 0, Dependency, {}},
+        {"system.quit", nullptr, 0, 0, Dependency, {}},
+        {"offline.is_online_flag", nullptr, 0, 0, Dependency, {}},
+        {"fixture", nullptr, 0, 0, Invoke, {}}
+    };
+    const sco::SignatureTable table{rows, 4};
+    sco::SignatureRegistry registry;
+    assert(registry.RegisterTables(&table, 1).status == sco::SigRegistryStatus::Ok);
+    assert(registry.Freeze() == sco::SigRegistryStatus::Ok);
+    assert(registry.Resolve({}) == sco::SigRegistryStatus::Ok);
+    return result;
+}
+}
 int main(int argc, char**) {
     using namespace sco;
     if (argc > 1) {
         Image img{};
         img.text = {reinterpret_cast<uint8_t*>(UINTPTR_MAX - 3), 32};
         img.rdata = img.text;
-        assert(game::kPakSignatures[0].resolve(img).state == SigState::Failed);
-        assert(game::kHangarSignatures[2].resolve(img).state == SigState::Failed);
+        assert(issue302_context::Run(img, game::kPakSignatures[0].resolve).state == SigState::Failed);
+        assert(issue302_context::Run(img, game::kHangarSignatures[2].resolve).state == SigState::Failed);
         return 0;
     }
     constexpr size_t textSize = 96, rdataOff = 128, pdataOff = 224;
@@ -39,12 +71,12 @@ int main(int argc, char**) {
             auto* p=img.text.base+off; p[0]=0x4c; p[1]=0x8d; p[2]=reg;
             int32_t d=static_cast<int32_t>(rdataOff-off-7); std::memcpy(p+3,&d,4);
         }
-        assert(row.resolve(img).state == SigState::Ok);
+        assert(issue302_context::Run(img, row.resolve).state == SigState::Ok);
         img.pdata.size = SIZE_MAX;
-        assert(row.resolve(img).state == SigState::Failed);
+        assert(issue302_context::Run(img, row.resolve).state == SigState::Failed);
         img.pdata.size = 12;
         img.text.size = 5;
-        assert(row.resolve(img).state != SigState::Ok);
+        assert(issue302_context::Run(img, row.resolve).state != SigState::Ok);
         img.text.size = textSize;
     };
     run("DCB file is smaller than expected", "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 55 41 54 41 55 41 56 41 57", game::kPakSignatures[0],0x0d);
