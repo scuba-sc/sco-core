@@ -126,7 +126,7 @@ int main() {
             const int32_t slot = (i == 0) == invalidFirst ? 0 : 0x80;
             std::memcpy(at + game::kRemoveSlotDisp, &slot, 4);
         }
-        r = game::ResolveRemoveEntityCall(img);
+        r = withContext([&](const sco::SigResolveContext& ctx) { return game::ResolveRemoveEntityCall(img, ctx); });
         check(r.state != SigState::Ok, invalidFirst ? "RemoveEntity zero then valid slot refused" : "RemoveEntity valid then zero slot refused");
     }
     std::printf("%d failure(s)\n", failures);

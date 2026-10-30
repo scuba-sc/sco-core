@@ -85,17 +85,17 @@ void TestAddPlayer(bool invalidFirst) {
         }
     };
     build(b + 800, b + 800);
-    auto r = ResolveAddPlayer(img);
+    auto r = fixture302::invoke([&](const sco::SigResolveContext& ctx) { return ResolveAddPlayer(img, ctx); });
     assert(r.state == SigState::Ok && r.at == b + 800);
     for (const auto off : {3000, 1500}) {
         const auto* invalid = b + off;
         build(invalidFirst ? invalid : b + 800, invalidFirst ? b + 800 : invalid);
-        const auto rejected = ResolveAddPlayer(img);
+        const auto rejected = fixture302::invoke([&](const sco::SigResolveContext& ctx) { return ResolveAddPlayer(img, ctx); });
         assert(rejected.state != SigState::Ok);
         assert(rejected.why && !std::strcmp(rejected.why, "AddPlayer target outside .text"));
     }
     build(b + 800, b + 900);
-    assert(ResolveAddPlayer(img).state != SigState::Ok);
+    assert(fixture302::invoke([&](const sco::SigResolveContext& ctx) { return ResolveAddPlayer(img, ctx); }).state != SigState::Ok);
     Pass(invalidFirst ? "AddPlayer invalid then valid refuses out-of-image/non-text targets" : "AddPlayer valid then invalid refuses out-of-image/non-text targets");
 }
 int main(int argc, char**) {
