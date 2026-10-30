@@ -112,6 +112,23 @@ int main() {
             }
         }
     }
+    // Slot zero must not act as both an observed value and the unseen sentinel.
+    for (bool invalidFirst : {true, false}) {
+        std::fill(data.begin(), data.end(), 0);
+        img.base = data.data(); img.size = static_cast<uint32_t>(data.size());
+        img.text = {data.data(), 512}; source = data.data() + 768;
+        const uint8_t site[] = {0x48,0x8B,0x0D,0,0,0,0,0x48,0x8B,0x13,0x48,0x8B,0x01,0xFF,0x90,0,0,0,0,0x48,0x83,0xC3,0x08,0x48,0x3B,0xDF,0x75,0xE4};
+        for (int i = 0; i < 2; ++i) {
+            auto* at = data.data() + 64 + i * 64;
+            std::memcpy(at, site, sizeof site);
+            const int32_t disp = static_cast<int32_t>(source - (at + 7));
+            std::memcpy(at + 3, &disp, 4);
+            const int32_t slot = (i == 0) == invalidFirst ? 0 : 0x80;
+            std::memcpy(at + game::kRemoveSlotDisp, &slot, 4);
+        }
+        r = game::ResolveRemoveEntityCall(img);
+        check(r.state != SigState::Ok, invalidFirst ? "RemoveEntity zero then valid slot refused" : "RemoveEntity valid then zero slot refused");
+    }
     std::printf("%d failure(s)\n", failures);
     return failures ? 1 : 0;
 }

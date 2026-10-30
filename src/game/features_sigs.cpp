@@ -86,7 +86,8 @@ SigResult ResolveRemoveEntityCall(const Image& img, const SigResolveContext& ctx
     for (int i = 0; i < n; ++i) {
         if (!es || FeatureRip(img, sites[i], 0, 3, 7) != es) continue;
         const int32_t s = Rel32(sites[i] + kRemoveSlotDisp);
-        if (slot && s != slot) return SigFail("RemoveEntity call sites disagree on the vtable slot");
+        if (s <= 0 || s >= 0x1000) return SigFail("RemoveEntity vtable slot out of range");
+        if (first && s != slot) return SigFail("RemoveEntity call sites disagree on the vtable slot");
         slot = s;
         if (!first) first = sites[i];
     }
