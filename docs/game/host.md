@@ -2,9 +2,11 @@
 
 `include/sco/game/host.h`, target `sco_game_host`, composes the game signature pack
 with `sco::app`. This is a C++ source contract for trusted host builders, **not**
-a plugin service, frozen wire ABI, or permission to patch the game. Plugins still
-build from `core` + `game-sc` public SDK archives. Kernel-only hosts do not compile
-or link this adapter.
+a plugin service, frozen wire ABI, or permission to patch the game. Released plugin
+builds use `core` + `game-sc` SDK archives; kernel-only hosts do not compile or link
+this adapter. During development, test against an exact source candidate and matching
+artifacts/checksums across consumers; a later stable SDK and pin transition remain a
+release decision. Windows and in-game behavior of this change have not been verified.
 
 ## Admission, resolve, start
 
@@ -22,11 +24,21 @@ or link this adapter.
 3. On the actual game thread, `Start()` re-inspects admission and calls `app::Start`
    exactly once. Platform image/registerSignatures are rejected: resolution has a
    single owner. Other platform inputs follow `sco/app.h` lifetime rules.
-4. `Stop()` runs on the game thread, outside callouts/reload. Runtime teardown
-   retains the existing app ordering and cancellation contract. The owner revokes
-   dependent capabilities and clears its registry only after safe quiescence; the
-   shell keeps the image and provider code alive until users of its addresses stop.
-   Repeated stop is harmless, and wrong-thread stop cannot claim completion.
+4. `Stop()` runs on the game thread, outside callouts/reload. Before destructive
+   teardown, the host calls `retireConsumer(context)` at most once, including on
+   failed preparation paths with dependent resources. `ConsumerRetirement::Quiesced`
+   asserts a durable product-consumer gate through cleanup; null, `Retained` or an
+   exception refuses teardown and retains the registry and code through process exit.
+   The host also requires `platform.gameReadersQuiesced(context)` to confirm an
+   externally held native-reader barrier before game-service start and before any
+   applicable teardown. The barrier excludes in-flight and new native readers and
+   target execution throughout the phase, permits safe synchronous cleanup reentry,
+   and excludes the current quit control frame; a point-in-time sample is insufficient.
+   A failed cleanup also retains dependencies. Process-retained quit or native
+   DataCore detours keep the registry, image and provider code through process exit
+   and make `Stop` return `Failed` even after services stop. Wrong-thread stop cannot
+   claim completion. The product must independently prove hook-installation safety;
+   this change has not established it.
 
 Admission and input refusals before composition remain retryable. A failure that
 sets the host phase to `Failed`, including signature setup failure, does not
@@ -42,7 +54,11 @@ opts.platform.dataRoot = "data";
 opts.platform.pluginRoot = "data/plugins";
 opts.platform.pluginsEnabled = true;
 opts.platform.gameServices = true;
-// No image/registerSignatures in opts.platform.
+opts.retireConsumer = RetireProductConsumers; // Quiesced only for a held, durable gate
+opts.consumerContext = productState;
+opts.platform.gameReadersQuiesced = NativeBarrierHeld; // verifies barrier held for the full phase
+opts.platform.gameReadersContext = readerState;
+// No image/registerSignatures/beforeDependentStop in opts.platform; host owns those.
 auto prepared = sco::game::host::Prepare(opts);
 // Later, from the game thread, only when prepared == Result::Ok:
 auto started = sco::game::host::Start();
@@ -54,10 +70,11 @@ policy. Admission must not silently treat an inspection failure as absence.
 
 The optional `earlyDataRequirement` callback currently receives the requirement
 name, a reference to the installed immutable snapshot, and the product's context;
-it runs during `Prepare` and must be side-effect-free. A null callback or exception
-means unavailable. Its callback and context must remain valid through `Prepare`.
-This development host contract is under integration review; verify it against the
-exact candidate source before building a consumer.
+it runs synchronously during `Prepare`, possibly before the game thread, and must
+be side-effect-free. It must not retain the name or snapshot references. A null
+callback or exception means unavailable; callback code and context must remain
+valid through `Prepare`. The existing `platform.setCapabilities` callback instead
+runs on the app game thread after the registry owner is pinned.
 
 ## Tick adapter
 

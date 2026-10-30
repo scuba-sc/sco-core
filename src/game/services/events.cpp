@@ -102,7 +102,7 @@ size_t       g_nwait = 0;
 int          g_seatLogged = 0;
 
 // The four hooks.
-struct Hook { const char* row; void* detour; void** orig; uint8_t* at; };
+struct Hook { const char* row; void* detour; void** orig; uint8_t* at; bool removalFailed = false; };
 void* g_origSpawn = nullptr;
 void* g_origDeath = nullptr;
 void* g_origEnter = nullptr;
@@ -238,13 +238,26 @@ bool InstallHook(Hook& h, char* why, size_t n) {
     return false;
 }
 
-void RemoveHooks() {
-    for (Hook& h : g_hooks) {
-        if (!h.at) continue;
-        const hook::Error e = hook::RemoveDetour(h.at);
-        if (e != hook::Error::None) Log("[game] events: removing the %s hook: %s", h.row, hook::ErrorName(e));
-        h.at = nullptr;
+bool RemoveHook(Hook& h) {
+    if (!h.at) return true;
+    // An uncertain removal is retained until process exit; don't lose its target or retry it.
+    if (h.removalFailed) return false;
+    const hook::Error e = hook::RemoveDetour(h.at);
+    if (e != hook::Error::None) {
+        Log("[game] events: removing the %s hook: %s", h.row, hook::ErrorName(e));
+        h.removalFailed = true;
+        return false;
     }
+    h.at = nullptr;
+    return true;
+}
+
+bool RemoveHooks() {
+    bool removed = true;
+    for (Hook& h : g_hooks) {
+        if (!RemoveHook(h)) removed = false;
+    }
+    return removed;
 }
 
 // ---- game reads, under SEH ---------------------------------------------------------------------
@@ -458,6 +471,7 @@ void OnTick(const char*, const void* data, void*) {
 
 Result StartEvents() {
     if (g_started) return Result::Ok;
+    for (const Hook& h : g_hooks) if (h.at || h.removalFailed) return Result::Failed;
     const std::vector<const char*> teleport(std::begin(kTeleportRows), std::end(kTeleportRows));
     std::vector<const char*> spawned = teleport, died = teleport, actorDied = teleport, zone = teleport, seat = teleport;
     for (const char* id : kIdRows) { spawned.push_back(id); died.push_back(id); actorDied.push_back(id); }
@@ -489,8 +503,13 @@ Result StartEvents() {
     // The seat hooks install for the probe (log only) when both rows are OK, and the capability
     // stays off whatever they say.
     if (seatRows && InstallHook(g_hooks[2], whySeat, sizeof(whySeat)) && !InstallHook(g_hooks[3], whySeat, sizeof(whySeat))) {
-        hook::RemoveDetour(g_hooks[2].at);
-        g_hooks[2].at = nullptr;
+        if (!RemoveHook(g_hooks[2])) {
+            g_active.store(false, std::memory_order_release);
+            RemoveHooks();
+            for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat, kCapMission })
+                caps::Set(cap, false, "game events hook cleanup failed");
+            return Result::Failed;
+        }
     }
     g_capSeat = false;
 
@@ -517,12 +536,18 @@ Result StartEvents() {
     return Result::Ok;
 }
 
-void StopEvents() {
-    if (!g_started) return;
+Result StopEvents() {
+    if (!g_started) {
+        bool hasHook = false;
+        for (const Hook& h : g_hooks) if (h.at || h.removalFailed) hasHook = true;
+        if (!hasHook) return Result::Ok;
+    }
     g_active.store(false, std::memory_order_release);
-    Unsubscribe(host::GameOwner(), "tick", OnTick);
-    RemoveHooks();
+    if (g_started) Unsubscribe(host::GameOwner(), "tick", OnTick);
+    const bool removed = RemoveHooks();
     for (const char* cap : { kCapSpawned, kCapDied, kCapActorDied, kCapZone, kCapSeat, kCapMission }) caps::Set(cap, false, "stopped");
+    g_started = false;
+    if (!removed) return Result::Failed;
     {
         std::lock_guard<std::mutex> hold(g_ringLock);
         g_head = g_count = 0;
@@ -538,7 +563,7 @@ void StopEvents() {
     g_capMission = false;
     g_nwait = 0;
     g_seatLogged = 0;
-    g_started = false;
+    return Result::Ok;
 }
 
 }  // namespace sco::game::services

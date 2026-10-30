@@ -19,6 +19,7 @@ int checks=0,failures=0;
 #define CHECK(x) do{++checks;if(!(x)){++failures;std::printf("FAIL %d: %s\n",__LINE__,#x);}}while(0)
 gh::Admission evidence{gh::Session::Offline,gh::Check::Clear,gh::Check::Clear,gh::Check::Clear};
 gh::Admission Inspect(){return evidence;}
+gh::ConsumerRetirement RetireConsumer(void*) { return gh::ConsumerRetirement::Quiesced; }
 bool Fresh(){return gh::FreshAdmissionAllowed();}
 bool Cleanup(){return Fresh()||gh::detail::CvarCleanupAllowed();}
 const char* name="i_target_selector.targeting2_enabled";
@@ -55,7 +56,7 @@ int main(int argc,char** argv){
     const bool lost=argc>1&&!std::strcmp(argv[1],"loss");
     uint8_t image_bytes[8192]{};
     sco::Image image{image_bytes,{image_bytes,4096},{image_bytes+4096,4096},{},0,sizeof(image_bytes)};
-    gh::Options options;options.inspect=Inspect;options.image=&image;options.quit=gh::QuitPolicy::External;
+    gh::Options options;options.inspect=Inspect;options.image=&image;options.quit=gh::QuitPolicy::External;options.retireConsumer=RetireConsumer;
     CHECK(gh::Prepare(options)==sco::Result::Ok);
     CHECK(gh::Start()==sco::Result::Ok);
     CHECK(cs::StartSpawn()==sco::Result::Ok);

@@ -20,6 +20,7 @@ struct Admission {
 enum class Phase : uint32_t { Idle, Preparing, Prepared, Starting, Running, Stopping, Stopped, Failed };
 enum class QuitPolicy : uint32_t { Required, External };
 enum class DataCoreHook : uint32_t { Required, External };
+enum class ConsumerRetirement : uint32_t { Quiesced, Retained };
 struct Snapshot {
     Phase phase = Phase::Idle;
     bool signaturesResolved = false;
@@ -51,6 +52,22 @@ struct Options {
     // and context must remain valid through Prepare.
     bool (*earlyDataRequirement)(const char* name, const SignatureSnapshot& snapshot, void* context) = nullptr;
     void* earlyDataContext = nullptr;
+    // Called at most once after core admission closes and before any pak, app,
+    // plugin or dependent service teardown. A failed Prepare can call it on the
+    // Prepare thread; Stop calls it on the game thread. Quiesced asserts a durable gate:
+    // product admission is closed, entered product and game-service/native readers
+    // have drained, and asynchronous product/engine callbacks or service readers
+    // cannot enter through all dependent cleanup. It must
+    // synchronize instruction patching with executing threads and safely allow any
+    // required cleanup-thread reentry without reopening asynchronous admission.
+    // Exempt the current Stop/quit control frame from its drain to avoid self-deadlock;
+    // keep its image, trampoline and provider code alive until it exits, and through
+    // process exit wherever retained hooks need them. Do not re-enter host lifecycle
+    // calls. A point-in-time observation or RemoveAll alone is not this guarantee.
+    // Return Retained when no durable proof exists. Null, Retained or an exception refuses
+    // teardown and retains the registry and code. Callback/context outlive Stop.
+    ConsumerRetirement (*retireConsumer)(void* context) = nullptr;
+    void* consumerContext = nullptr;
 };
 // Serialized host entries, outside loader lock/runtime callouts. Prepare may precede the game
 // thread; Start binds the game thread via app::Start. Unknown/online/EAC/unblocked-network/wrong
@@ -68,6 +85,12 @@ Result Start();
 Result Tick(uint32_t nowMs);
 // Game thread. Stop cancels tasks through app::Stop; repeated stop is safe. If teardown
 // cannot complete, the host fails and retains its registry for any surviving consumers.
+// A process-retained quit or native DataCore detour means Stop returns Failed and retains
+// the registry through process exit, even after services stop. The shell must keep the
+// borrowed image and provider code valid through that same period.
+// Product-owned readers require the retireConsumer transition above; attempted game
+// services and host-owned native detours also require Platform::gameReadersQuiesced
+// to hold its native-reader barrier before teardown.
 // No restart from Stopped/Failed: process-lifetime hook ownership requires a fresh process.
 Result Stop();
 // Synchronous game-thread quit admission: stop BEFORE the engine may terminate the process.

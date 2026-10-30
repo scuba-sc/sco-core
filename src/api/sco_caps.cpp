@@ -58,34 +58,80 @@ Result Set(const char* name, bool ready, const char* reason) {
     return Result::Ok;
 }
 
+namespace {
+
+struct SignatureUpdate {
+    const char* name;
+    const char* const* ids;
+    size_t count;
+    const SignatureRegistry* owner;
+    const SignatureSnapshot* expected;
+    Result result = Result::Unavailable;
+};
+
+// Called under the host ownership lock. Never re-enter host composition here.
+void SetFromCurrentSnapshot(void* opaque) noexcept {
+    auto& request = *static_cast<SignatureUpdate*>(opaque);
+    try {
+        const auto snapshot = request.owner->Snapshot();
+        if (!snapshot || (request.expected && snapshot.get() != request.expected)) return;
+        char why[kMaxReasonLen + 1] = "";
+        bool ready = true;
+        for (size_t i = 0; i < request.count && ready; ++i) {
+            const SigResult* r = snapshot->Lookup(request.ids[i]);
+            if (!r) {
+                snprintf(why, sizeof(why), "unknown signature %s", request.ids[i]);
+                ready = false;
+            } else if (r->state != SigState::Ok) {
+                snprintf(why, sizeof(why), "needs %s (%s)", request.ids[i], SigStateName(r->state));
+                ready = false;
+            }
+        }
+        request.result = Set(request.name, ready, ready ? nullptr : why);
+    } catch (...) {
+        request.result = Result::Unavailable;
+    }
+}
+
+// Only change capability state when the ownership lock confirms no active host.
+void SetWithoutHost(void* opaque) noexcept {
+    auto& request = *static_cast<SignatureUpdate*>(opaque);
+    try {
+        const Result result = Set(request.name, false, "signature snapshot unavailable");
+        request.result = result == Result::Ok ? Result::Unavailable : result;
+    } catch (...) {
+        request.result = Result::Unavailable;
+    }
+}
+
+bool ValidSignatureInput(const char* name, const char* const* ids, size_t n) {
+    if (!ids || n == 0) return false;
+    for (size_t i = 0; i < n; ++i) if (!ids[i]) return false;
+    return ValidName(name);
+}
+
+} // namespace
+
 Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n,
                          const SignatureSnapshot& signatures) {
-    if (!sigIds || n == 0) return Result::BadArg;
-    for (size_t i = 0; i < n; ++i)
-        if (!sigIds[i]) return Result::BadArg;
-    char why[kMaxReasonLen + 1] = "";
-    bool ready = true;
-    for (size_t i = 0; i < n && ready; ++i) {
-        const SigResult* r = signatures.Lookup(sigIds[i]);
-        if (!r) {
-            snprintf(why, sizeof(why), "unknown signature %s", sigIds[i]);
-            ready = false;
-        } else if (r->state != SigState::Ok) {
-            snprintf(why, sizeof(why), "needs %s (%s)", sigIds[i], SigStateName(r->state));
-            ready = false;
-        }
-    }
-    return Set(name, ready, ready ? nullptr : why);
+    if (!ValidSignatureInput(name, sigIds, n)) return Result::BadArg;
+    const auto owner = AcquireHostSignatureRegistry();
+    if (!owner) return Result::Unavailable;
+    SignatureUpdate request{name, sigIds, n, owner.get(), &signatures};
+    if (!WithHostSignatureRegistry(owner, SetFromCurrentSnapshot, &request)) return Result::Unavailable;
+    return request.result;
 }
 
 Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n) {
-    if (!sigIds || n == 0) return Result::BadArg;
-    for (size_t i = 0; i < n; ++i)
-        if (!sigIds[i]) return Result::BadArg;
-    const auto signatures = AcquireHostSignatureSnapshot();
-    if (signatures) return SetFromSignatures(name, sigIds, n, *signatures);
-    const Result result = Set(name, false, "signature snapshot unavailable");
-    return result == Result::Ok ? Result::Unavailable : result;
+    if (!ValidSignatureInput(name, sigIds, n)) return Result::BadArg;
+    const auto owner = AcquireHostSignatureRegistry();
+    SignatureUpdate request{name, sigIds, n, owner.get(), nullptr};
+    if (owner) {
+        if (!WithHostSignatureRegistry(owner, SetFromCurrentSnapshot, &request)) return Result::Unavailable;
+    } else if (!WithNoHostSignatureRegistry(SetWithoutHost, &request)) {
+        return Result::Unavailable;
+    }
+    return request.result;
 }
 
 void InvalidateAll(const char* reason) noexcept {

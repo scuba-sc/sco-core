@@ -143,11 +143,32 @@ int main(int argc, char** argv) {
         if (nested_failure) {
             CHECK(f.active==1 && f.active_keys[b_effect] && !sco::caps::Has("game.audio.triggers"));
             CHECK(G::StopAudio()==sco::Result::Failed && f.active==1);
+            const auto stops_after_failure=f.stops;
             f.fail_stop_key=0;
-            CHECK(G::StopAudio()==sco::Result::Failed && f.active==0);
+            CHECK(G::StopAudio()==sco::Result::Failed && f.active==1 && f.stops==stops_after_failure);
         } else {
             CHECK(f.active==0);
             CHECK(G::StopAudio()==sco::Result::Ok);
+            // Failure in the first teardown stop must not call the second effect,
+            // nor retry automatically. Live owners can explicitly retry under the
+            // backend's contract that a failed stop retains its effect/context.
+            CHECK(G::StartAudio({&f,Resolve,Play,Stop,PlayOnce})==sco::Result::Ok);
+            auto* c=sco::host::NewPlugin("audio_teardown_c");
+            auto* d=sco::host::NewPlugin("audio_teardown_d");
+            auto* e=sco::host::NewPlugin("audio_teardown_e");
+            sco::sdk::game::Audio C,D,E;
+            uint64_t tc=0,td=0,te=0,pc=0,pd=0,pe=0;
+            CHECK(C.Open(api,c)==SCO_OK && D.Open(api,d)==SCO_OK && E.Open(api,e)==SCO_OK);
+            CHECK(C.Resolve("cue",tc)==SCO_OK && D.Resolve("cue",td)==SCO_OK && E.Resolve("cue",te)==SCO_OK);
+            CHECK(C.Play(tc,pc)==SCO_OK && D.Play(td,pd)==SCO_OK && E.Play(te,pe)==SCO_OK && f.active==3);
+            f.fail_stop_key=f.next-3;
+            const auto before_teardown=f.stops;
+            CHECK(G::StopAudio()==sco::Result::Failed && f.stops==before_teardown+1 && f.active==3);
+            f.fail_stop_key=0;
+            CHECK(G::StopAudio()==sco::Result::Failed && f.stops==before_teardown+1 && f.active==3);
+            CHECK(sco::Release(e)==sco::Result::Ok && f.stops==before_teardown+1 && f.active==3);
+            CHECK(C.Stop(pc)==SCO_OK && D.Stop(pd)==SCO_OK && f.active==1);
+            CHECK(G::StopAudio()==sco::Result::Failed && f.stops==before_teardown+3);
         }
         std::printf("audio nested cleanup: %d passed, %d failed\n",passed,failed);
         return failed ? 1 : 0;
@@ -164,8 +185,9 @@ int main(int argc, char** argv) {
         CHECK(!sco::caps::Has("game.audio.play_once") && !sco::caps::Has("game.audio.triggers"));
         CHECK(B.Stop(pb)==SCO_OK && f.active==1 && f.active_keys[a_effect]);
         CHECK(G::StopAudio()==sco::Result::Failed && f.active==1 && f.active_keys[a_effect]);
+        const auto stops_after_failure=f.stops;
         f.fail_stop_key=0;
-        CHECK(G::StopAudio()==sco::Result::Failed && f.active==0 && !f.active_keys[a_effect]);
+        CHECK(G::StopAudio()==sco::Result::Failed && f.active==1 && f.active_keys[a_effect] && f.stops==stops_after_failure);
         CHECK(G::StartAudio({&f,Resolve,Play,Stop,PlayOnce})==sco::Result::Failed);
         std::printf("audio fault cleanup failure: %d passed, %d failed\n",passed,failed);
         return failed ? 1 : 0;
@@ -278,8 +300,9 @@ int main(int argc, char** argv) {
         CHECK(B.Play(tb,repeat)==SCO_UNAVAILABLE && repeat==0);
         CHECK(B.Stop(pb)==SCO_OK && f.active==1 && !f.active_keys[b_effect] && f.active_keys[d_effect]);
         CHECK(G::StopAudio()==sco::Result::Failed && f.active==1 && f.active_keys[d_effect]);
+        const auto stops_after_failure=f.stops;
         f.fail_stop_key=0;
-        CHECK(G::StopAudio()==sco::Result::Failed && f.active==0 && !f.active_keys[d_effect]);
+        CHECK(G::StopAudio()==sco::Result::Failed && f.active==1 && f.active_keys[d_effect] && f.stops==stops_after_failure);
     } else {
         f.fail_stop=true;
         CHECK(B.Stop(pb)==SCO_FAILED && f.active==1);
@@ -287,6 +310,8 @@ int main(int argc, char** argv) {
         CHECK(G::StopAudio()==sco::Result::Failed && f.active==1);
         f.fail_stop=false;
         CHECK(B.Stop(pb)==SCO_OK && f.active==0);
+        const auto stops_after_retry=f.stops;
+        CHECK(G::StopAudio()==sco::Result::Failed && f.stops==stops_after_retry);
     }
     CHECK(G::StartAudio({&f,Resolve,Play,Stop})==sco::Result::Failed);
     std::printf("audio synthetic: %d passed, %d failed\n",passed,failed);

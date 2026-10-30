@@ -80,8 +80,14 @@ owner's mutable `shared_ptr`, and `WithHostSignatureRegistry` accepts the const
 lease and checks the current owner identity. Const access prevents accidental
 mutation, not an authorization boundary against a caller that casts it away.
 Their callbacks run under the composition lock, are
-`noexcept`, and must not re-enter composition. The caller remains responsible for
-quiescing dependent services and their cached addresses before releasing the image.
+`noexcept`, and must not re-enter composition. `PinHostSignatureRegistry(expected)`
+pins the matching owner, or pins its absence when `expected` is null. Installation
+and ordinary clearing refuse while pins exist. A successful pin must be balanced;
+`UnpinAndClearHostSignatureRegistry` retires the matching mutable owner atomically
+only when its one remaining pin is held. A failed operation leaves ownership and
+pins in place. Pins are a coordinated host-lifetime count, not per-caller access
+control. The caller remains responsible for quiescing dependent services and their
+cached addresses before releasing the image.
 
 ## `sco/game/signatures.h` and `sco/game/<feature>.h`: game tables
 
@@ -160,7 +166,8 @@ Named yes/no answers to "does this feature work on this game build?". `sco_api.h
 | Function | Does |
 |---|---|
 | `Result caps::Set(const char* name, bool ready, const char* reason)` | Sets or updates a capability. Names are lowercase dotted segments (`teleport`, `spawn.ship`), at most 63 characters; `reason` is copied (127 characters, truncated) and says why it isn't ready. Names are never removed. `BadArg` for a bad name; `TooMany` after 256 names |
-| `Result caps::SetFromSignatures(const char* name, const char* const* ids, size_t n)` | Ready when every listed signature row is OK; else not ready with `needs <id> (<STATE>)` or `unknown signature <id>` for the first row that isn't. Call after the host publishes its resolved snapshot |
+| `Result caps::SetFromSignatures(const char* name, const char* const* ids, size_t n)` and snapshot overload | Ready when all listed rows are OK; otherwise not ready with the first missing or non-OK row. The snapshot overload requires the current host snapshot; a retired or replaced snapshot returns `Unavailable` without writing. The convenience overload uses the current host; if absence is still current it sets the capability unavailable and returns `Unavailable`. Ownership is checked through the capability write |
+| `void caps::InvalidateAll(const char* reason) noexcept` | Marks existing names unavailable and copies the reason. It is not a latch; stop capability writers first and serialize invalidation with host ownership |
 | `bool caps::Has(const char* name)` | True when set ready; unknown names and `nullptr` are false |
 | `size_t caps::List(Entry* out, size_t max)` | Copies up to `max` entries (name, ready, reason) in first-set order; returns the number of names |
 
@@ -193,20 +200,25 @@ struct Platform {
     void (*setCapabilities)() = nullptr;           // after the snapshot is installed
     plugins::ModuleOps moduleOps = plugins::PlatformModuleOps();
     std::filesystem::path dataRoot;                // data; set: sco.storage in <dataRoot>/storage/
+    bool gameServices = false;
+    bool (*gameReadersQuiesced)(void*) = nullptr;  // confirms an externally held native-reader barrier
+    void* gameReadersContext = nullptr;
+    bool (*beforeDependentStop)(void*) = nullptr;   // durable product-consumer retirement gate
+    void* beforeDependentStopContext = nullptr;
     bool loadFromCopies = false;                   // map each native from a copy of its DLL (developer builds)
 };
 ```
 
 | Function | Does |
 |---|---|
-| `bool app::Start(const Platform& pf)` | On the game thread, with `image`, builds a registry, invokes `registerSignatures(registry)` when set, freezes, resolves and installs the sealed snapshot; null registration adds no rows. Registration, freeze, resolution, ownership or capability setup failure returns false before services and plugins start. With no image it uses any registry already installed by the product. Then it builds the host API, starts services, loads built-ins and discovered plugins, logs reports and dispatches `game.ready`; individual plugin and optional service failures are reported |
+| `bool app::Start(const Platform& pf)` | On the game thread, with `image`, builds a registry, invokes `registerSignatures(registry)` when set, freezes, resolves and installs the sealed snapshot; null registration adds no rows. Registration, freeze, resolution, ownership or capability setup failure returns false before services and plugins start. With no image it uses any registry already installed by the product, or pins its absence. It pins that owner across startup and calls `setCapabilities` on the game thread. Then it builds the host API, starts services, loads built-ins and discovered plugins, logs reports and dispatches `game.ready`; individual plugin and optional service failures are reported |
 | `void app::Tick(uint32_t nowMs)` | `GameThreadTick(nowMs)`. No-op unless started |
-| `Result app::Stop()` | Game thread only; refuses entry during an active callout or reload. No-op unless started, or when already stopping. Dispatches `game.exit`, then closes runtime admission (no new service lookup/work) and cancels queued contexts **before** `UnloadAll` (newest first, built-ins last). Then stops settings before storage, followed by network, IPC, UI and enabled game-pack services, withdraws game/host services, and clears `ContainCallouts`. On safe cleanup it revokes dependent capabilities and releases its owned registry. A failed host-service stop returns `Failed` and retains the registry and context; cached tables are not valid across host sessions |
+| `Result app::Stop()` | Game thread only; refuses entry during an active callout or reload. No-op unless started, or when already stopping. Dispatches `game.exit`, then closes runtime admission (no new service lookup/work) and cancels queued contexts **before** `UnloadAll` (newest first, built-ins last). Then stops settings before storage, followed by network, IPC, UI and enabled game-pack services, withdraws game/host services, and clears `ContainCallouts`. Before any dependent teardown, it requires `beforeDependentStop` when provided and, for attempted game services, confirmation that `gameReadersQuiesced(context)` holds a durable barrier. Null native barrier, false or exception refuses teardown and retains the pin and dependencies. After an admitted stop, game services remove hooks and finalize retained reads; cleanup failure also returns `Failed` and retains backing state. Audio, quantum and loadout cleanup failures also fail closed. Safe cleanup revokes dependent capabilities and releases its owned registry; cached tables are not valid across host sessions |
 | `const std::vector<plugins::Plugin>& app::Plugins()` | The list of the last `Start` (built-ins first), final states after `Stop`. Never resized between two `Start`s |
 | `const plugins::ContentIndex& app::Content()` | The data-pack index of the last `Start` |
 | `Result app::Reload(std::string_view id, std::string* why = nullptr)` | Game-thread hot reload of the target **and all transitively loaded dependents**. Preflights the whole group and atomically reserves service withdrawal before copying or teardown; a non-reloadable/busy member, unmet requirement or handed-out service table refuses the entire group. Copies native DLLs to `<folder>/.reload-<n>-<entry>`, unloads dependents before providers (`UnloadOne`: guarded unload, owner release/hooks, module close), then loads providers before dependents under new handles (`LoadNative` on copies, `LoadScript` on re-read scripts). Unrelated plugins stay loaded. `Ok` only if every group member reloads; `NotFound` (no such id); `BadArg` (built-in/data target); `Unavailable` (not started or stopping); `WrongThread`; otherwise `Failed` with `why`. A post-teardown failure does not roll back completed work, and a failed provider refuses its dependents. See [Hot reload](plugins.md#hot-reload) for limits and restart-required fault/refusal semantics |
 
-`Platform` is copied; `builtins`, `scripts` and `hostVersion` must outlive `Stop`.
+`Platform` is copied; `builtins`, `scripts`, `hostVersion` and callback contexts must outlive their use. Before game-service start and before teardown, the shell must hold a durable barrier that excludes in-flight and new native readers and target execution throughout the phase, permits safe synchronous cleanup reentry, and excludes the current quit control frame. `gameReadersQuiesced` confirms that held barrier; a point-in-time sample does not. Failure retains the registry pin, image and provider code. Hook-installation quiescence for the product is not established by this interface and remains unverified.
 
 **`sco.reload <plugin>`** is the host command over `Reload`: owned by the host, no capability, registered by `Start` (once per process; between `Stop` and the next `Start` it answers `UNAVAILABLE`). Its reply is `reloaded <id>` or the `why`. A product's UI calls `app::Reload` or invokes the command; `sco.ui` needs no change and has no renderer hook for it ([UI](ui.md#developer-reload)). Details, limits and what a reload does to other plugins: [Plugins: hot reload](plugins.md#hot-reload).
 

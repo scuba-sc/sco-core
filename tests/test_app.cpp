@@ -324,6 +324,12 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     g_log.clear();
     g_events.clear();
     CHECK(sco::app::Start(pf));
+    // A host started without a registry pins that absence for its lifetime.
+    auto unexpectedRegistry = std::make_shared<sco::SignatureRegistry>();
+    CHECK(unexpectedRegistry->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(unexpectedRegistry->Resolve(sco::Image{}) == sco::SigRegistryStatus::Ok);
+    CHECK(!sco::InstallHostSignatureRegistry(unexpectedRegistry, nullptr));
+    CHECK(!sco::AcquireHostSignatureRegistry());
 
     // Built-ins first, then folders in name order; load order follows.
     const auto& list = sco::app::Plugins();
@@ -1450,16 +1456,16 @@ static void TestHostOwnerMismatch() {
     auto successor = std::make_shared<sco::SignatureRegistry>();
     CHECK(successor->Freeze() == sco::SigRegistryStatus::Ok);
     CHECK(successor->Resolve(image) == sco::SigRegistryStatus::Ok);
-    // Synthetic handoff with no live services; actual hosts must quiesce consumers first.
-    auto hostileOwner = std::const_pointer_cast<sco::SignatureRegistry>(owner); // simulate an out-of-contract handoff
-    CHECK(sco::ClearHostSignatureRegistry(hostileOwner, nullptr));
-    CHECK(sco::InstallHostSignatureRegistry(successor, nullptr));
-    CHECK(sco::caps::Set("fixture.successor", true) == sco::Result::Ok);
-    CHECK(sco::app::Stop() == sco::Result::Failed);
-    CHECK(sco::AcquireHostSignatureRegistry() == successor && sco::caps::Has("fixture.successor"));
+    // A synthetic hostile handoff must fail while the app owns its lifecycle pin.
+    auto hostileOwner = std::const_pointer_cast<sco::SignatureRegistry>(owner);
+    CHECK(!sco::ClearHostSignatureRegistry(hostileOwner, nullptr));
+    CHECK(!sco::InstallHostSignatureRegistry(successor, nullptr));
+    CHECK(sco::AcquireHostSignatureRegistry() == owner);
     CHECK(owner->Snapshot() && hostileOwner->Resolve(image) == sco::SigRegistryStatus::HostSealed);
-    CHECK(!sco::app::Start(pf));
-    CHECK(sco::ClearHostSignatureRegistry(successor, nullptr));
+    CHECK(sco::app::Stop() == sco::Result::Ok);
+    CHECK(!sco::AcquireHostSignatureRegistry() && !sco::caps::Has("teleport"));
+    CHECK(sco::app::Start(pf));
+    CHECK(sco::app::Stop() == sco::Result::Ok);
 }
 
 int main(int argc, char** argv) {

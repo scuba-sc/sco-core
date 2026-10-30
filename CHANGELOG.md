@@ -9,9 +9,12 @@ What each change means for plugin authors and for products built on sco-core (sc
   instance-owned registry, dependencies freeze before iterative resolution, and
   readers acquire immutable per-image snapshots. There is no fixed row count;
   hosts can configure a byte budget. Installed host registries are sealed against
-  re-resolution, and capability transitions are coordinated with ownership. Image
-  and resolver-code lifetimes remain the host's responsibility. Synthetic coverage
-  does not establish in-game acceptance. See [registry contract](docs/api.md#scosignaturesh-and-scosignature_registryh-the-registry).
+  re-resolution; pins and capability commits are coordinated with host ownership.
+  A refusal-first product retirement gate and an externally held native-reader
+  barrier are required before dependent teardown; an absent proof or failed cleanup
+  retains the pin and image/provider dependencies. Process-retained quit or native
+  DataCore hooks also retain them through exit. Hook-installation quiescence, Windows
+  and in-game acceptance remain unverified; synthetic coverage is not game acceptance. See [registry contract](docs/api.md#scosignaturesh-and-scosignature_registryh-the-registry).
 
 - Automatic release-candidate readiness waits instead of failing while a mandatory workflow is
   still running (every workflow triggers it as it completes, so early triggers are normal), and

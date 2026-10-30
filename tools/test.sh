@@ -344,6 +344,9 @@ parallel_compile tsan "${SHARED_TSAN_SOURCES[@]}"
   $(obj tsan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp") -o "$OUT/test_signature_registry_tsan"
 "$OUT/test_signature_registry_tsan"
 python3 "$ROOT/tests/signature_differential/run.py" --cxx "$CXX" --sanitize
+"$CXX" "${FLAGS[@]}" -D__fastcall= -fsanitize=address,undefined \
+  "$ROOT/tests/test_game_reads_lifecycle.cpp" "$ROOT/src/game/services/reads.cpp" -o "$OUT/test_game_reads_lifecycle"
+"$OUT/test_game_reads_lifecycle"
 
 # The runtime is cross-thread: run its tests under ASan+UBSan and again under ThreadSanitizer.
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_runtime.cpp" $(obj asan "${RUNTIME[@]}") -o "$OUT/test_runtime"
@@ -361,6 +364,14 @@ python3 "$ROOT/tests/signature_differential/run.py" --cxx "$CXX" --sanitize
 # Capabilities and the host's sco_api table, over the same runtime, under both sanitizer sets.
 HOST_ASAN=($(obj asan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
 HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
+
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_quantum.cpp" \
+  "$ROOT/src/game/services/quantum.cpp" "$ROOT/src/game/services/quantum_owned.cpp" \
+  $(obj asan "$ROOT/src/hook/sco_hook.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_quantum"
+"$OUT/test_quantum"
+"$OUT/test_quantum" --cleanup-fault
+"$OUT/test_quantum" --stop-cleanup-fault
+
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_input.cpp" \
   $(obj asan "$ROOT/src/game/services/input.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_input"
@@ -736,6 +747,22 @@ done
 "$OUT/test_app" "$ROOT/sdk" "$OUT" shutdown-only
 "$OUT/test_app" "$ROOT/sdk" "$OUT/app-stop-failure" registry-stop-failure
 "$OUT/test_app" "$ROOT/sdk" "$OUT/app-owner-mismatch" registry-owner-mismatch
+
+# Exercise app teardown with a synthetic game-service boundary without a native game.
+OBJ_APP_GAME_SERVICES="$(compile_obj asan "$ROOT/src/app/sco_app.cpp" -DSCO_GAME_SERVICES=1)"
+APP_GAME_SERVICES_ASAN=()
+for obj_path in "${APP_ASAN[@]}"; do
+  case "$obj_path" in
+    *src_app_sco_app_cpp.o) APP_GAME_SERVICES_ASAN+=("$OBJ_APP_GAME_SERVICES") ;;
+    *) APP_GAME_SERVICES_ASAN+=("$obj_path") ;;
+  esac
+done
+"$CXX" "${FLAGS[@]}" -DSCO_GAME_SERVICES=1 -fsanitize=address,undefined \
+  "$ROOT/tests/test_app_game_service_shutdown.cpp" "${APP_GAME_SERVICES_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -lm -o "$OUT/test_app_game_service_shutdown"
+for mode in true false null throw stop-fail finalize-fail partial-fail partial-clean stop-false stop-throw dependent-retained dependent-throw; do
+  "$OUT/test_app_game_service_shutdown" "$mode"
+done
+
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_widgets_app.cpp" \
   "${APP_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -o "$OUT/test_widgets_app"

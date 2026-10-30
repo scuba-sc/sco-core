@@ -78,8 +78,20 @@ The host must keep those alive, quiesce consumers, and invalidate capabilities b
 teardown. Callback side effects are not rolled back by failed publication.
 
 Host composition seals a resolved registry before installation; it cannot re-resolve
-while or after installed. Installation and clearing serialize ownership and
-capability transitions. A fresh registry is needed for another host image. Registry
+while or after installed. Installation, clearing and signature-based capability
+commits serialize against the current owner. Pins keep that owner (or its absence)
+stable across host work; installation and ordinary clearing refuse while pins exist.
+A pin is a coordination count, not proof that native readers have stopped.
+Before game-service start and before any dependent teardown, the shell must hold a
+durable barrier excluding native readers and target execution throughout the phase,
+allowing safe synchronous cleanup reentry and excluding the current quit control
+frame. `Platform::gameReadersQuiesced` confirms that held barrier; a point-in-time
+observation is insufficient. `beforeDependentStop` gates product consumers before
+teardown. A missing required native barrier, a refused product gate, or failed
+audio, quantum or loadout cleanup keeps the registry pinned and fails closed.
+Safe synchronization while installing product hooks remains unproven. A process-retained quit
+or native DataCore detour also retains the registry and borrowed image/provider code
+through process exit. A fresh registry is needed for another host image. Registry
 construction can throw on allocation; register/freeze/resolve return statuses. The
 budget counts dynamic graph, index, resolution and snapshots, including retained old
 snapshots; zero means allocator-limited. Fixed control objects, allocator overhead,
@@ -113,8 +125,9 @@ if (!sco::app::Start(pf)) { /* report setup failure */ }
 With no image, a product can install its own resolved host registry before starting
 the kit. Registration, freeze, resolve or ownership failure refuses startup before
 services or plugins start. Individual missing rows are recorded in the snapshot and
-leave their capabilities unavailable. Call `app::Stop` on the game thread and keep
-the image and providers alive until teardown is safely complete. See [the host kit](api.md#scoapph-the-host-kit).
+leave their capabilities unavailable. `setCapabilities` runs on the app game thread
+after the host owner is pinned. Call `app::Stop` on the game thread and keep the
+image and providers alive until teardown is safely complete. See [the host kit](api.md#scoapph-the-host-kit).
 
 **Plugin load order.** Inside `Start`, built-in plugins load first, in the product's list order. Discovered plugins (native and Lua; data packs are indexed after the loads) follow in folder order, except that a plugin loads after every plugin its `requires` names, either by id (`requires = b`) or through one of its services (`requires = b.svc`; a service name starts with its provider's id, so the id is enough to know the provider before anything runs). `Discover` resolves this once the whole folder list is known: names the host or the game pack already published (`sco.storage`, `game.vehicles`) and capabilities count as provided, a built-in's id counts too, a cycle is refused (`requires cycle: a -> b -> a`), and so is a name nobody provides (`requires service x.y: no plugin provides it`). `LoadOrder` gives the order (a stable topological sort: the lowest folder index that is free goes next) and `UnmetRequires` re-checks just before each load that every provider really is `Loaded`, so a provider that fails to load refuses its dependents instead of starting them without it. Unload runs in reverse load order. Details: [Plugins § Load order](plugins.md#load-order-and-requires).
 

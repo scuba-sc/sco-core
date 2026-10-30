@@ -19,11 +19,18 @@
 
 namespace sco::game::services {
 
-// Game thread. Publishes the services and subscribes their tick. BadArg when a name is taken
-// (a product still provides teleport.spatial or spawn.entities itself); nothing is left published
-// then.
+// Game thread. Publishes the services and subscribes their tick. A name collision is an error.
+// After any failed Start, call Stop to establish whether partial cleanup was safe; a failure
+// may retain provider backing or a hook and the host must preserve its dependencies.
 Result Start();
-void   Stop();
+// Game thread. Failed means cleanup is live or uncertain: retain backing state and
+// require process restart. Other services are withdrawn where safe; repeated Stop
+// does not retry a latched uncertain cleanup.
+Result Stop();
+// After successful Stop, the host must first prove all in-flight game readers have drained,
+// then call this on the game thread. It clears cached reads and permits another Start. Failed
+// or uncertain cleanup must retain the old reads, image and registry until process exit.
+Result FinalizeStopAfterQuiescence();
 bool   Started();
 
 // The switch for game.relocation 1.0 (sc_relocation.h), settable by the product from a player or host

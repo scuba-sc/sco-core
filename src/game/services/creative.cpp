@@ -80,6 +80,7 @@ volatile LONG g_lastNotify = 1;
 volatile uint64_t g_you = 0, g_myShip = 0;
 SetAmmoFn     g_setAmmoOrig = nullptr;
 bool          g_hooked = false;
+bool          g_hookRemovalFailed = false;
 void*         g_hookTarget = nullptr;
 
 template <typename T> T Rd(uintptr_t p) { return *reinterpret_cast<const T*>(p); }
@@ -398,6 +399,7 @@ void TopUpShip(uint64_t ship, ULONGLONG now) {
 
 // Hooks the magazine setter once; false (and the reason in why) when it can't be.
 bool EnsureAmmoHook(const char** why) {
+    if (g_hookRemovalFailed) { *why = "magazine hook cleanup failed; restart required"; return false; }
     if (g_hooked) return true;
     void* target = Sig("ammo.set_ammo");
     void* orig = nullptr;
@@ -413,12 +415,18 @@ bool EnsureAmmoHook(const char** why) {
     return true;
 }
 
-void RemoveAmmoHook() {
-    if (!g_hooked) return;
+bool RemoveAmmoHook() {
+    if (!g_hooked) return !g_hookRemovalFailed;
+    if (g_hookRemovalFailed) return false;
     const hook::Error e = hook::RemoveDetour(g_hookTarget);
-    if (e != hook::Error::None) Log("[game] warning: creative: removing the magazine hook failed: %s", hook::ErrorName(e));
+    if (e != hook::Error::None) {
+        Log("[game] warning: creative: removing the magazine hook failed: %s", hook::ErrorName(e));
+        g_hookRemovalFailed = true;
+        return false;
+    }
     g_hooked = false;   // the trampoline stays callable (g_setAmmoOrig is kept) for a thread still inside the detour
     g_hookTarget = nullptr;
+    return true;
 }
 
 // ---- the tick ----------------------------------------------------------------------------------
@@ -623,23 +631,25 @@ const sc_creative_v1 kService = {
 };
 
 // Everything off and forgotten: Stop, and a failed Start.
-void Reset() {
+bool Reset() {
     if (g_god.on) GodOff();
     if (g_fly.on) FlyOff();
     SpeedRestore();
     AmmoOff();
     ShipOff();
-    RemoveAmmoHook();
+    if (!RemoveAmmoHook()) return false;
     g_god = g_fly = g_speed = {};
     g_c = {};
     for (ErrSlot& e : g_errs) e = {};
     g_queryErr = {};
+    return true;
 }
 
 }  // namespace
 
 Result StartCreative() {
     if (g_started) return Result::Ok;
+    if (g_hooked || g_hookRemovalFailed) return Result::Failed;
     Resolve();
     if (!g_c.god && !g_c.fly && !g_c.ammo && !g_c.ship)
         Log("[game] game.creative.* not ready: game.creative answers SCO_UNAVAILABLE (see the [core] lines)");
@@ -658,12 +668,12 @@ Result StartCreative() {
     return Result::Ok;
 }
 
-void StopCreative() {
-    if (!g_started) return;
+Result StopCreative() {
+    if (!g_started) return g_hooked || g_hookRemovalFailed ? Result::Failed : Result::Ok;
     Unsubscribe(host::GameOwner(), "tick", OnTick);
     g_started = false;
     host::WithdrawGameService(SC_CREATIVE_SERVICE_NAME);
-    Reset();
+    return Reset() ? Result::Ok : Result::Failed;
 }
 
 void ReleaseCreativeOwner(const void* owner) {

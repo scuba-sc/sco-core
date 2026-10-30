@@ -42,9 +42,13 @@ namespace {
 bool                         g_started = false;
 bool                         g_stopping = false;
 bool                         g_teardownFailed = false;
+bool                         g_gameServicesStartFailed = false;
+bool                         g_gameServicesAttempted = false;
 bool                         g_hostServiceStarted = false;
 std::shared_ptr<SignatureRegistry> g_appSignatureRegistry;
 std::shared_ptr<const SignatureRegistry> g_appBorrowedRegistry;
+std::shared_ptr<const SignatureRegistry> g_appPinnedRegistry;
+bool g_appHostPinHeld = false;
 void RevokeCapabilities() noexcept { caps::InvalidateAll("signature host unavailable"); }
 Platform                     g_platform;
 std::vector<plugins::Plugin> g_list;     // never resized while ContainCallouts points at it
@@ -403,16 +407,44 @@ bool InitPlatformAndSignatures(const Platform& pf) {
         }
     }
     if (!pf.image) g_appBorrowedRegistry = AcquireHostSignatureRegistry();
+    g_appPinnedRegistry = g_appSignatureRegistry ? g_appSignatureRegistry : g_appBorrowedRegistry;
+    if (!PinHostSignatureRegistry(g_appPinnedRegistry)) {
+        if (g_appSignatureRegistry) {
+            if (ClearHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities)) g_appSignatureRegistry.reset();
+            else g_teardownFailed = true;
+        }
+        g_appBorrowedRegistry.reset();
+        g_appPinnedRegistry.reset();
+        Log("[app] signature ownership changed before startup");
+        return false;
+    }
+    g_appHostPinHeld = true;
     try { if (pf.setCapabilities) pf.setCapabilities(); }
     catch (...) {
+        bool productReady = true;
+        try { if (pf.beforeDependentStop) productReady = pf.beforeDependentStop(pf.beforeDependentStopContext); }
+        catch (...) { productReady = false; }
+        if (!productReady) {
+            if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+            else WithNoHostSignatureRegistry(RevokeCapabilities);
+            g_teardownFailed = true;
+            sco::detail::SetRuntimeStopping(true);
+            Log("[app] capability setup failed; dependent state remains retained");
+            return false;
+        }
         if (g_appSignatureRegistry) {
-            if (ClearHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities))
-                g_appSignatureRegistry.reset();
-        } else if (g_appBorrowedRegistry) {
-            if (WithHostSignatureRegistry(g_appBorrowedRegistry, RevokeCapabilities))
-                g_appBorrowedRegistry.reset();
-            else g_teardownFailed = true;
-        } else if (!WithNoHostSignatureRegistry(RevokeCapabilities)) {
+            if (UnpinAndClearHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities)) {
+                g_appHostPinHeld = false; g_appPinnedRegistry.reset(); g_appSignatureRegistry.reset();
+            } else {
+                g_teardownFailed = true;
+            }
+        } else if (UnpinHostSignatureRegistry(g_appPinnedRegistry)) {
+            g_appHostPinHeld = false; g_appPinnedRegistry.reset();
+            if (g_appBorrowedRegistry) {
+                if (WithHostSignatureRegistry(g_appBorrowedRegistry, RevokeCapabilities)) g_appBorrowedRegistry.reset();
+                else g_teardownFailed = true;
+            } else if (!WithNoHostSignatureRegistry(RevokeCapabilities)) g_teardownFailed = true;
+        } else {
             g_teardownFailed = true;
         }
         Log("[app] capability setup failed");
@@ -420,6 +452,19 @@ bool InitPlatformAndSignatures(const Platform& pf) {
     }
     return true;
 }
+
+#ifdef SCO_GAME_SERVICES
+bool ConfirmGameReaderBarrier(const Platform& pf) noexcept {
+    try { return pf.gameReadersQuiesced && pf.gameReadersQuiesced(pf.gameReadersContext); }
+    catch (...) { return false; }
+}
+bool FinishGameServicesAfterQuiescence() noexcept {
+    try {
+        if (game::services::Stop() != Result::Ok) return false;
+        return game::services::FinalizeStopAfterQuiescence() == Result::Ok;
+    } catch (...) { return false; }
+}
+#endif
 
 Result StartSubsystems(const Platform& pf) {
     if (!pf.dataRoot.empty()) {   // before any plugin loads, built-ins included
@@ -467,9 +512,19 @@ Result StartSubsystems(const Platform& pf) {
     if (nr != Result::Ok) Log("[app] sco.net not started: %s", ResultName(nr));
     if (pf.gameServices) {
 #ifdef SCO_GAME_SERVICES
-        const Result gr = game::services::Start();
-        g_gameServicesPublished = gr == Result::Ok;
-        if (gr != Result::Ok) Log("[app] game services not started: %s", ResultName(gr));
+        if (!ConfirmGameReaderBarrier(pf)) {
+            Log("[app] game-service startup refused: native reader barrier unavailable");
+            g_gameServicesStartFailed = true;
+        } else {
+            g_gameServicesAttempted = true;
+            Result gr = Result::Failed;
+            try { gr = game::services::Start(); } catch (...) {}
+            g_gameServicesPublished = gr == Result::Ok;
+            if (gr != Result::Ok) {
+                Log("[app] game services not started: %s", ResultName(gr));
+                g_gameServicesStartFailed = true;
+            }
+        }
 #else
         Log("[app] game services not built (SCO_GAME_SC off, or not Windows)");
 #endif
@@ -638,6 +693,8 @@ bool Start(const Platform& platform) {
     g_diagnostics.Reset();
     diagnostics::ResetServiceDiagnosticHistory();
     g_lastDiagnosticTick.reset(); g_gameServicesPublished = false;
+    g_gameServicesStartFailed = false;
+    g_gameServicesAttempted = false;
     g_platform = platform;
     const Platform& pf = g_platform;
 
@@ -646,6 +703,12 @@ bool Start(const Platform& platform) {
     const sco_api* api = host::BuildApi({ version });
 
     const Result cr = StartSubsystems(pf);
+    if (g_gameServicesStartFailed) {
+        Log("[app] game services left retained state; stopping startup");
+        g_started = true;
+        Stop();
+        return false;
+    }
     const plugins::Options opts = DiscoverPlugins(pf, api);
     g_started = true;
 
@@ -666,7 +729,7 @@ bool Start(const Platform& platform) {
 }
 
 void Tick(uint32_t nowMs) {
-    if (!g_started || g_stopping) return;
+    if (!g_started || g_stopping || g_teardownFailed) return;
     if (!OnGameThread()) return;
 #ifndef SCO_KERNEL_ONLY
     game::private_session::Tick(); // revoke BEFORE queued consumer work
@@ -686,10 +749,26 @@ void Tick(uint32_t nowMs) {
 
 Result Stop() {
     if (!OnGameThread()) { Log("[app] stop refused: wrong thread"); return Result::WrongThread; }
-    if (!g_started) return g_teardownFailed ? Result::Failed : Result::Ok;
+    if (g_teardownFailed) return Result::Failed;
+    if (!g_started) return Result::Ok;
     if (g_stopping) return Result::Unavailable;
     if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return Result::Unavailable; }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
+    bool productReady = true;
+    try { if (g_platform.beforeDependentStop) productReady = g_platform.beforeDependentStop(g_platform.beforeDependentStopContext); }
+    catch (...) { productReady = false; }
+#ifdef SCO_GAME_SERVICES
+    if (g_gameServicesAttempted && !ConfirmGameReaderBarrier(g_platform)) productReady = false;
+#endif
+    if (!productReady) {
+        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+        else WithNoHostSignatureRegistry(RevokeCapabilities);
+        Log("[app] dependent teardown refused; backing state remains retained");
+        g_teardownFailed = true;
+        sco::detail::SetRuntimeStopping(true); // close admission without unloading retained providers
+        g_stopping = false;
+        return Result::Failed;
+    }
     g_diagnosticWorker.Stop(); // revoke and close BEFORE any exit/unload callout
     diagnostics::SetLogCapture(nullptr);
     g_diagnostics.Reset(); // invalidate observations BEFORE game.exit and plugin teardown
@@ -723,21 +802,34 @@ Result Stop() {
     datacore::service::Stop();
 #endif
 #ifdef SCO_GAME_SERVICES
-    game::services::Stop();
+    if (g_gameServicesAttempted) {
+        if (!FinishGameServicesAfterQuiescence()) {
+            Log("[app] game service cleanup or reader quiescence failed; signature registry remains pinned");
+            registryCleanupSafe = false;
+        } else g_gameServicesAttempted = false;
+    }
 #endif
     host::WithdrawGameServices();
     host::WithdrawHostServices();
     plugins::ContainCallouts(nullptr);
-    if (g_appSignatureRegistry && registryCleanupSafe) {
-        if (ClearHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities)) g_appSignatureRegistry.reset();
-        else { Log("[app] signature registry ownership changed during teardown"); registryCleanupSafe = false; }
-    } else if (g_appSignatureRegistry) {
-        if (!WithHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities)) registryCleanupSafe = false;
-    } else if (g_appBorrowedRegistry) {
-        if (!WithHostSignatureRegistry(g_appBorrowedRegistry, RevokeCapabilities)) registryCleanupSafe = false;
-        else if (registryCleanupSafe) g_appBorrowedRegistry.reset();
-    } else if (!WithNoHostSignatureRegistry(RevokeCapabilities)) {
-        registryCleanupSafe = false;
+    bool retiredOwnRegistry = false;
+    if (registryCleanupSafe && g_appHostPinHeld) {
+        if (g_appSignatureRegistry) {
+            if (UnpinAndClearHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities)) {
+                g_appHostPinHeld = false; g_appPinnedRegistry.reset();
+                g_appSignatureRegistry.reset(); retiredOwnRegistry = true;
+            } else registryCleanupSafe = false;
+        } else if (UnpinHostSignatureRegistry(g_appPinnedRegistry)) {
+            g_appHostPinHeld = false; g_appPinnedRegistry.reset();
+        } else registryCleanupSafe = false;
+    }
+    if (!retiredOwnRegistry) {
+        if (g_appSignatureRegistry) {
+            if (!WithHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities)) registryCleanupSafe = false;
+        } else if (g_appBorrowedRegistry) {
+            if (!WithHostSignatureRegistry(g_appBorrowedRegistry, RevokeCapabilities)) registryCleanupSafe = false;
+            else if (registryCleanupSafe) g_appBorrowedRegistry.reset();
+        } else if (!WithNoHostSignatureRegistry(RevokeCapabilities)) registryCleanupSafe = false;
     }
     g_teardownFailed = !registryCleanupSafe;
     g_started = false;

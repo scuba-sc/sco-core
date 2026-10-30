@@ -74,7 +74,19 @@ bool ClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& expect
                                 void (*beforeClear)() noexcept) noexcept;
 bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected,
                                void (*callback)() noexcept) noexcept;
+bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected,
+                               void (*callback)(void*) noexcept, void* context) noexcept;
 bool WithNoHostSignatureRegistry(void (*callback)() noexcept) noexcept;
+bool WithNoHostSignatureRegistry(void (*callback)(void*) noexcept, void* context) noexcept;
+// Ownership transitions and pins are serialized. A null expected value pins absence.
+// Each successful pin must be balanced by its owner after all uses are finished;
+// install and clear refuse while any pins exist.
+bool PinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected) noexcept;
+bool UnpinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected) noexcept;
+// Clears only when expected owns the registry and exactly one pin remains. On
+// failure both ownership and the pin are retained. beforeClear must not re-enter.
+bool UnpinAndClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& expected,
+                                        void (*beforeClear)() noexcept) noexcept;
 std::shared_ptr<const SignatureSnapshot> AcquireHostSignatureSnapshot() noexcept;
 
 } // namespace sco

@@ -121,6 +121,8 @@ static void TestCaps() {
     const char* unknown[] = { "test.nope" };
     const char* withNull[] = { "test.good", nullptr };
     CHECK(sco::caps::SetFromSignatures("sig.good", good, 2) == Result::Ok && sco::caps::Has("sig.good"));
+    const auto currentSnapshot = registry->Snapshot();
+    CHECK(currentSnapshot && sco::caps::SetFromSignatures("sig.good", good, 2, *currentSnapshot) == Result::Ok);
     CHECK(sco::caps::SetFromSignatures("sig.bad", bad, 3) == Result::Ok && !sco::caps::Has("sig.bad"));
     CHECK(ReasonOf("sig.bad") == "needs test.blocked (BLOCKED)");   // first row that isn't OK
     CHECK(sco::caps::SetFromSignatures("sig.unknown", unknown, 1) == Result::Ok && !sco::caps::Has("sig.unknown"));
@@ -171,9 +173,33 @@ static void TestCaps() {
     CHECK(sco::caps::Set("fill.one_more", true) == Result::TooMany);
     CHECK(sco::caps::Set("teleport", true) == Result::Ok && sco::caps::Has("teleport"));
     CHECK(sco::caps::List(nullptr, 0) == sco::caps::kMaxCaps);
+    // A delayed writer holding the old snapshot must not overwrite a successor's caps.
+    const auto retiredSnapshot = registry->Snapshot();
+    std::atomic<int> stage{0};
+    std::atomic<int> staleResult{static_cast<int>(Result::Ok)};
+    std::thread delayed([&] {
+        stage.store(1, std::memory_order_release);
+        while (stage.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+        staleResult.store(static_cast<int>(sco::caps::SetFromSignatures("sig.good", good, 1, *retiredSnapshot)),
+                          std::memory_order_release);
+    });
+    while (stage.load(std::memory_order_acquire) != 1) std::this_thread::yield();
     CHECK(sco::ClearHostSignatureRegistry(registry, []() noexcept { ++g_clearCallbacks; sco::caps::InvalidateAll("fixture host stopped"); }));
     CHECK(g_clearCallbacks == 1 && !sco::caps::Has("teleport") && ReasonOf("teleport") == "fixture host stopped");
     CHECK(!sco::AcquireHostSignatureSnapshot());
+    CHECK(sco::InstallHostSignatureRegistry(otherRegistry, []() noexcept { sco::caps::InvalidateAll("successor installed"); }));
+    CHECK(sco::caps::Set("sig.good", false, "successor sentinel") == Result::Ok);
+    stage.store(2, std::memory_order_release);
+    delayed.join();
+    CHECK(staleResult.load(std::memory_order_acquire) == static_cast<int>(Result::Unavailable));
+    CHECK(!sco::caps::Has("sig.good") && ReasonOf("sig.good") == "successor sentinel");
+    CHECK(sco::ClearHostSignatureRegistry(otherRegistry, []() noexcept { sco::caps::InvalidateAll("successor stopped"); }));
+    CHECK(!sco::AcquireHostSignatureSnapshot());
+    CHECK(sco::caps::SetFromSignatures("sig.good", good, 1, *retiredSnapshot) == Result::Unavailable);
+    CHECK(!sco::caps::Has("sig.good") && ReasonOf("sig.good") == "successor stopped");
+    CHECK(sco::caps::Set("sig.good", true) == Result::Ok);
+    CHECK(sco::caps::SetFromSignatures("sig.good", good, 1) == Result::Unavailable);
+    CHECK(!sco::caps::Has("sig.good") && ReasonOf("sig.good") == "signature snapshot unavailable");
 }
 
 // ---- the table ------------------------------------------------------------------------------

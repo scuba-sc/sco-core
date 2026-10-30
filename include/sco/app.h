@@ -110,6 +110,16 @@ struct Platform {
     // turns it on once it no longer publishes those names itself. Builds without the game pack's
     // services (SCO_GAME_SC off, or not Windows) log "[app] game services not built" and go on.
     bool gameServices = false;
+    // The host must hold a durable barrier before game-service start and before any teardown.
+    // True certifies no in-flight/new native readers or target execution throughout that phase,
+    // while allowing safe synchronous cleanup reentry. The current quit control frame is excluded.
+    // A point-in-time observation is insufficient. Null, false or throw refuses the phase.
+    bool (*gameReadersQuiesced)(void*) = nullptr;
+    void* gameReadersContext = nullptr;
+    // Before any dependent teardown, close product admission and guarantee that product callbacks
+    // and cached users remain drained through teardown; false/throw retains all backing state.
+    bool (*beforeDependentStop)(void*) = nullptr;
+    void* beforeDependentStopContext = nullptr;
     // Start maps each native plugin from a copy of its DLL (<folder>/.reload-<n>-<entry>), as Reload
     // does, so the original can be rebuilt while the game runs. Off: a native is mapped from its own
     // file until its first Reload (on Windows that file is locked until then). A product turns it on

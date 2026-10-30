@@ -6,16 +6,21 @@
 // same offsets. Game pack, Windows only (sco_game_services).
 //
 // Game thread. Every function reads game memory, so callers run them under __try, as the
-// services do; Init() and Ready() don't.
+// services do; Init(), Reset() and Ready() don't. Init() and Reset() must run after
+// all readers of the previous binding have drained.
 #include <cstddef>
 #include <cstdint>
 
 namespace sco::game::reads {
 
 // Takes the teleport.* addresses from the resolved rows. False (and Ready() false) when any
-// teleport.* row isn't OK. Call after the host publishes its resolved snapshot.
+// teleport.* row isn't OK. Clears any previous binding and slot check before rebinding.
+// Call after the host publishes its resolved snapshot.
 bool Init();
 bool Ready();
+// Clears cached addresses and entity slot validation. Game thread, after readers have drained.
+// Low-level operations receiving game pointers do not all check Ready(); stop them before reset.
+void Reset();
 
 // Your actor and its entity; false before you've spawned.
 bool LocalPlayer(uintptr_t& actor, uintptr_t& entity);

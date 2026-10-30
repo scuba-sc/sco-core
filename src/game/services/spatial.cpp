@@ -57,6 +57,10 @@ using engine::Vector3d;
 using reads::ZoneFrame;
 
 bool             g_started = false;
+bool             g_cleanupFailed = false;
+bool             g_needsReadFinalization = false;
+bool             g_stopCompleted = true;
+void RememberCleanup(Result r) { if (r != Result::Ok) g_cleanupFailed = true; }
 engine::ZoneTree g_metadataZones; // strict, complete chains only, <= 256 observed IDs
 spatial::Snapshot g_metadata;
 engine::ZoneTree g_zones;          // cleared and refilled every tick; ids and transforms only
@@ -370,6 +374,7 @@ const sc_spatial_v1 kSpatial = {
 };
 
 void OnTick(const char*, const void*, void*) {
+    if (!g_started) return;
     RefreshZones();
     TickRelocation();
 }
@@ -377,35 +382,40 @@ void OnTick(const char*, const void*, void*) {
 }  // namespace
 
 Result Start() {
+    if (!OnGameThread()) return Result::WrongThread;
+    if (g_cleanupFailed) return Result::Failed;
     if (g_started) return Result::Ok;
+    if (g_needsReadFinalization) return Result::Unavailable;
+    g_needsReadFinalization = true;
+    g_stopCompleted = false;
     if (!reads::Init()) Log("[game] teleport.* rows not OK: teleport.spatial answers 0 (see the [core] lines)");
     if (StartGameBuild() != Result::Ok) Log("[game] game.build did not publish (image header unreadable)");
     Result r = host::ProvideGameService(SC_SPATIAL_SERVICE_NAME, SC_SPATIAL_SERVICE_VERSION, &kSpatial);
-    if (r != Result::Ok) return r;
+    if (r != Result::Ok) { StopGameBuild(); return r; }
     r = host::ProvideGameService(SC_GAME_SPATIAL_NAME, SC_GAME_SPATIAL_VERSION, &kGameSpatial);
     if (r != Result::Ok) {
         host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        StopGameBuild(); return r;
     }
     r = StartRelocation(EngineRelocationBackend());
-    if (r != Result::Ok) { WithdrawSpatial(); return r; }
+    if (r != Result::Ok) { WithdrawSpatial(); StopGameBuild(); return r; }
     r = StartSpawn();
     if (r != Result::Ok) {
         WithdrawSpatial();
-        return r;
+        StopGameBuild(); return r;
     }
     r = StartActors();
     if (r != Result::Ok) {
         StopSpawn();
         WithdrawSpatial();
-        return r;
+        StopGameBuild(); return r;
     }
     r = StartVehicles();
     if (r != Result::Ok) {
         StopActors();
         StopSpawn();
         WithdrawSpatial();
-        return r;
+        StopGameBuild(); return r;
     }
     r = StartWorld();
     if (r != Result::Ok) {
@@ -413,108 +423,116 @@ Result Start() {
         StopActors();
         StopSpawn();
         WithdrawSpatial();
-        return r;
+        StopGameBuild(); return r;
     }
     r = StartEvents();
     if (r != Result::Ok) {
+        RememberCleanup(StopEvents());
         StopWorld();
         StopVehicles();
         StopActors();
         StopSpawn();
         WithdrawSpatial();
-        return r;
+        StopGameBuild(); return r;
     }
     r = StartEntities();
     if (r != Result::Ok) {
-        StopEvents();
+        RememberCleanup(StopEntities());
+        RememberCleanup(StopEvents());
         StopWorld();
         StopVehicles();
         StopActors();
         StopSpawn();
         WithdrawSpatial();
-        return r;
+        StopGameBuild(); return r;
     }
     r = StartCreative();
     if (r != Result::Ok) {
-        StopEntities();
-        StopEvents();
+        RememberCleanup(StopCreative());
+        RememberCleanup(StopEntities());
+        RememberCleanup(StopEvents());
         StopWorld();
         StopVehicles();
         StopActors();
         StopSpawn();
         WithdrawSpatial();
-        return r;
+        StopGameBuild(); return r;
     }
     r = StartLoadout(nullptr, ProductionLoadoutBackend()); // synchronous 1.1 stays unavailable
     if (r != Result::Ok) {
-        StopCreative(); StopEntities(); StopEvents(); StopWorld();
+        RememberCleanup(StopLoadout());
+        RememberCleanup(StopCreative()); RememberCleanup(StopEntities()); RememberCleanup(StopEvents()); StopWorld();
         StopVehicles(); StopActors(); StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        WithdrawSpatial();
+        StopGameBuild(); return r;
     }
     r = StartProductionQuantumWithDefault(SpawnReleaseHooked(), ConfigureDefaultProductionQuantum);
     if (r != Result::Ok) {
-        StopLoadout(); StopCreative(); StopEntities(); StopEvents(); StopWorld();
+        RememberCleanup(StopQuantum());
+        RememberCleanup(StopLoadout()); RememberCleanup(StopCreative()); RememberCleanup(StopEntities()); RememberCleanup(StopEvents()); StopWorld();
         StopVehicles(); StopActors(); StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        WithdrawSpatial();
+        StopGameBuild(); return r;
     }
     r = ConfigureProductionCvars();
     if(r==Result::Ok) r = StartCvars(); // native access requires explicit opt-in and resolved identities
     if (r != Result::Ok) {
-        StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
+        RememberCleanup(StopQuantum()); RememberCleanup(StopLoadout()); RememberCleanup(StopCreative()); RememberCleanup(StopEntities()); RememberCleanup(StopEvents());
         StopWorld(); StopVehicles(); StopActors(); StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        WithdrawSpatial();
+        StopGameBuild(); return r;
     }
     r = StartHangar(); // both capabilities held OFF pending an in-game run
     if (r != Result::Ok) {
-        StopCvars(); StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
+        StopCvars(); RememberCleanup(StopQuantum()); RememberCleanup(StopLoadout()); RememberCleanup(StopCreative()); RememberCleanup(StopEntities()); RememberCleanup(StopEvents());
         StopWorld(); StopVehicles(); StopActors(); StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        WithdrawSpatial();
+        StopGameBuild(); return r;
     }
     r = StartReputation(); // game.reputation.checks held OFF pending an in-game run
     if (r != Result::Ok) {
-        StopHangar(); StopCvars(); StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
+        StopHangar(); StopCvars(); RememberCleanup(StopQuantum()); RememberCleanup(StopLoadout()); RememberCleanup(StopCreative()); RememberCleanup(StopEntities()); RememberCleanup(StopEvents());
         StopWorld(); StopVehicles(); StopActors(); StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        WithdrawSpatial();
+        StopGameBuild(); return r;
     }
     r = StartAsop(); // game.asop.claim_timeout and game.asop.shard_persisted held OFF pending an in-game run
     if (r != Result::Ok) {
-        StopReputation(); StopHangar(); StopCvars(); StopQuantum(); StopLoadout(); StopCreative(); StopEntities(); StopEvents();
+        StopReputation(); StopHangar(); StopCvars(); RememberCleanup(StopQuantum()); RememberCleanup(StopLoadout()); RememberCleanup(StopCreative()); RememberCleanup(StopEntities()); RememberCleanup(StopEvents());
         StopWorld(); StopVehicles(); StopActors(); StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        WithdrawSpatial();
+        StopGameBuild(); return r;
     }
     r = StartContracts(); // game.contracts.stream_radius held OFF pending an in-game run
     if (r != Result::Ok) {
-        StopAsop(); StopReputation(); StopHangar(); StopCvars(); StopQuantum(); StopLoadout(); StopCreative(); StopEntities();
-        StopEvents(); StopWorld(); StopVehicles(); StopActors(); StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        StopAsop(); StopReputation(); StopHangar(); StopCvars(); RememberCleanup(StopQuantum()); RememberCleanup(StopLoadout()); RememberCleanup(StopCreative()); RememberCleanup(StopEntities());
+        RememberCleanup(StopEvents()); StopWorld(); StopVehicles(); StopActors(); StopSpawn();
+        WithdrawSpatial();
+        StopGameBuild(); return r;
     }
     r = Subscribe(host::GameOwner(), "tick", OnTick, nullptr);
     if (r != Result::Ok) {
-        StopContracts(); StopAsop(); StopReputation(); StopHangar(); StopCvars(); StopQuantum(); StopLoadout();
-        StopCreative();
-        StopEntities();
-        StopEvents();
+        StopContracts(); StopAsop(); StopReputation(); StopHangar(); StopCvars(); RememberCleanup(StopQuantum()); RememberCleanup(StopLoadout());
+        RememberCleanup(StopCreative());
+        RememberCleanup(StopEntities());
+        RememberCleanup(StopEvents());
         StopWorld();
         StopVehicles();
         StopActors();
         StopSpawn();
         WithdrawSpatial();
-        return r;
+        StopGameBuild(); return r;
     }
     r = offline::Start(); // published unavailable until a separately validated adapter exists
     if (r != Result::Ok) {
-        Unsubscribe(host::GameOwner(), "tick", OnTick);
-        StopContracts(); StopAsop(); StopReputation(); StopHangar(); StopCreative(); StopEntities(); StopEvents(); StopWorld();
+        const Result unsubscribe = Unsubscribe(host::GameOwner(), "tick", OnTick);
+        if (unsubscribe != Result::Ok && unsubscribe != Result::NotFound) g_cleanupFailed = true;
+        StopContracts(); StopAsop(); StopReputation(); StopHangar(); StopCvars();
+        RememberCleanup(StopQuantum()); RememberCleanup(StopLoadout());
+        RememberCleanup(StopCreative()); RememberCleanup(StopEntities()); RememberCleanup(StopEvents()); StopWorld();
         StopVehicles(); StopActors(); StopSpawn();
-        host::WithdrawGameService(SC_SPATIAL_SERVICE_NAME);
-        return r;
+        WithdrawSpatial();
+        StopGameBuild(); return r;
     }
     (void)StartInventory(); // game.inventory.read held OFF; a failed publish leaves the pack up
     g_started = true;
@@ -539,13 +557,28 @@ Result Start() {
     return Result::Ok;
 }
 
-void Stop() {
+Result Stop() {
+    if (!OnGameThread()) return Result::WrongThread;
+    // Do not retry cleanup after a prior failure: backing state may be uncertain.
+    if (g_cleanupFailed) return Result::Failed;
+    if (g_stopCompleted) return Result::Ok;
     StopGameBuild();
-    if (!g_started) return;
+    if (!g_started) {
+        // Startup may have failed after a provider installed hooks or retained state.
+        RememberCleanup(StopAudio());
+        RememberCleanup(StopQuantum());
+        RememberCleanup(StopLoadout());
+        RememberCleanup(StopCreative());
+        RememberCleanup(StopEntities());
+        RememberCleanup(StopEvents());
+        if (!g_cleanupFailed) g_stopCompleted = true;
+        return g_cleanupFailed ? Result::Failed : Result::Ok;
+    }
     StopInventory();
     StopContainerContents();
-    (void)StopAudio();
-    Unsubscribe(host::GameOwner(), "tick", OnTick);
+    RememberCleanup(StopAudio());
+    const Result unsubscribe = Unsubscribe(host::GameOwner(), "tick", OnTick);
+    if (unsubscribe != Result::Ok && unsubscribe != Result::NotFound) g_cleanupFailed = true;
     StopGameRules();
     datacore_live::Stop();
     StopInput();
@@ -554,12 +587,12 @@ void Stop() {
     StopReputation();
     StopHangar();
     StopCvars();
-    StopQuantum();
-    StopLoadout();
+    RememberCleanup(StopQuantum());
+    RememberCleanup(StopLoadout());
     offline::Stop();
-    StopCreative();
-    StopEntities();
-    StopEvents();
+    RememberCleanup(StopCreative());
+    RememberCleanup(StopEntities());
+    RememberCleanup(StopEvents());
     StopWorld();
     StopVehicles();
     StopActors();
@@ -569,6 +602,19 @@ void Stop() {
     g_metadataZones.Clear();
     g_zones.Clear();
     g_started = false;
+    if (!g_cleanupFailed) g_stopCompleted = true;
+    return g_cleanupFailed ? Result::Failed : Result::Ok;
+}
+
+Result FinalizeStopAfterQuiescence() {
+    if (!OnGameThread()) return Result::WrongThread;
+    if (g_cleanupFailed) return Result::Failed;
+    if (g_started || !g_stopCompleted) return Result::Unavailable;
+    if (g_needsReadFinalization) {
+        reads::Reset();
+        g_needsReadFinalization = false;
+    }
+    return Result::Ok;
 }
 
 bool Started() { return g_started; }

@@ -58,11 +58,19 @@ bool EntitySlotsOk(uintptr_t entity) {
 
 }  // namespace
 
+void Reset() {
+    g_ready = false;
+    g_addrs = {};
+    g_slotsOk = -1;
+}
+
 bool Init() {
-    TeleportAddrs a;
-    g_ready = TeleportAddresses(a);
-    if (g_ready) g_addrs = a;
-    return g_ready;
+    Reset();
+    TeleportAddrs a{};
+    if (!TeleportAddresses(a)) return false;
+    g_addrs = a;
+    g_ready = true;
+    return true;
 }
 
 bool Ready() { return g_ready; }

@@ -28,10 +28,13 @@ Result Set(const char* name, bool ready, const char* reason = nullptr);
 
 // Sets `name` ready when every listed signature row is OK. Otherwise not ready, with reason
 // "needs <id> (<STATE>)" for the first row that isn't OK, or "unknown signature <id>".
-// The overload accepting a snapshot uses the same immutable resolution for the whole check.
-// The convenience overload acquires the host snapshot; when absent, it marks the capability
-// unavailable and returns Unavailable. BadArg for a null list, n == 0, a null id or a bad
-// name; TooMany as Set.
+// The snapshot overload succeeds only for the current host's published snapshot. A retired
+// or replaced snapshot returns Unavailable without modifying capability state. The convenience
+// overload uses the current host snapshot; when no host is installed, it marks the capability
+// unavailable and returns Unavailable. Ownership is checked through the capability write, so a
+// racing host replacement returns Unavailable without overwriting its state. BadArg for a null
+// list, n == 0, a null id or a bad name; TooMany as Set. This does not guard arbitrary Set calls;
+// the host must still drain all capability writers before teardown.
 Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n);
 Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n,
                          const SignatureSnapshot& snapshot);
