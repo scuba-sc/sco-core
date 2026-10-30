@@ -1,7 +1,7 @@
 #pragma once
 // Addresses behind sc-offline's offline contracts (src/contracts.cpp there): the contract list and
 // accept, mission creation, the mission log, the mission modules a contract runs, its phases and
-// objectives, rewards and the offline mission service. Resolved by sco::ResolveAll(); the rows are
+// objectives, rewards and the offline mission service. Resolved by a host registry's Resolve(); the rows are
 // in src/game/contracts_sigs.cpp and docs/game/contracts.md lists each one with what it checks.
 // The reputation-service checks contracts patches are in sco/game/features.h
 // (contracts.reputation).
@@ -29,7 +29,7 @@ namespace sco::game::contracts {
 
 struct Capability {
     const char*        name;    // "contracts.list"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
 };
 

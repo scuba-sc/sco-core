@@ -2,17 +2,41 @@
 #include "sco/game/host.h"
 #include "../src/game/host_testing.h"
 #include "sco/datacore_service.h"
+#include "sco/signature_registry.h"
+#include "sco/caps.h"
 #include "dcb_builder.h"
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <stdexcept>
+#include <string>
 
 namespace gh = sco::game::host;
 static int failures = 0;
 #define CHECK(x) do { if (!(x)) { ++failures; std::printf("FAIL %d: %s\n", __LINE__, #x); } } while (0)
-static gh::Admission Inspect() { return {gh::Session::Offline, gh::Check::Clear, gh::Check::Clear, gh::Check::Clear}; }
+static gh::Admission evidence{gh::Session::Offline, gh::Check::Clear, gh::Check::Clear, gh::Check::Clear};
+static gh::Admission Inspect() { return evidence; }
+static std::string mode;
+static int requirementCalls = 0, capabilityCalls = 0;
+static std::shared_ptr<sco::SignatureRegistry> successor;
+static void SetCapabilities() { ++capabilityCalls; sco::caps::Set("fixture.early", true); }
+static bool EarlyRequirement(const char* name, const sco::SignatureSnapshot& snapshot, void* context) {
+    ++requirementCalls;
+    CHECK(context == &mode && std::strcmp(name, "fixture.early") == 0);
+    CHECK(snapshot.Lookup("system.quit") != nullptr);
+    const auto owner = sco::AcquireHostSignatureRegistry();
+    CHECK(owner && owner->Snapshot().get() == &snapshot);
+    if (mode == "throw") throw std::runtime_error("synthetic early requirement fault");
+    if (mode == "admission") evidence.session = gh::Session::Online;
+    if (mode == "owner") {
+        auto hostileOwner = std::const_pointer_cast<sco::SignatureRegistry>(owner); // exercise hostile ownership loss
+        CHECK(sco::ClearHostSignatureRegistry(hostileOwner, nullptr));
+        CHECK(sco::InstallHostSignatureRegistry(successor, nullptr));
+    }
+    return mode != "false";
+}
 class Base final : public sco::vfs::BaseIo {
 public:
     std::vector<uint8_t> bytes = dcb::ValuedFixture(36).Build();
@@ -21,12 +45,17 @@ public:
     size_t Read(void* p, size_t n) override { n = std::min(n, bytes.size() - at); std::memcpy(p, bytes.data() + at, n); at += n; return n; }
 };
 int main(int argc, char** argv) {
-    if (argc != 2) return 2;
+    if (argc < 2 || argc > 3) return 2;
+    mode = argc == 3 ? argv[2] : "plain";
+    if (mode != "plain" && mode != "true" && mode != "false" && mode != "null" && mode != "throw" && mode != "admission" && mode != "owner") return 2;
     const std::filesystem::path root = argv[1];
     std::filesystem::remove_all(root);
     const auto pack = root / "plugins" / "synthetic_pack";
     std::filesystem::create_directories(pack / "datacore");
-    std::ofstream(pack / "plugin.ini") << "id = synthetic_pack\nname = Synthetic pack\nversion = 1.0.0\napi = 1.1\nkind = data\n";
+    std::ofstream manifest(pack / "plugin.ini");
+    manifest << "id = synthetic_pack\nname = Synthetic pack\nversion = 1.0.0\napi = 1.1\nkind = data\n";
+    if (mode != "plain") manifest << "requires = fixture.early\n";
+    manifest.close();
     std::ofstream(pack / "datacore" / "a.toml") << "format = 1\n[[set]]\nrecord = \"ShipA\"\nfield = \"speed\"\nvalue = 7.0\n";
     uint8_t bytes[8192]{};
     sco::Image image{bytes, {bytes, 4096}, {bytes + 4096, 4096}, {}, 0, sizeof(bytes)};
@@ -37,7 +66,32 @@ int main(int argc, char** argv) {
     o.platform.pluginsEnabled = true;
     o.platform.dataCore = true;
     o.dataCoreHook = gh::DataCoreHook::External; // portable transport only; no executable patch
-    CHECK(gh::Prepare(o) == sco::Result::Ok);
+    o.platform.setCapabilities = SetCapabilities;
+    CHECK(sco::caps::Set("fixture.early", true) == sco::Result::Ok); // stale capability must not authorize early data
+    if (mode != "plain" && mode != "null") o.earlyDataRequirement = EarlyRequirement;
+    o.earlyDataContext = &mode;
+    if (mode == "owner") {
+        successor = std::make_shared<sco::SignatureRegistry>();
+        CHECK(successor->Freeze() == sco::SigRegistryStatus::Ok);
+        CHECK(successor->Resolve(image) == sco::SigRegistryStatus::Ok);
+    }
+    const sco::Result prepared = gh::Prepare(o);
+    CHECK(capabilityCalls == 0); // Prepare can precede the game thread
+    if (mode == "admission" || mode == "owner") {
+        CHECK(prepared == sco::Result::Unavailable);
+        CHECK(gh::Status().phase == gh::Phase::Failed && requirementCalls > 0);
+        CHECK(!sco::datacore::service::Started());
+        if (mode == "owner") {
+            CHECK(sco::AcquireHostSignatureRegistry() == successor);
+            CHECK(sco::ClearHostSignatureRegistry(successor, nullptr));
+        } else CHECK(!sco::AcquireHostSignatureSnapshot());
+        std::filesystem::remove_all(root);
+        std::printf("game_host_data %s: %d failures\n", mode.c_str(), failures);
+        return failures ? 1 : 0;
+    }
+    CHECK(prepared == sco::Result::Ok);
+    CHECK(!sco::caps::Has("fixture.early"));
+    CHECK((mode == "plain" || mode == "null") ? requirementCalls == 0 : requirementCalls > 0);
     CHECK(sco::datacore::service::Started());
     CHECK(sco::datacore::service::Table()->state() == SCO_DC_OPEN);
     Base base;
@@ -46,13 +100,15 @@ int main(int argc, char** argv) {
     CHECK(!gh::testing::TransformDataCore(base, o.maxDataCoreBytes + 1, splices));
     CHECK(sco::datacore::service::Table()->state() == SCO_DC_OPEN);
     CHECK(gh::testing::TransformDataCore(base, base.bytes.size(), splices));
-    CHECK(!splices.empty());
+    CHECK(splices.empty() == (mode == "false" || mode == "null" || mode == "throw"));
     CHECK(sco::datacore::service::Table()->state() == SCO_DC_LOADED);
     // Start must NOT restart/reset the service after an early loader applied the pack.
     CHECK(gh::Start() == sco::Result::Ok);
+    CHECK(capabilityCalls == 1 && sco::caps::Has("fixture.early"));
     CHECK(sco::datacore::service::Table()->state() == SCO_DC_LOADED);
     CHECK(gh::Status().dataCoreActive);
     CHECK(gh::Stop() == sco::Result::Ok);
+    CHECK(capabilityCalls == 1 && !sco::caps::Has("fixture.early"));
     CHECK(!sco::datacore::service::Started() && !gh::Status().dataCoreActive);
     std::vector<sco::vfs::Splice> late;
     CHECK(!gh::testing::TransformDataCore(base, base.bytes.size(), late));

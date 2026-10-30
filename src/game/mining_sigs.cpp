@@ -41,7 +41,7 @@ constexpr rows::Check kCellChecks[] = {
 static_assert(kCellBuilderType == 8 && kCellSpawnGate == 0x29 && kCellHarvestLod == 0x16A8 && kRuleSpawnBit == 8,
               "kCellChecks pin these offsets");
 
-SigResult ResolveCell(const Image& img) {
+SigResult ResolveCell(const Image& img, const SigResolveContext&) {
     const uint8_t* label = FindCString(img.rdata, "CBiomeBuilder::BuildLargeScaleEcoSystem");
     if (!label) return SigFail("the BuildLargeScaleEcoSystem label isn't in .rdata");
     // lea r8, [label] is 4C 8D 05: count every one, a second use of the label would be ambiguous.

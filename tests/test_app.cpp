@@ -283,8 +283,11 @@ static int g_registerCalls = 0;
 #ifndef SCO_KERNEL_ONLY
 #include "game_contracts/app_register_signatures.inc"
 #else
-static bool RegisterForTest() { ++g_registerCalls; return true; }   // kernel only: no game tables
+static sco::SigRegistrationResult RegisterForTest(sco::SignatureRegistry&) { ++g_registerCalls; return {sco::SigRegistryStatus::Ok, 0, 0}; }   // kernel only: no game tables
 #endif
+static sco::SigRegistrationResult RefuseSignatureRegistration(sco::SignatureRegistry&) {
+    return {sco::SigRegistryStatus::DuplicateId, 0, 0};
+}
 
 static void TestApp(const fs::path& sdk, const fs::path& out) {
     const fs::path root = out / "app" / "plugins";
@@ -407,8 +410,23 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     CHECK(Invoke("core1.count").text == "ticks=0");
     sco::app::Tick(1000);
     CHECK(g_coreTicks == 1 && StateOf("faulty") == State::Crashed);
+    CHECK(sco::caps::Has("teleport") && sco::AcquireHostSignatureSnapshot());
     sco::app::Stop();
     CHECK(StateOf("core1") == State::Unloaded);
+    CHECK(!sco::caps::Has("teleport") && !sco::AcquireHostSignatureSnapshot());
+
+    // Registration failure must not publish a partial registry or start plugins/caps;
+    // a new start can retry using a fresh registry.
+    pf.registerSignatures = RefuseSignatureRegistration;
+    g_events.clear();
+    CHECK(!sco::app::Start(pf));
+    CHECK(!sco::AcquireHostSignatureSnapshot() && !sco::caps::Has("teleport"));
+    CHECK(g_events.empty());
+    pf.registerSignatures = RegisterForTest;
+    CHECK(sco::app::Start(pf));
+    CHECK(sco::AcquireHostSignatureSnapshot() && sco::caps::Has("teleport"));
+    sco::app::Stop();
+    CHECK(!sco::AcquireHostSignatureSnapshot() && !sco::caps::Has("teleport"));
 
     // Plugins off: built-ins still load, no folder is read.
     pf.pluginsEnabled = false;
@@ -1399,6 +1417,51 @@ static void TestShutdownPendingFault() {
     CHECK(StateOf("stopprobe") == State::Faulted);
 }
 
+// These teardown failures intentionally latch the host and therefore run in their own processes.
+static sco::Result FixtureHostStart(void*) { return sco::Result::Ok; }
+static sco::Result FixtureHostTick(void*) { return sco::Result::Ok; }
+static sco::Result FixtureHostStopFail(void* ctx) {
+    ++*static_cast<int*>(ctx);
+    return sco::Result::Failed;
+}
+static void TestHostStopRetainsRegistry() {
+    sco::Image image{};
+    int stopCalls = 0;
+    sco::app::Platform pf;
+    pf.image = &image;
+    pf.setCapabilities = SetCaps;
+    pf.hostService = {&stopCalls, FixtureHostStart, FixtureHostTick, FixtureHostStopFail};
+    CHECK(sco::app::Start(pf));
+    const auto owner = sco::AcquireHostSignatureRegistry();
+    CHECK(owner && owner->Snapshot() && sco::caps::Has("teleport"));
+    CHECK(sco::app::Stop() == sco::Result::Failed);
+    CHECK(stopCalls == 1 && sco::AcquireHostSignatureRegistry() == owner);
+    CHECK(owner->Snapshot() && !sco::caps::Has("teleport"));
+    CHECK(!sco::app::Start(pf));
+}
+static void TestHostOwnerMismatch() {
+    sco::Image image{};
+    sco::app::Platform pf;
+    pf.image = &image;
+    pf.setCapabilities = SetCaps;
+    CHECK(sco::app::Start(pf));
+    const auto owner = sco::AcquireHostSignatureRegistry();
+    CHECK(owner && owner->Snapshot());
+    auto successor = std::make_shared<sco::SignatureRegistry>();
+    CHECK(successor->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(successor->Resolve(image) == sco::SigRegistryStatus::Ok);
+    // Synthetic handoff with no live services; actual hosts must quiesce consumers first.
+    auto hostileOwner = std::const_pointer_cast<sco::SignatureRegistry>(owner); // simulate an out-of-contract handoff
+    CHECK(sco::ClearHostSignatureRegistry(hostileOwner, nullptr));
+    CHECK(sco::InstallHostSignatureRegistry(successor, nullptr));
+    CHECK(sco::caps::Set("fixture.successor", true) == sco::Result::Ok);
+    CHECK(sco::app::Stop() == sco::Result::Failed);
+    CHECK(sco::AcquireHostSignatureRegistry() == successor && sco::caps::Has("fixture.successor"));
+    CHECK(owner->Snapshot() && hostileOwner->Resolve(image) == sco::SigRegistryStatus::HostSealed);
+    CHECK(!sco::app::Start(pf));
+    CHECK(sco::ClearHostSignatureRegistry(successor, nullptr));
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_app <sdk dir> <out dir>\n"); return 2; }
     sco::SetLogSink(Sink);
@@ -1409,6 +1472,16 @@ int main(int argc, char** argv) {
 #ifndef _WIN32
     P::SetCallGuard(SignalGuard);
 #endif
+    if (argc > 3 && std::strcmp(argv[3], "registry-stop-failure") == 0) {
+        TestHostStopRetainsRegistry();
+        std::printf("registry stop failure: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
+    if (argc > 3 && std::strcmp(argv[3], "registry-owner-mismatch") == 0) {
+        TestHostOwnerMismatch();
+        std::printf("registry owner mismatch: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
     if (argc > 3 && std::strcmp(argv[3], "shutdown-only") == 0) {
         TestRecursiveShutdown();
         TestShutdownCalloutSafety();

@@ -80,8 +80,8 @@ SigResult ResolvePortAccessor(const Image& img, const char* label) {
     return found ? SigOk(found) : SigFail("no port accessor loads the component label");
 }
 
-SigResult ResolvePortGetItem(const Image& img) { return ResolvePortAccessor(img, "IAttachableComponent"); }
-SigResult ResolvePortGetContainer(const Image& img) { return ResolvePortAccessor(img, "IItemPortContainer"); }
+SigResult ResolvePortGetItem(const Image& img, const SigResolveContext&) { return ResolvePortAccessor(img, "IAttachableComponent"); }
+SigResult ResolvePortGetContainer(const Image& img, const SigResolveContext&) { return ResolvePortAccessor(img, "IItemPortContainer"); }
 
 // Inside the UnequipItem implementation: the registration of the container's component type id.
 //   mov ecx,0FFFFh; mov rax,[rbx]; mov rdi,[rax+390h]
@@ -94,8 +94,8 @@ constexpr size_t kTypeCacheInsn = 0x0F;   // from the check: movzx eax, word ptr
 constexpr size_t kTypeLabelInsn = 0x22;   // from the check: lea r8, [rip+disp32]
 static_assert(inventory_map::kEntityComponentByType == 0x390, "kTypeCode pins this");
 
-SigResult ResolveContainerTypeId(const Image& img) {
-    const uint8_t* impl = Sig("inventory.unequip_item");
+SigResult ResolveContainerTypeId(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* impl = ctx.Sig("inventory.unequip_item");
     if (!impl) return SigFail("inventory.unequip_item missing");
     const uint8_t* code = impl + kUnequipTypeCode;
     if (!InText(img, code, kTypeCodeBytes) || !BytesMatch(code, kTypeCode)) return SigFail("the container type id registration changed shape");
@@ -115,7 +115,7 @@ constexpr size_t kTableDisp = 0x1A;
 constexpr const char* kNameCase = "48 8D 05 ?? ?? ?? ?? C3";
 constexpr uint32_t kNameBound = 0xC1;   // ids 0..0C0h
 
-SigResult ResolveItemTypeNames(const Image& img) {
+SigResult ResolveItemTypeNames(const Image& img, const SigResolveContext&) {
     SigResult r = SigPattern(img.text, kNameSwitch);
     if (r.state != SigState::Ok) return r;
     if (!img.base || !img.size) return SigFail("no image base to follow the name table from");

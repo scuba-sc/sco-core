@@ -21,7 +21,7 @@ SigResult Ambiguous(int n)   { return { SigState::Ambiguous, nullptr, n, nullptr
 
 // ---- noclip: the SFlyMode request wrapper (spawner.cpp) --------------------------------------
 
-SigResult ResolveFlyMode(const Image& img) {
+SigResult ResolveFlyMode(const Image& img, const SigResolveContext&) {
     const uint8_t* label = FindCString(img.rdata,
         "unsigned short __cdecl CSCActorActionHandler::Request<struct SCActorActionHandlerActions::SFlyMode,"
         "const enum ESCActorFlyMode&>(const enum ESCActorFlyMode &)");
@@ -45,8 +45,8 @@ SigResult ResolveFlyMode(const Image& img) {
 
 // ---- Clear NPCs: the entity system's RemoveEntity calls (npc.cpp) ----------------------------
 
-SigResult ResolveRemoveEntityCall(const Image& img) {
-    const uint8_t* es = Sig("teleport.entity_system");
+SigResult ResolveRemoveEntityCall(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* es = ctx.Sig("teleport.entity_system");
     uint8_t* sites[16] = {};
     const int n = FindPattern(img.text, "48 8B 0D ?? ?? ?? ?? 48 8B 13 48 8B 01 FF 90 ?? ?? ?? ?? 48 83 C3 08 48 3B DF 75 E4",
                               sites, 16);
@@ -68,7 +68,7 @@ SigResult ResolveRemoveEntityCall(const Image& img) {
 
 // ---- quantum: the EntityEffectSystem tag sender (quantum.cpp) --------------------------------
 
-SigResult ResolveSendEffectTag(const Image& img) {
+SigResult ResolveSendEffectTag(const Image& img, const SigResolveContext&) {
     const uint8_t* header = FindCString(img.rdata,
         "C:\\workspace\\CryEngine\\Code\\CryEngine\\CryCommon\\Events/VFX/EntityEffectSystem.h");
     if (!header) return SigFail("the EntityEffectSystem.h path isn't in .rdata");
@@ -93,7 +93,7 @@ constexpr const char* kReputationForms[] = {
     "48 8B 0D ?? ?? ?? ?? 48 8B 01 FF 50 18 48 8B 08 4C 8B 41 58 48 8B C8 41 FF D0",
 };
 
-SigResult ResolveReputationServices(const Image& img) {
+SigResult ResolveReputationServices(const Image& img, const SigResolveContext&) {
     const uint8_t* msg = FindCString(img.rdata, "Couldn't access reputation service internal");
     const uint8_t* lea = msg ? FindRipLea(img.text, 0x4C, 0x8D, 0x05, msg) : nullptr;
     if (!lea) return SigFail("the reputation service message isn't referenced");
@@ -108,8 +108,8 @@ SigResult ResolveReputationServices(const Image& img) {
 
 // Every check site that loads the services global: form A in address order, then form B. -1 when
 // a form has more matches than the scan holds.
-int ReputationSites(const Image& img, uint8_t** out, int max) {
-    const uint8_t* services = Sig("contracts.reputation_services");
+int ReputationSites(const Image& img, uint8_t** out, int max, const SigResolveContext& ctx) {
+    const uint8_t* services = ctx.Sig("contracts.reputation_services");
     int n = 0;
     for (const char* form : kReputationForms) {
         uint8_t* sites[32] = {};
@@ -125,9 +125,9 @@ int ReputationSites(const Image& img, uint8_t** out, int max) {
 }
 
 template <int K>
-SigResult ResolveReputationCheck(const Image& img) {
+SigResult ResolveReputationCheck(const Image& img, const SigResolveContext& ctx) {
     uint8_t* sites[kReputationChecks] = {};
-    if (ReputationSites(img, sites, kReputationChecks) != kReputationChecks)
+    if (ReputationSites(img, sites, kReputationChecks, ctx) != kReputationChecks)
         return SigFail("reputation service checks: the call site count changed");
     return SigOk(sites[K - 1]);
 }
@@ -135,7 +135,7 @@ SigResult ResolveReputationCheck(const Image& img) {
 // ---- offline: the OR-loop bound (patches.cpp) ------------------------------------------------
 
 template <int K>
-SigResult ResolveOrLoop(const Image& img) {
+SigResult ResolveOrLoop(const Image& img, const SigResolveContext&) {
     uint8_t* sites[kOrLoopSites + 1] = {};
     const int n = FindPattern(img.text,
         "44 8B A4 24 E8 00 00 00 8B 8C 24 D8 00 00 00 FF C3 48 FF C6 49 81 C7 90 00 00 00 "

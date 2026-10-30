@@ -73,7 +73,7 @@ links follow from them. **Game-pack** targets exist only with `SCO_GAME_SC=ON`;
 
 | Target | Sources | Direct links |
 |---|---|---|
-| `sco_core` | `src/sco_scan.cpp`, `sco_signatures.cpp`, `sco_log_status.cpp`, `sco_pe_file.cpp`; on Windows also `sco_image_win.cpp`. No game rows | `Threads::Threads` |
+| `sco_core` | `src/sco_scan.cpp`, `sco_signatures.cpp`, `sco_signature_registry.cpp`, `sco_log_status.cpp`, `sco_pe_file.cpp`; on Windows also `sco_image_win.cpp`. No game rows | `Threads::Threads` |
 | `sco_game_sc` (game-pack) | `src/game/*.cpp` except `pak_hooks.cpp`: signature rows and `RegisterGameSignatures` | `sco_core` |
 | `sco_pak` (game-pack) | `src/game/pak_hooks.cpp`: the CryPak adapter, `sco/game/pak.h` (its rows are in `sco_game_sc`) | `sco_game_sc`, `sco_core`, `sco_hook`, `sco_vfs`, `sco_host` |
 | `sco_runtime` | `src/api/sco_tasks.cpp`, `sco_events.cpp`, `sco_commands.cpp`, `sco_services.cpp`, `sco_raw.cpp` | `Threads::Threads` |
@@ -145,6 +145,8 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 | `test_ui` | `sco.ui`: tab order, ids outside the plugin's prefix, badges, overlays, the chord grammar, conflicts and reserved chords, dispatch with arguments, unload, a fault in a draw under the loader's guard, threads registering beside frames |
 | `test_storage` | Host-owned services and `sco.storage`: key-value and the size handshake, transactions, SQL, isolation (no `ATTACH`, `PRAGMA` or `VACUUM INTO` escape), the quota, unload, threads, and a child process killed mid-transaction |
 | `test_core` | Scanners and the signature registry against a synthetic image |
+| `test_signature_registry` | Owned definitions, atomic failures, budgets, long dependency chains, immutable snapshot publication and host sealing on synthetic images |
+| `test_signature_differential` | Synthetic graph and scanner results compared with the checked-in baseline production resolver sources; not game acceptance |
 | `test_runtime` | Task queue, event bus, command registry, `Release` |
 | `test_host` | Capabilities and the `sco_api` table |
 | `test_runtime_diagnostics_snapshot` | Synthetic copied plugin/lifecycle/signature/capability metadata, registry withdrawal/exposure, short trusted tables, redaction, keyed log gaps and generation pages; no external diagnostics channel |

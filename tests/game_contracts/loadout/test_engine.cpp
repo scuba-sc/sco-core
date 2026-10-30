@@ -5,6 +5,7 @@
 #include "game/services/spawn.h"
 #include "sco/host.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include "sco/game/reads.h"
 #include "sco/game/host.h"
 #include <array>
@@ -50,12 +51,12 @@ bool Attach(uintptr_t p, uint64_t id, uint64_t behavior, uint32_t reason, uint64
     if (attachAllowed) portEntity = reinterpret_cast<uintptr_t>(&item);
     return attachAllowed;
 }
-sco::SigResult System(const sco::Image&) { return sco::SigOk(nativeSystem); }
-sco::SigResult Find(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&FindPort)); }
-sco::SigResult GetHandle(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&Handle)); }
-sco::SigResult GetNested(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&Nested)); }
-sco::SigResult Attacher(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&Attach)); }
-sco::SigResult Present(const sco::Image&) { return sco::SigOk(&player); }
+sco::SigResult System(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(nativeSystem); }
+sco::SigResult Find(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&FindPort)); }
+sco::SigResult GetHandle(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&Handle)); }
+sco::SigResult GetNested(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&Nested)); }
+sco::SigResult Attacher(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&Attach)); }
+sco::SigResult Present(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(&player); }
 const sco::SigDef rows[]{
     {"teleport.entity_system", nullptr, 0, 0, System, {}},
     {"loadout.port_by_name", nullptr, 0, 0, Find, {}},
@@ -105,8 +106,12 @@ int main() {
     portVector[0] = reinterpret_cast<uintptr_t>(&port);
     *reinterpret_cast<uintptr_t*>(reinterpret_cast<uintptr_t>(&container) + 0x88) = reinterpret_cast<uintptr_t>(portVector);
     *reinterpret_cast<uintptr_t*>(reinterpret_cast<uintptr_t>(&container) + 0x90) = reinterpret_cast<uintptr_t>(portVector + 1);
-    CHECK(sco::RegisterSignatures(rows, std::size(rows)));
-    sco::ResolveAll({});
+    auto registry = std::make_shared<sco::SignatureRegistry>();
+    const sco::SignatureTable signatureTable{rows, std::size(rows)};
+    CHECK(registry->RegisterTables(&signatureTable, 1).status == sco::SigRegistryStatus::Ok);
+    CHECK(registry->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(registry->Resolve(sco::Image{}) == sco::SigRegistryStatus::Ok);
+    CHECK(sco::InstallHostSignatureRegistry(registry, nullptr));
     SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", nullptr);
     CHECK(ProductionLoadoutBackend() == nullptr);
     SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", "1");
@@ -165,5 +170,6 @@ int main() {
     CHECK(service->status(owner, job, &report) == SCO_OK && report.state == SC_LOADOUT_JOB_FAILED);
     CHECK(attached == beforeAttach + 1 && !api->has("game.loadout.async"));
     StopLoadout(); SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", nullptr);
+    CHECK(sco::ClearHostSignatureRegistry(registry, nullptr));
     std::puts("loadout engine: real adapter spawn, pending, attach, readback, cancel and admission checks passed");
 }

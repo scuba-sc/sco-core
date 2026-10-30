@@ -42,6 +42,33 @@ std::mutex dataMutex;
 struct DataInputs { std::vector<plugins::Plugin> list; plugins::ContentIndex index; };
 std::shared_ptr<const DataInputs> dataInputs;
 std::shared_ptr<const vfs::Table> dataMounts;
+std::shared_ptr<SignatureRegistry> signatureRegistry;
+
+void InvalidateBeforeHostInstall() noexcept {
+    caps::InvalidateAll("game host preparing");
+}
+void InvalidateHostCapabilities() noexcept {
+    caps::InvalidateAll("game host stopped");
+}
+void InvalidateFailedHostCapabilities() noexcept {
+    caps::InvalidateAll("game host failed");
+}
+
+void RevokeFailedHostCapabilities() noexcept {
+    if (signatureRegistry) WithHostSignatureRegistry(signatureRegistry, InvalidateFailedHostCapabilities);
+}
+
+void ReleaseSignatureRegistry() noexcept {
+    if (signatureRegistry) ClearHostSignatureRegistry(signatureRegistry, InvalidateHostCapabilities);
+    signatureRegistry.reset();
+    resolved = false;
+}
+
+// A failed prepare can discard the registry only if no host-owned hook remains.
+void ReleaseAfterSafePrepareFailure() noexcept {
+    if (!quitInstalled.load() && !pakOwned) ReleaseSignatureRegistry();
+    else RevokeFailedHostCapabilities();
+}
 
 bool Admitted() noexcept {
     try {
@@ -49,6 +76,12 @@ bool Admitted() noexcept {
         return a.session == Session::Offline && a.antiCheat == Check::Clear &&
                a.officialNetwork == Check::Clear && a.targetProcess == Check::Clear;
     } catch (...) { return false; }
+}
+bool OwnsSignatureRegistry() noexcept {
+    return signatureRegistry && AcquireHostSignatureRegistry() == signatureRegistry;
+}
+bool AdmittedAndOwnsSignatureRegistry() noexcept {
+    return Admitted() && OwnsSignatureRegistry();
 }
 void QuitDetour(void* system, void* info, int code) {
     testing::ForwardQuit(quitOriginal, system, info, code);
@@ -62,7 +95,20 @@ Result InstallQuit() {
     quitInstalled = true;
     return Result::Ok;
 }
-int HasDataRequirement(const char* name) { return caps::Has(name) || ServiceExists(name); }
+int HasDataRequirement(const char* name) {
+    if (!name || !Admitted()) return 0;
+    const auto installed = AcquireHostSignatureRegistry();
+    if (!installed || installed != signatureRegistry) return 0;
+    if (ServiceExists(name))
+        return Admitted() && AcquireHostSignatureRegistry() == installed ? 1 : 0;
+    if (!options.earlyDataRequirement) return 0;
+    const auto snapshot = installed->Snapshot();
+    if (!snapshot) return 0;
+    try {
+        return options.earlyDataRequirement(name, *snapshot, options.earlyDataContext)
+            && Admitted() && AcquireHostSignatureRegistry() == installed ? 1 : 0;
+    } catch (...) { return 0; }
+}
 std::shared_ptr<const vfs::Table> Mounts() {
     std::lock_guard<std::mutex> hold(dataMutex);
     return dataActive.load() ? dataMounts : nullptr;
@@ -86,6 +132,8 @@ Result PrepareData() {
     po.enabled = options.platform.pluginsEnabled;
     po.has = HasDataRequirement;
     inputs->list = plugins::Discover(options.platform.pluginRoot, po);
+    // Requirement callbacks can invalidate admission or registry ownership.
+    if (!AdmittedAndOwnsSignatureRegistry()) { StopData(); return Result::Unavailable; }
     inputs->index.Build(inputs->list); // no plugin callbacks during early load
     dataInputs = std::move(inputs);
     vfs::Mount mount;
@@ -93,6 +141,7 @@ Result PrepareData() {
     mount.producer = vfs::Transform(testing::TransformDataCore);
     dataMounts = vfs::Table::Build({std::move(mount)});
     if (!dataMounts) { StopData(); return Result::Failed; }
+    if (!AdmittedAndOwnsSignatureRegistry()) { StopData(); return Result::Unavailable; }
     if (options.dataCoreHook == DataCoreHook::Required) {
         pak::Options poPak; poPak.mounts = Mounts;
         const Result pr = pak::Enable(poPak);
@@ -100,6 +149,14 @@ Result PrepareData() {
         pakOwned = true;
     }
     return Result::Ok;
+}
+Result FailPreparedAdmission(bool nativeAttempted) {
+    StopData();
+    // Native lifecycle setup may have installed hooks even if it later failed.
+    if (nativeAttempted) RevokeFailedHostCapabilities();
+    else ReleaseAfterSafePrepareFailure();
+    phase = Phase::Failed;
+    return Result::Unavailable;
 }
 }
 Result Prepare(const Options& o) {
@@ -123,36 +180,79 @@ Result Prepare(const Options& o) {
         !o.image->text.size || !o.image->rdata.base || !o.image->rdata.size) {
         phase = Phase::Idle; return Result::BadArg;
     }
+    bool dataAttempted = false;
     try {
-        if (!RegisterGameSignatures()) { phase = Phase::Failed; return Result::Failed; }
-        ResolveAll(*o.image);
+        auto candidate = std::make_shared<SignatureRegistry>(o.signatureRegistryBudgetBytes);
+        const auto registration = RegisterGameSignatures(*candidate);
+        if (registration.status != SigRegistryStatus::Ok) {
+            Log("[game-host] signature registration failed: %s (table %zu, row %zu)",
+                SigRegistryStatusName(registration.status), registration.table, registration.row);
+            phase = Phase::Failed; return Result::Failed;
+        }
+        auto status = candidate->Freeze();
+        if (status != SigRegistryStatus::Ok) {
+            Log("[game-host] signature freeze failed: %s", SigRegistryStatusName(status));
+            phase = Phase::Failed; return Result::Failed;
+        }
+        status = candidate->Resolve(*o.image);
+        if (status != SigRegistryStatus::Ok) {
+            Log("[game-host] signature resolution failed: %s", SigRegistryStatusName(status));
+            phase = Phase::Failed; return Result::Failed;
+        }
+        if (!Admitted()) { phase = Phase::Failed; return Result::Unavailable; }
+        if (!InstallHostSignatureRegistry(candidate, InvalidateBeforeHostInstall)) {
+            Log("[game-host] signature registry already owned");
+            phase = Phase::Failed; return Result::Failed;
+        }
+        signatureRegistry = std::move(candidate);
         resolved = true;
+        if (!AdmittedAndOwnsSignatureRegistry()) return FailPreparedAdmission(false);
         if (options.quit == QuitPolicy::Required) {
             const Result q = InstallQuit();
-            if (q != Result::Ok) { phase = Phase::Failed; return q; }
+            if (q != Result::Ok) { ReleaseAfterSafePrepareFailure(); phase = Phase::Failed; return q; }
         }
+        if (!AdmittedAndOwnsSignatureRegistry()) return FailPreparedAdmission(false);
+        dataAttempted = true;
         const Result d = PrepareData();
-        if (d != Result::Ok) { phase = Phase::Failed; return d; }
+        if (d != Result::Ok) { StopData(); ReleaseAfterSafePrepareFailure(); phase = Phase::Failed; return d; }
+        if (!AdmittedAndOwnsSignatureRegistry()) return FailPreparedAdmission(false);
+        bool nativeAttempted = false;
 #if defined(SCO_GAME_SERVICES)
-        if(options.nativeDataCoreReads && !services::datacore_live::PrepareProductionEngine(options.preEngineQuiesced)) {
-            StopData();phase=Phase::Failed;return Result::Unavailable;
+        if (options.nativeDataCoreReads) {
+            nativeAttempted = true;
+            if (!services::datacore_live::PrepareProductionEngine(options.preEngineQuiesced))
+                return FailPreparedAdmission(true);
         }
 #endif
+        if (!AdmittedAndOwnsSignatureRegistry()) return FailPreparedAdmission(nativeAttempted);
         detail::SetFreshInspector(options.inspect);
         phase = Phase::Prepared;
         return Result::Ok;
-    } catch (...) { StopData(); phase = Phase::Failed; return Result::Failed; }
+    } catch (...) {
+        StopData();
+        // A throwing data/hook setup can have retained native resources.
+        if (!dataAttempted) ReleaseAfterSafePrepareFailure();
+        else RevokeFailedHostCapabilities();
+        Log("[game-host] preparation failed with an exception");
+        phase = Phase::Failed; return Result::Failed;
+    }
 }
 Result Start() {
     if (phase.load() != Phase::Prepared) return Result::BadArg;
     phase = Phase::Starting;
-    if (!Admitted()) { phase = Phase::Prepared; return Result::Unavailable; }
+    if (!OwnsSignatureRegistry()) return FailPreparedAdmission(options.nativeDataCoreReads);
+    if (!Admitted()) {
+        // Preserve the existing retry on admission refusal before startup work.
+        if (!OwnsSignatureRegistry()) return FailPreparedAdmission(options.nativeDataCoreReads);
+        phase = Phase::Prepared; return Result::Unavailable;
+    }
+    if (!OwnsSignatureRegistry()) return FailPreparedAdmission(options.nativeDataCoreReads);
     detail::SetFreshAdmissionEnabled(true);
     try {
         auto platform = options.platform;
         platform.dataCore = false; // service already OPEN/LOADED; NEVER reset an early load
         platform.privateSessionAdmitted = Admitted; // exact same fail-closed admission
-        if (!app::Start(platform)) { detail::SetFreshAdmissionEnabled(false); StopData(); phase = Phase::Failed; return Result::Failed; }
+        if (!app::Start(platform)) { detail::SetFreshAdmissionEnabled(false); StopData(); RevokeFailedHostCapabilities(); phase = Phase::Failed; return Result::Failed; }
         if (dataActive) {
             auto inputs = std::make_shared<DataInputs>();
             inputs->list = app::Plugins(); inputs->index = app::Content();
@@ -161,7 +261,7 @@ Result Start() {
         }
         phase = Phase::Running;
         return Result::Ok;
-    } catch (...) { detail::SetFreshAdmissionEnabled(false); StopData(); phase = Phase::Failed; return Result::Failed; }
+    } catch (...) { detail::SetFreshAdmissionEnabled(false); StopData(); RevokeFailedHostCapabilities(); phase = Phase::Failed; return Result::Failed; }
 }
 Result Tick(uint32_t nowMs) {
     if (phase.load() != Phase::Running) return Result::Unavailable;
@@ -195,8 +295,14 @@ Result Stop() {
         pakOwned=false;
     }
     { std::lock_guard<std::mutex> hold(dataMutex); dataInputs.reset(); dataMounts.reset(); }
-    app::Stop(); // service withdrawal AFTER plugin unload, as in app's lifecycle
+    // A refusal or failed provider teardown may leave consumers alive. Retain the
+    // registry and fail the host instead of dropping their published snapshot.
+    Result stopped = Result::Failed;
+    try { stopped = app::Stop(); } // service withdrawal AFTER plugin unload
+    catch (...) { Log("[game-host] app stop failed with an exception"); }
+    if (stopped != Result::Ok) { RevokeFailedHostCapabilities(); phase = Phase::Failed; return stopped; }
     dataActive = false;
+    ReleaseSignatureRegistry();
     phase = Phase::Stopped;
     return Result::Ok;
 }

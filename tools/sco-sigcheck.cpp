@@ -10,10 +10,12 @@
 #include "sco/log.h"
 #include "sco/pe_file.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <new>
 #include <regex>
 #include <string>
 
@@ -48,25 +50,46 @@ int main(int argc, char** argv) {
     if (!file.Load(exe)) { std::fprintf(stderr, "%s: %s\n", exe, file.error.c_str()); return 2; }
     std::printf("image: timestamp 0x%08x, size 0x%x, preferred base 0x%llx\n", file.img.timestamp, file.img.size,
                 static_cast<unsigned long long>(file.preferredBase));
-    if (!sco::game::RegisterGameSignatures()) return 2;
-    sco::ResolveAll(file.img);
-    sco::LogSignatureReport(false);
-
-    const auto names = catalog ? ReadCatalog(catalog) : std::map<uint32_t, std::string>{};
-    if (catalog) std::printf("catalog: %zu entries from %s (labels only)\n", names.size(), catalog);
-    bool allOk = true;
-    for (size_t i = 0; i < sco::SignatureCount(); ++i) {
-        const sco::SigResult& r = sco::SignatureResult(i);
-        allOk &= r.state == sco::SigState::Ok;
-        if (!verbose && r.state != sco::SigState::Ok) continue;
-        std::string label;
-        if (r.at) {
-            auto it = names.find(file.Rva(r.at));
-            if (it != names.end()) label = "  = " + it->second;
+    try {
+        sco::SignatureRegistry registry;
+        const auto registration = sco::game::RegisterGameSignatures(registry);
+        if (registration.status != sco::SigRegistryStatus::Ok) {
+            std::fprintf(stderr, "signature registration failed at table %zu row %zu: %s\n",
+                         registration.table, registration.row, sco::SigRegistryStatusName(registration.status));
+            return 2;
         }
-        std::printf("%-8s %-36s %s%s\n", sco::SigStateName(r.state), sco::SignatureDef(i)->id,
-                    r.at ? ("0x" + [&] { char b[16]; std::snprintf(b, sizeof(b), "%x", file.Rva(r.at)); return std::string(b); }()).c_str() : "-",
-                    label.c_str());
+        auto status = registry.Freeze();
+        if (status == sco::SigRegistryStatus::Ok) status = registry.Resolve(file.img);
+        if (status != sco::SigRegistryStatus::Ok) {
+            std::fprintf(stderr, "signature resolution failed: %s\n", sco::SigRegistryStatusName(status));
+            return 2;
+        }
+        const auto snapshot = registry.Snapshot();
+        if (!snapshot) { std::fprintf(stderr, "signature snapshot unavailable\n"); return 2; }
+        sco::LogSignatureReport(*snapshot, false);
+
+        const auto names = catalog ? ReadCatalog(catalog) : std::map<uint32_t, std::string>{};
+        if (catalog) std::printf("catalog: %zu entries from %s (labels only)\n", names.size(), catalog);
+        bool allOk = true;
+        for (size_t i = 0; i < snapshot->Count(); ++i) {
+            const auto* result = snapshot->ResultAt(i);
+            const char* id = snapshot->IdAt(i);
+            if (!result || !id) { std::fprintf(stderr, "invalid signature snapshot\n"); return 2; }
+            const sco::SigResult& r = *result;
+            allOk &= r.state == sco::SigState::Ok;
+            if (!verbose && r.state != sco::SigState::Ok) continue;
+            std::string label;
+            if (r.at) {
+                auto it = names.find(file.Rva(r.at));
+                if (it != names.end()) label = "  = " + it->second;
+            }
+            std::printf("%-8s %-36s %s%s\n", sco::SigStateName(r.state), id,
+                        r.at ? ("0x" + [&] { char b[16]; std::snprintf(b, sizeof(b), "%x", file.Rva(r.at)); return std::string(b); }()).c_str() : "-",
+                        label.c_str());
+        }
+        return allOk ? 0 : 1;
+    } catch (const std::bad_alloc&) {
+        std::fprintf(stderr, "signature registry allocation failed\n");
+        return 2;
     }
-    return allOk ? 0 : 1;
 }

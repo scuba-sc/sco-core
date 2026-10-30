@@ -52,8 +52,8 @@ struct CallSpec {
 };
 
 template <const CallSpec& S>
-SigResult ResolveCall(const Image& img) {
-    const uint8_t* from = Sig(S.from);
+SigResult ResolveCall(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* from = ctx.Sig(S.from);
     if (!from) return SigFail("source row missing");
     if (!rows::InText(img, from + S.off, 5) || from[S.off] != 0xE8) return SigFail(S.why);
     const uint8_t* t = RipTarget(from + S.off, 1, 5);
@@ -90,10 +90,10 @@ constexpr Check kHelperSlotChecks[] = {
 constexpr size_t kHelperEntitySystemLoads[] = { 0x019, 0x295, 0x5CB, 0x75C, 0x8D2 };
 constexpr size_t kHelperComponentsLoad = 0x10A;
 
-const char* HelperSlots(const Image& img, const uint8_t* f) {
+const char* HelperSlots(const Image& img, const uint8_t* f, const SigResolveContext& ctx) {
     for (const Check& c : kHelperSlotChecks)
         if (!rows::InText(img, f + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(f + c.off, c.bytes)) return c.why;
-    const uint8_t* es = Sig("teleport.entity_system");
+    const uint8_t* es = ctx.Sig("teleport.entity_system");
     for (size_t off : kHelperEntitySystemLoads)
         if (!BytesMatch(f + off + 1, "8B ?? ?? ?? ?? ??") || RipTarget(f + off, 3, 7) != es)
             return "the helper's entity system loads don't read teleport.entity_system";
@@ -102,7 +102,7 @@ const char* HelperSlots(const Image& img, const uint8_t* f) {
     return nullptr;
 }
 
-SigResult ResolveLandingHelper(const Image& img) {
+SigResult ResolveLandingHelper(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* msg = FindCString(img.rdata, "Landing Area could not be found.");
     if (!msg) return SigFail("the Landing Area message isn't in .rdata");
     const uint8_t* refs[kLandingAreaRefs] = {};
@@ -112,13 +112,13 @@ SigResult ResolveLandingHelper(const Image& img) {
     const uint8_t* f = refs[0] - 0x59;
     for (const Check& c : kHelperChecks)
         if (!rows::InText(img, f + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(f + c.off, c.bytes)) return SigFail(c.why);
-    if (const char* why = HelperSlots(img, f)) return SigFail(why);
+    if (const char* why = HelperSlots(img, f, ctx)) return SigFail(why);
     return SigOk(f);
 }
 
 // The team tag is an imm8 the spawner passes back to the team category call: the row is its address.
-SigResult ResolveTeamTag(const Image&) {
-    uint8_t* f = Sig("spawn.landing_helper");
+SigResult ResolveTeamTag(const Image&, const SigResolveContext& ctx) {
+    uint8_t* f = ctx.Sig("spawn.landing_helper");
     return f ? SigOk(f + 0x50) : SigFail("source row missing");
 }
 
@@ -143,8 +143,8 @@ constexpr Check kSeatCallbackChecks[] = {
     { 0x037, "48 83 BF 58 01 00 00 00", "seat callback changed at +0x037" },   // cmp [rdi+0x158], 0
 };
 
-SigResult ResolveSeatCallback(const Image& img) {
-    const uint8_t* s = Sig("spawn.find_seat");
+SigResult ResolveSeatCallback(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* s = ctx.Sig("spawn.find_seat");
     if (!s) return SigFail("source row missing");
     if (!rows::InText(img, s + 0x21C, 7) || !BytesMatch(s + 0x21C, "48 8D 05")) return SigFail("seat picker changed at +0x21c");
     for (const Check& c : kSeatChecks)
@@ -172,9 +172,9 @@ constexpr Check kSeatInteractableChecks[] = {
     { 0x06E, "48 8B 01 FF 50 10",    "components slot 0x10 changed (+0x06e)" },   // call [rax+0x10]
 };
 
-SigResult ResolveSeatInteractable(const Image& img) {
-    const uint8_t* cb = Sig("spawn.seat_callback");
-    const uint8_t* es = Sig("teleport.entity_system");
+SigResult ResolveSeatInteractable(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* cb = ctx.Sig("spawn.seat_callback");
+    const uint8_t* es = ctx.Sig("teleport.entity_system");
     if (!cb || !es) return SigFail("source row missing");
     const Check& g = kSeatGateCheck;
     if (!rows::InText(img, cb + g.off, rows::PatternBytes(g.bytes)) || !BytesMatch(cb + g.off, g.bytes)) return SigFail(g.why);
@@ -201,7 +201,7 @@ constexpr CallSpec kSeatPriority{ "spawn.seat_callback", 0x0D6, "seat callback c
 
 // ---- spawner: entity lookup by name (Daymar) ----------------------------------------------------
 
-SigResult ResolveFindEntityByName(const Image& img) {
+SigResult ResolveFindEntityByName(const Image& img, const SigResolveContext&) {
     const uint8_t* fmsg = FindCString(img.rdata, "FindEntityByName_SlowDebugCodeOnly: %s");
     if (!fmsg) return SigFail("the FindEntityByName message isn't in .rdata");
     const uint8_t* refs[16] = {};
@@ -233,7 +233,7 @@ bool Contains(const uint8_t* from, const uint8_t* to, const char* pattern) {
 // name's address and passes the event's source line in r8d. Flight Ready is the one on line 0x49.
 // The senders are found through their references to the file name string rather than by a fixed byte
 // pattern, because game updates keep adding events with identical code.
-SigResult ResolveFlightReady(const Image& img) {
+SigResult ResolveFlightReady(const Image& img, const SigResolveContext&) {
     const Section& text = img.text;
     const uint8_t* header = FindCString(img.rdata, "C:\\workspace\\CryEngine\\Code\\CryEngine\\CryCommon\\Events/ISC/Dashboards.h");
     if (!header) return SigFail("the Dashboards.h path isn't in .rdata");
@@ -265,7 +265,7 @@ SigResult ResolveFlightReady(const Image& img) {
 
 // ---- spawner: noclip's fly speed -----------------------------------------------------------------
 
-SigResult ResolveFlySpeed(const Image& img) {
+SigResult ResolveFlySpeed(const Image& img, const SigResolveContext&) {
     const uint8_t* speedName = FindCString(img.rdata, "g_FlyModeSpeedScaler");
     if (!speedName) return SigFail("g_FlyModeSpeedScaler isn't in .rdata");
     const uint8_t* refs[16] = {};
@@ -284,7 +284,7 @@ SigResult ResolveFlySpeed(const Image& img) {
 
 // ---- spawner: god mode ---------------------------------------------------------------------------
 
-SigResult ResolveGodModeCall(const Image& img) {
+SigResult ResolveGodModeCall(const Image& img, const SigResolveContext&) {
     const uint8_t* godMsg = FindCString(img.rdata, "Actor [$$] has changed GodMode State from [$$] to [$$]");
     if (!godMsg) return SigFail("the GodMode State message isn't in .rdata");
     SigResult r = SigPattern(img.text, "49 8B 8E 08 02 00 00 41 0F B6 D4 48 81 C1 F0 27 00 00 E8");
@@ -295,8 +295,8 @@ SigResult ResolveGodModeCall(const Image& img) {
     return r;
 }
 
-SigResult ResolveSetGodMode(const Image& img) {
-    const uint8_t* p = Sig("spawn.god_mode_call");
+SigResult ResolveSetGodMode(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* p = ctx.Sig("spawn.god_mode_call");
     if (!p) return SigFail("source row missing");
     const uint8_t* set = RipTarget(p + 0x12, 1, 5);
     if (!rows::InText(img, set, 0x10)) return SigFail("god mode setter outside .text");
@@ -316,7 +316,7 @@ constexpr Check kPrefabChecks[] = {
     { 0xA0, "E8",       "prefab spawn changed at +0xa0" },   // call attribute type id
 };
 
-SigResult ResolvePrefabSite(const Image& img) {
+SigResult ResolvePrefabSite(const Image& img, const SigResolveContext&) {
     const uint8_t* fmt = FindCString(img.rdata, "ObjectContainers\\%s");
     const uint8_t* ocName = FindCString(img.rdata, "ocFilename");
     if (!fmt || !ocName) return SigFail("ObjectContainers\\%s or ocFilename isn't in .rdata");
@@ -339,7 +339,7 @@ constexpr CallSpec kPrefabAttrTypeId{ "spawn.prefab_site", 0xA0, "prefab spawn c
 
 constexpr const char* kRemoveEntityPrologue = "48 89 5C 24 08 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57";
 
-const char* DirectRemoveExtra(const Image& img, const uint8_t* at) {
+const char* DirectRemoveExtra(const Image& img, const uint8_t* at, const SigResolveContext&) {
     const uint8_t* fn = FunctionStart(img, at);
     if (!fn) return "no .pdata entry for the internal remove call";
     return at - fn < 0x700 ? nullptr : "the internal remove call is past +0x700 of its function";
@@ -347,8 +347,8 @@ const char* DirectRemoveExtra(const Image& img, const uint8_t* at) {
 constexpr FnSpec kDirectRemoveCall{ "48 8B D3 49 8B CD E8 ?? ?? ?? ?? 84 C0 74 0A 49 23 DC 81 4B 08 00 10 00 00",
                                     nullptr, 0, DirectRemoveExtra };
 
-SigResult ResolveRemoveEntity(const Image& img) {
-    const uint8_t* call = Sig("npc.direct_remove_call");
+SigResult ResolveRemoveEntity(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* call = ctx.Sig("npc.direct_remove_call");
     if (!call) return SigFail("source row missing");
     const uint8_t* fn = FunctionStart(img, call);
     if (!fn) return SigFail("no .pdata entry for the internal remove call");
@@ -380,7 +380,7 @@ constexpr Check kLoadoutChecks[] = {
     { 0x99, "FF 90",             "loadout loader changed at +0x99" },   // call [rax+load slot]
 };
 
-SigResult ResolveLoadoutLoader(const Image& img) {
+SigResult ResolveLoadoutLoader(const Image& img, const SigResolveContext&) {
     const uint8_t* folder = FindCString(img.rdata, "Scripts/Loadouts/Player");
     if (!folder) return SigFail("Scripts/Loadouts/Player isn't in .rdata");
     const uint8_t* refs[16] = {};
@@ -418,21 +418,21 @@ constexpr FnSpec kLoadoutPort{
 constexpr FnSpec kLoadoutHandle{
     "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 30 48 8D 05 ?? ?? ?? ?? 48 8B FA 48 89 44 24 40 48 8D 99 40 04 00 00 48 8B F1 E8 ?? ?? ?? ?? 44 8B 40 18",
     nullptr, 0, nullptr};
-const char* CheckLoadoutContainer(const Image& img, const uint8_t* at) {
+const char* CheckLoadoutContainer(const Image& img, const uint8_t* at, const SigResolveContext&) {
     if (!rows::InText(img, at + 0xc2, 1) || at[0xbb] != 0x4c || at[0xbc] != 0x8d || at[0xbd] != 0x05)
         return "attached-container type-name instruction changed";
     const uint8_t* name = RipTarget(at + 0xbb, 3, 7);
     const uint8_t* expected = FindCString(img.rdata, "IItemPortContainer");
     return expected && name == expected ? nullptr : "attached-container type-name changed";
 }
-SigResult ResolveLoadoutContainer(const Image& img) {
+SigResult ResolveLoadoutContainer(const Image& img, const SigResolveContext& ctx) {
     uint8_t* matches[4]{};
     const int count = FindPattern(img.text,
         "40 53 57 48 83 EC 38 48 8D 05 ?? ?? ?? ?? 48 8B F9 48 89 44 24 50 48 8D 99 40 04 00 00 E8 ?? ?? ?? ?? 8B 50 18 39 53 08 75 05 FE 43 0C EB 2D BA 01 00 00 00",
         matches, 4);
     if (count > 4) return Ambiguous(count);
     const uint8_t* found = nullptr;
-    for (int i = 0; i < count; ++i) if (!CheckLoadoutContainer(img, matches[i])) {
+    for (int i = 0; i < count; ++i) if (!CheckLoadoutContainer(img, matches[i], ctx)) {
         if (found) return Ambiguous(2);
         found = matches[i];
     }

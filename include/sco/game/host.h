@@ -3,6 +3,7 @@
 // Requires SCO_GAME_SC=ON; link sco_game_host. The shell supplies OS admission evidence,
 // paths, logging, window/message and renderer adapters. No OS policy is inferred here.
 #include "sco/app.h"
+#include <cstddef>
 #include <cstdint>
 
 namespace sco::game::host {
@@ -28,7 +29,7 @@ struct Snapshot {
 struct Options {
     uint32_t size = sizeof(Options); // C++ source contract, not frozen sco_api or a wire ABI
     Admission (*inspect)() = nullptr; // synchronous, thread-safe, non-reentrant OS evidence; exceptions refuse
-    const Image* image = nullptr;    // readable immutable original image through Prepare
+    const Image* image = nullptr;    // Image object and original bytes readable through Prepare
     QuitPolicy quit = QuitPolicy::Required; // External only when shell supplies BeforeQuit
     uint32_t tickIntervalMs = 100;    // 0 = every shell pass; <= INT32_MAX
     // platform.dataCore starts the service in Prepare, before an early engine load.
@@ -40,12 +41,24 @@ struct Options {
     // quiesced before Prepare and until it returns; late Prepare is insufficient.
     bool nativeDataCoreReads = false;
     bool preEngineQuiesced = false;
+    // 0 means allocator-limited; otherwise registry, graph and snapshot allocations
+    // share this byte budget, including snapshots retained by readers.
+    size_t signatureRegistryBudgetBytes = 0;
+    // Optional early DataCore requirement check. Null or an exception means not
+    // available. Runs synchronously during Prepare, possibly before the game thread,
+    // after admission and against the installed frozen snapshot; it must be
+    // side-effect-free and not retain the name or snapshot references. The callback
+    // and context must remain valid through Prepare.
+    bool (*earlyDataRequirement)(const char* name, const SignatureSnapshot& snapshot, void* context) = nullptr;
+    void* earlyDataContext = nullptr;
 };
 // Serialized host entries, outside loader lock/runtime callouts. Prepare may precede the game
 // thread; Start binds the game thread via app::Start. Unknown/online/EAC/unblocked-network/wrong
 // target refuses BEFORE registration/resolution, hooks, service publication or plugin callbacks.
 // All rows resolve before any later engine mutation. Missing rows remain unavailable, not guessed.
 // Options are copied; pointed-to Platform inputs retain app.h's lifetime contract.
+// Resolved addresses and installed hooks borrow the image/module and resolver provider code.
+// Keep those valid through all consumers and hooks; a retained snapshot is not an image lease.
 Result Prepare(const Options& options);
 // Re-inspects admission before any publication. Prepared only; no feature fallback tick.
 Result Start();
@@ -53,8 +66,9 @@ Result Start();
 // Unsigned elapsed time handles clock wrap. Rechecks admission BEFORE cadence or callbacks.
 // Lost admission stops the host without executing queued work. No fallback feature ticks.
 Result Tick(uint32_t nowMs);
-// Game thread. Stop cancels tasks through app::Stop; repeated stop is safe. No restart from
-// Stopped/Failed: process-lifetime signature/hook ownership requires a fresh host process.
+// Game thread. Stop cancels tasks through app::Stop; repeated stop is safe. If teardown
+// cannot complete, the host fails and retains its registry for any surviving consumers.
+// No restart from Stopped/Failed: process-lifetime hook ownership requires a fresh process.
 Result Stop();
 // Synchronous game-thread quit admission: stop BEFORE the engine may terminate the process.
 // No fast-shutdown field/vtable reads; normal and fast quit share this entry.

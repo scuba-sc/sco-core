@@ -1,7 +1,7 @@
 #pragma once
 // Addresses behind game.entities (docs/game-services.md, docs/design/game-world-spikes.md B3 and
 // B9): the entity class name, the game's "for each entity" walk (query_radius) and the two hooks
-// that see every entity stream in and out (watch). Resolved by sco::ResolveAll(); the rows are in
+// that see every entity stream in and out (watch). Resolved by a host registry's Resolve(); the rows are in
 // src/game/entities_sigs.cpp and docs/game/entities.md lists each one with what it checks.
 //
 // Rows only find addresses. Calling and hooking stay in src/game/services/entities.cpp.
@@ -16,7 +16,7 @@ namespace sco::game::entities {
 
 struct Capability {
     const char*        name;    // "entities.class_name"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
 };
 

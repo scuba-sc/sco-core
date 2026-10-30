@@ -4,6 +4,15 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- **Owned signature registry foundation** (host C++ source interface changes; the
+  frozen plain-C plugin ABI is unchanged). Tables register atomically into an
+  instance-owned registry, dependencies freeze before iterative resolution, and
+  readers acquire immutable per-image snapshots. There is no fixed row count;
+  hosts can configure a byte budget. Installed host registries are sealed against
+  re-resolution, and capability transitions are coordinated with ownership. Image
+  and resolver-code lifetimes remain the host's responsibility. Synthetic coverage
+  does not establish in-game acceptance. See [registry contract](docs/api.md#scosignaturesh-and-scosignature_registryh-the-registry).
+
 - Automatic release-candidate readiness waits instead of failing while a mandatory workflow is
   still running (every workflow triggers it as it completes, so early triggers are normal), and
   it no longer counts its own readiness run as an existing candidate: only a dispatched

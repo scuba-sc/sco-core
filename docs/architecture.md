@@ -31,9 +31,9 @@ struct SigDef {
 A row finds its address one of two ways:
 
 - **Pattern row.** `pattern` must match exactly once in `.text`. The address is the match, or, with `ripDisp`/`ripSize`, the target of a RIP-relative operand inside the match (for example the global behind `mov rax, [rip+X]`).
-- **Resolver row.** `resolve` is a function that gets the image and returns a `SigResult`. Use it when a pattern isn't enough: starting from a string the function references, checking a dozen offsets inside a function, or deriving an address from another row.
+- **Resolver row.** `resolve` gets the image and the current registry’s `SigResolveContext`, then returns a `SigResult`. Use it when a pattern isn't enough: starting from a string the function references, checking a dozen offsets inside a function, or deriving an address from another row.
 
-`needs` lists rows this row reads. A resolver may only call `sco::Sig()` on ids in its own `needs`.
+`needs` lists rows this row reads. A resolver calls `context.Sig()` only on ids in its own `needs`; it must not retain the context or throw.
 
 ### Ids
 
@@ -48,43 +48,73 @@ Each row ends up in one state (`sco::SigState`):
 | `Ok` | `OK` | Found; `Sig(id)` returns the address |
 | `Missing` | `MISSING` | Pattern row: 0 matches |
 | `Ambiguous` | `AMBIG` | Pattern row: more than one match, so none is trusted |
-| `Failed` | `FAILED` | Resolver said no, with a reason (`layout changed at +0x2b0`), or the row itself is broken (unknown need, circular need, no pattern and no resolver) |
+| `Failed` | `FAILED` | Resolver said no, with a reason (`layout changed at +0x2b0`), or the row itself is broken (unknown need, detected cycle, no pattern and no resolver) |
 | `Blocked` | `BLOCKED` | A row it needs isn't OK; this row wasn't tried |
-| `NotRun` | `NOT RUN` | `ResolveAll()` hasn't run since the row was registered |
+| `NotRun` | `NOT RUN` | The row has not been resolved in this pass |
 
 `Sig(id)` returns an address only for `Ok` rows, and `nullptr` for every other state and for unknown ids. Features never get a half-found address.
 
 ## Resolving
 
-`sco::ResolveAll(image)` clears every result, then resolves each row depth-first: a row's needs are resolved before the row itself, whatever order the tables list them in. If a need isn't OK, the row is `Blocked` and its resolver never runs, so resolvers don't have to check their needs for `nullptr`. A need on an unknown id, or a cycle, makes the row `Failed`.
+A `SignatureRegistry` owns copied definitions. Its single writer registers one or
+more tables atomically, freezes to prelink dependencies, and resolves an image.
+`RegisterTables` returns a typed error without committing any part of a failed
+batch. A failed call can retain container capacity, which remains charged to the
+registry budget. `Freeze` publishes no snapshot; `Snapshot()` is null until a
+resolve completes successfully.
 
-Calling `ResolveAll()` again re-resolves everything from scratch and gives the same answer for the same image.
+Resolution uses an explicit stack and visits rows in registration order and needs
+in their declared order. A need is resolved before its dependent; an unknown need
+makes the row `Failed`, and a non-OK need makes its dependent `Blocked` without
+calling the dependent resolver. Cycles retain the earlier resolver's observable
+semantics: a cycle detection is a failure that can be overwritten by `Blocked` as
+it propagates; do not infer that every cycle member ends `Failed`.
+
+Each successful pass publishes a new immutable snapshot. An independent unsealed
+registry may resolve a different image; an operation failure leaves its previous
+snapshot published. A snapshot lease keeps definitions, result records and copied
+reasons alive, not the image behind an address or the resolver's executable code.
+The host must keep those alive, quiesce consumers, and invalidate capabilities before
+teardown. Callback side effects are not rolled back by failed publication.
+
+Host composition seals a resolved registry before installation; it cannot re-resolve
+while or after installed. Installation and clearing serialize ownership and
+capability transitions. A fresh registry is needed for another host image. Registry
+construction can throw on allocation; register/freeze/resolve return statuses. The
+budget counts dynamic graph, index, resolution and snapshots, including retained old
+snapshots; zero means allocator-limited. Fixed control objects, allocator overhead,
+images and callback allocations are outside this accounting.
 
 ## The report
 
-`sco::LogSignatureReport(false)` writes:
+`sco::LogSignatureReport(*snapshot, false)` writes:
 
 ```
 [core] signatures: 4/5 OK
 [core] FAILED   teleport.to_camera (layout changed at +0x2b0)
 ```
 
-The first line always appears. Then one line per row that isn't OK, in registration order. `LogSignatureReport(true)` also lists the OK rows. In the game this goes to `mod.log`; in `sco-sigcheck` it goes to the terminal.
+The first line always appears. Then one line per row that isn't OK, in registration order. `LogSignatureReport(*snapshot, true)` also lists the OK rows. In the game this goes to `mod.log`; in `sco-sigcheck` it goes to the terminal.
 
 ## Startup
 
-In sc-offline (`src/dllmain.cpp`), after the offline patches are applied:
+A host may have `sco::app::Start` create, freeze, resolve and install the game
+pack against the original image. The image and callback code must remain valid until
+dependent services have stopped and their uses of addresses are drained:
 
 ```cpp
-sco::SetLogSink(ForwardCoreLog);                         // sco-core lines go to mod.log
-sco::game::RegisterGameSignatures();                     // all game tables, once
-sco::ResolveAll(sco::ModuleImage());                     // the running StarCitizen.exe
-if (ResolveTeleportApi()) { ... }                        // features read their rows
-...
-sco::LogSignatureReport(false);                          // one block in mod.log
+sco::SetLogSink(ForwardCoreLog);
+sco::app::Platform pf;
+pf.image = &image;
+pf.registerSignatures = sco::game::RegisterGameSignatures;
+if (!sco::app::Start(pf)) { /* report setup failure */ }
 ```
 
-Then, on the first main-thread tick, `sco::app::Start` runs the host kit (capabilities, the `sco_api` table, plugins with `plugins = on`, `game.ready`) with `image` left null, since the rows are already resolved; `sco::app::Tick` runs on every tick after. See [C++ API § sco/app.h](api.md#scoapph-the-host-kit).
+With no image, a product can install its own resolved host registry before starting
+the kit. Registration, freeze, resolve or ownership failure refuses startup before
+services or plugins start. Individual missing rows are recorded in the snapshot and
+leave their capabilities unavailable. Call `app::Stop` on the game thread and keep
+the image and providers alive until teardown is safely complete. See [the host kit](api.md#scoapph-the-host-kit).
 
 **Plugin load order.** Inside `Start`, built-in plugins load first, in the product's list order. Discovered plugins (native and Lua; data packs are indexed after the loads) follow in folder order, except that a plugin loads after every plugin its `requires` names, either by id (`requires = b`) or through one of its services (`requires = b.svc`; a service name starts with its provider's id, so the id is enough to know the provider before anything runs). `Discover` resolves this once the whole folder list is known: names the host or the game pack already published (`sco.storage`, `game.vehicles`) and capabilities count as provided, a built-in's id counts too, a cycle is refused (`requires cycle: a -> b -> a`), and so is a name nobody provides (`requires service x.y: no plugin provides it`). `LoadOrder` gives the order (a stable topological sort: the lowest folder index that is free goes next) and `UnmetRequires` re-checks just before each load that every provider really is `Loaded`, so a provider that fails to load refuses its dependents instead of starting them without it. Unload runs in reverse load order. Details: [Plugins § Load order](plugins.md#load-order-and-requires).
 
@@ -98,8 +128,9 @@ Features tell the player what happened through `sco::Status("Spawning %s...", na
 
 | Call | Thread safety |
 |---|---|
-| `RegisterSignatures`, `ResolveAll` | Startup only, one thread. Not safe to run while other threads call `Sig()`. |
-| `Sig`, `SigReady`, `SigLookup`, `SignatureResult` | Safe from any thread once `ResolveAll` has returned (read-only) |
+| Registry registration, freeze, resolve and sealing | One writer per registry; do not destroy it concurrently with a call on it. |
+| Snapshot acquisition and reads | Published snapshots are immutable and can be acquired and read on other threads; a lease does not extend the image lifetime. |
+| `Sig`, `SigReady` | Read the installed host snapshot; the host must coordinate image lifetime and shutdown with users of returned addresses. |
 | `Status`, `GetStatus` | Safe from any thread (mutex) |
 | `SetLogSink`, `Log` | Safe from any thread (atomic sink); the sink itself must be thread-safe |
 | `Post`, `Subscribe`, `Unsubscribe`, `RegisterCommand`, `ListCommands`, `Invoke` | Safe from any thread. Tasks, event callbacks and commands always run on the game thread |
@@ -163,7 +194,7 @@ protected audit/security permissions and gameplay remain unverified. **Not run i
 
 | Limit | Value | What happens at the limit |
 |---|---|---|
-| Rows across all tables | 512 (`kMaxRows`) | `RegisterSignatures` logs `signature table full` and returns false |
+| Signature rows | No fixed row count; optional `SignatureRegistry` byte budget, with 0 allocator-limited | Registration or resolution returns a resource status; failed batches do not commit and a failed resolve retains the previous snapshot |
 | Needs per row | 4 (`kMaxSigNeeds`) | Compile error |
 | Pattern length | 96 bytes (`kMaxPatternBytes`) | The pattern matches nothing (`MISSING`), never a shortened match |
 | Log line | 511 characters | Truncated |
@@ -239,7 +270,7 @@ sco-core builds as a game-agnostic **kernel** plus one **game pack**, Star Citiz
 | `src/settings/settings.cpp` | `sco.settings` (`sco/settings.h`): typed `[settings]` values, kept in `sco.storage`, the read-only table, `settings.changed`, the pages the product draws |
 | `src/plugins/settings_ini.cpp` | The `[settings]` grammar of `plugin.ini` and reading, checking and writing one value (`sco/plugins.h`) |
 | `src/api/internal.h` | Callout depth and the per-module halves of `Release`, shared by `src/api/` |
-| `src/game/signatures.cpp` | `RegisterGameSignatures()`: the list of game tables |
+| `src/game/signatures.cpp` | `RegisterGameSignatures(registry)`: the authoritative game table list |
 | `src/game/services/*.cpp` | The game services and events (`spatial`, `spawn`, `actors`, `vehicles`, `world`, `entities`, `events`), the shared game reads (`reads.cpp`) and the mission script library lookup (`missions.cpp`); library `sco_game_services` |
 | `src/ipc/`, `src/net/` | `sco.ipc` and `sco.net` ([IPC](ipc.md), [multiplayer messages](net.md)) |
 | `src/game/<feature>_sigs.cpp` | One feature's rows and its typed accessor |

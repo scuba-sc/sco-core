@@ -4121,6 +4121,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.include.sco.signature_registry.h",
+      "source": "include/sco/signature_registry.h",
+      "destination": "include/sco/signature_registry.h",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.include.sco.status.h",
       "source": "include/sco/status.h",
       "destination": "include/sco/status.h",
@@ -5201,6 +5211,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.src.sco_signature_registry.cpp",
+      "source": "src/sco_signature_registry.cpp",
+      "destination": "src/sco_signature_registry.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.src.settings.settings.cpp",
       "source": "src/settings/settings.cpp",
       "destination": "src/settings/settings.cpp",
@@ -5926,6 +5946,17 @@
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
+    {"id": "source.tests.test_signature_registry.cpp", "source": "tests/test_signature_registry.cpp", "destination": "tests/test_signature_registry.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.README.md", "source": "tests/signature_differential/README.md", "destination": "tests/signature_differential/README.md", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.scenarios.cpp", "source": "tests/signature_differential/scenarios.cpp", "destination": "tests/signature_differential/scenarios.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.run.py", "source": "tests/signature_differential/run.py", "destination": "tests/signature_differential/run.py", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.baseline.include.sco.scan.h", "source": "tests/signature_differential/baseline/include/sco/scan.h", "destination": "tests/signature_differential/baseline/include/sco/scan.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.baseline.include.sco.log.h", "source": "tests/signature_differential/baseline/include/sco/log.h", "destination": "tests/signature_differential/baseline/include/sco/log.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.baseline.include.sco.signatures.h", "source": "tests/signature_differential/baseline/include/sco/signatures.h", "destination": "tests/signature_differential/baseline/include/sco/signatures.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.baseline.include.sco.status.h", "source": "tests/signature_differential/baseline/include/sco/status.h", "destination": "tests/signature_differential/baseline/include/sco/status.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.baseline.src.sco_scan.cpp", "source": "tests/signature_differential/baseline/src/sco_scan.cpp", "destination": "tests/signature_differential/baseline/src/sco_scan.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.baseline.src.sco_log_status.cpp", "source": "tests/signature_differential/baseline/src/sco_log_status.cpp", "destination": "tests/signature_differential/baseline/src/sco_log_status.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.signature_differential.baseline.src.sco_signatures.cpp", "source": "tests/signature_differential/baseline/src/sco_signatures.cpp", "destination": "tests/signature_differential/baseline/src/sco_signatures.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {
       "id": "source.tests.test_hook.cpp",
       "source": "tests/test_hook.cpp",

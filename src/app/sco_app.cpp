@@ -41,7 +41,11 @@ namespace {
 
 bool                         g_started = false;
 bool                         g_stopping = false;
+bool                         g_teardownFailed = false;
 bool                         g_hostServiceStarted = false;
+std::shared_ptr<SignatureRegistry> g_appSignatureRegistry;
+std::shared_ptr<const SignatureRegistry> g_appBorrowedRegistry;
+void RevokeCapabilities() noexcept { caps::InvalidateAll("signature host unavailable"); }
 Platform                     g_platform;
 std::vector<plugins::Plugin> g_list;     // never resized while ContainCallouts points at it
 plugins::ContentIndex        g_index;
@@ -366,12 +370,55 @@ void ReloadPluginInstance(plugins::Plugin& q, fs::path& copy, Result& overallRes
     }
 }
 
-void InitPlatformAndSignatures(const Platform& pf) {
+bool InitPlatformAndSignatures(const Platform& pf) {
     if (pf.image) {
-        if (pf.registerSignatures && !pf.registerSignatures()) Log("[app] the product's signature tables did not all register");
-        ResolveAll(*pf.image);
+        if (AcquireHostSignatureRegistry()) {
+            Log("[app] signature registry already owned");
+            return false;
+        }
+        try {
+            auto registry = std::make_shared<SignatureRegistry>(pf.signatureRegistryBudgetBytes);
+            if (pf.registerSignatures) {
+                const auto result = pf.registerSignatures(*registry);
+                if (result.status != SigRegistryStatus::Ok) {
+                    Log("[app] signature registration failed: %s (table %zu, row %zu)",
+                        SigRegistryStatusName(result.status), result.table, result.row);
+                    return false;
+                }
+            }
+            auto status = registry->Freeze();
+            if (status == SigRegistryStatus::Ok) status = registry->Resolve(*pf.image);
+            if (status != SigRegistryStatus::Ok) {
+                Log("[app] signature resolution failed: %s", SigRegistryStatusName(status));
+                return false;
+            }
+            if (!InstallHostSignatureRegistry(registry, RevokeCapabilities)) {
+                Log("[app] signature registry already owned");
+                return false;
+            }
+            g_appSignatureRegistry = std::move(registry);
+        } catch (...) {
+            Log("[app] signature setup failed");
+            return false;
+        }
     }
-    if (pf.setCapabilities) pf.setCapabilities();
+    if (!pf.image) g_appBorrowedRegistry = AcquireHostSignatureRegistry();
+    try { if (pf.setCapabilities) pf.setCapabilities(); }
+    catch (...) {
+        if (g_appSignatureRegistry) {
+            if (ClearHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities))
+                g_appSignatureRegistry.reset();
+        } else if (g_appBorrowedRegistry) {
+            if (WithHostSignatureRegistry(g_appBorrowedRegistry, RevokeCapabilities))
+                g_appBorrowedRegistry.reset();
+            else g_teardownFailed = true;
+        } else if (!WithNoHostSignatureRegistry(RevokeCapabilities)) {
+            g_teardownFailed = true;
+        }
+        Log("[app] capability setup failed");
+        return false;
+    }
+    return true;
 }
 
 Result StartSubsystems(const Platform& pf) {
@@ -530,7 +577,7 @@ void LoadPlugins(const Platform& pf, const sco_api* api, const plugins::Options&
 }
 
 void FinalizeStartup(const Platform& pf) {
-    if (pf.image) LogSignatureReport(false);
+    if (pf.image) { auto snapshot = AcquireHostSignatureSnapshot(); if (snapshot) LogSignatureReport(*snapshot, false); }
     plugins::LogReport(g_list, pf.pluginsEnabled);
 
     const Result r = Dispatch("game.ready", nullptr);
@@ -582,8 +629,8 @@ bool IsHostMenuPanel(const char* id) {
 }
 
 bool Start(const Platform& platform) {
-    if (g_started) {
-        Log("[app] start refused: already started");
+    if (g_started || g_teardownFailed) {
+        Log("[app] start refused: already started or teardown incomplete");
         return false;
     }
     SetGameThread();
@@ -594,7 +641,7 @@ bool Start(const Platform& platform) {
     g_platform = platform;
     const Platform& pf = g_platform;
 
-    InitPlatformAndSignatures(pf);
+    if (!InitPlatformAndSignatures(pf)) return false;
     const char* version = pf.hostVersion ? pf.hostVersion : "sco-core host";
     const sco_api* api = host::BuildApi({ version });
 
@@ -637,10 +684,11 @@ void Tick(uint32_t nowMs) {
     CopyDiagnostics(*g_lastDiagnosticTick);
 }
 
-void Stop() {
-    if (!OnGameThread()) { Log("[app] stop refused: wrong thread"); return; }
-    if (!g_started || g_stopping) return;
-    if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return; }
+Result Stop() {
+    if (!OnGameThread()) { Log("[app] stop refused: wrong thread"); return Result::WrongThread; }
+    if (!g_started) return g_teardownFailed ? Result::Failed : Result::Ok;
+    if (g_stopping) return Result::Unavailable;
+    if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return Result::Unavailable; }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
     g_diagnosticWorker.Stop(); // revoke and close BEFORE any exit/unload callout
     diagnostics::SetLogCapture(nullptr);
@@ -654,10 +702,11 @@ void Stop() {
     StopMenu();  // drain host-owned cleanup even if no subsequent Tick occurs
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
     plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts);
+    bool registryCleanupSafe = true;
     if (g_hostServiceStarted) {
         bool stopped = false;
         try { stopped = g_platform.hostService.stop(g_platform.hostService.context) == Result::Ok; } catch (...) {}
-        if (!stopped) Log("[app] host service stop failed; context must remain retained");
+        if (!stopped) { Log("[app] host service stop failed; context and signature registry must remain retained"); registryCleanupSafe = false; }
         g_hostServiceStarted = false;
     }
     for (auto& p : g_list)
@@ -679,8 +728,21 @@ void Stop() {
     host::WithdrawGameServices();
     host::WithdrawHostServices();
     plugins::ContainCallouts(nullptr);
+    if (g_appSignatureRegistry && registryCleanupSafe) {
+        if (ClearHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities)) g_appSignatureRegistry.reset();
+        else { Log("[app] signature registry ownership changed during teardown"); registryCleanupSafe = false; }
+    } else if (g_appSignatureRegistry) {
+        if (!WithHostSignatureRegistry(g_appSignatureRegistry, RevokeCapabilities)) registryCleanupSafe = false;
+    } else if (g_appBorrowedRegistry) {
+        if (!WithHostSignatureRegistry(g_appBorrowedRegistry, RevokeCapabilities)) registryCleanupSafe = false;
+        else if (registryCleanupSafe) g_appBorrowedRegistry.reset();
+    } else if (!WithNoHostSignatureRegistry(RevokeCapabilities)) {
+        registryCleanupSafe = false;
+    }
+    g_teardownFailed = !registryCleanupSafe;
     g_started = false;
     g_stopping = false;
+    return registryCleanupSafe ? Result::Ok : Result::Failed;
 }
 
 Result Reload(std::string_view id, std::string* why) {

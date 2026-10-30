@@ -15,7 +15,7 @@ namespace {
 constexpr const char* kParamsLabel = "IGameRulesParamsModule";
 constexpr const char* kSyncPrologue = "40 55 53 57 41 54 41 55 41 56 41 57 48 8B EC 48";
 
-SigResult ResolveParamsLabel(const Image& img) {
+SigResult ResolveParamsLabel(const Image& img, const SigResolveContext&) {
     const uint8_t* label = FindCString(img.rdata, kParamsLabel);
     if (!label) return SigFail("the GameRules params module label isn't in .rdata");
     if (FindCString({const_cast<uint8_t*>(label) + 1,
@@ -25,7 +25,7 @@ SigResult ResolveParamsLabel(const Image& img) {
     return SigOk(label);
 }
 
-SigResult ResolveParamsSync(const Image& img) {
+SigResult ResolveParamsSync(const Image& img, const SigResolveContext&) {
     const uint8_t* label = FindCString(img.rdata, kParamsLabel);
     if (!label) return SigFail("the GameRules params module label isn't in .rdata");
     if (!img.text.base || img.text.size < 8) return SigFail("no .text");

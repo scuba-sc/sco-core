@@ -4,8 +4,7 @@
 // close) while the DataCore loader runs. Design: docs/design/vfs-datacore.md § 3 ("The
 // game-specific part"); reference: docs/api.md § sco/game/pak.h.
 //
-//   sco::game::RegisterGameSignatures();
-//   sco::ResolveAll(image);
+//   // The host has installed a resolved snapshot and keeps its image alive.
 //   sco::game::pak::Options o;
 //   o.mounts = [] { return g_mountTable.Current(); };   // the product's sco::vfs::MountTable
 //   sco::game::pak::Enable(o);                            // detours the loader; sets "vfs.pak"
@@ -53,7 +52,7 @@ using ReadFn   = size_t (*)(uintptr_t pak, void* data, size_t length, size_t ele
 using SeekFn   = int (*)(uintptr_t pak, uintptr_t file, int offset, int mode);   // 0 = ok
 using CloseFn  = int (*)(uintptr_t pak, uintptr_t file);
 
-// What Enable hooks. Resolve fills it from the pak.* rows (after sco::ResolveAll); tests pass
+// What Enable hooks. Resolve fills it from the pak.* rows (after the host publishes its resolved snapshot); tests pass
 // their own.
 struct Targets {
     void*      loader = nullptr;   // the DataCore loader (LoaderFn)

@@ -238,6 +238,9 @@ Everything engine-specific lives in sco-core, beside the other game rows ([decis
 
 **API** (`include/sco/game/pak.h`):
 
+This historical sketch uses the former registry API. Current hosts install a
+resolved snapshot as described in [the registry reference](../api.md#scosignaturesh-and-scosignature_registryh-the-registry).
+
 ```cpp
 namespace sco::game::pak {
 enum class Scope { DataCoreLoad, AllFiles };     // AllFiles arrives with persistent hooks (plan PR 10)

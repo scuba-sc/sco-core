@@ -6,6 +6,7 @@
 #include "sco/log.h"
 #include "sco/scan.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include "sco/status.h"
 #include <cstdio>
 #include <cstring>
@@ -74,14 +75,14 @@ static void TestScan() {
     CHECK(sco::FindCString(empty, "x") == nullptr);
 }
 
-static sco::SigResult ResolveFromAnchor(const sco::Image& img) {
+static sco::SigResult ResolveFromAnchor(const sco::Image& img, const sco::SigResolveContext&) {
     const uint8_t* s = sco::FindCString(img.rdata, "HelloAnchor");
     const uint8_t* lea = s ? sco::FindRipLea(img.text, 0x48, 0x8D, 0x15, s) : nullptr;
     if (!lea) return sco::SigFail("anchor string not referenced");
     return sco::SigOk(lea);
 }
-static sco::SigResult ResolveNeedsGlobal(const sco::Image&) {
-    uint8_t* g = sco::Sig("t.global");
+static sco::SigResult ResolveNeedsGlobal(const sco::Image&, const sco::SigResolveContext& ctx) {
+    uint8_t* g = ctx.Sig("t.global");
     return g ? sco::SigOk(g + 8) : sco::SigFail("t.global missing");
 }
 
@@ -102,37 +103,44 @@ static const sco::SigDef kDup[] = { { "t.code", "90", 0, 0, nullptr, {} } };
 
 static void TestRegistry() {
     const sco::Image img = FakeImage();
-    CHECK(sco::RegisterSignatures(kRows, sizeof(kRows) / sizeof(kRows[0])));
-    CHECK(!sco::RegisterSignatures(kDup, 1));
-    CHECK(Logged("duplicate signature id t.code"));
-    CHECK(sco::SignatureCount() == sizeof(kRows) / sizeof(kRows[0]));
-    CHECK(sco::Sig("t.global") == nullptr);   // not resolved yet
-    sco::ResolveAll(img);
+    sco::SignatureRegistry registry;
+    const sco::SignatureTable table{kRows, sizeof(kRows) / sizeof(kRows[0])};
+    CHECK(registry.RegisterTables(&table, 1).status == sco::SigRegistryStatus::Ok);
+    const sco::SignatureTable duplicate{kDup, 1};
+    CHECK(registry.RegisterTables(&duplicate, 1).status == sco::SigRegistryStatus::DuplicateId);
+    CHECK(registry.Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(!registry.Snapshot());   // no result inventory is published before resolution
+    CHECK(registry.Resolve(img) == sco::SigRegistryStatus::Ok);
+    auto snapshot = registry.Snapshot();
+    CHECK(snapshot && snapshot->Count() == sizeof(kRows) / sizeof(kRows[0]));
     using S = sco::SigState;
-    auto st = [](const char* id) { const sco::SigResult* r = sco::SigLookup(id); return r ? r->state : S::NotRun; };
-    CHECK(sco::Sig("t.global") == img.rdata.base + 0x40);
-    CHECK(sco::Sig("t.code") == img.text.base + 0x10);
-    CHECK(sco::Sig("t.dependent") == img.rdata.base + 0x48);
-    CHECK(sco::Sig("t.anchor") == img.text.base + 0xC0);
-    CHECK(st("t.ambig") == S::Ambiguous && sco::SigLookup("t.ambig")->matches == 2 && !sco::Sig("t.ambig"));
+    auto lookup = [&](const char* id) { return snapshot->Lookup(id); };
+    auto st = [&](const char* id) { const sco::SigResult* r = lookup(id); return r ? r->state : S::NotRun; };
+    auto sig = [&](const char* id) { const auto* r = lookup(id); return r && r->state == S::Ok ? r->at : nullptr; };
+    CHECK(sig("t.global") == img.rdata.base + 0x40);
+    CHECK(sig("t.code") == img.text.base + 0x10);
+    CHECK(sig("t.dependent") == img.rdata.base + 0x48);
+    CHECK(sig("t.anchor") == img.text.base + 0xC0);
+    CHECK(st("t.ambig") == S::Ambiguous && lookup("t.ambig")->matches == 2 && !sig("t.ambig"));
     CHECK(st("t.missing") == S::Missing);
-    CHECK(st("t.blocked") == S::Blocked && strcmp(sco::SigLookup("t.blocked")->why, "t.missing") == 0);
+    CHECK(st("t.blocked") == S::Blocked && strcmp(lookup("t.blocked")->why, "t.missing") == 0);
     CHECK(st("t.unknown") == S::Failed);
     CHECK(st("t.loop_a") != S::Ok && st("t.loop_b") != S::Ok);
     CHECK(st("t.empty") == S::Failed);
-    CHECK(sco::SigLookup("no.such") == nullptr && !sco::SigReady("no.such"));
+    CHECK(lookup("no.such") == nullptr);
     g_lines.clear();
-    sco::LogSignatureReport(false);
+    sco::LogSignatureReport(*snapshot, false);
     CHECK(Logged("[core] signatures: 4/11 OK"));
     CHECK(Logged("[core] AMBIG    t.ambig (pattern: 2 matches)"));
     CHECK(Logged("[core] MISSING  t.missing"));
     CHECK(Logged("[core] BLOCKED  t.blocked (needs t.missing)"));
     CHECK(!Logged("OK       t.code"));
     g_lines.clear();
-    sco::LogSignatureReport(true);
+    sco::LogSignatureReport(*snapshot, true);
     CHECK(Logged("[core] OK       t.code"));
-    sco::ResolveAll(img);   // re-resolving gives the same answer
-    CHECK(sco::Sig("t.dependent") == img.rdata.base + 0x48);
+    CHECK(registry.Resolve(img) == sco::SigRegistryStatus::Ok);  // re-resolving gives the same answer
+    snapshot = registry.Snapshot();
+    CHECK(sig("t.dependent") == img.rdata.base + 0x48);
 }
 
 #ifndef SCO_KERNEL_ONLY   // the Star Citizen game pack (SCO_GAME_SC)
@@ -158,6 +166,7 @@ int main() {
     TestRegistry();
 #ifndef SCO_KERNEL_ONLY
 #include "game_contracts/core_run.inc"
+    CHECK(sco::ClearHostSignatureRegistry(g_gameRegistry, nullptr));
 #endif
     std::printf("sco-core tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

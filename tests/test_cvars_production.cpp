@@ -5,6 +5,7 @@
 #include "../src/game/services/spawn.h"
 #include "../src/game/admission.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include "sco/host.h"
 #include <sc_cvars_write.h>
 #include <array>
@@ -36,13 +37,13 @@ int32_t Get(uintptr_t p) { return reinterpret_cast<Variable*>(p)->value; }
 void Set(uintptr_t p, int32_t value) { ++setters; reinterpret_cast<Variable*>(p)->value = value; }
 uint32_t Flags(uintptr_t p) { return reinterpret_cast<Variable*>(p)->flags; }
 const char* Name(uintptr_t p) { return reinterpret_cast<Variable*>(p)->name; }
-sco::SigResult ResolveConsole(const sco::Image&) { return sco::SigOk(&console_pointer); }
-sco::SigResult ResolveLookup(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&Lookup)); }
-sco::SigResult ResolveVtable(const sco::Image&) { return sco::SigOk(variable_vtable.data()); }
-sco::SigResult ResolveGet(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&Get)); }
-sco::SigResult ResolveSet(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&Set)); }
-sco::SigResult ResolveFlags(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&Flags)); }
-sco::SigResult ResolveName(const sco::Image&) { return sco::SigOk(reinterpret_cast<void*>(&Name)); }
+sco::SigResult ResolveConsole(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(&console_pointer); }
+sco::SigResult ResolveLookup(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&Lookup)); }
+sco::SigResult ResolveVtable(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(variable_vtable.data()); }
+sco::SigResult ResolveGet(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&Get)); }
+sco::SigResult ResolveSet(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&Set)); }
+sco::SigResult ResolveFlags(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&Flags)); }
+sco::SigResult ResolveName(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(reinterpret_cast<void*>(&Name)); }
 }
 int main() {
     char previous[32768]{};
@@ -67,9 +68,14 @@ int main() {
         {"cvars.reference_int_flags", nullptr, 0, 0, ResolveFlags, {}},
         {"cvars.reference_int_name", nullptr, 0, 0, ResolveName, {}}
     };
-    CHECK(sco::RegisterSignatures(rows, std::size(rows)));
+    auto registry = std::make_shared<sco::SignatureRegistry>();
+    const sco::SignatureTable signatureTable{rows, std::size(rows)};
+    CHECK(registry->RegisterTables(&signatureTable, 1).status == sco::SigRegistryStatus::Ok);
+    CHECK(registry->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(!sco::InstallHostSignatureRegistry(registry, nullptr));
     sco::Image image{};
-    sco::ResolveAll(image);
+    CHECK(registry->Resolve(image) == sco::SigRegistryStatus::Ok);
+    CHECK(sco::InstallHostSignatureRegistry(registry, nullptr));
     gh::detail::SetFreshInspector(Inspect);
     gh::detail::SetFreshAdmissionEnabled(true);
     CHECK(gh::FreshAdmissionAllowed());
@@ -93,6 +99,7 @@ int main() {
     gh::detail::SetFreshInspector(nullptr);
     if (had_previous) SetEnvironmentVariableA("SCO_CVARS_NATIVE", previous);
     else SetEnvironmentVariableA("SCO_CVARS_NATIVE", nullptr);
+    CHECK(sco::ClearHostSignatureRegistry(registry, nullptr));
     std::printf("cvars production: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

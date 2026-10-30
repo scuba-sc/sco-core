@@ -23,7 +23,7 @@
 //
 // Start, in order:
 //   1. SetGameThread (the caller's thread)
-//   2. image set: registerSignatures() (when set) + ResolveAll(*image)
+//   2. image set: registerSignatures(registry), freeze, resolve and publish a snapshot
 //   3. setCapabilities() (after the rows are resolved, so it can use caps::SetFromSignatures)
 //   4. host::BuildApi({ hostVersion }); with dataRoot set, storage::Start (sco.storage) and, with
 //      dataCore too, datacore::service::Start (sco.datacore); widgets::Start (sco.widgets);
@@ -37,7 +37,7 @@
 //      is refused "no script runtime" when scripts is null); then the content index
 //   8. image set: LogSignatureReport(false); then LogReport
 //   9. Dispatch "game.ready"
-// Startup problems are logged and reported, never fatal: a product with no image, no plugin
+// Signature registry setup failures refuse startup. Other startup problems are logged and reported: a product with no image, no plugin
 // folder or a refused plugin still starts, and every plugin that can load does.
 // Tick also writes the owner heartbeat of every sco.ipc channel (ipc::Tick) and delivers sco.net
 // messages and events (net::Tick).
@@ -54,6 +54,7 @@
 #include "sco/runtime.h"
 #include "sco/net/control.h"
 #include "sco/scan.h"
+#include "sco/signature_registry.h"
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -82,11 +83,12 @@ struct Platform {
     size_t nBuiltins = 0;
     const plugins::ScriptRuntime* scripts = nullptr;   // sco-lua, or nullptr: lua plugins refused
     const Image* image = nullptr;                  // resolve signatures against this; nullptr skips
-    // With image set, Start calls this before ResolveAll: the product registers the signature
-    // tables of its game (Star Citizen: sco::game::RegisterGameSignatures). Null registers none, so a
-    // host for another game never scans for Star Citizen's rows. False is logged, never fatal.
-    bool (*registerSignatures)() = nullptr;
-    void (*setCapabilities)() = nullptr;           // the product sets caps after ResolveAll
+    size_t signatureRegistryBudgetBytes = 0;      // 0 uses allocator limits; see SignatureRegistry budget accounting
+    // With image set, Start builds an owned registry, invokes this to register its tables,
+    // freezes and resolves it, then installs the complete snapshot. Null registers none.
+    // Failure or an existing host registry refuses startup before services or plugins start.
+    SigRegistrationResult (*registerSignatures)(SignatureRegistry&) = nullptr;
+    void (*setCapabilities)() = nullptr;           // the product sets caps after resolution
     plugins::ModuleOps moduleOps = plugins::PlatformModuleOps();
     // The product's data folder (sc-offline: data/). Set, Start publishes the host service
     // sco.storage (sco/storage.h) with databases in <dataRoot>/storage/; empty, no storage.
@@ -104,7 +106,7 @@ struct Platform {
     // Start also publishes the Star Citizen game pack's services (sco/game/services.h: today
     // teleport.spatial 1.0) under the owner "game", before any plugin loads, and Stop withdraws
     // them after UnloadAll. They read the game through the teleport.* rows, so the product resolves
-    // them first (Platform::registerSignatures, or its own ResolveAll). Off by default: a product
+    // them first (Platform::registerSignatures, or its own registry resolution). Off by default: a product
     // turns it on once it no longer publishes those names itself. Builds without the game pack's
     // services (SCO_GAME_SC off, or not Windows) log "[app] game services not built" and go on.
     bool gameServices = false;
@@ -148,7 +150,8 @@ void Tick(uint32_t nowMs);
 // Never from DLL_PROCESS_DETACH: that runs under the loader lock, at the wrong time.
 // game.exit is best effort: a crash or a killed process never sends it (docs/framework.md,
 // Lessons).
-void Stop();
+// Returns Failed if any host service did not stop; its context and signature registry remain retained.
+Result Stop();
 
 // Every plugin of the last Start: built-ins first, then discovered folders. Stable from Start
 // to the next Start (never resized in between).

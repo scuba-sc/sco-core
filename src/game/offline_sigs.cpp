@@ -28,7 +28,7 @@ SigResult Ambiguous(int n)   { return { SigState::Ambiguous, nullptr, n, nullptr
 
 // An .rdata string the patches point code at.
 template <const char* S>
-SigResult ResolveString(const Image& img) {
+SigResult ResolveString(const Image& img, const SigResolveContext&) {
     const uint8_t* s = FindCString(img.rdata, S);
     return s ? SigOk(s) : Missing();
 }
@@ -71,7 +71,7 @@ int HandshakeSites(const Image& img, uint8_t** out, int max, bool& sameFlag) {
 }
 
 template <int K>
-SigResult ResolveHandshake(const Image& img) {
+SigResult ResolveHandshake(const Image& img, const SigResolveContext&) {
     uint8_t* sites[kHandshakeSites] = {};
     bool same = true;
     const int n = HandshakeSites(img, sites, kHandshakeSites, same);
@@ -86,7 +86,7 @@ constexpr RipSpec kIsOnlineFlag{ "offline.handshake_gate.1", 0, 3, 7 };
 
 // ---- megamap keeps record-name case ----------------------------------------------------------
 
-SigResult ResolveMegamapCall(const Image& img) {
+SigResult ResolveMegamapCall(const Image& img, const SigResolveContext&) {
     const Section& text = img.text;
     static const uint8_t kToLowerPrologue[] = { 0x4C, 0x8B, 0x09, 0x4C, 0x8B, 0xD1, 0x41, 0x0F, 0xB6, 0x01, 0x84, 0xC0 };
     const uint8_t* help = FindCString(img.rdata, "Load a map, same usage as 'megamap' cvar.");
@@ -116,7 +116,7 @@ SigResult ResolveMegamapCall(const Image& img) {
 
 // ---- boot into PU ------------------------------------------------------------------------------
 
-SigResult ResolveBootFrontend(const Image& img) {
+SigResult ResolveBootFrontend(const Image& img, const SigResolveContext&) {
     const Section& text = img.text;
     const uint8_t* frontend   = FindCString(img.rdata, "Frontend_Main");
     const uint8_t* scFrontend = FindCString(img.rdata, "SC_Frontend");
@@ -141,7 +141,7 @@ SigResult ResolveBootFrontend(const Image& img) {
 // ---- offline player data from %USER% -----------------------------------------------------------
 
 template <int K>
-SigResult ResolveOfflineDb(const Image& img) {
+SigResult ResolveOfflineDb(const Image& img, const SigResolveContext&) {
     const Section& text = img.text;
     const uint8_t* offlineDb = FindCString(img.rdata, "Libs/OfflineDB");
     if (!offlineDb) return SigFail("Libs/OfflineDB isn't in .rdata");
@@ -162,16 +162,16 @@ SigResult ResolveOfflineDb(const Image& img) {
 
 // ---- ASOP / fleet manager on the offline shard -------------------------------------------------
 
-const char* AsopGateOpenExtra(const Image&, const uint8_t* at) {
-    const uint8_t* persisted = Sig("offline.is_online_flag") + 1;
+const char* AsopGateOpenExtra(const Image&, const uint8_t* at, const SigResolveContext& ctx) {
+    const uint8_t* persisted = ctx.Sig("offline.is_online_flag") + 1;
     return RipTarget(at + 7, 3, 7) == persisted ? nullptr : "cmp at +7 doesn't read is_online_flag+1";
 }
 constexpr FnSpec kAsopGateOpen{
     "44 89 AD D0 00 00 00 44 38 2D ?? ?? ?? ?? 0F 85 ?? ?? ?? ?? 48 8B 51 08 48 8D 8D D0 00 00 00 E8", nullptr, 0,
     AsopGateOpenExtra };
 
-const char* AsopGateValidationExtra(const Image& img, const uint8_t* at) {
-    const uint8_t* persisted = Sig("offline.is_online_flag") + 1;
+const char* AsopGateValidationExtra(const Image& img, const uint8_t* at, const SigResolveContext& ctx) {
+    const uint8_t* persisted = ctx.Sig("offline.is_online_flag") + 1;
     if (RipTarget(at, 2, 7) != persisted) return "cmp at +0 doesn't read is_online_flag+1";
     const uint8_t* msg = FindCString(img.rdata, "Can only perform ASOP operations in the PU.");
     if (!msg) return "the ASOP-in-the-PU message isn't in .rdata";
@@ -183,7 +183,7 @@ constexpr FnSpec kAsopGateValidation{
 
 // ---- landing zones don't destroy spawned ships -------------------------------------------------
 
-const char* ImpoundExtra(const Image& img, const uint8_t* f) {
+const char* ImpoundExtra(const Image& img, const uint8_t* f, const SigResolveContext&) {
     const uint8_t* msg = FindCString(img.rdata, "$$: Vehicle '$$' [$$] impounded (or destroyed) by restricted area '$$' [$$]");
     const uint8_t* tag = FindCString(img.rdata, "Boundary Violation");
     if (!msg || !tag) return "the impound log strings aren't in .rdata";
@@ -205,7 +205,7 @@ constexpr char kUseService[]        = "contract_broker.use_service";
 constexpr char kUseOnlineMissions[] = "contract_broker.use_online_mission_service";
 
 template <const char* Name>
-SigResult ResolveCvarDefault(const Image& img) {
+SigResult ResolveCvarDefault(const Image& img, const SigResolveContext&) {
     const uint8_t* name = FindCString(img.rdata, Name);
     if (!name) return SigFail("the cvar name isn't in .rdata");
     uint8_t* lea = FindRipLea(img.text, 0x48, 0x8D, 0x15, name);
@@ -255,7 +255,7 @@ int SocialGroupSites(const Image& img, uint8_t** out, int max) {
 }
 
 template <int K>
-SigResult ResolveSocialGroup(const Image& img) {
+SigResult ResolveSocialGroup(const Image& img, const SigResolveContext&) {
     uint8_t* sites[kSocialGroupSites] = {};
     const int n = SocialGroupSites(img, sites, kSocialGroupSites);
     if (n < 0) return SigFail("social-group queries: the sites load different globals");
@@ -288,7 +288,7 @@ constexpr char kEcho[]      = "echo::v1::EchoService";
 // Stream function K of N for one service: every function (its .pdata start within 0x200 before
 // the reference, with the stream prologue) that references the service's lambda name.
 template <const char* Service, int K, int N>
-SigResult ResolveServiceStream(const Image& img) {
+SigResult ResolveServiceStream(const Image& img, const SigResolveContext&) {
     char name[256];
     std::snprintf(name, sizeof(name),
                   "auto __cdecl CAsyncClient<class sc::external::services::%s>::CreateClientStream::<lambda_3>::operator ()(const char *) const",
@@ -311,7 +311,7 @@ SigResult ResolveServiceStream(const Image& img) {
 
 // ---- remote console only on this PC -------------------------------------------------------------
 
-SigResult ResolveRemoteConsoleBind(const Image& img) {
+SigResult ResolveRemoteConsoleBind(const Image& img, const SigResolveContext&) {
     const uint8_t* s = FindCString(img.rdata, "Remote console listening on: %u\n");
     if (!s) return SigFail("the remote console's listening line isn't in .rdata");
     const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base);
@@ -341,7 +341,7 @@ constexpr FnSpec kInstanceGroupQuery{
     kInstanceGroupChecks, std::size(kInstanceGroupChecks), nullptr };
 constexpr RipSpec kServicesManager{ "elevator.instance_group_query", 0x5B, 3, 7 };
 
-const char* EntitlementsExtra(const Image& img, const uint8_t* f) {
+const char* EntitlementsExtra(const Image& img, const uint8_t* f, const SigResolveContext&) {
     const uint8_t* msg = FindCString(img.rdata, "QueryEntitlements failed with error: $$");
     if (!msg) return "the QueryEntitlements error line isn't in .rdata";
     return RipTarget(f + 0x55, 3, 7) == msg ? nullptr : "lea r9 at +0x55 doesn't load the QueryEntitlements error line";
@@ -353,7 +353,7 @@ constexpr FnSpec kEntitlementsResult{
     "40 55 56 41 56 48 8D AC 24 00 FF FF FF 48 81 EC 00 02 00 00 4C 8B F1 48 8B F2 48 83 C1 08 E8",
     kEntitlementsChecks, std::size(kEntitlementsChecks), EntitlementsExtra };
 
-SigResult ResolveTakeoffCommand(const Image& img) {
+SigResult ResolveTakeoffCommand(const Image& img, const SigResolveContext&) {
     const uint8_t* usage = FindCString(img.rdata,
         "Invalid arguments. Usage: g_ATC_requestTakeOff <atc_name (autocompletable)> [<ship_archetype>] [<pad_name_filter>]");
     if (!usage) return SigFail("the g_ATC_requestTakeOff usage line isn't in .rdata");
@@ -373,8 +373,8 @@ constexpr RipSpec kRequestTakingOff{ "fleet.takeoff_command", 0x190, 1, 5 };
 
 // ---- dllmain.cpp: CSystem::Quit's fast-shutdown test ---------------------------------------------
 
-SigResult ResolveQuitFastShutdown(const Image& img) {
-    uint8_t* q = Sig("system.quit");
+SigResult ResolveQuitFastShutdown(const Image& img, const SigResolveContext& ctx) {
+    uint8_t* q = ctx.Sig("system.quit");
     if (!q) return SigFail("source row missing");
     uint8_t* t = q + 0x31A;
     if (!InText(img, t, 34)) return SigFail("CSystem::Quit +0x31a outside .text");

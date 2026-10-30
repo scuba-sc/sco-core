@@ -29,7 +29,7 @@ static_assert(kStatusPredicateSlot == 0x60, "the state site's mov rdx,[rcx+60h] 
 
 bool CallTargetsEqual(const uint8_t* a, const uint8_t* b) { return RipTarget(a, 1, 5) == RipTarget(b, 1, 5); }
 
-const char* HealthExtra(const Image& img, const uint8_t* at) {
+const char* HealthExtra(const Image& img, const uint8_t* at, const SigResolveContext&) {
     const uint8_t* accessor = RipTarget(at, 1, 5);
     if (!rows::InText(img, accessor, 14) || !BytesMatch(accessor, kAccessor)) return "the status accessor changed (actor+0x208, +0x74a0)";
     if (!CallTargetsEqual(at, at + 0x1D)) return "the two status accessor calls reach different functions";
@@ -48,7 +48,7 @@ constexpr Check kStateChecks[] = {
     { 0x17, "48 8B 51 60", "the status vtable slot 0x60 predicate changed (+0x17)" },
 };
 
-const char* StateExtra(const Image& img, const uint8_t* at) {
+const char* StateExtra(const Image& img, const uint8_t* at, const SigResolveContext&) {
     const uint8_t* accessor = RipTarget(at, 1, 5);
     if (!rows::InText(img, accessor, 14) || !BytesMatch(accessor, kAccessor)) return "the status accessor changed (actor+0x208, +0x74a0)";
     return nullptr;
@@ -91,11 +91,11 @@ SigResult LabelFunction(const Image& img, const char* label, uint8_t r0, uint8_t
     return SigOk(f);
 }
 
-SigResult ResolveIsDeadConfirmed(const Image& img) {
+SigResult ResolveIsDeadConfirmed(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* lea = nullptr;
     SigResult r = LabelFunction(img, "CSCActorStatus::IsDeadConfirmed", 0x48, 0x8D, 0x05, &lea);
     if (r.state != SigState::Ok) return r;
-    const uint8_t* site = Sig("actor.state_site");
+    const uint8_t* site = ctx.Sig("actor.state_site");
     if (!site) return SigFail("actor.state_site missing");
     const uint8_t* p2 = RipTarget(site + 0x0B, 1, 5);
     if (site[0x0B] != 0xE8 || p2 != r.at) return SigFail("the state test doesn't call CSCActorStatus::IsDeadConfirmed (+0x0b)");
@@ -106,7 +106,7 @@ SigResult ResolveIsDeadConfirmed(const Image& img) {
 
 constexpr const char* kSpawnLabel = "void __cdecl SCigEventDispatcher::QueueEvent<struct SPI_Player_OnSpawn>(const struct SPI_Player_OnSpawn &)";
 
-const char* SpawnExtra(const Image& img, const uint8_t* at) {
+const char* SpawnExtra(const Image& img, const uint8_t* at, const SigResolveContext&) {
     const uint8_t* label = FindCString(img.rdata, kSpawnLabel);
     if (!label || RipTarget(at + 0x60, 3, 7) != label) return "the function doesn't load the SPI_Player_OnSpawn label at +0x60";
     const uint8_t* f = FunctionStart(img, at + 0x60);
@@ -125,7 +125,7 @@ constexpr rows::FnSpec kPlayerSpawn = {
 
 // ---- player died (B6) --------------------------------------------------------------------------
 
-SigResult ResolvePlayerDeath(const Image& img) {
+SigResult ResolvePlayerDeath(const Image& img, const SigResolveContext&) {
     const uint8_t* lea = nullptr;
     SigResult r = LabelFunction(img, "void __cdecl SCigEventDispatcher::QueueEvent<struct SPI_Player_OnDeath>(const struct SPI_Player_OnDeath &)",
                                 0x48, 0x8D, 0x05, &lea);
@@ -141,7 +141,7 @@ SigResult ResolvePlayerDeath(const Image& img) {
 
 // ---- seat transitions (B8) ---------------------------------------------------------------------
 
-SigResult ResolveSeatEnter(const Image& img) {
+SigResult ResolveSeatEnter(const Image& img, const SigResolveContext&) {
     SigResult r = LabelFunction(img, "CSCActorResultStateLinked::Enter", 0x4C, 0x8D, 0x05, nullptr);
     if (r.state != SigState::Ok) return r;
     if (!rows::InText(img, r.at, 21) || !BytesMatch(r.at, "48 89 5C 24 10 4C 89 44 24 18 55 56 57 41 54 41 55 41 56 41 57"))
@@ -149,7 +149,7 @@ SigResult ResolveSeatEnter(const Image& img) {
     return r;
 }
 
-SigResult ResolveSeatExit(const Image& img) {
+SigResult ResolveSeatExit(const Image& img, const SigResolveContext&) {
     SigResult r = LabelFunction(img, "CSCActorResultStateLinked::Exit", 0x4C, 0x8D, 0x05, nullptr);
     if (r.state != SigState::Ok) return r;
     if (!rows::InText(img, r.at, 19) || !BytesMatch(r.at, "4C 89 44 24 18 48 89 54 24 10 48 89 4C 24 08 55 53 56 57"))

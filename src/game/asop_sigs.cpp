@@ -21,7 +21,7 @@ using rows::RipSpec;
 
 // ---- terminal open (rc1) -----------------------------------------------------------------------
 
-const char* OpenExtra(const Image&, const uint8_t* f) {
+const char* OpenExtra(const Image&, const uint8_t* f, const SigResolveContext&) {
     // The server half's jmp at +0x95E must land on the exit at +0xDC0.
     if (f + asop::kOpenClientHalf + Rel32(f + asop::kOpenPatchSite + 1) != f + asop::kOpenExit)
         return "jmp at +0x95e doesn't reach +0xdc0";
@@ -43,17 +43,17 @@ constexpr RipSpec kShardPersisted{ "asop.on_request_open", 0x028, 3, 7 };
 constexpr RipSpec kClientGate{ "asop.on_request_open", 0x963, 2, 7 };
 
 // Shard gate, site 1: the pattern starts inside OnRequestOpen, at +0x21.
-const char* GateOpenExtra(const Image&, const uint8_t* at) {
-    return at == Sig("asop.on_request_open") + 0x21 ? nullptr : "not at asop.on_request_open+0x21";
+const char* GateOpenExtra(const Image&, const uint8_t* at, const SigResolveContext& ctx) {
+    return at == ctx.Sig("asop.on_request_open") + 0x21 ? nullptr : "not at asop.on_request_open+0x21";
 }
 constexpr FnSpec kGateOpen{ "44 89 AD D0 00 00 00 44 38 2D ?? ?? ?? ?? 0F 85 ?? ?? ?? ?? 48 8B 51 08 48 8D 8D D0 00 00 00 E8",
                             nullptr, 0, GateOpenExtra };
 
 // Shard gate, site 2: inside the remote-method validation that the Deliver handler calls at +0xC3.
-const char* GateValidationExtra(const Image& img, const uint8_t* at) {
+const char* GateValidationExtra(const Image& img, const uint8_t* at, const SigResolveContext& ctx) {
     const uint8_t* fn = FunctionStart(img, at);
     if (!fn) return "no .pdata entry for the gate's function";
-    return fn == Sig("asop.validate_caller") ? nullptr : "not in asop.validate_caller";
+    return fn == ctx.Sig("asop.validate_caller") ? nullptr : "not in asop.validate_caller";
 }
 constexpr FnSpec kGateValidation{ "80 3D ?? ?? ?? ?? 00 75 ?? 48 8D 44 24 60 C7 44 24 60 E3 00 00 00 48 89 44 24 70 4C 8D 0D",
                                   nullptr, 0, GateValidationExtra };
@@ -90,8 +90,8 @@ constexpr RipSpec kGame{ "asop.rm_request_deliver", 0x02C, 3, 7 };
 constexpr RipSpec kValidateCaller{ "asop.rm_request_deliver", 0x0C3, 1, 5 };
 
 // The inventory kind is an imm8 the feature reads from the game: the row is its address.
-SigResult ResolveInventoryKind(const Image&) {
-    uint8_t* d = Sig("asop.rm_request_deliver");
+SigResult ResolveInventoryKind(const Image&, const SigResolveContext& ctx) {
+    uint8_t* d = ctx.Sig("asop.rm_request_deliver");
     return d ? SigOk(d + 0x109) : SigFail("source row missing");
 }
 

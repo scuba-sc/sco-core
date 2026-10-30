@@ -6,7 +6,7 @@
 //
 // Today: teleport.spatial 1.0 (sc_spatial.h), spawn.entities 1.2 (sc_spawn.h), game.actors 1.0
 // (sc_actors.h) and game.vehicles 1.0 (sc_vehicles.h). teleport.spatial answers 0 until the
-// teleport.* rows are resolved (the product's ResolveAll before Start) and you've spawned;
+// teleport.* rows are resolved (the product publishes its resolved snapshot before Start) and you've spawned;
 // spawn.entities answers "the spawner isn't available on this game build" (and 0) unless the
 // spawn.helpers rows (sco/game/actors.h) were OK at Start too; game.actors sets the capabilities
 // game.actors.local_player, .spawn_npc and .despawn, and game.vehicles game.vehicles.seats, .seat

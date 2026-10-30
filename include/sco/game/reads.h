@@ -13,7 +13,7 @@
 namespace sco::game::reads {
 
 // Takes the teleport.* addresses from the resolved rows. False (and Ready() false) when any
-// teleport.* row isn't OK. Call after sco::ResolveAll.
+// teleport.* row isn't OK. Call after the host publishes its resolved snapshot.
 bool Init();
 bool Ready();
 

@@ -14,18 +14,23 @@ or link this adapter.
    unknown. A launcher flag or a plugin capability is not sufficient evidence.
 2. `Prepare(options)` refuses online/unknown/present evidence before registering
    any row or resolving the original image. It copies options, registers the game
-   signature tables, then resolves every row. Missing rows stay unavailable.
+   signature tables atomically, freezes and resolves them, and installs the sealed
+   registry. Missing rows stay unavailable. Signature setup or ownership failure
+   refuses preparation.
    The original image must be readable, with nonempty text/rdata; the adapter is
    not a general arbitrary-pointer validator. Prepare runs outside loader lock.
 3. On the actual game thread, `Start()` re-inspects admission and calls `app::Start`
    exactly once. Platform image/registerSignatures are rejected: resolution has a
    single owner. Other platform inputs follow `sco/app.h` lifetime rules.
 4. `Stop()` runs on the game thread, outside callouts/reload. Runtime teardown
-   retains the existing app ordering and cancellation contract. Repeated stop is
-   harmless, and wrong-thread stop cannot claim completion.
+   retains the existing app ordering and cancellation contract. The owner revokes
+   dependent capabilities and clears its registry only after safe quiescence; the
+   shell keeps the image and provider code alive until users of its addresses stop.
+   Repeated stop is harmless, and wrong-thread stop cannot claim completion.
 
-A refusal remains retryable before startup; completed/failed composition does not
-restart in the same process. Host entries must be serialized; scalar `Status()`
+Admission and input refusals before composition remain retryable. A failure that
+sets the host phase to `Failed`, including signature setup failure, does not
+restart composition in the same process. Host entries must be serialized; scalar `Status()`
 is safe to observe from other threads, not an authorization grant.
 
 ```cpp
@@ -46,6 +51,13 @@ auto started = sco::game::host::Start();
 No network socket, anti-cheat modification, process launch, proxy DLL, Windows
 message hook or renderer is created by this adapter. The shell keeps OS/render
 policy. Admission must not silently treat an inspection failure as absence.
+
+The optional `earlyDataRequirement` callback currently receives the requirement
+name, a reference to the installed immutable snapshot, and the product's context;
+it runs during `Prepare` and must be side-effect-free. A null callback or exception
+means unavailable. Its callback and context must remain valid through `Prepare`.
+This development host contract is under integration review; verify it against the
+exact candidate source before building a consumer.
 
 ## Tick adapter
 

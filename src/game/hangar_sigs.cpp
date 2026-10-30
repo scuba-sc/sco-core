@@ -36,7 +36,7 @@ constexpr char kRequestInstancePrologue[] = "48 89 5C 24 10 48 89 4C 24 08 55 56
 
 // RequestInstanceImpl: the function holding `lea r8, [rip+"IIM_RequestInstanceImpl_Requesting"]`
 // (4.10.196 references it twice, at +0xA9 and +0x2A5; every reference must be in that function).
-SigResult ResolveRequestInstance(const Image& img) {
+SigResult ResolveRequestInstance(const Image& img, const SigResolveContext&) {
     const uint8_t* msg = FindCString(img.rdata, kRequesting);
     if (!msg) return { SigState::Missing, nullptr, 0, nullptr };
     uint8_t* site = FindRipLea(img.text, 0x4C, 0x8D, 0x05, msg);

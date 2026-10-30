@@ -12,6 +12,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <iterator>
 #include <windows.h>
 
@@ -31,8 +32,10 @@ Asop   g_asop;
 bool   g_published = false;
 
 bool RowsOk(const char* const* ids, size_t n) {
+    const auto signatures = AcquireHostSignatureSnapshot();
+    if (!signatures) return false;
     for (size_t i = 0; i < n; ++i) {
-        const SigResult* s = SigLookup(ids[i]);
+        const SigResult* s = (signatures ? signatures->Lookup(ids[i]) : nullptr);
         if (!s || s->state != SigState::Ok) return false;
     }
     return true;

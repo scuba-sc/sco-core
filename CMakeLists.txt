@@ -91,7 +91,7 @@ set(SCO_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 # Pattern scanning, the signature engine, log/status and PE files (kernel).
 add_library(sco_core STATIC
-  src/sco_scan.cpp src/sco_signatures.cpp src/sco_log_status.cpp src/sco_pe_file.cpp)
+  src/sco_scan.cpp src/sco_signatures.cpp src/sco_signature_registry.cpp src/sco_log_status.cpp src/sco_pe_file.cpp)
 if(WIN32)
   target_sources(sco_core PRIVATE src/sco_image_win.cpp)
 endif()
@@ -1226,6 +1226,27 @@ if(SCO_BUILD_TESTS)
     add_test(NAME test_owned_removal COMMAND test_owned_removal)
   endif()
 
+  add_executable(test_signature_registry tests/test_signature_registry.cpp)
+  target_link_libraries(test_signature_registry PRIVATE sco_core)
+  sco_project_target(test_signature_registry)
+  add_test(NAME test_signature_registry COMMAND test_signature_registry)
+  add_executable(test_signature_baseline
+    tests/signature_differential/scenarios.cpp
+    tests/signature_differential/baseline/src/sco_signatures.cpp
+    tests/signature_differential/baseline/src/sco_scan.cpp
+    tests/signature_differential/baseline/src/sco_log_status.cpp)
+  target_compile_definitions(test_signature_baseline PRIVATE SCO_DIFFERENTIAL_BASELINE)
+  target_include_directories(test_signature_baseline PRIVATE tests/signature_differential/baseline/include)
+  target_link_libraries(test_signature_baseline PRIVATE Threads::Threads)
+  sco_project_target(test_signature_baseline)
+  add_executable(test_signature_candidate tests/signature_differential/scenarios.cpp)
+  target_link_libraries(test_signature_candidate PRIVATE sco_core)
+  sco_project_target(test_signature_candidate)
+  add_test(NAME test_signature_differential COMMAND ${Python3_EXECUTABLE}
+           ${CMAKE_CURRENT_SOURCE_DIR}/tests/signature_differential/run.py
+           --baseline-exe $<TARGET_FILE:test_signature_baseline>
+           --candidate-exe $<TARGET_FILE:test_signature_candidate>)
+
   add_executable(test_core tests/test_core.cpp)
   target_link_libraries(test_core PRIVATE sco_core)
   if(SCO_GAME_SC)
@@ -1667,6 +1688,9 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_game_host_data PRIVATE sco_game_host)
   sco_project_target(test_game_host_data)
   add_test(NAME game_host_data COMMAND test_game_host_data "${SCO_TEST_OUT}/host-data")
+  foreach(_mode true false null throw admission owner)
+    add_test(NAME game_host_data_${_mode} COMMAND test_game_host_data "${SCO_TEST_OUT}/host-data-${_mode}" ${_mode})
+  endforeach()
   add_executable(test_game_host tests/game_host.cpp)
   target_link_libraries(test_game_host PRIVATE sco_game_host)
   sco_project_target(test_game_host)
@@ -1887,6 +1911,8 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_app)
   add_test(NAME test_app COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}")
   add_test(NAME test_shutdown_drain COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}" shutdown-only)
+  add_test(NAME app_registry_stop_failure COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}/app-stop-failure" registry-stop-failure)
+  add_test(NAME app_registry_owner_mismatch COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}/app-owner-mismatch" registry-owner-mismatch)
 
   # sco-host-sim over the SDK examples, laid out like data/plugins: <out>/sim/plugins/
   # {hello/{hello.<ext>,plugin.ini}, cpp_hello/, counter_service/, counter_panel/, greeter/,

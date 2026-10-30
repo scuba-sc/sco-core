@@ -2,7 +2,7 @@
 
 Rows that sc-offline's features used to find by scanning the game themselves, moved into sco-core (`src/game/features_sigs.cpp`, `include/sco/game/features.h`) so `sco-sigcheck` checks them against a new `StarCitizen.exe` before anyone plays. Each resolver is the old scan, moved byte for byte. Where the old scan took "the last match" or "every match", the row now insists on the count found in 4.10.196.36804, so a patch that adds or loses a site shows as a failed row.
 
-Rows only find addresses. sc-offline still writes the patches and installs the hooks, after `ResolveAll` (rows match the game's original bytes).
+Rows only find addresses. sc-offline still writes the patches and installs the hooks, after the registry has resolved and published its snapshot (rows match the game's original bytes).
 
 | Row | Found by | Checks | Capability |
 |---|---|---|---|

@@ -19,6 +19,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <sc_creative.h>
 #include <cmath>
 #include <cstdarg>
@@ -93,8 +94,10 @@ template <typename T> T Row(const char* id) { return reinterpret_cast<T>(Sig(id)
 int32_t Rel32(const uint8_t* p) { return *reinterpret_cast<const int32_t*>(p); }
 
 bool RowsOk(const char* const* ids, size_t n) {
+    const auto signatures = AcquireHostSignatureSnapshot();
+    if (!signatures) return false;
     for (size_t i = 0; i < n; ++i) {
-        const SigResult* s = SigLookup(ids[i]);
+        const SigResult* s = (signatures ? signatures->Lookup(ids[i]) : nullptr);
         if (!s || s->state != SigState::Ok) return false;
     }
     return true;

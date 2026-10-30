@@ -25,41 +25,69 @@ Patterns are hex bytes separated by spaces, with `?` or `??` for any byte: `"48 
 | `uint8_t* RipTarget(const uint8_t* insn, size_t dispOffset, size_t insnSize)` | `insn + insnSize + Rel32(insn + dispOffset)`: what a RIP-relative operand points at. `mov rax, [rip+X]` is `(insn, 3, 7)`; `call X` is `(insn, 1, 5)` |
 | `Image ModuleImage()` | Windows only: the running process's main executable |
 
-## `sco/signatures.h`: the registry
+## `sco/signatures.h` and `sco/signature_registry.h`: the registry
 
-See [How it works](architecture.md) for the model.
+The registry is an internal, source-level C++ host interface. This revision changes
+that interface; the frozen plain-C plugin ABI in `sco_api.h` is unchanged. See
+[How it works](architecture.md#resolving) for the resolution and lifetime model.
 
 ```cpp
-enum class SigState : uint8_t { NotRun, Ok, Missing, Ambiguous, Failed, Blocked };
-struct SigResult { SigState state; uint8_t* at; int matches; const char* why; };
-using  SigResolver = SigResult (*)(const Image& img);
-struct SigDef { const char* id; const char* pattern; int ripDisp; int ripSize; SigResolver resolve; const char* needs[kMaxSigNeeds]; };
+using SigResolver = SigResult (*)(const Image&, const SigResolveContext&);
+struct SignatureTable { const SigDef* rows; size_t count; };
+struct SigRegistrationResult { SigRegistryStatus status; size_t table; size_t row; };
 ```
 
 | Function | Does |
 |---|---|
-| `bool RegisterSignatures(const SigDef* rows, size_t n)` | Adds a table. False (and a log line) on a duplicate id or more than 512 rows in total; rows before the bad one stay registered. `rows` must outlive the registry (use a static array) |
-| `void ResolveAll(const Image& img)` | Resolves every row; see [Resolving](architecture.md#resolving). Startup only |
-| `uint8_t* Sig(const char* id)` | The address if the row is OK, else `nullptr` |
-| `bool SigReady(const char* id)` | `Sig(id) != nullptr` |
-| `const SigResult* SigLookup(const char* id)` | The full result, or `nullptr` for an unknown id |
-| `void LogSignatureReport(bool verbose)` | Writes the `[core]` report; `verbose` also lists OK rows |
-| `const char* SigStateName(SigState)` | `"OK"`, `"MISSING"`, `"AMBIG"`, `"FAILED"`, `"BLOCKED"`, `"NOT RUN"` |
-| `size_t SignatureCount()`, `const SigDef* SignatureDef(size_t i)`, `const SigResult& SignatureResult(size_t i)` | Walk every row in registration order (used by `sco-sigcheck`) |
+| `SignatureRegistry(size_t budgetBytes = 0)` | Creates an independent registry. The constructor may throw on allocation. Zero means allocator-limited, not a fixed row limit |
+| `RegisterTables(tables, count)` | Copies the definitions and their ID, pattern and dependency strings. All tables in the call commit together, or none do; input strings need only survive the call. The result identifies the status and, when applicable, the table and row; `kSignatureNoIndex` means no particular input row. Invalid input, a duplicate, resource exhaustion or an already frozen registry fails. A failed call may retain container capacity charged to the budget |
+| `Freeze()` | Prelinks dependencies and ends registration. An unknown dependency remains a per-row failure at resolution. Calling it again returns `Frozen` |
+| `Resolve(image)` | Resolves from scratch with iterative depth-first traversal and publishes a complete snapshot on success. Returns a status on failure; the previous snapshot remains published. A callback must not throw; exceptions are caught, but callback side effects cannot be rolled back |
+| `Snapshot()` | Acquires a `shared_ptr<const SignatureSnapshot>`, or null until the first successful resolve. `Count()`, `IdAt(i)`, `ResultAt(i)` and `Lookup(id)` expose rows in registration order or by ID; absent IDs and out-of-range indices return null |
+| `SealForHost()` | Requires freeze and a published snapshot. Once sealed, this instance refuses further `Resolve` calls with `HostSealed`; independent unsealed registries can resolve again |
+| `UsedBytes()`, `BudgetBytes()` | Report the shared registry budget. It accounts for dynamic definition/index, graph, snapshot and traversal allocations, including snapshots held by readers. It excludes fixed registry/resource controls, allocator overhead, image storage and callback allocations |
+| `Sig(id)`, `SigReady(id)` | Host conveniences over the installed snapshot; `Sig` returns an address only for an OK row |
+| `LogSignatureReport(snapshot, verbose)` | Writes the `[core]` report; `verbose` also lists OK rows |
+| `SigStateName(state)`, `SigRegistryStatusName(status)` | Return the printable state or operation status |
 
-Helpers for resolvers:
+`SigRegistrationResult::status` can be `InvalidArgument`, `DuplicateId`, `Frozen`,
+`OutOfMemory`, `BudgetExceeded`, `TooLarge` or `Busy`; resolution also reports
+`NotFrozen`, `ResolverException` and `HostSealed`. `SealForHost` can report
+`NotFrozen`, `NotResolved` or `Busy`. Resource failures that cannot be attributed
+to one row use `kSignatureNoIndex`. A zero count accepts a null table pointer.
+Input IDs and other strings must be valid NUL-terminated strings during registration.
+Resolver function pointers remain borrowed: their code must remain loaded while
+resolution can call them.
 
-| Helper | Returns |
-|---|---|
-| `SigOk(const void* at)` | `Ok` at `at` |
-| `SigFail(const char* why)` | `Failed` with a reason; `why` must be a static string |
-| `SigPattern(const Section& text, const char* pattern)` | `Ok`, `Missing` or `Ambiguous`, the same check a pattern row gets |
+A snapshot lease keeps its IDs, result records and copied `why` strings alive, even
+if the registry is destroyed. It does **not** keep the image behind `at` alive or
+revoke an address already copied by a consumer. The host must keep the image and
+provider code valid, stop and drain users before teardown, and invalidate dependent
+capabilities. Registration, freeze, resolution and sealing have one writer per
+registry; published immutable snapshots may be acquired and read by other threads.
+Do not destroy a registry concurrently with a call on that registry.
+
+Resolvers receive `SigResolveContext` for the current in-progress instance and call
+`context.Sig(id)` for a declared need. The context cannot be retained. Helpers
+`SigOk`, `SigFail` and `SigPattern` keep their meanings; `SigFail` still requires a
+static reason during the callback, which is copied into the published snapshot.
+
+Host composition uses `InstallHostSignatureRegistry`, `ClearHostSignatureRegistry`,
+`WithHostSignatureRegistry` and `WithNoHostSignatureRegistry` to serialize ownership
+and capability transitions. `AcquireHostSignatureRegistry()` gives readers a
+`shared_ptr<const SignatureRegistry>`; installation and clearing require the
+owner's mutable `shared_ptr`, and `WithHostSignatureRegistry` accepts the const
+lease and checks the current owner identity. Const access prevents accidental
+mutation, not an authorization boundary against a caller that casts it away.
+Their callbacks run under the composition lock, are
+`noexcept`, and must not re-enter composition. The caller remains responsible for
+quiescing dependent services and their cached addresses before releasing the image.
 
 ## `sco/game/signatures.h` and `sco/game/<feature>.h`: game tables
 
 | Function | Does |
 |---|---|
-| `bool sco::game::RegisterGameSignatures()` | Registers every game table. Runs once; later calls return the first result |
+| `SigRegistrationResult sco::game::RegisterGameSignatures(SignatureRegistry& registry)` | Registers the game pack as one atomic batch in the supplied builder. A second registration returns `DuplicateId` while building or `Frozen` after freeze |
 | `bool sco::game::TeleportAddresses(TeleportAddrs& out)` | Fills `clientMgr`, `entitySystem` and `handleFromId`, or returns false and leaves `out` untouched if any `teleport.*` row isn't OK |
 | `bool sco::game::QuitFunction(QuitHook& out)` (`sco/game/system.h`) | Fills `fn` (CSystem::Quit's entry) and `stolenBytes` (`kQuitStolenBytes`, 15: the whole instructions a 14-byte absolute jmp detour overwrites), or returns false and leaves `out` untouched if `system.quit` isn't OK |
 | `bool sco::game::pak::Resolve(Targets& out)` (`sco/game/pak.h`) | Fills `loader` and `cryPak` (the address of the `ICryPak*` global), or returns false and leaves `out` untouched unless all three `pak.*` rows are OK. The slot offsets are constants the rows pin: `kOpenSlot` 0x148 (`pak.crypak`), `kReadSlot` 0x160, `kSeekSlot` 0x1D0, `kCloseSlot` 0x1E0 (`pak.slots`) |
@@ -132,7 +160,7 @@ Named yes/no answers to "does this feature work on this game build?". `sco_api.h
 | Function | Does |
 |---|---|
 | `Result caps::Set(const char* name, bool ready, const char* reason)` | Sets or updates a capability. Names are lowercase dotted segments (`teleport`, `spawn.ship`), at most 63 characters; `reason` is copied (127 characters, truncated) and says why it isn't ready. Names are never removed. `BadArg` for a bad name; `TooMany` after 256 names |
-| `Result caps::SetFromSignatures(const char* name, const char* const* ids, size_t n)` | Ready when every listed signature row is OK; else not ready with `needs <id> (<STATE>)` or `unknown signature <id>` for the first row that isn't. Call after `ResolveAll` |
+| `Result caps::SetFromSignatures(const char* name, const char* const* ids, size_t n)` | Ready when every listed signature row is OK; else not ready with `needs <id> (<STATE>)` or `unknown signature <id>` for the first row that isn't. Call after the host publishes its resolved snapshot |
 | `bool caps::Has(const char* name)` | True when set ready; unknown names and `nullptr` are false |
 | `size_t caps::List(Entry* out, size_t max)` | Copies up to `max` entries (name, ready, reason) in first-set order; returns the number of names |
 
@@ -160,8 +188,9 @@ struct Platform {
     const plugins::Builtin* builtins = nullptr; size_t nBuiltins = 0;
     const plugins::ScriptRuntime* scripts = nullptr;   // sco-lua, or nullptr
     const Image* image = nullptr;                  // resolve signatures against this; nullptr skips
-    bool (*registerSignatures)() = nullptr;        // with image: the product's tables (sco::game::RegisterGameSignatures)
-    void (*setCapabilities)() = nullptr;           // the product sets caps after ResolveAll
+    size_t signatureRegistryBudgetBytes = 0;       // 0: allocator-limited
+    SigRegistrationResult (*registerSignatures)(SignatureRegistry&) = nullptr;
+    void (*setCapabilities)() = nullptr;           // after the snapshot is installed
     plugins::ModuleOps moduleOps = plugins::PlatformModuleOps();
     std::filesystem::path dataRoot;                // data; set: sco.storage in <dataRoot>/storage/
     bool loadFromCopies = false;                   // map each native from a copy of its DLL (developer builds)
@@ -170,9 +199,9 @@ struct Platform {
 
 | Function | Does |
 |---|---|
-| `bool app::Start(const Platform& pf)` | `SetGameThread`; with `image`, `registerSignatures()` when set (the product registers its game's tables; null registers none) and `ResolveAll(*image)`; `setCapabilities()`; `host::BuildApi`; with `dataRoot`, `storage::Start` (a failure is logged `[app] storage not started: <RESULT>`); the list (every built-in, then `Discover(pluginRoot)` when `pluginsEnabled`); `ContainCallouts`; `LoadBuiltin` for the built-ins, then `LoadNative` / `LoadScript` in list order (a `lua` plugin is refused `no script runtime` without `scripts`); the content index; with `image`, `LogSignatureReport(false)`; `LogReport`; dispatches `game.ready`. Registers the host command `sco.reload` once per process. Problems are logged, never fatal. False (nothing changes) when already started |
+| `bool app::Start(const Platform& pf)` | On the game thread, with `image`, builds a registry, invokes `registerSignatures(registry)` when set, freezes, resolves and installs the sealed snapshot; null registration adds no rows. Registration, freeze, resolution, ownership or capability setup failure returns false before services and plugins start. With no image it uses any registry already installed by the product. Then it builds the host API, starts services, loads built-ins and discovered plugins, logs reports and dispatches `game.ready`; individual plugin and optional service failures are reported |
 | `void app::Tick(uint32_t nowMs)` | `GameThreadTick(nowMs)`. No-op unless started |
-| `void app::Stop()` | Game thread only; refuses entry during an active callout or reload. No-op unless started, or when already stopping. Dispatches `game.exit`, then closes runtime admission (no new service lookup/work) and cancels queued contexts **before** `UnloadAll` (newest first, built-ins last). Then stops settings before storage, followed by network, IPC, UI and enabled game-pack services, withdraws game/host services, and clears `ContainCallouts`. `Start` works again afterwards with fresh handles; cached tables are not valid across host sessions |
+| `Result app::Stop()` | Game thread only; refuses entry during an active callout or reload. No-op unless started, or when already stopping. Dispatches `game.exit`, then closes runtime admission (no new service lookup/work) and cancels queued contexts **before** `UnloadAll` (newest first, built-ins last). Then stops settings before storage, followed by network, IPC, UI and enabled game-pack services, withdraws game/host services, and clears `ContainCallouts`. On safe cleanup it revokes dependent capabilities and releases its owned registry. A failed host-service stop returns `Failed` and retains the registry and context; cached tables are not valid across host sessions |
 | `const std::vector<plugins::Plugin>& app::Plugins()` | The list of the last `Start` (built-ins first), final states after `Stop`. Never resized between two `Start`s |
 | `const plugins::ContentIndex& app::Content()` | The data-pack index of the last `Start` |
 | `Result app::Reload(std::string_view id, std::string* why = nullptr)` | Game-thread hot reload of the target **and all transitively loaded dependents**. Preflights the whole group and atomically reserves service withdrawal before copying or teardown; a non-reloadable/busy member, unmet requirement or handed-out service table refuses the entire group. Copies native DLLs to `<folder>/.reload-<n>-<entry>`, unloads dependents before providers (`UnloadOne`: guarded unload, owner release/hooks, module close), then loads providers before dependents under new handles (`LoadNative` on copies, `LoadScript` on re-read scripts). Unrelated plugins stay loaded. `Ok` only if every group member reloads; `NotFound` (no such id); `BadArg` (built-in/data target); `Unavailable` (not started or stopping); `WrongThread`; otherwise `Failed` with `why`. A post-teardown failure does not roll back completed work, and a failed provider refuses its dependents. See [Hot reload](plugins.md#hot-reload) for limits and restart-required fault/refusal semantics |
@@ -377,8 +406,9 @@ All mounts of a path splice the same base. Higher `priority` wins an overlap, an
 `sco::game::pak` (library `sco_pak`: links `sco_core`, `sco_hook`, `sco_vfs`, `sco_host`) serves `sco::vfs` mounts to Star Citizen's CryPak, the engine's own file I/O. Design: [vfs-datacore.md § 3](design/vfs-datacore.md#the-game-specific-part-scogamepak-in-sco-core); it lives in sco-core by [decision 1](design/vfs-datacore.md#decisions-maintainer-2026-10-09), and a product only enables it.
 
 ```cpp
-sco::game::RegisterGameSignatures();
-sco::ResolveAll(image);
+// The host has installed a resolved registry while its image is live.
+auto snapshot = sco::AcquireHostSignatureSnapshot();
+if (!snapshot) return;
 sco::game::pak::Options o;                              // scope = Scope::DataCoreLoad
 o.mounts = [] { return g_mountTable.Current(); };       // the product's sco::vfs::MountTable
 if (sco::game::pak::Enable(o) == sco::Result::Ok) ...   // "vfs.pak" set

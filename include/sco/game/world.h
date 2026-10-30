@@ -1,7 +1,7 @@
 #pragma once
 // Addresses behind sc-offline's world features: build mode (free camera, ground ray, the entity
 // move/rotate slots and the camera fields), missions, the console and quantum cvars, and the new
-// quantum drive's boost hooks. Resolved by sco::ResolveAll(); the rows are in
+// quantum drive's boost hooks. Resolved by a host registry's Resolve(); the rows are in
 // src/game/world_sigs.cpp, and docs/game/world.md lists each one with what it checks.
 //
 // Rows are grouped into capabilities like sco/game/features.h: a feature asks for its group with
@@ -15,7 +15,7 @@ namespace sco::game::world {
 
 struct Capability {
     const char*        name;    // "build.free_cam"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
 };
 

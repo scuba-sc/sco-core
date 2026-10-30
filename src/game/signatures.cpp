@@ -1,6 +1,7 @@
 #include "sco/game/signatures.h"
 #include "sco/signatures.h"
 #include <cstddef>
+#include <iterator>
 
 namespace sco::game {
 
@@ -41,29 +42,28 @@ extern const size_t kActorStatsSignatureCount;
 extern const SigDef kInventorySignatures[];
 extern const size_t kInventorySignatureCount;
 
-bool RegisterGameSignatures() {
-    static int done = 0;   // 1 = registered, -1 = failed
-    if (done) return done > 0;
-    const bool ok = RegisterSignatures(kTeleportSignatures, kTeleportSignatureCount)
-                 && RegisterSignatures(kSystemSignatures, kSystemSignatureCount)
-                 && RegisterSignatures(kPakSignatures, kPakSignatureCount)
-                  && RegisterSignatures(kDataCoreLiveSignatures, kDataCoreLiveSignatureCount)
-                 && RegisterSignatures(kAsopSignatures, kAsopSignatureCount)
-                 && RegisterSignatures(kAtcSignatures, kAtcSignatureCount)
-                 && RegisterSignatures(kHangarSignatures, kHangarSignatureCount)
-                 && RegisterSignatures(kFeatureSignatures, kFeatureSignatureCount)
-                 && RegisterSignatures(kOfflineSignatures, kOfflineSignatureCount)
-                 && RegisterSignatures(kContractsSignatures, kContractsSignatureCount)
-                 && RegisterSignatures(kActorsSignatures, kActorsSignatureCount)
-                 && RegisterSignatures(kWorldSignatures, kWorldSignatureCount)
-                 && RegisterSignatures(kMiningSignatures, kMiningSignatureCount)
-                 && RegisterSignatures(kEntitiesSignatures, kEntitiesSignatureCount)
-                 && RegisterSignatures(kEventsSignatures, kEventsSignatureCount)
-                 && RegisterSignatures(kActorStatsSignatures, kActorStatsSignatureCount)
-                 && RegisterSignatures(kInventorySignatures, kInventorySignatureCount)
-                 && RegisterSignatures(kGameRulesSignatures, kGameRulesSignatureCount);
-    done = ok ? 1 : -1;
-    return ok;
+SigRegistrationResult RegisterGameSignatures(SignatureRegistry& registry) {
+    const SignatureTable kGameSignatureTables[] = {
+        {kTeleportSignatures, kTeleportSignatureCount},
+        {kSystemSignatures, kSystemSignatureCount},
+        {kPakSignatures, kPakSignatureCount},
+        {kDataCoreLiveSignatures, kDataCoreLiveSignatureCount},
+        {kAsopSignatures, kAsopSignatureCount},
+        {kAtcSignatures, kAtcSignatureCount},
+        {kHangarSignatures, kHangarSignatureCount},
+        {kFeatureSignatures, kFeatureSignatureCount},
+        {kOfflineSignatures, kOfflineSignatureCount},
+        {kContractsSignatures, kContractsSignatureCount},
+        {kActorsSignatures, kActorsSignatureCount},
+        {kWorldSignatures, kWorldSignatureCount},
+        {kMiningSignatures, kMiningSignatureCount},
+        {kEntitiesSignatures, kEntitiesSignatureCount},
+        {kEventsSignatures, kEventsSignatureCount},
+        {kActorStatsSignatures, kActorStatsSignatureCount},
+        {kInventorySignatures, kInventorySignatureCount},
+        {kGameRulesSignatures, kGameRulesSignatureCount},
+    };
+    return registry.RegisterTables(kGameSignatureTables, std::size(kGameSignatureTables));
 }
 
 }  // namespace sco::game

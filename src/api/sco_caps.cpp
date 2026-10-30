@@ -1,6 +1,7 @@
 // Capability registry: a fixed table of names, each ready or not with a reason.
 #include "sco/caps.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -57,14 +58,15 @@ Result Set(const char* name, bool ready, const char* reason) {
     return Result::Ok;
 }
 
-Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n) {
+Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n,
+                         const SignatureSnapshot& signatures) {
     if (!sigIds || n == 0) return Result::BadArg;
     for (size_t i = 0; i < n; ++i)
         if (!sigIds[i]) return Result::BadArg;
     char why[kMaxReasonLen + 1] = "";
     bool ready = true;
     for (size_t i = 0; i < n && ready; ++i) {
-        const SigResult* r = SigLookup(sigIds[i]);
+        const SigResult* r = signatures.Lookup(sigIds[i]);
         if (!r) {
             snprintf(why, sizeof(why), "unknown signature %s", sigIds[i]);
             ready = false;
@@ -74,6 +76,24 @@ Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n) 
         }
     }
     return Set(name, ready, ready ? nullptr : why);
+}
+
+Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n) {
+    if (!sigIds || n == 0) return Result::BadArg;
+    for (size_t i = 0; i < n; ++i)
+        if (!sigIds[i]) return Result::BadArg;
+    const auto signatures = AcquireHostSignatureSnapshot();
+    if (signatures) return SetFromSignatures(name, sigIds, n, *signatures);
+    const Result result = Set(name, false, "signature snapshot unavailable");
+    return result == Result::Ok ? Result::Unavailable : result;
+}
+
+void InvalidateAll(const char* reason) noexcept {
+    std::lock_guard<std::mutex> hold(g_lock);
+    for (size_t i = 0; i < g_count; ++i) {
+        g_caps[i].ready = false;
+        snprintf(g_caps[i].reason, sizeof(g_caps[i].reason), "%s", reason ? reason : "");
+    }
 }
 
 bool Has(const char* name) {

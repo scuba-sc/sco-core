@@ -242,6 +242,23 @@ Each item gets its own design review before code; every ABI change is a 1.x mino
 
 What the finished phases taught, each with the rule it produced. **Lessons flow back to sco-core:** every product-side workaround that reflects a sco-core gap becomes a sco-core issue or pull request (docs, API, a test or a signature row) in the same cycle, and gets an entry here. How: [CONTRIBUTING § Lessons flow back](../CONTRIBUTING.md#lessons-flow-back).
 
+### Registry capacity and host ownership (current development)
+
+A fixed process-wide signature array made the combined game pack and product rows
+compete for 512 slots, with failures committing a prefix of a table. The owned
+registry instead registers complete batches, freezes its definitions, and publishes
+an immutable per-image snapshot. The host coordinates address lifetime and capability
+invalidation separately; a snapshot does not lease game memory. [Registry contract](api.md#scosignaturesh-and-scosignature_registryh-the-registry).
+
+This foundation work started from sco-core source
+`f32cdb7cc631a8d3047b6fe867425b71950ae4f1`; published SDK 2.4.0 RC2 used source
+`844e136ccb280ad8cb43f73bc43c9447e8f6799d`. Neither identifies a later candidate.
+During development, products may test a source-bound candidate before a published
+SDK exists: record the full candidate commit SHA, build profile and artifact checksum
+for every cooperating host and plugin build. Do not identify a source candidate as a
+published archive or alter an existing release. A later stable release and consumer
+pin transition need the corresponding release decision and their own evidence.
+
 ### 1. The game quits without WM_QUIT
 
 The game's menu Quit calls `CSystem::Quit` (`Quit via console command`), then `System Fast Shutdown (ExitOnQuit enabled)`: the process ends without the message loop ever getting `WM_QUIT`. sc-offline's `WM_QUIT` hook (Phase 3) therefore never ran `sco::app::Stop`, and plugins never saw `game.exit`.

@@ -19,6 +19,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <sc_actor_stats.h>
 #include <sc_actor_stats_write.h>
 #include <atomic>
@@ -53,7 +54,8 @@ char      g_why[128] = "";
 std::atomic<bool> g_writesEnabled{false};
 
 bool RowOk(const char* id) {
-    const SigResult* s = SigLookup(id);
+    const auto signatures = AcquireHostSignatureSnapshot();
+    const SigResult* s = (signatures ? signatures->Lookup(id) : nullptr);
     return s && s->state == SigState::Ok;
 }
 

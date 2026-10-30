@@ -35,7 +35,7 @@ bool VerifyZoneSlots(const Image& img) {
         && BytesMatch(lea - 0x1AB, "FF 50 08") && BytesMatch(lea - 0x2F, "FF 50 58");
 }
 
-SigResult ResolveToCamera(const Image& img) {
+SigResult ResolveToCamera(const Image& img, const SigResolveContext&) {
     const uint8_t* name = FindCString(img.rdata, "CmdTeleportToCamera");
     uint8_t* lea = name ? FindRipLea(img.text, 0x48, 0x8D, 0x15, name) : nullptr;
     if (!lea) return SigFail("CmdTeleportToCamera isn't referenced");
@@ -71,17 +71,17 @@ SigResult ResolveToCamera(const Image& img) {
     return SigOk(f);
 }
 
-SigResult ResolveClientMgr(const Image&)    { return SigOk(RipTarget(Sig("teleport.to_camera") + 0x024, 3, 7)); }
-SigResult ResolveHandleFromId(const Image&) { return SigOk(RipTarget(Sig("teleport.to_camera") + 0x09F, 1, 5)); }
-SigResult ResolveEntitySystem(const Image&) { return SigOk(RipTarget(Sig("teleport.to_camera") + 0x2B0, 3, 7)); }
+SigResult ResolveClientMgr(const Image&, const SigResolveContext& ctx)    { return SigOk(RipTarget(ctx.Sig("teleport.to_camera") + 0x024, 3, 7)); }
+SigResult ResolveHandleFromId(const Image&, const SigResolveContext& ctx) { return SigOk(RipTarget(ctx.Sig("teleport.to_camera") + 0x09F, 1, 5)); }
+SigResult ResolveEntitySystem(const Image&, const SigResolveContext& ctx) { return SigOk(RipTarget(ctx.Sig("teleport.to_camera") + 0x2B0, 3, 7)); }
 
 // The game's own teleport call inside CmdTeleportToCamera (4.10.196, bytes read from the image): the actor's
 // teleport component (actor vtable slot 0x9D8) is called through its vtable slot 0x158 with this = component and
 // rdx = a params block on the stack. The stores pin the block's layout as game.relocation fills it: zone id at
 // +0x00, the rotation as doubles x y z w at +0x08..+0x27, the local position at +0x28..+0x3F. A different
 // build fails the row, which keeps capability game.relocation off.
-SigResult ResolveRelocation(const Image&) {
-    uint8_t* f = Sig("teleport.to_camera");
+SigResult ResolveRelocation(const Image&, const SigResolveContext& ctx) {
+    uint8_t* f = ctx.Sig("teleport.to_camera");
     if (!f) return SigFail("source row missing");
     static const struct { size_t off; const char* bytes; const char* why; } kChecks[] = {
         { 0x211, "48 8B 10 48 89 54 24 40", "relocation params zone id store changed at +0x211" },

@@ -36,6 +36,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <sc_entities.h>
 #include <atomic>
 #include <cmath>
@@ -129,7 +130,8 @@ sco_result Fail(const void* owner, Result r, const char* fmt, ...) {
 bool LivePlugin(const sco_plugin* self) { return self && host::PluginId(self) && !sco::detail::Released(self); }
 
 bool RowOk(const char* id) {
-    const SigResult* s = SigLookup(id);
+    const auto signatures = AcquireHostSignatureSnapshot();
+    const SigResult* s = (signatures ? signatures->Lookup(id) : nullptr);
     return s && s->state == SigState::Ok;
 }
 
@@ -141,9 +143,11 @@ template <class C> void AddRows(const C* caps, size_t n, const char* name, std::
 // True when every row is OK and the teleport.* reads are ready; else why names the first that
 // isn't.
 bool RowsReady(const std::vector<const char*>& rows, char* why, size_t n) {
+    const auto signatures = AcquireHostSignatureSnapshot();
     why[0] = 0;
+    if (!signatures) { snprintf(why, n, "signature snapshot unavailable"); return false; }
     for (const char* id : rows) {
-        const SigResult* s = SigLookup(id);
+        const SigResult* s = (signatures ? signatures->Lookup(id) : nullptr);
         if (!s) { snprintf(why, n, "unknown signature %s", id); return false; }
         if (s->state != SigState::Ok) { snprintf(why, n, "needs %s (%s)", id, SigStateName(s->state)); return false; }
     }

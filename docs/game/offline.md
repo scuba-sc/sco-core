@@ -2,7 +2,7 @@
 
 Rows that sc-offline's boot / offline-mode patches (`src/patches.cpp`), its startup hooks (`src/hooks.cpp`) and its `CSystem::Quit` hook (`src/dllmain.cpp`) used to find by scanning the game themselves, moved into sco-core (`src/game/offline_sigs.cpp`, `include/sco/game/offline.h`) so `sco-sigcheck` checks them against a new `StarCitizen.exe` before anyone plays. Each resolver is the old scan, moved byte for byte. Where the old scan took "every match", the row insists on the count found in 4.10.196.36804 (numbered rows), so a patch that adds or loses a site shows as a failed row.
 
-Rows only find addresses. sc-offline still writes the patches and installs the hooks, after `ResolveAll` (rows match the game's original bytes), and keeps its per-patch report lines (`[+]/[!] <patch>: patched N site(s)`). Each patch or hook runs only when its capability is ready. The OR-loop bound patch uses `offline.or_loop_bound` from [features](features.md); the fleet manager retrieve hook uses the ASOP rows `asop.fleet_retrieve` and `atc.get_component` ([ASOP](asop.md)), whose pattern and checks are the ones sc-offline scanned for.
+Rows only find addresses. sc-offline still writes the patches and installs the hooks, after the registry has resolved and published its snapshot (rows match the game's original bytes), and keeps its per-patch report lines (`[+]/[!] <patch>: patched N site(s)`). Each patch or hook runs only when its capability is ready. The OR-loop bound patch uses `offline.or_loop_bound` from [features](features.md); the fleet manager retrieve hook uses the ASOP rows `asop.fleet_retrieve` and `atc.get_component` ([ASOP](asop.md)), whose pattern and checks are the ones sc-offline scanned for.
 
 | Row | Found by | Checks | Capability |
 |---|---|---|---|
