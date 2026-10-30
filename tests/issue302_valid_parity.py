@@ -202,12 +202,12 @@ def main():
     report={'baseline':BASELINE,'current_head':run(['git','-C',ROOT,'rev-parse','HEAD'],stdout=subprocess.PIPE).stdout.strip(),'source_audits':audits,'source_file_count':len(audits['current']),'row_count':len(rows),'unique_row_count':len(ids),'shared_rip_consumer_count':len(shared_rip),'shared_rip_consumer_ids':shared_rip,'shared_fn_consumer_ids':sorted(r['id'] for r in rows if r['fixture'].startswith('shared-Fn:')),'observations_per_build':len(c),'equal_observation_count':sum(bm.get(key(r))==r for r in c),'differences':diffs,'successful_resolution_parity_count':len(successful),'successful_resolution_parity_ids':successful,'coverage_gap_ids':sorted(ids-set(successful)),'coverage':coverage,'limitations':['Independent per-row synthetic fixtures stub declared dependency addresses; existing positive core fixtures also run the production registry.','Pattern/check materialization is not proof of real game behavior; failed extra validators are explicit coverage gaps.','Non-OK matching outputs do not count as successful resolution parity.','Synthetic fixtures only; no proprietary executable bytes.']}
     report['fixture_generator_hashes'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__), *sorted(Path(__file__).parent.glob('issue302_fixtures_*.py'))]}
     report['per_source_row_count'] = dict(sorted(collections.Counter(x['source'] for x in coverage).items()))
-    report['full_valid_input_parity_proven'] = not diffs and not report['coverage_gap_ids']
+    report['synthetic_case_parity_proven'] = not diffs and not report['coverage_gap_ids']
     report['shared_rip_positive_parity_count'] = len(set(shared_rip) & set(successful))
     report['shared_fn_positive_parity_count'] = len(set(report['shared_fn_consumer_ids']) & set(successful))
     report['fixture_hash_method'] = 'FNV-1a 64-bit over complete synthetic image; in-image .rdata pointer slots normalized to RVAs'
     (out/'scope-census.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:report[k] for k in ['row_count','source_file_count','shared_rip_consumer_count','observations_per_build','equal_observation_count','successful_resolution_parity_count']},indent=2))
     print('differences:',len(diffs));print('coverage gaps:',len(report['coverage_gap_ids']));print('report:',out/'scope-census.json')
-    return 1 if diffs else 0
+    return 1 if diffs or report['coverage_gap_ids'] else 0
 if __name__=='__main__':raise SystemExit(main())

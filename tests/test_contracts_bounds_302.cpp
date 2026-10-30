@@ -24,9 +24,43 @@ constexpr sco::game::VtblFnSpec hugeSlotSpec{"test", SIZE_MAX, "C3"};
 constexpr sco::game::CallSpec callSpec{"test", SIZE_MAX, "C3"};
 constexpr sco::game::InRangeSpec rangeSpec{"test", 8, "E8 ?? ?? ?? ??", nullptr};
 }
-int main() {
+void TestAddPlayer(bool invalidFirst) {
     using namespace sco;
     using namespace sco::game;
+    uint8_t b[4096]{};
+    Image img{}; img.base = b; img.size = 2048;
+    img.text = {b, 1024}; img.rdata = {b + 1024, 1024};
+    test_source = b + 700;
+    auto build = [&](const uint8_t* first, const uint8_t* second) {
+        std::memset(b, 0, sizeof b);
+        for (int i = 0; i < 2; ++i) {
+            auto* p = b + 64 + i * 128;
+            p[0] = 0xE8; Rip(p, test_source, 1, 5);
+            const uint8_t lea[] = {0x48, 0x8D, 0x90, 0x80, 0, 0, 0};
+            std::memcpy(p + 5, lea, sizeof lea);
+            p[12] = 0xE8; Rip(p + 12, i == 0 ? first : second, 1, 5);
+        }
+    };
+    build(b + 800, b + 800);
+    auto r = ResolveAddPlayer(img);
+    assert(r.state == SigState::Ok && r.at == b + 800);
+    for (const auto off : {3000, 1500}) {
+        const auto* invalid = b + off;
+        build(invalidFirst ? invalid : b + 800, invalidFirst ? b + 800 : invalid);
+        const auto rejected = ResolveAddPlayer(img);
+        assert(rejected.state != SigState::Ok);
+        assert(rejected.why && !std::strcmp(rejected.why, "AddPlayer target outside .text"));
+    }
+    build(b + 800, b + 900);
+    assert(ResolveAddPlayer(img).state != SigState::Ok);
+    Pass(invalidFirst ? "AddPlayer invalid then valid refuses out-of-image/non-text targets" : "AddPlayer valid then invalid refuses out-of-image/non-text targets");
+}
+int main(int argc, char**) {
+    using namespace sco;
+    using namespace sco::game;
+    if (argc > 1) { TestAddPlayer(argc == 2); return 0; }
+    TestAddPlayer(true);
+    TestAddPlayer(false);
     auto bytes = std::make_unique<uint8_t[]>(512);
     auto* b = bytes.get();
     Image img{};

@@ -394,7 +394,8 @@ SigResult ResolveAddPlayer(const Image& img) {
             for (uint8_t* r = p + 5; r + 7 <= q && !leaRdx80; ++r) leaRdx80 = BytesMatch(r + 1, "8D ?? 80 00 00 00") && (r[0] & 0xF8) == 0x48;
             if (leaRdx80) {
                 const uint8_t* t = CheckedRip(img, q, 1, 5);
-                if (target && t != target) return SigFail("AddPlayer call sites disagree on the target");
+                if (!InText(img, t, 1)) return SigFail("AddPlayer target outside .text");
+                if (n != 0 && t != target) return SigFail("AddPlayer call sites disagree on the target");
                 target = t;
                 ++n;
             }
