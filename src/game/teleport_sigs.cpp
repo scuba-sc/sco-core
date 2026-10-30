@@ -3,13 +3,36 @@
 #include "sco/game/teleport.h"
 #include "sco/scan.h"
 #include "sco/signatures.h"
+#include "sig_rows.h"
 #include <cstring>
 
 namespace sco::game {
 
 namespace {
 
+bool TeleportValidSection(const Image& img, const Section& section) {
+    const uintptr_t b = reinterpret_cast<uintptr_t>(img.base), a = reinterpret_cast<uintptr_t>(section.base);
+    return img.base && img.size && section.base && section.size && img.size <= UINTPTR_MAX - b &&
+           a >= b && a - b <= img.size && section.size <= img.size - (a - b);
+}
+
+const uint8_t* TeleportTextAt(const Image& img, const uint8_t* p, ptrdiff_t off, size_t n) {
+    return TeleportValidSection(img, img.text) && rows::InText(img, p, 0)
+        ? rows::TextAt(img, p, off, n) : nullptr;
+}
+
+SigResult TeleportRip(const Image& img, size_t off, size_t disp, size_t len, size_t targetBytes) {
+    const uint8_t* source = Sig("teleport.to_camera");
+    if (!source) return SigFail("source row missing");
+    if (off > static_cast<size_t>(PTRDIFF_MAX)) return SigFail("RIP instruction outside .text");
+    const uint8_t* insn = TeleportTextAt(img, source, static_cast<ptrdiff_t>(off), len);
+    if (!insn || disp > len || len - disp < 4) return SigFail("RIP instruction outside .text");
+    const uint8_t* target = rows::CheckedRip(img, insn, disp, len);
+    return rows::InImage(img, target, targetBytes) ? SigOk(target) : SigFail("RIP target outside the image");
+}
+
 bool VerifyEntityPositionSlots(const Image& img) {
+    if (!TeleportValidSection(img, img.text) || !TeleportValidSection(img, img.rdata)) return false;
     const uint8_t* fmt = FindCString(img.rdata, "Zone: %s, ZonePos:(%f.2,%f.2,%f.2), WorldPos((%f.2,%f.2,%f.2)");
     const uint8_t* lea = fmt ? FindRipLea(img.text, 0x4C, 0x8D, 0x05, fmt) : nullptr;
     if (!lea) return false;
@@ -23,23 +46,35 @@ bool VerifyEntityPositionSlots(const Image& img) {
         { -0x19, callZone, 6 },  { -0x10, zoneName, 7 },
     };
     for (const auto& c : kChecks)
-        if (memcmp(lea + c.off, c.bytes, c.n) != 0) return false;
+        if (const uint8_t* at = TeleportTextAt(img, lea, c.off, c.n)) { if (memcmp(at, c.bytes, c.n) != 0) return false; } else return false;
     return true;
 }
 
 bool VerifyZoneSlots(const Image& img) {
+    if (!TeleportValidSection(img, img.text) || !TeleportValidSection(img, img.rdata)) return false;
     const uint8_t* fmt = FindCString(img.rdata,
         "Changing reference point to unstreamable parent zone: new zone: %s (%llu) old zone: %s (%llu)");
     const uint8_t* lea = fmt ? FindRipLea(img.text, 0x48, 0x8D, 0x15, fmt) : nullptr;
-    return lea && BytesMatch(lea - 0x1D4, "FF 50 60") && BytesMatch(lea - 0x1B7, "FF 50 08")
-        && BytesMatch(lea - 0x1AB, "FF 50 08") && BytesMatch(lea - 0x2F, "FF 50 58");
+    if (!lea) return false;
+    const struct { ptrdiff_t off; const char* bytes; } checks[] = {
+        { -0x1D4, "FF 50 60" }, { -0x1B7, "FF 50 08" },
+        { -0x1AB, "FF 50 08" }, { -0x2F, "FF 50 58" },
+    };
+    for (const auto& c : checks) {
+        const uint8_t* at = TeleportTextAt(img, lea, c.off, 3);
+        if (!at || !BytesMatch(at, c.bytes)) return false;
+    }
+    return true;
 }
 
 SigResult ResolveToCamera(const Image& img) {
+    if (!TeleportValidSection(img, img.text)) return SigFail("invalid image .text range");
+    if (!TeleportValidSection(img, img.rdata)) return SigFail("invalid image .rdata range");
     const uint8_t* name = FindCString(img.rdata, "CmdTeleportToCamera");
     uint8_t* lea = name ? FindRipLea(img.text, 0x48, 0x8D, 0x15, name) : nullptr;
     if (!lea) return SigFail("CmdTeleportToCamera isn't referenced");
-    uint8_t* f = lea - 0x158;
+    const uint8_t* f = TeleportTextAt(img, lea, -0x158, 1);
+    if (!f) return SigFail("layout changed at +0x000");
     // The camera fields at +0x17A..+0x1BD are read from an object whose layout grows between game
     // builds (all four moved by 8 in 4.10.196: 0x6D3C -> 0x6D44 ...), and nothing here or in
     // sc-offline reads them: the checks pin the instructions, not the field offsets.
@@ -65,22 +100,29 @@ SigResult ResolveToCamera(const Image& img) {
         { 0x376, "4C 8B 81 58 01 00 00",    "layout changed at +0x376" },
     };
     for (const auto& c : kChecks)
-        if (!BytesMatch(f + c.off, c.bytes)) return SigFail(c.why);
+        if (const uint8_t* at = TeleportTextAt(img, f, static_cast<ptrdiff_t>(c.off), rows::PatternBytes(c.bytes))) {
+            if (!BytesMatch(at, c.bytes)) return SigFail(c.why);
+        } else return SigFail(c.why);
     if (!VerifyEntityPositionSlots(img)) return SigFail("entity position slots not confirmed");
     if (!VerifyZoneSlots(img))           return SigFail("zone parent/id slots not confirmed");
     return SigOk(f);
 }
 
-SigResult ResolveClientMgr(const Image&)    { return SigOk(RipTarget(Sig("teleport.to_camera") + 0x024, 3, 7)); }
-SigResult ResolveHandleFromId(const Image&) { return SigOk(RipTarget(Sig("teleport.to_camera") + 0x09F, 1, 5)); }
-SigResult ResolveEntitySystem(const Image&) { return SigOk(RipTarget(Sig("teleport.to_camera") + 0x2B0, 3, 7)); }
+SigResult ResolveClientMgr(const Image& img)    { return TeleportRip(img, 0x024, 3, 7, sizeof(uintptr_t)); }
+SigResult ResolveHandleFromId(const Image& img) {
+    const SigResult r = TeleportRip(img, 0x09F, 1, 5, 1);
+    if (r.state == SigState::Ok && !rows::InText(img, r.at, 1))
+        return SigFail("handle-from-id call target outside .text");
+    return r;
+}
+SigResult ResolveEntitySystem(const Image& img) { return TeleportRip(img, 0x2B0, 3, 7, sizeof(uintptr_t)); }
 
 // The game's own teleport call inside CmdTeleportToCamera (4.10.196, bytes read from the image): the actor's
 // teleport component (actor vtable slot 0x9D8) is called through its vtable slot 0x158 with this = component and
 // rdx = a params block on the stack. The stores pin the block's layout as game.relocation fills it: zone id at
 // +0x00, the rotation as doubles x y z w at +0x08..+0x27, the local position at +0x28..+0x3F. A different
 // build fails the row, which keeps capability game.relocation off.
-SigResult ResolveRelocation(const Image&) {
+SigResult ResolveRelocation(const Image& img) {
     uint8_t* f = Sig("teleport.to_camera");
     if (!f) return SigFail("source row missing");
     static const struct { size_t off; const char* bytes; const char* why; } kChecks[] = {
@@ -95,8 +137,10 @@ SigResult ResolveRelocation(const Image&) {
                  "teleport component call changed at +0x362" },
     };
     for (const auto& c : kChecks)
-        if (!BytesMatch(f + c.off, c.bytes)) return SigFail(c.why);
-    return SigOk(f + 0x362);
+        if (const uint8_t* at = TeleportTextAt(img, f, static_cast<ptrdiff_t>(c.off), rows::PatternBytes(c.bytes))) {
+            if (!BytesMatch(at, c.bytes)) return SigFail(c.why);
+        } else return SigFail(c.why);
+    return SigOk(TeleportTextAt(img, f, 0x362, 1));
 }
 
 }  // namespace

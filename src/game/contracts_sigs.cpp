@@ -19,32 +19,67 @@ namespace {
 using namespace contracts;
 using rows::Check;
 using rows::InText;
+using rows::InImage;
+using rows::TextAt;
 using rows::PatternBytes;
 using rows::ResolveRip;
 using rows::RipSpec;
+
+// Section declarations alone do not authorize reads outside the mapped image.
+bool Mapped(const Image& img, const Section& section) {
+    return rows::InRange(section, section.base, section.size) && InImage(img, section.base, section.size);
+}
+const uint8_t* TextOffset(const Image& img, const uint8_t* p, size_t off, size_t n) {
+    const auto* at = off <= static_cast<size_t>(PTRDIFF_MAX)
+        ? TextAt(img, p, static_cast<ptrdiff_t>(off), n) : nullptr;
+    return InImage(img, at, n) ? at : nullptr;
+}
+const uint8_t* CheckedRip(const Image& img, const uint8_t* insn, size_t disp, size_t len) {
+    return InImage(img, insn, len) ? rows::CheckedRip(img, insn, disp, len) : nullptr;
+}
+const uint8_t* RdataString(const Image& img, const char* str) {
+    return Mapped(img, img.rdata) ? FindCString(img.rdata, str) : nullptr;
+}
+uint8_t* FunctionAt(const Image& img, const uint8_t* at) {
+    if (!Mapped(img, img.pdata) || !InText(img, at, 1) || !InImage(img, at, 1)) return nullptr;
+    uint8_t* fn = FunctionStart(img, at);
+    return InText(img, fn, 1) && InImage(img, fn, 1) ? fn : nullptr;
+}
 
 SigResult Missing()        { return { SigState::Missing, nullptr, 0, nullptr }; }
 SigResult Ambiguous(int n) { return { SigState::Ambiguous, nullptr, n, nullptr }; }
 
 bool Matches(const Image& img, const uint8_t* p, const char* pattern) {
-    return InText(img, p, PatternBytes(pattern)) && BytesMatch(p, pattern);
+    return InImage(img, p, PatternBytes(pattern)) && TextOffset(img, p, 0, PatternBytes(pattern)) && BytesMatch(p, pattern);
 }
 
 const uint8_t* CallAt(const Image& img, const uint8_t* insn) {
-    if (!InText(img, insn, 5) || insn[0] != 0xE8) return nullptr;
-    const uint8_t* t = RipTarget(insn, 1, 5);
-    return InText(img, t, 1) ? t : nullptr;
+    if (!InImage(img, insn, 5) || !TextAt(img, insn, 0, 5) || insn[0] != 0xE8) return nullptr;
+    const uint8_t* t = CheckedRip(img, insn, 1, 5);
+    return TextOffset(img, t, 0, 1);
 }
 
 // The next lea r64, [rip+X] (REX 48 or 4C, any register) at or after `from` whose X is `target`,
 // as contracts.cpp's FindLeaTo; nullptr when there is none. Returns the REX byte.
-const uint8_t* LeaTo(const Section& text, const uint8_t* target, const uint8_t* from) {
-    if (!target || !text.base || text.size < 8) return nullptr;
-    const uint8_t* const end = text.base + text.size - 7;
-    for (const uint8_t* p = from ? from : text.base + 1; p < end; ++p) {
-        p = static_cast<const uint8_t*>(memchr(p, 0x8D, static_cast<size_t>(end - p)));
-        if (!p) break;
-        if ((p[-1] & 0xFB) == 0x48 && (p[1] & 0xC7) == 0x05 && p + 6 + Rel32(p + 2) == target) return p - 1;
+const uint8_t* LeaTo(const Image& img, const uint8_t* target, const uint8_t* from) {
+    const Section& text = img.text;
+    if (!InImage(img, target, 1) || !Mapped(img, text) || text.size < 7) return nullptr;
+    const auto b = reinterpret_cast<uintptr_t>(text.base);
+    const auto f = from ? reinterpret_cast<uintptr_t>(from) : b;
+    if (f < b || f - b > text.size) return nullptr;
+    for (size_t i = f - b; i <= text.size - 7; ++i) {
+        const uint8_t* p = TextOffset(img, text.base, i, 7);
+        if ((p[0] & 0xFB) == 0x48 && p[1] == 0x8D && (p[2] & 0xC7) == 0x05 &&
+            CheckedRip(img, p, 3, 7) == target) return p;
+    }
+    return nullptr;
+}
+const uint8_t* ExactLeaTo(const Image& img, const uint8_t* target) {
+    for (const uint8_t* p = LeaTo(img, target, nullptr); p; ) {
+        if (BytesMatch(p, "4C 8D 05")) return p;
+        const auto* next = TextAt(img, p, 1, 0);
+        if (!next) break;
+        p = LeaTo(img, target, next);
     }
     return nullptr;
 }
@@ -54,7 +89,7 @@ const uint8_t* LeaTo(const Section& text, const uint8_t* target, const uint8_t* 
 // against the preferred base in the PE header. A slot "holds" an address in either form.
 
 uint64_t HeaderBase(const Image& img) {
-    if (!img.base || img.size < 0x40) return 0;
+    if (!InImage(img, img.base, 0x40)) return 0;
     uint32_t pe = 0;
     memcpy(&pe, img.base + 0x3C, 4);
     if (pe > img.size || img.size - pe < 24 + 32 || memcmp(img.base + pe, "PE\0\0", 4) != 0) return 0;
@@ -67,14 +102,16 @@ uint64_t HeaderBase(const Image& img) {
 }
 
 bool Holds(const Image& img, uint64_t v, const uint8_t* target) {
+    if (!InImage(img, target, 1)) return false;
     if (v == reinterpret_cast<uintptr_t>(target)) return true;
     const uint64_t hb = HeaderBase(img);
-    return hb && v == hb + static_cast<uint64_t>(target - img.base);
+    const uintptr_t b = reinterpret_cast<uintptr_t>(img.base), t = reinterpret_cast<uintptr_t>(target);
+    return hb && t >= b && t - b < img.size && t - b <= UINT64_MAX - hb && v == hb + (t - b);
 }
 
 // The address a slot points at, in this image; nullptr when it points outside it.
 const uint8_t* SlotTarget(const Image& img, const uint8_t* slot) {
-    if (slot < img.base || slot + 8 > img.base + img.size) return nullptr;
+    if (!rows::InRange(img.rdata, slot, 8) || !InImage(img, slot, 8)) return nullptr;
     uint64_t v = 0;
     memcpy(&v, slot, 8);
     const uint64_t base = reinterpret_cast<uintptr_t>(img.base);
@@ -88,6 +125,7 @@ const uint8_t* SlotTarget(const Image& img, const uint8_t* slot) {
 int SlotsHolding(const Image& img, const uint8_t* target, size_t first, const uint8_t** at) {
     int n = 0;
     *at = nullptr;
+    if (!InImage(img, target, 1) || !Mapped(img, img.rdata)) return 0;
     for (size_t i = first; i < img.rdata.size / 8; ++i) {
         uint64_t v = 0;
         memcpy(&v, img.rdata.base + i * 8, 8);
@@ -111,17 +149,17 @@ struct StrFnSpec {
 
 template <const StrFnSpec& S>
 SigResult ResolveStrFn(const Image& img) {
-    const uint8_t* s = FindCString(img.rdata, S.str);
+    const uint8_t* s = RdataString(img, S.str);
     if (!s) return SigFail("the string isn't in .rdata");
-    const uint8_t* lea = LeaTo(img.text, s, nullptr);
+    const uint8_t* lea = LeaTo(img, s, nullptr);
     if (!lea) return SigFail("the string isn't referenced");
-    uint8_t* fn = FunctionStart(img, lea);
+    uint8_t* fn = FunctionAt(img, lea);
     if (!fn) return SigFail("no .pdata entry for the string's first reference");
     if (S.prologue && !Matches(img, fn, S.prologue)) return SigFail("prologue changed at +0x000");
     const uint8_t* seen[8] = {};
     int others = 0;
-    for (const uint8_t* p = LeaTo(img.text, s, lea + 2); p; p = LeaTo(img.text, s, p + 2)) {
-        const uint8_t* f = FunctionStart(img, p);
+    for (const uint8_t* p = LeaTo(img, s, TextAt(img, lea, 2, 0)); p; p = LeaTo(img, s, TextAt(img, p, 2, 0))) {
+        const uint8_t* f = FunctionAt(img, p);
         if (f == fn || (S.prologue && !(f && Matches(img, f, S.prologue)))) continue;
         bool known = false;
         for (int i = 0; i < others && i < 8; ++i) known |= seen[i] == f;
@@ -131,7 +169,7 @@ SigResult ResolveStrFn(const Image& img) {
     }
     if (others) return Ambiguous(1 + others);
     for (size_t i = 0; i < S.nChecks; ++i)
-        if (!Matches(img, fn + S.checks[i].off, S.checks[i].bytes)) return SigFail(S.checks[i].why);
+        if (!Matches(img, TextOffset(img, fn, S.checks[i].off, PatternBytes(S.checks[i].bytes)), S.checks[i].bytes)) return SigFail(S.checks[i].why);
     return SigOk(fn);
 }
 
@@ -140,9 +178,10 @@ struct FnOfSpec { const char* pattern; const char* prologue; };
 
 template <const FnOfSpec& S>
 SigResult ResolveFnOf(const Image& img) {
+    if (!Mapped(img, img.text)) return SigFail("text range outside image");
     SigResult r = SigPattern(img.text, S.pattern);
     if (r.state != SigState::Ok) return r;
-    uint8_t* fn = FunctionStart(img, r.at);
+    uint8_t* fn = FunctionAt(img, r.at);
     if (!fn) return SigFail("no .pdata entry for the match");
     if (!Matches(img, fn, S.prologue)) return SigFail("prologue changed at +0x000");
     return SigOk(fn);
@@ -155,7 +194,7 @@ template <const CallSpec& S>
 SigResult ResolveCall(const Image& img) {
     const uint8_t* from = Sig(S.from);
     if (!from) return SigFail("source row missing");
-    const uint8_t* t = CallAt(img, from + S.off);
+    const uint8_t* t = CallAt(img, TextOffset(img, from, S.off, 5));
     if (!t) return SigFail("no call at the expected offset");
     if (!Matches(img, t, S.prologue)) return SigFail("callee prologue changed at +0x000");
     return SigOk(t);
@@ -170,7 +209,7 @@ template <const InRangeSpec& S>
 SigResult ResolveInRange(const Image& img) {
     const uint8_t* from = Sig(S.from);
     if (!from) return SigFail("source row missing");
-    if (!InText(img, from, S.len + PatternBytes(S.pattern))) return SigFail("range runs past .text");
+    if (!Mapped(img, img.text) || PatternBytes(S.pattern) > SIZE_MAX - S.len || !TextOffset(img, from, 0, S.len + PatternBytes(S.pattern))) return SigFail("range runs past .text");
     const uint8_t* hit = nullptr;
     int n = 0;
     for (const uint8_t* p = from; p < from + S.len; ++p)
@@ -189,8 +228,8 @@ template <const VtblFnSpec& S>
 SigResult ResolveVtblFn(const Image& img) {
     const uint8_t* vtbl = Sig(S.vtbl);
     if (!vtbl) return SigFail("source row missing");
-    const uint8_t* fn = SlotTarget(img, vtbl + S.slot);
-    if (!fn || !InText(img, fn, 1)) return SigFail("the slot doesn't point into .text");
+    const uint8_t* fn = SlotTarget(img, S.slot <= static_cast<size_t>(PTRDIFF_MAX) ? rows::RangeAt(img.rdata, vtbl, static_cast<ptrdiff_t>(S.slot), 8) : nullptr);
+    if (!fn || !TextOffset(img, fn, 0, 1)) return SigFail("the slot doesn't point into .text");
     if (!Matches(img, fn, S.prologue)) return SigFail("prologue changed at +0x000");
     return SigOk(fn);
 }
@@ -206,7 +245,7 @@ SigResult ResolveVtbl(const Image& img) {
     const int n = SlotsHolding(img, fn, S.slot / 8, &at);
     if (!n) return Missing();
     if (n > 1) return Ambiguous(n);
-    return SigOk(at - S.slot);
+    return SigOk(S.slot <= static_cast<size_t>(PTRDIFF_MAX) ? rows::RangeAt(img.rdata, at, -static_cast<ptrdiff_t>(S.slot), 1) : nullptr);
 }
 
 // ---- contracts.list ----------------------------------------------------------------------------
@@ -217,14 +256,15 @@ constexpr StrFnSpec kQueryReply{ "DebugAcceptGeneratorContract QueryAvailableCon
 SigResult ResolveMissionSystemSite(const Image& img) {
     uint8_t* fn = Sig("contracts.query_reply");
     if (!fn) return SigFail("source row missing");
-    uint8_t* end = fn + 0x1000;
-    if (end > img.text.base + img.text.size - 13) end = img.text.base + img.text.size - 13;
+    if (!Mapped(img, img.text) || !TextAt(img, fn, 0, 13)) return Missing();
+    const size_t remaining = img.text.size - (reinterpret_cast<uintptr_t>(fn) - reinterpret_cast<uintptr_t>(img.text.base));
+    uint8_t* end = fn + (remaining - 13 < 0x1000 ? remaining - 13 : 0x1000);
     uint8_t* found = nullptr;
     int n = 0;
     for (uint8_t* p = fn; p < end; ++p) {
         if (p[0] != 0xE8 || !BytesMatch(p + 5, "48 8B C8 E8")) continue;
-        const uint8_t* get = p + 5 + Rel32(p + 1);
-        const uint8_t* field = p + 13 + Rel32(p + 9);
+        const uint8_t* get = CheckedRip(img, p, 1, 5);
+        const uint8_t* field = CheckedRip(img, TextAt(img, p, 8, 5), 1, 5);
         if (!Matches(img, get, "48 8B 05 ?? ?? ?? ?? C3") || !Matches(img, field, "48 8B 41 ?? C3")) continue;
         if (!n) found = p;
         ++n;
@@ -237,8 +277,9 @@ SigResult ResolveMissionSystemSite(const Image& img) {
 SigResult ResolveMissionSystem(const Image& img) {
     const uint8_t* site = Sig("contracts.mission_system_site");
     if (!site) return SigFail("source row missing");
-    const uint8_t* g = RipTarget(RipTarget(site, 1, 5), 3, 7);
-    if (g < img.base || g >= img.base + img.size) return SigFail("RIP target outside the image");
+    const uint8_t* get = CheckedRip(img, site, 1, 5);
+    const uint8_t* g = CheckedRip(img, get, 3, 7);
+    if (!InImage(img, g, 1)) return SigFail("RIP target outside the image");
     return SigOk(g);
 }
 
@@ -247,10 +288,10 @@ constexpr RipSpec kGeneratorGet{ "contracts.mission_system_site", 8, 1, 5 };
 // ---- contracts.accept --------------------------------------------------------------------------
 
 SigResult ResolveAcceptStub(const Image& img) {
-    const uint8_t* s = FindCString(img.rdata, "CContractBrokerOffline::AcceptContract is not implemented yet");
-    const uint8_t* lea = s ? FindRipLea(img.text, 0x4C, 0x8D, 0x05, s) : nullptr;
+    const uint8_t* s = RdataString(img, "CContractBrokerOffline::AcceptContract is not implemented yet");
+    const uint8_t* lea = s ? ExactLeaTo(img, s) : nullptr;
     if (!lea) return SigFail("the AcceptContract message isn't referenced");
-    const uint8_t* stub = lea - 0xC;
+    const uint8_t* stub = TextAt(img, lea, -0xC, 1);
     if (!Matches(img, stub, "40 53 48 81 EC D0 00 00 00 48 8B DA 4C 8D 05")) return SigFail("prologue changed at +0x000");
     return SigOk(stub);
 }
@@ -271,12 +312,12 @@ SigResult ResolveAcceptSlot(const Image& img) {
 
 template <int K>
 SigResult ResolveAutoAccept(const Image& img) {
-    const uint8_t* s = FindCString(img.rdata, "DebugAcceptGeneratorContract AcceptContract(after creation) Sent");
+    const uint8_t* s = RdataString(img, "DebugAcceptGeneratorContract AcceptContract(after creation) Sent");
     if (!s) return SigFail("the string isn't in .rdata");
     const uint8_t* fns[kAutoAcceptCallers + 1] = {};
     int n = 0;
-    for (const uint8_t* lea = LeaTo(img.text, s, nullptr); lea; lea = LeaTo(img.text, s, lea + 8)) {
-        const uint8_t* f = FunctionStart(img, lea);
+    for (const uint8_t* lea = LeaTo(img, s, nullptr); lea; lea = LeaTo(img, s, TextAt(img, lea, 7, 0))) {
+        const uint8_t* f = FunctionAt(img, lea);
         bool known = !f;
         for (int i = 0; i < n && i <= kAutoAcceptCallers && !known; ++i) known = fns[i] == f;
         if (known) continue;
@@ -297,7 +338,8 @@ constexpr StrFnSpec kGetShardGraph{
 constexpr StrFnSpec kDumpShardGraph{ "soc_dumpShardGraph: no shard id supplied and gEnv->GetShardId() is empty", nullptr, nullptr, 0 };
 
 const char* ShardStoreExtra(const Image& img, const uint8_t* at) {
-    const uint8_t* get = at + 12 + Rel32(at + 8);
+    const uint8_t* insn = TextOffset(img, at, 7, 5);
+    const uint8_t* get = CheckedRip(img, insn, 1, 5);
     return Matches(img, get, "48 8B 81 ?? ?? ?? ?? C3") ? nullptr : "the store getter changed (mov rax, [rcx+disp32]; ret)";
 }
 constexpr InRangeSpec kShardStoreSite{ "contracts.dump_shard_graph", 0x100, "48 8B 0D ?? ?? ?? ?? E8", ShardStoreExtra };
@@ -338,20 +380,20 @@ constexpr CallSpec kCopyDetails{ "contracts.copy_details_site", 19, "48 89 5C 24
 SigResult ResolveAddPlayer(const Image& img) {
     const uint8_t* fn = Sig("contracts.add_mission");
     if (!fn) return SigFail("source row missing");
-    if (img.text.size < 0x30) return Missing();
+    if (!Mapped(img, img.text) || !InText(img, fn, 1) || img.text.size < 0x30) return Missing();
     const uint8_t* target = nullptr;
     int n = 0;
     uint8_t* const end = img.text.base + img.text.size - 0x30;
     for (uint8_t* p = img.text.base; p < end; ++p) {
         p = static_cast<uint8_t*>(memchr(p, 0xE8, static_cast<size_t>(end - p)));
         if (!p) break;
-        if (p + 5 + Rel32(p + 1) != fn) continue;
+        if (CheckedRip(img, p, 1, 5) != fn) continue;
         for (uint8_t* q = p + 5; q < p + 0x20; ++q) {
             if (q[0] != 0xE8) continue;
             bool leaRdx80 = false;
             for (uint8_t* r = p + 5; r + 7 <= q && !leaRdx80; ++r) leaRdx80 = BytesMatch(r + 1, "8D ?? 80 00 00 00") && (r[0] & 0xF8) == 0x48;
             if (leaRdx80) {
-                const uint8_t* t = q + 5 + Rel32(q + 1);
+                const uint8_t* t = CheckedRip(img, q, 1, 5);
                 if (target && t != target) return SigFail("AddPlayer call sites disagree on the target");
                 target = t;
                 ++n;
@@ -361,7 +403,7 @@ SigResult ResolveAddPlayer(const Image& img) {
     }
     if (!n) return Missing();
     if (n != kAddPlayerSites) return SigFail("AddPlayer: the call site count changed");
-    if (!InText(img, target, 1)) return SigFail("AddPlayer target outside .text");
+    if (!InImage(img, target, 1) || !TextAt(img, target, 0, 1)) return SigFail("AddPlayer target outside .text");
     return SigOk(target);
 }
 
@@ -415,11 +457,12 @@ constexpr VtblFnSpec kEndPhase{ "contracts.offline_service_vtbl", kServiceEndPha
 // ---- contracts.rewards, contracts.shop_payments, contracts.steps -------------------------------
 
 SigResult ResolveSendRewardsAuthority(const Image& img) {
-    const uint8_t* msg = FindCString(img.rdata, "CSCPlayerMissionLog::SendRewards No authority");
-    uint8_t* lea = msg ? FindRipLea(img.text, 0x4C, 0x8D, 0x05, msg) : nullptr;
+    const uint8_t* msg = RdataString(img, "CSCPlayerMissionLog::SendRewards No authority");
+    const uint8_t* lea = msg ? ExactLeaTo(img, msg) : nullptr;
     if (!lea) return SigFail("the SendRewards message isn't referenced");
-    if (!Matches(img, lea - 14, "FF 90 ?? ?? ?? ?? 84 C0 0F 85")) return SigFail("layout changed at -0x00e (call; test al, al; jnz)");
-    return SigOk(lea - 14);
+    const uint8_t* site = TextAt(img, lea, -14, 1);
+    if (!Matches(img, site, "FF 90 ?? ?? ?? ?? 84 C0 0F 85")) return SigFail("layout changed at -0x00e (call; test al, al; jnz)");
+    return SigOk(site);
 }
 
 constexpr FnOfSpec kFindEntry{
@@ -446,6 +489,14 @@ constexpr StrFnSpec kHelperSpawned{ "Succeeded to spawn delivery mission helper.
 
 constexpr const char* kMissionSettings =
     "48 8B 05 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? C5 FA 10 88 74 01 00 00 48 8B 01 C5 F2 5A C9 48 FF A0 20 03 00 00";
+
+SigResult ResolveMissionSettings(const Image& img) {
+    if (!Mapped(img, img.text)) return SigFail("text range outside image");
+    const SigResult r = SigPattern(img.text, kMissionSettings);
+    if (r.state != SigState::Ok) return r;
+    const uint8_t* target = CheckedRip(img, r.at, 3, 7);
+    return target ? SigOk(target) : SigFail("RIP target outside the image");
+}
 
 // ---- contracts.phases --------------------------------------------------------------------------
 
@@ -633,7 +684,7 @@ extern const SigDef kContractsSignatures[] = {
     SCO_STR("contracts.send_comms", kSendComms),
     SCO_STR("contracts.helper_spawned", kHelperSpawned),
     // stream radius
-    { "contracts.mission_settings",         kMissionSettings, 3, 7, nullptr, {} },
+    { "contracts.mission_settings",         nullptr, 0, 0, ResolveMissionSettings, {} },
     // phases
     SCO_PAT("contracts.phase_site", kPhaseSite),
     { "contracts.create_phase",             nullptr, 0, 0, ResolveCall<kCreatePhase>,         { "contracts.phase_site" } },

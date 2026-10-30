@@ -25,7 +25,6 @@
 namespace sco::game {
 namespace {
 
-using rows::InText;
 
 constexpr const char* kGetItemPorts =
     "48 89 6C 24 20 57 41 54 41 55 41 56 41 57 48 83 EC 20 4C 8B 91 88 00 00 00 45 33 ED 48 8B 81 90 00 00 00 45 0F B6 F9 49 2B C2 4D 8B";
@@ -47,8 +46,19 @@ constexpr const char* kPortAccessor =
 constexpr size_t kAccessorScan = 0x100;   // how far into an accessor its label load is looked for
 
 bool InImage(const Image& img, const uint8_t* p, size_t n) {
-    return img.base && img.size && p >= img.base && p <= img.base + img.size &&
-           static_cast<size_t>(img.base + img.size - p) >= n;
+    return rows::InImage(img, p, n);
+}
+bool Code(const Image& img, const uint8_t* p, size_t n) {
+    return InImage(img, img.text.base, img.text.size) && rows::InText(img, p, n);
+}
+const uint8_t* Offset(const Image& img, const uint8_t* p, size_t off, size_t n, bool text) {
+    if (off > static_cast<size_t>(PTRDIFF_MAX)) return nullptr;
+    if (text && !InImage(img, img.text.base, img.text.size)) return nullptr;
+    return text ? rows::TextAt(img, p, static_cast<ptrdiff_t>(off), n)
+                : rows::ImageAt(img, p, static_cast<ptrdiff_t>(off), n);
+}
+const uint8_t* Target(const Image& img, const uint8_t* insn) {
+    return Code(img, insn, 7) ? rows::CheckedRip(img, insn, 3, 7) : nullptr;
 }
 
 bool NameIs(const Image& img, const uint8_t* s, const char* want) {
@@ -58,15 +68,17 @@ bool NameIs(const Image& img, const uint8_t* s, const char* want) {
 
 // True when [fn, fn + kAccessorScan) holds a RIP-relative lea of the C string label.
 bool LoadsLabel(const Image& img, const uint8_t* fn, const char* label) {
-    if (!InText(img, fn, kAccessorScan)) return false;
-    for (const uint8_t* p = fn; p + 7 <= fn + kAccessorScan; ++p) {
+    if (!Code(img, fn, kAccessorScan)) return false;
+    for (size_t off = 0; off <= kAccessorScan - 7; ++off) {
+        const uint8_t* p = rows::TextAt(img, fn, static_cast<ptrdiff_t>(off), 7);
         if ((p[0] != 0x48 && p[0] != 0x4C) || p[1] != 0x8D || (p[2] & 0xC7) != 0x05) continue;
-        if (NameIs(img, RipTarget(p, 3, 7), label)) return true;
+        if (NameIs(img, Target(img, p), label)) return true;
     }
     return false;
 }
 
 SigResult ResolvePortAccessor(const Image& img, const char* label) {
+    if (!Code(img, img.text.base, img.text.size)) return SigFail("invalid .text range");
     uint8_t* hits[8];
     const int n = FindPattern(img.text, kPortAccessor, hits, 8);
     if (n <= 0) return { SigState::Missing, nullptr, 0, nullptr };
@@ -97,11 +109,12 @@ static_assert(inventory_map::kEntityComponentByType == 0x390, "kTypeCode pins th
 SigResult ResolveContainerTypeId(const Image& img) {
     const uint8_t* impl = Sig("inventory.unequip_item");
     if (!impl) return SigFail("inventory.unequip_item missing");
-    const uint8_t* code = impl + kUnequipTypeCode;
-    if (!InText(img, code, kTypeCodeBytes) || !BytesMatch(code, kTypeCode)) return SigFail("the container type id registration changed shape");
-    if (!NameIs(img, RipTarget(code + kTypeLabelInsn, 3, 7), "IItemPortContainer"))
+    if (!Code(img, impl, 1)) return SigFail("inventory.unequip_item outside .text");
+    const uint8_t* code = Offset(img, impl, kUnequipTypeCode, kTypeCodeBytes, true);
+    if (!Code(img, code, kTypeCodeBytes) || !BytesMatch(code, kTypeCode)) return SigFail("the container type id registration changed shape");
+    if (!NameIs(img, Target(img, code + kTypeLabelInsn), "IItemPortContainer"))
         return SigFail("the type id registration doesn't load the IItemPortContainer label");
-    const uint8_t* cache = RipTarget(code + kTypeCacheInsn, 3, 7);
+    const uint8_t* cache = Target(img, code + kTypeCacheInsn);
     if (!InImage(img, cache, 2)) return SigFail("the type id cache is outside the image");
     return SigOk(cache);
 }
@@ -116,21 +129,22 @@ constexpr const char* kNameCase = "48 8D 05 ?? ?? ?? ?? C3";
 constexpr uint32_t kNameBound = 0xC1;   // ids 0..0C0h
 
 SigResult ResolveItemTypeNames(const Image& img) {
+    if (!Code(img, img.text.base, img.text.size)) return SigFail("invalid .text range");
     SigResult r = SigPattern(img.text, kNameSwitch);
     if (r.state != SigState::Ok) return r;
     if (!img.base || !img.size) return SigFail("no image base to follow the name table from");
-    if (RipTarget(r.at + kBaseLea, 3, 7) != img.base) return SigFail("the name function's base lea isn't the image base");
+    if (Target(img, Offset(img, r.at, kBaseLea, 7, true)) != img.base) return SigFail("the name function's base lea isn't the image base");
     uint32_t tableRva = 0;
     memcpy(&tableRva, r.at + kTableDisp, sizeof(tableRva));
-    const uint8_t* table = img.base + tableRva;
+    const uint8_t* table = Offset(img, img.base, tableRva, 4u * kNameBound, false);
     if (!InImage(img, table, 4u * kNameBound)) return SigFail("the name table is outside the image");
     for (const inventory_map::TypeName& e : inventory_map::kTypeNames) {
         if (e.id >= kNameBound) return SigFail("a checked item type id is outside the name function's bound");
         uint32_t caseRva = 0;
         memcpy(&caseRva, table + 4u * e.id, sizeof(caseRva));
-        const uint8_t* c = img.base + caseRva;
-        if (!InText(img, c, 8) || !BytesMatch(c, kNameCase)) return SigFail("an item type name case changed shape");
-        if (!NameIs(img, RipTarget(c, 3, 7), e.name)) return SigFail("an item type id no longer has its expected name");
+        const uint8_t* c = Offset(img, img.base, caseRva, 8, true);
+        if (!Code(img, c, 8) || !BytesMatch(c, kNameCase)) return SigFail("an item type name case changed shape");
+        if (!NameIs(img, Target(img, c), e.name)) return SigFail("an item type id no longer has its expected name");
     }
     return r;
 }

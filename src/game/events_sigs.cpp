@@ -19,6 +19,15 @@ using rows::ResolveFn;
 using rows::ResolveRip;
 using rows::RipSpec;
 
+// Guard conversion of table offsets before using shared range accessors.
+const uint8_t* LocalTextAt(const Image& img, const uint8_t* p, size_t off, size_t n) {
+    return off <= static_cast<size_t>(PTRDIFF_MAX)
+        ? rows::TextAt(img, p, static_cast<ptrdiff_t>(off), n) : nullptr;
+}
+const uint8_t* LocalRip(const Image& img, const uint8_t* p, size_t off, size_t disp, size_t len) {
+    return rows::CheckedRip(img, LocalTextAt(img, p, off, len), disp, len);
+}
+
 // ---- actor status: health and state (B4) -------------------------------------------------------
 
 // mov rax,[rcx+208h]; add rax,74A0h; ret: actor -> CSCActorStatus.
@@ -27,13 +36,23 @@ static_assert(kActorStatusObject == 0x208 && kActorStatus == 0x74A0, "kAccessor 
 static_assert(kStatHealthPool == 0x0B && kStatStun == 6, "the health site's mov edx, imm pins these");
 static_assert(kStatusPredicateSlot == 0x60, "the state site's mov rdx,[rcx+60h] pins this");
 
-bool CallTargetsEqual(const uint8_t* a, const uint8_t* b) { return RipTarget(a, 1, 5) == RipTarget(b, 1, 5); }
+bool CallTargetsEqual(const Image& img, const uint8_t* at, size_t a, size_t b) {
+    const uint8_t* x = LocalRip(img, at, a, 1, 5);
+    const uint8_t* y = LocalRip(img, at, b, 1, 5);
+    return x && y && x == y;
+}
 
 const char* HealthExtra(const Image& img, const uint8_t* at) {
-    const uint8_t* accessor = RipTarget(at, 1, 5);
-    if (!rows::InText(img, accessor, 14) || !BytesMatch(accessor, kAccessor)) return "the status accessor changed (actor+0x208, +0x74a0)";
-    if (!CallTargetsEqual(at, at + 0x1D)) return "the two status accessor calls reach different functions";
-    if (!CallTargetsEqual(at + 0x0D, at + 0x2A)) return "the two GetStat calls reach different functions";
+    if (!LocalTextAt(img, at, 0, 5)) return "status accessor call outside .text";
+    const uint8_t* accessor = LocalRip(img, at, 0, 1, 5);
+    if (!LocalTextAt(img, accessor, 0, 14)) return "status accessor outside .text";
+    if (!BytesMatch(accessor, kAccessor)) return "the status accessor changed (actor+0x208, +0x74a0)";
+    if (!LocalTextAt(img, at, 0x1D, 5)) return "second status accessor call outside .text";
+    if (!LocalRip(img, at, 0x1D, 1, 5)) return "second status accessor target outside the image";
+    if (!CallTargetsEqual(img, at, 0, 0x1D)) return "the two status accessor calls reach different functions";
+    if (!LocalTextAt(img, at, 0x0D, 5) || !LocalTextAt(img, at, 0x2A, 5)) return "GetStat call outside .text";
+    if (!LocalRip(img, at, 0x0D, 1, 5) || !LocalRip(img, at, 0x2A, 1, 5)) return "GetStat target outside the image";
+    if (!CallTargetsEqual(img, at, 0x0D, 0x2A)) return "the two GetStat calls reach different functions";
     return nullptr;
 }
 
@@ -49,8 +68,10 @@ constexpr Check kStateChecks[] = {
 };
 
 const char* StateExtra(const Image& img, const uint8_t* at) {
-    const uint8_t* accessor = RipTarget(at, 1, 5);
-    if (!rows::InText(img, accessor, 14) || !BytesMatch(accessor, kAccessor)) return "the status accessor changed (actor+0x208, +0x74a0)";
+    if (!LocalTextAt(img, at, 0, 5)) return "status accessor call outside .text";
+    const uint8_t* accessor = LocalRip(img, at, 0, 1, 5);
+    if (!LocalTextAt(img, accessor, 0, 14)) return "status accessor outside .text";
+    if (!BytesMatch(accessor, kAccessor)) return "the status accessor changed (actor+0x208, +0x74a0)";
     return nullptr;
 }
 
@@ -62,13 +83,17 @@ constexpr rows::FnSpec kStateSite = {
 
 // Counts the `r0 r1 r2 rel32` instructions in .text whose RIP target is `target` (up to max kept).
 int LeaRefs(const Section& text, uint8_t r0, uint8_t r1, uint8_t r2, const uint8_t* target, const uint8_t** out, int max) {
-    if (!text.base || text.size < 7 || !target) return 0;
+    if (!rows::InRange(text, text.base, text.size) || text.size < 7 || !target) return 0;
     int n = 0;
-    const uint8_t* const end = text.base + text.size - 7;
-    for (const uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<const uint8_t*>(memchr(p, r0, static_cast<size_t>(end - p)));
-        if (!p) break;
-        if (p[1] == r1 && p[2] == r2 && p + 7 + Rel32(p + 3) == target) {
+    for (size_t i = 0; i <= text.size - 7; ++i) {
+        const uint8_t* p = text.base + i;
+        const uintptr_t addr = reinterpret_cast<uintptr_t>(p);
+        if (addr > UINTPTR_MAX - 7) continue;
+        uintptr_t dest = addr + 7;
+        const int64_t delta = Rel32(p + 3);
+        if (delta < 0) { const uintptr_t d = static_cast<uintptr_t>(-delta); if (d > dest) continue; dest -= d; }
+        else { const uintptr_t d = static_cast<uintptr_t>(delta); if (d > UINTPTR_MAX - dest) continue; dest += d; }
+        if (p[0] == r0 && p[1] == r1 && p[2] == r2 && static_cast<uintptr_t>(dest) == reinterpret_cast<uintptr_t>(target)) {
             if (n < max) out[n] = p;
             ++n;
         }
@@ -79,14 +104,18 @@ int LeaRefs(const Section& text, uint8_t r0, uint8_t r1, uint8_t r2, const uint8
 // The function whose label string is `label`: the one lea r0 r1 r2 [label] in .text, and the .pdata
 // function that contains it. lea receives the lea.
 SigResult LabelFunction(const Image& img, const char* label, uint8_t r0, uint8_t r1, uint8_t r2, const uint8_t** lea) {
+    if (!LocalTextAt(img, img.text.base, 0, img.text.size)) return SigFail("invalid .text");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* str = FindCString(img.rdata, label);
     if (!str) return SigFail("the label string isn't in .rdata");
     const uint8_t* refs[2] = {};
     const int n = LeaRefs(img.text, r0, r1, r2, str, refs, 2);
     if (n == 0) return { SigState::Missing, nullptr, 0, nullptr };
     if (n > 1) return { SigState::Ambiguous, nullptr, n, nullptr };
+    if (!rows::ImageAt(img, img.pdata.base, 0, img.pdata.size)) return SigFail("invalid .pdata");
     const uint8_t* f = FunctionStart(img, refs[0]);
     if (!f) return SigFail("the label isn't inside a .pdata function");
+    if (!rows::TextAt(img, f, 0, 1)) return SigFail("function start outside .text");
     if (lea) *lea = refs[0];
     return SigOk(f);
 }
@@ -97,8 +126,11 @@ SigResult ResolveIsDeadConfirmed(const Image& img) {
     if (r.state != SigState::Ok) return r;
     const uint8_t* site = Sig("actor.state_site");
     if (!site) return SigFail("actor.state_site missing");
-    const uint8_t* p2 = RipTarget(site + 0x0B, 1, 5);
-    if (site[0x0B] != 0xE8 || p2 != r.at) return SigFail("the state test doesn't call CSCActorStatus::IsDeadConfirmed (+0x0b)");
+    const uint8_t* call = LocalTextAt(img, site, 0x0B, 5);
+    const uint8_t* p2 = LocalRip(img, site, 0x0B, 1, 5);
+    if (!call) return SigFail("state test call outside .text");
+    if (!p2) return SigFail("state test target outside the image");
+    if (*call != 0xE8 || p2 != r.at) return SigFail("the state test doesn't call CSCActorStatus::IsDeadConfirmed (+0x0b)");
     return r;
 }
 
@@ -107,9 +139,11 @@ SigResult ResolveIsDeadConfirmed(const Image& img) {
 constexpr const char* kSpawnLabel = "void __cdecl SCigEventDispatcher::QueueEvent<struct SPI_Player_OnSpawn>(const struct SPI_Player_OnSpawn &)";
 
 const char* SpawnExtra(const Image& img, const uint8_t* at) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
     const uint8_t* label = FindCString(img.rdata, kSpawnLabel);
-    if (!label || RipTarget(at + 0x60, 3, 7) != label) return "the function doesn't load the SPI_Player_OnSpawn label at +0x60";
-    const uint8_t* f = FunctionStart(img, at + 0x60);
+    if (!label || LocalRip(img, at, 0x60, 3, 7) != label) return "the function doesn't load the SPI_Player_OnSpawn label at +0x60";
+    if (!rows::ImageAt(img, img.pdata.base, 0, img.pdata.size)) return "invalid .pdata";
+    const uint8_t* f = FunctionStart(img, LocalTextAt(img, at, 0x60, 7));
     if (f != at) return "the SPI_Player_OnSpawn label isn't inside the function the pattern found";
     return nullptr;
 }
@@ -131,11 +165,17 @@ SigResult ResolvePlayerDeath(const Image& img) {
                                 0x48, 0x8D, 0x05, &lea);
     if (r.state != SigState::Ok) return r;
     const uint8_t* f = r.at;
-    if (lea != f + 0x414) return SigFail("the label isn't loaded at +0x414");
-    if (!rows::InText(img, f, 0x70) || !BytesMatch(f, "4C 89 44 24 18 48 89 54 24 10 55 53 57 41 54 41 55 41 57"))
-        return SigFail("prologue changed at +0x000");
-    if (!BytesMatch(f + 0x22, "48 8B DA 4C 8B F9")) return SigFail("argument saves changed at +0x022");
-    if (!BytesMatch(f + 0x69, "4D 8B 47 08")) return SigFail("the actor's entity handle load changed at +0x069");
+    if (lea != LocalTextAt(img, f, 0x414, 7)) return SigFail("the label isn't loaded at +0x414");
+    constexpr Check checks[] = {
+        {0, "4C 89 44 24 18 48 89 54 24 10 55 53 57 41 54 41 55 41 57", "prologue changed at +0x000"},
+        {0x22, "48 8B DA 4C 8B F9", "argument saves changed at +0x022"},
+        {0x69, "4D 8B 47 08", "the actor's entity handle load changed at +0x069"},
+    };
+    for (const auto& c : checks) {
+        const uint8_t* p = LocalTextAt(img, f, c.off, rows::PatternBytes(c.bytes));
+        if (!p) return SigFail("death function check outside .text");
+        if (!BytesMatch(p, c.bytes)) return SigFail(c.why);
+    }
     return r;
 }
 
@@ -144,7 +184,8 @@ SigResult ResolvePlayerDeath(const Image& img) {
 SigResult ResolveSeatEnter(const Image& img) {
     SigResult r = LabelFunction(img, "CSCActorResultStateLinked::Enter", 0x4C, 0x8D, 0x05, nullptr);
     if (r.state != SigState::Ok) return r;
-    if (!rows::InText(img, r.at, 21) || !BytesMatch(r.at, "48 89 5C 24 10 4C 89 44 24 18 55 56 57 41 54 41 55 41 56 41 57"))
+    if (!LocalTextAt(img, r.at, 0, 21)) return SigFail("seat prologue outside .text");
+    if (!BytesMatch(r.at, "48 89 5C 24 10 4C 89 44 24 18 55 56 57 41 54 41 55 41 56 41 57"))
         return SigFail("prologue changed at +0x000");
     return r;
 }
@@ -152,7 +193,8 @@ SigResult ResolveSeatEnter(const Image& img) {
 SigResult ResolveSeatExit(const Image& img) {
     SigResult r = LabelFunction(img, "CSCActorResultStateLinked::Exit", 0x4C, 0x8D, 0x05, nullptr);
     if (r.state != SigState::Ok) return r;
-    if (!rows::InText(img, r.at, 19) || !BytesMatch(r.at, "4C 89 44 24 18 48 89 54 24 10 48 89 4C 24 08 55 53 56 57"))
+    if (!LocalTextAt(img, r.at, 0, 19)) return SigFail("seat prologue outside .text");
+    if (!BytesMatch(r.at, "4C 89 44 24 18 48 89 54 24 10 48 89 4C 24 08 55 53 56 57"))
         return SigFail("prologue changed at +0x000");
     return r;
 }

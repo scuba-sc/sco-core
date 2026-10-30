@@ -8,6 +8,7 @@ static uint8_t* QuitImage(sco::Image& img, bool withString, int flip) {
     memset(g_quit, 0xCC, sizeof(g_quit));
     img = {};
     img.base = g_quit;
+    img.size = sizeof(g_quit);
     img.text = { g_quit + 0x100, 0x300 };
     img.rdata = { g_quit + 0x400, 0x200 };
     memset(img.rdata.base, 0, img.rdata.size);
@@ -153,7 +154,7 @@ static void TestPakRows() {
     img.pdata = {};
     sco::ResolveAll(img);
     r = sco::SigLookup("pak.datacore_loader");
-    CHECK(r->state == S::Failed && strcmp(r->why, "no .pdata entry for the DCB size message's function") == 0);
+    CHECK(r->state == S::Failed && strcmp(r->why, "invalid .pdata/image") == 0);
 
     l = PakImage(img, true);
     l.loader[0x2300] = 0xCC;   // no close call

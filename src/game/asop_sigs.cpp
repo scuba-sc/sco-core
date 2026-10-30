@@ -21,9 +21,13 @@ using rows::RipSpec;
 
 // ---- terminal open (rc1) -----------------------------------------------------------------------
 
-const char* OpenExtra(const Image&, const uint8_t* f) {
+const char* OpenExtra(const Image& img, const uint8_t* f) {
     // The server half's jmp at +0x95E must land on the exit at +0xDC0.
-    if (f + asop::kOpenClientHalf + Rel32(f + asop::kOpenPatchSite + 1) != f + asop::kOpenExit)
+    const uint8_t* jump = rows::TextAt(img, f, asop::kOpenPatchSite, 5);
+    const uint8_t* exit = rows::TextAt(img, f, asop::kOpenExit, 1);
+    if (!jump) return "jmp at +0x95e outside .text";
+    if (!exit) return "exit at +0xdc0 outside .text";
+    if (rows::CheckedRip(img, jump, 1, 5) != exit)
         return "jmp at +0x95e doesn't reach +0xdc0";
     return nullptr;
 }
@@ -43,16 +47,21 @@ constexpr RipSpec kShardPersisted{ "asop.on_request_open", 0x028, 3, 7 };
 constexpr RipSpec kClientGate{ "asop.on_request_open", 0x963, 2, 7 };
 
 // Shard gate, site 1: the pattern starts inside OnRequestOpen, at +0x21.
-const char* GateOpenExtra(const Image&, const uint8_t* at) {
-    return at == Sig("asop.on_request_open") + 0x21 ? nullptr : "not at asop.on_request_open+0x21";
+const char* GateOpenExtra(const Image& img, const uint8_t* at) {
+    const uint8_t* gate = rows::TextAt(img, Sig("asop.on_request_open"), 0x21, 1);
+    return gate && at == gate ? nullptr : "not at asop.on_request_open+0x21";
 }
 constexpr FnSpec kGateOpen{ "44 89 AD D0 00 00 00 44 38 2D ?? ?? ?? ?? 0F 85 ?? ?? ?? ?? 48 8B 51 08 48 8D 8D D0 00 00 00 E8",
                             nullptr, 0, GateOpenExtra };
 
 // Shard gate, site 2: inside the remote-method validation that the Deliver handler calls at +0xC3.
 const char* GateValidationExtra(const Image& img, const uint8_t* at) {
+    if (!rows::InText(img, at, 1)) return "gate outside .text";
+    if (!rows::InImage(img, img.base, img.size) ||
+        !rows::InImage(img, img.pdata.base, img.pdata.size)) return "invalid .pdata/image";
     const uint8_t* fn = FunctionStart(img, at);
     if (!fn) return "no .pdata entry for the gate's function";
+    if (!rows::InText(img, fn, 1)) return "gate function outside .text";
     return fn == Sig("asop.validate_caller") ? nullptr : "not in asop.validate_caller";
 }
 constexpr FnSpec kGateValidation{ "80 3D ?? ?? ?? ?? 00 75 ?? 48 8D 44 24 60 C7 44 24 60 E3 00 00 00 48 89 44 24 70 4C 8D 0D",
@@ -90,9 +99,11 @@ constexpr RipSpec kGame{ "asop.rm_request_deliver", 0x02C, 3, 7 };
 constexpr RipSpec kValidateCaller{ "asop.rm_request_deliver", 0x0C3, 1, 5 };
 
 // The inventory kind is an imm8 the feature reads from the game: the row is its address.
-SigResult ResolveInventoryKind(const Image&) {
+SigResult ResolveInventoryKind(const Image& img) {
     uint8_t* d = Sig("asop.rm_request_deliver");
-    return d ? SigOk(d + 0x109) : SigFail("source row missing");
+    if (!d) return SigFail("source row missing");
+    const uint8_t* kind = rows::TextAt(img, d, 0x109, 1);
+    return kind ? SigOk(kind) : SigFail("inventory kind outside .text");
 }
 
 constexpr FnSpec kDeliverSecond{ "40 55 53 41 54 41 55 41 56 41 57 48 8D AC 24 68 FE FF FF 48 81 EC 98 02 00 00",

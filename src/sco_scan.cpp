@@ -7,9 +7,9 @@ namespace sco {
 const uint8_t* FindCString(const Section& s, const char* str) {
     const size_t n = strlen(str) + 1;
     if (!s.base || s.size < n) return nullptr;
-    uint8_t* const end = s.base + s.size;
-    for (uint8_t* p = s.base; p + n <= end; ++p) {
-        p = static_cast<uint8_t*>(memchr(p, str[0], static_cast<size_t>(end - p) - n + 1));
+    uint8_t* const last = s.base + s.size - n;
+    for (uint8_t* p = s.base; p <= last; ++p) {
+        p = static_cast<uint8_t*>(memchr(p, str[0], static_cast<size_t>(last - p) + 1));
         if (!p) break;
         if ((p == s.base || p[-1] == 0) && memcmp(p, str, n) == 0) return p;
     }
@@ -32,10 +32,15 @@ bool BytesMatch(const uint8_t* p, const char* pattern) {
 uint8_t* FindRipLea(const Section& text, uint8_t reg0, uint8_t reg1, uint8_t reg2, const uint8_t* target) {
     if (!text.base || text.size < 7) return nullptr;
     uint8_t* const end = text.base + text.size - 7;
-    for (uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<uint8_t*>(memchr(p, reg0, static_cast<size_t>(end - p)));
+    for (uint8_t* p = text.base; p <= end; ++p) {
+        p = static_cast<uint8_t*>(memchr(p, reg0, static_cast<size_t>(end - p) + 1));
         if (!p) break;
-        if (p[1] == reg1 && p[2] == reg2 && p + 7 + Rel32(p + 3) == target) return p;
+        const auto next = reinterpret_cast<uintptr_t>(p) + 7;
+        const int32_t disp = Rel32(p + 3);
+        const auto magnitude = disp < 0 ? uintptr_t{0} - static_cast<uintptr_t>(disp) : static_cast<uintptr_t>(disp);
+        if (disp < 0 ? magnitude > next : magnitude > UINTPTR_MAX - next) continue;
+        const auto address = disp < 0 ? next - magnitude : next + magnitude;
+        if (p[1] == reg1 && p[2] == reg2 && address == reinterpret_cast<uintptr_t>(target)) return p;
     }
     return nullptr;
 }
@@ -52,8 +57,8 @@ int FindPattern(const Section& text, const char* pattern, uint8_t** out, int max
     if (n == 0 || !text.base || text.size < n) return 0;
     int matches = 0;
     uint8_t* const end = text.base + text.size - n;
-    for (uint8_t* p = text.base; p < end; ++p) {
-        p = static_cast<uint8_t*>(memchr(p, bytes[0], static_cast<size_t>(end - p)));
+    for (uint8_t* p = text.base; p <= end; ++p) {
+        if (!wild[0]) p = static_cast<uint8_t*>(memchr(p, bytes[0], static_cast<size_t>(end - p) + 1));
         if (!p) break;
         size_t i = 1;
         while (i < n && (wild[i] || p[i] == bytes[i])) ++i;

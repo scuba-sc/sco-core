@@ -4,6 +4,7 @@
 #include "sco/game/system.h"
 #include "sco/scan.h"
 #include "sco/signatures.h"
+#include "sig_rows.h"
 
 namespace sco::game {
 
@@ -16,11 +17,14 @@ constexpr char kQuitLog[] =
 // The function references kQuitLog twice (lea r9 at +0xA3 and +0x176, one per log path).
 // FindRipLea returns the first; the check at +0x176 proves the second belongs to the same function.
 SigResult ResolveQuit(const Image& img) {
+    if (!rows::TextAt(img, img.text.base, 0, img.text.size)) return SigFail("invalid .text");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* fmt = FindCString(img.rdata, kQuitLog);
     if (!fmt) return { SigState::Missing, nullptr, 0, nullptr };
     uint8_t* lea = FindRipLea(img.text, 0x4C, 0x8D, 0x0D, fmt);
     if (!lea) return SigFail("CSystem::Quit log line isn't referenced");
-    uint8_t* f = lea - 0xA3;
+    const uint8_t* f = rows::TextAt(img, lea, -0xA3, 1);
+    if (!f) return SigFail("Quit function starts outside .text");
     static const struct { size_t off; const char* bytes; const char* why; } kChecks[] = {
         { 0x000, "48 89 5C 24 10 48 89 74 24 18 48 89 7C 24 20", "layout changed at +0x000" },
         { 0x00F, "55 41 54 41 55 41 56 41 57",                   "layout changed at +0x00f" },
@@ -32,9 +36,12 @@ SigResult ResolveQuit(const Image& img) {
         { 0x0DD, "E8 ?? ?? ?? ??",                               "layout changed at +0x0dd" },
         { 0x176, "4C 8D 0D ?? ?? ?? ??",                         "layout changed at +0x176" },
     };
-    for (const auto& c : kChecks)
-        if (!BytesMatch(f + c.off, c.bytes)) return SigFail(c.why);
-    if (RipTarget(f + 0x176, 3, 7) != fmt) return SigFail("second Quit log line not at +0x176");
+    for (const auto& c : kChecks) {
+        const uint8_t* p = rows::TextAt(img, f, c.off, rows::PatternBytes(c.bytes));
+        if (!p) return SigFail("Quit function check outside .text");
+        if (!BytesMatch(p, c.bytes)) return SigFail(c.why);
+    }
+    if (rows::CheckedRip(img, rows::TextAt(img, f, 0x176, 7), 3, 7) != fmt) return SigFail("second Quit log line not at +0x176");
     return SigOk(f);
 }
 
