@@ -30,6 +30,14 @@ struct Status { bool configured = false, admitted = false, installed = false, st
 // Start once after signatures AND guarded game services are ready, before engine callers run.
 // Explicit config replaces product environment/filesystem globals. Copies bounded classes.
 Result Start(const Config& config);
+// Windows-only fleet query: is any ship of this class stored, retrieved, delivering or
+// queued this session? Returns false when the fleet provider is not composed.
+bool FleetClassBusy(const char* name);
+// Rebuild the owned-ship list mid-session from a new class set (same validation as Start).
+// Game thread only; refuses unless configured, admitted and not stopped, and refuses a
+// catalog-mode change. Slots are stable across rebuilds, so stored and in-transit ships
+// keep resolving; retired entitlement buffers stay alive for process lifetime.
+Result Reconfigure(const Config& config);
 Status Snapshot();
 // Game/window-message thread: pump on EVERY message, not just next-tick dispatch.
 void Pump(uint32_t now);

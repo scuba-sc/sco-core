@@ -15,6 +15,16 @@ invalid/duplicate names, and resolves class GUIDs at runtime. No game list or GU
 table is bundled. The host owns list-file parsing and `asop` configuration policy.
 The entitlements callback retains the existing bounded offline catalog mechanism.
 
+`Reconfigure(config)` rebuilds the owned-ship list mid-session from a new class set
+with the same validation as `Start`; it runs on the game thread, refuses unless
+configured, admitted and not stopped, and refuses a catalog-mode change. Fleet ship
+records use an append-only slot table: a ship URN is the marker plus its stable slot
+index, slots are never removed, and a re-added class reuses its slot, so stored and
+in-transit ships keep resolving across rebuilds. Each rebuild swaps in a new
+entitlement buffer under the ships lock; retired buffers stay alive for process
+lifetime because the engine may hold pointers into them. This is the foundation for
+future buy, sell and trade flows that change ownership mid-session.
+
 `Snapshot` reports composition status and a copied installed-group bitmask, not
 proof of gameplay readiness. `installed` records catalog-hook installation only;
 consult `ready` for independently unavailable terminal/fleet/lift/hangar/ATC groups.

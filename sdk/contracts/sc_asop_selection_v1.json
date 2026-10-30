@@ -250,7 +250,7 @@
       "thread_affinity": "Game thread only.",
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
       "reentrancy": "Operations refuse while a file adapter operation is active.",
-      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
+      "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error. A commit that would remove a busy class is refused before the write and reported by status as EDIT_CONFLICT with reason SC_ASOP_SELECTION_REASON_BUSY (5).",
       "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
@@ -322,7 +322,7 @@
       "id": "sc-asop-selection-v1-rows",
       "since": "`size >= 32`; 1.0",
       "purpose": "Copy one bounded page of file or catalogue rows against an exact session and revision.",
-      "buffer_contract": "`sco_result (*rows)(sco_plugin* self, const sc_asop_selection_read* read, sc_asop_selection_row* out, uint32_t stride, uint32_t capacity, uint32_t* out_count, uint32_t* out_more);`<br>Copy one bounded page of file or catalogue rows against an exact session and revision.",
+      "buffer_contract": "`sco_result (*rows)(sco_plugin* self, const sc_asop_selection_read* read, sc_asop_selection_row* out, uint32_t stride, uint32_t capacity, uint32_t* out_count, uint32_t* out_more);`<br>Copy one bounded page of file or catalogue rows against an exact session and revision. Rows may carry SC_ASOP_SELECTION_ROW_BUSY (0x01) when the host reports the class as in play this session.",
       "ownership": "Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied.",
       "thread_affinity": "Game thread only.",
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
