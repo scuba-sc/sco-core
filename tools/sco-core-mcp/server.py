@@ -42,6 +42,7 @@ import threading
 import time
 
 PROTOCOL_VERSION = "2025-11-25"
+SERVER_VERSION = "1.0.0"
 MAX_FRAME = 64 * 1024
 MAX_RESPONSE = 4 * 1024 * 1024
 MAX_CATALOGUE = 16 * 1024 * 1024
@@ -2350,7 +2351,7 @@ class Server:
                 raise RpcError(-32602, "initialize requires protocolVersion, capabilities and clientInfo")
             self.state = "initializing"
             return {"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "sco-core-mcp", "version": "1.0.0"}}
+                    "serverInfo": {"name": "sco-core-mcp", "version": SERVER_VERSION}}
         if method not in {"tools/list", "tools/call"}:
             raise RpcError(-32601, "Method not found")
         if self.state != "ready":

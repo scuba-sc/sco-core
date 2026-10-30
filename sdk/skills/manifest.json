@@ -1,7 +1,29 @@
 {
-  "schema_version": 1,
-  "bundle_version": "0.2.3",
   "baseline_sdk": "2.4.0",
+  "bundle_version": "0.2.4",
+  "mcp": {
+    "protocol": "2025-11-25",
+    "server_version": "1.0.0",
+    "tools": {
+      "build_plugin_project": "40da91b48e0dedd698ec564e815be9a3badfb6a4dce5b17f22d6740a614f0693",
+      "check_compatibility": "0676e47af486cf33231eb83f82747e58570234472c8362d395bf7859611cc091",
+      "generate_plugin_scaffold": "761907dff1fa47e8cd13780f34fcdf9e6dbf0fcc6304babb44f745f1f0e2836e",
+      "get_capability_status": "c28c229b21f98ed9c1d2bbb0e5720798a7c5b7af0a7b8cd26328179b5a907851",
+      "get_example": "4fbbcb65865b4daf7c33c62966cc0dc1ed94a7270ca56a7146d7313bace04fbc",
+      "get_guide_section": "a6b4ddccf49c2f72fbfe4d03a7586773fb9bfa40e93cb827f004cbc22cd21f38",
+      "get_service_status": "6ece55047904a36b6229a3567fc17fc5ec3be4ce50d605cca6203ae5b5915df0",
+      "get_symbol": "c28c229b21f98ed9c1d2bbb0e5720798a7c5b7af0a7b8cd26328179b5a907851",
+      "get_workflow": "327eda5f7ec204d656490e32145d7992ed43a66042d19d01b4bfac643b8c2ad4",
+      "list_services": "35fb909c1c89bbf6b557ecdf67caf1c0d7b6fe9211151f907bb30ce931e6244e",
+      "list_workflows": "35fb909c1c89bbf6b557ecdf67caf1c0d7b6fe9211151f907bb30ce931e6244e",
+      "run_plugin_check": "7a40a73d8744f25bb98f20c37ef9e66fc0b32df506a2fd5b7500bb66ae2e1470",
+      "search_api": "d95426cc3a43f383cca95effe30aac58c9e14f72fcd7b75566847688ecf3df94",
+      "search_guides": "4010443c9e7038deee0e6b19ad75b4b6adcfed7d461dcc2fbf02d81c4501fabc",
+      "test_plugin_project": "40da91b48e0dedd698ec564e815be9a3badfb6a4dce5b17f22d6740a614f0693",
+      "validate_manifest_and_widgets": "4769b07d6aa29e83aa9219989b613c8820a42c1e6d53ef98d7e2ebd5d286a993"
+    }
+  },
+  "schema_version": 1,
   "skills": [
     {
       "id": "sco-plan-sdk-work",
