@@ -141,6 +141,7 @@ static const P::Builtin kBuiltins[] = {
 static const P::ScriptRuntime kLua{ sco_lua_load, sco_lua_unload };
 
 static void SetCaps() {
+    CHECK(!sco::app::Start(sco::app::Platform{})); // synchronous startup reentry
     g_events.push_back("caps");
     sco::caps::Set("teleport", true);
 }
