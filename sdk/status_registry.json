@@ -122,7 +122,7 @@
       "stability": "stable",
       "stable_since": "sdk-v2.4.0",
       "capabilities": [
-        {"name":"game.entities.lookup","methods":["list_classes","find_class","find_by_name","component"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Copied registry/name/typed-presence provider policy and ABI tests; no native adapter, not run in game","evidence_source":"docs/game/entities.md"},
+        {"name":"game.entities.lookup","methods":["list_classes","find_class","find_by_name","component"],"default":"OFF","evidence_level":"synthetic_only","evidence":"Copied registry/name/typed-presence provider policy and ABI tests; the native point-lookup seam installs nothing without the registry receiver lifetime, so no native adapter binds; not run in game","evidence_source":"docs/game/entities.md"},
         {"name": "game.entities.transform", "methods": ["alive", "get_transform", "set_transform"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
         {"name": "game.entities.spawn", "methods": ["spawn", "despawn", "keep"], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "evidence_source": "docs/game/status.md"},
         {"name": "game.entities.class_of", "methods": [], "default": "ON", "evidence_level": "sigcheck_resolved", "game_build": "4.10.196.36804", "evidence": "row resolved on 4.10.196.36804 (sigcheck)", "sig_rows": ["entities.dump", "entities.class_site"], "evidence_source": "docs/game/status.md"},

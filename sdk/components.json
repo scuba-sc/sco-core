@@ -8574,6 +8574,41 @@
       "group": "host-source-sc"
     },
     {
+      "id": "host-source-sc-src-game-services-entity_lookup_engine.cpp",
+      "source": "src/game/services/entity_lookup_engine.cpp",
+      "destination": "src/game/services/entity_lookup_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "host-source-sc-src-game-services-entity_lookup_engine.h",
+      "source": "src/game/services/entity_lookup_engine.h",
+      "destination": "src/game/services/entity_lookup_engine.h",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "interoperability-derived",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
+      "id": "test.entity_lookup_engine",
+      "source": "tests/test_entity_lookup_engine.cpp",
+      "destination": "tests/test_entity_lookup_engine.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
+    },
+    {
       "id": "include.sc_actor_stats.h",
       "source": "include/sc_actor_stats.h",
       "destination": "include/sc_actor_stats.h",
