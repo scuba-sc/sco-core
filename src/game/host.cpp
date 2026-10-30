@@ -30,8 +30,6 @@
 #pragma comment(lib, "oleaut32.lib")
 #endif
 
-namespace sco::app { bool HasRetainedGameHooks() noexcept; }
-
 namespace sco::game::host {
 namespace {
 std::atomic<Phase> phase{Phase::Idle};

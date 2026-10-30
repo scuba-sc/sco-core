@@ -406,6 +406,7 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     img.rdata = { mem.data() + 4096, 4096 };
     img.size = static_cast<uint32_t>(mem.size());
     pf.image = &img;
+    pf.imageOwner = pf.resolverOwner = std::make_shared<int>(1);
     g_log.clear();
     CHECK(sco::app::Start(pf));
     CHECK(Logged("[core] signatures: 0/"));
@@ -1435,6 +1436,7 @@ static void TestHostStopRetainsRegistry() {
     int stopCalls = 0;
     sco::app::Platform pf;
     pf.image = &image;
+    pf.imageOwner = pf.resolverOwner = std::make_shared<int>(1);
     pf.setCapabilities = SetCaps;
     pf.hostService = {&stopCalls, FixtureHostStart, FixtureHostTick, FixtureHostStopFail};
     CHECK(sco::app::Start(pf));
@@ -1449,6 +1451,7 @@ static void TestHostOwnerMismatch() {
     sco::Image image{};
     sco::app::Platform pf;
     pf.image = &image;
+    pf.imageOwner = pf.resolverOwner = std::make_shared<int>(1);
     pf.setCapabilities = SetCaps;
     CHECK(sco::app::Start(pf));
     const auto owner = sco::AcquireHostSignatureRegistry();

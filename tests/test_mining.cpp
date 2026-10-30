@@ -14,6 +14,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
+#include <string>
+#include <stdexcept>
 using namespace sco::game::services;
 namespace gh = sco::game::host;
 std::atomic<bool> failRead{false};
@@ -21,12 +23,15 @@ std::atomic<int> reads{0}, inspections{0}, installs{0};
 MiningCell cell{0, 0, 2};
 gh::Admission evidence;
 gh::Admission Inspect() { ++inspections; return evidence; }
-bool Install() { ++installs; return true; }
+std::string installMode;
+bool Install() { ++installs; if (installMode == "throw") throw std::runtime_error("installer"); return installMode != "false"; }
 bool Read(uintptr_t, uintptr_t, MiningCell* out) { ++reads; *out = cell; return !failRead.load(); }
 static_assert(sizeof(sc_mining_v1) == 24);
 static_assert(sizeof(sc_mining_state) == 40);
 static_assert(offsetof(sc_mining_state, cells) == 16);
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 1) installMode = argv[1];
+    assert(!MiningHookRetained());
     sco::SetGameThread();
     const auto* api = sco::host::BuildApi({"mining-test"});
     auto* a = sco::host::NewPlugin("mining_a");
@@ -73,6 +78,14 @@ int main() {
     assert(svc->state(a, &state) == SCO_OK && state.requested && !state.active && state.block == SC_MINING_BLOCK_ADMISSION);
     evidence.officialNetwork = gh::Check::Clear;
     assert(svc->request(a, 1) == SCO_OK && installs == 1);
+    assert(MiningHookRetained());
+    if (!installMode.empty()) {
+        StopMining();
+        assert(MiningHookRetained()); // refusal/throw cannot prove rollback
+        assert(MiningCellFlags(1, 2, 0, 6) == 6);
+        assert(StartMining(bridge) == sco::Result::Unavailable);
+        return 0;
+    }
     assert(svc->request(b, 1) == SCO_OK && installs == 1);
     assert(svc->state(a, &state) == SCO_OK && state.active);
     assert(svc->request(a, 0) == SCO_OK);
@@ -109,6 +122,7 @@ int main() {
     assert(svc->state(a, &small) == SCO_BAD_ARG);
     gh::detail::SetFreshAdmissionEnabled(false); assert(!gh::FreshAdmissionAllowed());
     StopMining();
+    assert(MiningHookRetained());
     assert(MiningCellFlags(1, 2, 0, 6) == 6 && reads == before);
     assert(api->query_service(SC_MINING_SERVICE_NAME, SC_MINING_SERVICE_VERSION, &raw) == SCO_NOT_FOUND);
     assert(StartMining(bridge) == sco::Result::Unavailable);

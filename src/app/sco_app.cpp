@@ -12,6 +12,7 @@
 #include "sco/datacore_service.h"   // sco.datacore: the Star Citizen game pack (SCO_GAME_SC)
 #endif
 #ifdef SCO_GAME_SERVICES
+#include "../game/services/mining.h"
 #include "sco/game/services.h"      // the game pack's services (sco_game_services, Windows)
 #endif
 #include "sco/host.h"
@@ -39,6 +40,7 @@ namespace sco::app {
 
 namespace {
 
+std::atomic_flag g_startEntry = ATOMIC_FLAG_INIT;
 bool                         g_started = false;
 bool                         g_stopping = false;
 bool                         g_teardownFailed = false;
@@ -376,6 +378,7 @@ void ReloadPluginInstance(plugins::Plugin& q, fs::path& copy, Result& overallRes
 
 bool InitPlatformAndSignatures(const Platform& pf) {
     if (pf.image) {
+        if (!pf.imageOwner || !pf.resolverOwner) return false;
         if (AcquireHostSignatureRegistry()) {
             Log("[app] signature registry already owned");
             return false;
@@ -391,7 +394,7 @@ bool InitPlatformAndSignatures(const Platform& pf) {
                 }
             }
             auto status = registry->Freeze();
-            if (status == SigRegistryStatus::Ok) status = registry->Resolve(*pf.image);
+            if (status == SigRegistryStatus::Ok) status = registry->Resolve(*pf.image, pf.imageOwner, pf.resolverOwner);
             if (status != SigRegistryStatus::Ok) {
                 Log("[app] signature resolution failed: %s", SigRegistryStatusName(status));
                 return false;
@@ -683,7 +686,17 @@ bool IsHostMenuPanel(const char* id) {
     return false;
 }
 
+bool HasRetainedGameHooks() noexcept {
+#ifdef SCO_GAME_SERVICES
+    return game::services::MiningHookRetained();
+#else
+    return false;
+#endif
+}
+
 bool Start(const Platform& platform) {
+    if (g_startEntry.test_and_set()) return false;
+    struct Entry { ~Entry() { g_startEntry.clear(); } } entry;
     if (g_started || g_teardownFailed) {
         try { Log("[app] start refused: already started or teardown incomplete"); } catch (...) {}
         return false;
@@ -699,7 +712,9 @@ bool Start(const Platform& platform) {
     g_platform = platform;
     const Platform& pf = g_platform;
 
-    if (!InitPlatformAndSignatures(pf)) return false;
+    const bool signaturesReady = InitPlatformAndSignatures(pf);
+    g_platform.imageOwner.reset(); g_platform.resolverOwner.reset();
+    if (!signaturesReady) return false;
     const char* version = pf.hostVersion ? pf.hostVersion : "sco-core host";
     const sco_api* api = host::BuildApi({ version });
 
@@ -796,7 +811,7 @@ Result Stop() {
     StopMenu();  // drain host-owned cleanup even if no subsequent Tick occurs
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
     plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts);
-    bool registryCleanupSafe = true;
+    bool registryCleanupSafe = !HasRetainedGameHooks();
     if (g_hostServiceStarted) {
         bool stopped = false;
         try { stopped = g_platform.hostService.stop(g_platform.hostService.context) == Result::Ok; } catch (...) {}

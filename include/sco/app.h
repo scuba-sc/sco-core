@@ -83,6 +83,8 @@ struct Platform {
     size_t nBuiltins = 0;
     const plugins::ScriptRuntime* scripts = nullptr;   // sco-lua, or nullptr: lua plugins refused
     const Image* image = nullptr;                  // resolve signatures against this; nullptr skips
+    // Conditional provider-owned mapping/code lifetimes; not an execution barrier.
+    std::shared_ptr<const void> imageOwner, resolverOwner;
     size_t signatureRegistryBudgetBytes = 0;      // 0 uses allocator limits; see SignatureRegistry budget accounting
     // With image set, Start builds an owned registry, invokes this to register its tables,
     // freezes and resolves it, then installs the complete snapshot. Null registers none.
@@ -145,6 +147,8 @@ struct Platform {
 // changes, when already started and not stopped; true otherwise, whatever failed to load.
 // `platform` is copied; builtins, scripts and hostVersion must outlive Stop.
 bool Start(const Platform& platform);
+// Process-retained or uncertain native hook state; never a drainage assertion.
+bool HasRetainedGameHooks() noexcept;
 
 // GameThreadTick(nowMs): queued tasks, then "tick". No-op unless started.
 void Tick(uint32_t nowMs);

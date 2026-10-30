@@ -51,6 +51,8 @@ void Unload() { calls.emplace_back("unload"); }
 const sco::plugins::Builtin builtin{"fixture", Query, Load, Unload};
 }
 namespace sco::game::services {
+// Boundary fixture; actual mining adapter is exercised by test_mining.
+bool MiningHookRetained() noexcept { return false; }
 Result Start() {
     calls.emplace_back("start");
     if (mode == "throw-stage-1" || mode == "throw-stage-2") {
@@ -81,6 +83,7 @@ int main(int argc, char** argv) {
     sco::Image image{}; // empty registry and synthetic image; no image address is dereferenced
     sco::app::Platform platform;
     platform.image = &image;
+    platform.imageOwner = platform.resolverOwner = std::make_shared<int>(1);
     platform.gameServices = true;
     platform.gameReadersQuiesced = mode == "null" ? nullptr : ReadersQuiesced;
     platform.gameReadersContext = &token;

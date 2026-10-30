@@ -10,7 +10,7 @@
 #include <array>
 namespace sco::game::services {
 namespace {
-std::atomic<bool> running{false}, hooked{false}, faulted{false};
+std::atomic<bool> running{false}, hooked{false}, faulted{false}, hookAttempted{false};
 std::atomic<uint32_t> requests{0};
 std::atomic<uint64_t> cells{0}, promoted{0}, faults{0};
 std::array<sco_plugin*, 64> owners{}; // game thread only; worker sees count, never owners
@@ -47,6 +47,7 @@ sco_result Request(sco_plugin* self, uint32_t on) {
     const bool admitted = Admitted();
     bool installed = false;
     if (admitted && !faulted.load() && backend.install) {
+        hookAttempted.store(true); // a false/throwing installer can already have patched code
         try { installed = backend.install(); } catch (...) { Fault(); }
     }
     if (installed) hooked.store(true);
@@ -78,6 +79,7 @@ sco_result State(sco_plugin* self, sc_mining_state* out) {
 }
 const sc_mining_v1 table{sizeof(table), 0, Request, State};
 }
+bool MiningHookRetained() noexcept { return hookAttempted.load(); }
 Result StartMining(bool cleanupReady) {
 #ifdef _WIN32
     return StartMining(NativeMiningBackend(cleanupReady));
