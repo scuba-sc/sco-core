@@ -759,7 +759,7 @@ for obj_path in "${APP_ASAN[@]}"; do
 done
 "$CXX" "${FLAGS[@]}" -DSCO_GAME_SERVICES=1 -fsanitize=address,undefined \
   "$ROOT/tests/test_app_game_service_shutdown.cpp" "${APP_GAME_SERVICES_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -lm -o "$OUT/test_app_game_service_shutdown"
-for mode in true false null throw stop-fail finalize-fail partial-fail partial-clean stop-false stop-throw dependent-retained dependent-throw; do
+for mode in true false null throw stop-fail finalize-fail partial-fail partial-clean throw-stage-1 throw-stage-2 throw-log-start throw-log-summary throw-log-stop stop-false stop-throw dependent-retained dependent-throw; do
   "$OUT/test_app_game_service_shutdown" "$mode"
 done
 
