@@ -54,6 +54,7 @@
     {"path":"tools/test_sdk_workflows.py","why":"Repository workflow index, archive and MCP integration tests; not a runtime dependency."},
     {"path":"tools/test_sdk_mvp_host.mjs","why":"Repository cross-product native host MCP acceptance harness; requires separately built studio."},
     {"path":"tools/test_sdk_mvp.py","why":"Repository archive-only developer workflow acceptance runner."},
+    {"path":"tools/test_sdk_consumer_requirements.py","why":"Repository-only consumer requirements report tests."},
     {"path":"tools/sco-core-mcp/runtime_schema/","why":"Runtime protocol design fixtures; separate runtime package, not discovery dependencies."},
     {"path":"tools/sco-core-mcp/test_integration.py","why":"Repository-only discovery integration tests."},
     {"path":"tools/sco-core-mcp/test_runtime_schema.py","why":"Repository-only runtime schema tests."},
@@ -9508,6 +9509,9 @@
       "group": "host-source-sc",
       "public_header": false
     },
+    {"id": "developer.tools.sdk_consumer_requirements.py", "source": "tools/sdk_consumer_requirements.py", "destination": "tools/sdk_consumer_requirements.py", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "developer.docs.sdk-consumer-requirements.md", "source": "docs/sdk-consumer-requirements.md", "destination": "docs/sdk-consumer-requirements.md", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "example.container_reader.consumer-requirements.template.json", "source": "sdk/examples/container_reader/consumer-requirements.template.json", "destination": "examples/container_reader/consumer-requirements.template.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {
       "id": "developer.tools.sco-core-mcp.server.py",
       "source": "tools/sco-core-mcp/server.py",
