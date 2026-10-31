@@ -1650,6 +1650,26 @@ static void TestStore(const fs::path& sdk) {
 
     TestStoreSchema();
 
+    // Exercise Lua's retries and continuation against the real portable storage provider.
+    Write("stschema", R"lua(
+        local st = sco.store
+        local long = string.rep("é", 128) -- 256 UTF-8 bytes
+        local declared = string.rep("T", 256)
+        assert(st.exec('CREATE TABLE "" ("" TEXT)'))
+        assert(st.exec('CREATE TABLE "' .. long .. '" ("' .. long .. '" "' .. declared .. '")'))
+        local names, kinds = st.tables()
+        assert(names and #names == 2 and names[1] == "" and names[2] == long)
+        assert(kinds[1] == 1 and kinds[2] == 1)
+        local cols, types = st.columns("")
+        assert(cols and #cols == 1 and cols[1] == "" and types[1] == "TEXT")
+        cols, types = st.columns(long)
+        assert(cols and #cols == 1 and cols[1] == long and types[1] == declared)
+    )lua");
+    Loaded schema = Load("stschema");
+    CHECK(schema.p && schema.p->state == State::Loaded);
+    if (schema.p && schema.p->state != State::Loaded) std::printf("  stschema: %s\n", schema.p->reason.c_str());
+    Unload(schema);
+
     Write("storea", R"lua(
         local st = sco.store
         assert(st.available())
