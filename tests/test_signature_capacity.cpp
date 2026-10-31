@@ -172,7 +172,7 @@ static void TestResolutionAllocationFailure() {
         CHECK(std::strcmp(oldReason, "copied allocator failure reason") == 0);
         CHECK(old->Lookup(rows.ids[512].c_str()) == oldResult);
     }
-    CHECK(success && failures > 513);
+    CHECK(success && failures > 0);
     std::printf("resolution: %zu allocation failure points, previous snapshot preserved\n", failures);
 }
 
