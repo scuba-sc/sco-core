@@ -1521,6 +1521,12 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_sdk)
   add_test(NAME test_sdk COMMAND test_sdk)
 
+  add_executable(test_sdk_host_slots tests/test_sdk_host_slots.cpp)
+  target_include_directories(test_sdk_host_slots PRIVATE "${SCO_INCLUDE_DIR}")
+  target_link_libraries(test_sdk_host_slots PRIVATE Threads::Threads)
+  sco_project_target(test_sdk_host_slots)
+  add_test(NAME test_sdk_host_slots COMMAND test_sdk_host_slots)
+
   if(SCO_GAME_SC)
     # Synthetic C recipes and typed C++ actor/entity pointer-tail negatives.
     # Contract declarations only; never a game-runtime certification.
