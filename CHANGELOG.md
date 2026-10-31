@@ -6,6 +6,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - C++ service and raw wrappers return `SCO_UNAVAILABLE` for missing or null host function slots, including on full-size host tables.
 
+- Add an optional packaged consumer requirements report bound to explicit catalogue
+  and registry hashes, with language support, scoped static capability evidence
+  and a container-reader declaration. It does not establish provider readiness
+  or release approval; not run in game.
+
 - Refuse native ASOP startup until the host supplies a proven safe phase and reader lifetime protocol.
 
 - Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.
