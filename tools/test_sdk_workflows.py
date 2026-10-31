@@ -113,11 +113,15 @@ class Inputs(unittest.TestCase):
 
     def test_generate_preserves_crlf_outside_contract(self):
         path = self.root / workflows.BLOCK_PATH
-        original = path.read_bytes().replace(b'\n', b'\r\n')
-        path.write_bytes(original)
-        workflows.generate(self.root)
-        self.assertEqual(path.read_bytes(), original)
-        workflows.build(self.root, SHA)
+        lf = path.read_bytes().replace(b'\r\n', b'\n')
+        # Exercise both LF and CRLF checkout inputs without turning CRLF into
+        # CRCRLF on Windows. The generated block and surrounding text must match.
+        for checkout in (lf, lf.replace(b'\n', b'\r\n')):
+            with self.subTest(line_ending='CRLF' if b'\r\n' in checkout else 'LF'):
+                path.write_bytes(checkout)
+                workflows.generate(self.root)
+                self.assertEqual(path.read_bytes(), checkout)
+                workflows.build(self.root, SHA)
 
     def test_generate_refuses_symlink_without_writing_target(self):
         path = self.root / workflows.BLOCK_PATH
