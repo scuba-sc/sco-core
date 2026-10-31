@@ -71,9 +71,9 @@ namespace Sco.Sdk.Tests
         private static uint* _smallTable;   // a service table whose size covers only itself
         private static ScoStorageV1* _storageTable;
         private static int _schemaCalls;
-        private static int _provideCalls, _releaseCalls, _registerCalls, _invokeCalls;
-        private static bool _forwarded, _registerForwarded, _invokeForwarded;
-        private static ScoResult _registerResult = ScoResult.Ok;
+        private static int _provideCalls, _releaseCalls, _registerCalls, _invokeCalls, _queryCalls;
+        private static bool _forwarded, _registerForwarded, _invokeForwarded, _queryForwarded;
+        private static ScoResult _registerResult = ScoResult.Ok, _queryResult = ScoResult.Ok;
         private static Raw? _rejectedRaw;
         private static void* _self;
         private static int _failures;
@@ -166,7 +166,14 @@ namespace Sco.Sdk.Tests
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult QueryService(byte* name, uint minVersion, void** o)
         {
+            ++_queryCalls;
             *o = null;
+            if (S(name) == "test.query")
+            {
+                _queryForwarded = minVersion == 0x10002 && o != null;
+                *o = _smallTable; // A failing host result must never populate the returned ref.
+                return _queryResult;
+            }
             if (S(name) == Abi.StorageName && _storageTable != null)
             {
                 *o = _storageTable;
@@ -386,6 +393,46 @@ namespace Sco.Sdk.Tests
                    written == 4 && _invokeForwarded, "invoke forwards arguments, host result and required size");
         }
 
+        private static void QueryRootTests(TestPlugin p, ScoApi* api)
+        {
+            uint fullSize = api->size;
+            uint offset = ApiOffset.query_service;
+            uint width = (uint)sizeof(nint);
+            var query = api->query_service;
+            Expect(p.Query("test.query", 0x10002, out ServiceRef<ScoStorageV1> service) == ScoResult.Ok &&
+                   service.IsValid && _queryForwarded, "query forwards name and version");
+            int calls = _queryCalls;
+            api->size = offset - 1;
+            Expect(p.Query("test.query", 0x10002, out service) == ScoResult.Unavailable && !service.IsValid &&
+                   _queryCalls == calls, "old host refuses query and clears the service");
+            for (uint extent = 0; extent < width; ++extent)
+            {
+                api->size = offset + extent;
+                Expect(!p.ApiCovers(offset), $"ApiCovers refuses partial pointer extent {extent}");
+                Expect(p.Query("test.query", 0x10002, out service) == ScoResult.Unavailable && !service.IsValid &&
+                       _queryCalls == calls, $"query refuses partial pointer extent {extent}");
+            }
+            api->size = offset + width;
+            Expect(p.ApiCovers(offset) && p.Query("test.query", 0x10002, out service) == ScoResult.Ok &&
+                   service.IsValid && _queryCalls == calls + 1, "exact pointer boundary admits query");
+            Expect(!p.ApiCovers(uint.MaxValue) && !p.ApiCovers(uint.MaxValue - width + 1),
+                   "ApiCovers rejects overflowing offsets");
+            api->size = fullSize;
+            api->query_service = null;
+            calls = _queryCalls;
+            Expect(p.Query("test.query", 0x10002, out service) == ScoResult.Unavailable && !service.IsValid &&
+                   _queryCalls == calls, "null query refuses and clears the service");
+            api->query_service = query;
+            Expect(p.Query("test.query", 0x10002, out service) == ScoResult.Ok && service.IsValid &&
+                   _queryCalls == calls + 1, "query recovers after null slot");
+            _queryResult = ScoResult.NotFound;
+            Expect(p.Query("test.query", 0x10002, out service) == ScoResult.NotFound && !service.IsValid &&
+                   _queryCalls == calls + 2 && _queryForwarded, "host refusal is forwarded and cannot populate service");
+            _queryResult = ScoResult.Ok;
+            Expect(p.Query("test.query", 0x10002, out service) == ScoResult.Ok && service.IsValid &&
+                   _queryCalls == calls + 3, "query recovers after refusal");
+        }
+
         public static int Run()
         {
             _smallTable = (uint*)NativeMemory.AllocZeroed(8);
@@ -400,6 +447,7 @@ namespace Sco.Sdk.Tests
             Expect(Cmds.Count == 2 && Cmds[0].Name == "test.echo" && Cmds[0].NArgs == 1, "two commands registered");
             Expect(Subs.Count == 1, "one host subscription for two handlers of one event");
             OptionalRootTests(p, api);
+            QueryRootTests(p, api);
 
             (ScoResult r, string reply) = Call(Cmds[0], "hi");
             Expect(r == ScoResult.Ok && reply == "echo: hi", $"echo answered {r} \"{reply}\"");
