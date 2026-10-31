@@ -555,6 +555,26 @@ if(SCO_GAME_SC)
     target_link_libraries(test_asop_host PRIVATE sco_asop_host)
     sco_project_target(test_asop_host)
     add_test(NAME asop_host COMMAND test_asop_host)
+
+    add_executable(test_asop_fleet_transaction tests/test_asop_fleet_transaction.cpp)
+    target_include_directories(test_asop_fleet_transaction PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_asop_fleet_transaction)
+    add_test(NAME asop_fleet_transaction COMMAND test_asop_fleet_transaction)
+
+    # Compile the real config path against synthetic runtime/engine seams, not the native host.
+    # _WIN32 selects that path on portable runners; no Windows headers or engine code are linked.
+    add_library(asop_reconfigure_config OBJECT src/game/asop_host/config.cpp)
+    if(NOT WIN32)
+      target_compile_definitions(asop_reconfigure_config PRIVATE _WIN32)
+    endif()
+    target_include_directories(asop_reconfigure_config PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(asop_reconfigure_config)
+    add_executable(test_asop_reconfigure tests/test_asop_reconfigure.cpp $<TARGET_OBJECTS:asop_reconfigure_config>)
+    target_include_directories(test_asop_reconfigure PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_asop_reconfigure PRIVATE Threads::Threads)
+    sco_project_target(test_asop_reconfigure)
+    add_test(NAME asop_reconfigure COMMAND test_asop_reconfigure)
+    add_test(NAME asop_reconfigure_threaded_stop COMMAND test_asop_reconfigure threaded-stop)
   endif()
 endif()
 

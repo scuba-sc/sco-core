@@ -30,6 +30,12 @@ struct MemoryFile {
     const void* quarantine_before_commit=nullptr;
     S::FileResult replace_result=S::FileResult::Ok;
     sco::Result reentry_result=sco::Result::Ok;
+    const sc_asop_selection_v1* release_table=nullptr;
+    sco_plugin* lease_owner=nullptr;
+    uint64_t lease_to_release=0;
+    sco_result lease_release_result=SCO_FAILED;
+    bool release_lease_after_begin=false;
+    S::FileResult result_after_begin=S::FileResult::Ok;
     static S::FileResult Read(void* context,S::Document& out) {
         auto& self=*static_cast<MemoryFile*>(context);++self.reads;
         if(self.reenter) self.reentry_result=S::Stop();
@@ -47,7 +53,16 @@ struct MemoryFile {
             std::thread([owner]{ CHECK(sco::detail::QuarantineOwner(owner)==sco::Result::Ok); }).join();
             self.quarantine_before_commit=nullptr;
         }
+        if(self.release_table && !self.release_lease_after_begin) {
+            self.lease_release_result=self.release_table->release(self.lease_owner,self.lease_to_release);
+            self.release_table=nullptr;
+        }
         if(!permit.begin(permit.context)) return S::FileResult::Cancelled;
+        if(self.release_table && self.release_lease_after_begin) {
+            self.lease_release_result=self.release_table->release(self.lease_owner,self.lease_to_release);
+            self.release_table=nullptr;
+        }
+        if(self.result_after_begin!=S::FileResult::Ok) return self.result_after_begin;
         self.document.present=true;self.document.bytes=bytes;++self.document.identity[0];out=self.document;
         if(self.release_after_replace) { sco::Release(self.release_after_replace); self.release_after_replace=nullptr; }
         return S::FileResult::Ok;
@@ -269,6 +284,127 @@ int main() {
     CHECK(table->refresh(recovery)==SCO_OK && table->state(recovery,&state)==SCO_OK &&
           (state.flags&SC_ASOP_SELECTION_FILE_KNOWN) && !(state.flags&SC_ASOP_SELECTION_FILE_PRESENT));
     CHECK(sco::Release(recovery)==sco::Result::Ok);
+    CHECK(S::Stop()==sco::Result::Ok);
+    // Busy-class gate: a removed class whose ship is in play refuses the write, keeps the
+    // saved list, and reports EDIT_CONFLICT with REASON_BUSY; ROW_BUSY marks the rows.
+    file.read_result=S::FileResult::Ok;
+    file.document.bytes="# ASOP ship selection, one class per line.\nTest_Ship_A\nTest_Ship_B\n";
+    static std::string busy_name;
+    static auto busy_cb=[](void*, const char* name)->bool { return busy_name==name; };
+    S::Options busy_options;
+    busy_options.file={&file,MemoryFile::Read,MemoryFile::Replace};
+    busy_options.catalogue={"Test_Ship_A","Test_Ship_B"};
+    busy_options.busy_context=nullptr;
+    busy_options.class_busy=busy_cb;
+    CHECK(S::Start(busy_options)==sco::Result::Ok);
+    auto* gate=sco::host::NewPlugin("asop_selection_busy_gate");
+    raw=nullptr;CHECK(api->query_service(SC_ASOP_SELECTION_NAME,SC_ASOP_SELECTION_VERSION,&raw)==SCO_OK);
+    table=static_cast<const sc_asop_selection_v1*>(raw);state={};state.size=sizeof(state);
+    CHECK(table->state(gate,&state)==SCO_OK && (state.flags&SC_ASOP_SELECTION_FILE_KNOWN));
+    sc_asop_selection_read rows_query{};rows_query.size=sizeof(rows_query);
+    rows_query.kind=SC_ASOP_SELECTION_ROWS_FILE;rows_query.session=state.session;rows_query.revision=state.file_revision;
+    sc_asop_selection_row gate_rows[2]{};for(auto& r:gate_rows)r.size=sizeof(r);
+    uint32_t rows_count=0,rows_more=0;
+    busy_name="Test_Ship_A";
+    CHECK(table->rows(gate,&rows_query,gate_rows,sizeof(gate_rows[0]),2,&rows_count,&rows_more)==SCO_OK);
+    CHECK(rows_count==2 && (gate_rows[0].flags&SC_ASOP_SELECTION_ROW_BUSY) && !(gate_rows[1].flags&SC_ASOP_SELECTION_ROW_BUSY));
+    uint64_t gate_lease=0,gate_id=0;
+    CHECK(table->acquire(gate,state.session,&gate_lease)==SCO_OK);
+    sc_asop_selection_class keep[1]{};keep[0].size=sizeof(keep[0]);
+    std::memcpy(keep[0].class_name,"Test_Ship_B",12);
+    sc_asop_selection_request gate_request{};gate_request.size=sizeof(gate_request);
+    gate_request.session=state.session;gate_request.file_revision=state.file_revision;
+    std::memcpy(gate_request.file_digest,state.file_digest,32);gate_request.client_key=1;
+    gate_request.classes=keep;gate_request.count=1;gate_request.class_stride=sizeof(keep[0]);
+    CHECK(table->replace(gate,gate_lease,&gate_request,&gate_id)==SCO_OK);
+    const std::string before_busy=file.document.bytes;
+    CHECK(S::Pump()==sco::Result::Ok && file.document.bytes==before_busy);
+    receipt.size=sizeof(receipt);
+    CHECK(table->status(gate,gate_lease,gate_id,&receipt)==SCO_OK &&
+          receipt.phase==SC_ASOP_SELECTION_EDIT_CONFLICT && receipt.reason==SC_ASOP_SELECTION_REASON_BUSY);
+    CHECK(table->state(gate,&state)==SCO_OK && (state.flags&SC_ASOP_SELECTION_FILE_KNOWN));
+    // Re-saving the same set with the busy class kept succeeds.
+    sc_asop_selection_class keep_both[2]{};for(auto& k:keep_both)k.size=sizeof(k);
+    std::memcpy(keep_both[0].class_name,"Test_Ship_A",12);
+    std::memcpy(keep_both[1].class_name,"Test_Ship_B",12);
+    gate_request.classes=keep_both;gate_request.count=2;gate_request.client_key=2;
+    uint64_t keep_id=0;
+    CHECK(table->replace(gate,gate_lease,&gate_request,&keep_id)==SCO_OK);
+    CHECK(S::Pump()==sco::Result::Ok);
+    receipt.size=sizeof(receipt);
+    CHECK(table->status(gate,gate_lease,keep_id,&receipt)==SCO_OK && receipt.phase==SC_ASOP_SELECTION_FILE_COMMITTED);
+    // Adapter-level busy refusal before the permit is a known non-write, not an
+    // ambiguous disk outcome. Preserve the snapshot and replay the same receipt.
+    CHECK(table->state(gate,&state)==SCO_OK);
+    const auto before_refusal=state;
+    gate_request.file_revision=state.file_revision;
+    std::memcpy(gate_request.file_digest,state.file_digest,32);
+    gate_request.client_key=3;gate_request.classes=keep;gate_request.count=1;
+    uint64_t adapter_busy_id=0;
+    CHECK(table->replace(gate,gate_lease,&gate_request,&adapter_busy_id)==SCO_OK);
+    const auto before_refusal_document=file.document;
+    file.replace_result=S::FileResult::Busy;
+    CHECK(S::Pump()==sco::Result::Ok);
+    CHECK(table->status(gate,gate_lease,adapter_busy_id,&receipt)==SCO_OK &&
+          receipt.phase==SC_ASOP_SELECTION_EDIT_CONFLICT && receipt.reason==SC_ASOP_SELECTION_REASON_BUSY);
+    CHECK(table->state(gate,&state)==SCO_OK && state.flags==before_refusal.flags &&
+          state.reason==before_refusal.reason && state.file_revision==before_refusal.file_revision &&
+          state.semantic_revision==before_refusal.semantic_revision &&
+          std::memcmp(state.file_digest,before_refusal.file_digest,32)==0);
+    CHECK(file.document.bytes==before_refusal_document.bytes && file.document.identity==before_refusal_document.identity);
+    replay=0;const auto before_busy_replay=file.writes;
+    CHECK(table->replace(gate,gate_lease,&gate_request,&replay)==SCO_OK && replay==adapter_busy_id);
+    CHECK(S::Pump()==sco::Result::Ok && file.writes==before_busy_replay);
+    // A pre-permit cancellation is also a proved non-write and must not poison
+    // file knowledge or consume the next client's ability to save.
+    gate_request.client_key=4;
+    uint64_t adapter_cancelled_id=0;
+    CHECK(table->replace(gate,gate_lease,&gate_request,&adapter_cancelled_id)==SCO_OK);
+    file.replace_result=S::FileResult::Cancelled;
+    CHECK(S::Pump()==sco::Result::Ok);
+    CHECK(table->status(gate,gate_lease,adapter_cancelled_id,&receipt)==SCO_OK &&
+          receipt.phase==SC_ASOP_SELECTION_EDIT_REVOKED && receipt.reason==SC_ASOP_SELECTION_REASON_NONE);
+    CHECK(table->state(gate,&state)==SCO_OK && state.flags==before_refusal.flags &&
+          state.file_revision==before_refusal.file_revision && state.semantic_revision==before_refusal.semantic_revision &&
+          std::memcmp(state.file_digest,before_refusal.file_digest,32)==0);
+    replay=0;
+    CHECK(table->replace(gate,gate_lease,&gate_request,&replay)==SCO_OK && replay==adapter_cancelled_id);
+    file.replace_result=S::FileResult::Ok;
+    busy_name.clear();
+    gate_request.client_key=5;uint64_t released_id=0;
+    CHECK(table->replace(gate,gate_lease,&gate_request,&released_id)==SCO_OK);
+    file.release_table=table;file.lease_owner=gate;file.lease_to_release=gate_lease;
+    CHECK(S::Pump()==sco::Result::Ok && file.lease_release_result==SCO_OK);
+    CHECK(file.document.bytes==before_refusal_document.bytes && file.document.identity==before_refusal_document.identity);
+    CHECK(table->state(gate,&state)==SCO_OK && (state.flags&SC_ASOP_SELECTION_FILE_KNOWN) &&
+          state.file_revision==before_refusal.file_revision);
+    CHECK(table->release(gate,gate_lease)==SCO_OK);
+    uint64_t replacement_lease=0;
+    CHECK(table->acquire(gate,state.session,&replacement_lease)==SCO_OK && replacement_lease!=gate_lease);
+    gate_request.client_key=1;uint64_t late_id=0;
+    CHECK(table->replace(gate,replacement_lease,&gate_request,&late_id)==SCO_OK);
+    file.release_table=table;file.lease_to_release=replacement_lease;file.release_lease_after_begin=true;
+    CHECK(S::Pump()==sco::Result::Ok && file.lease_release_result==SCO_OK);
+    CHECK(table->state(gate,&state)==SCO_OK && (state.flags&SC_ASOP_SELECTION_FILE_KNOWN) &&
+          state.file_count==1 && state.file_revision>before_refusal.file_revision);
+    file.release_lease_after_begin=false;
+    CHECK(table->acquire(gate,state.session,&replacement_lease)==SCO_OK);
+    // Busy/Cancelled after a granted permit cannot prove that the write did not
+    // happen. Keep the conservative unknown outcome across both adapter results.
+    uint64_t late_key=0;
+    for(auto late_result:{S::FileResult::Busy,S::FileResult::Cancelled}) {
+        gate_request.client_key=++late_key;gate_request.file_revision=state.file_revision;
+        std::memcpy(gate_request.file_digest,state.file_digest,32);
+        CHECK(table->replace(gate,replacement_lease,&gate_request,&late_id)==SCO_OK);
+        file.result_after_begin=late_result;
+        CHECK(S::Pump()==sco::Result::Ok);
+        CHECK(table->status(gate,replacement_lease,late_id,&receipt)==SCO_OK &&
+              receipt.phase==SC_ASOP_SELECTION_EDIT_UNKNOWN && receipt.reason==SC_ASOP_SELECTION_REASON_OUTCOME_UNKNOWN);
+        CHECK(table->state(gate,&state)==SCO_OK && !(state.flags&SC_ASOP_SELECTION_FILE_KNOWN));
+        file.result_after_begin=S::FileResult::Ok;
+        CHECK(table->refresh(gate)==SCO_OK && table->state(gate,&state)==SCO_OK);
+    }
+    CHECK(sco::Release(gate)==sco::Result::Ok);
     CHECK(S::Stop()==sco::Result::Ok);
     std::printf("asop_selection: %d passed, %d failed\n",passed,failed);
     return failed?1:0;

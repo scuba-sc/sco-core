@@ -42,4 +42,9 @@ void TestDelivery() {
     RunDeliveries(40000); assert(g_deliveries.empty());
     r.urn[0]=999; const int before=spawns; StartDelivery(r,50000); assert(spawns==before);
 }
+} // namespace delivery_fixture
+// catalog_win.obj references ShipIsBusy via FleetClassBusy; the fixture keeps the
+// delivery-loop definition authoritative for the synthetic build.
+namespace sco::game::asop_host {
+bool ShipIsBusy(int ship) { return delivery_fixture::ShipIsBusy(ship); }
 }

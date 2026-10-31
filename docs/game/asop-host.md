@@ -15,6 +15,34 @@ invalid/duplicate names, and resolves class GUIDs at runtime. No game list or GU
 table is bundled. The host owns list-file parsing and `asop` configuration policy.
 The entitlements callback retains the existing bounded offline catalog mechanism.
 
+`Reconfigure(config)` currently always returns `Unavailable`, before validation,
+engine calls or publication, including for a valid admitted game-thread request.
+It preserves the previous host configuration and catalog. No engine lifecycle
+contract establishes safe mid-session rebuilding or rebuild/`Stop` overlap;
+game-thread admission, a publication lock and retained buffers do not establish
+engine quiescence. Native reconfiguration remains an explicit outstanding boundary.
+The selection picker remains file-only; changed selections require a fresh process,
+not `Reconfigure` or a `Stop`/`Start` cycle.
+
+The internal transactional fleet helper and append-only slot table are retained:
+a ship URN uses a stable slot index, removed slots are not recycled, and a re-added
+class reuses its slot. Failed resolution, capacity or allocation leaves the prior
+table and buffer intact; retired published buffers remain process-lifetime.
+Portable helper tests establish these data-structure properties only, not permission
+for native mid-session mutation or engine/`Stop` overlap.
+
+`Start` still requires host-established startup ordering before engine callers run.
+It publishes admission before installing hooks outside the status mutex; it does
+not serialize installation against `Stop`. That baseline lifecycle boundary is
+unchanged: the host must not overlap startup and shutdown. `Stop` remains terminal,
+not an engine-worker join, unload barrier or restart mechanism.
+
+The reconfiguration fixture compiles the real config path with synthetic runtime
+and engine seams. It verifies zero rebuild/thread-query calls on refusal and prior
+state preservation. Its direct and joined-thread `Stop` modes check terminal status
+and synthetic close calls after refusal; neither exercises an in-flight engine
+rebuild or proves native cross-thread shutdown safety.
+
 `Snapshot` reports composition status and a copied installed-group bitmask, not
 proof of gameplay readiness. `installed` records catalog-hook installation only;
 consult `ready` for independently unavailable terminal/fleet/lift/hangar/ATC groups.

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "state.h"
+#include "fleet_transaction.h"
+#ifdef _WIN32
+#include "sco/runtime.h"
+#endif
 #include <cstring>
 #include <cctype>
 namespace sco::game::asop_host {
@@ -23,7 +27,7 @@ Result Catalog::Configure(const Config& c) {
         }
         if (!n || n==64) return Result::InvalidConfig;
         for (std::size_t j=0; j<i; ++j)
-            if (!std::strcmp(next.names[j].data(),name)) return Result::InvalidConfig;
+            if (FleetNameEqual(next.names[j].data(),name)) return Result::InvalidConfig;
         std::memcpy(next.names[i].data(),name,n+1);
     }
     next.count=c.shipCount;
@@ -55,6 +59,12 @@ Result Start(const Config& c) {
     return status.installed ? Result::Ok : Result::Unavailable;
 #endif
 }
+Result Reconfigure(const Config& c) {
+    (void)c;
+    // No engine lifecycle contract establishes safe mid-session rebuilding or
+    // rebuild/Stop overlap. Refuse before engine calls or host publication.
+    return Result::Unavailable;
+}
 Status Snapshot() {
     std::lock_guard guard(lock); Status copy=status;
 #ifdef _WIN32
@@ -64,7 +74,7 @@ Status Snapshot() {
 }
 void Pump(uint32_t now) {
 #ifdef _WIN32
-    if(admitted.load()) {
+    if(admitted.load() && sco::OnGameThread()) {
         TickHangars(now);
         static uint32_t last=0;
         if(now-last>=100) { last=now; TickFleet(now); }
