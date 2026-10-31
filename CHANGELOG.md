@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Refuse native ASOP startup until the host supplies a proven safe phase and reader lifetime protocol.
+
 - Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.
 
 - Reject malformed exception directories and overlong unwind chains, and detect adjacent

@@ -5,90 +5,56 @@
 #include "../src/game/asop_host/state.h"
 #include <cassert>
 #include <cstdio>
-#include <cstring>
 #include <thread>
 using namespace sco::game::asop_host;
-static bool gameThread=true;
-static int rebuildCalls=0, gameThreadCalls=0, closeFleetCalls=0, closeHangarCalls=0;
-static int initialPumpCalls=0;
-static bool pendingInitial=false;
-namespace sco { bool OnGameThread() { ++gameThreadCalls; return gameThread; } }
+static int installCalls=0, engineCalls=0, closeCalls=0, threadQueries=0;
+namespace sco { bool OnGameThread() { ++threadQueries; return true; } }
 namespace sco::game::asop_host {
-bool InstallCatalog() { return true; }
-void InstallFleet() {} void InstallHangars() {} void SetFleetCaps() {} void SetHangarCaps() {}
-void LogFleet() {} void LogHangars() {}
-void CloseFleet() { ++closeFleetCalls; } void CloseHangars() { ++closeHangarCalls; }
-void TickFleet(uint32_t) {} void TickHangars(uint32_t) {}
+bool InstallCatalog() { ++installCalls; return true; }
+void InstallFleet() { ++installCalls; } void InstallHangars() { ++installCalls; }
+void SetFleetCaps() { ++engineCalls; } void SetHangarCaps() { ++engineCalls; }
+void LogFleet() { ++engineCalls; } void LogHangars() { ++engineCalls; }
+void CloseFleet() { ++closeCalls; } void CloseHangars() { ++closeCalls; }
+void TickFleet(uint32_t) { ++engineCalls; } void TickHangars(uint32_t) { ++engineCalls; }
 uint32_t FleetReady() { return 0; } uint32_t HangarReady() { return 0; }
-bool RebuildFleetShips(const Catalog&) { ++rebuildCalls; return true; }
+bool RebuildFleetShips(const Catalog&) { ++engineCalls; return true; }
 void DisableFleetAdmission() { admitted.store(false); }
-void PumpInitialFleet() { if (pendingInitial) { ++initialPumpCalls; pendingInitial=false; } }
+void PumpInitialFleet() { ++engineCalls; }
 }
-static void AssertSameStatus(const Status& before) {
-    const auto after=Snapshot();
-    assert(after.configured==before.configured && after.admitted==before.admitted);
-    assert(after.installed==before.installed && after.stopped==before.stopped);
-    assert(after.catalogCount==before.catalogCount && after.ready==before.ready);
+static void AssertNoAdmissionOrMutation() {
+    const auto status=Snapshot();
+    assert(!status.configured && !status.admitted && !status.installed && !status.stopped);
+    assert(status.catalogCount==0 && status.ready==0 && !admitted.load());
+    assert(catalog.count==0 && !settings.enabled);
+    assert(installCalls==0 && engineCalls==0 && closeCalls==0 && threadQueries==0);
 }
 int main(int argc, char**) {
-    Config config; config.enabled=config.offlinePrepared=config.eacAbsent=true;
-    config.catalog=CatalogMode::Ships;
-    const char* first[]={"synthetic_alpha"}; config.shipClasses=first; config.shipCount=1;
-    const auto initial=Snapshot();
-    assert(Reconfigure(config)==Result::Unavailable);
-    AssertSameStatus(initial);
-    assert(Start(config)==Result::Ok);
-    const auto started=Snapshot();
-    const auto unchanged=[&] {
-        assert(rebuildCalls==0 && gameThreadCalls==0);
-        assert(closeFleetCalls==0 && closeHangarCalls==0);
-        assert(catalog.count==1 && std::strcmp(catalog.names[0].data(),"synthetic_alpha")==0);
-        assert(settings.enabled && settings.offlinePrepared && settings.eacAbsent);
-        assert(!settings.diagnostics && settings.catalog==CatalogMode::Ships);
-        assert(settings.shipClasses==nullptr && settings.shipCount==0 && admitted.load());
-        AssertSameStatus(started);
-    };
-    const char* second[]={"synthetic_beta","synthetic_gamma"};
-    config.shipClasses=second; config.shipCount=2; config.diagnostics=true;
-    // Even a valid request must refuse before entering the engine rebuild seam.
-    assert(Reconfigure(config)==Result::Unavailable); unchanged();
-    config.shipClasses=nullptr; config.shipCount=0;
-    assert(Reconfigure(config)==Result::Unavailable); unchanged();
-    gameThread=false;
-    assert(Reconfigure(config)==Result::Unavailable); unchanged();
-    gameThread=true; config.eacAbsent=false;
-    assert(Reconfigure(config)==Result::Unavailable); unchanged();
-    config.eacAbsent=true; config.catalog=CatalogMode::Game;
-    assert(Reconfigure(config)==Result::Unavailable); unchanged();
-    config.catalog=CatalogMode::Ships;
-    const char* duplicates[]={"synthetic_alpha","SYNTHETIC_ALPHA"};
-    config.shipClasses=duplicates; config.shipCount=2;
-    assert(Reconfigure(config)==Result::Unavailable); unchanged();
-    config.shipClasses=second;
-    // A failed entitlement callback has requested an initial build off-thread.
-    pendingInitial=true;
-    gameThread=false; Pump(1); assert(initialPumpCalls==0);
-    gameThread=true; Pump(2); assert(initialPumpCalls==1);
-    Pump(3); assert(initialPumpCalls==1);
-    gameThreadCalls=0;
-    // These modes exercise terminal Stop through synthetic close seams only.
-    // There is no rebuild callback or engine rebuild/Stop overlap to certify.
-    if(argc>1) {
-        std::thread stopper([] { Stop(); });
-        stopper.join();
-    } else {
-        Stop();
-    }
-    assert(closeFleetCalls==1 && closeHangarCalls==1);
+    Config c;
+    const char* names[]={"synthetic_alpha"}; c.shipClasses=names; c.shipCount=1;
+    c.catalog=CatalogMode::Ships;
+    assert(Start(c)==Result::Disabled); AssertNoAdmissionOrMutation();
+    c.enabled=true;
+    assert(Start(c)==Result::AdmissionRefused); AssertNoAdmissionOrMutation();
+    c.offlinePrepared=true;
+    assert(Start(c)==Result::AdmissionRefused); AssertNoAdmissionOrMutation();
+    c.eacAbsent=true;
+    Config invalid=c; invalid.size=0;
+    assert(Start(invalid)==Result::InvalidConfig); AssertNoAdmissionOrMutation();
+    const char* duplicate[]={"synthetic_alpha","SYNTHETIC_ALPHA"};
+    invalid=c; invalid.shipClasses=duplicate; invalid.shipCount=2;
+    assert(Start(invalid)==Result::InvalidConfig); AssertNoAdmissionOrMutation();
+    assert(Start(c)==Result::Unavailable); AssertNoAdmissionOrMutation();
+    assert(Reconfigure(c)==Result::Unavailable); AssertNoAdmissionOrMutation();
+    assert(Start(c)==Result::Unavailable); AssertNoAdmissionOrMutation();
+    Pump(1); Pump(1000); AssertNoAdmissionOrMutation();
+    // Stop without admission is terminal and must not enter close/mutation seams.
+    if(argc>1) { std::thread stopper([] { Stop(); }); stopper.join(); }
+    else Stop();
     const auto stopped=Snapshot();
-    assert(stopped.configured && stopped.installed && stopped.stopped && !stopped.admitted);
-    assert(!admitted.load());
-    assert(Reconfigure(config)==Result::Unavailable);
-    AssertSameStatus(stopped);
-    assert(rebuildCalls==0 && gameThreadCalls==0);
-    assert(catalog.count==1 && stopped.catalogCount==1);
-    assert(std::strcmp(catalog.names[0].data(),"synthetic_alpha")==0);
-    assert(Start(config)==Result::AlreadyStarted);
-    Stop(); assert(closeFleetCalls==2 && closeHangarCalls==2);
-    std::puts("asop reconfigure: unavailable, zero engine calls, prior state, terminal Stop seams PASS");
+    assert(stopped.stopped && !stopped.configured && !stopped.admitted && !stopped.installed && stopped.ready==0);
+    assert(!admitted.load() && installCalls==0 && engineCalls==0 && closeCalls==0 && threadQueries==0);
+    assert(Start(c)==Result::AlreadyStarted && Reconfigure(c)==Result::Unavailable);
+    Pump(2000); Stop();
+    assert(installCalls==0 && engineCalls==0 && closeCalls==0 && threadQueries==0);
+    std::puts("asop startup: refused before admission and native mutation; terminal Stop PASS");
 }

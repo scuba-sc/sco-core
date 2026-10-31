@@ -27,9 +27,10 @@ enum Ready : uint32_t {
 };
 struct Status { bool configured = false, admitted = false, installed = false, stopped = false;
                 std::size_t catalogCount = 0; uint32_t ready = 0; };
-// Start once after signatures AND guarded game services are ready, before engine callers run.
-// Host must not overlap startup with Stop; installation is not serialized against shutdown.
-// Explicit config replaces product environment/filesystem globals. Copies bounded classes.
+// Start validates the configuration, enabled flag, and offline/EAC admission, then
+// returns Unavailable without installing hooks or publishing admission. A proven
+// safe phase and reader/worker lifetime protocol is not yet supplied by the host.
+// Stop is terminal; Start and Stop must not overlap.
 Result Start(const Config& config);
 // Windows-only fleet query: is any ship of this class stored, retrieved, delivering or
 // queued this session? Returns true for a null name, inactive admission, or calls

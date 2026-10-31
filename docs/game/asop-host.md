@@ -6,14 +6,18 @@ header. It and `src/game/asop_host/` are selected only for `host-source-sc`, not
 the public plugin or neutral core/core-source profiles. No plugin service, raw pointer or patch
 right is added. The frozen ABI is unchanged.
 
-`Config` is disabled by default. The host must positively establish offline
-preparation and EAC absence; false/unknown refuses. Configure before engine calls,
-after signature resolution and guarded game services startup. `CatalogMode::Game`
-keeps the game's list (an unavailable offline entitlement query can be empty).
-`Ships` copies at most 2048 host-supplied class names of at most 63 bytes, rejects
-invalid/duplicate names, and resolves class GUIDs at runtime. No game list or GUID
-table is bundled. The host owns list-file parsing and `asop` configuration policy.
-The entitlements callback retains the existing bounded offline catalog mechanism.
+`Config` is disabled by default. `Start` validates configuration, the enabled flag,
+offline preparation and EAC absence, then returns `Unavailable` without publishing
+admission or installing hooks. Offline/EAC admission and resolved signatures do not
+establish that engine readers are quiescent while code is patched. The host has no
+proven safe-phase and reader/worker lifetime protocol for installation or later
+native mutation. A game-thread tick, atomic slot store, or success-only callback is
+not such a protocol. `Pump` performs no work while admission is closed; `Stop` is
+terminal and performs no provider close operations when startup was refused.
+
+`Ships` configuration validation accepts at most 2048 host-supplied class names of
+at most 63 bytes and rejects invalid or duplicate names. No game list or GUID table
+is bundled. The host owns list-file parsing and `asop` configuration policy.
 
 `Reconfigure(config)` currently always returns `Unavailable`, before validation,
 engine calls or publication, including for a valid admitted game-thread request.
@@ -21,8 +25,8 @@ It preserves the previous host configuration and catalog. No engine lifecycle
 contract establishes safe mid-session rebuilding or rebuild/`Stop` overlap;
 game-thread admission, a publication lock and retained buffers do not establish
 engine quiescence. Native reconfiguration remains an explicit outstanding boundary.
-The selection picker remains file-only; changed selections require a fresh process,
-not `Reconfigure` or a `Stop`/`Start` cycle.
+The selection picker remains file-only. Native ASOP startup is refused in every
+process until the safe-phase and lifetime protocol is implemented.
 
 The internal transactional fleet helper and append-only slot table are retained:
 a ship URN uses a stable slot index, removed slots are not recycled, and a re-added
@@ -48,17 +52,11 @@ reentry still require Windows and engine validation.
 Portable helper tests establish these data-structure properties only, not permission
 for native mid-session mutation or engine/`Stop` overlap.
 
-`Start` still requires host-established startup ordering before engine callers run.
-It publishes admission before installing hooks outside the status mutex; it does
-not serialize installation against `Stop`. That baseline lifecycle boundary is
-unchanged: the host must not overlap startup and shutdown. `Stop` remains terminal,
-not an engine-worker join, unload barrier or restart mechanism.
-
-The reconfiguration fixture compiles the real config path with synthetic runtime
-and engine seams. It verifies zero rebuild/thread-query calls on refusal and prior
-state preservation. Its direct and joined-thread `Stop` modes check terminal status
-and synthetic close calls after refusal; neither exercises an in-flight engine
-rebuild or proves native cross-thread shutdown safety.
+The startup fixture compiles the real config path with synthetic engine seams and
+verifies that enabled startup, including a valid offline/EAC request, returns
+`Unavailable` without installing hooks, publishing admission, or running pump and
+close operations. Its direct and joined-thread `Stop` modes establish terminal
+status in the fixture, not native thread quiescence or a worker join.
 
 `Snapshot` reports composition status and a copied installed-group bitmask, not
 proof of gameplay readiness. `installed` records catalog-hook installation only;

@@ -35,29 +35,17 @@ Result Catalog::Configure(const Config& c) {
     return Result::Ok;
 }
 Result Start(const Config& c) {
-    std::unique_lock guard(lock);
+    std::lock_guard guard(lock);
     if (status.configured || status.stopped) return Result::AlreadyStarted;
     Catalog next;
     const auto validation=next.Configure(c);
     if(validation!=Result::Ok) return validation;
     if(!c.enabled) return Result::Disabled;
     if(!c.offlinePrepared || !c.eacAbsent) return Result::AdmissionRefused;
-#ifndef _WIN32
+    // Offline admission and signature readiness do not prove a safe phase for
+    // patching instructions or the later live slot swap. Do not publish admission
+    // or install hooks until a real host/engine lifecycle protocol exists.
     return Result::Unavailable;
-#else
-    settings=c; settings.shipClasses=nullptr; settings.shipCount=0;
-    catalog=next;
-    status.configured=true; status.catalogCount=catalog.count;
-    admitted.store(true); status.admitted=true;
-    guard.unlock(); // Engine/hooks/log callbacks must never run under the status mutex.
-    const bool catalogInstalled=InstallCatalog();
-    InstallFleet();
-    InstallHangars();
-    SetFleetCaps(); SetHangarCaps();
-    LogFleet(); LogHangars();
-    guard.lock(); status.installed=catalogInstalled;
-    return status.installed ? Result::Ok : Result::Unavailable;
-#endif
 }
 Result Reconfigure(const Config& c) {
     (void)c;
@@ -85,18 +73,25 @@ void Pump(uint32_t now) {
 #endif
 }
 void Stop() {
+    bool wasAdmitted = false;
     {
         std::lock_guard guard(lock);
+        wasAdmitted = admitted.load();
 #ifdef _WIN32
-        DisableFleetAdmission();
+        if (wasAdmitted) DisableFleetAdmission();
+        else admitted.store(false);
 #else
         admitted.store(false);
 #endif
         status.admitted=false; status.stopped=true;
     }
 #ifdef _WIN32
-    CloseHangars();
-    CloseFleet();
+    if (wasAdmitted) {
+        CloseHangars();
+        CloseFleet();
+    }
+#else
+    (void)wasAdmitted;
 #endif
 }
 } // namespace sco::game::asop_host
