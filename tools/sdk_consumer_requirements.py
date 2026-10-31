@@ -105,7 +105,8 @@ def make_report(req_raw, cat_raw, reg_raw):
     _MCP.require(cat["source_sha"] == req["source_sha"], "source SHA mismatch")
     _MCP.require(digest(reg_raw) == cat["status_registry_sha256"], "registry SHA-256 mismatch")
     text = reg_raw.decode("utf-8")
-    _MCP.parse_status_registry(text, {})
+    # Catalogue services activate the shared validator's duplicate-row refusal.
+    _MCP.parse_status_registry(text, cat["tables"])
     registry = _MCP.parse_json(text)
     records = {r["id"]: r for r in cat["records"]}
     results = []

@@ -197,6 +197,36 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertEqual(p.stdout, '')
 
+    def test_duplicate_matching_registry_services_are_rejected(self):
+        self.items = [{'id': 'sample-read', 'language': 'c'}]
+        table = self.cat['tables']['sco_sample_v1']
+        table['service'] = 'game.sample'
+        table['source_header'] = 'include/sc_sample.h'
+        for record in self.cat['records']:
+            if record['table'] == 'sco_sample_v1':
+                record['service'] = 'game.sample'
+                record['source_header'] = 'include/sc_sample.h'
+        def entry(version, default):
+            return {
+                'id': 'game.sample.' + version,
+                'kind': 'service',
+                'service': 'game.sample',
+                'header': 'include/sc_sample.h',
+                'version': version,
+                'stability': 'experimental',
+                'capabilities': [{
+                    'name': 'game.sample.read', 'methods': ['read'], 'default': default,
+                    'evidence_level': 'synthetic_only', 'evidence': 'fixture',
+                }],
+            }
+
+        for second_version in ('1.0', '1.1'):
+            with self.subTest(second_version=second_version):
+                self.reg['services'] = [entry('1.0', 'ON'), entry(second_version, 'OFF')]
+                p = self.run_report()
+                self.assertEqual(p.returncode, 2)
+                self.assertEqual(p.stdout, '')
+
 
 if __name__ == '__main__':
     unittest.main()

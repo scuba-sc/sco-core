@@ -30,6 +30,11 @@ The deterministic receipt includes input hashes, source coordinates, table versi
 
 Run the focused tests with `python3 tools/test_sdk_consumer_requirements.py`.
 
+Duplicate registry service rows matching a catalogue service/header are malformed,
+including rows with different versions or conflicting defaults. The shared
+validator refuses the entire input with exit 2 and no stdout report before any
+capability row is assigned.
+
 ## Optional extracted-kit workflow
 
 Start with a deliberately selected, checksum-verified kit. An explicitly selected
