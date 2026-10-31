@@ -46,10 +46,10 @@ unsigned char g_bindingInProgress;
 std::atomic<void*> g_boundAuthority{nullptr};
 thread_local AuthorityImpl* g_pinAuthority = nullptr;
 thread_local size_t g_pinDepth = 0;
-#ifdef SCO_CURATED_DRAIN_TESTING
+#ifdef SCO_RESERVED_DRAIN_TESTING
 // Test-only observation, with no callback or blocking work under the lock.
 static_assert(std::atomic<bool>::is_always_lock_free);
-std::atomic<bool> g_curatedReaderDrainObserved{false};
+std::atomic<bool> g_readerDrainObserved{false};
 #endif
 #ifdef SCO_RESERVED_SESSION_TESTING
 std::atomic<void (*)(void*)> g_beforeCopyHook{nullptr};
@@ -403,10 +403,10 @@ private:
                 return RetireResult::FailedRetained;
             }
             while (a.capsule_->readers && a.phase_ == Phase::Closing) {
-#ifdef SCO_CURATED_DRAIN_TESTING
+#ifdef SCO_RESERVED_DRAIN_TESTING
                 // The reader count and Closing phase are observed while holding
                 // the authority lock; no arbitrary test callback runs here.
-                g_curatedReaderDrainObserved.store(true, std::memory_order_release);
+                g_readerDrainObserved.store(true, std::memory_order_release);
 #endif
                 if (a.cv_.wait_until(lock, deadline) == std::cv_status::timeout && a.capsule_->readers) {
                     FailLocked(a);
@@ -899,10 +899,10 @@ Result Close(Session& session) noexcept {
 RetireResult RetireUntil(Session& session, std::chrono::steady_clock::time_point deadline) noexcept {
     return session.handle_ && session.secret_ ? session.bootstrap_.retire_until(session.bootstrap_.context, session.handle_, session.secret_, deadline) : RetireResult::Refused;
 }
-#ifdef SCO_CURATED_DRAIN_TESTING
-namespace curated_testing {
+#ifdef SCO_RESERVED_DRAIN_TESTING
+namespace testing {
 bool ReaderDrainObserved() noexcept {
-    return g_curatedReaderDrainObserved.load(std::memory_order_acquire);
+    return g_readerDrainObserved.load(std::memory_order_acquire);
 }
 }
 #endif

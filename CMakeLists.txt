@@ -2313,7 +2313,7 @@ if(SCO_BUILD_TESTS)
     add_executable(test_curated_reserved_host
       tests/curated_reserved/reserved_host.cpp src/reserved_session.cpp)
     target_include_directories(test_curated_reserved_host PRIVATE "${SCO_INCLUDE_DIR}")
-    target_compile_definitions(test_curated_reserved_host PRIVATE SCO_CURATED_DRAIN_TESTING=1)
+    target_compile_definitions(test_curated_reserved_host PRIVATE SCO_RESERVED_DRAIN_TESTING=1)
     target_link_libraries(test_curated_reserved_host PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
     set_target_properties(test_curated_reserved_host PROPERTIES ENABLE_EXPORTS ON
       CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)

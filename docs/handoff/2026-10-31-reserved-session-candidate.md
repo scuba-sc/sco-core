@@ -82,6 +82,58 @@ unmanaged module or untrusted build directory. Fixture barriers, direct post-clo
 probes and the reader-drain observation exist only for tests. A product still
 needs an audited composition and its own consumer integration.
 
+## Bounded engine consumer qualification
+
+The first engine consumer should use a dedicated executable whose reviewed
+source/link graph contains the authority once. A module-free executable is the
+initial integration to qualify. If a cooperating module is included, it receives
+copied mock operations through the executable's accessor; it must not embed core
+or obtain startup/retirement controls. The existing fixture audits are examples,
+not certification of the engine target. Check the actual engine target's sources,
+dependencies, exports/imports and module identity on each supported platform.
+
+Reserve before changing shared logging, mock configuration, registry state,
+profile staging or external callbacks. Keep the complete dependency root and
+session alive through process exit after either retained terminal result. Reject
+restart and preserve native-unavailable reporting. `app::Stop` success and reserved
+retained retirement are distinct contracts; the latter never permits freeing
+staged files, providers, code or contexts.
+
+The host must hold an outer `TryEnter` pin before invoking a consumer, through
+provider execution, output construction/copy and unwinding. Pin each admitted
+request/tick/action even when every table slot also pins itself. After Close,
+refuse before entering the consumer. Copy all JSON/diagnostic outputs; do not
+return borrowed graph or table views to callers. Multi-call read/update sequences
+are not atomic transactions and must handle refusal or intervening updates.
+
+Before qualification, pause an actual consumer request after its table read but
+before its final output copy. Prove retirement reaches the reader-drain path,
+remains Closing while that request holds its pin, and finishes only after the
+output copy and pin unwind. Also test no-entry-after-Close, stale cached table
+refusal, partial startup/fault retention, and terminal restart refusal using the
+actual consumer executable. A sleep or a future that has not completed alone
+does not prove retirement entered its drain path.
+
+For that deterministic test only, compile both the authority and test consumer
+with `SCO_RESERVED_DRAIN_TESTING=1`. The header then declares
+`sco::reserved::testing::ReaderDrainObserved()`. Its monotonic lock-free signal
+becomes true after retirement observes Closing with admitted readers under the
+authority lock. Hold the consumer's output-copy barrier until this observation,
+then verify retirement is pending before releasing the barrier. Make the paused
+request the only held reader, and verify that removing its outer pin makes the
+test fail; an unrelated held pin must not mask missing request admission. The
+observer belongs in the authority executable/test host, not an independently
+embedded DLL. Use a fresh process for every case: there is deliberately no reset
+operation. The observer does not establish quiescence and is absent from ordinary
+production builds.
+
+The sealed queue is the only worker covered by this core table. Extra event-loop
+threads, tasks, callbacks, listener code or module initializers require their own
+complete host-owned admission and lifetime census before inclusion. Keeping core
+backing rooted does not count those obligations or establish their quiescence.
+Until source review and these product tests pass, successful fixture tests and
+consumer-requirements reports are evidence of narrower contracts only.
+
 Native/PAK activation stays refused pending a distinct product proof of
 continuous reader and instruction exclusion. Original-quit continuation also
 needs proof that worker code and argument objects remain valid after the game

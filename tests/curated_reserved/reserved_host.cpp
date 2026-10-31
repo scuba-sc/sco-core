@@ -26,10 +26,9 @@
 #include <unistd.h>
 #endif
 
-#ifndef SCO_CURATED_DRAIN_TESTING
+#ifndef SCO_RESERVED_DRAIN_TESTING
 #error "This scratch prototype requires its test-only reader drain observation"
 #endif
-namespace sco::reserved::curated_testing { bool ReaderDrainObserved() noexcept; }
 namespace rs = sco::reserved;
 namespace fs = std::filesystem;
 namespace {
@@ -262,11 +261,11 @@ int main() {
         return rs::RetireUntil(session, std::chrono::steady_clock::now() + std::chrono::seconds(4));
     });
     const auto drainDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (!rs::curated_testing::ReaderDrainObserved() && std::chrono::steady_clock::now() < drainDeadline)
+    while (!rs::testing::ReaderDrainObserved() && std::chrono::steady_clock::now() < drainDeadline)
         std::this_thread::yield();
     // The authority observed a live reader in Closing inside Retire. The outer
     // module pin is still held; neither retirement nor module call can finish.
-    CHECK(rs::curated_testing::ReaderDrainObserved());
+    CHECK(rs::testing::ReaderDrainObserved());
     CHECK(retiring.wait_for(std::chrono::seconds(0)) == std::future_status::timeout);
     CHECK(inFlightMove.wait_for(std::chrono::seconds(0)) == std::future_status::timeout);
     CHECK(rs::Status(session) == rs::Phase::Closing);

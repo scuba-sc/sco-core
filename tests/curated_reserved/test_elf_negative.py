@@ -75,7 +75,7 @@ def main():
                                encoding='utf-8')
         host = root / 'bad_host'
         run([args.compiler, '-std=c++20', '-O0', '-pthread', '-fvisibility=hidden',
-             '-fvisibility-inlines-hidden', '-DSCO_CURATED_DRAIN_TESTING=1',
+             '-fvisibility-inlines-hidden', '-DSCO_RESERVED_DRAIN_TESTING=1',
              '-I' + str(source / 'include'), '-I' + str(source / 'src'), str(host_source),
              str(source / 'src/reserved_session.cpp'), '-ldl',
              '-Wl,--export-dynamic-symbol=reserved_host_mock_table',
