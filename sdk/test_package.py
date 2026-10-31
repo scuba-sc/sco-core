@@ -506,6 +506,11 @@ class RealManifest(unittest.TestCase):
         for index in range(3, 13):
             self.assertNotIn("error", replies[index])
             self.assertFalse(replies[index]["result"].get("isError", False), replies[index])
+        example = replies[7]["result"]["structuredContent"]["examples"]
+        self.assertEqual([item["path"] for item in example],
+                         ["sdk/examples/container_reader/container_reader.c"])
+        self.assertEqual(example[0]["content"],
+                         (kit / "examples/container_reader/container_reader.c").read_text(encoding="utf-8"))
         found = replies[9]["result"]["structuredContent"]
         self.assertEqual((found["guides"]["mode"], found["guides"]["matches_catalogue_source_sha"]), ("file", True))
         self.assertEqual(found["sections"][0]["doc"], "docs/getting-started.md")

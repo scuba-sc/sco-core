@@ -41,3 +41,15 @@ are the evidence; not run in game.
 The C++ `sco::sdk::game::ContainerContents` wrapper consumes the same table. No C#
 or Lua route is supported. Studio mocks and game hosts use the same public layout;
 mock readiness is not evidence of native game readiness.
+
+## Consumer example and discovery
+
+The [container reader](../../sdk/examples/container_reader/README.md) builds and
+checks a C plugin from a matching game-enabled kit. Its complete source is linked
+from the canonical `sc_container_contents_v1.snapshot` record, so current-source
+MCP `get_example` can return it from a configured kit root. The example separates
+service lookup, a successful empty snapshot and provider failure; the checker
+does not supply this service. The published RC2 catalogue predates that example
+link even though the example itself ships in the combined and game overlay kits.
+The static [status registry](status.md) and native index are discovery evidence,
+not observations of the running host.
