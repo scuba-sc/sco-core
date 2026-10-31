@@ -178,6 +178,7 @@ class Real(unittest.TestCase):
             zsha = hashlib.sha256(read(z)).hexdigest()
             self.assertEqual(d["packages"][0]["checksums"][0]["checksumValue"], zsha)
             self.assertIn(audit.git_head(ROOT), d["packages"][0]["downloadLocation"])
+            self.assertTrue(d["documentNamespace"].endswith(zsha + "-spdx-v2"))
             with zipfile.ZipFile(z) as zz:
                 n = len([i for i in zz.infolist() if not i.filename.endswith("/")])
                 workflows = [name for name in zz.namelist() if name.endswith("/sdk-workflows.json")]
