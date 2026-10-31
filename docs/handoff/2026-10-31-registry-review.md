@@ -34,8 +34,9 @@ include the new internal headers and tests.
 ## Remaining blockers
 
 * Runtime ownership binds before any owned service publication. A private
-  startup capability is passed explicitly to owned publishers; reentrant public
-  publication and capability mutation are refused. The private owned registry
+  startup capability is passed explicitly to owned publishers. Public C++
+  `ProvideService` refuses throughout an owned session, including Running;
+  public capability mutation refuses during startup. The private owned registry
   never enters the legacy global slot, which is reserved empty. Previously used
   legacy runtime state or an occupied registry refuses startup. Public app
   plugin/content reference getters return empty views in owned sessions; the
