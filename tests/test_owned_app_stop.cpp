@@ -40,8 +40,10 @@ static sco::Result ServiceOk(void*) { return sco::Result::Ok; }
 static sco::Result ServiceFail(void*) { ++stopCalls; return sco::Result::Failed; }
 static sco::Result ServiceFaultOk(void*) { ++stopCalls; domain->fault(); return sco::Result::Ok; }
 // Exhaustive copied-table slot census; adding a tail member breaks compilation.
-static_assert(sizeof(sco_ui_v1) == offsetof(sco_ui_v1, last_error) + sizeof(sco_ui_v1::last_error));
-static_assert(sizeof(sco_storage_v1) == offsetof(sco_storage_v1, next_column) + sizeof(sco_storage_v1::next_column));
+static_assert(offsetof(sco_ui_v1, register_tab) == 2 * sizeof(uint32_t));
+static_assert(sizeof(sco_ui_v1) == offsetof(sco_ui_v1, register_tab) + 9 * sizeof(sco_ui_v1::register_tab));
+static_assert(offsetof(sco_storage_v1, put) == 2 * sizeof(uint32_t));
+static_assert(sizeof(sco_storage_v1) == offsetof(sco_storage_v1, put) + 17 * sizeof(sco_storage_v1::put));
 static void CheckClosedTables(const sco_ui_v1& u, const sco_storage_v1& s) {
     char buffer[16] = {}; uint32_t size = sizeof(buffer), index = 4, flags = 5, count = 6;
     int64_t changes = 7; uint64_t cursor = 8; sco_sql_value value{};
