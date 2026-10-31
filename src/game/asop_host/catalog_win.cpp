@@ -115,7 +115,7 @@ static void __fastcall Hook_EntitlementsResult(uintptr_t self, uintptr_t result)
     }
     const FleetBuffer snapshot = failed ? EnsureFleetShips() : FleetBuffer{};
     const int n = static_cast<int>(snapshot.count);
-    if (!snapshot.data) { g_origEntitlementsResult(self, result); return; }
+    if (!HasFleetEntitlements(snapshot)) { g_origEntitlementsResult(self, result); return; }
     struct { uint8_t ok; uint8_t pad[7]; uint8_t* begin; uint8_t* end; uint8_t* cap; uint8_t spare[64]; } fake = {};
     fake.ok = 1;
     fake.begin = snapshot.data;

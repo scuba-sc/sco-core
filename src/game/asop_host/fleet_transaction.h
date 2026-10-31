@@ -12,7 +12,8 @@ struct FleetSlot { char name[64]{}; uint64_t guid[2]{}; uintptr_t cls=0; bool se
 struct FleetTable { FleetSlot slots[kFleetCapacity]{}; size_t count=0; };
 struct FleetBuffer { uint8_t* data=nullptr; size_t count=0; };
 using FleetResolve=bool(*)(void*,const char*,uintptr_t&,uint64_t[2]);
-using FleetAllocate=void*(*)(size_t,size_t);
+using FleetAllocate=void*(*)(size_t,size_t); // calloc-compatible, returns zeroed storage
+inline bool HasFleetEntitlements(const FleetBuffer& buffer) { return buffer.data && buffer.count; }
 inline bool FleetNameEqual(const char* a,const char* b) {
     while(*a && *b) {
         const auto lower=[](unsigned char c) { return c>='A' && c<='Z' ? c+('a'-'A') : c; };
@@ -22,17 +23,25 @@ inline bool FleetNameEqual(const char* a,const char* b) {
 }
 // Caller serializes publication. Resolver must contain engine faults before returning.
 // A published buffer is deliberately never freed: engine consumers can retain it.
+// initialSkipped opts into skip-unresolved only for a never-published empty table.
+// On any failure the table, buffer, and initialSkipped output are unchanged.
 inline bool RebuildFleet(FleetTable& table,FleetBuffer& buffer,const char* const* names,size_t count,
                          FleetResolve resolve,void* context,FleetAllocate allocate,size_t* initialSkipped=nullptr) {
     size_t skipped=0;
-    if(count>kFleetCapacity || (count && !names) || !resolve || !allocate) return false;
-    auto next=std::unique_ptr<FleetTable>(new(std::nothrow) FleetTable(table));
-    if(!next) return false;
-    for(size_t i=0;i<next->count;++i) next->slots[i].selected=false;
+    if(count>kFleetCapacity || (count && !names) || !resolve || !allocate ||
+       (initialSkipped && (table.count || buffer.data))) return false;
+    // Validate the complete input before resolving; even skipped names must be unique.
     for(size_t i=0;i<count;++i) {
         if(!names[i]) return false;
         size_t length=0; while(length<64 && names[i][length]) ++length;
         if(!length || length==64) return false;
+        for(size_t j=0;j<i;++j) if(FleetNameEqual(names[j],names[i])) return false;
+    }
+    auto next=std::unique_ptr<FleetTable>(new(std::nothrow) FleetTable(table));
+    if(!next) return false;
+    for(size_t i=0;i<next->count;++i) next->slots[i].selected=false;
+    for(size_t i=0;i<count;++i) {
+        const size_t length=std::strlen(names[i]); // bounded and validated above
         uintptr_t cls=0; uint64_t guid[2]{};
         if(!resolve(context,names[i],cls,guid) || !cls || !(guid[0]|guid[1])) {
             if(!initialSkipped) return false;
