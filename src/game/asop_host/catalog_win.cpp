@@ -7,6 +7,7 @@
 #include <intrin.h>
 #include <cstdlib>
 #include <initializer_list>
+#include <limits>
 namespace sco::game::asop_host {
 constexpr size_t   kEntitlementSize = 0x150;
 // The fleet ships' entitlement URN: urn:sc:platform:entitlement:uuid:<id>. CSCURN bytes +0x00
@@ -20,6 +21,9 @@ constexpr uint64_t kShipUrnMarker = kFleetUrnMarker;
 static FleetTable g_table;
 static auto& g_slots=g_table.slots;
 static auto& g_slotCount=g_table.count;
+// RebuildFleet starts at zero and refuses insertion at capacity; slot counts and
+// every stable index therefore fit the int-based engine-facing lookup API.
+static_assert(kFleetCapacity <= static_cast<size_t>((std::numeric_limits<int>::max)()));
 static FleetBuffer g_buffer;
 static SRWLOCK g_shipsLock = SRWLOCK_INIT;
 static bool g_shipsBuilt = false;
@@ -119,7 +123,7 @@ static void __fastcall Hook_EntitlementsResult(uintptr_t self, uintptr_t result)
 // retired slots too: stored/in-transit records of a deselected class keep resolving.
 int FleetShipIndexOfUrnId(const uint64_t id[2]) {
     AcquireSRWLockShared(&g_shipsLock);
-    const int count = g_shipsBuilt ? g_slotCount : 0;
+    const int count = g_shipsBuilt ? static_cast<int>(g_slotCount) : 0;
     ReleaseSRWLockShared(&g_shipsLock);
     for (int i = 0; i < 2; ++i)
         for (const uint64_t q : { id[i], _byteswap_uint64(id[i]) })
@@ -130,7 +134,7 @@ int FleetShipIndexOfUrnId(const uint64_t id[2]) {
 
 const char* FleetShipClass(int index) {
     AcquireSRWLockShared(&g_shipsLock);
-    const int count = g_shipsBuilt ? g_slotCount : 0;
+    const int count = g_shipsBuilt ? static_cast<int>(g_slotCount) : 0;
     const char* name = index >= 0 && index < count ? g_slots[index].name : nullptr;
     ReleaseSRWLockShared(&g_shipsLock);
     return name;
@@ -143,7 +147,7 @@ bool FleetClassBusy(const char* name) {
     if (!name || !admitted.load() || !sco::OnGameThread()) return true;
     AcquireSRWLockShared(&g_shipsLock);
     int index = -1;
-    const int count = g_shipsBuilt ? g_slotCount : 0;
+    const int count = g_shipsBuilt ? static_cast<int>(g_slotCount) : 0;
     for (int i = 0; i < count; ++i)
         if (_stricmp(g_slots[i].name, name) == 0) { index = i; break; }
     ReleaseSRWLockShared(&g_shipsLock);
