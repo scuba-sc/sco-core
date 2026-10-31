@@ -50,10 +50,13 @@ include the new internal headers and tests.
   continuation proof has been obtained. The older MSVC registry-budget warning
   conflicts with ancestor b420d1a's recorded fix and historical test claim; neither
   substitutes for exact-head verification.
-* Core #304 `571fe8e2c911d7c63c372103724896feaabe58f2` and offline #184 are
-  independent candidates. Coordinate exact final SHAs and deliberate API choices;
-  do not silently fold this branch into either one. Offline native activation
-  must remain refused until its real product-owned barrier is proven.
+* Core #304's earlier named candidate was `571fe8e2c911d7c63c372103724896feaabe58f2`;
+  its observed remote head is now `1b6782bc5c8b7d189cdff4c83e81957f09af35d7`.
+  Offline #184's observed remote head is `80dba91491228d7c5ed0b451c5a55eb7954b484f`.
+  These are independent candidates, not dependencies merged into this branch.
+  Coordinate final SHAs and deliberate API choices; do not silently fold this
+  branch into either one. Offline native activation must remain refused until
+  its real product-owned barrier is proven.
 * Timed waits do not guarantee a hard wall-clock bound for mutex scheduling or
   thread creation. A timed-out owner, workers and borrowed backing remain live;
   destruction is only legal after all callers, leases and starts have ended.
