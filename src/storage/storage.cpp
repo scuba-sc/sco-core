@@ -316,7 +316,7 @@ bool CopyKey(const char* key, std::string& out, bool emptyOk = false) {
 bool CopySchemaName(const char* name, std::string& out) {
     if (!name) return false;
     const size_t n = strnlen(name, static_cast<size_t>(kMaxSqlValueBytes) + 1);
-    if (n == 0 || n > static_cast<size_t>(kMaxSqlValueBytes)) return false;
+    if (n > static_cast<size_t>(kMaxSqlValueBytes)) return false;
     out.assign(name, n);
     return true;
 }
@@ -829,7 +829,8 @@ sco_result NextColumn(sco_plugin* self, const char* table, uint32_t* inout_index
             uint32_t seen = 0;
             int rc;
             while ((rc = sqlite3_step(q.s)) == SQLITE_ROW && seen++ != wanted) {}
-            if (rc != SQLITE_ROW) return Result::NotFound;
+            if (rc == SQLITE_DONE) return Result::NotFound;
+            if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
             const unsigned char* nm = sqlite3_column_text(q.s, 0);
             if (!nm) return Fail(d, SQLITE_NOMEM, Result::TooMany);
             name.assign(reinterpret_cast<const char*>(nm), static_cast<size_t>(sqlite3_column_bytes(q.s, 0)));

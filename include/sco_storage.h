@@ -139,13 +139,14 @@ typedef struct sco_storage_v1 {
     sco_result (*last_error)(sco_plugin* self, char* out, uint32_t* inout_size);
     /* ---- 1.1 tail (additive): schema introspection of this plugin's own database.
      * Check the size covers a member and it is non-NULL before calling it.
-     * Input names are nonempty NUL-terminated strings of at most 16,777,216 bytes
+     * Input names are NUL-terminated strings of at most 16,777,216 bytes
      * excluding NUL (unlike the 255-byte key limit). Longer inputs return
      * SCO_BAD_ARG. Output names are not truncated or rejected by this input limit:
      * an existing larger name can be returned but cannot be used as an input. ---- */
     /* The first user table or view whose name sorts after "after" (NULL: from the
-     * start), in byte order, copied NUL-terminated with the size handshake; its kind
-     * goes to out_kind (SCO_STORAGE_KIND_*). The host bookkeeping table sco_kv and
+     * start; an empty string is a valid name), in byte order, copied NUL-terminated
+     * with the size handshake; its kind goes to out_kind (SCO_STORAGE_KIND_*).
+     * The host bookkeeping table sco_kv and
      * SQLite's own sqlite_% objects are never listed. SCO_NOT_FOUND: no more
      * objects; BAD_ARG: malformed after, NULL out_kind, or an invalid output buffer. */
     sco_result (*next_table)(sco_plugin* self, const char* after, char* out, uint32_t* inout_size,

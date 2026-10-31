@@ -8,7 +8,9 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - `sco.storage` schema enumeration accepts table names and continuations up to
   16 MiB (excluding NUL), instead of the unrelated 255-byte key-value limit.
-  Existing larger output names are not truncated; they cannot be passed back as inputs.
+  Empty names are accepted; existing larger output names are not truncated and
+  cannot be passed back as inputs. Column enumeration reports SQLite errors
+  instead of mistaking them for the end of the list.
 
 - Add an optional packaged consumer requirements report bound to explicit catalogue
   and registry hashes, with language support, scoped static capability evidence

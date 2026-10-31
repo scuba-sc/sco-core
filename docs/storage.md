@@ -14,13 +14,19 @@ tail method. C# exposes `Storage.NextTable`/`NextColumn`; Lua exposes
 C++ schema wrappers are not supplied.
 
 The `next_table` continuation (`after`, when non-null) and `next_column` table
-name must be nonempty NUL-terminated strings of at most 16,777,216 bytes,
-excluding the NUL. Longer inputs return `SCO_BAD_ARG`; this is separate from the
-255-byte key-value key limit. The output handshake does not truncate or skip
-names at that input limit. An existing identifier longer than the limit can be
+name must be NUL-terminated strings of at most 16,777,216 bytes, excluding the
+NUL. An empty string is a valid SQLite name: a null continuation starts before
+all names, while an empty continuation starts after the empty name. Longer inputs
+return `SCO_BAD_ARG`; this is separate from the 255-byte key-value key limit.
+Inputs within this bound remain subject to SQLite's
+execution and resource limits, including for its schema-introspection pragma.
+The output handshake does not truncate or skip names at that input limit. An
+existing identifier longer than the limit can be
 returned, but cannot be supplied as a continuation or table name; such a schema
 is not fully enumerable through these calls. If SQLite cannot bind a validated
 name, the call reports that failure instead of continuing with an unbound value.
+Column enumeration also reports a SQLite execution failure rather than treating
+it as the end of the column list.
 
 ## Contents
 

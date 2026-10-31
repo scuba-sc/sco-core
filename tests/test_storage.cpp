@@ -305,6 +305,21 @@ static void TestTransactions(sco_plugin* a) {
 // ---- SQL ------------------------------------------------------------------------------------
 
 static void TestSchemaNames(sco_plugin* a) {
+    CHECK(Exec(a, "CREATE TABLE \"\" (empty_name_column INTEGER)") == SCO_OK);
+    char first_name[512];
+    uint32_t first_size = sizeof first_name, first_kind = 99;
+    CHECK(g_st->next_table(a, nullptr, first_name, &first_size, &first_kind) == SCO_OK &&
+          first_size == 1 && first_name[0] == '\0' && first_kind == SCO_STORAGE_KIND_TABLE);
+    first_size = sizeof first_name;
+    CHECK(g_st->next_table(a, "", first_name, &first_size, &first_kind) == SCO_OK &&
+          first_size > 1 && first_name[0] != '\0');
+    char empty_col[64], empty_type[64];
+    uint32_t empty_index = 0, empty_nsize = sizeof empty_col, empty_tsize = sizeof empty_type, empty_flags = 99;
+    CHECK(g_st->next_column(a, "", &empty_index, empty_col, &empty_nsize, empty_type, &empty_tsize, &empty_flags) == SCO_OK &&
+          empty_index == 1 && std::strcmp(empty_col, "empty_name_column") == 0 && std::strcmp(empty_type, "INTEGER") == 0);
+    empty_nsize = sizeof empty_col; empty_tsize = sizeof empty_type; empty_index = 0;
+    CHECK(g_st->next_column(a, nullptr, &empty_index, empty_col, &empty_nsize, empty_type, &empty_tsize, &empty_flags) == SCO_BAD_ARG);
+
     const std::string first = "z1" + std::string(253, 'a');   // 255 bytes
     const std::string second = "z2" + std::string(254, 'b');  // 256 bytes
     std::string third = "z3";
@@ -353,12 +368,22 @@ static void TestSchemaNames(sco_plugin* a) {
     index = 0; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
     CHECK(g_st->next_column(a, first.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_OK && index == 1);
 
+    // SQLite permits this view, but resolving its columns fails during sqlite3_step.
+    CHECK(Exec(a, "CREATE VIEW invalid_view AS SELECT * FROM absent_table") == SCO_OK);
+    index = 0; flags = 99; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
+    CHECK(g_st->next_column(a, "invalid_view", &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_FAILED &&
+          index == 0 && flags == 99);
+    CHECK(LastError(a).find("absent_table") != std::string::npos);
+    CHECK(Exec(a, "DROP VIEW invalid_view") == SCO_OK);
+
     constexpr size_t limit = 16u * 1024u * 1024u;
     std::string boundary(limit, 'z');
     size = sizeof name;
     CHECK(g_st->next_table(a, boundary.c_str(), name, &size, &kind) == SCO_NOT_FOUND);
     index = 0; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
-    CHECK(g_st->next_column(a, boundary.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_NOT_FOUND && index == 0);
+    // SQLite's pragma can exhaust its own limits at this size even though the input is accepted.
+    const sco_result boundary_result = g_st->next_column(a, boundary.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags);
+    CHECK((boundary_result == SCO_NOT_FOUND || boundary_result == SCO_TOO_MANY || boundary_result == SCO_FAILED) && index == 0);
     boundary.push_back('z');
     size = sizeof name;
     CHECK(g_st->next_table(a, boundary.c_str(), name, &size, &kind) == SCO_BAD_ARG);
