@@ -43,10 +43,8 @@ int main() {
     assert(list.Configure(c)==Result::InvalidConfig);
     const char* duplicates[]={"synthetic_alpha","synthetic_alpha"}; c.shipClasses=duplicates;
     assert(list.Configure(c)==Result::InvalidConfig);
-#ifndef _WIN32
     c.shipClasses=names;
     assert(Start(c)==Result::Unavailable);
-#endif
     Stop(); Stop();
     assert(Snapshot().stopped && !Snapshot().admitted && Snapshot().ready==0);
     assert(Start(c)==Result::AlreadyStarted);

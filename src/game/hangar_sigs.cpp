@@ -37,21 +37,28 @@ constexpr char kRequestInstancePrologue[] = "48 89 5C 24 10 48 89 4C 24 08 55 56
 // RequestInstanceImpl: the function holding `lea r8, [rip+"IIM_RequestInstanceImpl_Requesting"]`
 // (4.10.196 references it twice, at +0xA9 and +0x2A5; every reference must be in that function).
 SigResult ResolveRequestInstance(const Image& img) {
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InImage(img, img.base, img.size) ||
+        !rows::InImage(img, img.pdata.base, img.pdata.size)) return SigFail("invalid .pdata/image");
     const uint8_t* msg = FindCString(img.rdata, kRequesting);
     if (!msg) return { SigState::Missing, nullptr, 0, nullptr };
     uint8_t* site = FindRipLea(img.text, 0x4C, 0x8D, 0x05, msg);
     if (!site) return SigFail("IIM_RequestInstanceImpl_Requesting isn't referenced");
     uint8_t* fn = FunctionStart(img, site);
     if (!fn) return SigFail("no .pdata entry for the Requesting string's function");
-    if (!InText(img, fn, 13) || !BytesMatch(fn, kRequestInstancePrologue)) return SigFail("layout changed at +0x000");
+    if (!InText(img, fn, 13)) return SigFail("RequestInstance prologue outside .text");
+    if (!BytesMatch(fn, kRequestInstancePrologue)) return SigFail("layout changed at +0x000");
     int sites = 1;
-    for (uint8_t* p = site + 1; InText(img, p, 7);) {
-        const Section rest{ p, static_cast<size_t>(img.text.base + img.text.size - p) };
+    const auto textBase = reinterpret_cast<uintptr_t>(img.text.base);
+    size_t off = static_cast<size_t>(reinterpret_cast<uintptr_t>(site) - textBase) + 1;
+    while (off <= img.text.size && img.text.size - off >= 7) {
+        const Section rest{ img.text.base + off, img.text.size - off };
         uint8_t* next = FindRipLea(rest, 0x4C, 0x8D, 0x05, msg);
         if (!next) break;
         ++sites;
         if (FunctionStart(img, next) != fn) return { SigState::Ambiguous, nullptr, sites, "Requesting string used by two functions" };
-        p = next + 1;
+        off = static_cast<size_t>(reinterpret_cast<uintptr_t>(next) - textBase) + 1;
     }
     return SigOk(fn);
 }

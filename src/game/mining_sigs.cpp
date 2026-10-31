@@ -42,25 +42,35 @@ static_assert(kCellBuilderType == 8 && kCellSpawnGate == 0x29 && kCellHarvestLod
               "kCellChecks pin these offsets");
 
 SigResult ResolveCell(const Image& img) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size))
+        return SigFail("invalid .rdata range");
     const uint8_t* label = FindCString(img.rdata, "CBiomeBuilder::BuildLargeScaleEcoSystem");
     if (!label) return SigFail("the BuildLargeScaleEcoSystem label isn't in .rdata");
     // lea r8, [label] is 4C 8D 05: count every one, a second use of the label would be ambiguous.
-    const uint8_t* const end = img.text.base + img.text.size - 7;
+    if (img.text.size < 7 || !InText(img, img.text.base, img.text.size)) return Missing();
+    const size_t last = img.text.size - 7;
     const uint8_t* site = nullptr;
     int n = 0;
-    for (const uint8_t* p = img.text.base; p < end; ++p) {
-        p = static_cast<const uint8_t*>(memchr(p, 0x4C, static_cast<size_t>(end - p)));
+    for (size_t off = 0; off <= last; ++off) {
+        const auto* p = static_cast<const uint8_t*>(memchr(img.text.base + off, 0x4C, last - off + 1));
         if (!p) break;
-        if (p[1] != 0x8D || p[2] != 0x05 || RipTarget(p, 3, 7) != label) continue;
+        off = static_cast<size_t>(p - img.text.base);
+        if (p[1] != 0x8D || p[2] != 0x05 || rows::CheckedRip(img, p, 3, 7) != label) continue;
         if (n++ == 0) site = p;
     }
     if (n == 0) return Missing();
     if (n > 1) return Ambiguous(n);
+    if (!rows::InImage(img, img.base, img.size) ||
+        !rows::InImage(img, img.pdata.base, img.pdata.size)) return SigFail("invalid .pdata/image");
     const uint8_t* f = FunctionStart(img, site);
     if (!f) return SigFail("no .pdata entry holds the label's function");
-    if (site != f + kLabelLea) return SigFail("the label isn't loaded at +0x09b");
-    for (const auto& c : kCellChecks)
-        if (!InText(img, f + c.off, rows::PatternBytes(c.bytes)) || !BytesMatch(f + c.off, c.bytes)) return SigFail(c.why);
+    if (site != rows::TextAt(img, f, kLabelLea, 7)) return SigFail("the label isn't loaded at +0x09b");
+    for (const auto& c : kCellChecks) {
+        const auto* at = c.off <= static_cast<size_t>(PTRDIFF_MAX)
+            ? rows::TextAt(img, f, static_cast<ptrdiff_t>(c.off), rows::PatternBytes(c.bytes)) : nullptr;
+        if (!at) return SigFail("mining function check outside .text");
+        if (!BytesMatch(at, c.bytes)) return SigFail(c.why);
+    }
     return SigOk(f);
 }
 

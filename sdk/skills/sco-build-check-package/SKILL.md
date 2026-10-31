@@ -2,7 +2,7 @@
 name: sco-build-check-package
 description: "Build or adapt an SCO SDK extension in C, C++, C# NativeAOT, Lua or a data pack. Use for consumers choosing contracts, scaffolding, building and checking a plugin before distribution."
 metadata:
-  version: "0.2.3"
+  version: "0.2.4"
 ---
 
 # Build, check and package an SCO consumer

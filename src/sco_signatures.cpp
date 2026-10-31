@@ -40,8 +40,30 @@ void Resolve(Row& r) {
         r.res = r.def->resolve(*g_img);
     } else if (r.def->pattern) {
         r.res = SigPattern(g_img->text, r.def->pattern);
-        if (r.res.state == SigState::Ok && r.def->ripDisp > 0)
-            r.res.at = RipTarget(r.res.at, static_cast<size_t>(r.def->ripDisp), static_cast<size_t>(r.def->ripSize));
+        if (r.res.state == SigState::Ok && r.def->ripDisp > 0) {
+            const auto source = reinterpret_cast<uintptr_t>(r.res.at);
+            const auto text = reinterpret_cast<uintptr_t>(g_img->text.base);
+            const auto base = reinterpret_cast<uintptr_t>(g_img->base);
+            const auto disp = static_cast<size_t>(r.def->ripDisp);
+            const auto size = r.def->ripSize > 0 ? static_cast<size_t>(r.def->ripSize) : 0;
+            if (!base || !g_img->size || g_img->size > UINTPTR_MAX - base) {
+                r.res = SigFail("image range missing or invalid");
+            } else if (!text || g_img->text.size > UINTPTR_MAX - text || source < text ||
+                       source - text > g_img->text.size || size > g_img->text.size - (source - text)) {
+                r.res = SigFail("RIP source instruction outside .text");
+            } else if (disp > size || size - disp < sizeof(int32_t)) {
+                r.res = SigFail("RIP displacement outside instruction");
+            } else {
+                const auto next = source + size;
+                const int32_t delta = Rel32(r.res.at + disp);
+                const auto magnitude = delta < 0 ? uintptr_t{0} - static_cast<uintptr_t>(delta) : static_cast<uintptr_t>(delta);
+                const bool overflow = delta < 0 ? magnitude > next : magnitude > UINTPTR_MAX - next;
+                const auto target = delta < 0 ? next - magnitude : next + magnitude;
+                if (overflow || target < base || target - base >= g_img->size)
+                    r.res = SigFail("RIP target outside the image");
+                else r.res.at = reinterpret_cast<uint8_t*>(target);
+            }
+        }
     } else {
         r.res = SigFail("row has neither a pattern nor a resolver");
     }
@@ -83,6 +105,18 @@ bool RegisterSignatures(const SigDef* rows, size_t n) {
 void ResolveAll(const Image& img) {
     g_img = &img;
     for (size_t i = 0; i < g_count; ++i) { g_rows[i].res = {}; g_rows[i].visiting = 0; }
+    const auto imageBase = reinterpret_cast<uintptr_t>(img.base);
+    const auto sectionValid = [&](const Section& section) {
+        if (!section.base && !section.size) return true;
+        const auto at = reinterpret_cast<uintptr_t>(section.base);
+        return imageBase && img.size && img.size <= UINTPTR_MAX - imageBase && at >= imageBase &&
+            at - imageBase <= img.size && section.size <= img.size - (at - imageBase);
+    };
+    if (!sectionValid(img.text) || !sectionValid(img.rdata) || !sectionValid(img.pdata)) {
+        for (size_t i = 0; i < g_count; ++i) g_rows[i].res = SigFail("declared section outside the image");
+        g_img = nullptr;
+        return;
+    }
     for (size_t i = 0; i < g_count; ++i) Resolve(g_rows[i]);
     g_img = nullptr;
 }

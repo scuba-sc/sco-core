@@ -27,5 +27,9 @@ void LogFleet();
 void LogHangars();
 void SetFleetCaps();
 void SetHangarCaps();
+// Plan outside the ships lock; commit under it only while admitted and unpublished.
+bool RebuildFleetShips(const Catalog& next);
+void PumpInitialFleet();
+void DisableFleetAdmission();
 #endif
 } // namespace sco::game::asop_host

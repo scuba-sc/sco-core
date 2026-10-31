@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "state.h"
+#include "fleet_transaction.h"
+#ifdef _WIN32
+#include "sco/runtime.h"
+#endif
 #include <cstring>
 #include <cctype>
 namespace sco::game::asop_host {
@@ -23,7 +27,7 @@ Result Catalog::Configure(const Config& c) {
         }
         if (!n || n==64) return Result::InvalidConfig;
         for (std::size_t j=0; j<i; ++j)
-            if (!std::strcmp(next.names[j].data(),name)) return Result::InvalidConfig;
+            if (FleetNameEqual(next.names[j].data(),name)) return Result::InvalidConfig;
         std::memcpy(next.names[i].data(),name,n+1);
     }
     next.count=c.shipCount;
@@ -31,29 +35,23 @@ Result Catalog::Configure(const Config& c) {
     return Result::Ok;
 }
 Result Start(const Config& c) {
-    std::unique_lock guard(lock);
+    std::lock_guard guard(lock);
     if (status.configured || status.stopped) return Result::AlreadyStarted;
     Catalog next;
     const auto validation=next.Configure(c);
     if(validation!=Result::Ok) return validation;
     if(!c.enabled) return Result::Disabled;
     if(!c.offlinePrepared || !c.eacAbsent) return Result::AdmissionRefused;
-#ifndef _WIN32
+    // Offline admission and signature readiness do not prove a safe phase for
+    // patching instructions or the later live slot swap. Do not publish admission
+    // or install hooks until a real host/engine lifecycle protocol exists.
     return Result::Unavailable;
-#else
-    settings=c; settings.shipClasses=nullptr; settings.shipCount=0;
-    catalog=next;
-    status.configured=true; status.catalogCount=catalog.count;
-    admitted.store(true); status.admitted=true;
-    guard.unlock(); // Engine/hooks/log callbacks must never run under the status mutex.
-    const bool catalogInstalled=InstallCatalog();
-    InstallFleet();
-    InstallHangars();
-    SetFleetCaps(); SetHangarCaps();
-    LogFleet(); LogHangars();
-    guard.lock(); status.installed=catalogInstalled;
-    return status.installed ? Result::Ok : Result::Unavailable;
-#endif
+}
+Result Reconfigure(const Config& c) {
+    (void)c;
+    // No engine lifecycle contract establishes safe mid-session rebuilding or
+    // rebuild/Stop overlap. Refuse before engine calls or host publication.
+    return Result::Unavailable;
 }
 Status Snapshot() {
     std::lock_guard guard(lock); Status copy=status;
@@ -64,7 +62,8 @@ Status Snapshot() {
 }
 void Pump(uint32_t now) {
 #ifdef _WIN32
-    if(admitted.load()) {
+    if(admitted.load() && sco::OnGameThread()) {
+        PumpInitialFleet();
         TickHangars(now);
         static uint32_t last=0;
         if(now-last>=100) { last=now; TickFleet(now); }
@@ -74,13 +73,25 @@ void Pump(uint32_t now) {
 #endif
 }
 void Stop() {
+    bool wasAdmitted = false;
     {
         std::lock_guard guard(lock);
-        admitted.store(false); status.admitted=false; status.stopped=true;
+        wasAdmitted = admitted.load();
+#ifdef _WIN32
+        if (wasAdmitted) DisableFleetAdmission();
+        else admitted.store(false);
+#else
+        admitted.store(false);
+#endif
+        status.admitted=false; status.stopped=true;
     }
 #ifdef _WIN32
-    CloseHangars();
-    CloseFleet();
+    if (wasAdmitted) {
+        CloseHangars();
+        CloseFleet();
+    }
+#else
+    (void)wasAdmitted;
 #endif
 }
 } // namespace sco::game::asop_host

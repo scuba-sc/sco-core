@@ -11,6 +11,17 @@ fi
 CXX=${CXX:-$(command -v clang++ || command -v g++)}
 CC=${CC:-$(command -v clang || command -v gcc)}
 
+# Critical resolver boundaries also run under sanitizers in this standalone path.
+# The complete issue302 matrix is registered by CMake/CTest.
+RESOLVER_FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -I "$ROOT/include")
+for fixture in test_issue302_shared_bounds test_issue302_offline_bounds; do
+  "$CXX" "${RESOLVER_FLAGS[@]}" "$ROOT/tests/$fixture.cpp" "$ROOT/tests/issue302_signature_support.cpp" "$ROOT/src/sco_scan.cpp" -o "$OUT/$fixture"
+  "$OUT/$fixture"
+done
+"$CXX" "${RESOLVER_FLAGS[@]}" "$ROOT/tests/test_issue302_registry_bounds.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" -o "$OUT/test_issue302_registry_bounds"
+"$OUT/test_issue302_registry_bounds"
+python3 "$ROOT/tests/test_issue302_parity_gate.py"
+
 # Plugin ABI pin (tests/abi_v1.c): compile-only. As C and C++ for this host, for x64 Windows
 # (the real target; -ffreestanding so no Windows SDK is needed), and with -fshort-enums to prove
 # the enums keep 4 bytes whatever the compiler's enum setting.
@@ -495,6 +506,22 @@ SQLITE_TSAN=$OUT/sqlite3_tsan.o
 "$OUT/test_ipc"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_ipc.cpp" $(obj tsan "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp") "${HOST_TSAN[@]}" -o "$OUT/test_ipc_tsan"
 "$OUT/test_ipc_tsan"
+
+# ASOP fleet transactions and the real config path over synthetic runtime/engine seams.
+# _WIN32 selects config.cpp's host path only; this is not a native Windows/engine proof.
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_asop_fleet_transaction.cpp" -o "$OUT/test_asop_fleet_transaction"
+"$OUT/test_asop_fleet_transaction"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -pthread "$ROOT/tests/test_asop_fleet_publication.cpp" -o "$OUT/test_asop_fleet_publication"
+"$OUT/test_asop_fleet_publication"
+for sanitizer in address,undefined thread; do
+  "$CXX" "${FLAGS[@]}" -D_WIN32 -fsanitize="$sanitizer" \
+    -c "$ROOT/src/game/asop_host/config.cpp" -o "$OUT/asop_reconfigure_config_${sanitizer//,/_}.o"
+  "$CXX" "${FLAGS[@]}" -fsanitize="$sanitizer" \
+    "$ROOT/tests/test_asop_reconfigure.cpp" "$OUT/asop_reconfigure_config_${sanitizer//,/_}.o" \
+    -o "$OUT/test_asop_reconfigure_${sanitizer//,/_}"
+  "$OUT/test_asop_reconfigure_${sanitizer//,/_}"
+  "$OUT/test_asop_reconfigure_${sanitizer//,/_}" threaded-stop
+done
 
 # sco.net's core (sco/net/*.h): sha2.c built as C once per sanitizer set with -Werror like the rest;
 # sessions of several Cores over the seeded in-memory network, so both sanitizer sets.

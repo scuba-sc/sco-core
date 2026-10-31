@@ -4,6 +4,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Refuse native ASOP startup until the host supplies a proven safe phase and reader lifetime protocol.
+
+- Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.
+
+- Reject malformed exception directories and overlong unwind chains, and detect adjacent
+  duplicate signature references. Synthetic resolver checks only; not run in game.
+
 ## sdk-v2.4.0 (RC2 published 2026-10-28; final release pending)
 
 **Prepared release-line changes; final publication is pending.** These source changes
