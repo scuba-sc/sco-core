@@ -19,6 +19,7 @@ namespace Sco.Sdk.Tests
         private static bool _arguments;
         private static uint _wanted;
         private static string? _after;
+        private static string _inputTable = "schema";
         private static string S(byte* p) => Marshal.PtrToStringUTF8((nint)p) ?? "";
         private static void Check(bool ok, string what)
         { ++_checks; if (!ok) { ++_failed; Console.WriteLine("FAIL storage schema: " + what); } }
@@ -79,7 +80,7 @@ namespace Sco.Sdk.Tests
                                              byte* type, uint* ts, uint* flags)
         {
             ++_calls;
-            _arguments &= self == (void*)1 && S(table) == "schema" && *index == _wanted;
+            _arguments &= self == (void*)1 && table != null && S(table) == _inputTable && *index == _wanted;
             *index = 999; *flags = 31; // Even broken providers cannot leak these on failure.
             if (_mode == Mode.FailAfterGrowth)
             {
@@ -115,7 +116,7 @@ namespace Sco.Sdk.Tests
         private static void Reset(Mode mode, string name = "column", string type = "TEXT")
         {
             _mode = mode; _name = Encoding.UTF8.GetBytes(name); _type = Encoding.UTF8.GetBytes(type);
-            _calls = 0; _arguments = true; _wanted = 7; _after = "cursor";
+            _calls = 0; _arguments = true; _wanted = 7; _after = "cursor"; _inputTable = "schema";
         }
 
         public static int Run()
@@ -148,6 +149,26 @@ namespace Sco.Sdk.Tests
                   name == "名" && type == "" && index == 8, "UTF-8 and empty type with one-byte NUL");
             Reset(Mode.Normal); _after = null;
             Check(storage.NextTable(null, out got, out kind) == ScoResult.Ok && got == "column" && _arguments, "null starting cursor");
+            Reset(Mode.Normal); _after = "";
+            Check(storage.NextTable("", out got, out kind) == ScoResult.Ok && got == "column" && _arguments,
+                  "empty cursor remains a non-null empty string");
+            Reset(Mode.Grow, longName); _after = "";
+            Check(storage.NextTable("", out got, out kind) == ScoResult.Ok && got == longName && _calls == 3 && _arguments,
+                  "empty cursor survives growing retries");
+            Reset(Mode.HostFailure); _after = "";
+            Check(storage.NextTable("", out got, out kind) == ScoResult.WrongThread && got == "" && kind == 0 && _arguments,
+                  "empty cursor preserves host failure and outputs");
+            Reset(Mode.Normal); _inputTable = ""; index = _wanted;
+            Check(storage.NextColumn("", ref index, out name, out type, out flags) == ScoResult.Ok &&
+                  name == "column" && type == "TEXT" && index == 8 && _arguments, "empty table passed as non-null empty string");
+            Reset(Mode.Normal, longName, longType); _inputTable = ""; index = _wanted;
+            Check(storage.NextColumn("", ref index, out name, out type, out flags) == ScoResult.Ok &&
+                  name == longName && type == longType && index == 8 && _calls == 3 && _arguments,
+                  "empty table survives sequential retries");
+            Reset(Mode.HostFailure); _inputTable = ""; index = _wanted;
+            Check(storage.NextColumn("", ref index, out name, out type, out flags) == ScoResult.WrongThread &&
+                  name == "" && type == "" && flags == 0 && index == _wanted && _arguments,
+                  "empty table preserves host failure and index");
 
             foreach (Mode mode in new[] { Mode.NoProgress, Mode.TooLarge, Mode.BadZero, Mode.BadOver, Mode.MissingNul, Mode.EarlyNul, Mode.BadUtf8, Mode.HostFailure, Mode.FailAfterGrowth, Mode.Forever })
             {
