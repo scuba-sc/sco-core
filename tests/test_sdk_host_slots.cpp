@@ -147,9 +147,9 @@ int main() {
 
     sdk::Plugin detached;
     for (int slot = 0; slot < 4; ++slot) {
-        uint32_t written = 123;
-        CHECK(Call(slot, detached, written) == SCO_BAD_ARG);
-        if (slot == 3) CHECK(written == 0);
+        uint32_t detached_written = 123;
+        CHECK(Call(slot, detached, detached_written) == SCO_BAD_ARG);
+        if (slot == 3) CHECK(detached_written == 0);
     }
     std::printf("test_sdk_host_slots: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
