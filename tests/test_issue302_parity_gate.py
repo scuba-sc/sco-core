@@ -12,14 +12,15 @@ import issue302_valid_parity as parity
 
 
 class ParityGateTest(unittest.TestCase):
-    def test_cmake_checkouts_materialize_baseline_from_shallow_source(self):
+    def test_ci_checkouts_materialize_baseline_from_shallow_source(self):
         # The integration workflow starts from checkout's depth-one default. The
         # gate archives a pinned commit, so its jobs must materialize history.
-        workflow = (parity.ROOT / '.github/workflows/cmake.yml').read_text()
-        for job in ('linux', 'windows'):
+        for workflow_name, job in (('cmake.yml', 'linux'), ('cmake.yml', 'windows'),
+                                   ('test.yml', 'test')):
+            workflow = (parity.ROOT / '.github/workflows' / workflow_name).read_text()
             section = workflow.split(f'  {job}:', 1)[1].split('\n  #', 1)[0]
             checkout = section.split('      - name: ', 1)[0]
-            self.assertIn('fetch-depth: 0', checkout)
+            self.assertIn('fetch-depth: 0', checkout, f'{workflow_name}: {job}')
 
         def git(*args, cwd):
             return subprocess.run(['git', *map(str, args)], cwd=cwd, check=True,
