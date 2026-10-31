@@ -5981,6 +5981,9 @@
       "license": "GPL-3.0-only"
     },
     {"id": "source.tests.test_app_game_service_shutdown.cpp", "source": "tests/test_app_game_service_shutdown.cpp", "destination": "tests/test_app_game_service_shutdown.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.test_owned_admission.cpp", "source": "tests/test_owned_admission.cpp", "destination": "tests/test_owned_admission.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.src.game.services.start.cpp", "source": "src/game/services/start.cpp", "destination": "src/game/services/start.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.test_direct_game_service_refusal.cpp", "source": "tests/test_direct_game_service_refusal.cpp", "destination": "tests/test_direct_game_service_refusal.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.tests.test_game_reads_lifecycle.cpp", "source": "tests/test_game_reads_lifecycle.cpp", "destination": "tests/test_game_reads_lifecycle.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.src.lifecycle_gate.h", "source": "src/lifecycle_gate.h", "destination": "src/lifecycle_gate.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.owned_shutdown_access.h", "source": "src/owned_shutdown_access.h", "destination": "src/owned_shutdown_access.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},

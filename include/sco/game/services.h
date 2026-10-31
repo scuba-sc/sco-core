@@ -1,8 +1,6 @@
 #pragma once
-// The Star Citizen game pack's services (docs/game-services.md), published under the owner
-// "game" with host::ProvideGameService. sco::app::Start calls Start when the product sets
-// Platform::gameServices and the game pack's services are built (SCO_GAME_SC, Windows: the
-// sco_game_services library, which defines SCO_GAME_SERVICES); Stop calls Stop after UnloadAll.
+// The Star Citizen game pack's host-source service interface. Native service startup is
+// currently unavailable until native execution and reader exclusion are proven.
 //
 // Today: teleport.spatial 1.0 (sc_spatial.h), spawn.entities 1.2 (sc_spawn.h), game.actors 1.0
 // (sc_actors.h) and game.vehicles 1.0 (sc_vehicles.h). teleport.spatial answers 0 until the
@@ -19,9 +17,7 @@
 
 namespace sco::game::services {
 
-// Game thread. Publishes the services and subscribes their tick. A name collision is an error.
-// After any failed Start, call Stop to establish whether partial cleanup was safe; a failure
-// may retain provider backing or a hook and the host must preserve its dependencies.
+// Refuses before mutation until a native exclusion proof is available.
 Result Start();
 // Game thread. Failed means cleanup is live or uncertain: retain backing state and
 // require process restart. Other services are withdrawn where safe; repeated Stop

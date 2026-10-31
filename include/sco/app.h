@@ -138,9 +138,19 @@ struct Platform {
     HostService hostService;
 };
 
-// Starts the host kit (see above). Game thread: it becomes the game thread. False, and nothing
-// changes, when already started and not stopped; true otherwise, whatever failed to load.
-// `platform` is copied; builtins, scripts and hostVersion must outlive Stop.
+// Describes whether this invocation exposed platform dependencies to the host.
+enum class StartResult {
+    Started,
+    RefusedBeforeExposure, // this invocation did not hand dependencies to the host
+    RetainDependencies,    // startup failed after exposure or its state is uncertain
+};
+// Game thread. Retain platform backing, callbacks, modules, and their contexts
+// through a successful Stop. RetainDependencies requires preserving them until
+// process exit; it must not be treated as evidence of cleanup or restart safety.
+// Refusal applies only to this invocation: an earlier invocation may already
+// retain the same pointers. Calls require the game thread and serialized entry.
+StartResult StartDetailed(const Platform& platform);
+// Compatibility wrapper: false combines both refusal and retained failure.
 bool Start(const Platform& platform);
 // Process-retained or uncertain native hook state; never a drainage assertion.
 bool HasRetainedGameHooks() noexcept;
@@ -161,7 +171,9 @@ void Tick(uint32_t nowMs);
 // Never from DLL_PROCESS_DETACH: that runs under the loader lock, at the wrong time.
 // game.exit is best effort: a crash or a killed process never sends it (docs/framework.md,
 // Lessons).
-// Returns Failed if any host service did not stop; its context and signature registry remain retained.
+// After Started, only Ok establishes completed app cleanup. For any other
+// result preserve backing and do not restart unless a later Stop returns Ok.
+// RetainDependencies from startup remains process-retained even if Stop says Ok.
 Result Stop();
 
 // Every plugin of the last Start: built-ins first, then discovered folders. Stable from Start

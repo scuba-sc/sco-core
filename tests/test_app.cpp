@@ -21,6 +21,7 @@
 #include "sco_api.h"
 #include "sco_lua.h"
 #ifdef SCO_GAME_SERVICES
+#include "sco/game/services.h"
 #include "game_contracts/app_service_headers.inc"
 #endif
 #include <algorithm>
@@ -580,6 +581,8 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     pf.gameServices = true;
     pf.gameReadersQuiesced = [](void*) -> bool { std::abort(); };
     CHECK(!sco::app::Start(pf));
+    CHECK(sco::game::services::Start() == sco::Result::Unavailable);
+    CHECK(!sco::game::services::Started());
     pf.gameServices = false;
 #endif
     fs::remove_all(out / "app", ec);

@@ -1,5 +1,9 @@
 # Design: service-table lifetime audit
 
+**Current HOLD:** `game::services::Start` refuses before native reads or
+provider mutation; the previous implementation is private and unavailable.
+Historical startup and rollback descriptions below do not authorize it.
+
 Status: source audit of `0ce4ab8`, updated from `ab25aa7` for atomic administrative withdrawal, built-in provider refusal, queried failed-load retention, dependent reload cascades, restart-required fault retention and the terminal host shutdown barrier. No plugin ABI growth. This is an inventory of the current implementation, not a lease or crash-safety guarantee. See [service safety](service-safety.md) for the historical proposal and [plugins](../plugins.md#hot-reload) for the supported reload contract.
 
 ## Scope and result
@@ -51,7 +55,7 @@ All objects below have static table storage and host/game-pack code lifetime. St
 | `game.entities`; 1.1 | G; `kEntities`, `src/game/services/entities.cpp` | `StartEntities` | `StopEntities` | Game thread (`alive` returns 0 off-thread); `last_error` any thread |
 | `game.creative`; 1.0 | G; `kService`, `src/game/services/creative.cpp` | `StartCreative` | `StopCreative` | Game thread; `last_error` any thread |
 
-Host service Start/Stop may be called on any thread according to their headers; the host kit serializes lifecycle on the game thread. Game service Start/Stop require the game thread (`services::Start`/`services::Stop` in `include/sco/game/services.h`). `services::Start` (`src/game/services/spatial.cpp`) rolls back already-started siblings on a later failure, and `services::Stop` stops them in reverse. Those are compiled-in resource teardown paths, not DLL unloads. UI frame and network message pointers are callback-only, independently of table lifetime.
+Host service Start/Stop may be called on any thread according to their headers; the host kit serializes lifecycle on the game thread. The former game-service startup implementation in `src/game/services/spatial.cpp` rolled back siblings on failure; it is now private and unavailable. The public `services::Start` refuses before mutation on any thread. The historical teardown paths are compiled-in resource teardown, not DLL unloads. UI frame and network message pointers are callback-only, independently of table lifetime.
 
 ### Native and built-in plugin providers
 

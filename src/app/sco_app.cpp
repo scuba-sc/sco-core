@@ -781,19 +781,25 @@ static bool StartImpl(const Platform& platform, const sco::detail::StartupPublis
     }
 }
 
-bool Start(const Platform& platform) {
+StartResult StartDetailed(const Platform& platform) {
 #ifndef SCO_APP_TEST_SYNTHETIC_GAME_SERVICES
     // An affirmative callback cannot establish durable exclusion of native
     // execution. Refuse before any startup or game-service mutation.
-    if (platform.gameServices) return false;
+    if (platform.gameServices) return StartResult::RefusedBeforeExposure;
 #endif
     // Owned sessions require the host's startup gate; a generic direct caller
     // cannot establish the host phase publication transaction.
-    if (platform.shutdownOwner) return false;
-    sco::detail::RuntimeLease admission;
-    if (admission.owned() || !sco::detail::RuntimeCanStartLegacy()) return false;
-    return StartImpl(platform, nullptr);
+    if (platform.shutdownOwner) return StartResult::RefusedBeforeExposure;
+    try {
+        sco::detail::RuntimeLease admission;
+        if (admission.owned() || !sco::detail::RuntimeCanStartLegacy()) return StartResult::RefusedBeforeExposure;
+        return StartImpl(platform, nullptr) ? StartResult::Started : StartResult::RetainDependencies;
+    } catch (...) {
+        // Treat unexpected failure conservatively even when exposure is unclear.
+        return StartResult::RetainDependencies;
+    }
 }
+bool Start(const Platform& platform) { return StartDetailed(platform) == StartResult::Started; }
 
 namespace detail {
 bool CopyOwnedData(const OwnedShutdown::Transition& transition, const std::shared_ptr<OwnedShutdown>& owner,

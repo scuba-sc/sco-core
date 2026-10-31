@@ -2,6 +2,9 @@
 #include "sco/app.h"
 #include "sco/runtime.h"
 #include "sco/net/session.h"
+#ifdef SCO_GAME_SERVICES
+#include "sco/game/services.h"
+#endif
 #include "sco_ui.h"
 #include "sco_storage.h"
 #include "../src/app/owned_start.h"
@@ -15,6 +18,7 @@
 #define CHECK(expr) do { if (!(expr)) { std::fprintf(stderr, "CHECK failed: %s:%d: %s\n", __FILE__, __LINE__, #expr); std::abort(); } } while (0)
 #include <chrono>
 #include <future>
+#include <stdexcept>
 #include <string>
 #include <thread>
 namespace sco::ui::testing { void SetTableExitHook(void (*)(void*), void*) noexcept; }
@@ -32,6 +36,8 @@ static std::shared_ptr<sco::OwnedShutdown> domain;
 static int stopCalls = 0, barrierCalls = 0, exits = 0;
 static int queuedRuns = 0;
 static bool UnexpectedNativeBarrier(void*) { std::abort(); }
+static void ThrowCapabilities() { throw std::runtime_error("startup fault"); }
+static bool RefuseCleanup(void* p) { ++*static_cast<int*>(p); return false; }
 static void Queued(void*) { ++queuedRuns; }
 static void StartupEvent(const char*, const void*, void*) {}
 static void StartupRelease(const void*) {}
@@ -96,6 +102,50 @@ int main(int argc, char** argv) {
     p.privateSession.enabled = false;
     p.shutdownOwner = domain;
     p.beforeDependentStop = Drain;
+    if (argc > 1 && std::string(argv[1]) == "start-success") {
+        sco::app::Platform legacy;
+        legacy.pluginsEnabled = false;
+        legacy.privateSession.enabled = false;
+        int priorContext = 0;
+        legacy.beforeDependentStopContext = &priorContext;
+        legacy.beforeDependentStop = [](void* p) { ++*static_cast<int*>(p); return true; };
+        CHECK(sco::app::StartDetailed(legacy) == sco::app::StartResult::Started);
+        auto refused = legacy;
+        refused.gameServices = true;
+        CHECK(sco::app::StartDetailed(refused) == sco::app::StartResult::RefusedBeforeExposure);
+        CHECK(priorContext == 0);
+        CHECK(sco::app::Stop() == sco::Result::Ok);
+        CHECK(priorContext == 1);
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "start-retained") {
+        sco::app::Platform partial;
+        sco::Image image{};
+        auto token = std::make_shared<int>(1);
+        std::weak_ptr<int> retained = token;
+        int callbackContext = 0;
+        partial.image = &image;
+        partial.imageOwner = partial.resolverOwner = token;
+        partial.setCapabilities = ThrowCapabilities;
+        partial.beforeDependentStop = RefuseCleanup;
+        partial.beforeDependentStopContext = &callbackContext;
+        CHECK(sco::app::StartDetailed(partial) == sco::app::StartResult::RetainDependencies);
+        CHECK(callbackContext == 1);
+        token.reset(); partial.imageOwner.reset(); partial.resolverOwner.reset();
+        CHECK(!retained.expired());
+        CHECK(sco::app::Stop() == sco::Result::Failed);
+        CHECK(sco::app::StartDetailed(partial) == sco::app::StartResult::RetainDependencies);
+        return 0;
+    }
+#ifdef SCO_GAME_SERVICES
+    if (argc > 1 && std::string(argv[1]) == "direct-native-refusal") {
+        CHECK(!sco::game::services::Started());
+        CHECK(sco::game::services::Start() == sco::Result::Unavailable);
+        CHECK(!sco::game::services::Started());
+        CHECK(!sco::AcquireHostSignatureRegistry());
+        return 0;
+    }
+#endif
     if (argc > 1 && std::string(argv[1]) == "native-service-coverage-unavailable") {
         std::puts("SKIP: native game-service table fixture requires an enabled production service path");
         return 77;
@@ -104,6 +154,7 @@ int main(int argc, char** argv) {
         sco::app::Platform native;
         native.gameServices = true;
         native.gameReadersQuiesced = UnexpectedNativeBarrier;
+        CHECK(sco::app::StartDetailed(native) == sco::app::StartResult::RefusedBeforeExposure);
         CHECK(!sco::app::Start(native));
         CHECK(!sco::net::Started() && !sco::AcquireHostSignatureRegistry());
         return 0;

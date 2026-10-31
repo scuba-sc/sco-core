@@ -376,6 +376,16 @@ python3 "$ROOT/tests/signature_differential/run.py" --cxx "$CXX" --sanitize
 HOST_ASAN=($(obj asan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
 HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
 
+# Exercise the same production refusal symbol and the explicit test-only
+# admission pause seam; neither fixture loads a game or native provider.
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_direct_game_service_refusal.cpp" \
+  "$ROOT/src/game/services/start.cpp" -o "$OUT/test_direct_game_service_refusal"
+"$OUT/test_direct_game_service_refusal"
+ADMISSION_TEST_OBJ="$(compile_obj asan "$ROOT/src/game/admission.cpp" -DSCO_FRESH_ADMISSION_TESTING=1)"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_owned_admission.cpp" \
+  "$ADMISSION_TEST_OBJ" "${HOST_ASAN[@]}" -o "$OUT/test_owned_admission"
+for mode in prebind drain reentry; do "$OUT/test_owned_admission" "$mode"; done
+
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_quantum.cpp" \
   "$ROOT/src/game/services/quantum.cpp" "$ROOT/src/game/services/quantum_owned.cpp" \
   $(obj asan "$ROOT/src/hook/sco_hook.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_quantum"

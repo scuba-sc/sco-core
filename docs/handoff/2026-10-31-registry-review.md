@@ -94,13 +94,27 @@ views and the engine quit continuation require their own enrollment and actual
 product exclusion proof before activation can be enabled.
 
 The public `app::Start` refuses `Platform::gameServices` before startup work,
-including when its legacy barrier callback would return true. This does not gate
-direct calls to the separate C++ `game::services::Start` entry; those must remain
-outside the supported composition until independently gated. The current fresh
-admission inspector is not a complete reader barrier: a pre-bind caller can
-capture the old owner before the new owner is installed and then enter the new
-inspector. Both that race and unowned callbacks/returned views block successful
-real-application retirement. The test-only lifecycle fixture is not native proof.
+including when its legacy barrier callback would return true. The separate public
+C++ `game::services::Start` entry also refuses before native reads or provider
+mutation. Fresh admission now enters the runtime binding census before taking
+its inspector-owner snapshot, then holds reader leases through the callback;
+an earlier enabled legacy call conservatively prevents later owned binding.
+The separate game-thread cvar cleanup inspection is not covered by this change
+and must remain unavailable in an owned transaction until independently proven.
+Unowned callbacks and returned views still block successful real-application
+retirement. The test-only lifecycle fixture is not native proof.
 The earlier Windows app fixture's real game-service table and capability coverage
 is explicitly skipped while production startup refuses these services. The mock
 boundary fixture preserves its failure-order tests but does not replace that coverage.
+
+Consumers must migrate to `app::StartDetailed`. `Started` transfers the usual
+lifetime responsibility through successful `Stop`; `RefusedBeforeExposure`
+means this invocation exposed no platform dependencies; `RetainDependencies`
+means startup failed after possible exposure and the consumer must preserve the
+dependency closure until process exit. A refused invocation says nothing about
+the same pointers retained by an earlier invocation. The legacy `bool Start` combines the two
+failure cases and cannot guide cleanup. After `Started`, preserve backing after
+every non-`Ok` `Stop`; only a later `Ok` permits the normal cleanup. A startup
+`RetainDependencies` remains process-retained even if `Stop` later says `Ok`.
+These are
+C++ host-source changes, not a change to the frozen plain-C plugin table.

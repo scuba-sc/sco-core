@@ -381,7 +381,9 @@ void OnTick(const char*, const void*, void*) {
 
 }  // namespace
 
-Result Start() {
+// Kept private until a native execution/reader exclusion proof exists. The
+// public Start definition is the unconditional refusal in start.cpp.
+[[maybe_unused]] static Result StartNativeUnproven() {
     if (!OnGameThread()) return Result::WrongThread;
     if (g_cleanupFailed) return Result::Failed;
     if (g_started) return Result::Ok;
