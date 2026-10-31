@@ -87,7 +87,7 @@ private:
         // reload/unload in 1.x; do not retain or call them past terminal shutdown.
         sco::sdk::ServiceRef<greeter_v1> greeter;
         const sco_result r = greeter.Query(*this, "cpp_hello.greeter", sco::sdk::ServiceVersion(1, 0));
-        if (r == SCO_OK && sco::sdk::HasMember(greeter, &greeter_v1::greet)) {
+        if (r == SCO_OK && sco::sdk::HasMember(greeter, &greeter_v1::greet) && greeter->greet) {
             char line[64];
             greeter->greet("services", line, sizeof line);
             Info("%s", line);

@@ -118,11 +118,13 @@ static const greeter_v1 kGreeter = { sizeof(greeter_v1), Greet };
 sco::sdk::Provide(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0), &kGreeter);
 
 sco::sdk::ServiceRef<greeter_v1> g;                       // in another plugin
-if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK) g->greet(...);
+if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK &&
+    sco::sdk::HasMember(g, &greeter_v1::greet) && g->greet)
+    g->greet(...);
 ```
 
 - `Query` answers like `query_service` (`SCO_OK`, `SCO_UNAVAILABLE` for another major or an older version, `SCO_NOT_FOUND`) and `SCO_UNAVAILABLE` on a 1.0 host. The ref is empty unless `SCO_OK`; check it (`if (g)`) before `->`.
-- `HasMember(ref, &T::field)` is true when the provider's `size` covers `field`: the check before calling a function a later minor added.
+- `HasMember(ref, &T::field)` checks that the provider's `size` covers `field`; also check the function pointer for null before calling it.
 - `Release(plugin, name)` stops new lookup of that service; the host withdraws the rest at unload. It does not revoke cached pointers or wait for calls through them.
 - `ServiceRef` is a borrowed pointer holder, not a lease. Keep a provided table and all backing state valid until provider-coordinated quiescence: stop new lookup, prevent consumers from starting more calls, and wait for all in-flight calls and custom workers to finish before destruction. Without that coordination, retain them for the admitted host session. Once a native table has been handed out, administrative unload/reload is refused for that session; retained code/state after a fault is not permission to call it. Do not use peer tables during shutdown or across sessions; stop using cached tables and restart after a native fault. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
 - Entity ids, never pointers: a service that deals with game objects takes and returns entity and zone ids (opaque `uint64_t` values, as the game's are), resolves them on every call on the game thread, and answers `SCO_NOT_FOUND` or `SCO_UNAVAILABLE` once the entity has streamed out. Never return a pointer into the game: objects stream out and a stored pointer dangles. See [the API rule](api-v1.md#services-11).
