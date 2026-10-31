@@ -304,6 +304,74 @@ static void TestTransactions(sco_plugin* a) {
 
 // ---- SQL ------------------------------------------------------------------------------------
 
+static void TestSchemaNames(sco_plugin* a) {
+    const std::string first = "z1" + std::string(253, 'a');   // 255 bytes
+    const std::string second = "z2" + std::string(254, 'b');  // 256 bytes
+    std::string third = "z3";
+    for (int i = 0; i < 128; ++i) third += "\xc3\xa9";     // 258 UTF-8 bytes
+    const std::string column(256, 'c'), type(256, 'T');
+    const std::string* tables[] = {&first, &second, &third};
+    for (const std::string* table : tables) {
+        const std::string sql = "CREATE TABLE \"" + *table + "\" (\"" + column + "\" \"" + type + "\")";
+        CHECK(sql.size() < 1000000);
+        CHECK(Exec(a, sql.c_str()) == SCO_OK);
+    }
+    CHECK(Exec(a, "CREATE TABLE z4_end (id INTEGER)") == SCO_OK);
+    const std::string long_z(512, 'z');
+    const std::string sql_z = "CREATE TABLE \"" + long_z + "a\" (id INTEGER)";
+    CHECK(Exec(a, sql_z.c_str()) == SCO_OK);
+
+    char name[512];
+    uint32_t size = sizeof name, kind = 99;
+    CHECK(g_st->next_table(a, "z0", name, &size, &kind) == SCO_OK && first == name && size == first.size() + 1);
+    size = sizeof name;
+    CHECK(g_st->next_table(a, first.c_str(), name, &size, &kind) == SCO_OK &&
+          second == name && size == second.size() + 1 && kind == SCO_STORAGE_KIND_TABLE);
+    size = 0; kind = 99;
+    CHECK(g_st->next_table(a, second.c_str(), nullptr, &size, &kind) == SCO_TOO_MANY &&
+          size == third.size() + 1 && kind == 99);
+    size = sizeof name;
+    CHECK(g_st->next_table(a, second.c_str(), name, &size, &kind) == SCO_OK && third == name);
+    size = sizeof name;
+    CHECK(g_st->next_table(a, third.c_str(), name, &size, &kind) == SCO_OK && std::strcmp(name, "z4_end") == 0);
+
+    // Retry each shortage independently: only a completed pair advances the index.
+    uint32_t index = 0, nsize = 0, tsize = 0, flags = 99;
+    CHECK(g_st->next_column(a, third.c_str(), &index, nullptr, &nsize, nullptr, &tsize, &flags) == SCO_TOO_MANY &&
+          nsize == column.size() + 1 && tsize == 0 && index == 0 && flags == 99);
+    std::vector<char> cname(nsize), ctype(type.size() + 1);
+    tsize = 0;
+    CHECK(g_st->next_column(a, third.c_str(), &index, cname.data(), &nsize, nullptr, &tsize, &flags) == SCO_TOO_MANY &&
+          nsize == column.size() + 1 && tsize == type.size() + 1 && index == 0 && flags == 99 && column == cname.data());
+    nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
+    CHECK(g_st->next_column(a, third.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_OK &&
+          index == 1 && flags == 0 && column == cname.data() && type == ctype.data());
+    nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
+    CHECK(g_st->next_column(a, second.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_NOT_FOUND && index == 1);
+    index = 0; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
+    CHECK(g_st->next_column(a, second.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_OK && index == 1);
+    index = 0; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
+    CHECK(g_st->next_column(a, first.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_OK && index == 1);
+
+    constexpr size_t limit = 16u * 1024u * 1024u;
+    std::string boundary(limit, 'z');
+    size = sizeof name;
+    CHECK(g_st->next_table(a, boundary.c_str(), name, &size, &kind) == SCO_NOT_FOUND);
+    index = 0; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
+    CHECK(g_st->next_column(a, boundary.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_NOT_FOUND && index == 0);
+    boundary.push_back('z');
+    size = sizeof name;
+    CHECK(g_st->next_table(a, boundary.c_str(), name, &size, &kind) == SCO_BAD_ARG);
+    index = 0; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
+    CHECK(g_st->next_column(a, boundary.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_BAD_ARG && index == 0);
+
+    const std::string key255(255, 'k'), key256(256, 'k');
+    CHECK(Put(a, key255.c_str(), "v") == SCO_OK);
+    CHECK(Put(a, key256.c_str(), "v") == SCO_BAD_ARG);
+    size = sizeof name;
+    CHECK(g_st->next_key(a, nullptr, key256.c_str(), name, &size) == SCO_BAD_ARG);
+}
+
 static void TestSql(sco_plugin* a) {
     CHECK(Exec(a, "CREATE TABLE ships(id INTEGER PRIMARY KEY, name TEXT UNIQUE, mass REAL, data BLOB, note TEXT)") == SCO_OK);
     const char blob[3] = { 1, 0, 2 };
@@ -733,6 +801,7 @@ int main(int argc, char** argv) {
     TestKeyValue(a);
     TestTransactions(a);
     TestSql(a);
+    TestSchemaNames(a);
     TestIsolation(a, b);
     CHECK(sco::Release(a) == Result::Ok && sco::Release(b) == Result::Ok);
     TestCrash();

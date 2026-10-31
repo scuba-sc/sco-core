@@ -312,6 +312,15 @@ bool CopyKey(const char* key, std::string& out, bool emptyOk = false) {
     return true;
 }
 
+// Schema names are not KV keys. Bound the copy independently of the 255-byte KV limit.
+bool CopySchemaName(const char* name, std::string& out) {
+    if (!name) return false;
+    const size_t n = strnlen(name, static_cast<size_t>(kMaxSqlValueBytes) + 1);
+    if (n == 0 || n > static_cast<size_t>(kMaxSqlValueBytes)) return false;
+    out.assign(name, n);
+    return true;
+}
+
 struct Param {
     uint32_t    type;
     int64_t     i = 0;
@@ -766,7 +775,7 @@ sco_result NextTable(sco_plugin* self, const char* after, char* out, uint32_t* i
         std::string a, name, type;
         if (!out_kind) return Result::BadArg;
         if (!TakeBuffer(out, io, capacity)) return Result::BadArg;
-        if (after && !CopyKey(after, a)) return Result::BadArg;
+        if (after && !CopySchemaName(after, a)) return Result::BadArg;
         {
             Call call;
             const Result r = Enter(self, call);
@@ -778,7 +787,10 @@ sco_result NextTable(sco_plugin* self, const char* after, char* out, uint32_t* i
             sql += " ORDER BY name LIMIT 1";
             HostStmt q(d, sql.c_str());
             if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
-            if (after) BindText(q.s, 1, a);
+            if (after) {
+                const int bind = sqlite3_bind_text(q.s, 1, a.data(), static_cast<int>(a.size()), SQLITE_STATIC);
+                if (bind != SQLITE_OK) return Fail(d, bind, Result::Failed);
+            }
             const int rc = sqlite3_step(q.s);
             if (rc == SQLITE_DONE) return Result::NotFound;
             if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
@@ -802,7 +814,7 @@ sco_result NextColumn(sco_plugin* self, const char* table, uint32_t* inout_index
         std::string t, name, type;
         if (!inout_index || !out_flags) return Result::BadArg;
         if (!TakeBuffer(name_out, name_io, ncap) || !TakeBuffer(type_out, type_io, tcap)) return Result::BadArg;
-        if (!table || !CopyKey(table, t) || t.empty()) return Result::BadArg;
+        if (!CopySchemaName(table, t)) return Result::BadArg;
         const uint32_t wanted = *inout_index;
         uint32_t flags = 0;
         {
@@ -812,7 +824,8 @@ sco_result NextColumn(sco_plugin* self, const char* table, uint32_t* inout_index
             Db& d = *call.db;
             HostStmt q(d, "SELECT name, type, \"notnull\", pk FROM pragma_table_info(?1) ORDER BY cid");
             if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
-            BindText(q.s, 1, t);
+            const int bind = sqlite3_bind_text(q.s, 1, t.data(), static_cast<int>(t.size()), SQLITE_STATIC);
+            if (bind != SQLITE_OK) return Fail(d, bind, Result::Failed);
             uint32_t seen = 0;
             int rc;
             while ((rc = sqlite3_step(q.s)) == SQLITE_ROW && seen++ != wanted) {}

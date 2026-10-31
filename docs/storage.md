@@ -13,6 +13,15 @@ tail method. C# exposes `Storage.NextTable`/`NextColumn`; Lua exposes
 `sco.store.tables`/`columns`. C++ callers can use the public C table directly; typed
 C++ schema wrappers are not supplied.
 
+The `next_table` continuation (`after`, when non-null) and `next_column` table
+name must be nonempty NUL-terminated strings of at most 16,777,216 bytes,
+excluding the NUL. Longer inputs return `SCO_BAD_ARG`; this is separate from the
+255-byte key-value key limit. The output handshake does not truncate or skip
+names at that input limit. An existing identifier longer than the limit can be
+returned, but cannot be supplied as a continuation or table name; such a schema
+is not fully enumerable through these calls. If SQLite cannot bind a validated
+name, the call reports that failure instead of continuing with an unbound value.
+
 ## Contents
 
 - [Using it from C](#using-it-from-c)
