@@ -13,16 +13,34 @@ MODULE_EXPORTS = {'curated_module_identity', 'curated_module_host_accessor_found
                   'curated_module_read', 'curated_module_move', 'curated_module_enqueue_set',
                   'curated_module_enqueue_add', 'curated_module_arm_move_gate',
                   'curated_module_wait_move_gate', 'curated_module_release_move_gate'}
-ROW = re.compile(r'^\s*\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)\s*$')
+ROW = re.compile(r'^\s*\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)'
+                 r'(?:\s+=\s+@ILT\+[0-9]+\((\S+)\))?\s*$')
 HEADER = re.compile(r'^\s*([\w.\-]+\.(?:dll|exe))\s*$', re.I)
 IMPORT = re.compile(r'^\s*[0-9A-Fa-f]+\s+(\S+)\s*$')
 
 def exports(s):
     result = []
+    table = False
+    seen = False
     for line in s.splitlines():
-        if m := ROW.match(line): result.append(m.group(1))
-        elif re.match(r'^\s*\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+(?:\s|$)', line):
+        if re.match(r'^\s*ordinal\s+hint\s+RVA\s+name\s*$', line, re.I):
+            if seen:
+                raise ValueError('duplicate export table')
+            table = seen = True
+            continue
+        if not table or not line.strip():
+            continue
+        if line.strip() == 'Summary':
+            table = False
+            continue
+        m = ROW.match(line)
+        if not m:
             raise ValueError('unrecognized export row: ' + line.strip())
+        if m.group(2) and m.group(2) != m.group(1):
+            raise ValueError('export thunk does not name its export: ' + line.strip())
+        result.append(m.group(1))
+    if not seen or not result:
+        raise ValueError('missing or unrecognized export table')
     return result
 
 def imports(s):
@@ -47,10 +65,18 @@ def check(host_exports, module_exports, module_imports, lib_symbols, exe_name):
     if not re.search(r'(?<!\w)__imp_reserved_host_mock_table(?!\w)', lib_symbols): raise ValueError('missing import library accessor symbol')
 
 def selftest():
-    ex = '  1    0 00001000 reserved_host_mock_table\n'
+    header = ' ordinal hint RVA name\n'
+    ex = header + '  1    0 00001000 reserved_host_mock_table\n'
     im = ' reserved_host.exe\n  0000000000001000 Import Address Table\n          0 reserved_host_mock_table\n KERNEL32.dll\n          0 GetLastError\n'
-    me = '\n'.join(f'{i} {i:x} 00001000 {s}' for i, s in enumerate(sorted(MODULE_EXPORTS), 1))
+    me = header + '\n'.join(f'{i} {i:x} 00001000 {s}' for i, s in enumerate(sorted(MODULE_EXPORTS), 1))
     assert exports(ex) == list(HOST_EXPORTS)
+    assert exports(header + ' 1 0 0000281A reserved_host_mock_table = @ILT+6165(reserved_host_mock_table)\n') == list(HOST_EXPORTS)
+    for bad_export in (' 1 0 0000281A reserved_host_mock_table = @ILT+1(other)\n',
+                       ' 1 0 0000281A reserved_host_mock_table = other.dll.target\n',
+                       ' 1 0000281A [NONAME]\n'):
+        try: exports(header + bad_export)
+        except ValueError: continue
+        raise AssertionError('unexpected export alias accepted')
     check(exports(ex), exports(me), imports(im), '__imp_reserved_host_mock_table', 'reserved_host.exe')
     for bad in [im.replace('reserved_host.exe', 'other.exe'), im.replace('reserved_host_mock_table', 'other'), im.replace('reserved_host_mock_table', 'reserved_host_mock_table\n          1 hidden_symbol')]:
         try: check(exports(ex), exports(me), imports(bad), '__imp_reserved_host_mock_table', 'reserved_host.exe')
@@ -80,7 +106,14 @@ def main():
     me = dump('module-exports', '/exports', a.module)
     mi = dump('module-imports', '/imports', a.module)
     il = dump('host-import-lib-symbols', '/symbols', a.import_lib)
-    check(exports(he), exports(me), imports(mi), il, a.exe.name)
+    try:
+        check(exports(he), exports(me), imports(mi), il, a.exe.name)
+    except ValueError:
+        # Preserve the actual tool format in CI when a parser or inventory fails.
+        for label, output in (('host exports', he), ('module exports', me), ('module imports', mi),
+                              ('host import library symbols', il)):
+            print('--- ' + label + ' ---\n' + output, file=sys.stderr)
+        raise
     print('PASS: expected host/module exports, named EXE import and import-lib symbol; dependency/source closure NOT audited')
 
 if __name__ == '__main__':

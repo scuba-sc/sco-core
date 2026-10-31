@@ -36,10 +36,12 @@ SYSTEM_IMPORTS = {
     '_ZNSt18condition_variable10notify_allEv', '_ZNSt18condition_variable4waitERSt11unique_lockISt5mutexE',
     '_ZNSt18condition_variableC1Ev', '_ZNSt18condition_variableD1Ev',
     '_ZNSt6chrono3_V212steady_clock3nowEv', '_ZSt20__throw_system_errori', '_ZSt9terminatev',
-    '__cxa_atexit', '__cxa_finalize', '__cxa_begin_catch', '__gxx_personality_v0',
+    '__cxa_atexit', '__cxa_finalize', '__cxa_begin_catch', '__gxx_personality_v0', '__stack_chk_fail',
+    'memcpy', 'memmove', 'memset',
     'pthread_cond_clockwait', 'pthread_cond_timedwait', 'pthread_mutex_lock', 'pthread_mutex_unlock',
     '__asan_after_dynamic_init', '__asan_before_dynamic_init', '__asan_handle_no_return',
-    '__asan_init', '__asan_memcpy', '__asan_option_detect_stack_use_after_return',
+    '__asan_init', '__asan_memcpy', '__asan_memmove', '__asan_memset', '__asan_set_shadow_f5',
+    '__asan_option_detect_stack_use_after_return',
     '__asan_register_elf_globals', '__asan_unregister_elf_globals', '__asan_register_globals',
     '__asan_unregister_globals', '__asan_version_mismatch_check_v8', '__asan_report_store_n',
     '__sanitizer_internal_memcpy', '__sanitizer_internal_memmove', '__sanitizer_internal_memset',
@@ -124,6 +126,7 @@ def check(nm, readelf, host, module, allowed_runpath=''):
     names = [line.split()[0] for line in imports if line.split()]
     if names.count(HOST_EXPORT) != 1:
         raise ValueError('module must import exactly one host accessor')
+    unexpected_imports = []
     for name in names:
         if name == HOST_EXPORT:
             continue
@@ -131,7 +134,9 @@ def check(nm, readelf, host, module, allowed_runpath=''):
         if marker and not re.fullmatch(r'(?:GLIBC|GLIBCXX|CXXABI|GCC)_[0-9.]+', version):
             raise ValueError('unexpected import version: ' + name)
         if base not in SYSTEM_IMPORTS and not SYSTEM_IMPORT_PATTERN.fullmatch(base):
-            raise ValueError('unexpected module import: ' + name)
+            unexpected_imports.append(name)
+    if unexpected_imports:
+        raise ValueError('unexpected module import: ' + ', '.join(unexpected_imports))
     host_symbols = run(nm, '-a', '-C', '--defined-only', host).splitlines()
     module_symbols = run(nm, '-a', '-C', '--defined-only', module).splitlines()
     authority = re.compile(r'\b[tT]\s+sco::reserved::CreateExecutableAuthority\(\)$')

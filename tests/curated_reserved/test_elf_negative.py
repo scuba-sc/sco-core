@@ -39,7 +39,8 @@ def main():
              '-Wl,--version-script=' + str(fixture / 'curated_module.exports'), '-o', str(module)])
         result = subprocess.run(audit + ['--host', args.host, '--module', str(module)],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        if result.returncode == 0 or 'unexpected module import: sco_runtime_provide_service' not in result.stdout:
+        if (result.returncode == 0 or 'unexpected module import:' not in result.stdout or
+                'sco_runtime_provide_service' not in result.stdout):
             raise RuntimeError('extra import was not rejected for the expected reason:\n' + result.stdout)
         module_source.write_text((fixture / 'curated_module.cpp').read_text(encoding='utf-8') +
                                  '\nnamespace sco { __attribute__((used)) void HiddenLegacyProvider() {} }\n',

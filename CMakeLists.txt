@@ -2389,6 +2389,8 @@ if(SCO_BUILD_TESTS)
     if(NOT Python3_Interpreter_FOUND)
       message(FATAL_ERROR "The curated fixture requires Python for its build-graph tests")
     endif()
+    add_test(NAME reserved_curated_pe_parser COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/curated_reserved/audit_pe.py" --selftest)
     add_test(NAME reserved_curated_graph_negative COMMAND "${Python3_EXECUTABLE}"
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/curated_reserved/test_graph_guard.py"
       --cmake "${CMAKE_COMMAND}" --source "${CMAKE_CURRENT_SOURCE_DIR}"
