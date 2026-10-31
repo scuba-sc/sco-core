@@ -623,7 +623,6 @@ def write_sbom(path, archive, profile, top, names, content, expected, entries, r
     doc = {
         "spdxVersion": "SPDX-2.3", "dataLicense": "CC0-1.0", "SPDXID": "SPDXRef-DOCUMENT",
         "name": f"{top} ({profile})",
-        "documentNamespace": f"https://github.com/scuba-sc/sco-core/sbom/{top}-{zsha}-spdx-v2",
         "creationInfo": {"created": "2026-01-01T00:00:00Z", "creators": ["Tool: sco-core tools/ip_audit.py"],
                          "comment": f"Built from commit {commit}. The fixed creation time keeps the SBOM reproducible; the commit and archive hash bind it."},
         "packages": [{"SPDXID": pkg_id, "name": top, "versionInfo": top.rsplit("-", 1)[-1],
@@ -636,6 +635,10 @@ def write_sbom(path, archive, profile, top, names, content, expected, entries, r
         "files": files,
         "relationships": [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": pkg_id}] + rels,
     }
+    # Include every field in the namespace identity, not only the archive bytes.
+    canonical = json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+    digest = hashlib.sha256(canonical).hexdigest()
+    doc["documentNamespace"] = f"https://github.com/scuba-sc/sco-core/sbom/{top}-audit-v3-{digest}"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=1)
         f.write("\n")

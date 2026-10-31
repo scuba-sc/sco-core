@@ -628,10 +628,9 @@ def sbom_document(top, version, entries, records, sbom_name, sums_name, commit):
                       "copyrightText": record["copyright"],
                       "comment": f"source {record['source']}; origin {record['origin']}; status {record['status']}"})
     verification = hashlib.sha1("".join(sorted(f["checksums"][1]["checksumValue"] for f in files)).encode()).hexdigest()
-    payload_hash = hashlib.sha256(json_bytes(files)).hexdigest()
     package_id = "SPDXRef-Package"
-    return {"spdxVersion": "SPDX-2.3", "dataLicense": "CC0-1.0", "SPDXID": "SPDXRef-DOCUMENT",
-            "name": top, "documentNamespace": f"{REPO_URL}sbom/{top}-{payload_hash}",
+    doc = {"spdxVersion": "SPDX-2.3", "dataLicense": "CC0-1.0", "SPDXID": "SPDXRef-DOCUMENT",
+            "name": top,
             "creationInfo": {"created": "2026-01-01T00:00:00Z", "creators": ["Tool: sco-core sdk/package.py"],
                              "comment": f"Source commit {commit}; fixed creation time for byte reproducibility."},
             "packages": [{"SPDXID": package_id, "name": top, "versionInfo": version,
@@ -647,6 +646,10 @@ def sbom_document(top, version, entries, records, sbom_name, sums_name, commit):
                                "relatedSpdxElement": package_id}] +
                               [{"spdxElementId": package_id, "relationshipType": "CONTAINS",
                                 "relatedSpdxElement": f["SPDXID"]} for f in files]}
+    # Bind the namespace to the complete document, including source and metadata.
+    digest = hashlib.sha256(json_bytes(doc)).hexdigest()
+    doc["documentNamespace"] = f"{REPO_URL}sbom/{top}-embedded-v2-{digest}"
+    return doc
 
 
 def validate_sbom(doc, content, sbom_name, sums_name):

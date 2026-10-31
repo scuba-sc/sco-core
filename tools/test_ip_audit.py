@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 sys.dont_write_bytecode = True
@@ -137,6 +138,29 @@ class SpdxIdentifiers(unittest.TestCase):
             self.assertRegex(identifier, r"^SPDXRef-[A-Za-z0-9.-]+$")
             self.assertEqual(identifier, audit.spdx_id("File-" + path))
 
+    def test_namespace_tracks_full_audit_document(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = os.path.join(tmp, "one.zip")
+            with open(archive, "wb") as f:
+                f.write(b"same bytes")
+            output = os.path.join(tmp, "out.json")
+            def document(commit, profile="core"):
+                with mock.patch.object(audit, "git_head", return_value=commit):
+                    audit.write_sbom(output, archive, profile, "sdk", [], {}, {}, [], tmp)
+                return json.loads(read(output, "r"))
+            a = document("a" * 40)
+            self.assertEqual(a, document("a" * 40))
+            self.assertNotEqual(a["documentNamespace"], document("b" * 40)["documentNamespace"])
+            self.assertNotEqual(a["documentNamespace"], document("a" * 40, "legacy")["documentNamespace"])
+
+    def test_namespace_tracks_full_embedded_document(self):
+        def document(commit, version="1"):
+            return pkg.sbom_document("sdk", version, {}, {}, "SBOM.spdx.json", "SHA256SUMS", commit)
+        a = document("a" * 40)
+        self.assertEqual(a, document("a" * 40))
+        self.assertNotEqual(a["documentNamespace"], document("b" * 40)["documentNamespace"])
+        self.assertNotEqual(a["documentNamespace"], document("a" * 40, "2")["documentNamespace"])
+
 
 class ReuseGeneration(unittest.TestCase):
     def test_distinct_copyright_holders_remain_separate(self):
@@ -178,7 +202,7 @@ class Real(unittest.TestCase):
             zsha = hashlib.sha256(read(z)).hexdigest()
             self.assertEqual(d["packages"][0]["checksums"][0]["checksumValue"], zsha)
             self.assertIn(audit.git_head(ROOT), d["packages"][0]["downloadLocation"])
-            self.assertTrue(d["documentNamespace"].endswith(zsha + "-spdx-v2"))
+            self.assertIn("-audit-v3-", d["documentNamespace"])
             with zipfile.ZipFile(z) as zz:
                 n = len([i for i in zz.infolist() if not i.filename.endswith("/")])
                 workflows = [name for name in zz.namelist() if name.endswith("/sdk-workflows.json")]
