@@ -21,7 +21,17 @@ class SyntheticOwnedSession {
     struct Backing;
     struct Capsule;
 public:
+    static constexpr size_t MaxKeyBytes = 128;
     struct Entry { std::string key; uint64_t value; };
+    // One classified synthetic callable slot; the retained context is valid
+    // for process lifetime, provided the embedding module containing the thunk
+    // also stays mapped. The caller supplies a readable key buffer containing
+    // a NUL within MaxKeyBytes + 1 bytes and a writable output. No borrowed view or external callback escapes. This is
+    // not an app or plugin ABI.
+    struct Table {
+        void* context;
+        bool (*lookup)(void* context, const char* key, uint64_t* value) noexcept;
+    };
     enum class Status { Active, Quiescing, QuiescedRetained, FailedRetained };
     enum class RetireResult { QuiescedRetained, FailedRetained, Unavailable };
 
@@ -51,6 +61,7 @@ public:
     ~SyntheticOwnedSession() = default;
 
     Lease try_acquire();
+    Table table() const noexcept;
     // Timed waits and the commit check use this deadline. OS scheduling, mutex
     // acquisition and reaping the completed internal joiner have no hard
     // wall-clock bound. On failure the capsule remains retained and terminal.
@@ -66,10 +77,13 @@ public:
     // supplied here is enrolled in the same owner and must be joined by retire.
     OwnedShutdown& owner_for_test() noexcept;
     std::weak_ptr<const void> backing_for_test() const noexcept;
+    void set_table_hook_for_test(void (*hook)(void*), void* context) noexcept;
+    void set_table_fault_hook_for_test(void (*hook)(void*), void* context) noexcept;
     RetireResult retire_with_hook_for_test(std::chrono::steady_clock::time_point deadline,
                                           void (*before_commit)(void*), void* context);
 #endif
 private:
+    static bool table_lookup(void* context, const char* key, uint64_t* value) noexcept;
     static std::atomic<Capsule*>& retained_capsules() noexcept;
     RetireResult retire_impl(std::chrono::steady_clock::time_point deadline
 #ifdef SCO_SYNTHETIC_SESSION_TESTING

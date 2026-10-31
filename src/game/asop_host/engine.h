@@ -28,6 +28,8 @@ uint64_t EntityIdOfHandle(const void* handle);
 uint64_t EntityIdOfComponent(uintptr_t component);
 int FleetShipIndexOfUrnId(const uint64_t id[2]);
 const char* FleetShipClass(int index);
+bool ShipIsBusy(int ship);
+bool FleetClassBusy(const char* name);
 uint64_t LocalPlayerEntityId();
 bool EntityAlive(uint64_t id);
 bool FindEntityByNameEx(const char* name,uintptr_t& entity,uint64_t& id);

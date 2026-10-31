@@ -264,14 +264,26 @@ Result Enter(sco_plugin* self, Call& call, bool open = true) {
     return Result::Ok;
 }
 
+#ifdef SCO_OWNED_TABLE_TESTING
+void (*g_tableExitHook)(void*) = nullptr;
+void* g_tableExitHookContext = nullptr;
+#endif
+
 // Runs a table function: nothing throws across the C ABI (out of memory is SCO_TOO_MANY).
 template <class F>
 sco_result Guard(F&& f) noexcept {
     try {
-        return C(f());
-    } catch (...) {
-        return SCO_TOO_MANY;
-    }
+        sco::detail::RuntimeLease admission;
+        if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping()))
+            return SCO_UNAVAILABLE;
+        try {
+            const auto result = C(f());
+#ifdef SCO_OWNED_TABLE_TESTING
+            if (g_tableExitHook) g_tableExitHook(g_tableExitHookContext);
+#endif
+            return result;
+        } catch (...) { return SCO_TOO_MANY; }
+    } catch (...) { return SCO_UNAVAILABLE; }
 }
 
 // ---- plugin memory ----------------------------------------------------------------------------
@@ -869,6 +881,15 @@ void OnRelease(const void* owner) {
 }
 
 }  // namespace
+
+#ifdef SCO_OWNED_TABLE_TESTING
+namespace testing {
+void SetTableExitHook(void (*hook)(void*), void* context) noexcept {
+    g_tableExitHook = hook;
+    g_tableExitHookContext = context;
+}
+}
+#endif
 
 static Result StartImpl(const Options& opts, const sco::detail::StartupPublish* cap) {
     if (cap && !cap->valid()) return Result::Unavailable;

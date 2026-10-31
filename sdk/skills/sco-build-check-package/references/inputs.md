@@ -25,6 +25,33 @@ schema-1 `unbound` status explicit; treat schema-2 mismatch/unavailable as missi
 status input. These rows are static metadata and never prove that the selected host
 configured a provider or that the game operation worked.
 
+<!-- sdk-workflows:mcp:start -->
+## Bundled MCP contract (generated)
+
+This bundle targets server 1.0.0, protocol 2025-11-25.
+Inspect negotiated schemas for other kits/profiles; this is not runtime availability.
+
+| Tool | Arguments (* required) |
+| --- | --- |
+| `build_plugin_project` | `project`* |
+| `check_compatibility` | `sdk_version`, `game_pack_version`, `tag`, `source_sha`, `service`, `min_version`, `member_extent` |
+| `generate_plugin_scaffold` | `id`*, `lang`*, `with_menu`, `services` |
+| `get_capability_status` | `symbol_or_id`* |
+| `get_example` | `symbol_or_id`*, `language` |
+| `get_guide_section` | `doc`*, `anchor`* |
+| `get_service_status` | `service`* |
+| `get_symbol` | `symbol_or_id`* |
+| `get_workflow` | `id`*, `path` |
+| `list_services` | (none) |
+| `list_workflows` | (none) |
+| `run_plugin_check` | `folder`*, `mode` |
+| `search_api` | `query`*, `language`, `service`, `limit` |
+| `search_guides` | `query`*, `doc`, `limit`, `cursor` |
+| `test_plugin_project` | `project`* |
+| `validate_manifest_and_widgets` | `plugin_ini`*, `folder`, `widgets` |
+
+<!-- sdk-workflows:mcp:end -->
+
 ## Receipt template
 
 Use JSON or Markdown with these fields; keep paths relative or sanitized in shared evidence:

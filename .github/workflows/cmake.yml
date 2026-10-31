@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # The #302 parity gate archives a pinned baseline commit.
 
       - name: Configure
         env:
@@ -75,6 +76,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # The #302 parity gate archives a pinned baseline commit.
 
       - name: MCP stdio profiles and configured execution on Windows
         run: python tools/sco-core-mcp/test_server.py

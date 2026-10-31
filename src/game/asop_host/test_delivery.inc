@@ -42,4 +42,4 @@ void TestDelivery() {
     RunDeliveries(40000); assert(g_deliveries.empty());
     r.urn[0]=999; const int before=spawns; StartDelivery(r,50000); assert(spawns==before);
 }
-}
+} // namespace delivery_fixture

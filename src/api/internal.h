@@ -29,6 +29,12 @@ public:
     bool startup() const noexcept { return startup_; }
     bool owned() const noexcept { return static_cast<bool>(owner_); }
 private:
+    struct Entry {
+        Entry();
+        ~Entry();
+        Entry(const Entry&) = delete;
+        Entry& operator=(const Entry&) = delete;
+    } entry_;
     std::shared_ptr<OwnedShutdown> owner_;
     bool startup_;
     OwnedShutdown::Read read_;

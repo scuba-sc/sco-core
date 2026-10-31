@@ -27,9 +27,21 @@ enum Ready : uint32_t {
 };
 struct Status { bool configured = false, admitted = false, installed = false, stopped = false;
                 std::size_t catalogCount = 0; uint32_t ready = 0; };
-// Start once after signatures AND guarded game services are ready, before engine callers run.
-// Explicit config replaces product environment/filesystem globals. Copies bounded classes.
+// Start validates the configuration, enabled flag, and offline/EAC admission, then
+// returns Unavailable without installing hooks or publishing admission. A proven
+// safe phase and reader/worker lifetime protocol is not yet supplied by the host.
+// Stop is terminal; Start and Stop must not overlap.
 Result Start(const Config& config);
+// Windows-only fleet query: is any ship of this class stored, retrieved, delivering or
+// queued this session? Returns true for a null name, inactive admission, or calls
+// off the game thread, or before the fleet is built, so an unavailable query
+// cannot authorize removal. Once built, an unknown class returns false. The caller must link the Windows provider.
+bool FleetClassBusy(const char* name);
+// Currently always returns Unavailable, before validation, engine calls or publication;
+// the previous configuration/catalog is unchanged. No engine lifecycle contract yet
+// establishes safe mid-session rebuilding or rebuild/Stop overlap. Internal transactional
+// fleet building and stable slots do not establish engine quiescence.
+Result Reconfigure(const Config& config);
 Status Snapshot();
 // Game/window-message thread: pump on EVERY message, not just next-tick dispatch.
 void Pump(uint32_t now);

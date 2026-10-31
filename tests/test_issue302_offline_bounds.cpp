@@ -226,6 +226,18 @@ void fastShutdownTail() {
     }
     sco::dependency = nullptr;
 }
+void adjacentLeas() {
+    Fixture f(270);
+    auto* console = f.str(0, "Remote console listening on: %u\n");
+    const uint8_t bind[] = {0x33,0xc9,0xff,0x15,0,0,0,0,0x0f,0xb7,0xcb,0x66,0x89,0x7c,0x24,0x48,0x89,0x44,0x24,0x4c};
+    std::memcpy(f.bytes.data() + 200, bind, sizeof(bind));
+    f.rip(256, console); f.rip(263, console);
+    auto r = issue302_context::Run(f.img, sco::game::ResolveRemoteConsoleBind, sco::dependency);
+    assert(r.state == sco::SigState::Failed && r.why && std::strstr(r.why, "more than once"));
+    f.img.text.size = 263;
+    r = issue302_context::Run(f.img, sco::game::ResolveRemoteConsoleBind, sco::dependency);
+    assert(r.state == sco::SigState::Ok && r.at == f.img.text.base + 200);
+}
 void finalLea() {
     Fixture f(7); auto* s = f.str(0, "test"); f.rip(0, s);
     assert(sco::game::FindLeaFrom(f.img.text, s, f.img.text.base) == f.img.text.base);
@@ -244,5 +256,5 @@ int main(int argc, char** argv) {
     if (mode == "all" || mode == "short") shortScans();
     if (mode == "all" || mode == "extras") extras();
     if (mode == "all" || mode == "megamap") megamap();
-    if (mode == "all" || mode == "lea") finalLea();
+    if (mode == "all" || mode == "lea") { finalLea(); adjacentLeas(); }
 }

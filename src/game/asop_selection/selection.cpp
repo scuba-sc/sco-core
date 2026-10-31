@@ -32,6 +32,8 @@ struct Model {
     const void* last_editor = nullptr;
     uint64_t last_lease = 0;
     FileAdapter file{};
+    void* busy_context = nullptr;
+    bool (*class_busy)(void*, const char*) = nullptr;
     Document document{};
     std::vector<std::string> classes;
     std::vector<std::string> catalogue;
@@ -175,6 +177,11 @@ sco_result Rows(sco_plugin* self, const sc_asop_selection_read* read, sc_asop_se
     for (uint32_t i = 0; i < n; ++i) {
         sc_asop_selection_row row{}; row.size = sizeof(row);
         const std::string& value = (*values)[read->offset + i];
+        if (g.class_busy) {
+            bool busy = false;
+            try { busy = g.class_busy(g.busy_context, value.c_str()); } catch (...) { busy = true; }
+            if (busy) row.flags |= SC_ASOP_SELECTION_ROW_BUSY;
+        }
         std::memcpy(row.class_name, value.c_str(), value.size() + 1);
         std::memcpy(bytes + static_cast<size_t>(i) * stride, &row, sizeof(row));
     }
@@ -201,7 +208,7 @@ sco_result Release(sco_plugin* self, uint64_t lease) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
     if (!self || !host::PluginId(self) || detail::Released(self) || !lease) return SCO_BAD_ARG;
     std::lock_guard<std::mutex> lock(g_lock);
-    if (!g.started || g.busy) return SCO_UNAVAILABLE;
+    if (!g.started) return SCO_UNAVAILABLE;
     if (g.editor == self && g.lease == lease) {
         for (auto& receipt : g.receipts) if (receipt.id == g.pending && (receipt.phase == SC_ASOP_SELECTION_EDIT_ACCEPTED || receipt.phase == SC_ASOP_SELECTION_FILE_PREPARING)) {
             receipt.phase = SC_ASOP_SELECTION_EDIT_REVOKED; g.pending = 0; break;
@@ -275,6 +282,21 @@ bool BeginCommit(void* context) {
     if (!g.started || !g.busy || g.pending != id || !g.editor) return false;
     if (detail::Released(g.editor)) { RevokeEditor(g.editor); return false; }
     for (auto& r : g.receipts) if (r.id == id && r.phase == SC_ASOP_SELECTION_FILE_PREPARING) {
+        // Last gate before the irreversible write: a class whose ship is in play this
+        // session cannot be removed. Keeps the current list; the caller keeps its draft.
+        if (g.class_busy && g.known) {
+            for (const auto& saved : g.classes) {
+                bool removed = true;
+                for (const auto& next : r.classes) if (EqualFold(saved, next)) { removed = false; break; }
+                if (!removed) continue;
+                bool busy = false;
+                try { busy = g.class_busy(g.busy_context, saved.c_str()); } catch (...) { busy = true; }
+                if (busy) {
+                    r.phase = SC_ASOP_SELECTION_EDIT_CONFLICT; r.reason = SC_ASOP_SELECTION_REASON_BUSY;
+                    g.pending = 0; return false;
+                }
+            }
+        }
         r.phase = SC_ASOP_SELECTION_FILE_COMMITTING; return true;
     }
     return false;
@@ -300,6 +322,8 @@ Result Start(const Options& options) {
         const bool valid = readable && Parse(d, parsed);
         Model next;
         next.file = options.file;
+        next.busy_context = options.busy_context;
+        next.class_busy = options.class_busy;
         if (valid) { next.document = std::move(d); next.classes = std::move(parsed); }
         next.reason = valid ? SC_ASOP_SELECTION_REASON_NONE :
             (readable || r == FileResult::Invalid ? SC_ASOP_SELECTION_REASON_INVALID : SC_ASOP_SELECTION_REASON_IO);
@@ -358,7 +382,22 @@ Result Pump() {
         std::lock_guard<std::mutex> lock(g_lock);
         auto it = std::find_if(g.receipts.begin(), g.receipts.end(), [&](const Receipt& r) { return r.id == request_id; });
         if (it == g.receipts.end()) return Result::Failed;
+        if (it->phase == SC_ASOP_SELECTION_FILE_PREPARING && result == FileResult::Cancelled) {
+            it->phase = SC_ASOP_SELECTION_EDIT_REVOKED;
+            g.pending = 0; return Result::Ok;
+        }
+        if (it->phase == SC_ASOP_SELECTION_FILE_PREPARING && result == FileResult::Busy) {
+            it->phase = SC_ASOP_SELECTION_EDIT_CONFLICT;
+            it->reason = SC_ASOP_SELECTION_REASON_BUSY;
+            g.pending = 0; return Result::Ok;
+        }
         if (it->phase == SC_ASOP_SELECTION_EDIT_REVOKED && result == FileResult::Cancelled) {
+            g.pending = 0; return Result::Ok;
+        }
+        // A BeginCommit busy refusal already resolved the receipt; the adapter's Cancelled
+        // is the expected echo, and the committed document stays known and unchanged.
+        if (it->phase == SC_ASOP_SELECTION_EDIT_CONFLICT && it->reason == SC_ASOP_SELECTION_REASON_BUSY &&
+            result == FileResult::Cancelled) {
             g.pending = 0; return Result::Ok;
         }
         if (result == FileResult::Ok && it->phase == SC_ASOP_SELECTION_FILE_COMMITTING && committed.present && committed.bytes == bytes &&

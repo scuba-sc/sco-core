@@ -354,7 +354,7 @@ SigResult ResolveServiceStream(const Image& img, const SigResolveContext&) {
     if (!s) return SigFail("the stream lambda's name isn't in .rdata");
     uint8_t* fns[N] = {};
     int n = 0;
-    for (const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base); lea; lea = FindLeaFrom(img.text, s, TextAt(img, lea, 8, 0))) {
+    for (const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base); lea; lea = FindLeaFrom(img.text, s, TextAt(img, lea, 7, 0))) {
         uint8_t* fn = FunctionStart(img, lea);
         if (!fn || !InText(img, fn, 12) || reinterpret_cast<uintptr_t>(fn) > reinterpret_cast<uintptr_t>(lea) ||
             reinterpret_cast<uintptr_t>(lea) - reinterpret_cast<uintptr_t>(fn) > 0x200) continue;
@@ -376,7 +376,7 @@ SigResult ResolveRemoteConsoleBind(const Image& img, const SigResolveContext&) {
     if (!s) return SigFail("the remote console's listening line isn't in .rdata");
     const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base);
     if (!lea) return SigFail("the remote console's listening line isn't referenced");
-    if (FindLeaFrom(img.text, s, TextAt(img, lea, 8, 0))) return SigFail("the listening line is referenced more than once");
+    if (FindLeaFrom(img.text, s, TextAt(img, lea, 7, 0))) return SigFail("the listening line is referenced more than once");
     const uint8_t* start = TextAt(img, lea, -0x100, 0x100);
     if (!start) return SigFail("the listening line's reference is too close to the start of .text");
     const uint8_t* at = nullptr;

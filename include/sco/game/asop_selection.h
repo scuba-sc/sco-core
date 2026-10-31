@@ -25,6 +25,14 @@ struct FileAdapter {
 struct Options {
     FileAdapter file;
     std::vector<std::string> catalogue;
+    // Trailing additive members; null defaults keep the frozen behaviour. When set, the
+    // callback is invoked on the game thread under this service's lock, so it may only
+    // take locks ordered after it (the fleet lock). A busy class cannot be removed by a
+    // committed save; the refusal is reported as EDIT_CONFLICT with REASON_BUSY.
+    // Exceptions from this callback are treated as busy. The context and callback
+    // must remain valid until Stop succeeds; a null callback installs no busy gate.
+    void* busy_context = nullptr;
+    bool (*class_busy)(void* context, const char* class_name) = nullptr;
 };
 Result Start(const Options& options);
 // Processes at most one accepted file job; never publishes an engine list.

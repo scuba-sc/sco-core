@@ -38,6 +38,117 @@ class Inputs(unittest.TestCase):
         self.root = Path(self.temp.name)
         shutil.copytree(ROOT / 'sdk/skills', self.root / 'sdk/skills')
         (self.root / 'sdk/VERSION').write_text('2.4.0\n')
+        shutil.copytree(ROOT / 'tools/sco-core-mcp', self.root / 'tools/sco-core-mcp')
+
+    def test_mcp_tool_argument_schema_and_version_drift(self):
+        server = self.root / 'tools/sco-core-mcp/server.py'
+        original = server.read_text()
+        for before, after in (
+            ('tool("get_symbol",', 'tool("get_symbol_renamed",'),
+            ('DEV_TIMEOUT = 600', 'del TOOL_INDEX["get_symbol"]\nDEV_TIMEOUT = 600'),
+            ('DEV_TIMEOUT = 600\n', 'del TOOL_INDEX["generate_plugin_scaffold"]["inputSchema"]["properties"]["with_menu"]\nDEV_TIMEOUT = 600\n'),
+            ('SYMBOL = {"symbol_or_id":', 'SYMBOL = {"renamed_symbol":'),
+            ('"with_menu": {"type": "boolean"', '"with_menu": {"type": "string"'),
+            ('PROTOCOL_VERSION = "2025-11-25"', 'PROTOCOL_VERSION = "2099-01-01"'),
+            ('SERVER_VERSION = "1.0.0"', 'SERVER_VERSION = "9.0.0"'),
+        ):
+            with self.subTest(before=before):
+                self.assertIn(before, original)
+                server.write_text(original.replace(before, after))
+                with self.assertRaisesRegex(ValueError, 'MCP'):
+                    workflows.build(self.root, SHA)
+        server.write_text(original)
+
+    def test_generated_contract_check_and_repair_preserve_guidance(self):
+        path = self.root / 'sdk/skills/sco-build-check-package/references/inputs.md'
+        original = path.read_text()
+        self.assertIn('<!-- sdk-workflows:mcp:start -->', original)
+        path.write_text(original.replace('| `get_symbol` |', '| `stale_symbol` |'))
+        with self.assertRaisesRegex(ValueError, 'generated MCP'):
+            workflows.build(self.root, SHA)
+        workflows.generate(self.root)
+        self.assertEqual(path.read_text(), original)
+        workflows.build(self.root, SHA)
+
+    def test_handwritten_argument_reference_drift(self):
+        path = self.root / 'sdk/skills/sco-build-check-package/references/build.md'
+        original = path.read_text()
+        self.assertIn('generate_plugin_scaffold(id, lang, with_menu, services)', original)
+        path.write_text(original.replace('with_menu, services)', 'renamed_menu, services)'))
+        with self.assertRaisesRegex(ValueError, 'Unknown MCP argument'):
+            workflows.build(self.root, SHA)
+
+    def test_generated_markers_must_be_unique_and_ordered(self):
+        path = self.root / workflows.BLOCK_PATH
+        original = path.read_text()
+        for text in (original + '\n' + workflows.BLOCK_END,
+                     workflows.BLOCK_END + '\n' + original):
+            path.write_text(text)
+            with self.assertRaisesRegex(ValueError, 'MCP markers'):
+                workflows.build(self.root, SHA)
+            with self.assertRaisesRegex(ValueError, 'MCP markers'):
+                workflows.generate(self.root)
+            self.assertEqual(path.read_text(), text)
+
+    def test_generate_refuses_missing_or_ambiguous_insertion_point(self):
+        path = self.root / workflows.BLOCK_PATH
+        text = path.read_text()
+        start, end = workflows.block_extent(text)
+        text = text[:start] + text[end:]
+        manifest_path = self.root / workflows.MANIFEST
+        manifest = manifest_path.read_bytes()
+        for candidate in (text.replace('## Receipt template', '## Other'),
+                          text + '\n## Receipt template\n'):
+            path.write_text(candidate)
+            with self.assertRaisesRegex(ValueError, 'insertion point'):
+                workflows.generate(self.root)
+            self.assertEqual(path.read_text(), candidate)
+            self.assertEqual(manifest_path.read_bytes(), manifest)
+
+    def test_non_string_resource_is_rejected(self):
+        data = json.loads((self.root / workflows.MANIFEST).read_bytes())
+        data['skills'][0]['resources'] = [{}]
+        with self.assertRaisesRegex(ValueError, 'workflow path'):
+            workflows.manifest_files(workflows.encoded(data))
+
+    def test_generate_preserves_crlf_outside_contract(self):
+        path = self.root / workflows.BLOCK_PATH
+        lf = path.read_bytes().replace(b'\r\n', b'\n')
+        # Exercise both LF and CRLF checkout inputs without turning CRLF into
+        # CRCRLF on Windows. The generated block and surrounding text must match.
+        for checkout in (lf, lf.replace(b'\n', b'\r\n')):
+            with self.subTest(line_ending='CRLF' if b'\r\n' in checkout else 'LF'):
+                path.write_bytes(checkout)
+                workflows.generate(self.root)
+                self.assertEqual(path.read_bytes(), checkout)
+                workflows.build(self.root, SHA)
+
+    def test_generate_refuses_symlink_without_writing_target(self):
+        path = self.root / workflows.BLOCK_PATH
+        target = self.root / 'outside.md'
+        original = path.read_bytes().replace(b'| `get_symbol` |', b'| `stale_symbol` |')
+        target.write_bytes(original)
+        path.unlink()
+        path.symlink_to(target)
+        manifest = (self.root / workflows.MANIFEST).read_bytes()
+        with self.assertRaisesRegex(ValueError, 'Symlink'):
+            workflows.generate(self.root)
+        self.assertEqual(target.read_bytes(), original)
+        self.assertEqual((self.root / workflows.MANIFEST).read_bytes(), manifest)
+
+    def test_check_rejects_output_without_writing(self):
+        output = self.root / 'untouched'
+        output.write_bytes(b'original')
+        result = subprocess.run([sys.executable, str(ROOT / 'tools/sdk_workflows.py'),
+                                 '--check', '--out', str(output)], capture_output=True, timeout=10)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(output.read_bytes(), b'original')
+
+    def test_unbound_handwritten_tool_reference_fails(self):
+        path = self.root / 'sdk/skills/sco-debug-plugin/SKILL.md'
+        path.write_text(path.read_text() + '\nUse `get_removed_tool`.\n')
+        with self.assertRaisesRegex(ValueError, 'Unbound MCP'):
+            workflows.build(self.root, SHA)
 
     def test_determinism_and_progressive_files(self):
         a = workflows.build(self.root, SHA)
@@ -220,6 +331,40 @@ class ArchiveAndMCP(unittest.TestCase):
         self.addCleanup(c.close)
         self.assertIn('result', c.initialize())
         return c
+
+    def test_packaged_server_contract_and_workflows(self):
+        top, entries = pkg.archive_entries(self.manifest, 'legacy')
+        archive = self.root / 'sdk.zip'
+        archive.write_bytes(pkg.archive_bytes(top, entries))
+        extracted = self.root / 'extracted'
+        with zipfile.ZipFile(archive) as zipped:
+            zipped.extractall(extracted)
+        kit = extracted / top
+        old = client_module.SERVER
+        client_module.SERVER = kit / 'tools/sco-core-mcp/server.py'
+        try:
+            c = client_module.Client(kit / 'sdk-catalogue.json', repo_root=kit, extended=True,
+                                     extra=('--project-root', str(self.root)))
+            self.addCleanup(c.close)
+            init = c.initialize()['result']
+            manifest = json.loads((kit / 'skills/manifest.json').read_bytes())
+            self.assertEqual(init['protocolVersion'], manifest['mcp']['protocol'])
+            self.assertEqual(init['serverInfo']['version'], manifest['mcp']['server_version'])
+            tools = {t['name']: t['inputSchema'] for t in c.request('tools/list')['result']['tools']}
+            self.assertLessEqual(set(manifest['mcp']['tools']), set(tools))
+            for name, expected_hash in manifest['mcp']['tools'].items():
+                self.assertEqual(workflows.digest(workflows.encoded(tools[name])), expected_hash)
+            listed = c.call('list_workflows')['result']['structuredContent']['workflows']
+            self.assertEqual(len(listed), 6)
+            for item in listed:
+                response = c.call('get_workflow', {'id': item['id']})['result']['structuredContent']
+                for record in [response['file']] + [
+                    c.call('get_workflow', {'id': item['id'], 'path': r['path']})['result']['structuredContent']['file']
+                    for r in response['resources']]:
+                    self.assertEqual(record['text'].encode(), (kit / record['path']).read_bytes())
+            self.assertNotIn('error', c.call('list_services'))
+        finally:
+            client_module.SERVER = old
 
     def test_minimal_and_default_discovery_stdio(self):
         for extended in (False, True):

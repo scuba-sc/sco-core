@@ -78,6 +78,12 @@ struct SyntheticOwnedSession::Capsule {
     std::shared_ptr<const Backing> backing;
     std::atomic<Status> state{Status::Active};
     Capsule* next = nullptr;
+#ifdef SCO_SYNTHETIC_SESSION_TESTING
+    void (*tableHook)(void*) = nullptr;
+    void* tableHookContext = nullptr;
+    void (*tableFaultHook)(void*) = nullptr;
+    void* tableFaultHookContext = nullptr;
+#endif
 };
 
 std::atomic<SyntheticOwnedSession::Capsule*>& SyntheticOwnedSession::retained_capsules() noexcept {
@@ -91,7 +97,7 @@ std::atomic<SyntheticOwnedSession::Capsule*>& SyntheticOwnedSession::retained_ca
 SyntheticOwnedSession::SyntheticOwnedSession(std::vector<Entry> entries) : capsule_(nullptr) {
     std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) { return a.key < b.key; });
     for (size_t i = 0; i < entries.size(); ++i) {
-        if (entries[i].key.empty() || entries[i].key.find('\0') != std::string::npos ||
+        if (entries[i].key.empty() || entries[i].key.size() > MaxKeyBytes || entries[i].key.find('\0') != std::string::npos ||
             (i && entries[i - 1].key == entries[i].key))
             throw std::invalid_argument("synthetic session keys must be nonempty and unique");
     }
@@ -126,6 +132,41 @@ SyntheticOwnedSession::Lease SyntheticOwnedSession::try_acquire() {
     auto read = capsule_->owner.try_read();
     if (!read || capsule_->state.load(std::memory_order_acquire) != Status::Active) return {};
     return Lease(capsule_, std::move(read));
+}
+SyntheticOwnedSession::Table SyntheticOwnedSession::table() const noexcept {
+    return {capsule_, table_lookup};
+}
+bool SyntheticOwnedSession::table_lookup(void* context, const char* key, uint64_t* value) noexcept {
+    auto* capsule = static_cast<Capsule*>(context);
+    if (!capsule) return false;
+    try {
+        if (capsule->state.load(std::memory_order_acquire) != Status::Active) return false;
+        auto read = capsule->owner.try_read();
+        if (!read || capsule->state.load(std::memory_order_acquire) != Status::Active || !key || !value) return false;
+        Lease lease(capsule, std::move(read));
+        try {
+            size_t length = 0;
+            while (length <= MaxKeyBytes && key[length] != '\0') ++length;
+            if (!length || length > MaxKeyBytes) return false;
+            uint64_t copy = 0;
+            if (!lease.lookup(std::string_view(key, length), copy)) return false;
+#ifdef SCO_SYNTHETIC_SESSION_TESTING
+            if (capsule->tableHook) capsule->tableHook(capsule->tableHookContext);
+#endif
+            *value = copy; // lease remains held through output copying
+            return true;
+        } catch (...) {
+            // Fault before releasing the last read, so commit cannot pass it.
+            capsule->owner.fault();
+#ifdef SCO_SYNTHETIC_SESSION_TESTING
+            try { if (capsule->tableFaultHook) capsule->tableFaultHook(capsule->tableFaultHookContext); } catch (...) {}
+#endif
+            return false;
+        }
+    } catch (...) {
+        capsule->owner.fault();
+        return false;
+    }
 }
 SyntheticOwnedSession::Status SyntheticOwnedSession::status() const noexcept {
     const auto state = capsule_->state.load(std::memory_order_acquire);
@@ -169,6 +210,14 @@ SyntheticOwnedSession::RetireResult SyntheticOwnedSession::retire_impl(
 }
 #ifdef SCO_SYNTHETIC_SESSION_TESTING
 OwnedShutdown& SyntheticOwnedSession::owner_for_test() noexcept { return capsule_->owner; }
+void SyntheticOwnedSession::set_table_hook_for_test(void (*hook)(void*), void* context) noexcept {
+    capsule_->tableHook = hook;
+    capsule_->tableHookContext = context;
+}
+void SyntheticOwnedSession::set_table_fault_hook_for_test(void (*hook)(void*), void* context) noexcept {
+    capsule_->tableFaultHook = hook;
+    capsule_->tableFaultHookContext = context;
+}
 std::weak_ptr<const void> SyntheticOwnedSession::backing_for_test() const noexcept { return capsule_->backing; }
 SyntheticOwnedSession::RetireResult SyntheticOwnedSession::retire_with_hook_for_test(
     std::chrono::steady_clock::time_point deadline, void (*before_commit)(void*), void* context) {

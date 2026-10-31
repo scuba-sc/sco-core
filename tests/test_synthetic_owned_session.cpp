@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "../src/synthetic_owned_session.h"
 #include "sco/signature_registry.h"
+#include "issue302_test_support.h"
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -25,6 +27,10 @@ struct CommitGate {
         gate.release.wait();
     }
 };
+static void WaitAndThrow(void* context) {
+    CommitGate::Wait(context);
+    throw std::runtime_error("synthetic table call failure");
+}
 static void WaitPastDeadline(void* context) {
     const auto deadline = *static_cast<Clock::time_point*>(context);
     std::this_thread::sleep_until(deadline + 20ms);
@@ -51,6 +57,10 @@ int main(int argc, char** argv) {
         CHECK(refused);
         refused = false;
         try { Session invalid({{std::string("a\0b", 3), 1}}); }
+        catch (const std::invalid_argument&) { refused = true; }
+        CHECK(refused);
+        refused = false;
+        try { Session invalid({{std::string(Session::MaxKeyBytes + 1, 'a'), 1}}); }
         catch (const std::invalid_argument&) { refused = true; }
         CHECK(refused);
     }
@@ -97,6 +107,58 @@ int main(int argc, char** argv) {
         CHECK(!session.backing_for_test().expired());
     }
     CHECK(!retiredBacking.expired());
+    {
+        auto session = std::make_unique<Session>(std::vector<Session::Entry>{{"cached", 42}});
+        const auto copied = session->table();
+        uint64_t unchanged = 77;
+        const std::string oversized(Session::MaxKeyBytes + 1, 'x');
+        CHECK(!copied.lookup(copied.context, oversized.c_str(), &unchanged) && unchanged == 77);
+        auto weak = session->backing_for_test();
+        std::promise<void> release;
+        CommitGate gate{{}, release.get_future().share()};
+        session->set_table_hook_for_test(CommitGate::Wait, &gate);
+        uint64_t output = 0;
+        auto call = std::async(std::launch::async, [&] { return copied.lookup(copied.context, "cached", &output); });
+        gate.entered.get_future().wait();
+        auto retirement = std::async(std::launch::async, [&] { return session->retire_until(Clock::now() + 3s); });
+        CHECK(session->owner_for_test().wait_until_closed(Clock::now() + 2s));
+        uint64_t refused = 99;
+        CHECK(!copied.lookup(copied.context, "cached", &refused) && refused == 99);
+        CHECK(retirement.wait_for(50ms) == std::future_status::timeout);
+        release.set_value();
+        CHECK(call.get() && output == 42);
+        CHECK(retirement.get() == Result::QuiescedRetained);
+        session.reset();
+        CHECK(!weak.expired());
+        CHECK(!copied.lookup(copied.context, "cached", &refused) && refused == 99);
+        Session newer({{"cached", 88}});
+        const auto next = newer.table();
+        CHECK(next.lookup(next.context, "cached", &refused) && refused == 88);
+        CHECK(!copied.lookup(copied.context, "cached", &refused) && refused == 88);
+    }
+    {
+        Session session({{"throw-call", 7}});
+        const auto copied = session.table();
+        std::promise<void> release;
+        CommitGate gate{{}, release.get_future().share()};
+        session.set_table_hook_for_test(WaitAndThrow, &gate);
+        std::promise<void> releaseFault;
+        CommitGate faultGate{{}, releaseFault.get_future().share()};
+        session.set_table_fault_hook_for_test(CommitGate::Wait, &faultGate);
+        uint64_t output = 99;
+        auto call = std::async(std::launch::async, [&] { return copied.lookup(copied.context, "throw-call", &output); });
+        gate.entered.get_future().wait();
+        auto retirement = std::async(std::launch::async, [&] { return session.retire_until(Clock::now() + 3s); });
+        CHECK(session.owner_for_test().wait_until_closed(Clock::now() + 2s));
+        CHECK(retirement.wait_for(50ms) == std::future_status::timeout);
+        release.set_value();
+        faultGate.entered.get_future().wait(); // fault published while call still owns its lease
+        CHECK(retirement.wait_for(50ms) == std::future_status::timeout);
+        releaseFault.set_value();
+        CHECK(!call.get() && output == 99);
+        CHECK(retirement.get() == Result::FailedRetained);
+        CHECK(session.status() == Status::FailedRetained && !session.backing_for_test().expired());
+    }
     {
         Session session({{"tls", 1}});
         std::promise<void> tlsEntered, tlsRelease;
@@ -231,6 +293,20 @@ int main(int argc, char** argv) {
         auto b = second.try_acquire();
         uint64_t x = 0, y = 0;
         CHECK(a.lookup("key", x) && b.lookup("key", y) && x == 1 && y == 2);
+    }
+    {
+        const std::string limit(Session::MaxKeyBytes, 'z');
+        Session exact({{limit, 19}});
+        const auto table = exact.table();
+        uint64_t value = 0;
+        CHECK(table.lookup(table.context, limit.c_str(), &value) && value == 19);
+        issue302::GuardPages pages;
+        char* const bounded = reinterpret_cast<char*>(pages.data + pages.page - Session::MaxKeyBytes - 1);
+        std::fill_n(bounded, Session::MaxKeyBytes, 'z');
+        bounded[Session::MaxKeyBytes] = '\0';
+        CHECK(table.lookup(table.context, bounded, &value) && value == 19);
+        bounded[Session::MaxKeyBytes] = 'z';
+        CHECK(!table.lookup(table.context, bounded, &value) && value == 19);
     }
     {
         Session empty({});

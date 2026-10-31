@@ -57,10 +57,37 @@ include the new internal headers and tests.
 * Core #304's earlier named candidate was `571fe8e2c911d7c63c372103724896feaabe58f2`;
   its remote head is `1b6782bc5c8b7d189cdff4c83e81957f09af35d7` and is merged.
   Offline #184's remote head is `aaf79475b159f0fd76000ba315bef11778cb53b7`
-  and is merged. These independent lines are not incorporated into this branch.
-  Coordinate final SHAs and deliberate API choices; do not silently fold this
-  branch into either one. Offline native activation must remain refused until
+  and is merged. The integration candidate includes core main
+  `7ee83fa95680aa482d8b160987b472547a67b888` with #304's bounds and ASOP
+  changes; it does not incorporate offline #184. Coordinate deliberate C++ API
+  migration and final SHAs; do not silently fold this branch into offline. Offline native activation must remain refused until
   its real product-owned barrier is proven.
 * Timed waits do not guarantee a hard wall-clock bound for mutex scheduling or
   thread creation. A timed-out owner, workers and borrowed backing remain live;
   destruction is only legal after all callers, leases and starts have ended.
+
+## Follow-up: bounded table and retirement design
+
+The synthetic session's one-slot table is a private, typed fixture: it copies a
+scalar under an owner read, retains its capsule for process lifetime, and has no
+queue, plugin, native entry, mapped view or external callback in its production
+surface. Its terminal `QuiescedRetained` result is not an app-stop result. The
+All UI and storage table functions acquire admission for their complete calls,
+including input and output copying. Refusal at admission returns unavailable
+before invoking the entry; output values are left untouched except that
+`normalize_chord` clears its size. This is not a census of other service tables,
+callbacks or pointers returned by tables. The current C query API can return arbitrary opaque plugin tables;
+it cannot interpose on calls after lookup, and IPC mapped views outlive calls.
+Those paths cannot establish successful application retirement.
+
+A future supported application subset needs a session-owned dependency capsule
+that strongly owns every registry, image, table, callback module, task and context
+it may retain. Close all admitted work, drain enrolled readers and worker starts,
+and join workers including TLS teardown. Under the owner lock, serialize fault
+against a nonallocating retained-root commit, with no cleanup callbacks or custom
+finalizers in that commit. Return `QuiescedRetained` only for this transaction;
+physical cleanup requires separately proven no-fail finalizers. Any timeout or
+fault retains the full closure and refuses restart. Borrowed pointers are not
+ownership tokens. Native patches, old plugin tables, external threads, mapped
+views and the engine quit continuation require their own enrollment and actual
+product exclusion proof before activation can be enabled.

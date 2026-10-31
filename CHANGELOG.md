@@ -4,17 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-- **Owned signature registry foundation** (host C++ source interface changes; the
-  frozen plain-C plugin ABI is unchanged). Tables register atomically into an
-  instance-owned registry, dependencies freeze before iterative resolution, and
-  readers acquire immutable per-image snapshots. There is no fixed row count;
-  hosts can configure a byte budget. Installed host registries are sealed against
-  re-resolution; pins and capability commits are coordinated with host ownership.
-  A refusal-first product retirement gate and an externally held native-reader
-  barrier are required before dependent teardown; an absent proof or failed cleanup
-  retains the pin and image/provider dependencies. Process-retained quit or native
-  DataCore hooks also retain them through exit. Hook-installation quiescence, Windows
-  and in-game acceptance remain unverified; synthetic coverage is not game acceptance. See [registry contract](docs/api.md#scosignaturesh-and-scosignature_registryh-the-registry).
+- Refuse native ASOP startup until the host supplies a proven safe phase and reader lifetime protocol.
+
+- Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.
+
+- Reject malformed exception directories and overlong unwind chains, and detect adjacent
+  duplicate signature references. Synthetic resolver checks only; not run in game.
 
 ## sdk-v2.4.0 (RC2 published 2026-10-28; final release pending)
 

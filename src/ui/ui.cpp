@@ -57,15 +57,34 @@ uint64_t                                         g_seq = 0;
 
 sco_result C(Result r) { return static_cast<sco_result>(static_cast<uint32_t>(r)); }
 
+#ifdef SCO_OWNED_TABLE_TESTING
+void (*g_tableExitHook)(void*) = nullptr;
+void* g_tableExitHookContext = nullptr;
+#endif
+
 // Runs a table function: nothing throws across the C ABI (out of memory is SCO_TOO_MANY).
-template <class F>
-sco_result Guard(F&& f) noexcept {
+template <class F, class Refuse>
+sco_result Guard(F&& f, Refuse&& refuse) noexcept {
     try {
-        return C(f());
+        sco::detail::RuntimeLease admission;
+        if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) {
+            refuse();
+            return SCO_UNAVAILABLE;
+        }
+        try {
+            const auto result = C(f());
+#ifdef SCO_OWNED_TABLE_TESTING
+            if (g_tableExitHook) g_tableExitHook(g_tableExitHookContext);
+#endif
+            return result;
+        } catch (...) { return SCO_TOO_MANY; }
     } catch (...) {
-        return SCO_TOO_MANY;
+        try { refuse(); } catch (...) {}
+        return SCO_UNAVAILABLE;
     }
 }
+template <class F>
+sco_result Guard(F&& f) noexcept { return Guard(std::forward<F>(f), [] {}); }
 
 // ---- names and chords ---------------------------------------------------------------------------
 
@@ -403,7 +422,7 @@ sco_result NormalizeChordC(const char* chord, char* out, uint32_t* io) {
         std::string c;
         if (!Normalize(chord, c)) return Result::BadArg;
         return CopyOut(c, out, io, capacity);
-    });
+    }, [io] { if (io) *io = 0; });
 }
 
 sco_result LastError(sco_plugin* self, char* out, uint32_t* io) {
@@ -469,6 +488,15 @@ bool RunDraw(const Entry& e, void* frame) {
 }
 
 }  // namespace
+
+#ifdef SCO_OWNED_TABLE_TESTING
+namespace testing {
+void SetTableExitHook(void (*hook)(void*), void* context) noexcept {
+    g_tableExitHook = hook;
+    g_tableExitHookContext = context;
+}
+}
+#endif
 
 static Result StartImpl(const sco::detail::StartupPublish* cap) {
     if (cap && !cap->valid()) return Result::Unavailable;

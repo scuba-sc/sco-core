@@ -152,26 +152,24 @@ bool ValidCategory(const char* category) {
 
 }  // namespace
 
-static std::shared_ptr<OwnedShutdown> EnterRuntimeSession() {
+detail::RuntimeLease::Entry::Entry() {
     std::lock_guard<std::mutex> lock(g_bindingLock);
     ++g_runtimeEntries;
-    auto owner = g_shutdownOwner.load();
-    if (!owner) g_legacyRuntimeTouched = true;
-    return owner;
+    if (!g_shutdownOwner.load()) g_legacyRuntimeTouched = true;
 }
-
+detail::RuntimeLease::Entry::~Entry() {
+    std::lock_guard<std::mutex> lock(g_bindingLock);
+    --g_runtimeEntries;
+}
 bool detail::RuntimeStopping() {
     const auto owner = g_shutdownOwner.load();
     return g_stopped.load() || (owner && !owner->open());
 }
 detail::RuntimeLease::RuntimeLease()
-    : owner_(EnterRuntimeSession()),
+    : owner_(g_shutdownOwner.load()),
       startup_(owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
       read_(owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
-detail::RuntimeLease::~RuntimeLease() {
-    std::lock_guard<std::mutex> lock(g_bindingLock);
-    --g_runtimeEntries;
-}
+detail::RuntimeLease::~RuntimeLease() = default;
 bool detail::RuntimeBoundTo(const std::shared_ptr<OwnedShutdown>& owner) {
     return owner && g_shutdownOwner.load() == owner;
 }

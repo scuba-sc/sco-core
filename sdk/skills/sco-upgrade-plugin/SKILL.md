@@ -2,7 +2,7 @@
 name: sco-upgrade-plugin
 description: "Migrate an existing SCO SDK consumer between SDK or host versions, checking archive composition, ABI/service prefixes, language mappings, behavior and rollback. Use for plugin dependency upgrades or compatibility regressions."
 metadata:
-  version: "0.2.3"
+  version: "0.2.4"
 ---
 
 # Upgrade an SCO consumer
