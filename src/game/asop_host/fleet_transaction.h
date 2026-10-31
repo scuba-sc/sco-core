@@ -14,14 +14,6 @@ struct FleetSlot { char name[64]{}; uint64_t guid[2]{}; uintptr_t cls=0; bool se
 struct FleetTable { FleetSlot slots[kFleetCapacity]{}; size_t count=0; };
 struct FleetBuffer { uint8_t* data=nullptr; size_t count=0; };
 enum class FleetResolveResult { Resolved, Missing, Unavailable };
-// Called only after the registry is checked and the lookup/traversal completed.
-inline FleetResolveResult ClassifyFleetName(uintptr_t cls) {
-    return cls ? FleetResolveResult::Resolved : FleetResolveResult::Missing;
-}
-inline FleetResolveResult ClassifyFleetGuid(bool found,uint64_t a,uint64_t b,bool roundtrip) {
-    if(!found || !(a|b)) return FleetResolveResult::Missing;
-    return roundtrip ? FleetResolveResult::Resolved : FleetResolveResult::Unavailable;
-}
 using FleetResolve=FleetResolveResult(*)(void*,const char*,uintptr_t&,uint64_t[2]);
 using FleetContinue=bool(*)(void*);
 using FleetAllocate=void*(*)(size_t,size_t); // calloc-compatible, returns zeroed storage

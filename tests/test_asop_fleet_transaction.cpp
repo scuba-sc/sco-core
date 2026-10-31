@@ -19,12 +19,6 @@ static uint64_t idAt(const FleetBuffer& b,size_t row) {
     uint64_t id=0; std::memcpy(&id,b.data+row*kFleetEntitlementSize+0x10,8); return id;
 }
 int main() {
-    assert(ClassifyFleetName(0)==FleetResolveResult::Missing);
-    assert(ClassifyFleetName(1)==FleetResolveResult::Resolved);
-    assert(ClassifyFleetGuid(false,0,0,false)==FleetResolveResult::Missing);
-    assert(ClassifyFleetGuid(true,0,0,false)==FleetResolveResult::Missing);
-    assert(ClassifyFleetGuid(true,1,0,false)==FleetResolveResult::Unavailable);
-    assert(ClassifyFleetGuid(true,1,0,true)==FleetResolveResult::Resolved);
     // FleetTable is large; keep snapshots off the default Windows thread stack.
     auto table=std::make_unique<FleetTable>(); FleetBuffer buffer{};
     const char* initial[]={"synthetic_alpha","synthetic_beta"};

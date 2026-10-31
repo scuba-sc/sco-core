@@ -53,9 +53,8 @@ static FleetResolveResult ResolveFleetClass(void* context, const char* name, uin
         if(!root || Rd<uint8_t>(root+0x19)) return FleetResolveResult::Unavailable;
         cls=VCall<uintptr_t>(registry,0x20,name);
         if(!admitted.load()) return FleetResolveResult::Unavailable;
-        // Assume a completed null lookup on a checked registry means an absent class.
-        // This native engine behavior remains unverified.
-        if(!cls) return ClassifyFleetName(cls);
+        // Registry readiness and authoritative absence are not established here.
+        if(!cls) return FleetResolveResult::Unavailable;
         uintptr_t stack[256]; size_t sp=0;
         stack[sp++]=root;
         size_t visited=0;
@@ -64,10 +63,10 @@ static FleetResolveResult ResolveFleetClass(void* context, const char* name, uin
             const uintptr_t node=stack[--sp];
             if(Rd<uintptr_t>(node+0x30)==cls) {
                 guid[0]=Rd<uint64_t>(node+0x20); guid[1]=Rd<uint64_t>(node+0x28);
-                if(!(guid[0]|guid[1])) return ClassifyFleetGuid(true,guid[0],guid[1],false);
+                if(!(guid[0]|guid[1])) return FleetResolveResult::Unavailable;
                 if(!admitted.load()) return FleetResolveResult::Unavailable;
                 const bool roundtrip=VCall<uintptr_t>(registry,0x18,guid)==cls;
-                return ClassifyFleetGuid(true,guid[0],guid[1],roundtrip);
+                return roundtrip ? FleetResolveResult::Resolved : FleetResolveResult::Unavailable;
             }
             for(size_t offset : {size_t(0),size_t(0x10)}) {
                 const uintptr_t child=Rd<uintptr_t>(node+offset);
@@ -77,8 +76,8 @@ static FleetResolveResult ResolveFleetClass(void* context, const char* name, uin
                 }
             }
         }
-        // A complete traversal without a matching GUID is an unresolved class.
-        return ClassifyFleetGuid(false,0,0,false);
+        // Even a complete traversal may observe a partially initialized registry.
+        return FleetResolveResult::Unavailable;
     } __except(EXCEPTION_EXECUTE_HANDLER) { return FleetResolveResult::Unavailable; }
 }
 

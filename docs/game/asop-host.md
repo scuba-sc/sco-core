@@ -26,12 +26,14 @@ not `Reconfigure` or a `Stop`/`Start` cycle.
 
 The internal transactional fleet helper and append-only slot table are retained:
 a ship URN uses a stable slot index, removed slots are not recycled, and a re-added
-class reuses its slot. Initial publication skips unresolved entries and reports the
-skipped count; capacity, invalid input or allocation failure leaves the prior table
-and buffer intact. A null class lookup on a checked, nonempty registry, a zero GUID, or a completed
-traversal without the class is treated as unresolved. Unavailable infrastructure,
-faults, a contradictory GUID roundtrip and traversal limits abort the whole plan.
-These lookup and traversal semantics remain unverified against the native engine. Later transactional
+class reuses its slot. The internal helper can skip entries that a resolver positively
+establishes as absent on initial publication and reports the skipped count. The native
+adapter currently has no proven readiness or authoritative absence signal: a null name
+lookup, zero GUID or completed traversal miss can reflect partial initialization and
+therefore aborts the whole plan, as do faults and contradictory GUID roundtrips. A native
+list containing valid and missing entries cannot yet be safely published under the
+initial skip policy. Capacity, invalid input or allocation failure likewise leaves the
+prior table and buffer intact. Later transactional
 replacements also refuse unresolved entries and leave the prior publication intact;
 retired published buffers remain process-lifetime.
 
