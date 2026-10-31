@@ -2308,6 +2308,128 @@ if(SCO_BUILD_TESTS)
       $<TARGET_FILE:reserved_duplicate_a> $<TARGET_FILE:reserved_duplicate_b>
       $<TARGET_FILE:reserved_runtime_duplicate_a> $<TARGET_FILE:reserved_runtime_duplicate_b>)
   endif()
+  # Test-only restricted composition. This fixture does not define a product host.
+  if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(test_curated_reserved_host
+      tests/curated_reserved/reserved_host.cpp src/reserved_session.cpp)
+    target_include_directories(test_curated_reserved_host PRIVATE "${SCO_INCLUDE_DIR}")
+    target_compile_definitions(test_curated_reserved_host PRIVATE SCO_CURATED_DRAIN_TESTING=1)
+    target_link_libraries(test_curated_reserved_host PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+    set_target_properties(test_curated_reserved_host PROPERTIES ENABLE_EXPORTS ON
+      CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+    sco_project_target(test_curated_reserved_host)
+    add_library(curated_reserved_module MODULE tests/curated_reserved/curated_module.cpp)
+    target_include_directories(curated_reserved_module PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(curated_reserved_module PRIVATE Threads::Threads)
+    set_target_properties(curated_reserved_module PROPERTIES OUTPUT_NAME curated_module
+      CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+    sco_project_target(curated_reserved_module)
+    if(WIN32)
+      target_sources(test_curated_reserved_host PRIVATE tests/curated_reserved/reserved_host.def)
+      target_link_libraries(curated_reserved_module PRIVATE test_curated_reserved_host)
+    else()
+      target_link_options(test_curated_reserved_host PRIVATE
+        "LINKER:--export-dynamic-symbol=reserved_host_mock_table"
+        "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/tests/curated_reserved/reserved_host.exports")
+      target_link_options(curated_reserved_module PRIVATE
+        "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/tests/curated_reserved/curated_module.exports")
+    endif()
+    set(_curated_host_sources tests/curated_reserved/reserved_host.cpp src/reserved_session.cpp)
+    set(_curated_host_links Threads::Threads)
+    set(_curated_module_links Threads::Threads)
+    if(WIN32)
+      list(APPEND _curated_host_sources tests/curated_reserved/reserved_host.def)
+      list(APPEND _curated_module_links test_curated_reserved_host)
+    elseif(CMAKE_DL_LIBS)
+      list(APPEND _curated_host_links ${CMAKE_DL_LIBS})
+    endif()
+    get_target_property(_curated_actual_sources test_curated_reserved_host SOURCES)
+    get_target_property(_curated_actual_links test_curated_reserved_host LINK_LIBRARIES)
+    get_target_property(_curated_module_sources curated_reserved_module SOURCES)
+    get_target_property(_curated_actual_module_links curated_reserved_module LINK_LIBRARIES)
+    if(NOT "${_curated_actual_sources}" STREQUAL "${_curated_host_sources}" OR
+       NOT "${_curated_actual_links}" STREQUAL "${_curated_host_links}" OR
+       NOT "${_curated_module_sources}" STREQUAL "tests/curated_reserved/curated_module.cpp" OR
+       NOT "${_curated_actual_module_links}" STREQUAL "${_curated_module_links}")
+      message(FATAL_ERROR "Curated fixture has an unexpected source or link target")
+    endif()
+    # Reject subsequent additions to this fixture's explicit build graph.
+    # This is a check of these named targets in a trusted build, not an
+    # assertion about arbitrary toolchain inputs or other loaded code.
+    set(_curated_checked_properties SOURCES LINK_LIBRARIES LINK_OPTIONS COMPILE_OPTIONS
+      COMPILE_DEFINITIONS INCLUDE_DIRECTORIES LINK_DEPENDS MANUALLY_ADDED_DEPENDENCIES)
+    foreach(_curated_target IN ITEMS test_curated_reserved_host curated_reserved_module)
+      foreach(_curated_property IN LISTS _curated_checked_properties)
+        get_target_property(_curated_value ${_curated_target} ${_curated_property})
+        if("${_curated_value}" MATCHES "-NOTFOUND$")
+          set(_curated_value "")
+        endif()
+        set_property(GLOBAL PROPERTY "sco_${_curated_target}_${_curated_property}" "${_curated_value}")
+      endforeach()
+    endforeach()
+    function(sco_assert_curated_targets)
+      foreach(_target IN ITEMS test_curated_reserved_host curated_reserved_module)
+        foreach(_property IN ITEMS SOURCES LINK_LIBRARIES LINK_OPTIONS COMPILE_OPTIONS
+            COMPILE_DEFINITIONS INCLUDE_DIRECTORIES LINK_DEPENDS MANUALLY_ADDED_DEPENDENCIES)
+          get_target_property(_actual ${_target} ${_property})
+          if("${_actual}" MATCHES "-NOTFOUND$")
+            set(_actual "")
+          endif()
+          get_property(_expected GLOBAL PROPERTY "sco_${_target}_${_property}")
+          if(NOT "${_actual}" STREQUAL "${_expected}")
+            message(FATAL_ERROR "Curated fixture ${_target} changed ${_property}")
+          endif()
+        endforeach()
+      endforeach()
+    endfunction()
+    cmake_language(DEFER CALL sco_assert_curated_targets)
+    add_custom_target(curated_reserved_fixture ALL DEPENDS test_curated_reserved_host curated_reserved_module)
+    add_test(NAME reserved_curated_composition COMMAND test_curated_reserved_host)
+    set_tests_properties(reserved_curated_composition PROPERTIES TIMEOUT 15)
+    if(NOT Python3_Interpreter_FOUND)
+      message(FATAL_ERROR "The curated fixture requires Python for its build-graph tests")
+    endif()
+    add_test(NAME reserved_curated_graph_negative COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/curated_reserved/test_graph_guard.py"
+      --cmake "${CMAKE_COMMAND}" --source "${CMAKE_CURRENT_SOURCE_DIR}"
+      --generator "${CMAKE_GENERATOR}" --platform "${CMAKE_GENERATOR_PLATFORM}")
+    set_tests_properties(reserved_curated_graph_negative PROPERTIES TIMEOUT 120)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      if(NOT Python3_Interpreter_FOUND OR NOT CMAKE_NM OR NOT CMAKE_READELF)
+        message(FATAL_ERROR "The curated fixture requires Python, nm and readelf for ELF checks")
+      endif()
+      set(_curated_runpath "")
+      if(SCO_SANITIZE AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+        execute_process(COMMAND "${CMAKE_C_COMPILER}" -print-runtime-dir
+          OUTPUT_VARIABLE _curated_runpath OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+      endif()
+      add_test(NAME reserved_curated_elf_audit COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/curated_reserved/audit_elf.py"
+        --nm "${CMAKE_NM}" --readelf "${CMAKE_READELF}"
+        --host $<TARGET_FILE:test_curated_reserved_host>
+        --module $<TARGET_FILE:curated_reserved_module> --allowed-runpath "${_curated_runpath}")
+      add_test(NAME reserved_curated_elf_negative COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/curated_reserved/test_elf_negative.py"
+        --compiler "${CMAKE_CXX_COMPILER}" --source "${CMAKE_CURRENT_SOURCE_DIR}"
+        --python "${Python3_EXECUTABLE}" --nm "${CMAKE_NM}" --readelf "${CMAKE_READELF}"
+        --host $<TARGET_FILE:test_curated_reserved_host>
+        --module $<TARGET_FILE:curated_reserved_module> --allowed-runpath "${_curated_runpath}")
+      set_tests_properties(reserved_curated_elf_negative PROPERTIES TIMEOUT 90)
+    elseif(WIN32)
+      get_filename_component(_curated_linker_dir "${CMAKE_LINKER}" DIRECTORY)
+      find_program(_curated_dumpbin NAMES dumpbin.exe HINTS "${_curated_linker_dir}" NO_DEFAULT_PATH)
+      if(NOT Python3_Interpreter_FOUND OR NOT _curated_dumpbin)
+        message(FATAL_ERROR "The curated fixture requires Python and MSVC dumpbin for PE checks")
+      endif()
+      add_test(NAME reserved_curated_pe_audit COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/curated_reserved/audit_pe.py"
+        --dumpbin "${_curated_dumpbin}"
+        --exe $<TARGET_FILE:test_curated_reserved_host>
+        --module $<TARGET_FILE:curated_reserved_module>
+        --import-lib $<TARGET_LINKER_FILE:test_curated_reserved_host>
+        --evidence-dir "${CMAKE_CURRENT_BINARY_DIR}/curated-pe-audit/$<CONFIG>")
+    endif()
+  endif()
   if(WIN32)
     # Only this trusted EXE composition exports the implementation. Production
     # consumers must opt in deliberately; ordinary static users export nothing.

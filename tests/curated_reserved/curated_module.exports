@@ -1,0 +1,15 @@
+{
+  global:
+    curated_module_identity;
+    curated_module_host_accessor_found;
+    curated_module_table;
+    curated_module_read;
+    curated_module_move;
+    curated_module_enqueue_set;
+    curated_module_enqueue_add;
+    curated_module_arm_move_gate;
+    curated_module_wait_move_gate;
+    curated_module_release_move_gate;
+  local:
+    *;
+};

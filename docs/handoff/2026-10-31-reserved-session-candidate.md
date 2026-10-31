@@ -71,6 +71,17 @@ or direct module loading does not dirty that gate, so a successful reservation
 does not prove those operations never occurred. A broader composition needs its
 own complete admission and lifetime coverage.
 
+The test-only `reserved_curated_composition` fixture builds a separate authority
+executable and a cooperating value-only module. The host retains the module,
+holds an outer call pin through each admitted module invocation, and exercises
+copied entity operations and the sealed worker queue. A controlled pause between
+two table calls verifies retirement waits for the outer pin. Build-graph and
+binary checks examine the named test artifacts, with injected negative cases;
+they are not certification of another executable or protection against an
+unmanaged module or untrusted build directory. Fixture barriers, direct post-close
+probes and the reader-drain observation exist only for tests. A product still
+needs an audited composition and its own consumer integration.
+
 Native/PAK activation stays refused pending a distinct product proof of
 continuous reader and instruction exclusion. Original-quit continuation also
 needs proof that worker code and argument objects remain valid after the game
