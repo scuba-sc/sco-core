@@ -21,6 +21,7 @@ void CloseFleet() { ++closeFleetCalls; } void CloseHangars() { ++closeHangarCall
 void TickFleet(uint32_t) {} void TickHangars(uint32_t) {}
 uint32_t FleetReady() { return 0; } uint32_t HangarReady() { return 0; }
 bool RebuildFleetShips(const Catalog&) { ++rebuildCalls; return true; }
+void DisableFleetAdmission() { admitted.store(false); }
 void PumpInitialFleet() { if (pendingInitial) { ++initialPumpCalls; pendingInitial=false; } }
 }
 static void AssertSameStatus(const Status& before) {

@@ -560,6 +560,10 @@ if(SCO_GAME_SC)
     target_include_directories(test_asop_fleet_transaction PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(test_asop_fleet_transaction)
     add_test(NAME asop_fleet_transaction COMMAND test_asop_fleet_transaction)
+    add_executable(test_asop_fleet_publication tests/test_asop_fleet_publication.cpp)
+    target_link_libraries(test_asop_fleet_publication PRIVATE Threads::Threads)
+    sco_project_target(test_asop_fleet_publication)
+    add_test(NAME asop_fleet_publication COMMAND test_asop_fleet_publication)
 
     # Compile the real config path against synthetic runtime/engine seams, not the native host.
     # _WIN32 selects that path on portable runners; no Windows headers or engine code are linked.

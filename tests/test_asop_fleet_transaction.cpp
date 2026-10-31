@@ -9,16 +9,22 @@
 #include <cstring>
 #include <memory>
 using namespace sco::game::asop_host;
-static bool resolve(void*, const char* name, uintptr_t& cls, uint64_t guid[2]) {
-    if (!std::strcmp(name,"missing") || !std::strcmp(name,"MISSING")) return false;
-    if (!std::strcmp(name,"null_class")) { cls=0; guid[0]=7; return true; }
-    if (!std::strcmp(name,"zero_guid")) { cls=42; guid[0]=guid[1]=0; return true; }
-    cls=42; guid[0]=7; guid[1]=9; return true;
+static FleetResolveResult resolve(void*, const char* name, uintptr_t& cls, uint64_t guid[2]) {
+    if (!std::strcmp(name,"missing") || !std::strcmp(name,"MISSING")) return FleetResolveResult::Missing;
+    if (!std::strcmp(name,"null_class")) { cls=0; guid[0]=7; return FleetResolveResult::Resolved; }
+    if (!std::strcmp(name,"zero_guid")) { cls=42; guid[0]=guid[1]=0; return FleetResolveResult::Resolved; }
+    cls=42; guid[0]=7; guid[1]=9; return FleetResolveResult::Resolved;
 }
 static uint64_t idAt(const FleetBuffer& b,size_t row) {
     uint64_t id=0; std::memcpy(&id,b.data+row*kFleetEntitlementSize+0x10,8); return id;
 }
 int main() {
+    assert(ClassifyFleetName(0)==FleetResolveResult::Missing);
+    assert(ClassifyFleetName(1)==FleetResolveResult::Resolved);
+    assert(ClassifyFleetGuid(false,0,0,false)==FleetResolveResult::Missing);
+    assert(ClassifyFleetGuid(true,0,0,false)==FleetResolveResult::Missing);
+    assert(ClassifyFleetGuid(true,1,0,false)==FleetResolveResult::Unavailable);
+    assert(ClassifyFleetGuid(true,1,0,true)==FleetResolveResult::Resolved);
     // FleetTable is large; keep snapshots off the default Windows thread stack.
     auto table=std::make_unique<FleetTable>(); FleetBuffer buffer{};
     const char* initial[]={"synthetic_alpha","synthetic_beta"};
@@ -81,8 +87,10 @@ int main() {
     assert(skipped==99 && invalidTable->count==0 && !invalidBuffer.data);
     assert(!RebuildFleet(*invalidTable,invalidBuffer,invalid,3,resolve,nullptr,failAlloc,&skipped));
     assert(skipped==99 && invalidTable->count==0 && !invalidBuffer.data);
-    assert(RebuildFleet(*invalidTable,invalidBuffer,invalid,3,resolve,nullptr,std::calloc,&skipped));
-    assert(skipped==3 && invalidTable->count==0 && invalidBuffer.count==0 && invalidBuffer.data);
+    assert(!RebuildFleet(*invalidTable,invalidBuffer,invalid,3,resolve,nullptr,std::calloc,&skipped));
+    assert(skipped==99 && invalidTable->count==0 && !invalidBuffer.data);
+    assert(RebuildFleet(*invalidTable,invalidBuffer,missing,1,resolve,nullptr,std::calloc,&skipped));
+    assert(skipped==1 && invalidTable->count==0 && invalidBuffer.count==0 && invalidBuffer.data);
     // Empty initial publication forwards the original failed entitlement response.
     assert(!HasFleetEntitlements(invalidBuffer));
     skipped=99;

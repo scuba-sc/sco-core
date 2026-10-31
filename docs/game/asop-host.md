@@ -28,8 +28,21 @@ The internal transactional fleet helper and append-only slot table are retained:
 a ship URN uses a stable slot index, removed slots are not recycled, and a re-added
 class reuses its slot. Initial publication skips unresolved entries and reports the
 skipped count; capacity, invalid input or allocation failure leaves the prior table
-and buffer intact. Later transactional replacements also refuse unresolved entries
-and leave the prior publication intact; retired published buffers remain process-lifetime.
+and buffer intact. A null class lookup on a checked, nonempty registry, a zero GUID, or a completed
+traversal without the class is treated as unresolved. Unavailable infrastructure,
+faults, a contradictory GUID roundtrip and traversal limits abort the whole plan.
+These lookup and traversal semantics remain unverified against the native engine. Later transactional
+replacements also refuse unresolved entries and leave the prior publication intact;
+retired published buffers remain process-lifetime.
+
+A nonblocking guard refuses concurrent or reentrant initial builds. Resolution and
+allocation happen outside the ships lock; publication takes that lock and checks
+admission and the still-unpublished state. Stop closes admission under the same lock.
+An attempt observes closed admission before the next resolver call and discards its
+private plan, but this does not cancel or join an engine call already in progress.
+A failed deferred attempt does not repair the original entitlement response; a later
+request may attempt a fresh build. Native registry lifetime, fault behavior and lock
+reentry still require Windows and engine validation.
 Portable helper tests establish these data-structure properties only, not permission
 for native mid-session mutation or engine/`Stop` overlap.
 

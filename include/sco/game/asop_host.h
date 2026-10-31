@@ -33,8 +33,8 @@ struct Status { bool configured = false, admitted = false, installed = false, st
 Result Start(const Config& config);
 // Windows-only fleet query: is any ship of this class stored, retrieved, delivering or
 // queued this session? Returns true for a null name, inactive admission, or calls
-// off the game thread, so an unavailable query cannot authorize removal. When
-// active, an unknown class returns false. The caller must link the Windows provider.
+// off the game thread, or before the fleet is built, so an unavailable query
+// cannot authorize removal. Once built, an unknown class returns false. The caller must link the Windows provider.
 bool FleetClassBusy(const char* name);
 // Currently always returns Unavailable, before validation, engine calls or publication;
 // the previous configuration/catalog is unchanged. No engine lifecycle contract yet

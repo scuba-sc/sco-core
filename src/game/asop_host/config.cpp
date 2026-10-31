@@ -87,7 +87,12 @@ void Pump(uint32_t now) {
 void Stop() {
     {
         std::lock_guard guard(lock);
-        admitted.store(false); status.admitted=false; status.stopped=true;
+#ifdef _WIN32
+        DisableFleetAdmission();
+#else
+        admitted.store(false);
+#endif
+        status.admitted=false; status.stopped=true;
     }
 #ifdef _WIN32
     CloseHangars();

@@ -511,6 +511,8 @@ SQLITE_TSAN=$OUT/sqlite3_tsan.o
 # _WIN32 selects config.cpp's host path only; this is not a native Windows/engine proof.
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_asop_fleet_transaction.cpp" -o "$OUT/test_asop_fleet_transaction"
 "$OUT/test_asop_fleet_transaction"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -pthread "$ROOT/tests/test_asop_fleet_publication.cpp" -o "$OUT/test_asop_fleet_publication"
+"$OUT/test_asop_fleet_publication"
 for sanitizer in address,undefined thread; do
   "$CXX" "${FLAGS[@]}" -D_WIN32 -fsanitize="$sanitizer" \
     -c "$ROOT/src/game/asop_host/config.cpp" -o "$OUT/asop_reconfigure_config_${sanitizer//,/_}.o"

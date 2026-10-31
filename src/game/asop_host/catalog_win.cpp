@@ -24,59 +24,86 @@ static auto& g_slotCount=g_table.count;
 // RebuildFleet starts at zero and refuses insertion at capacity; slot counts and
 // every stable index therefore fit the int-based engine-facing lookup API.
 static_assert(kFleetCapacity <= static_cast<size_t>((std::numeric_limits<int>::max)()));
+static_assert(kFleetCapacity == kMaxShips);
 static FleetBuffer g_buffer;
 static SRWLOCK g_shipsLock = SRWLOCK_INIT;
 static bool g_shipsBuilt = false;
 static std::atomic<bool> g_initialPending{false};
+static std::atomic_flag g_initialBuilding=ATOMIC_FLAG_INIT;
 using EntitlementsFn=void(__fastcall*)(uintptr_t,uintptr_t);
 static EntitlementsFn g_origEntitlementsResult=nullptr;
 
 // Keep SEH in this leaf: no C++ destructors or unpublished allocations cross faults.
-static bool ResolveFleetClass(void*, const char* name, uintptr_t& cls, uint64_t guid[2]) {
+struct FleetResolveContext { uintptr_t registry=0; };
+static bool ContinueFleetBuild(void*) { return admitted.load(); }
+static FleetResolveResult ResolveFleetClass(void* context, const char* name, uintptr_t& cls, uint64_t guid[2]) {
     __try {
-        const uintptr_t system=EntitySystem();
-        if(!system) return false;
-        const uintptr_t registry=VCall<uintptr_t>(system,0xC0);
-        if(!registry || !(cls=VCall<uintptr_t>(registry,0x20,name))) return false;
+        auto* state=static_cast<FleetResolveContext*>(context);
+        if(!state->registry) {
+            const uintptr_t system=EntitySystem();
+            if(!system || !admitted.load()) return FleetResolveResult::Unavailable;
+            state->registry=VCall<uintptr_t>(system,0xC0);
+            if(!state->registry || !admitted.load()) return FleetResolveResult::Unavailable;
+        }
+        const uintptr_t registry=state->registry;
         const uintptr_t head=Rd<uintptr_t>(registry+0x48);
-        uintptr_t stack[256]; size_t sp=0;
+        if(!head) return FleetResolveResult::Unavailable;
         const uintptr_t root=Rd<uintptr_t>(head+8);
-        if(root && !Rd<uint8_t>(root+0x19)) stack[sp++]=root;
+        // An empty/sentinel tree is not established as a trustworthy absence.
+        if(!root || Rd<uint8_t>(root+0x19)) return FleetResolveResult::Unavailable;
+        cls=VCall<uintptr_t>(registry,0x20,name);
+        if(!admitted.load()) return FleetResolveResult::Unavailable;
+        // Assume a completed null lookup on a checked registry means an absent class.
+        // This native engine behavior remains unverified.
+        if(!cls) return ClassifyFleetName(cls);
+        uintptr_t stack[256]; size_t sp=0;
+        stack[sp++]=root;
         size_t visited=0;
         while(sp) {
-            if(++visited>1048576) return false;
+            if(++visited>1048576) return FleetResolveResult::Unavailable;
             const uintptr_t node=stack[--sp];
             if(Rd<uintptr_t>(node+0x30)==cls) {
                 guid[0]=Rd<uint64_t>(node+0x20); guid[1]=Rd<uint64_t>(node+0x28);
-                return (guid[0]|guid[1]) && VCall<uintptr_t>(registry,0x18,guid)==cls;
+                if(!(guid[0]|guid[1])) return ClassifyFleetGuid(true,guid[0],guid[1],false);
+                if(!admitted.load()) return FleetResolveResult::Unavailable;
+                const bool roundtrip=VCall<uintptr_t>(registry,0x18,guid)==cls;
+                return ClassifyFleetGuid(true,guid[0],guid[1],roundtrip);
             }
             for(size_t offset : {size_t(0),size_t(0x10)}) {
                 const uintptr_t child=Rd<uintptr_t>(node+offset);
                 if(child && !Rd<uint8_t>(child+0x19)) {
-                    if(sp==256) return false;
+                    if(sp==256) return FleetResolveResult::Unavailable;
                     stack[sp++]=child;
                 }
             }
         }
-        return false;
-    } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+        // A complete traversal without a matching GUID is an unresolved class.
+        return ClassifyFleetGuid(false,0,0,false);
+    } __except(EXCEPTION_EXECUTE_HANDLER) { return FleetResolveResult::Unavailable; }
 }
 
-// No engine calls or publication until the host's known game thread admits this.
+// Stop participates in the publication lock, so a plan cannot publish after admission closes.
+void DisableFleetAdmission() {
+    AcquireSRWLockExclusive(&g_shipsLock);
+    admitted.store(false);
+    ReleaseSRWLockExclusive(&g_shipsLock);
+}
+
+// Plan privately without the ships lock: engine resolution can reenter callbacks.
 bool RebuildFleetShips(const Catalog& next) {
-    if(!admitted.load() || !sco::OnGameThread()) return false;
+    if(!admitted.load() || !sco::OnGameThread() || next.count>kMaxShips) return false;
     const char* names[kMaxShips];
     for(size_t i=0;i<next.count;++i) names[i]=next.names[i].data();
-    AcquireSRWLockExclusive(&g_shipsLock);
-    size_t skipped=0;
-    // Only initial publication preserves the legacy skip-unresolved policy.
-    // Runtime replacements remain all-or-nothing (and native Reconfigure is refused).
-    const bool initial=!g_shipsBuilt;
-    const bool ok=RebuildFleet(g_table,g_buffer,names,next.count,ResolveFleetClass,nullptr,std::calloc,
-                               initial ? &skipped : nullptr);
-    if(ok) g_shipsBuilt=true;
-    ReleaseSRWLockExclusive(&g_shipsLock);
-    if(ok && initial && skipped) Log("[fleet] initial list skipped %zu unresolved ship classes",skipped);
+    size_t skipped=0; FleetResolveContext context;
+    const bool ok=BuildInitialFleet(g_initialBuilding,names,next.count,ResolveFleetClass,&context,std::calloc,ContinueFleetBuild,
+        [](const FleetTable& planned,FleetBuffer buffer) {
+            AcquireSRWLockExclusive(&g_shipsLock);
+            const bool publish=admitted.load() && !g_shipsBuilt;
+            if(publish) { g_table=planned; g_buffer=buffer; g_shipsBuilt=true; }
+            ReleaseSRWLockExclusive(&g_shipsLock);
+            return publish;
+        },skipped);
+    if(ok && skipped) Log("[fleet] initial list skipped %zu unresolved ship classes",skipped);
     return ok;
 }
 
@@ -153,11 +180,13 @@ bool FleetClassBusy(const char* name) {
     if (!name || !admitted.load() || !sco::OnGameThread()) return true;
     AcquireSRWLockShared(&g_shipsLock);
     int index = -1;
-    const int count = g_shipsBuilt ? static_cast<int>(g_slotCount) : 0;
+    const bool available = admitted.load();
+    const bool built = g_shipsBuilt;
+    const int count = built ? static_cast<int>(g_slotCount) : 0;
     for (int i = 0; i < count; ++i)
         if (_stricmp(g_slots[i].name, name) == 0) { index = i; break; }
     ReleaseSRWLockShared(&g_shipsLock);
-    return index >= 0 && ShipIsBusy(index);
+    return !available || !built || (index >= 0 && ShipIsBusy(index));
 }
 
 

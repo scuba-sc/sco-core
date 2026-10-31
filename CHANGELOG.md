@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.
+
 - Reject malformed exception directories and overlong unwind chains, and detect adjacent
   duplicate signature references. Synthetic resolver checks only; not run in game.
 
