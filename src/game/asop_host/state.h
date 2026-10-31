@@ -29,5 +29,6 @@ void SetFleetCaps();
 void SetHangarCaps();
 // Transactional rebuild; takes the ships lock internally, preserves publication on failure.
 bool RebuildFleetShips(const Catalog& next);
+void PumpInitialFleet();
 #endif
 } // namespace sco::game::asop_host

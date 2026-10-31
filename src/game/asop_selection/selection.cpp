@@ -177,7 +177,11 @@ sco_result Rows(sco_plugin* self, const sc_asop_selection_read* read, sc_asop_se
     for (uint32_t i = 0; i < n; ++i) {
         sc_asop_selection_row row{}; row.size = sizeof(row);
         const std::string& value = (*values)[read->offset + i];
-        if (g.class_busy && g.class_busy(g.busy_context, value.c_str())) row.flags |= SC_ASOP_SELECTION_ROW_BUSY;
+        if (g.class_busy) {
+            bool busy = false;
+            try { busy = g.class_busy(g.busy_context, value.c_str()); } catch (...) { busy = true; }
+            if (busy) row.flags |= SC_ASOP_SELECTION_ROW_BUSY;
+        }
         std::memcpy(row.class_name, value.c_str(), value.size() + 1);
         std::memcpy(bytes + static_cast<size_t>(i) * stride, &row, sizeof(row));
     }

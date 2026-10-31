@@ -290,7 +290,8 @@ int main() {
     file.read_result=S::FileResult::Ok;
     file.document.bytes="# ASOP ship selection, one class per line.\nTest_Ship_A\nTest_Ship_B\n";
     static std::string busy_name;
-    static auto busy_cb=[](void*, const char* name)->bool { return busy_name==name; };
+    static bool busy_throws=false;
+    static auto busy_cb=[](void*, const char* name)->bool { if (busy_throws) throw 1; return busy_name==name; };
     S::Options busy_options;
     busy_options.file={&file,MemoryFile::Read,MemoryFile::Replace};
     busy_options.catalogue={"Test_Ship_A","Test_Ship_B"};
@@ -308,6 +309,13 @@ int main() {
     busy_name="Test_Ship_A";
     CHECK(table->rows(gate,&rows_query,gate_rows,sizeof(gate_rows[0]),2,&rows_count,&rows_more)==SCO_OK);
     CHECK(rows_count==2 && (gate_rows[0].flags&SC_ASOP_SELECTION_ROW_BUSY) && !(gate_rows[1].flags&SC_ASOP_SELECTION_ROW_BUSY));
+    busy_throws=true;
+    bool escaped=false; sco_result row_result=SCO_FAILED;
+    try { row_result=table->rows(gate,&rows_query,gate_rows,sizeof(gate_rows[0]),2,&rows_count,&rows_more); }
+    catch (...) { escaped=true; }
+    CHECK(!escaped && row_result==SCO_OK && rows_count==2 && rows_more==0 &&
+          (gate_rows[0].flags&SC_ASOP_SELECTION_ROW_BUSY) && (gate_rows[1].flags&SC_ASOP_SELECTION_ROW_BUSY));
+    busy_throws=false;
     uint64_t gate_lease=0,gate_id=0;
     CHECK(table->acquire(gate,state.session,&gate_lease)==SCO_OK);
     sc_asop_selection_class keep[1]{};keep[0].size=sizeof(keep[0]);

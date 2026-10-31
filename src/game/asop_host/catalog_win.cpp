@@ -23,6 +23,7 @@ static auto& g_slotCount=g_table.count;
 static FleetBuffer g_buffer;
 static SRWLOCK g_shipsLock = SRWLOCK_INIT;
 static bool g_shipsBuilt = false;
+static std::atomic<bool> g_initialPending{false};
 using EntitlementsFn=void(__fastcall*)(uintptr_t,uintptr_t);
 static EntitlementsFn g_origEntitlementsResult=nullptr;
 
@@ -73,11 +74,22 @@ static FleetBuffer EnsureFleetShips() {
     AcquireSRWLockShared(&g_shipsLock);
     const bool built=g_shipsBuilt;
     ReleaseSRWLockShared(&g_shipsLock);
-    if(!built && sco::OnGameThread()) RebuildFleetShips(catalog);
+    if(!built) {
+        if(sco::OnGameThread()) RebuildFleetShips(catalog);
+        else g_initialPending.store(true);
+    }
     AcquireSRWLockShared(&g_shipsLock);
     const FleetBuffer snapshot=g_buffer;
     ReleaseSRWLockShared(&g_shipsLock);
     return snapshot;
+}
+
+void PumpInitialFleet() {
+    if(!g_initialPending.exchange(false)) return;
+    AcquireSRWLockShared(&g_shipsLock);
+    const bool built=g_shipsBuilt;
+    ReleaseSRWLockShared(&g_shipsLock);
+    if(!built) RebuildFleetShips(catalog);
 }
 
 static void __fastcall Hook_EntitlementsResult(uintptr_t self, uintptr_t result) {

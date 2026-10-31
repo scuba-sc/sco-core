@@ -10,6 +10,8 @@
 using namespace sco::game::asop_host;
 static bool gameThread=true;
 static int rebuildCalls=0, gameThreadCalls=0, closeFleetCalls=0, closeHangarCalls=0;
+static int initialPumpCalls=0;
+static bool pendingInitial=false;
 namespace sco { bool OnGameThread() { ++gameThreadCalls; return gameThread; } }
 namespace sco::game::asop_host {
 bool InstallCatalog() { return true; }
@@ -19,6 +21,7 @@ void CloseFleet() { ++closeFleetCalls; } void CloseHangars() { ++closeHangarCall
 void TickFleet(uint32_t) {} void TickHangars(uint32_t) {}
 uint32_t FleetReady() { return 0; } uint32_t HangarReady() { return 0; }
 bool RebuildFleetShips(const Catalog&) { ++rebuildCalls; return true; }
+void PumpInitialFleet() { if (pendingInitial) { ++initialPumpCalls; pendingInitial=false; } }
 }
 static void AssertSameStatus(const Status& before) {
     const auto after=Snapshot();
@@ -61,6 +64,12 @@ int main(int argc, char**) {
     config.shipClasses=duplicates; config.shipCount=2;
     assert(Reconfigure(config)==Result::Unavailable); unchanged();
     config.shipClasses=second;
+    // A failed entitlement callback has requested an initial build off-thread.
+    pendingInitial=true;
+    gameThread=false; Pump(1); assert(initialPumpCalls==0);
+    gameThread=true; Pump(2); assert(initialPumpCalls==1);
+    Pump(3); assert(initialPumpCalls==1);
+    gameThreadCalls=0;
     // These modes exercise terminal Stop through synthetic close seams only.
     // There is no rebuild callback or engine rebuild/Stop overlap to certify.
     if(argc>1) {

@@ -75,6 +75,7 @@ Status Snapshot() {
 void Pump(uint32_t now) {
 #ifdef _WIN32
     if(admitted.load() && sco::OnGameThread()) {
+        PumpInitialFleet();
         TickHangars(now);
         static uint32_t last=0;
         if(now-last>=100) { last=now; TickFleet(now); }
