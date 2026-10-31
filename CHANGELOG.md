@@ -27,6 +27,8 @@ What each change means for plugin authors and for products built on sco-core (sc
   qualification guidance. Retained retirement still requires complete consumer
   admission and ownership; native activation remains unavailable.
 
+- Document the packaged container reader workflow and expose its C source through the canonical catalogue example record.
+
 - Add an optional packaged consumer requirements report bound to explicit catalogue
   and registry hashes, with language support, scoped static capability evidence
   and a container-reader declaration. It does not establish provider readiness
