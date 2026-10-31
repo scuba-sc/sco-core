@@ -42,20 +42,20 @@ bool CanCall(const T* t, M T::*field) noexcept {
 
 // Publishes table under name ("<plugin id>" or "<plugin id>.<name>") with version
 // ServiceVersion(major, minor), until Release or unload. The table must stay valid until then
-// (use a static). SCO_UNAVAILABLE on a 1.0 host; else the host's answer (SCO_BAD_ARG: a bad or
-// taken name, or a name outside the plugin's id). Any thread.
+// (use a static). SCO_UNAVAILABLE if the host slot is absent or null; else the host's answer
+// (SCO_BAD_ARG: a bad or taken name, or a name outside the plugin's id). Any thread.
 template <class T>
 sco_result Provide(Plugin& plugin, const char* name, uint32_t version, const T* table) noexcept {
     detail::CheckServiceTable<T>();
     if (!plugin.Api()) return SCO_BAD_ARG;
-    if (!plugin.ApiCovers(offsetof(sco_api, provide_service))) return SCO_UNAVAILABLE;
+    if (!plugin.ApiCovers(offsetof(sco_api, provide_service)) || !plugin.Api()->provide_service) return SCO_UNAVAILABLE;
     return plugin.Api()->provide_service(plugin.Self(), name, version, table);
 }
 
 // Withdraws one of plugin's services. SCO_NOT_FOUND: it publishes nothing by that name.
 inline sco_result Release(Plugin& plugin, const char* name) noexcept {
     if (!plugin.Api()) return SCO_BAD_ARG;
-    if (!plugin.ApiCovers(offsetof(sco_api, release_service))) return SCO_UNAVAILABLE;
+    if (!plugin.ApiCovers(offsetof(sco_api, release_service)) || !plugin.Api()->release_service) return SCO_UNAVAILABLE;
     return plugin.Api()->release_service(plugin.Self(), name);
 }
 

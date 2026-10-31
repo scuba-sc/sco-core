@@ -6052,6 +6052,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.tests.test_sdk_host_slots.cpp",
+      "source": "tests/test_sdk_host_slots.cpp",
+      "destination": "tests/test_sdk_host_slots.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.tests.test_settings.cpp",
       "source": "tests/test_settings.cpp",
       "destination": "tests/test_settings.cpp",
