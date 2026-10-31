@@ -155,8 +155,8 @@ public:
     CoreBinding& operator=(const CoreBinding&) = delete;
     explicit operator bool() const noexcept { return handle_ != nullptr; }
 private:
-    friend Result BindCoreInstance(const Bootstrap*, CoreBinding&) noexcept;
-    friend Result ReserveSession(CoreBinding&, const MockGraph&, Session&) noexcept;
+    friend SCO_RESERVED_API Result BindCoreInstance(const Bootstrap*, CoreBinding&) noexcept;
+    friend SCO_RESERVED_API Result ReserveSession(CoreBinding&, const MockGraph&, Session&) noexcept;
     Bootstrap bootstrap_{};
     void* handle_ = nullptr;
 };
@@ -174,14 +174,14 @@ public:
     Session& operator=(const Session&) = delete;
     explicit operator bool() const noexcept { return handle_ && secret_; }
 private:
-    friend Result ReserveSession(CoreBinding&, const MockGraph&, Session&) noexcept;
-    friend Result BeginStartup(Session&, StartupControl&) noexcept;
-    friend const MockTable* QueryMock(Session&) noexcept;
-    friend Result TryEnter(Session&, CallPin&) noexcept;
-    friend Result Close(Session&) noexcept;
-    friend RetireResult RetireUntil(Session&, std::chrono::steady_clock::time_point) noexcept;
-    friend Phase Status(Session&) noexcept;
-    friend void Fault(Session&) noexcept;
+    friend SCO_RESERVED_API Result ReserveSession(CoreBinding&, const MockGraph&, Session&) noexcept;
+    friend SCO_RESERVED_API Result BeginStartup(Session&, StartupControl&) noexcept;
+    friend SCO_RESERVED_API const MockTable* QueryMock(Session&) noexcept;
+    friend SCO_RESERVED_API Result TryEnter(Session&, CallPin&) noexcept;
+    friend SCO_RESERVED_API Result Close(Session&) noexcept;
+    friend SCO_RESERVED_API RetireResult RetireUntil(Session&, std::chrono::steady_clock::time_point) noexcept;
+    friend SCO_RESERVED_API Phase Status(Session&) noexcept;
+    friend SCO_RESERVED_API void Fault(Session&) noexcept;
     Bootstrap bootstrap_{};
     void* handle_ = nullptr;
     void* secret_ = nullptr;
@@ -215,9 +215,9 @@ public:
     StartupControl& operator=(const StartupControl&) = delete;
     explicit operator bool() const noexcept { return active_; }
 private:
-    friend Result BeginStartup(Session&, StartupControl&) noexcept;
-    friend Result PublishTypedProvider(StartupControl&) noexcept;
-    friend Result FinishStartup(StartupControl&) noexcept;
+    friend SCO_RESERVED_API Result BeginStartup(Session&, StartupControl&) noexcept;
+    friend SCO_RESERVED_API Result PublishTypedProvider(StartupControl&) noexcept;
+    friend SCO_RESERVED_API Result FinishStartup(StartupControl&) noexcept;
     Bootstrap bootstrap_{};
     void* session_ = nullptr;
     void* secret_ = nullptr;
