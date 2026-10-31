@@ -61,16 +61,20 @@ void RevokeFailedHostCapabilities() noexcept {
     if (signatureRegistry) WithHostSignatureRegistry(signatureRegistry, InvalidateFailedHostCapabilities);
 }
 
-// Also used by app::Stop on partial startup failures. The decision is cached so
-// the product callback is never called a second time during the same host life.
+// Legacy retirement assertion retained for source migration only; it is not
+// accepted as drain evidence and is never called by the owned supported path.
 bool BeforeDependentStop(void*) noexcept {
     detail::SetFreshAdmissionEnabled(false);
-    if (consumerRetirement == RetirementState::Quiesced) return true;
+    // The owned path does not invoke an unbounded legacy retirement callback.
+    if (!options.shutdownOwner) return false;
+    if (consumerRetirement == RetirementState::Quiesced) return options.shutdownOwner->ready();
     if (consumerRetirement != RetirementState::NotAttempted) return false;
     consumerRetirement = RetirementState::InProgress;
     ConsumerRetirement answer = ConsumerRetirement::Retained;
-    try { if (options.retireConsumer) answer = options.retireConsumer(options.consumerContext); }
-    catch (...) { }
+    try {
+        if (options.shutdownOwner->drain_until(std::chrono::steady_clock::now() +
+                std::chrono::milliseconds(options.drainTimeoutMs))) answer = ConsumerRetirement::Quiesced;
+    } catch (...) { options.shutdownOwner->fault(); }
     consumerRetirement = answer == ConsumerRetirement::Quiesced
         ? RetirementState::Quiesced : RetirementState::Retained;
     if (consumerRetirement != RetirementState::Quiesced) RevokeFailedHostCapabilities();
@@ -256,6 +260,18 @@ Result Activate() {
     Phase expected = Phase::Prepared;
     if (!phase.compare_exchange_strong(expected, Phase::Activating)) return Result::BadArg;
     if (!Admitted()) { phase = Phase::Prepared; return Result::Unavailable; }
+    // Legacy consumers expose copyable raw service tables and unowned threads.
+    // No callback assertion can prove their exclusion or join: do not activate.
+    const auto& pf = options.platform;
+    if (!options.shutdownOwner || !options.shutdownOwner->open() ||
+        !options.drainTimeoutMs || options.drainTimeoutMs > 60000 ||
+        options.quit != QuitPolicy::External || options.dataCoreHook != DataCoreHook::External ||
+        options.nativeDataCoreReads || pf.gameServices || pf.pluginsEnabled || pf.nBuiltins || pf.scripts ||
+        pf.hostService.start || pf.hostService.tick || pf.hostService.stop ||
+        pf.hostMenu.context || pf.hostMenu.load || pf.hostMenu.frame || pf.hostMenu.stop ||
+        pf.setCapabilities || options.earlyDataRequirement) {
+        phase = Phase::Prepared; return Result::Unavailable;
+    }
     if ((options.quit == QuitPolicy::Required ||
          (options.platform.dataCore && options.dataCoreHook == DataCoreHook::Required) ||
          options.nativeDataCoreReads || options.platform.gameServices) && !NativeBarrierHeld()) {
@@ -321,6 +337,7 @@ Result Start() {
     try {
         auto platform = options.platform;
         platform.dataCore = false; // service already OPEN/LOADED; NEVER reset an early load
+        platform.shutdownOwner = options.shutdownOwner;
         platform.beforeDependentStop = BeforeDependentStop;
         platform.beforeDependentStopContext = nullptr;
         platform.privateSessionAdmitted = Admitted; // exact same fail-closed admission
@@ -389,13 +406,13 @@ Result Stop() {
         if(pak::Enabled()) {RevokeFailedHostCapabilities(); phase=Phase::Failed;return Result::Failed;}
         pakOwned=false;
     }
-    { std::lock_guard<std::mutex> hold(dataMutex); dataInputs.reset(); dataMounts.reset(); }
-    // A refusal or failed provider teardown may leave consumers alive. Retain the
-    // registry and fail the host instead of dropping their published snapshot.
+    // Keep producer inputs until app retirement commits: exit/unload/release may
+    // invalidate the proof. External data hook mode installs no core pak hook.
     Result stopped = Result::Failed;
     try { stopped = app::Stop(); } // service withdrawal AFTER plugin unload
     catch (...) { Log("[game-host] app stop failed with an exception"); }
     if (stopped != Result::Ok) { RevokeFailedHostCapabilities(); phase = Phase::Failed; return stopped; }
+    { std::lock_guard<std::mutex> hold(dataMutex); dataInputs.reset(); dataMounts.reset(); }
     dataActive = false;
     // Quit and native DataCore lifecycle detours are process-retained. Their
     // image and provider code must stay live, so keep the host registry pinned.

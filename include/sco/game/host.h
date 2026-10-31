@@ -3,6 +3,7 @@
 // Requires SCO_GAME_SC=ON; link sco_game_host. The shell supplies OS admission evidence,
 // paths, logging, window/message and renderer adapters. No OS policy is inferred here.
 #include "sco/app.h"
+#include "sco/owned_shutdown.h"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -55,22 +56,15 @@ struct Options {
     // and context must remain valid through Activate.
     bool (*earlyDataRequirement)(const char* name, const SignatureSnapshot& snapshot, void* context) = nullptr;
     void* earlyDataContext = nullptr;
-    // Called at most once after core admission closes and before any pak, app,
-    // plugin or dependent service teardown. A failed Activate can call it on the
-    // Activate thread; Stop calls it on the game thread. Quiesced asserts a durable gate:
-    // product admission is closed, entered product and game-service/native readers
-    // have drained, and asynchronous product/engine callbacks or service readers
-    // cannot enter through all dependent cleanup. It must
-    // synchronize instruction patching with executing threads and safely allow any
-    // required cleanup-thread reentry without reopening asynchronous admission.
-    // Exempt the current Stop/quit control frame from its drain to avoid self-deadlock;
-    // keep its image, trampoline and provider code alive until it exits, and through
-    // process exit wherever retained hooks need them. Do not re-enter host lifecycle
-    // calls. A point-in-time observation or RemoveAll alone is not this guarantee.
-    // Return Retained when no durable proof exists. Null, Retained or an exception refuses
-    // teardown and retains the registry and code. Callback/context outlive Stop.
+    // DEPRECATED: legacy assertion, not invoked or accepted as drain proof.
+    // Retained for source migration; shutdownOwner is required instead.
     ConsumerRetirement (*retireConsumer)(void* context) = nullptr;
     void* consumerContext = nullptr;
+    // Required ownership evidence. Supported only with external quit/data hooks,
+    // no native game services and no legacy plugins/builtins/script/host adapters.
+    // Those consumers can bypass Read/worker admission and remain unsupported.
+    std::shared_ptr<OwnedShutdown> shutdownOwner;
+    uint32_t drainTimeoutMs = 1000; // 1..60000; timeout is terminal, never readiness
 };
 // Serialized host entries, outside loader lock/runtime callouts. Prepare may precede the game
 // thread; Start binds the game thread via app::Start. Unknown/online/EAC/unblocked-network/wrong

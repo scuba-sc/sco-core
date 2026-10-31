@@ -808,9 +808,23 @@ Result Stop() {
 #endif
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
+    const auto refuseRetirement = [] {
+        g_teardownFailed = true;
+        sco::detail::SetRuntimeStopping(true);
+        g_stopping = false;
+        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+        else WithNoHostSignatureRegistry(RevokeCapabilities);
+        return Result::Failed;
+    };
+    // game.exit can fault after the initial proof. Do not unload the first peer
+    // or drop any dependent backing on an invalidated owned proof.
+    if (g_platform.shutdownOwner && !g_platform.shutdownOwner->ready()) return refuseRetirement();
     StopMenu();  // drain host-owned cleanup even if no subsequent Tick occurs
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
-    plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts);
+    try {
+        if (!plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts)) return refuseRetirement();
+    } catch (...) { return refuseRetirement(); }
+    if (g_platform.shutdownOwner && !g_platform.shutdownOwner->ready()) return refuseRetirement();
     bool registryCleanupSafe = !HasRetainedGameHooks();
     if (g_hostServiceStarted) {
         bool stopped = false;

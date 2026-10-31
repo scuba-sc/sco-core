@@ -959,7 +959,9 @@ static void TestNative() {
     CHECK(sco::SubscriptionCount() == subs0 + 2);
     g_closed.clear();
     g_log.clear();
-    P::UnloadAll(list, kRecOps);
+    std::vector<P::Plugin> healthy{ok, second};
+    CHECK(P::UnloadAll(healthy, kRecOps));
+    ok = healthy[0]; second = healthy[1];
     CHECK(ok.state == State::Unloaded && second.state == State::Unloaded && !ok.module && !second.module);
     CHECK((g_closed == std::vector<std::string>{ "1", "1" }));        // each saw exactly one unload()
     CHECK(g_log.size() >= 2 && g_log[0] == "[plugin] unloaded m11" && g_log[1] == "[plugin] unloaded m0");
@@ -1188,17 +1190,10 @@ static void TestServices() {
     CHECK(g_closed.size() == 1);                                               // closed: nothing was handed out
     CHECK(!Logged("kept mapped"));
 
-    size_t expectedCloses = g_closed.size();
-    for (const auto& p : again)
-        if (p.state == State::Loaded && p.manifest.kind == P::Kind::Native &&
-            !sco::ServiceTableHandedOut(p.self)) ++expectedCloses;
-    P::UnloadAll(again, kRecOps);                                              // shutdown ignores refusal
-    CHECK(pinned.state == State::Unloaded && pinned.module == module);
-    CHECK(unloads && *unloads == 1);
-    CHECK(g_closed.size() == expectedCloses);                                 // only unqueried natives closed
-    CHECK(Logged("[plugin] svc_prov_b: kept mapped: its service table was handed out"));
-    CHECK(sco::QueryService("svc_prov_b.svc", v1, &table) == sco::Result::NotFound);
-    CHECK(held->ok() == 7);                                                    // mapped code, not a state guarantee
+    CHECK(!P::UnloadAll(again, kRecOps));
+    CHECK(pinned.state == State::Loaded && pinned.module == module);
+    CHECK(unloads && *unloads == 0);
+    CHECK(sco::QueryService("svc_prov_b.svc", v1, &table) == sco::Result::Ok && table == held);
     P::ContainCallouts(nullptr);
     g_list = nullptr;
     P::SetCallGuard(nullptr);
@@ -1469,8 +1464,9 @@ static void TestPendingFaultShutdown() {
     CHECK(!completed && provider.state == State::Loaded && sco::QueuedTasks() == 1);
     sco::detail::StopRuntime();   // cancels the real fault record, not a synthetic task
     CHECK(sco::QueuedTasks() == 0);
-    P::UnloadAll(list, kRecOps);
-    CHECK(provider.state == State::Faulted && provider.module == module && provider.exports.unload == unload);
+    CHECK(!P::UnloadAll(list, kRecOps));
+    CHECK(provider.state == State::Loaded && caller.state == State::Loaded &&
+          provider.module == module && provider.exports.unload == unload);
     CHECK(Frozen(provider, "fake_unload_calls") == unloads && g_faultReleases == 0);
     CHECK(sco::RemoveReleaseHook(FaultReleaseHook) == sco::Result::Ok);
     g_faultOwner = nullptr;
@@ -1552,12 +1548,68 @@ static void TestFrozenV11() {
 #endif
 }
 
+static int g_shutdownPeerUnloads = 0;
+static P::Plugin* g_shutdownFault = nullptr;
+static void ShutdownPeerUnload() { ++g_shutdownPeerUnloads; }
+static void ShutdownFaultUnload() { P::MarkCrashed(*g_shutdownFault, "unload", 1); }
+static void ShutdownFaultRelease(const void* owner) {
+    if (g_shutdownFault && owner == g_shutdownFault->self) g_shutdownFault->state = State::Faulted;
+}
+
+static void TestShutdownFaultStopsPeers() {
+    for (State initial : {State::Crashed, State::Faulted}) {
+        std::vector<P::Plugin> list(2);
+        list[0].manifest.kind = P::Kind::Builtin;
+        list[0].state = State::Loaded;
+        list[0].exports.unload = ShutdownPeerUnload;
+        list[1].manifest.kind = P::Kind::Native;
+        list[1].state = initial;
+        g_shutdownPeerUnloads = 0;
+        P::UnloadAll(list, kRecOps);
+        CHECK(list[0].state == State::Loaded && g_shutdownPeerUnloads == 0);
+    }
+    std::vector<P::Plugin> list(2);
+    list[0].manifest.kind = P::Kind::Builtin;
+    list[0].state = State::Loaded;
+    list[0].exports.unload = ShutdownPeerUnload;
+    list[1].manifest.kind = P::Kind::Builtin;
+    list[1].state = State::Loaded;
+    list[1].loadOrder = 1;
+    list[1].exports.unload = ShutdownFaultUnload;
+    g_shutdownFault = &list[1];
+    g_shutdownPeerUnloads = 0;
+    P::UnloadAll(list, kRecOps);
+    CHECK(list[1].state == State::Crashed && list[0].state == State::Loaded && g_shutdownPeerUnloads == 0);
+    g_shutdownFault = nullptr;
+}
+
+static void TestShutdownReleaseHookFaultStopsPeers() {
+    std::vector<P::Plugin> list(2);
+    list[0].manifest.kind = P::Kind::Builtin;
+    list[0].state = State::Loaded;
+    list[0].exports.unload = ShutdownPeerUnload;
+    list[1].manifest.kind = P::Kind::Builtin;
+    list[1].state = State::Loaded;
+    list[1].loadOrder = 1;
+    list[1].self = NewOwner();
+    list[1].exports.unload = [] {};
+    g_shutdownFault = &list[1];
+    g_shutdownPeerUnloads = 0;
+    CHECK(sco::AddReleaseHook(ShutdownFaultRelease) == sco::Result::Ok);
+    CHECK(!P::UnloadAll(list, kRecOps));
+    CHECK(list[1].state == State::Faulted && list[0].state == State::Loaded && g_shutdownPeerUnloads == 0);
+    CHECK(sco::RemoveReleaseHook(ShutdownFaultRelease) == sco::Result::Ok);
+    g_shutdownFault = nullptr;
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_plugins <fixtures dir> <out dir>\n"); return 2; }
     g_fixtures = argv[1];
     g_out = argv[2];
     sco::SetLogSink(Sink);
     sco::SetGameThread();
+    TestShutdownFaultStopsPeers();
+    TestShutdownReleaseHookFaultStopsPeers();
     TestManifest();
     TestSettings();
     TestDiscover();

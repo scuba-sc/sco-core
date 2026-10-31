@@ -91,6 +91,10 @@ int main(int argc, char** argv) {
     const bool missingQuit = argc > 1 && std::strcmp(argv[1], "missing-quit") == 0;
     const bool extraPin = argc > 1 && std::strcmp(argv[1], "extra-pin") == 0;
     const std::string mode = argc > 1 ? argv[1] : "";
+    const bool ownedMissing = mode == "owned-missing";
+    const bool ownedLegacy = mode == "owned-legacy";
+    const bool ownedTimeout = mode == "owned-timeout";
+    const bool ownedGood = mode == "owned-good" || ownedTimeout;
     const bool failureStop = mode.rfind("shutdown-", 0) == 0;
     const bool failureLoss = mode.rfind("loss-", 0) == 0;
     const bool failureQuit = mode.rfind("quit-", 0) == 0;
@@ -147,6 +151,13 @@ int main(int argc, char** argv) {
     sco::Image image{bytes, {bytes, 4096}, {bytes + 4096, 4096}, {}, 0, sizeof(bytes)};
     o.image = &image;
     auto ownerToken = std::make_shared<int>(1); o.imageOwner = ownerToken; o.resolverOwner = ownerToken;
+    if (!ownedLegacy && !ownedGood) {
+        CHECK(gh::Prepare(o) == sco::Result::Ok);
+        CHECK(gh::Activate() == sco::Result::Unavailable);
+        CHECK(!sco::AcquireHostSignatureRegistry() && loads == 0);
+        std::printf("legacy host scenario %s: activation refused (unowned consumers)\n", mode.c_str());
+        return failures ? 1 : 0;
+    }
     if (missingQuit) {
         o.platform.gameReadersQuiesced = NativeBarrier; o.platform.gameReadersContext = &shutdownContext;
         CHECK(gh::Prepare(o) == sco::Result::Ok);
@@ -154,6 +165,36 @@ int main(int argc, char** argv) {
         CHECK(gh::Activate() == sco::Result::Unavailable);
         CHECK(gh::Status().phase == gh::Phase::Failed && !gh::Status().quitHookInstalled);
         CHECK(gh::Start() == sco::Result::BadArg && loads == 0);
+        return failures ? 1 : 0;
+    }
+    if (ownedLegacy || ownedGood) o.shutdownOwner = std::make_shared<sco::OwnedShutdown>();
+    if (ownedGood) {
+        o.platform.pluginsEnabled = false; o.platform.nBuiltins = 0;
+        o.platform.hostService = {}; o.dataCoreHook = gh::DataCoreHook::External;
+    }
+    if (ownedMissing || ownedLegacy || ownedGood) {
+        CHECK(gh::Prepare(o) == sco::Result::Ok);
+        if (ownedGood) {
+            CHECK(gh::Activate() == sco::Result::Ok);
+            CHECK(gh::Start() == sco::Result::Ok);
+            if (ownedTimeout) {
+                auto read = o.shutdownOwner->try_read();
+                CHECK(read);
+                const auto registry = sco::AcquireHostSignatureRegistry();
+                CHECK(gh::Stop() == sco::Result::Failed);
+                CHECK(!o.shutdownOwner->ready() && !o.shutdownOwner->try_read());
+                CHECK(sco::AcquireHostSignatureRegistry() == registry);
+                CHECK(gh::Status().phase == gh::Phase::Failed && shutdownCalls == 0);
+                return failures ? 1 : 0;
+            }
+            CHECK(gh::Stop() == sco::Result::Ok);
+            CHECK(o.shutdownOwner->ready() && !o.shutdownOwner->try_read());
+            CHECK(shutdownCalls == 0 && !sco::AcquireHostSignatureRegistry());
+            return failures ? 1 : 0;
+        }
+        CHECK(gh::Activate() == sco::Result::Unavailable);
+        CHECK(!sco::AcquireHostSignatureRegistry() && loads == 0);
+        CHECK(gh::Status().phase == gh::Phase::Prepared);
         return failures ? 1 : 0;
     }
     CHECK(gh::Prepare(o) == sco::Result::Ok);

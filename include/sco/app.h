@@ -47,6 +47,7 @@
 // datacore::service::Stop, game::services::Stop and host::WithdrawGameServices, and
 // host::WithdrawHostServices (host and game services outlive every plugin),
 // ContainCallouts(nullptr).
+#include "sco/owned_shutdown.h"
 #include "sco/plugins.h"
 #include "sco/host_menu.h"
 #include "sco/diagnostics.h"
@@ -124,6 +125,9 @@ struct Platform {
     // and cached users remain drained through teardown; false/throw retains all backing state.
     bool (*beforeDependentStop)(void*) = nullptr;
     void* beforeDependentStopContext = nullptr;
+    // Optional strict host-source session: readiness is rechecked after exit and
+    // plugin retirement; false retains dependent backing and forbids restart.
+    std::shared_ptr<OwnedShutdown> shutdownOwner;
     // Start maps each native plugin from a copy of its DLL (<folder>/.reload-<n>-<entry>), as Reload
     // does, so the original can be rebuilt while the game runs. Off: a native is mapped from its own
     // file until its first Reload (on Windows that file is locked until then). A product turns it on

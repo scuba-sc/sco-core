@@ -518,6 +518,7 @@ static void UnloadCode(Plugin& p, const ModuleOps* ops) {
     }
     if (p.state != State::Loaded) return;   // a nested fault in unload() marked it Crashed: keep that
     if (const Result r = ReleaseOwner(p); r != Result::Ok) { ReleaseFailed(p, r); return; }   // never unmap
+    if (p.state != State::Loaded) return;   // release hooks may fault this plugin
     CloseOrKeep(p, ops);   // stays mapped when a service table of p's was handed out
     p.exports = {};
     p.state = State::Unloaded;
@@ -596,13 +597,14 @@ bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRun
 
 static void UnloadScript(Plugin& p, const ScriptRuntime* runtime) {
     if (const Result r = ReleaseOwner(p); r != Result::Ok) { ReleaseFailed(p, r); return; }   // script kept
+    if (p.state != State::Loaded) return;
     if (runtime && runtime->unload) runtime->unload(p.self);
+    if (p.state != State::Loaded) return;
     p.state = State::Unloaded;
     sco::Log("[plugin] unloaded %s", IdOf(p));
 }
 
-// The teardown of one Loaded plugin, without the session-lifetime check: UnloadAll (host
-// shutdown) must unload everything, so it calls this directly; UnloadOne reserves admission first.
+// Teardown of one Loaded plugin without the mid-session service handout check.
 static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* runtime) {
     if (p.state != State::Loaded) return;
     if (p.self && sco::detail::Released(p.self)) {
@@ -657,7 +659,16 @@ void RemoveReloadCopies(const Plugin& p) {
     for (const fs::path& f : stale) { std::error_code rc; fs::remove(f, rc); }   // a mapped one stays on Windows
 }
 
-void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+bool UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    const auto faulted = [&list] {
+        for (const auto& p : list) {
+            if (p.manifest.kind == Kind::Data) continue;
+            if (p.state == State::Crashed || p.state == State::Faulted ||
+                (p.state == State::Loaded && p.self && sco::detail::Released(p.self))) return true;
+        }
+        return false;
+    };
+    if (faulted()) return false;
     std::vector<Plugin*> loaded;
     for (auto& p : list)
         if (p.state == State::Loaded && p.manifest.kind != Kind::Data) loaded.push_back(&p);
@@ -669,8 +680,11 @@ void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRunt
     for (size_t i = 1; i < loaded.size(); ++i)         // insertion sort
         for (size_t j = i; j > 0 && before(loaded[j], loaded[j - 1]); --j) std::swap(loaded[j - 1], loaded[j]);
     for (Plugin* p : loaded) {
-        UnloadOneNow(*p, &ops, runtime);               // no refusal: host shutdown tears everything down
-    }                                                  // (no-op when one crashed while an earlier one unloaded)
+        if (faulted()) return false;
+        UnloadOneNow(*p, &ops, runtime);
+        if (p->state != State::Unloaded || faulted()) return false;
+    }
+    return true;
 }
 
 // ---- status ---------------------------------------------------------------------------------

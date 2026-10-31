@@ -378,17 +378,10 @@ void CancelUnload(const std::vector<Plugin*>& group);
 // refusal for still-Loaded instances; Faulted instances remain retained.
 void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const ScriptRuntime* runtime = nullptr);
 
-// Unloads every Loaded plugin, last loaded first, built-ins after every other plugin (they are
-// the host's own features, which other plugins may still call while unloading): natives run
-// their unload export, release and close-or-pin without the mid-session refusal; built-ins
-// do the same without a module to close; scripts by sco::Release(self)
-// then runtime.unload(self) (state Unloaded; if Release fails the script is kept and the
-// plugin Crashed, as for natives). This is the host shutdown path: it does not ask CanUnload,
-// so a provider whose service table was handed out is unloaded like any other (its module
-// stays mapped, as for any unload). Faulted instances retain state and are never entered,
-// even at shutdown. runtime may be null when no script was loaded. Data packs
-// stay as they are.
-void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
+// Failed or quarantined code aborts shutdown before any unload; a fault during teardown stops
+// the remaining peers. Returns false on refusal or incomplete teardown, true on success.
+// Healthy handed-out providers still bypass the mid-session refusal. Data packs are unchanged.
+bool UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
                const ScriptRuntime* runtime = nullptr);
 
 // ---- status ---------------------------------------------------------------------------------
