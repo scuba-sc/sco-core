@@ -90,6 +90,27 @@ class Inputs(unittest.TestCase):
                 workflows.generate(self.root)
             self.assertEqual(path.read_text(), text)
 
+    def test_generate_refuses_missing_or_ambiguous_insertion_point(self):
+        path = self.root / workflows.BLOCK_PATH
+        text = path.read_text()
+        start, end = workflows.block_extent(text)
+        text = text[:start] + text[end:]
+        manifest_path = self.root / workflows.MANIFEST
+        manifest = manifest_path.read_bytes()
+        for candidate in (text.replace('## Receipt template', '## Other'),
+                          text + '\n## Receipt template\n'):
+            path.write_text(candidate)
+            with self.assertRaisesRegex(ValueError, 'insertion point'):
+                workflows.generate(self.root)
+            self.assertEqual(path.read_text(), candidate)
+            self.assertEqual(manifest_path.read_bytes(), manifest)
+
+    def test_non_string_resource_is_rejected(self):
+        data = json.loads((self.root / workflows.MANIFEST).read_bytes())
+        data['skills'][0]['resources'] = [{}]
+        with self.assertRaisesRegex(ValueError, 'workflow path'):
+            workflows.manifest_files(workflows.encoded(data))
+
     def test_generate_preserves_crlf_outside_contract(self):
         path = self.root / workflows.BLOCK_PATH
         original = path.read_bytes().replace(b'\n', b'\r\n')

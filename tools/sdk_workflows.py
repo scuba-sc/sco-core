@@ -80,10 +80,11 @@ def manifest_files(raw):
         if not isinstance(item['resources'], list) or len(item['resources']) > 15:
             raise ValueError('Invalid workflow resources')
         names = ['SKILL.md'] + item['resources']
+        for name in names:
+            safe_path(name)
         if len(set(names)) != len(names):
             raise ValueError('Duplicate workflow resource')
         for name in names:
-            safe_path(name)
             if name != 'SKILL.md' and (not name.startswith('references/') or not name.endswith('.md')):
                 raise ValueError('Only declared Markdown references may be indexed')
         result.append((key, ['sdk/skills/' + key + '/' + name for name in names]))
@@ -169,7 +170,10 @@ def generate(root):
     newline = '\r\n' if '\r\n' in text else '\n'
     block = contract_block(manifest, tools).replace('\n', newline)
     if BLOCK_START not in text and BLOCK_END not in text:
-        text = text.replace('## Receipt template', block + newline + newline + '## Receipt template')
+        anchor = '## Receipt template'
+        if text.count(anchor) != 1:
+            raise ValueError('Missing or ambiguous MCP insertion point')
+        text = text.replace(anchor, block + newline + newline + anchor, 1)
     else:
         start, end = block_extent(text)
         text = text[:start] + block + text[end:]
