@@ -204,7 +204,8 @@ metadata; numeric node IDs continue to route events.
 The core archive includes `examples/cs_widgets` and its test driver:
 `dotnet run -c Release --project csharp/Sco.Sdk.Tests -- --widgets`.
 This builds/runs the example against a synthetic host, including missing service,
-all typed events, reentrancy and unload. NativeAOT deployment uses
+all typed events, reentrancy and unload. Its button invokes the example's own
+`cs_widgets.ping` command and reports a refused invocation. NativeAOT deployment uses
 `dotnet publish examples/cs_widgets -c Release -r win-x64`; Windows native loading,
 GPU rendering and gameplay are separate evidence, not claimed by the managed test.
 

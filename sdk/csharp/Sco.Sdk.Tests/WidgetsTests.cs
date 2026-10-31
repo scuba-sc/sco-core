@@ -28,12 +28,40 @@ namespace Sco.Sdk.Tests
         private static string _label = "";
         private static ScoResult _mutation = ScoResult.Ok;
         private static int _thread, _invokes, _logs;
+        private static string _command = "", _lastCommand = "", _lastReply = "";
+        private static string _lastWarning = "";
+        private static ScoResult _lastResult;
+        private static ScoResult _registration = ScoResult.Ok;
+        private static delegate* unmanaged[Cdecl]<ScoArg*, uint, void*, byte*, uint, ScoResult> _commandFn;
+        private static void* _commandCtx;
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
-        private static void Log(void* self, ScoLogLevel level, byte* text) { ++_logs; }
+        private static void Log(void* self, ScoLogLevel level, byte* text)
+        {
+            ++_logs;
+            if (level == ScoLogLevel.Warn) _lastWarning = S(text);
+        }
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static ScoResult RegisterCommand(void* self, ScoCommand* command)
+        {
+            if (self == null || command == null || command->fn == null) return ScoResult.BadArg;
+            if (_registration != ScoResult.Ok) return _registration;
+            _command = S(command->name); _commandFn = command->fn; _commandCtx = command->ctx;
+            return ScoResult.Ok;
+        }
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult Invoke(void* self, byte* name, ScoArg* args, uint count,
             delegate* unmanaged[Cdecl]<ScoResult, byte*, void*, void> done, void* ctx)
-        { ++_invokes; if (done != null) { byte zero = 0; done(ScoResult.Ok, &zero, ctx); } return ScoResult.Ok; }
+        {
+            ++_invokes;
+            _lastCommand = S(name);
+            byte* reply = stackalloc byte[256]; reply[0] = 0;
+            _lastResult = _lastCommand == "test.command" ? ScoResult.Ok :
+                _lastCommand == _command && _commandFn != null
+                    ? _commandFn(args, count, _commandCtx, reply, 256) : ScoResult.NotFound;
+            _lastReply = S(reply);
+            if (done != null) done(_lastResult, reply, ctx);
+            return _lastResult;
+        }
         private static delegate* unmanaged[Cdecl]<byte*, ScoWidgetEvent*, void*, void> _fn;
         private static void* _ctx;
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -183,7 +211,7 @@ namespace Sco.Sdk.Tests
         {
             _thread = Environment.CurrentManagedThreadId;
             foreach ((_, string pin) in WidgetsPins.Lines) Expect(Layout.Check(pin) == null, "layout " + pin);
-            ScoApi api = new() { size = (uint)sizeof(ScoApi), major = 1, minor = 1, query_service = &Query, invoke = &Invoke, log = &Log };
+            ScoApi api = new() { size = (uint)sizeof(ScoApi), major = 1, minor = 1, query_service = &Query, invoke = &Invoke, log = &Log, register_command = &RegisterCommand };
             var p = new Owner();
             Expect(PluginExports.LoadPlugin(p, &api, (void*)1, "test") == ScoResult.Ok, "owner load");
             var w = new Widgets();
@@ -311,9 +339,20 @@ namespace Sco.Sdk.Tests
             var example = new CsWidgets.Demo();
             Expect(PluginExports.LoadPlugin(example, &api, (void*)2, "cs_widgets") == ScoResult.Ok, "archive example load");
             Send(new() { size = 32, node_id = 4, kind = 2 }, _ctx, "cs_widgets.main");
-            Expect(example.Events == 1, "archive example event");
+            Expect(example.Events == 1 && _lastCommand == "cs_widgets.ping" &&
+                   _lastResult == ScoResult.Ok && _lastReply == "pong", "archive example button invokes registered command");
+            _command = ""; // simulate the host refusing the lookup after registration
+            _lastWarning = "";
+            Send(new() { size = 32, node_id = 4, kind = 2 }, _ctx, "cs_widgets.main");
+            Expect(example.Events == 2 && _lastResult == ScoResult.NotFound && _lastWarning.Contains("ping unavailable"),
+                   "archive example reports a refused command");
             PluginExports.UnloadPlugin(example);
             Expect(Registry.Count == 0, "archive example unload");
+            _registration = ScoResult.BadArg;
+            var refused = new CsWidgets.Demo();
+            Expect(PluginExports.LoadPlugin(refused, &api, (void*)2, "cs_widgets") == ScoResult.BadArg && Registry.Count == 0,
+                   "archive example propagates registration failure and cleans up");
+            _registration = ScoResult.Ok;
             _table = null;
             var absent = new CsWidgets.Demo();
             Expect(PluginExports.LoadPlugin(absent, &api, (void*)2, "cs_widgets") == ScoResult.Ok, "archive example without service");
