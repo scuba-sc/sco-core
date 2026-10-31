@@ -53,6 +53,7 @@ namespace Sco.Sdk.Tests
             }
 
             failures += FakeHost.Run();
+            failures += StorageSchemaTests.Run();
             failures += WidgetsTests.Run();
             Console.WriteLine(failures == 0 ? "Sco.Sdk.Tests: OK" : $"Sco.Sdk.Tests: FAILED ({failures})");
             return failures == 0 ? 0 : 1;

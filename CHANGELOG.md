@@ -4,6 +4,17 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- C# storage schema enumeration retries bounded sized strings, preserves outputs on failure, and rejects malformed successful replies. Synthetic fake-host tests cover schema growth and limits.
+
+- `sco.storage` schema enumeration accepts table names and continuations up to
+  16 MiB (excluding NUL), instead of the unrelated 255-byte key-value limit.
+  Empty names are accepted; existing larger output names are not truncated and
+  cannot be passed back as inputs. Column enumeration reports SQLite errors
+  instead of mistaking them for the end of the list, and leaves output sizes
+  unchanged on `SCO_NOT_FOUND` as documented.
+
+- Let Lua schema enumeration read long names and declared types using bounded size-handshake retries. Synthetic provider tests only; not run in game.
+
 - Add an optional packaged consumer requirements report bound to explicit catalogue
   and registry hashes, with language support, scoped static capability evidence
   and a container-reader declaration. It does not establish provider readiness

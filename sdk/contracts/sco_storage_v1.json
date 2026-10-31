@@ -1411,8 +1411,8 @@
       "member_extent": 136,
       "table_size": 144,
       "since": "`size >= 136`; 1.1",
-      "purpose": "The first user table or view whose name sorts after \"after\" (NULL: from the start), in byte order, copied NUL-terminated with the size handshake; its kind goes to out_kind (SCO_STORAGE_KIND_*). The host bookkeeping table sco_kv and SQLite's own sqlite_% objects are never listed. SCO_NOT_FOUND: no more objects; BAD_ARG: malformed after, NULL out/out_kind.",
-      "buffer_contract": "`sco_result (*next_table)(sco_plugin* self, const char* after, char* out, uint32_t* inout_size, uint32_t* out_kind);`<br>The first user table or view whose name sorts after \"after\" (NULL: from the start), in byte order, copied NUL-terminated with the size handshake; its kind goes to out_kind (SCO_STORAGE_KIND_*). The host bookkeeping table sco_kv and SQLite's own sqlite_% objects are never listed. SCO_NOT_FOUND: no more objects; BAD_ARG: malformed after, NULL out/out_kind.",
+      "purpose": "The first user table or view whose name sorts after \"after\" (NULL: from the start), in byte order, copied NUL-terminated with the size handshake; its kind goes to out_kind (SCO_STORAGE_KIND_*). The host bookkeeping table sco_kv and SQLite's own sqlite_% objects are never listed. SCO_NOT_FOUND: no more objects; BAD_ARG: malformed after, NULL out_kind, or an invalid output buffer. A NULL out with size 0 requests the required size. Non-NULL after may be empty or at most 16,777,216 bytes excluding NUL.",
+      "buffer_contract": "`sco_result (*next_table)(sco_plugin* self, const char* after, char* out, uint32_t* inout_size, uint32_t* out_kind);`<br>The first user table or view whose name sorts after \"after\" (NULL: from the start), in byte order, copied NUL-terminated with the size handshake; its kind goes to out_kind (SCO_STORAGE_KIND_*). The host bookkeeping table sco_kv and SQLite's own sqlite_% objects are never listed. SCO_NOT_FOUND: no more objects; BAD_ARG: malformed after, NULL out_kind, or an invalid output buffer. A NULL out with size 0 requests the required size. Non-NULL after may be empty or at most 16,777,216 bytes excluding NUL.",
       "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
       "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
       "callback_context": "unspecified",
@@ -1454,7 +1454,8 @@
             }
           ],
           "tests": [
-            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs",
+            "sdk/csharp/Sco.Sdk.Tests/StorageSchemaTests.cs"
           ]
         },
         "lua": {
@@ -1475,7 +1476,8 @@
         "tests/abi_storage.c",
         "tests/test_storage.cpp",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/StorageSchemaTests.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",
@@ -1494,8 +1496,8 @@
       "member_extent": 144,
       "table_size": 144,
       "since": "`size >= 144`; 1.1",
-      "purpose": "The column at declaration position *inout_index of one own table or view (views report their result columns): name and declared type copy NUL-terminated with two size handshakes; out_flags gets the SCO_STORAGE_COLUMN_* bitmask (a column without a declared type gets \"\"). On success *inout_index advances to the next position. SCO_NOT_FOUND: no such object, or *inout_index is past the last column (outputs untouched). BAD_ARG: NULL inout pointers, malformed table name.",
-      "buffer_contract": "`sco_result (*next_column)(sco_plugin* self, const char* table, uint32_t* inout_index, char* name, uint32_t* name_size, char* type, uint32_t* type_size, uint32_t* out_flags);`<br>The column at declaration position *inout_index of one own table or view (views report their result columns): name and declared type copy NUL-terminated with two size handshakes; out_flags gets the SCO_STORAGE_COLUMN_* bitmask (a column without a declared type gets \"\"). On success *inout_index advances to the next position. SCO_NOT_FOUND: no such object, or *inout_index is past the last column (outputs untouched). BAD_ARG: NULL inout pointers, malformed table name.",
+      "purpose": "The column at declaration position *inout_index of one own table or view (views report their result columns): name and declared type copy NUL-terminated with two size handshakes; out_flags gets the SCO_STORAGE_COLUMN_* bitmask (a column without a declared type gets \"\"). On success *inout_index advances to the next position. SCO_NOT_FOUND: no such object, or *inout_index is past the last column (outputs untouched). BAD_ARG: NULL inout pointers, malformed table name. The table name may be empty or at most 16,777,216 bytes excluding NUL; SQLite execution failures are reported.",
+      "buffer_contract": "`sco_result (*next_column)(sco_plugin* self, const char* table, uint32_t* inout_index, char* name, uint32_t* name_size, char* type, uint32_t* type_size, uint32_t* out_flags);`<br>The column at declaration position *inout_index of one own table or view (views report their result columns): name and declared type copy NUL-terminated with two size handshakes; out_flags gets the SCO_STORAGE_COLUMN_* bitmask (a column without a declared type gets \"\"). On success *inout_index advances to the next position. SCO_NOT_FOUND: no such object, or *inout_index is past the last column (outputs untouched). BAD_ARG: NULL inout pointers, malformed table name. The table name may be empty or at most 16,777,216 bytes excluding NUL; SQLite execution failures are reported.",
       "ownership": "Caller buffers; inputs/SQL parameters copied during call. Host owns database/cursors; no SQLite pointer or allocation crosses the ABI.",
       "thread_affinity": "Any thread; calls serialize per plugin. Same-call recursive reentrancy unspecified.",
       "callback_context": "unspecified",
@@ -1537,7 +1539,8 @@
             }
           ],
           "tests": [
-            "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
+            "sdk/csharp/Sco.Sdk.Tests/Layout.cs",
+            "sdk/csharp/Sco.Sdk.Tests/StorageSchemaTests.cs"
           ]
         },
         "lua": {
@@ -1558,7 +1561,8 @@
         "tests/abi_storage.c",
         "tests/test_storage.cpp",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs",
-        "tests/test_lua.cpp"
+        "tests/test_lua.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/StorageSchemaTests.cs"
       ],
       "limitations": [
         "Same-call recursive reentrancy unspecified.",

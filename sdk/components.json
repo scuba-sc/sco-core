@@ -3146,6 +3146,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "csharp.Sco.Sdk.Tests.StorageSchemaTests.cs",
+      "source": "sdk/csharp/Sco.Sdk.Tests/StorageSchemaTests.cs",
+      "destination": "csharp/Sco.Sdk.Tests/StorageSchemaTests.cs",
+      "profiles": [
+        "core"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "csharp.Sco.Sdk.Tests.FakeHost.cs",
       "source": "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
       "destination": "csharp/Sco.Sdk.Tests/FakeHost.cs",
