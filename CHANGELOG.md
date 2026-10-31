@@ -15,6 +15,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Let Lua schema enumeration read long names and declared types using bounded size-handshake retries. Synthetic provider tests only; not run in game.
 
+- C++ service and raw wrappers return `SCO_UNAVAILABLE` for missing or null host function slots, including on full-size host tables.
+
 - Add an optional packaged consumer requirements report bound to explicit catalogue
   and registry hashes, with language support, scoped static capability evidence
   and a container-reader declaration. It does not establish provider readiness

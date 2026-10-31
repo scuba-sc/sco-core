@@ -124,6 +124,7 @@ if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK) g
 - `Query` answers like `query_service` (`SCO_OK`, `SCO_UNAVAILABLE` for another major or an older version, `SCO_NOT_FOUND`) and `SCO_UNAVAILABLE` on a 1.0 host. The ref is empty unless `SCO_OK`; check it (`if (g)`) before `->`.
 - `HasMember(ref, &T::field)` is true when the provider's `size` covers `field`: the check before calling a function a later minor added.
 - `Release(plugin, name)` stops new lookup of that service; the host withdraws the rest at unload. It does not revoke cached pointers or wait for calls through them.
+- With a host table, `Provide`, `Release`, and `Query` return `SCO_UNAVAILABLE` if it does not cover the corresponding function or the function pointer is null; otherwise they return the host's result. A null host table gives `SCO_BAD_ARG`.
 - `ServiceRef` is a borrowed pointer holder, not a lease. Keep a provided table and all backing state valid until provider-coordinated quiescence: stop new lookup, prevent consumers from starting more calls, and wait for all in-flight calls and custom workers to finish before destruction. Without that coordination, retain them for the admitted host session. Once a native table has been handed out, administrative unload/reload is refused for that session; retained code/state after a fault is not permission to call it. Do not use peer tables during shutdown or across sessions; stop using cached tables and restart after a native fault. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
 - Entity ids, never pointers: a service that deals with game objects takes and returns entity and zone ids (opaque `uint64_t` values, as the game's are), resolves them on every call on the game thread, and answers `SCO_NOT_FOUND` or `SCO_UNAVAILABLE` once the entity has streamed out. Never return a pointer into the game: objects stream out and a stored pointer dangles. See [the API rule](api-v1.md#services-11).
 - Zone ids (`zone_id`, as in [`teleport.spatial`](api-v1.md#game-pack-services)) are volatile streaming handles: the same place gets another id after it streams out and back in. Anything you persist or send keeps the zone name string plus `double` x, y, z in that zone, never the raw id; resolve the name back to an id when you need it.
@@ -137,6 +138,8 @@ if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK) g
 - `InvokeRaw` writes `out` only on `SCO_OK`, and answers `SCO_BAD_ARG` if the handler wrote a size other than `sizeof(Out)` (the two sides disagree about the struct).
 
 For variable-size data use `RegisterRawBytes` and `InvokeRawBytes` with `std::span<const std::byte>` in and `std::span<std::byte>` out; the handler sets `written` to the bytes written, or to the bytes needed with `SCO_TOO_MANY`. Raw calls run on the game thread only (`SCO_WRONG_THREAD` elsewhere).
+
+Registration and invocation return `SCO_UNAVAILABLE` when the host table does not cover the corresponding function or its pointer is null. `InvokeRawBytes` sets `written` to zero in that case.
 
 ## Storage
 

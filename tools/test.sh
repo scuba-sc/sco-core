@@ -470,6 +470,8 @@ PAK_SRC=("$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.
 "$OUT/test_vfs_tsan"
 
 # The C++20 SDK layer: two SDK plugins over the same host table, under both sanitizer sets.
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_sdk_host_slots.cpp" -o "$OUT/test_sdk_host_slots"
+"$OUT/test_sdk_host_slots"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_sdk.cpp" "${HOST_ASAN[@]}" -o "$OUT/test_sdk"
 "$OUT/test_sdk"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_sdk.cpp" "${HOST_TSAN[@]}" -o "$OUT/test_sdk_tsan"
