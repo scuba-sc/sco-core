@@ -3505,33 +3505,3 @@ path = "CMakeLists.txt"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "tests/test_lifecycle_gate.cpp"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = "src/lifecycle_gate.h"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = ["include/sco/owned_shutdown.h", "tests/test_owned_shutdown.cpp", "tests/test_owned_app_stop.cpp"]
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = ["src/owned_shutdown_access.h", "src/app/owned_start.h"]
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
-
-[[annotations]]
-path = ["src/owned_registry_reservation.h", "src/api/owned_publication.h", "src/app/owned_subsystems.h", "src/synthetic_owned_session.h", "src/synthetic_owned_session.cpp", "tests/test_synthetic_owned_session.cpp"]
-precedence = "override"
-SPDX-FileCopyrightText = "2026 the sco-core contributors"
-SPDX-License-Identifier = "GPL-3.0-only"
