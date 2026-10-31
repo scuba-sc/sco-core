@@ -221,7 +221,7 @@ namespace Sco.Sdk
                     }
                     if (result == ScoResult.Ok)
                     {
-                        if (idx <= wanted || !SchemaString(n, ns, out string decodedName) || !SchemaString(y, ys, out string decodedType))
+                        if (wanted == uint.MaxValue || idx != wanted + 1 || !SchemaString(n, ns, out string decodedName) || !SchemaString(y, ys, out string decodedType))
                             return ScoResult.Failed;
                         index = idx; name = decodedName; type = decodedType; flags = f;
                         return ScoResult.Ok;

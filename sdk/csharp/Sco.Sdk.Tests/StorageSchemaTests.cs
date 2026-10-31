@@ -11,7 +11,7 @@ namespace Sco.Sdk.Tests
     internal static unsafe class StorageSchemaTests
     {
         private sealed class Owner : Plugin { }
-        private enum Mode { Normal, Grow, NoProgress, TooLarge, BadZero, BadOver, MissingNul, EarlyNul, BadUtf8, NameBad, IndexBad, HostFailure, FailAfterGrowth, Forever }
+        private enum Mode { Normal, Grow, NoProgress, TooLarge, BadZero, BadOver, MissingNul, EarlyNul, BadUtf8, NameBad, IndexBad, IndexJump, HostFailure, FailAfterGrowth, Forever }
         private static ScoStorageV1* _table;
         private static byte[] _name = Array.Empty<byte>(), _type = Array.Empty<byte>();
         private static Mode _mode;
@@ -88,12 +88,12 @@ namespace Sco.Sdk.Tests
                 return ScoResult.WrongThread;
             }
             if (_mode == Mode.Grow && _calls == 1) { *ns = 300; return ScoResult.TooMany; }
-            if (_mode == Mode.IndexBad)
+            if (_mode == Mode.IndexBad || _mode == Mode.IndexJump)
             {
                 ScoResult r = Copy(_name, name, ns);
                 if (r != ScoResult.Ok) return r;
                 r = Copy(_type, type, ts);
-                *index = _wanted;
+                *index = _mode == Mode.IndexJump ? _wanted + 2 : _wanted;
                 return r;
             }
             if (_mode == Mode.NameBad)
@@ -186,6 +186,9 @@ namespace Sco.Sdk.Tests
             Reset(Mode.IndexBad); index = _wanted;
             Check(storage.NextColumn("schema", ref index, out name, out type, out flags) == ScoResult.Failed &&
                   name == "" && type == "" && flags == 0 && index == _wanted, "non-advancing index cannot commit valid fields");
+            Reset(Mode.IndexJump); index = _wanted;
+            Check(storage.NextColumn("schema", ref index, out name, out type, out flags) == ScoResult.Failed &&
+                  name == "" && type == "" && flags == 0 && index == _wanted, "jumping index cannot commit valid fields");
             Reset(Mode.Normal); _wanted = uint.MaxValue; index = _wanted;
             Check(storage.NextColumn("schema", ref index, out name, out type, out flags) == ScoResult.Failed &&
                   name == "" && type == "" && flags == 0 && index == uint.MaxValue, "wrapped index cannot commit valid fields");
