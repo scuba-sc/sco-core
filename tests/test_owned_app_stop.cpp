@@ -7,6 +7,7 @@
 #endif
 #include "sco_ui.h"
 #include "sco_storage.h"
+#include "sco_net.h"
 #include "../src/app/owned_start.h"
 #include "../src/owned_shutdown_access.h"
 #include "../src/owned_registry_reservation.h"
@@ -23,13 +24,16 @@
 #include <thread>
 namespace sco::ui::testing { void SetTableExitHook(void (*)(void*), void*) noexcept; }
 namespace sco::storage::testing { void SetTableExitHook(void (*)(void*), void*) noexcept; }
+namespace sco::net::testing { void SetTableExitHook(void (*)(void*), void*) noexcept; const sco_net_v1* TableUnchecked() noexcept; }
 struct TableGate {
     std::promise<void> entered;
     std::shared_future<void> release;
+    std::shared_ptr<sco::OwnedShutdown> faultOwner;
     static void Hold(void* context) {
         auto& gate = *static_cast<TableGate*>(context);
         gate.entered.set_value();
         gate.release.wait();
+        if (gate.faultOwner) gate.faultOwner->fault();
     }
 };
 static std::shared_ptr<sco::OwnedShutdown> domain;
@@ -51,6 +55,18 @@ static_assert(offsetof(sco_ui_v1, register_tab) == 2 * sizeof(uint32_t));
 static_assert(sizeof(sco_ui_v1) == offsetof(sco_ui_v1, register_tab) + 9 * sizeof(sco_ui_v1::register_tab));
 static_assert(offsetof(sco_storage_v1, put) == 2 * sizeof(uint32_t));
 static_assert(sizeof(sco_storage_v1) == offsetof(sco_storage_v1, put) + 17 * sizeof(sco_storage_v1::put));
+static_assert(offsetof(sco_net_v1, is_active) == 2 * sizeof(uint32_t));
+static_assert(sizeof(sco_net_v1) == offsetof(sco_net_v1, is_active) + 7 * sizeof(sco_net_v1::is_active));
+static void CheckClosedNet(const sco_net_v1& net) {
+    uint32_t count = 7;
+    CHECK(net.is_active() == 0 && net.self_peer() == 0);
+    CHECK(net.get_peers(nullptr, &count) == SCO_UNAVAILABLE && count == 7);
+    char name[8]{};
+    CHECK(net.get_peer_name(0, name, sizeof(name)) == SCO_UNAVAILABLE);
+    CHECK(net.send_channel(nullptr, "a.b", nullptr, 0) == SCO_UNAVAILABLE);
+    CHECK(net.register_channel(nullptr, "a.b", 0, 1, nullptr, nullptr) == SCO_UNAVAILABLE);
+    CHECK(net.unregister_channel(nullptr, "a.b") == SCO_UNAVAILABLE);
+}
 static void CheckClosedTables(const sco_ui_v1& u, const sco_storage_v1& s) {
     char buffer[16] = {}; uint32_t size = sizeof(buffer), index = 4, flags = 5, count = 6;
     int64_t changes = 7; uint64_t cursor = 8; sco_sql_value value{};
@@ -169,6 +185,8 @@ int main(int argc, char** argv) {
             sco::detail::SetGameThreadOwned(&cap);
             const void* table = nullptr;
             CHECK(sco::QueryService("fixture.service", 1u << 16, &table) == sco::Result::Unavailable && !table);
+            CHECK(!sco::net::Table());
+            CheckClosedNet(*sco::net::testing::TableUnchecked());
             if (std::string(argv[1]) == "startup-publication") {
                 static int reentrantOwner, reentrantTable;
                 CHECK(sco::ProvideService(&reentrantOwner, "rogue", "rogue.service", 1u << 16, &reentrantTable) == sco::Result::Unavailable);
@@ -206,6 +224,47 @@ int main(int argc, char** argv) {
         CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
         return 0;
     }
+    if (argc > 1 && (std::string(argv[1]) == "net-cached-table" || std::string(argv[1]) == "net-call-drain" ||
+                     std::string(argv[1]) == "net-active-drain" || std::string(argv[1]) == "net-peer-drain" ||
+                     std::string(argv[1]) == "net-fault-drain")) {
+        CHECK(StartFixture(p));
+        const void* raw = nullptr;
+        CHECK(sco::QueryService(SCO_NET_NAME, SCO_NET_VERSION_1_0, &raw) == sco::Result::Ok && raw);
+        const auto net = *static_cast<const sco_net_v1*>(raw);
+        if (std::string(argv[1]) != "net-cached-table") {
+            std::promise<void> release; TableGate gate{{}, release.get_future().share(), {}};
+            if (std::string(argv[1]) == "net-fault-drain") gate.faultOwner = domain;
+            sco::net::testing::SetTableExitHook(TableGate::Hold, &gate);
+            uint32_t count = 0;
+            const std::string mode = argv[1];
+            auto call = std::async(std::launch::async, [&]() -> uint64_t {
+                if (mode == "net-active-drain") return static_cast<uint64_t>(net.is_active());
+                if (mode == "net-peer-drain") return net.self_peer();
+                return static_cast<uint64_t>(net.get_peers(nullptr, &count));
+            });
+            CHECK(gate.entered.get_future().wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+            auto drain = std::async(std::launch::async, [&] {
+                return domain->drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(3));
+            });
+            CHECK(domain->wait_until_closed(std::chrono::steady_clock::now() + std::chrono::seconds(2)));
+            CHECK(drain.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
+            release.set_value();
+            CHECK(call.get() == 0 && count == 0);
+            CHECK(drain.get() == (std::string(argv[1]) != "net-fault-drain"));
+            sco::net::testing::SetTableExitHook(nullptr, nullptr);
+        } else {
+            uint32_t count = 0;
+            CHECK(net.get_peers(nullptr, &count) == SCO_OK && count == 0);
+            sco::detail::SetRuntimeStopping(true);
+            CHECK(domain->open());
+            CheckClosedNet(net);
+            sco::detail::SetRuntimeStopping(false);
+            domain->fault();
+        }
+        CheckClosedNet(net);
+        CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
+        return 0;
+    }
     if (argc > 1 && (std::string(argv[1]) == "service-failure" || std::string(argv[1]) == "service-fault-ok")) {
         p.hostService.start = ServiceOk;
         p.hostService.tick = ServiceOk;
@@ -222,7 +281,7 @@ int main(int argc, char** argv) {
         CHECK(sco::QueryService(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_0, &storageRaw) == sco::Result::Ok && storageRaw);
         const auto ui = *static_cast<const sco_ui_v1*>(uiRaw);
         const auto storage = *static_cast<const sco_storage_v1*>(storageRaw);
-        std::promise<void> release; TableGate gate{{}, release.get_future().share()};
+        std::promise<void> release; TableGate gate{{}, release.get_future().share(), {}};
         const bool uiCase = std::string(argv[1]) == "ui-call-drain";
         if (uiCase) sco::ui::testing::SetTableExitHook(TableGate::Hold, &gate);
         else sco::storage::testing::SetTableExitHook(TableGate::Hold, &gate);

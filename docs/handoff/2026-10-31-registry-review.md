@@ -73,10 +73,14 @@ The synthetic session's one-slot table is a private, typed fixture: it copies a
 scalar under an owner read, retains its capsule for process lifetime, and has no
 queue, plugin, native entry, mapped view or external callback in its production
 surface. Its terminal `QuiescedRetained` result is not an app-stop result.
-All UI and storage table functions acquire admission for their complete calls,
+All UI, storage and network table functions acquire admission for their complete calls,
 including input and output copying. Refusal at admission returns unavailable
 before invoking the entry; output values are left untouched except that
-`normalize_chord` clears its size. This is not a census of other service tables,
+`normalize_chord` clears its size; network scalar entries return zero and its
+result entries return unavailable without writing outputs. An already admitted
+network call may return its computed result after a concurrent fault, while the
+fault prevents successful retirement. Direct network C++ observers, including
+`WaitForDelivery`, remain outside this table census. This is not a census of other service tables,
 callbacks or pointers returned by tables. The current C query API can return arbitrary opaque plugin tables;
 it cannot interpose on calls after lookup, and IPC mapped views outlive calls.
 Those paths cannot establish successful application retirement.

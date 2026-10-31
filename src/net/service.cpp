@@ -123,10 +123,21 @@ ServiceStats                g_stats;
 
 sco_result C(Result r) { return static_cast<sco_result>(static_cast<uint32_t>(r)); }
 
+#ifdef SCO_OWNED_TABLE_TESTING
+void (*g_tableExitHook)(void*) = nullptr;
+void* g_tableExitHookContext = nullptr;
+#endif
 template <class F>
 sco_result Guard(F&& f) noexcept {
     try {
-        return C(f());
+        sco::detail::RuntimeLease admission;
+        if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping()))
+            return SCO_UNAVAILABLE;
+        const auto result = C(f());
+#ifdef SCO_OWNED_TABLE_TESTING
+        if (g_tableExitHook) g_tableExitHook(g_tableExitHookContext);
+#endif
+        return result;
     } catch (...) {
         return SCO_TOO_MANY;
     }
@@ -445,8 +456,16 @@ Result Owned(sco_plugin* self, const char* fqn, std::string* out) {
 }
 
 int IsActive() {
-    std::lock_guard<std::mutex> hold(g_lock);
-    return g_started && g_active ? 1 : 0;
+    try {
+        sco::detail::RuntimeLease admission;
+        if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return 0;
+        int result;
+        { std::lock_guard<std::mutex> hold(g_lock); result = g_started && g_active ? 1 : 0; }
+#ifdef SCO_OWNED_TABLE_TESTING
+        if (g_tableExitHook) g_tableExitHook(g_tableExitHookContext);
+#endif
+        return result;
+    } catch (...) { return 0; }
 }
 
 sco_result GetPeers(sco_net_peer* out, uint32_t* io) {
@@ -598,8 +617,16 @@ sco_result UnregisterChannel(sco_plugin* self, const char* fqn) {
 }
 
 uint64_t SelfPeer() {
-    std::lock_guard<std::mutex> hold(g_lock);
-    return g_started && g_active ? g_self : 0;
+    try {
+        sco::detail::RuntimeLease admission;
+        if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return 0;
+        uint64_t result;
+        { std::lock_guard<std::mutex> hold(g_lock); result = g_started && g_active ? g_self : 0; }
+#ifdef SCO_OWNED_TABLE_TESTING
+        if (g_tableExitHook) g_tableExitHook(g_tableExitHookContext);
+#endif
+        return result;
+    } catch (...) { return 0; }
 }
 
 const sco_net_v1 kTable = {
@@ -653,6 +680,16 @@ void MessageThunk(void* p) {
 }
 
 }  // namespace
+
+#ifdef SCO_OWNED_TABLE_TESTING
+namespace testing {
+const sco_net_v1* TableUnchecked() noexcept { return &kTable; }
+void SetTableExitHook(void (*hook)(void*), void* context) noexcept {
+    g_tableExitHook = hook;
+    g_tableExitHookContext = context;
+}
+}
+#endif
 
 static Result StartImpl(const ServiceOptions& opts, const sco::detail::StartupPublish* cap) {
     if (cap && !cap->valid()) return Result::Unavailable;
