@@ -368,11 +368,27 @@ static void TestSchemaNames(sco_plugin* a) {
     index = 0; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
     CHECK(g_st->next_column(a, first.c_str(), &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_OK && index == 1);
 
+    char name_sentinel[] = "name-data", type_sentinel[] = "type-data";
+    const struct { const char* table; uint32_t position; } misses[] = {{"no_such_object", 0}, {first.c_str(), 5}};
+    for (const auto& missing : misses) {
+        index = missing.position;
+        nsize = sizeof name_sentinel; tsize = sizeof type_sentinel; flags = 0x1234u;
+        CHECK(g_st->next_column(a, missing.table, &index, name_sentinel, &nsize, type_sentinel, &tsize, &flags) == SCO_NOT_FOUND &&
+              index == missing.position && nsize == sizeof name_sentinel && tsize == sizeof type_sentinel && flags == 0x1234u &&
+              std::strcmp(name_sentinel, "name-data") == 0 && std::strcmp(type_sentinel, "type-data") == 0);
+    }
+    uint32_t shared_size = sizeof name_sentinel;
+    index = 0; flags = 0x1234u;
+    CHECK(g_st->next_column(a, "no_such_object", &index, name_sentinel, &shared_size,
+                            type_sentinel, &shared_size, &flags) == SCO_NOT_FOUND &&
+          shared_size == sizeof name_sentinel && index == 0 && flags == 0x1234u &&
+          std::strcmp(name_sentinel, "name-data") == 0 && std::strcmp(type_sentinel, "type-data") == 0);
+
     // SQLite permits this view, but resolving its columns fails during sqlite3_step.
     CHECK(Exec(a, "CREATE VIEW invalid_view AS SELECT * FROM absent_table") == SCO_OK);
     index = 0; flags = 99; nsize = static_cast<uint32_t>(cname.size()); tsize = static_cast<uint32_t>(ctype.size());
     CHECK(g_st->next_column(a, "invalid_view", &index, cname.data(), &nsize, ctype.data(), &tsize, &flags) == SCO_FAILED &&
-          index == 0 && flags == 99);
+          index == 0 && flags == 99 && nsize == 0 && tsize == 0);
     CHECK(LastError(a).find("absent_table") != std::string::npos);
     CHECK(Exec(a, "DROP VIEW invalid_view") == SCO_OK);
 

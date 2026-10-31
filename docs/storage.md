@@ -26,7 +26,8 @@ returned, but cannot be supplied as a continuation or table name; such a schema
 is not fully enumerable through these calls. If SQLite cannot bind a validated
 name, the call reports that failure instead of continuing with an unbound value.
 Column enumeration also reports a SQLite execution failure rather than treating
-it as the end of the column list.
+it as the end of the column list. On `SCO_NOT_FOUND`, `next_column` leaves the
+index, both output buffers and their size values, and the flags unchanged.
 
 ## Contents
 

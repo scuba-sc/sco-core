@@ -10,7 +10,8 @@ What each change means for plugin authors and for products built on sco-core (sc
   16 MiB (excluding NUL), instead of the unrelated 255-byte key-value limit.
   Empty names are accepted; existing larger output names are not truncated and
   cannot be passed back as inputs. Column enumeration reports SQLite errors
-  instead of mistaking them for the end of the list.
+  instead of mistaking them for the end of the list, and leaves output sizes
+  unchanged on `SCO_NOT_FOUND` as documented.
 
 - Let Lua schema enumeration read long names and declared types using bounded size-handshake retries. Synthetic provider tests only; not run in game.
 

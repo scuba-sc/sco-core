@@ -817,6 +817,7 @@ sco_result NextColumn(sco_plugin* self, const char* table, uint32_t* inout_index
         if (!CopySchemaName(table, t)) return Result::BadArg;
         const uint32_t wanted = *inout_index;
         uint32_t flags = 0;
+        bool notFound = false;
         {
             Call call;
             const Result r = Enter(self, call);
@@ -829,15 +830,24 @@ sco_result NextColumn(sco_plugin* self, const char* table, uint32_t* inout_index
             uint32_t seen = 0;
             int rc;
             while ((rc = sqlite3_step(q.s)) == SQLITE_ROW && seen++ != wanted) {}
-            if (rc == SQLITE_DONE) return Result::NotFound;
-            if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
-            const unsigned char* nm = sqlite3_column_text(q.s, 0);
-            if (!nm) return Fail(d, SQLITE_NOMEM, Result::TooMany);
-            name.assign(reinterpret_cast<const char*>(nm), static_cast<size_t>(sqlite3_column_bytes(q.s, 0)));
-            const unsigned char* tp = sqlite3_column_text(q.s, 1);   // NULL: column without declared type
-            if (tp) type.assign(reinterpret_cast<const char*>(tp), static_cast<size_t>(sqlite3_column_bytes(q.s, 1)));
-            flags = (sqlite3_column_int(q.s, 2) ? SCO_STORAGE_COLUMN_NOTNULL : 0u) |
-                    (sqlite3_column_int(q.s, 3) ? SCO_STORAGE_COLUMN_PK : 0u);
+            if (rc == SQLITE_DONE) {
+                notFound = true;
+            } else {
+                if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
+                const unsigned char* nm = sqlite3_column_text(q.s, 0);
+                if (!nm) return Fail(d, SQLITE_NOMEM, Result::TooMany);
+                name.assign(reinterpret_cast<const char*>(nm), static_cast<size_t>(sqlite3_column_bytes(q.s, 0)));
+                const unsigned char* tp = sqlite3_column_text(q.s, 1);   // NULL: column without declared type
+                if (tp) type.assign(reinterpret_cast<const char*>(tp), static_cast<size_t>(sqlite3_column_bytes(q.s, 1)));
+                flags = (sqlite3_column_int(q.s, 2) ? SCO_STORAGE_COLUMN_NOTNULL : 0u) |
+                        (sqlite3_column_int(q.s, 3) ? SCO_STORAGE_COLUMN_PK : 0u);
+            }
+        }
+        if (notFound) {
+            // TakeBuffer cleared the capacities; restore them after releasing the database lock.
+            *name_io = ncap;
+            if (type_io != name_io) *type_io = tcap;
+            return Result::NotFound;
         }
         *name_io = ncap;
         *type_io = tcap;
