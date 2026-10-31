@@ -19,7 +19,11 @@ namespace sco::game::services {
 
 // Refuses before mutation until a native exclusion proof is available.
 Result Start();
-// Game thread. Failed means cleanup is live or uncertain: retain backing state and
+// Game thread. In a fresh process, after Start refuses, Stop is an idempotent
+// game-service cleanup no-op returning Ok; on another thread it returns
+// WrongThread without cleanup. Even that call counts as legacy runtime use and
+// prevents later strict owned-runtime binding.
+// Failed means cleanup is live or uncertain: retain backing state and
 // require process restart. Other services are withdrawn where safe; repeated Stop
 // does not retry a latched uncertain cleanup.
 Result Stop();

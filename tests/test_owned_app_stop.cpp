@@ -158,6 +158,21 @@ int main(int argc, char** argv) {
         CHECK(!sco::game::services::Started());
         CHECK(sco::game::services::Start() == sco::Result::Unavailable);
         CHECK(!sco::game::services::Started());
+        // No game thread is installed: even an empty Stop is refused there.
+        CHECK(sco::game::services::Stop() == sco::Result::WrongThread);
+        CHECK(sco::OwnedShutdownHostAccess::begin_startup(*domain));
+        {
+            auto transition = sco::OwnedShutdownHostAccess::transition(*domain);
+            CHECK(transition && !sco::detail::BindRuntimeStartup(domain, transition));
+        }
+        sco::SetGameThread();
+        CHECK(sco::game::services::Stop() == sco::Result::Ok);
+        CHECK(sco::game::services::Stop() == sco::Result::Ok);
+        CHECK(sco::game::services::FinalizeStopAfterQuiescence() == sco::Result::Ok);
+        sco::Result other = sco::Result::Ok;
+        std::thread worker([&] { other = sco::game::services::Stop(); });
+        worker.join();
+        CHECK(other == sco::Result::WrongThread && !sco::game::services::Started());
         CHECK(!sco::AcquireHostSignatureRegistry());
         return 0;
     }

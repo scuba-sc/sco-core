@@ -107,6 +107,11 @@ The separate game-thread cvar cleanup inspection is not covered by this change
 and must remain unavailable in an owned transaction until independently proven.
 Unowned callbacks and returned views still block successful real-application
 retirement. The test-only lifecycle fixture is not native proof.
+In a fresh process, after direct `game::services::Start` refusal, `Stop` returns
+`WrongThread` off the game thread and is an idempotent game-service cleanup no-op
+on it. Its thread check still counts as legacy runtime use, so a subsequent
+strict owned-runtime binding is refused. This observation is a source contract;
+the corresponding Windows-only regression requires hosted execution.
 The earlier Windows app fixture's real game-service table and capability coverage
 is explicitly skipped while production startup refuses these services. The mock
 boundary fixture preserves its failure-order tests but does not replace that coverage.
@@ -122,3 +127,56 @@ every non-`Ok` `Stop`; only a later `Ok` permits the normal cleanup. A startup
 `RetainDependencies` remains process-retained even if `Stop` later says `Ok`.
 These are
 C++ host-source changes, not a change to the frozen plain-C plugin table.
+
+## Bounded non-native mock host integration
+
+An engine-owned mock host can use the existing **legacy** app path in a fresh,
+isolated process with no prior app, registry, runtime or foreign provider, without
+asserting that the app has a successful owned retirement implementation. Its
+product capsule must actually own every referenced table, callback context,
+backing object and executable module; code may instead be linked into an
+executable guaranteed to stay mapped. A dummy `shared_ptr` or a borrowed
+pointer is not ownership. Select `gameServices=false`, no image or signature
+resolver, no external plugins, scripts, built-ins, private session, native hook,
+runtime inspection or host menu. Avoid IPC mapping views and native network
+sessions. Any mock provider must be an explicitly enumerated, capsule-owned
+fixture, never an arbitrary foreign provider or unloadable module.
+
+The engine must keep a thread-safe admission gate around **every entire ordinary
+call** into the app, each mock table, its callbacks and any output copy;
+returning a raw table or a view outside that gate is not sufficient. The
+serialized `StartDetailed`/`Stop` control frame is excluded from the reader
+census and itself keeps its dependencies alive. No untracked caller, worker or
+cached view may survive the gate. Close new admission, drain in-flight calls and
+join all workers including thread-local destruction before cleanup. The
+`beforeDependentStop` adapter must maintain this exclusion throughout `Stop`,
+including synchronous cleanup callbacks. Controlled callbacks invoked directly
+by `StartDetailed` or `Stop` run as part of that serialized control frame; they
+must not re-enter `StartDetailed`/`Stop`, wait for the closed ordinary-reader
+gate, or enqueue or spawn work surviving teardown. The adapter can also be
+invoked on a partial startup failure and must not wait for its own control frame. A boolean callback
+without that durable engine-side behavior is not evidence of exclusion. A
+host-service start callback, if used, must be failure-atomic or leave nothing
+exposed when it fails; otherwise omit it.
+
+Use `StartDetailed` and retain the capsule after `Started` through a proven
+successful `Stop`. `RefusedBeforeExposure` concerns only that invocation and
+does not free aliases retained by a prior invocation. On `RetainDependencies`,
+or an uncertain startup exception, retain the full capsule until process exit;
+do not infer cleanup from a later `Stop`. After `Started`, a non-`Ok` stop
+retains the closure and forbids restart unless a later `Stop` returns `Ok`.
+Even then, release only after the engine gate and all returned views and worker
+lifetimes are accounted for. This is a contract for a separately tested mock
+integration, not proof that arbitrary providers or native targets are safe.
+
+For that integration, an engine capsule may choose the stricter terminal states
+`Released` (this invocation exposed nothing and no other invocation retains its
+dependencies, or it started and stopped cleanly). Either case also requires
+closed admission and all relevant readers, views, callbacks and workers drained
+or proven never to have existed. `FailedRetained` covers any uncertain start or
+stop, with the whole closure rooted until process exit and no restart. A
+`QuiescedRetained` state requires closed admission, proof of that full drain,
+fault-versus-terminal-commit serialization and retention of the whole closure
+until process exit; it cannot authorize cleanup or restart. It is not returned
+by core's app API and cannot be inferred from a timeout or the private
+synthetic-session fixture.
