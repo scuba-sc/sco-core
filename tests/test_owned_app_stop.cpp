@@ -90,13 +90,14 @@ static void CheckClosedSchema(const sco_storage_v1& s) {
     char table[] = "table sentinel";
     uint32_t tableSize = sizeof(table), kind = 123;
     CHECK(s.next_table(nullptr, "", table, &tableSize, &kind) == SCO_UNAVAILABLE &&
-          tableSize == sizeof(table) && kind == 123 && std::strcmp(table, "table sentinel") == 0);
+          tableSize == sizeof(table) && kind == 123 && std::memcmp(table, "table sentinel", sizeof(table)) == 0);
 
     char name[] = "name sentinel", type[] = "type sentinel";
     uint32_t nameSize = sizeof(name), typeSize = sizeof(type), index = 4, flags = 5;
     CHECK(s.next_column(nullptr, "", &index, name, &nameSize, type, &typeSize, &flags) == SCO_UNAVAILABLE &&
           index == 4 && flags == 5 && nameSize == sizeof(name) && typeSize == sizeof(type) &&
-          std::strcmp(name, "name sentinel") == 0 && std::strcmp(type, "type sentinel") == 0);
+          std::memcmp(name, "name sentinel", sizeof(name)) == 0 &&
+          std::memcmp(type, "type sentinel", sizeof(type)) == 0);
 }
 static void CheckClosedTables(const sco_ui_v1& u, const sco_storage_v1& s) {
     char buffer[16] = {}; uint32_t size = sizeof(buffer), count = 6;
