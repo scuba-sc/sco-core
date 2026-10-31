@@ -14,7 +14,8 @@ local function check(value, err, msg)
 end
 
 -- Roll back ordinary operation/commit failures. Forced interruption can still
--- prevent script cleanup; the host owns unload/crash transaction cleanup.
+-- prevent script cleanup; ordinary unload/non-retained crash cleanup is host-owned.
+-- A retained-provider fault can require restart and does not promise cleanup.
 local function transaction(fn)
   check(store.begin())
   local ok, result = pcall(function()
