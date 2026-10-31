@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Add synthetic owned-signature capacity regressions at 511/512/513, 1,501 and 2,049 rows: incremental ID-index growth, actual allocation failure/retry, and immutable snapshot lifetime during publication and registry destruction. Core-source kit includes the test. Not run in game.
+
 - Refuse native ASOP startup until the host supplies a proven safe phase and reader lifetime protocol.
 
 - Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.

@@ -1437,6 +1437,11 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_signature_registry PRIVATE sco_core)
   sco_project_target(test_signature_registry)
   add_test(NAME test_signature_registry COMMAND test_signature_registry)
+  add_executable(test_signature_capacity tests/test_signature_capacity.cpp)
+  target_link_libraries(test_signature_capacity PRIVATE sco_core)
+  sco_project_target(test_signature_capacity)
+  add_test(NAME test_signature_capacity COMMAND test_signature_capacity)
+  set_tests_properties(test_signature_capacity PROPERTIES TIMEOUT 30)
   add_executable(test_signature_baseline
     tests/signature_differential/scenarios.cpp
     tests/signature_differential/baseline/src/sco_signatures.cpp

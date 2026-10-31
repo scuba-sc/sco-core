@@ -350,6 +350,9 @@ parallel_compile tsan "${SHARED_TSAN_SOURCES[@]}"
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_signature_registry.cpp" \
   $(obj asan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp") -o "$OUT/test_signature_registry"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_signature_capacity.cpp" \
+  $(obj asan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp") -o "$OUT/test_signature_capacity"
+"$OUT/test_signature_capacity"
 "$OUT/test_signature_registry"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_signature_registry.cpp" \
   $(obj tsan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp") -o "$OUT/test_signature_registry_tsan"
