@@ -68,9 +68,15 @@ bool RebuildFleetShips(const Catalog& next) {
     const char* names[kMaxShips];
     for(size_t i=0;i<next.count;++i) names[i]=next.names[i].data();
     AcquireSRWLockExclusive(&g_shipsLock);
-    const bool ok=RebuildFleet(g_table,g_buffer,names,next.count,ResolveFleetClass,nullptr,std::calloc);
+    size_t skipped=0;
+    // Only initial publication preserves the legacy skip-unresolved policy.
+    // Runtime replacements remain all-or-nothing (and native Reconfigure is refused).
+    const bool initial=!g_shipsBuilt;
+    const bool ok=RebuildFleet(g_table,g_buffer,names,next.count,ResolveFleetClass,nullptr,std::calloc,
+                               initial ? &skipped : nullptr);
     if(ok) g_shipsBuilt=true;
     ReleaseSRWLockExclusive(&g_shipsLock);
+    if(ok && initial && skipped) Log("[fleet] initial list skipped %zu unresolved ship classes",skipped);
     return ok;
 }
 

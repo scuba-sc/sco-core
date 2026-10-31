@@ -23,7 +23,8 @@ inline bool FleetNameEqual(const char* a,const char* b) {
 // Caller serializes publication. Resolver must contain engine faults before returning.
 // A published buffer is deliberately never freed: engine consumers can retain it.
 inline bool RebuildFleet(FleetTable& table,FleetBuffer& buffer,const char* const* names,size_t count,
-                         FleetResolve resolve,void* context,FleetAllocate allocate) {
+                         FleetResolve resolve,void* context,FleetAllocate allocate,size_t* initialSkipped=nullptr) {
+    size_t skipped=0;
     if(count>kFleetCapacity || (count && !names) || !resolve || !allocate) return false;
     auto next=std::unique_ptr<FleetTable>(new(std::nothrow) FleetTable(table));
     if(!next) return false;
@@ -32,6 +33,11 @@ inline bool RebuildFleet(FleetTable& table,FleetBuffer& buffer,const char* const
         if(!names[i]) return false;
         size_t length=0; while(length<64 && names[i][length]) ++length;
         if(!length || length==64) return false;
+        uintptr_t cls=0; uint64_t guid[2]{};
+        if(!resolve(context,names[i],cls,guid) || !cls || !(guid[0]|guid[1])) {
+            if(!initialSkipped) return false;
+            ++skipped; continue;
+        }
         size_t slot=0;
         while(slot<next->count && !FleetNameEqual(next->slots[slot].name,names[i])) ++slot;
         if(slot==next->count) {
@@ -40,8 +46,7 @@ inline bool RebuildFleet(FleetTable& table,FleetBuffer& buffer,const char* const
         }
         auto& item=next->slots[slot];
         if(item.selected) return false;
-        item.selected=true; item.cls=0; item.guid[0]=item.guid[1]=0;
-        if(!resolve(context,names[i],item.cls,item.guid) || !item.cls || !(item.guid[0]|item.guid[1])) return false;
+        item.selected=true; item.cls=cls; item.guid[0]=guid[0]; item.guid[1]=guid[1];
     }
     auto* bytes=static_cast<uint8_t*>(allocate(count?count:1,kFleetEntitlementSize));
     if(!bytes) return false;
@@ -61,6 +66,8 @@ inline bool RebuildFleet(FleetTable& table,FleetBuffer& buffer,const char* const
         table.slots[i].cls=next->slots[i].cls; table.slots[i].selected=next->slots[i].selected;
         std::memcpy(table.slots[i].guid,next->slots[i].guid,sizeof(table.slots[i].guid));
     }
-    table.count=next->count; buffer={bytes,written}; return true;
+    table.count=next->count; buffer={bytes,written};
+    if(initialSkipped) *initialSkipped=skipped;
+    return true;
 }
 }
