@@ -6,6 +6,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Fix the C# widgets example button to invoke its own registered ping command and report refusals.
 
+- Add an optional packaged consumer requirements report bound to explicit catalogue
+  and registry hashes, with language support, scoped static capability evidence
+  and a container-reader declaration. It does not establish provider readiness
+  or release approval; not run in game.
+
 - Refuse native ASOP startup until the host supplies a proven safe phase and reader lifetime protocol.
 
 - Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.
