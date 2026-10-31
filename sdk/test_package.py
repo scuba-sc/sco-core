@@ -461,6 +461,14 @@ class RealManifest(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(json.loads(result.stdout)["items"][0]["result"], "unsupported")
 
+    def test_storage_examples_match_notebook_coverage(self):
+        records = {record["symbol"]: record for record in json.loads(pkg.developer_catalogue("legacy"))["records"]}
+        notebook = "sdk/examples/notebook/main.lua"
+        for method in ("get", "put", "del", "next_key", "begin", "commit", "rollback"):
+            self.assertIn(notebook, records["sco_storage_v1." + method]["examples"])
+        for method in ("exec", "query", "step", "column_count", "column", "column_name", "close", "last_error"):
+            self.assertNotIn(notebook, records["sco_storage_v1." + method]["examples"])
+
     def test_archive_agent_discovery_and_scaffold(self):
         """Real packaged stdio MCP works without a checkout or network catalogue."""
         with zipfile.ZipFile(pkg.build(self.m, "legacy", os.path.join(self.tmp, "agent"))) as archive:

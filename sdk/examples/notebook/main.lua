@@ -13,6 +13,25 @@ local function check(value, err, msg)
   return value
 end
 
+-- Roll back ordinary operation/commit failures. Forced interruption can still
+-- prevent script cleanup; the host owns unload/crash transaction cleanup.
+local function transaction(fn)
+  check(store.begin())
+  local ok, result = pcall(function()
+    local value = fn()
+    check(store.commit())
+    return value
+  end)
+  if not ok then
+    local rolled, err, msg = store.rollback()
+    if not rolled then
+      error(tostring(result) .. "; rollback: " .. tostring(err) .. (msg and (": " .. msg) or ""), 0)
+    end
+    error(result, 0)
+  end
+  return result
+end
+
 local function notes(n) return n .. (n == 1 and " note" or " notes") end
 
 local function count()
@@ -26,14 +45,10 @@ sco.register_command{
   args  = {{ name = "text", type = "string", help = "The note" }},
   fn = function(text)
     local n = count() + 1
-    check(store.begin())
-    local ok, err, msg = store.put(string.format("note.%06d", n), text)
-    if ok then ok, err, msg = store.put("count", tostring(n)) end
-    if not ok then
-      store.rollback()
-      check(nil, err, msg)
-    end
-    check(store.commit())
+    transaction(function()
+      check(store.put(string.format("note.%06d", n), text))
+      check(store.put("count", tostring(n)))
+    end)
     return "note " .. n .. " saved"
   end,
 }
@@ -58,10 +73,10 @@ sco.register_command{
   title = "Clear notes",
   fn = function()
     local keys = check(store.keys("note."))
-    check(store.begin())
-    for _, key in ipairs(keys) do store.delete(key) end
-    store.delete("count")
-    check(store.commit())
+    transaction(function()
+      for _, key in ipairs(keys) do check(store.delete(key)) end
+      check(store.delete("count"))
+    end)
     return "removed " .. notes(#keys)
   end,
 }

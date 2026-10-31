@@ -29,6 +29,9 @@ jobs:
       - name: Install Lua 5.4
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lua5.4
 
+      - name: Notebook transaction failure tests
+        run: lua5.4 tools/test_notebook.lua sdk/examples/notebook/main.lua
+
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 8.0.x
