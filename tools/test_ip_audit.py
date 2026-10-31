@@ -126,6 +126,18 @@ def refresh_generated_metadata(entries, profile):
     entries.update({top + "/" + name: data for name, data in content.items()})
 
 
+class SpdxIdentifiers(unittest.TestCase):
+    def test_path_encoding_is_injective_and_spdx_valid(self):
+        paths = ("include/sco/content.h", "include/sco_content.h",
+                 "include-sco-content.h", "include/sco-content.h",
+                 "include/é.h", "include/-.h", "include/_.h", "")
+        ids = [audit.spdx_id("File-" + path) for path in paths]
+        self.assertEqual(len(set(ids)), len(paths))
+        for path, identifier in zip(paths, ids):
+            self.assertRegex(identifier, r"^SPDXRef-[A-Za-z0-9.-]+$")
+            self.assertEqual(identifier, audit.spdx_id("File-" + path))
+
+
 class ReuseGeneration(unittest.TestCase):
     def test_distinct_copyright_holders_remain_separate(self):
         import tomllib
@@ -173,6 +185,13 @@ class Real(unittest.TestCase):
             if prof != "game-sc":
                 self.assertIn("workflow index = selected payload: 1 checked, 0 failed", out)
             self.assertEqual(len(d["files"]), n, "the SBOM lists every archive entry")
+            file_ids = [f["SPDXID"] for f in d["files"]]
+            self.assertEqual(len(set(file_ids)), n, "distinct paths need distinct SPDX IDs")
+            self.assertEqual({r["relatedSpdxElement"] for r in d["relationships"]
+                              if r["relationshipType"] == "CONTAINS"}, set(file_ids))
+            self.assertEqual(len(d["relationships"]), n + 1)
+            for identifier in file_ids + [d["packages"][0]["SPDXID"]]:
+                self.assertRegex(identifier, r"^SPDXRef-[A-Za-z0-9.-]+$")
 
     def assert_rehashed_semantic_failure(self, profile, change, check_name, needle):
         bad = os.path.join(self.out, "bad-workflows-" + profile + ".zip")

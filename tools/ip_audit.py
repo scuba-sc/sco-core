@@ -595,7 +595,8 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
 
 
 def spdx_id(s):
-    return "SPDXRef-" + re.sub(r"[^A-Za-z0-9.-]", "-", s)
+    # UTF-8 hex preserves every path byte using only SPDX identifier characters.
+    return "SPDXRef-" + s.encode("utf-8").hex()
 
 
 def write_sbom(path, archive, profile, top, names, content, expected, entries, root):
