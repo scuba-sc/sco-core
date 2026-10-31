@@ -96,7 +96,7 @@ NativeAOT exports only the `[UnmanagedCallersOnly(EntryPoint = ...)]` methods of
 | `virtual ScoResult OnLoad()` | Called from `sco_plugin_load`, on the game thread. Anything but `Ok` unloads the plugin; `OnUnload` is not called, but the SDK still releases what was registered |
 | `virtual void OnUnload()` | Called from `sco_plugin_unload`, on the game thread, before the SDK releases its state. Stop your own threads here |
 | `Id`, `Api`, `Self`, `IsLoaded` | The plugin id, the host's table (`ScoApi*`) and this plugin's handle; valid from `OnLoad` until `OnUnload` returns |
-| `ApiCovers(ApiOffset.query_service)` | True when the host's table has that function (the `api->size` check) |
+| `ApiCovers(ApiOffset.query_service)` | True when the host's table covers the full function pointer; check the pointer is non-null separately |
 | `Log(level, text)`, `Info`, `Warn`, `Error`, `Status` | Any thread. Strings are passed as UTF-8 |
 | `Has(capability)`, `HostVersion` | `api->has(capability) != 0`; the host's name and version |
 | `RunOnGameThread(Action)` | Queues the task; see [Lifetimes](#lifetimes) |
@@ -124,12 +124,13 @@ public unsafe struct GreeterV1 { public uint size; public uint _pad; public dele
 
 Provide("my_plugin.greeter", ServiceVersion(1, 0), table);          // table: GreeterV1*, size set
 
-if (Query("my_plugin.greeter", ServiceVersion(1, 0), out ServiceRef<GreeterV1> g) == ScoResult.Ok && g.Covers(8))
+if (Query("my_plugin.greeter", ServiceVersion(1, 0), out ServiceRef<GreeterV1> g) == ScoResult.Ok && g.Covers(8) && g.Table->greet != null)
     g.Table->greet(...);                                             // in another plugin
 ```
 
 - `Query` answers like `query_service` (`Ok`, `Unavailable` for another major or an older version, `NotFound`), `Unavailable` on a 1.0 host, and `BadArg` when the table found doesn't start with a size of at least 4. The `ServiceRef` is empty unless `Ok`.
-- `ServiceRef.Covers(offset, fieldSize = 8)` is true when the provider's `size` covers the field: the check before calling a function a later minor added.
+- `ServiceRef.Covers(offset, fieldSize = 8)` checks the provider's `size` covers the field; also check the function pointer for null before calling it.
+- `Provide`, `Release`, `Query`, `RegisterRawBytes` and `InvokeRawBytes` return `Unavailable` if the host table does not fully cover their slot or the slot is null. When available, they forward host results; `Query` also validates a successful returned table.
 - `Release(name)` stops new lookup of that service; the host withdraws the rest at unload. It does not revoke cached pointers or wait for calls through them.
 - `ServiceRef` is a borrowed pointer holder, not a lease. Once a native table has been handed out, administrative unload/reload is refused for the admitted session. Retained code/state after a fault is not permission to call it: stop using cached tables and restart after a native fault. Do not use peer tables during shutdown or across sessions. Host services under `sco.` may be kept for the plugin lifetime, subject to their individual shutdown rules. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
 - Ids, never pointers: a service that deals with game objects takes and returns entity ids and resolves them on every call ([the API rule](api-v1.md#services-11)).

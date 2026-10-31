@@ -19,6 +19,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Fix the C# widgets example button to invoke its own registered ping command and report refusals.
 
+- Guard C# `ApiCovers` and optional service and raw-handler host slots against truncated extents and null pointers; the C++ hello example also checks its greeter function pointer. Synthetic tests cover refusal and forwarding.
+
 - Add an optional packaged consumer requirements report bound to explicit catalogue
   and registry hashes, with language support, scoped static capability evidence
   and a container-reader declaration. It does not establish provider readiness

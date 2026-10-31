@@ -8,7 +8,8 @@
 //   sco::sdk::Provide(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0), &kGreeter);
 //
 //   sco::sdk::ServiceRef<greeter_v1> g;                      // in another plugin
-//   if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK) g->greet(...);
+//   if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK &&
+//       sco::sdk::HasMember(g, &greeter_v1::greet) && g->greet) g->greet(...);
 //
 // A provider's table goes away when it unloads: query when you need it, don't keep a ServiceRef
 // across ticks. Reference: docs/sdk-cpp.md. GPL-3.0, like sco-core.

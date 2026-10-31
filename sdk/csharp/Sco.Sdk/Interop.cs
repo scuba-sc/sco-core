@@ -89,8 +89,8 @@ namespace Sco.Sdk
         public static uint ServiceVersion(ushort major, ushort minor) => ((uint)major << 16) | minor;
     }
 
-    /// <summary>offsetof(sco_api, f) for the functions added after 1.0: check
-    /// <c>api->size &gt; offset</c> before calling one (<see cref="Plugin.ApiCovers"/>).</summary>
+    /// <summary>64-bit offsetof(sco_api, f) for the functions added after 1.0. Check the full
+    /// pointer extent (<see cref="Plugin.ApiCovers"/>) and the pointer itself before calling.</summary>
     public static class ApiOffset
     {
         public const uint provide_service = 88;
@@ -165,7 +165,7 @@ namespace Sco.Sdk.Interop
         public delegate* unmanaged[Cdecl]<void*, ScoCommand*, ScoResult> register_command;
         public delegate* unmanaged[Cdecl]<void*, byte*, ScoArg*, uint, delegate* unmanaged[Cdecl]<ScoResult, byte*, void*, void>, void*, ScoResult> invoke;
         public delegate* unmanaged[Cdecl]<ScoCommand**, uint, uint> list_commands;
-        // 1.1: check size > ApiOffset.<name> first.
+        // 1.1: check the full pointer extent and a non-null slot first.
         public delegate* unmanaged[Cdecl]<void*, byte*, uint, void*, ScoResult> provide_service;
         public delegate* unmanaged[Cdecl]<byte*, uint, void**, ScoResult> query_service;
         public delegate* unmanaged[Cdecl]<void*, byte*, ScoResult> release_service;
