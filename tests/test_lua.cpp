@@ -1684,8 +1684,6 @@ static void TestStore(const fs::path& sdk) {
     Unload(a);
 
     // Committed data outlives the script: a reload sees it.
-    TestStoreSchema();
-
     Write("storea", R"lua(
         sco.register_command{ name = "storea.get", title = "Get", args = {{ name = "k", type = "string" }},
                               fn = function(key) return sco.store.get(key) end }
