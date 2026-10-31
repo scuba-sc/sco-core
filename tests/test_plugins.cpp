@@ -1468,7 +1468,7 @@ static void TestPendingFaultShutdown() {
     sco::detail::StopRuntime();   // cancels the real fault record, not a synthetic task
     CHECK(sco::QueuedTasks() == 0);
     CHECK(!P::TryUnloadAll(list, kRecOps));
-    CHECK(provider.state == State::Loaded && caller.state == State::Loaded &&
+    CHECK(provider.state == State::Faulted && caller.state == State::Loaded &&
           provider.module == module && provider.exports.unload == unload);
     CHECK(Frozen(provider, "fake_unload_calls") == unloads && g_faultReleases == 0);
     CHECK(sco::RemoveReleaseHook(FaultReleaseHook) == sco::Result::Ok);

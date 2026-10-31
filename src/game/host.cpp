@@ -1,5 +1,7 @@
 #include "sco/game/host.h"
 #include "../api/internal.h"
+#include "../app/owned_start.h"
+#include "../owned_shutdown_access.h"
 #include "sco/game/signatures.h"
 #include "sco/signatures.h"
 #include "sco/log.h"
@@ -16,6 +18,7 @@
 #include <atomic>
 #include <mutex>
 #include <limits>
+#include <stdexcept>
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -34,24 +37,22 @@ namespace sco::game::host {
 namespace {
 std::atomic<Phase> phase{Phase::Idle};
 std::atomic<bool> resolved{false}, quitInstalled{false}, dataActive{false};
+std::atomic<bool> testFailAfterAppStart{false}, testLogAfterRegistryInstall{false};
 testing::QuitFn quitOriginal = nullptr;
 Options options;
 bool ticked = false, ticking = false, pakOwned = false;
 uint32_t lastTick = 0;
 std::mutex dataMutex;
+std::atomic_flag dataTransformBusy = ATOMIC_FLAG_INIT;
 struct DataInputs { std::vector<plugins::Plugin> list; plugins::ContentIndex index; };
 std::shared_ptr<const DataInputs> dataInputs;
 std::shared_ptr<const vfs::Table> dataMounts;
 std::shared_ptr<SignatureRegistry> signatureRegistry;
-bool signatureRegistryPinned = false;
 enum class RetirementState { NotAttempted, InProgress, Quiesced, Retained };
 RetirementState consumerRetirement = RetirementState::NotAttempted;
 
 void InvalidateBeforeHostInstall() noexcept {
     caps::InvalidateAll("game host preparing");
-}
-void InvalidateHostCapabilities() noexcept {
-    caps::InvalidateAll("game host stopped");
 }
 void InvalidateFailedHostCapabilities() noexcept {
     caps::InvalidateAll("game host failed");
@@ -81,24 +82,6 @@ bool BeforeDependentStop(void*) noexcept {
     return consumerRetirement == RetirementState::Quiesced;
 }
 
-bool ReleaseSignatureRegistry() noexcept {
-    if (signatureRegistry) {
-        const bool cleared = signatureRegistryPinned
-            ? UnpinAndClearHostSignatureRegistry(signatureRegistry, InvalidateHostCapabilities)
-            : ClearHostSignatureRegistry(signatureRegistry, InvalidateHostCapabilities);
-        if (!cleared) return false;
-    }
-    signatureRegistryPinned = false;
-    signatureRegistry.reset();
-    resolved = false;
-    return true;
-}
-
-// A failed prepare can discard the registry only if no host-owned hook remains.
-void ReleaseAfterSafePrepareFailure() noexcept {
-    if (!quitInstalled.load() && !pakOwned && ReleaseSignatureRegistry()) return;
-    RevokeFailedHostCapabilities();
-}
 
 bool Admitted() noexcept {
     try {
@@ -149,15 +132,6 @@ std::shared_ptr<const vfs::Table> Mounts() {
     std::lock_guard<std::mutex> hold(dataMutex);
     return dataActive.load() ? dataMounts : nullptr;
 }
-void StopData() {
-    if (pakOwned) { pak::Disable(); if(pak::Enabled()) return; pakOwned=false; }
-    if (!dataActive.exchange(false)) return;
-    // A producer already inside service::Load must finish before service withdrawal.
-    // It only posts game-thread work, never waits for that work while holding this lock.
-    std::lock_guard<std::mutex> hold(dataMutex);
-    datacore::service::Stop();
-    dataInputs.reset(); dataMounts.reset();
-}
 Result PrepareData() {
     if (!options.platform.dataCore) return Result::Ok;
     const Result r = datacore::service::Start({options.platform.dataRoot});
@@ -186,20 +160,10 @@ Result PrepareData() {
     }
     return Result::Ok;
 }
-Result FailPrepare(Result result, bool uncertainNativeState) {
-    const bool resources = dataActive.load() || pakOwned || quitInstalled.load() || uncertainNativeState;
-    if (resources) {
-        if (!BeforeDependentStop(nullptr) ||
-            ((options.platform.gameServices || pakOwned || quitInstalled.load() || uncertainNativeState)
-             && !NativeBarrierHeld())) {
-            RevokeFailedHostCapabilities();
-            phase = Phase::Failed;
-            return Result::Failed;
-        }
-    }
-    // A throwing or failed native hook setup can leave resources in unknown state.
-    if (uncertainNativeState) RevokeFailedHostCapabilities();
-    else { StopData(); ReleaseAfterSafePrepareFailure(); }
+Result RetainTransitionFailure(Result result) noexcept {
+    detail::SetFreshAdmissionEnabled(false);
+    if (options.shutdownOwner) options.shutdownOwner->fault();
+    RevokeFailedHostCapabilities();
     phase = Phase::Failed;
     return result;
 }
@@ -219,39 +183,64 @@ Result Prepare(const Options& o) {
 #if !defined(SCO_GAME_SERVICES)
     if(o.nativeDataCoreReads) {phase=Phase::Idle;return Result::Unavailable;}
 #endif
-    try { options = o; } catch (...) { phase = Phase::Idle; return Result::Failed; }
-    if (!Admitted()) { options.imageOwner.reset(); options.resolverOwner.reset(); phase = Phase::Idle; return Result::Unavailable; }
+    if (o.shutdownOwner && !OwnedShutdownHostAccess::begin_startup(*o.shutdownOwner)) {
+        o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Unavailable;
+    }
+    auto transition = o.shutdownOwner ? OwnedShutdownHostAccess::transition(*o.shutdownOwner) : OwnedShutdown::Transition{};
+    if (o.shutdownOwner && !transition) {
+        o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Unavailable;
+    }
+    try { options = o; } catch (...) {
+        if (o.shutdownOwner) { o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Failed; }
+        phase = Phase::Idle; return Result::Failed;
+    }
+    if (!Admitted()) {
+        if (o.shutdownOwner) return RetainTransitionFailure(Result::Unavailable);
+        options.imageOwner.reset(); options.resolverOwner.reset(); phase = Phase::Idle; return Result::Unavailable;
+    }
     if (!o.imageOwner || !o.resolverOwner || !o.image || !o.image->base || !o.image->size || !o.image->text.base ||
         !o.image->text.size || !o.image->rdata.base || !o.image->rdata.size) {
+        if (o.shutdownOwner) return RetainTransitionFailure(Result::BadArg);
         options.imageOwner.reset(); options.resolverOwner.reset(); phase = Phase::Idle; return Result::BadArg;
     }
     try {
         auto candidate = std::make_shared<SignatureRegistry>(o.signatureRegistryBudgetBytes);
+        if (o.shutdownOwner) signatureRegistry = candidate; // retain partial state on terminal failure
         const auto registration = RegisterGameSignatures(*candidate);
         if (registration.status != SigRegistryStatus::Ok) {
             Log("[game-host] signature registration failed: %s (table %zu, row %zu)",
                 SigRegistryStatusName(registration.status), registration.table, registration.row);
+            if (o.shutdownOwner) return RetainTransitionFailure(Result::Failed);
             options.imageOwner.reset(); options.resolverOwner.reset();
             phase = Phase::Failed; return Result::Failed;
         }
         auto status = candidate->Freeze();
         if (status != SigRegistryStatus::Ok) {
             Log("[game-host] signature freeze failed: %s", SigRegistryStatusName(status));
+            if (o.shutdownOwner) return RetainTransitionFailure(Result::Failed);
             options.imageOwner.reset(); options.resolverOwner.reset();
             phase = Phase::Failed; return Result::Failed;
         }
         status = candidate->Resolve(*o.image, o.imageOwner, o.resolverOwner);
-        options.imageOwner.reset(); options.resolverOwner.reset();
+        if (!o.shutdownOwner) { options.imageOwner.reset(); options.resolverOwner.reset(); }
         if (status != SigRegistryStatus::Ok) {
             Log("[game-host] signature resolution failed: %s", SigRegistryStatusName(status));
+            if (o.shutdownOwner) return RetainTransitionFailure(Result::Failed);
             phase = Phase::Failed; return Result::Failed;
         }
-        if (!Admitted()) { phase = Phase::Failed; return Result::Unavailable; }
+        if (!Admitted()) {
+            if (o.shutdownOwner) return RetainTransitionFailure(Result::Unavailable);
+            phase = Phase::Failed; return Result::Unavailable;
+        }
         signatureRegistry = std::move(candidate);
         resolved = true;
-        phase = Phase::Prepared;
+        if (o.shutdownOwner) {
+            if (!transition.publish(phase, Phase::Preparing, Phase::Prepared))
+                return RetainTransitionFailure(Result::Unavailable);
+        } else phase = Phase::Prepared;
         return Result::Ok;
     } catch (...) {
+        if (o.shutdownOwner) return RetainTransitionFailure(Result::Failed);
         signatureRegistry.reset(); options.imageOwner.reset(); options.resolverOwner.reset(); resolved = false;
         phase = Phase::Failed; return Result::Failed;
     }
@@ -259,64 +248,69 @@ Result Prepare(const Options& o) {
 Result Activate() {
     Phase expected = Phase::Prepared;
     if (!phase.compare_exchange_strong(expected, Phase::Activating)) return Result::BadArg;
-    if (!Admitted()) { phase = Phase::Prepared; return Result::Unavailable; }
+    if (!options.shutdownOwner) { phase = Phase::Prepared; return Result::Unavailable; }
+    auto transition = OwnedShutdownHostAccess::transition(*options.shutdownOwner);
+    if (!transition) return RetainTransitionFailure(Result::Unavailable);
+    const auto refuse = [&] {
+        if (!transition.publish(phase, Phase::Activating, Phase::Prepared))
+            return RetainTransitionFailure(Result::Unavailable);
+        return Result::Unavailable;
+    };
+    if (!Admitted()) return refuse();
     // Legacy consumers expose copyable raw service tables and unowned threads.
     // No callback assertion can prove their exclusion or join: do not activate.
     const auto& pf = options.platform;
-    if (!options.shutdownOwner || !options.shutdownOwner->open() ||
-        !options.drainTimeoutMs || options.drainTimeoutMs > 60000 ||
+    if (!options.drainTimeoutMs || options.drainTimeoutMs > 60000 ||
         options.quit != QuitPolicy::External || options.dataCoreHook != DataCoreHook::External ||
         options.nativeDataCoreReads || pf.gameServices || pf.pluginsEnabled || pf.nBuiltins || pf.scripts ||
         pf.hostService.start || pf.hostService.tick || pf.hostService.stop ||
         pf.hostMenu.context || pf.hostMenu.load || pf.hostMenu.frame || pf.hostMenu.stop ||
         pf.setCapabilities || options.earlyDataRequirement) {
-        phase = Phase::Prepared; return Result::Unavailable;
+        return refuse();
     }
     if ((options.quit == QuitPolicy::Required ||
          (options.platform.dataCore && options.dataCoreHook == DataCoreHook::Required) ||
          options.nativeDataCoreReads || options.platform.gameServices) && !NativeBarrierHeld()) {
-        phase = Phase::Prepared; return Result::Unavailable;
+        return refuse();
     }
-    if (!Admitted()) { phase = Phase::Prepared; return Result::Unavailable; }
+    if (!Admitted()) return refuse();
     try {
         if (!InstallHostSignatureRegistry(signatureRegistry, InvalidateBeforeHostInstall)) {
-            phase = Phase::Failed; signatureRegistry.reset(); resolved = false; return Result::Failed;
+            return RetainTransitionFailure(Result::Failed);
         }
+        if (testLogAfterRegistryInstall.load()) Log("[game-host] injected activation log");
         if (!PinHostSignatureRegistry(signatureRegistry)) {
-            if (!ReleaseSignatureRegistry()) RevokeFailedHostCapabilities();
             Log("[game-host] could not pin signature registry");
-            phase = Phase::Failed; return Result::Failed;
+            return RetainTransitionFailure(Result::Failed);
         }
-        signatureRegistryPinned = true;
         resolved = true;
-        if (!AdmittedAndOwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, false);
+        if (!AdmittedAndOwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
         if (options.quit == QuitPolicy::Required) {
             const Result q = InstallQuit();
-            if (q != Result::Ok) return FailPrepare(q, false);
+            if (q != Result::Ok) return RetainTransitionFailure(q);
         }
-        if (!AdmittedAndOwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, false);
+        if (!AdmittedAndOwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
         const Result d = PrepareData();
-        if (d != Result::Ok) return FailPrepare(d, false);
-        if (!AdmittedAndOwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, false);
-        bool nativeAttempted = false;
+        if (d != Result::Ok) return RetainTransitionFailure(d);
+        if (!AdmittedAndOwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
 #if defined(SCO_GAME_SERVICES)
         if (options.nativeDataCoreReads) {
-            nativeAttempted = true;
             if (!services::datacore_live::PrepareProductionEngine(options.preEngineQuiesced))
-                return FailPrepare(Result::Unavailable, true);
+                return RetainTransitionFailure(Result::Unavailable);
         }
 #endif
-        if (!AdmittedAndOwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, nativeAttempted);
+        if (!AdmittedAndOwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
         detail::SetFreshInspector(options.inspect);
-        phase = Phase::Activated;
+        detail::SetFreshShutdownOwner(options.shutdownOwner);
+        if (!transition.publish(phase, Phase::Activating, Phase::Activated))
+            return RetainTransitionFailure(Result::Unavailable);
         return Result::Ok;
     } catch (...) {
         // A throwing setup can have retained native resources. Do not tear them
         // down based on incomplete state, even if retirement succeeds.
-        if (signatureRegistry) (void)BeforeDependentStop(nullptr);
-        RevokeFailedHostCapabilities();
-        Log("[game-host] preparation failed with an exception");
-        phase = Phase::Failed; return Result::Failed;
+        const auto result = RetainTransitionFailure(Result::Failed);
+        try { Log("[game-host] preparation failed with an exception"); } catch (...) {}
+        return result;
     }
 }
 Result Start() {
@@ -326,13 +320,17 @@ Result Start() {
     }
     Phase expected = Phase::Activated;
     if (!phase.compare_exchange_strong(expected, Phase::Starting)) return Result::BadArg;
-    if (!OwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, options.nativeDataCoreReads);
+    auto transition = OwnedShutdownHostAccess::transition(*options.shutdownOwner);
+    if (!transition) return RetainTransitionFailure(Result::Unavailable);
+    if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
     if (!Admitted()) {
         // Preserve the existing retry on admission refusal before startup work.
-        if (!OwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, options.nativeDataCoreReads);
-        phase = Phase::Activated; return Result::Unavailable;
+        if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
+        if (!transition.publish(phase, Phase::Starting, Phase::Activated))
+            return RetainTransitionFailure(Result::Unavailable);
+        return Result::Unavailable;
     }
-    if (!OwnsSignatureRegistry()) return FailPrepare(Result::Unavailable, options.nativeDataCoreReads);
+    if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
     detail::SetFreshAdmissionEnabled(true);
     try {
         auto platform = options.platform;
@@ -341,35 +339,49 @@ Result Start() {
         platform.beforeDependentStop = BeforeDependentStop;
         platform.beforeDependentStopContext = nullptr;
         platform.privateSessionAdmitted = Admitted; // exact same fail-closed admission
-        if (!app::Start(platform)) {
+        if (!app::detail::StartOwned(platform, transition)) {
             // Start may have installed hooks or exposed readers before failing.
             // Keep early data and providers intact without a shutdown proof.
-            (void)BeforeDependentStop(nullptr); RevokeFailedHostCapabilities();
-            phase = Phase::Failed; return Result::Failed;
+            return RetainTransitionFailure(Result::Failed);
         }
+        if (testFailAfterAppStart.load()) throw std::runtime_error("injected post-start failure");
         if (dataActive) {
             auto inputs = std::make_shared<DataInputs>();
             inputs->list = app::Plugins(); inputs->index = app::Content();
             std::lock_guard<std::mutex> hold(dataMutex);
             dataInputs = std::move(inputs);
         }
-        phase = Phase::Running;
+        if (!transition.publish_and_open(phase, Phase::Starting, Phase::Running)) {
+            app::detail::RetainFailedOwnedStartup(options.shutdownOwner);
+            return RetainTransitionFailure(Result::Unavailable);
+        }
         return Result::Ok;
     } catch (...) {
-        (void)BeforeDependentStop(nullptr); RevokeFailedHostCapabilities();
-        phase = Phase::Failed; return Result::Failed;
+        app::detail::RetainFailedOwnedStartup(options.shutdownOwner);
+        return RetainTransitionFailure(Result::Failed);
     }
 }
 Result Tick(uint32_t nowMs) {
     if (phase.load() != Phase::Running) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
     if (sco::detail::InCallout() || ticking) return Result::Unavailable;
-    struct TickScope { TickScope() { ticking = true; } ~TickScope() { ticking = false; } } scope;
-    if (!Admitted()) { Stop(); return Result::Unavailable; }
-    if (ticked && nowMs - lastTick < options.tickIntervalMs) return Result::Ok;
-    ticked = true; lastTick = nowMs;
-    app::Tick(nowMs);
-    return Result::Ok;
+    {
+        struct TickScope { TickScope() { ticking = true; } ~TickScope() { ticking = false; } } scope;
+        auto read = options.shutdownOwner->try_read();
+        if (!read) return RetainTransitionFailure(Result::Unavailable);
+        if (Admitted()) {
+            if (ticked && nowMs - lastTick < options.tickIntervalMs) return Result::Ok;
+            ticked = true; lastTick = nowMs;
+            app::Tick(nowMs);
+            if (!options.shutdownOwner->open()) {
+                app::detail::RetainFailedOwnedStartup(options.shutdownOwner);
+                return RetainTransitionFailure(Result::Unavailable);
+            }
+            return Result::Ok;
+        }
+    } // Do not wait for our own lease in Stop.
+    Stop();
+    return Result::Unavailable;
 }
 Result Stop() {
     const Phase p = phase.load();
@@ -377,90 +389,63 @@ Result Stop() {
     if (!OnGameThread()) return Result::WrongThread;
     if (p == Phase::Stopping) return Result::Unavailable;
     if (p != Phase::Running) return Result::Unavailable;
-    if (sco::detail::InCallout()) return Result::Unavailable;
+    if (sco::detail::InCallout() || ticking) return Result::Unavailable;
     Phase expected = Phase::Running;
     if (!phase.compare_exchange_strong(expected, Phase::Stopping)) return Result::Unavailable;
-    const bool cleanupAdmitted = FreshAdmissionAllowed();
     detail::SetFreshAdmissionEnabled(false); // retained workers must pass through before teardown
-    // A failed or absent shutdown proof leaves all dependent producers, providers,
-    // code and registry state intact. An instant "no readers" observation is not
-    // enough: the product must keep admission closed for the rest of the process.
-    if (!BeforeDependentStop(nullptr)) {
-        RevokeFailedHostCapabilities();
-        Log("[game-host] product shutdown did not establish quiescence");
-        phase = Phase::Failed; return Result::Failed;
-    }
-    if ((options.platform.gameServices || pakOwned || quitInstalled.load() || options.nativeDataCoreReads) &&
-        !NativeBarrierHeld()) {
-        options.shutdownOwner->fault();
-        RevokeFailedHostCapabilities();
-        Log("[game-host] native reader barrier unavailable");
-        phase = Phase::Failed; return Result::Failed;
-    }
-    struct CvarCleanupScope {
-        explicit CvarCleanupScope(bool admitted) { detail::SetCvarCleanupEnabled(admitted); }
-        ~CvarCleanupScope() { detail::SetCvarCleanupEnabled(false); }
-    } cleanup(cleanupAdmitted);
-    // Stop transport/producer access first, but keep DataCore tables available for unload.
-    if (pakOwned) {
-        pak::Disable();
-        if(pak::Enabled()) {options.shutdownOwner->fault(); RevokeFailedHostCapabilities(); phase=Phase::Failed;return Result::Failed;}
-        pakOwned=false;
-    }
-    // Keep producer inputs until app retirement commits: exit/unload/release may
-    // invalidate the proof. External data hook mode installs no core pak hook.
-    Result stopped = Result::Failed;
-    try { stopped = app::Stop(); } // service withdrawal AFTER plugin unload
-    catch (...) { Log("[game-host] app stop failed with an exception"); }
-    if (stopped != Result::Ok) { options.shutdownOwner->fault(); RevokeFailedHostCapabilities(); phase = Phase::Failed; return stopped; }
-    { std::lock_guard<std::mutex> hold(dataMutex); dataInputs.reset(); dataMounts.reset(); }
-    dataActive = false;
-    // Quit and native DataCore lifecycle detours are process-retained. Their
-    // image and provider code must stay live, so keep the host registry pinned.
-    if (quitInstalled.load() || options.nativeDataCoreReads || app::HasRetainedGameHooks()) {
-        options.shutdownOwner->fault();
-        if (signatureRegistry) WithHostSignatureRegistry(signatureRegistry, InvalidateHostCapabilities);
-        Log("[game-host] process-retained hooks keep the signature registry pinned");
-        phase = Phase::Failed; return Result::Failed;
-    }
-    if (!ReleaseSignatureRegistry()) {
-        options.shutdownOwner->fault();
-        RevokeFailedHostCapabilities();
-        Log("[game-host] signature registry is still in use");
-        phase = Phase::Failed; return Result::Failed;
-    }
-    phase = Phase::Stopped;
-    return Result::Ok;
+    const bool drained = BeforeDependentStop(nullptr);
+    // Existing cleanup includes arbitrary callouts and potentially failing
+    // destruction. Even after a successful drain it cannot commit atomically.
+    // Close app admission and retain the full dependency closure on both paths.
+    app::detail::RetainFailedOwnedStartup(options.shutdownOwner);
+    const auto result = RetainTransitionFailure(Result::Failed);
+    try { Log("[game-host] owned shutdown retained (%s)", drained ? "drained" : "not drained"); } catch (...) {}
+    return result;
 }
 Result BeforeQuit() { return Stop(); }
 namespace testing {
+void FailAfterAppStart(bool enabled) { testFailAfterAppStart.store(enabled); }
+void LogAfterRegistryInstall(bool enabled) { testLogAfterRegistryInstall.store(enabled); }
 void ForwardQuit(QuitFn original, void* system, void* info, int code) {
     const Result r = BeforeQuit();
     if (r != Result::Ok) Log("[game-host] quit teardown refused: %s", ResultName(r));
     if (original) original(system, info, code);
 }
 vfs::Result TransformDataCore(vfs::BaseIo& base, uint64_t size, std::vector<vfs::Splice>& out) {
-    std::lock_guard<std::mutex> hold(dataMutex);
+    if (phase.load() != Phase::Running || !options.shutdownOwner)
+        return {"offline DataCore admission unavailable"};
+    auto read = options.shutdownOwner->try_read();
+    if (!read) return {"offline DataCore admission unavailable"};
+    if (dataTransformBusy.test_and_set()) return {"offline DataCore transform busy"};
+    struct ReleaseBusy { ~ReleaseBusy() { dataTransformBusy.clear(); } } releaseBusy;
+    std::shared_ptr<const DataInputs> inputs;
+    {
+        std::lock_guard<std::mutex> hold(dataMutex);
+        inputs = dataInputs;
+    }
     const Phase p = phase.load();
-    if (!dataActive || !dataInputs ||
-        (p != Phase::Activating && p != Phase::Activated && p != Phase::Starting && p != Phase::Running) || !Admitted())
+    if (!dataActive || !inputs || p != Phase::Running || !Admitted())
         return {"offline DataCore admission unavailable"};
     if (!size || size > options.maxDataCoreBytes || size > std::numeric_limits<size_t>::max())
         return {"DataCore base exceeds host byte limit"};
     try {
         std::vector<uint8_t> bytes(static_cast<size_t>(size));
         if (!base.Seek(0)) return {"DataCore base seek failed"};
+        if (options.shutdownOwner->closed()) return {"offline DataCore admission unavailable"};
         size_t got = 0;
         while (got < bytes.size()) {
             const size_t n = base.Read(bytes.data() + got, bytes.size() - got);
+            if (options.shutdownOwner->closed()) return {"offline DataCore admission unavailable"};
             if (!n || n > bytes.size() - got) return {"DataCore base read failed"};
             got += n;
         }
         datacore::Schema schema;
         if (!schema.Parse(bytes)) return {"DataCore schema refused: " + schema.error};
-        const auto loaded = datacore::service::Load(schema, dataInputs->list, dataInputs->index,
+        if (options.shutdownOwner->closed()) return {"offline DataCore admission unavailable"};
+        const auto loaded = datacore::service::Load(schema, inputs->list, inputs->index,
                                                     options.platform.dataRoot);
         if (!loaded.result.status) return {loaded.result.status.message};
+        if (options.shutdownOwner->closed()) return {"offline DataCore admission unavailable"};
         out = loaded.result.splices;
         return {};
     } catch (...) { return {"DataCore transform failed"}; }

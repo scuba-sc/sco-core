@@ -3439,3 +3439,9 @@ path = ["include/sco/owned_shutdown.h", "tests/test_owned_shutdown.cpp", "tests/
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = ["src/owned_shutdown_access.h", "src/app/owned_start.h"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"

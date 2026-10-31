@@ -125,8 +125,8 @@ struct Platform {
     // and cached users remain drained through teardown; false/throw retains all backing state.
     bool (*beforeDependentStop)(void*) = nullptr;
     void* beforeDependentStopContext = nullptr;
-    // Optional strict host-source session: readiness is rechecked after exit and
-    // plugin retirement; false retains dependent backing and forbids restart.
+    // Strict owned sessions start only through the internal game-host transition.
+    // Their stop closes admission and retains backing; cleanup and restart refuse.
     std::shared_ptr<OwnedShutdown> shutdownOwner;
     // Start maps each native plugin from a copy of its DLL (<folder>/.reload-<n>-<entry>), as Reload
     // does, so the original can be rebuilt while the game runs. Off: a native is mapped from its own

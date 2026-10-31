@@ -7,6 +7,7 @@ namespace sco::game::host {
 namespace {
 std::atomic<Admission (*)()> inspector{nullptr};
 std::atomic<bool> enabled{false};
+std::atomic<std::shared_ptr<OwnedShutdown>> shutdownOwner;
 thread_local bool cvarCleanup = false;
 bool InspectAdmission() noexcept {
     const auto inspect = inspector.load();
@@ -20,10 +21,13 @@ bool InspectAdmission() noexcept {
 }
 }
 bool FreshAdmissionAllowed() noexcept {
-    return enabled.load() && InspectAdmission() && enabled.load();
+    const auto owner = shutdownOwner.load();
+    return enabled.load() && (!owner || owner->open()) && InspectAdmission() &&
+           enabled.load() && (!owner || owner->open());
 }
 namespace detail {
 void SetFreshInspector(Admission (*inspect)()) { inspector.store(inspect); }
+void SetFreshShutdownOwner(std::shared_ptr<OwnedShutdown> owner) { shutdownOwner.store(std::move(owner)); }
 void SetFreshAdmissionEnabled(bool on) { enabled.store(on); }
 void SetCvarCleanupEnabled(bool on) { if (OnGameThread()) cvarCleanup = on; }
 bool CvarCleanupAllowed() noexcept {

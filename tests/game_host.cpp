@@ -4,18 +4,43 @@
 #include "sco/runtime.h"
 #include "sco/caps.h"
 #include "sco/signature_registry.h"
+#include "sco/log.h"
+#include "sco/net/session.h"
+#include "../src/api/internal.h"
 #include <cstdio>
 #include <thread>
 #include <stdexcept>
 #include <cstring>
 #include <string>
+#include <future>
 
 namespace gh = sco::game::host;
 static int failures = 0, checks = 0;
 #define CHECK(x) do { ++checks; if (!(x)) { ++failures; std::printf("FAIL %d: %s\n", __LINE__, #x); } } while (0)
 static gh::Admission evidence;
 static int inspections = 0;
-static gh::Admission Inspect() { ++inspections; return evidence; }
+static std::shared_ptr<sco::OwnedShutdown> faultOwner;
+static int faultAfter = 0;
+static bool reenterStop = false;
+static sco::Result reentryResult = sco::Result::Ok;
+static bool faultSinkFired = false;
+static std::promise<void>* tickEntered = nullptr;
+static std::shared_future<void> tickContinue;
+static void BlockingTask(void*) { tickEntered->set_value(); tickContinue.wait(); }
+static void FaultTask(void*) { faultOwner->fault(); }
+static void FaultDuringAppStart(const char* line) {
+    if (std::strstr(line, "[plugin]")) { faultSinkFired = true; faultOwner->fault(); }
+}
+static void ThrowingSink(const char*) { throw std::runtime_error("synthetic log sink failure"); }
+static gh::Admission Inspect() {
+    ++inspections;
+    if (reenterStop) { reenterStop = false; reentryResult = gh::Stop(); }
+    if (faultAfter && --faultAfter == 0) {
+        std::thread other([] { faultOwner->fault(); });
+        other.join();
+    }
+    return evidence;
+}
 static int ticks = 0, tasks = 0;
 static int shutdownCalls = 0, exitCalls = 0, serviceStops = 0;
 static bool productClosed = false, controlTick = false, partialStartup = false;
@@ -94,7 +119,20 @@ int main(int argc, char** argv) {
     const bool ownedMissing = mode == "owned-missing";
     const bool ownedLegacy = mode == "owned-legacy";
     const bool ownedTimeout = mode == "owned-timeout";
-    const bool ownedGood = mode == "owned-good" || ownedTimeout;
+    const bool faultPrepare = mode == "owned-prepare-fault";
+    const bool faultActivate = mode == "owned-activation-fault";
+    const bool faultStart = mode == "owned-start-fault";
+    const bool tickReentry = mode == "owned-tick-reentry";
+    const bool appStartFault = mode == "owned-app-start-fault";
+    const bool afterStartThrow = mode == "owned-after-start-throw";
+    const bool activationLogThrow = mode == "owned-activation-log-throw";
+    const bool admissionLoss = mode == "owned-admission-loss";
+    const bool runningFault = mode == "owned-running-fault";
+    const bool budgetFailure = mode == "owned-prepare-budget";
+    const bool tickFault = mode == "owned-tick-fault";
+    const bool taskFault = mode == "owned-task-fault";
+    const bool ownedGood = mode == "owned-good" || ownedTimeout || faultPrepare || faultActivate || faultStart ||
+        tickReentry || appStartFault || afterStartThrow || activationLogThrow || admissionLoss || runningFault || budgetFailure || tickFault || taskFault;
     const bool failureStop = mode.rfind("shutdown-", 0) == 0;
     const bool failureLoss = mode.rfind("loss-", 0) == 0;
     const bool failureQuit = mode.rfind("quit-", 0) == 0;
@@ -156,7 +194,9 @@ int main(int argc, char** argv) {
         CHECK(gh::Activate() == sco::Result::Unavailable);
         CHECK(!sco::AcquireHostSignatureRegistry() && loads == 0);
         std::printf("legacy host scenario %s: activation refused (unowned consumers)\n", mode.c_str());
-        return failures ? 1 : 0;
+        // Named legacy lifecycle scenarios below did not execute their original
+        // assertions. Only the dedicated refusal case is a pass.
+        return failures ? 1 : (mode == "refusal" || ownedMissing ? 0 : 77);
     }
     if (missingQuit) {
         o.platform.gameReadersQuiesced = NativeBarrier; o.platform.gameReadersContext = &shutdownContext;
@@ -173,23 +213,135 @@ int main(int argc, char** argv) {
         o.platform.hostService = {}; o.dataCoreHook = gh::DataCoreHook::External;
     }
     if (ownedMissing || ownedLegacy || ownedGood) {
+        faultOwner = o.shutdownOwner;
+        if (budgetFailure) {
+            std::weak_ptr<int> retained = ownerToken;
+            o.signatureRegistryBudgetBytes = 1;
+            CHECK(gh::Prepare(o) == sco::Result::Failed);
+            o.imageOwner.reset(); o.resolverOwner.reset(); ownerToken.reset();
+            CHECK(!retained.expired() && !faultOwner->open());
+            CHECK(gh::Status().phase == gh::Phase::Failed && gh::Start() == sco::Result::BadArg);
+            return failures ? 1 : 0;
+        }
+        if (faultPrepare) {
+            faultAfter = 1;
+            CHECK(gh::Prepare(o) == sco::Result::Unavailable);
+            CHECK(gh::Status().phase == gh::Phase::Failed && !faultOwner->open());
+            CHECK(gh::Prepare(o) == sco::Result::BadArg && !sco::AcquireHostSignatureRegistry());
+            return failures ? 1 : 0;
+        }
         CHECK(gh::Prepare(o) == sco::Result::Ok);
         if (ownedGood) {
+            if (activationLogThrow) {
+                gh::testing::LogAfterRegistryInstall(true);
+                sco::SetLogSink(ThrowingSink);
+                const auto result = gh::Activate();
+                sco::SetLogSink(nullptr);
+                CHECK(result == sco::Result::Failed && !faultOwner->open());
+                CHECK(gh::Status().phase == gh::Phase::Failed && sco::AcquireHostSignatureRegistry());
+                CHECK(gh::Start() == sco::Result::BadArg);
+                return failures ? 1 : 0;
+            }
+            if (faultActivate) {
+                faultAfter = 2;
+                CHECK(gh::Activate() == sco::Result::Unavailable);
+                CHECK(gh::Status().phase == gh::Phase::Failed && !faultOwner->open());
+                CHECK(sco::AcquireHostSignatureRegistry());
+                CHECK(gh::Start() == sco::Result::BadArg);
+                return failures ? 1 : 0;
+            }
             CHECK(gh::Activate() == sco::Result::Ok);
+            if (appStartFault || afterStartThrow) {
+                const auto registry = sco::AcquireHostSignatureRegistry();
+                if (appStartFault) sco::SetLogSink(FaultDuringAppStart);
+                if (afterStartThrow) gh::testing::FailAfterAppStart(true);
+                const auto result = gh::Start();
+                sco::SetLogSink(nullptr);
+                CHECK(result == sco::Result::Failed);
+                CHECK(!appStartFault || faultSinkFired);
+                CHECK(!faultOwner->open() && sco::detail::RuntimeStopping());
+                CHECK(sco::net::Started() && sco::AcquireHostSignatureRegistry() == registry);
+                CHECK(gh::Status().phase == gh::Phase::Failed && gh::Start() == sco::Result::BadArg);
+                return failures ? 1 : 0;
+            }
+            if (faultStart) {
+                const auto registry = sco::AcquireHostSignatureRegistry();
+                faultAfter = 1;
+                CHECK(gh::Start() == sco::Result::Failed);
+                CHECK(gh::Status().phase == gh::Phase::Failed && !faultOwner->open());
+                CHECK(sco::AcquireHostSignatureRegistry() == registry);
+                CHECK(gh::Start() == sco::Result::BadArg);
+                return failures ? 1 : 0;
+            }
             CHECK(gh::Start() == sco::Result::Ok);
+            if (taskFault) {
+                const auto registry = sco::AcquireHostSignatureRegistry();
+                CHECK(sco::detail::PostOwned(FaultTask, nullptr, nullptr, nullptr) == sco::Result::Ok);
+                CHECK(sco::detail::PostOwned(Task, nullptr, nullptr, nullptr) == sco::Result::Ok);
+                CHECK(gh::Tick(1) == sco::Result::Unavailable);
+                CHECK(tasks == 0 && sco::QueuedTasks() == 1 && sco::detail::RuntimeStopping());
+                CHECK(gh::Status().phase == gh::Phase::Failed && sco::AcquireHostSignatureRegistry() == registry);
+                return failures ? 1 : 0;
+            }
+            if (tickFault) {
+                std::promise<void> entered, resume;
+                tickEntered = &entered; tickContinue = resume.get_future().share();
+                CHECK(sco::Post(BlockingTask, nullptr) == sco::Result::Ok);
+                std::thread fault([&] { entered.get_future().wait(); faultOwner->fault(); resume.set_value(); });
+                CHECK(gh::Tick(1) == sco::Result::Unavailable);
+                fault.join();
+                CHECK(sco::detail::RuntimeStopping() && gh::Status().phase == gh::Phase::Failed);
+                CHECK(sco::net::Started() && gh::Start() == sco::Result::BadArg);
+                return failures ? 1 : 0;
+            }
+            if (runningFault) {
+                const auto registry = sco::AcquireHostSignatureRegistry();
+                CHECK(gh::FreshAdmissionAllowed());
+                CHECK(sco::Post(Task, nullptr) == sco::Result::Ok);
+                CHECK(!sco::app::Start(sco::app::Platform{}));
+                std::thread fault([] { faultOwner->fault(); }); fault.join();
+                CHECK(sco::detail::RuntimeStopping());
+                sco::app::Tick(1);
+                CHECK(tasks == 0 && sco::QueuedTasks() == 1);
+                CHECK(!sco::app::Start(sco::app::Platform{}) && sco::detail::RuntimeStopping());
+                CHECK(!gh::FreshAdmissionAllowed() && gh::Tick(1) == sco::Result::Unavailable);
+                CHECK(gh::Status().phase == gh::Phase::Failed && sco::AcquireHostSignatureRegistry() == registry);
+                return failures ? 1 : 0;
+            }
+            if (admissionLoss) {
+                const auto registry = sco::AcquireHostSignatureRegistry();
+                evidence.session = gh::Session::Unknown;
+                const auto begin = std::chrono::steady_clock::now();
+                CHECK(gh::Tick(1) == sco::Result::Unavailable);
+                CHECK(std::chrono::steady_clock::now() - begin < std::chrono::seconds(1));
+                CHECK(gh::Status().phase == gh::Phase::Failed && sco::AcquireHostSignatureRegistry() == registry);
+                return failures ? 1 : 0;
+            }
+            if (tickReentry) {
+                reenterStop = true;
+                const auto begin = std::chrono::steady_clock::now();
+                CHECK(gh::Tick(1) == sco::Result::Ok);
+                CHECK(reentryResult == sco::Result::Unavailable);
+                CHECK(std::chrono::steady_clock::now() - begin < std::chrono::seconds(1));
+                CHECK(gh::Status().phase == gh::Phase::Running);
+            }
             if (ownedTimeout) {
                 auto read = o.shutdownOwner->try_read();
                 CHECK(read);
+                CHECK(sco::Post(Task, nullptr) == sco::Result::Ok);
                 const auto registry = sco::AcquireHostSignatureRegistry();
                 CHECK(gh::Stop() == sco::Result::Failed);
+                CHECK(sco::detail::RuntimeStopping() && tasks == 0 && sco::QueuedTasks() == 1);
                 CHECK(!o.shutdownOwner->ready() && !o.shutdownOwner->try_read());
                 CHECK(sco::AcquireHostSignatureRegistry() == registry);
                 CHECK(gh::Status().phase == gh::Phase::Failed && shutdownCalls == 0);
                 return failures ? 1 : 0;
             }
-            CHECK(gh::Stop() == sco::Result::Ok);
-            CHECK(o.shutdownOwner->ready() && !o.shutdownOwner->try_read());
-            CHECK(shutdownCalls == 0 && !sco::AcquireHostSignatureRegistry());
+            const auto registry = sco::AcquireHostSignatureRegistry();
+            CHECK(gh::Stop() == sco::Result::Failed);
+            CHECK(!o.shutdownOwner->ready() && !o.shutdownOwner->try_read());
+            CHECK(shutdownCalls == 0 && sco::AcquireHostSignatureRegistry() == registry);
+            CHECK(gh::Status().phase == gh::Phase::Failed && gh::Start() == sco::Result::BadArg);
             return failures ? 1 : 0;
         }
         CHECK(gh::Activate() == sco::Result::Unavailable);

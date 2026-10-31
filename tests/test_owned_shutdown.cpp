@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
+#define SCO_OWNED_SHUTDOWN_TESTING
 #include "sco/owned_shutdown.h"
+#include "../src/owned_shutdown_access.h"
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -56,6 +58,51 @@ struct BlockingDestructor {
     void operator()(const std::function<bool()>&) {}
 };
 
+struct LastReferenceDestructor {
+    std::promise<void>* entered;
+    std::shared_future<void> release;
+    bool active = false;
+    LastReferenceDestructor(std::promise<void>* e, std::shared_future<void> r)
+        : entered(e), release(std::move(r)) {}
+    LastReferenceDestructor(const LastReferenceDestructor&) = delete;
+    LastReferenceDestructor(LastReferenceDestructor&& other)
+        : entered(other.entered), release(other.release), active(true) {}
+    ~LastReferenceDestructor() { if (active) { entered->set_value(); release.wait(); } }
+    void operator()(const std::function<bool()>&) {}
+};
+
+struct DrainFromMove {
+    sco::OwnedShutdown* owner;
+    bool* refused;
+    DrainFromMove(sco::OwnedShutdown* o, bool* r) : owner(o), refused(r) {}
+    DrainFromMove(const DrainFromMove&) = delete;
+    DrainFromMove(DrainFromMove&& other) : owner(other.owner), refused(other.refused) {
+        const auto start = std::chrono::steady_clock::now();
+        *refused = !owner->drain_until(start + 5s) && std::chrono::steady_clock::now() - start < 1s;
+    }
+    void operator()(const std::function<bool()>&) {}
+};
+
+struct DrainFromDestructor {
+    sco::OwnedShutdown* owner;
+    std::promise<void>* entered;
+    std::shared_future<void> release;
+    std::promise<bool>* result;
+    bool active = false;
+    DrainFromDestructor(sco::OwnedShutdown* o, std::promise<void>* e, std::shared_future<void> r, std::promise<bool>* v)
+        : owner(o), entered(e), release(std::move(r)), result(v) {}
+    DrainFromDestructor(const DrainFromDestructor&) = delete;
+    DrainFromDestructor(DrainFromDestructor&& other)
+        : owner(other.owner), entered(other.entered), release(other.release), result(other.result), active(true) {}
+    ~DrainFromDestructor() {
+        if (active) {
+            const auto start = std::chrono::steady_clock::now();
+            result->set_value(!owner->drain_until(start + 5s) && std::chrono::steady_clock::now() - start < 1s);
+        }
+    }
+    void operator()(const std::function<bool()>&) { entered->set_value(); release.wait(); }
+};
+
 int main() {
     {
         sco::OwnedShutdown pending;
@@ -105,6 +152,116 @@ int main() {
         CHECK(!failed.start_worker(ThrowingMove{}));
         CHECK(!failed.drain_until(std::chrono::steady_clock::now() + 1s));
         CHECK(!failed.ready() && !failed.try_read());
+    }
+    {
+        sco::OwnedShutdown pending;
+        std::promise<void> destructing, resume;
+        auto released = resume.get_future().share();
+        bool started = false;
+        std::thread starter([&] {
+            started = pending.start_worker_with_launch_hook(LastReferenceDestructor(&destructing, released),
+                [](std::thread& worker) noexcept { worker.join(); });
+        });
+        destructing.get_future().wait(); // worker joined, starter holds last reference
+        auto draining = std::async(std::launch::async, [&] {
+            return pending.drain_until(std::chrono::steady_clock::now() + 1s);
+        });
+        CHECK(draining.wait_for(50ms) == std::future_status::timeout);
+        resume.set_value();
+        starter.join();
+        CHECK(started && draining.get() && pending.ready());
+    }
+    {
+        sco::OwnedShutdown owner;
+        auto read = owner.try_read();
+        CHECK(read);
+        const auto start = std::chrono::steady_clock::now();
+        CHECK(!owner.drain_until(start + 5s));
+        CHECK(std::chrono::steady_clock::now() - start < 1s && !owner.ready());
+    }
+    {
+        sco::OwnedShutdown owner;
+        bool refused = false;
+        CHECK(!owner.start_worker(DrainFromMove(&owner, &refused)));
+        CHECK(refused && !owner.ready());
+    }
+    {
+        sco::OwnedShutdown owner;
+        std::promise<bool> result;
+        CHECK(owner.start_worker([&](const auto&) {
+            const auto start = std::chrono::steady_clock::now();
+            result.set_value(!owner.drain_until(start + 5s) && std::chrono::steady_clock::now() - start < 1s);
+        }));
+        CHECK(result.get_future().get() && !owner.ready());
+    }
+    {
+        sco::OwnedShutdown owner;
+        std::promise<void> entered, resume;
+        std::promise<bool> result;
+        CHECK(owner.start_worker(DrainFromDestructor(&owner, &entered, resume.get_future().share(), &result)));
+        entered.get_future().wait();
+        resume.set_value();
+        CHECK(result.get_future().get() && !owner.ready());
+    }
+    {
+        sco::OwnedShutdown owner;
+        auto read = owner.try_read();
+        CHECK(read);
+        std::thread transfer([lease = std::move(read)] { (void)lease; });
+        transfer.join();
+        CHECK(!owner.open() && !owner.ready());
+    }
+    {
+        sco::OwnedShutdown owner;
+        {
+            auto read = owner.try_read();
+            CHECK(read && !sco::OwnedShutdownHostAccess::begin_startup(owner) && !sco::OwnedShutdownHostAccess::transition(owner));
+        }
+        CHECK(sco::OwnedShutdownHostAccess::begin_startup(owner));
+        CHECK(!owner.try_read() && !owner.start_worker([](const auto&) {}));
+        std::atomic<int> phase{0};
+        {
+            auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+            CHECK(transition && !owner.try_read() && !owner.start_worker([](const auto&) {}));
+            CHECK(transition.publish_and_open(phase, 0, 1));
+            CHECK(!owner.try_read()); // still closed until transition leaves
+        }
+        CHECK(owner.try_read() && phase == 1);
+    }
+    {
+        sco::OwnedShutdown owner;
+        std::atomic<int> phase{0};
+        auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+        CHECK(transition);
+        std::thread fault([&] { owner.fault(); });
+        fault.join();
+        CHECK(!transition.publish(phase, 0, 1));
+        CHECK(phase == 0 && !owner.open());
+    }
+    {
+        sco::OwnedShutdown owner;
+        auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+        CHECK(transition);
+        const auto start = std::chrono::steady_clock::now();
+        CHECK(!owner.drain_until(start + 5s));
+        CHECK(std::chrono::steady_clock::now() - start < 1s);
+        CHECK(!owner.open());
+    }
+    {
+        sco::OwnedShutdown owner;
+        std::atomic<int> phase{0};
+        std::future<bool> draining;
+        {
+            auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+            CHECK(transition);
+            draining = std::async(std::launch::async, [&] {
+                return owner.drain_until(std::chrono::steady_clock::now() + 1s);
+            });
+            CHECK(owner.wait_until_closed(std::chrono::steady_clock::now() + 1s));
+            CHECK(!transition.publish(phase, 0, 1));
+            CHECK(draining.wait_for(50ms) == std::future_status::timeout);
+        }
+        CHECK(draining.get() && phase == 0);
     }
     sco::OwnedShutdown domain;
     std::promise<void> entered, release;

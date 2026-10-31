@@ -2,6 +2,8 @@
 // Private to src/api/. Callout depth (game thread only, so no lock) and the per-module halves
 // of Release().
 #include "sco/runtime.h"
+#include "sco/owned_shutdown.h"
+#include <memory>
 
 namespace sco::detail {
 
@@ -11,6 +13,20 @@ bool InCallout();
 // service registry lock, then cancels all queued work before any unload export.
 bool RuntimeStopping();
 void SetRuntimeStopping(bool stopped);
+void SetRuntimeShutdownOwner(std::shared_ptr<OwnedShutdown> owner);
+// A runtime operation is admitted before it touches caller state. The startup
+// transition itself is the lease on its owning thread. Raw service-table use
+// after a query still requires a caller-held Read for the complete use.
+class RuntimeLease {
+public:
+    RuntimeLease();
+    explicit operator bool() const noexcept { return !owner_ || startup_ || static_cast<bool>(read_); }
+    bool startup() const noexcept { return startup_; }
+private:
+    std::shared_ptr<OwnedShutdown> owner_;
+    bool startup_;
+    OwnedShutdown::Read read_;
+};
 void StopRuntime();
 
 // Marks a callout (a task, an event callback, a command, a done callback) for its lifetime.

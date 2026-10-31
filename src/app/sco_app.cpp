@@ -1,6 +1,7 @@
 // The host kit: Start / Tick / Stop over the game core, caps, the host table and the loader.
 // Everything runs on the game thread; the state below is touched by nothing else.
 #include "sco/app.h"
+#include "owned_start.h"
 #include "../ipc/diagnostics_worker.h"
 #include "../api/internal.h"
 #include "../plugins/internal.h"
@@ -694,7 +695,7 @@ bool HasRetainedGameHooks() noexcept {
 #endif
 }
 
-bool Start(const Platform& platform) {
+static bool StartImpl(const Platform& platform) {
     if (g_startEntry.test_and_set()) return false;
     struct Entry { ~Entry() { g_startEntry.clear(); } } entry;
     if (g_started || g_teardownFailed) {
@@ -703,6 +704,7 @@ bool Start(const Platform& platform) {
     }
     try {
     SetGameThread();
+    sco::detail::SetRuntimeShutdownOwner(platform.shutdownOwner);
     sco::detail::SetRuntimeStopping(false);
     g_diagnostics.Reset();
     diagnostics::ResetServiceDiagnosticHistory();
@@ -755,9 +757,44 @@ bool Start(const Platform& platform) {
     }
 }
 
+bool Start(const Platform& platform) {
+    // Owned sessions require the host's startup gate; a generic direct caller
+    // cannot establish the host phase publication transaction.
+    if (platform.shutdownOwner) return false;
+    return StartImpl(platform);
+}
+
+namespace detail {
+void RetainFailedOwnedStartup(const std::shared_ptr<OwnedShutdown>& owner) noexcept {
+    if (owner) owner->fault();
+    if (g_platform.shutdownOwner != owner) return;
+    g_teardownFailed = true;
+    sco::detail::SetRuntimeStopping(true);
+    try {
+        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+        else WithNoHostSignatureRegistry(RevokeCapabilities);
+    } catch (...) {}
+}
+bool StartOwned(const Platform& platform, const OwnedShutdown::Transition& transition) {
+    if (!platform.shutdownOwner || !transition.valid_for(*platform.shutdownOwner)) return false;
+    const bool started = StartImpl(platform);
+    if (!started || !transition.valid_for(*platform.shutdownOwner)) {
+        RetainFailedOwnedStartup(platform.shutdownOwner);
+        return false;
+    }
+    return true;
+}
+}
+
 void Tick(uint32_t nowMs) {
     if (!g_started || g_stopping || g_teardownFailed) return;
     if (!OnGameThread()) return;
+    // A direct app tick has the same lifetime obligation as a host tick.
+    auto read = g_platform.shutdownOwner ? g_platform.shutdownOwner->try_read() : OwnedShutdown::Read{};
+    if (g_platform.shutdownOwner && !read) {
+        detail::RetainFailedOwnedStartup(g_platform.shutdownOwner);
+        return;
+    }
 #ifndef SCO_KERNEL_ONLY
     game::private_session::Tick(); // revoke BEFORE queued consumer work
 #endif
@@ -766,6 +803,10 @@ void Tick(uint32_t nowMs) {
         catch (...) { Log("[app] host service tick threw"); }
     }
     const Result r = GameThreadTick(nowMs);
+    if (g_platform.shutdownOwner && sco::detail::RuntimeStopping()) {
+        detail::RetainFailedOwnedStartup(g_platform.shutdownOwner);
+        return;
+    }
     if (r != Result::Ok) Log("[app] tick: %s", ResultName(r));
     DrainMenuCleanup();
     ipc::Tick();   // the owner heartbeat of every sco.ipc channel
@@ -781,6 +822,26 @@ Result Stop() {
     if (g_stopping) return Result::Unavailable;
     if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return Result::Unavailable; }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
+    if (g_platform.shutdownOwner) {
+        // The existing shutdown sequence invokes arbitrary subscribers, task
+        // droppers and unload callbacks and destroys dependent state. It is not
+        // a failure-atomic retirement transaction. Close the actual owner and
+        // retain the entire app instead of sampling a callback or partially
+        // tearing it down. No user cleanup callback is run on this path.
+        sco::detail::SetRuntimeStopping(true);
+        try {
+            if (!g_platform.shutdownOwner->ready())
+                (void)g_platform.shutdownOwner->drain_until(
+                    std::chrono::steady_clock::now() + std::chrono::seconds(1));
+        } catch (...) {}
+        g_platform.shutdownOwner->fault();
+        g_teardownFailed = true;
+        g_stopping = false;
+        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+        else WithNoHostSignatureRegistry(RevokeCapabilities);
+        try { Log("[app] owned retirement retained: cleanup is not failure-atomic"); } catch (...) {}
+        return Result::Failed;
+    }
     bool productReady = true;
     try { if (g_platform.beforeDependentStop) productReady = g_platform.beforeDependentStop(g_platform.beforeDependentStopContext); }
     catch (...) { productReady = false; }

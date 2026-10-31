@@ -4,12 +4,14 @@
 #include "sco/datacore_service.h"
 #include "sco/signature_registry.h"
 #include "sco/caps.h"
+#include "sco/log.h"
 #include "dcb_builder.h"
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <chrono>
 #include <stdexcept>
 #include <string>
 
@@ -20,6 +22,9 @@ static gh::Admission evidence{gh::Session::Offline, gh::Check::Clear, gh::Check:
 static gh::Admission Inspect() { return evidence; }
 static std::string mode;
 static int requirementCalls = 0, capabilityCalls = 0, shutdownCalls = 0;
+static std::shared_ptr<sco::OwnedShutdown> faultOwner;
+static bool loadFaulted = false;
+static void FaultLoadLog(const char*) { loadFaulted = true; faultOwner->fault(); }
 static gh::ConsumerRetirement RetireConsumer(void* context) {
     CHECK(context == &mode && !gh::FreshAdmissionAllowed());
     ++shutdownCalls;
@@ -54,14 +59,27 @@ class Base final : public sco::vfs::BaseIo {
 public:
     std::vector<uint8_t> bytes = dcb::ValuedFixture(36).Build();
     size_t at = 0;
-    bool Seek(uint64_t pos) override { if (pos > bytes.size()) return false; at = static_cast<size_t>(pos); return true; }
-    size_t Read(void* p, size_t n) override { n = std::min(n, bytes.size() - at); std::memcpy(p, bytes.data() + at, n); at += n; return n; }
+    int reads = 0;
+    bool reenter = false, nestedRefused = false, stopRefused = false;
+    bool Seek(uint64_t pos) override {
+        if (reenter) {
+            reenter = false;
+            std::vector<sco::vfs::Splice> nested;
+            nestedRefused = !gh::testing::TransformDataCore(*this, bytes.size(), nested);
+            const auto start = std::chrono::steady_clock::now();
+            stopRefused = gh::Stop() == sco::Result::Failed &&
+                std::chrono::steady_clock::now() - start < std::chrono::seconds(1);
+        }
+        if (pos > bytes.size()) return false;
+        at = static_cast<size_t>(pos); return true;
+    }
+    size_t Read(void* p, size_t n) override { ++reads; n = std::min(n, bytes.size() - at); std::memcpy(p, bytes.data() + at, n); at += n; return n; }
 };
 int main(int argc, char** argv) {
     if (argc < 2 || argc > 3) return 2;
     mode = argc == 3 ? argv[2] : "plain";
     const bool partial = mode.rfind("partial-", 0) == 0;
-    if (mode != "plain" && mode != "true" && mode != "false" && mode != "null" && mode != "throw" && mode != "admission" && mode != "owner" &&
+    if (mode != "plain" && mode != "reentry" && mode != "fault-load" && mode != "prerun-query" && mode != "true" && mode != "false" && mode != "null" && mode != "throw" && mode != "admission" && mode != "owner" &&
         mode != "partial-quiesced" && mode != "partial-retained" && mode != "partial-null" && mode != "partial-throw") return 2;
     const std::filesystem::path root = argv[1];
     std::filesystem::remove_all(root);
@@ -69,7 +87,7 @@ int main(int argc, char** argv) {
     std::filesystem::create_directories(pack / "datacore");
     std::ofstream manifest(pack / "plugin.ini");
     manifest << "id = synthetic_pack\nname = Synthetic pack\nversion = 1.0.0\napi = 1.1\nkind = data\n";
-    if (mode != "plain" && !partial) manifest << "requires = fixture.early\n";
+    if (mode != "plain" && mode != "reentry" && mode != "fault-load" && mode != "prerun-query" && !partial) manifest << "requires = fixture.early\n";
     manifest.close();
     std::ofstream(pack / "datacore" / "a.toml") << "format = 1\n[[set]]\nrecord = \"ShipA\"\nfield = \"speed\"\nvalue = 7.0\n";
     uint8_t bytes[8192]{};
@@ -81,6 +99,7 @@ int main(int argc, char** argv) {
     o.platform.pluginRoot = root / "plugins";
     o.platform.pluginsEnabled = true;
     o.platform.dataCore = true;
+    o.shutdownOwner = std::make_shared<sco::OwnedShutdown>();
     o.dataCoreHook = gh::DataCoreHook::External; // portable transport only; no executable patch
     o.platform.setCapabilities = SetCapabilities;
     o.retireConsumer = mode == "partial-null" ? nullptr : RetireConsumer;
@@ -88,6 +107,11 @@ int main(int argc, char** argv) {
     CHECK(sco::caps::Set("fixture.early", true) == sco::Result::Ok); // stale capability must not authorize early data
     if (mode != "plain" && mode != "null" && !partial) o.earlyDataRequirement = EarlyRequirement;
     o.earlyDataContext = &mode;
+    if (mode == "plain" || mode == "reentry" || mode == "fault-load" || mode == "prerun-query") {
+        o.platform.pluginsEnabled = false;
+        o.platform.setCapabilities = nullptr;
+        o.earlyDataRequirement = nullptr;
+    }
     if (mode == "owner") {
         successor = std::make_shared<sco::SignatureRegistry>();
         CHECK(successor->Freeze() == sco::SigRegistryStatus::Ok);
@@ -99,55 +123,65 @@ int main(int argc, char** argv) {
     CHECK(requirementCalls == 0);
     CHECK(!sco::datacore::service::Started());
     const sco::Result activated = gh::Activate();
-    CHECK(capabilityCalls == 0);
-    if (mode == "admission") {
+    CHECK(capabilityCalls == 0 && requirementCalls == 0);
+    if (mode != "plain" && mode != "reentry" && mode != "fault-load" && mode != "prerun-query") {
+        // These legacy callback/plugin scenarios are intentionally unsupported.
+        // Report them as skipped, not as evidence that their former behavior ran.
         CHECK(activated == sco::Result::Unavailable);
-        CHECK(gh::Status().phase == gh::Phase::Failed && requirementCalls > 0);
-        CHECK(shutdownCalls == 1 && !sco::datacore::service::Started());
-        CHECK(!sco::AcquireHostSignatureSnapshot());
+        CHECK(gh::Status().phase == gh::Phase::Prepared);
+        CHECK(!sco::AcquireHostSignatureRegistry() && !sco::datacore::service::Started());
+        CHECK(!o.shutdownOwner->try_read() && shutdownCalls == 0);
         std::filesystem::remove_all(root);
-        std::printf("game_host_data %s: %d failures\n", mode.c_str(), failures);
-        return failures ? 1 : 0;
+        std::printf("SKIP game_host_data %s: legacy callback path is not owned\n", mode.c_str());
+        return failures ? 1 : 77;
     }
     CHECK(activated == sco::Result::Ok);
-    CHECK(!sco::caps::Has("fixture.early"));
-    CHECK((mode == "plain" || mode == "null" || partial) ? requirementCalls == 0 : requirementCalls > 0);
-    CHECK(sco::datacore::service::Started());
+    CHECK(sco::datacore::service::Started() && gh::Status().dataCoreActive);
     CHECK(sco::datacore::service::Table()->state() == SCO_DC_OPEN);
-    if (partial) {
-        const auto owner = sco::AcquireHostSignatureRegistry();
-        CHECK(gh::Start() == sco::Result::Failed);
-        CHECK(capabilityCalls == 1 && shutdownCalls == (mode == "partial-null" ? 0 : 1));
-        CHECK(gh::Status().phase == gh::Phase::Failed && gh::Status().dataCoreActive);
-        CHECK(sco::datacore::service::Started() && sco::AcquireHostSignatureRegistry() == owner);
-        CHECK(!sco::caps::Has("fixture.early") && !gh::FreshAdmissionAllowed());
-        auto hostileOwner = std::const_pointer_cast<sco::SignatureRegistry>(owner);
-        CHECK(!sco::ClearHostSignatureRegistry(hostileOwner, nullptr));
-        CHECK(gh::Start() == sco::Result::BadArg && gh::Stop() == sco::Result::Unavailable);
-        // The retained provider can reference this test's data until process exit.
-        std::printf("game_host_data %s: %d failures\n", mode.c_str(), failures);
+    if (mode == "prerun-query") {
+        // Known red: Activate publishes before app binds the runtime owner.
+        const void* table = nullptr;
+        CHECK(sco::QueryService(SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_1, &table) == sco::Result::Unavailable && !table);
         return failures ? 1 : 0;
     }
     Base base;
     std::vector<sco::vfs::Splice> splices;
-    // Invalid/bounded data refuses before changing the service's OPEN phase.
+    // Startup keeps every reader excluded until Running is published.
+    CHECK(!gh::testing::TransformDataCore(base, base.bytes.size(), splices));
+    CHECK(gh::Start() == sco::Result::Ok);
+    const auto registry = sco::AcquireHostSignatureRegistry();
+    if (mode == "reentry") {
+        base.reenter = true;
+        CHECK(!gh::testing::TransformDataCore(base, base.bytes.size(), splices));
+        CHECK(base.nestedRefused && base.stopRefused && base.reads == 0);
+        CHECK(gh::Status().phase == gh::Phase::Failed && sco::AcquireHostSignatureRegistry() == registry);
+        CHECK(sco::datacore::service::Started() && sco::datacore::service::Table()->state() == SCO_DC_OPEN);
+        CHECK(gh::Start() == sco::Result::BadArg);
+        return failures ? 1 : 0;
+    }
+    if (mode == "fault-load") {
+        faultOwner = o.shutdownOwner;
+        sco::SetLogSink(FaultLoadLog);
+        const auto transformed = gh::testing::TransformDataCore(base, base.bytes.size(), splices);
+        sco::SetLogSink(nullptr);
+        CHECK(!transformed && loadFaulted && splices.empty());
+        CHECK(sco::datacore::service::Table()->state() == SCO_DC_LOADED);
+        CHECK(gh::Tick(1) == sco::Result::Unavailable && gh::Status().phase == gh::Phase::Failed);
+        CHECK(sco::datacore::service::Started() && sco::AcquireHostSignatureRegistry() == registry);
+        CHECK(gh::Start() == sco::Result::BadArg);
+        return failures ? 1 : 0;
+    }
     CHECK(!gh::testing::TransformDataCore(base, o.maxDataCoreBytes + 1, splices));
     CHECK(sco::datacore::service::Table()->state() == SCO_DC_OPEN);
     CHECK(gh::testing::TransformDataCore(base, base.bytes.size(), splices));
-    CHECK(splices.empty() == (mode == "false" || mode == "null" || mode == "throw"));
-    CHECK(sco::datacore::service::Table()->state() == SCO_DC_LOADED);
-    // Start must NOT restart/reset the service after an early loader applied the pack.
-    CHECK(gh::Start() == sco::Result::Ok);
-    CHECK(capabilityCalls == 1 && sco::caps::Has("fixture.early"));
-    CHECK(sco::datacore::service::Table()->state() == SCO_DC_LOADED);
-    CHECK(gh::Status().dataCoreActive);
-    CHECK(gh::Stop() == sco::Result::Ok);
-    CHECK(capabilityCalls == 1 && !sco::caps::Has("fixture.early") && shutdownCalls == 1);
-    CHECK(!sco::datacore::service::Started() && !gh::Status().dataCoreActive);
+    CHECK(splices.empty() && sco::datacore::service::Table()->state() == SCO_DC_LOADED);
+    CHECK(gh::Stop() == sco::Result::Failed);
+    CHECK(gh::Status().phase == gh::Phase::Failed && gh::Status().dataCoreActive);
+    CHECK(sco::datacore::service::Started() && sco::AcquireHostSignatureRegistry() == registry);
+    CHECK(!o.shutdownOwner->try_read() && gh::Start() == sco::Result::BadArg);
     std::vector<sco::vfs::Splice> late;
-    CHECK(!gh::testing::TransformDataCore(base, base.bytes.size(), late));
-    CHECK(late.empty());
-    std::filesystem::remove_all(root);
+    CHECK(!gh::testing::TransformDataCore(base, base.bytes.size(), late) && late.empty());
+    // Retained provider state may reference the fixture directory until process exit.
     std::printf("game_host_data: %d failures\n", failures);
     return failures ? 1 : 0;
 }

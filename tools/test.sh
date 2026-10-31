@@ -745,6 +745,9 @@ done
   "${APP_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" "${LUA_OBJS[@]}" -ldl -o "$OUT/test_app"
 "$OUT/test_app" "$ROOT/sdk" "$OUT"
 "$OUT/test_app" "$ROOT/sdk" "$OUT" shutdown-only
+"$OUT/test_app" "$ROOT/sdk" "$OUT" fault-retained
+"$OUT/test_app" "$ROOT/sdk" "$OUT" reload-fault-retained
+"$OUT/test_app" "$ROOT/sdk" "$OUT" cascade-fault-retained
 "$OUT/test_app" "$ROOT/sdk" "$OUT/app-stop-failure" registry-stop-failure
 "$OUT/test_app" "$ROOT/sdk" "$OUT/app-owner-mismatch" registry-owner-mismatch
 

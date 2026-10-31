@@ -1,35 +1,101 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "sco/app.h"
 #include "sco/runtime.h"
+#include "sco/net/session.h"
+#include "../src/app/owned_start.h"
+#include "../src/owned_shutdown_access.h"
+#include "../src/api/internal.h"
 #include <cstdio>
 #include <cstdlib>
 #define CHECK(expr) do { if (!(expr)) { std::fprintf(stderr, "CHECK failed: %s:%d: %s\n", __FILE__, __LINE__, #expr); std::abort(); } } while (0)
 #include <chrono>
+#include <future>
 #include <string>
+#include <thread>
 static std::shared_ptr<sco::OwnedShutdown> domain;
 static int unloads = 0;
+static int stopCalls = 0, barrierCalls = 0, exits = 0;
+static int queuedRuns = 0;
+static void Queued(void*) { ++queuedRuns; }
 static const sco_plugin_info* Query() {
     static const sco_plugin_info p{sizeof(p), SCO_API_MAJOR, SCO_API_MINOR, "test", "1", "test"};
     return &p;
 }
 static sco_result Load(const sco_api*, sco_plugin*) { return SCO_OK; }
 static void Unload() { ++unloads; }
-static void Exit(const char*, const void*, void*) { domain->fault(); }
-static bool Drain(void*) { return domain->drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(1)); }
+static void Exit(const char*, const void*, void*) { ++exits; domain->fault(); }
+static bool Drain(void*) { ++barrierCalls; return domain->drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(1)); }
 static sco::Result ServiceOk(void*) { return sco::Result::Ok; }
-static sco::Result ServiceFail(void*) { return sco::Result::Failed; }
+static sco::Result ServiceFail(void*) { ++stopCalls; return sco::Result::Failed; }
+static sco::Result ServiceFaultOk(void*) { ++stopCalls; domain->fault(); return sco::Result::Ok; }
+static bool StartFixture(const sco::app::Platform& p) {
+    if (!sco::OwnedShutdownHostAccess::begin_startup(*domain)) return false;
+    auto transition = sco::OwnedShutdownHostAccess::transition(*domain);
+    std::atomic<int> phase{0};
+    return transition && sco::app::detail::StartOwned(p, transition) &&
+           transition.publish_and_open(phase, 0, 1);
+}
 int main(int argc, char** argv) {
     domain = std::make_shared<sco::OwnedShutdown>();
     sco::app::Platform p;
     p.pluginsEnabled = false;
     p.shutdownOwner = domain;
     p.beforeDependentStop = Drain;
-    if (argc > 1 && std::string(argv[1]) == "service-failure") {
+    CHECK(!sco::app::Start(p) && !sco::net::Started());
+    if (argc > 1 && (std::string(argv[1]) == "startup-admission" || std::string(argv[1]) == "startup-publication")) {
+        sco::SetGameThread();
+        static int serviceOwner, serviceTable;
+        CHECK(sco::ProvideService(&serviceOwner, "fixture", "fixture.service", 1u << 16, &serviceTable) == sco::Result::Ok);
+        CHECK(sco::detail::PostOwned(Queued, nullptr, nullptr, nullptr) == sco::Result::Ok);
+        CHECK(sco::OwnedShutdownHostAccess::begin_startup(*domain));
+        {
+            auto transition = sco::OwnedShutdownHostAccess::transition(*domain);
+            CHECK(transition);
+            sco::detail::SetRuntimeShutdownOwner(domain);
+            const void* table = nullptr;
+            CHECK(sco::QueryService("fixture.service", 1u << 16, &table) == sco::Result::Unavailable && !table);
+            if (std::string(argv[1]) == "startup-publication") {
+                static int reentrantOwner, reentrantTable;
+                // Known red: an arbitrary reentrant startup callback currently
+                // inherits ambient authority to publish this public service.
+                CHECK(sco::ProvideService(&reentrantOwner, "rogue", "rogue.service", 1u << 16, &reentrantTable) == sco::Result::Unavailable);
+            }
+            CHECK(sco::detail::PostOwned(Queued, nullptr, nullptr, nullptr) == sco::Result::Unavailable);
+            CHECK(sco::DrainTasks() == 0 && queuedRuns == 0 && sco::QueuedTasks() == 1);
+            sco::Result other = sco::Result::Ok;
+            std::thread worker([&] { other = sco::detail::PostOwned(Queued, nullptr, nullptr, nullptr); });
+            worker.join();
+            CHECK(other == sco::Result::Unavailable);
+        }
+        // Release the isolated fixture's queued callback without claiming it ran
+        // under the startup gate.
+        sco::detail::SetRuntimeShutdownOwner(nullptr);
+        CHECK(sco::DrainTasks() == 1 && queuedRuns == 1);
+        return 0;
+    }
+    if (argc > 1 && (std::string(argv[1]) == "service-failure" || std::string(argv[1]) == "service-fault-ok" ||
+                     std::string(argv[1]) == "fault-during-drain")) {
         p.hostService.start = ServiceOk;
         p.hostService.tick = ServiceOk;
-        p.hostService.stop = ServiceFail;
-        CHECK(sco::app::Start(p));
+        p.hostService.stop = std::string(argv[1]) == "service-fault-ok" ? ServiceFaultOk : ServiceFail;
+        CHECK(StartFixture(p));
+        CHECK(sco::net::Started());
+        std::thread fault;
+        std::promise<void> entered;
+        if (std::string(argv[1]) == "fault-during-drain") {
+            fault = std::thread([&entered] {
+                auto lease = domain->try_read();
+                CHECK(lease);
+                entered.set_value();
+                while (domain->open()) std::this_thread::yield();
+                domain->fault();
+            });
+            entered.get_future().wait();
+        }
         CHECK(sco::app::Stop() == sco::Result::Failed);
+        if (fault.joinable()) fault.join();
+        CHECK(stopCalls == 0 && barrierCalls == 0 && sco::net::Started());
+        CHECK(!domain->try_read());
         CHECK(!domain->ready());
         CHECK(sco::app::Stop() == sco::Result::Failed);
         CHECK(!sco::app::Start(p));
@@ -37,11 +103,11 @@ int main(int argc, char** argv) {
     }
     const sco::plugins::Builtin builtin{"test", Query, Load, Unload};
     p.builtins = &builtin; p.nBuiltins = 1;
-    CHECK(sco::app::Start(p));
+    CHECK(StartFixture(p));
     int token = 0;
     CHECK(sco::Subscribe(&token, "game.exit", Exit, nullptr) == sco::Result::Ok);
     CHECK(sco::app::Stop() == sco::Result::Failed);
-    CHECK(unloads == 0 && !domain->ready());
+    CHECK(unloads == 0 && exits == 0 && barrierCalls == 0 && !domain->ready());
     CHECK(sco::app::Stop() == sco::Result::Failed);
     CHECK(!sco::app::Start(p));
 }

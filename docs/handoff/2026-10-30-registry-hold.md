@@ -1,5 +1,9 @@
 # HOLD — owned-shutdown drain prototype (do not merge)
 
+For the later partial repair, current supported scope and remaining blockers, see
+[`2026-10-31-registry-review.md`](2026-10-31-registry-review.md). This file
+records the original held prototype and its historical test results.
+
 Branch `hold/registry-owner-drain-20261030`, based on the local registry
 integration `81942c3` (21 commits over sco-core main `5b010dc`; includes the
 owned signature registry and #302 bounds). This branch exists only so the next

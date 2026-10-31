@@ -37,8 +37,8 @@ struct Options {
     std::shared_ptr<const void> resolverOwner; // owns resolver provider code/state
     QuitPolicy quit = QuitPolicy::Required; // External only when shell supplies BeforeQuit
     uint32_t tickIntervalMs = 100;    // 0 = every shell pass; <= INT32_MAX
-    // platform.dataCore starts the service in Activate, before an early engine load.
-    // Requires dataRoot and no builtins (early discovery runs no plugin code).
+    // The synthetic external transport may start DataCore during Activate;
+    // transforms are refused until Running. Early engine loading is unsupported.
     DataCoreHook dataCoreHook = DataCoreHook::Required;
     uint64_t maxDataCoreBytes = 512ull << 20; // bounded base read for Data/Game2.dcb
     app::Platform platform;          // image/registerSignatures MUST be null: owned here
@@ -49,11 +49,7 @@ struct Options {
     // 0 means allocator-limited; otherwise registry, graph and snapshot allocations
     // share this byte budget, including snapshots retained by readers.
     size_t signatureRegistryBudgetBytes = 0;
-    // Optional early DataCore requirement check. Null or an exception means not
-    // available. Runs synchronously during Activate, possibly before the game thread,
-    // after admission and against the installed frozen snapshot; it must be
-    // side-effect-free and not retain the name or snapshot references. The callback
-    // and context must remain valid through Activate.
+    // Legacy callback retained for migration; supplying it refuses activation.
     bool (*earlyDataRequirement)(const char* name, const SignatureSnapshot& snapshot, void* context) = nullptr;
     void* earlyDataContext = nullptr;
     // DEPRECATED: legacy assertion, not invoked or accepted as drain proof.
@@ -82,15 +78,9 @@ Result Start();
 // Unsigned elapsed time handles clock wrap. Rechecks admission BEFORE cadence or callbacks.
 // Lost admission stops the host without executing queued work. No fallback feature ticks.
 Result Tick(uint32_t nowMs);
-// Game thread. Stop cancels tasks through app::Stop; repeated stop is safe. If teardown
-// cannot complete, the host fails and retains its registry for any surviving consumers.
-// A process-retained quit or native DataCore detour means Stop returns Failed and retains
-// the registry through process exit, even after services stop. The shell must keep the
-// borrowed image and provider code valid through that same period.
-// Product-owned readers require the retireConsumer transition above; attempted game
-// services and host-owned native detours also require Platform::gameReadersQuiesced
-// to hold its native-reader barrier before teardown.
-// No restart from Stopped/Failed: process-lifetime hook ownership requires a fresh process.
+// Game thread. Stop closes admission and attempts the owned drain, then returns
+// Failed and retains the app, registry, image, provider code and dependent backing.
+// A failure-atomic cleanup transaction is not yet established. No restart from Failed.
 Result Stop();
 // Synchronous game-thread quit admission: stop BEFORE the engine may terminate the process.
 // No fast-shutdown field/vtable reads; normal and fast quit share this entry.
@@ -100,6 +90,8 @@ Snapshot Status();
 // Host-only worker-safe fresh predicate, NOT exposed through plugin discovery.
 // True only during Start/Running and fresh inspect() positively clears every G1
 // condition. Inspector/backing state must remain process-retained; no plugin code.
+// A fresh observation only; every owned cached/native use must additionally hold
+// its owner's Read lease for the full operation. This bool is not a barrier.
 bool FreshAdmissionAllowed() noexcept;
 
 #if defined(_WIN32)

@@ -661,12 +661,18 @@ void RemoveReloadCopies(const Plugin& p) {
 
 bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
     const auto faulted = [&list] {
-        for (const auto& p : list) {
+        bool found = false;
+        for (auto& p : list) {
             if (p.manifest.kind == Kind::Data) continue;
-            if (p.state == State::Crashed || p.state == State::Faulted ||
-                (p.state == State::Loaded && p.self && sco::detail::Released(p.self))) return true;
+            if (p.state == State::Loaded && p.self && sco::detail::Released(p.self)) {
+                // The pending verdict may be cancelled by shutdown. Publish
+                // the terminal state without invoking plugin code; assigning
+                // the state itself cannot fail, even if reporting later does.
+                p.state = State::Faulted;
+            }
+            if (p.state == State::Crashed || p.state == State::Faulted) found = true;
         }
-        return false;
+        return found;
     };
     if (faulted()) return false;
     std::vector<Plugin*> loaded;

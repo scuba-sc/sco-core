@@ -1,62 +1,59 @@
 # Registry ownership follow-up — HOLD
 
-This is a partial repair of the held `cf3b62679dbd4e065984e32d58662ab9be0c60b1`
-prototype, not a candidate for merge or native activation. The branch includes
-an older registry integration and is separate from core #304 and offline #184.
-Do not interpret its tests as gameplay, engine-hook or Windows proof.
+This branch is separate from core #304 and offline #184. It is a synthetic
+host-source candidate, not a merge, release, game result or native barrier proof.
+Its held reference head was `cf3b62679dbd4e065984e32d58662ab9be0c60b1`.
 
-## Changes in this follow-up
+The owner reserves worker starts before running user-defined callable operations,
+and counts them through callable destruction and thread-handle publication.
+Worker execution, reads and startups refuse same-thread drainage rather than
+waiting on themselves. Reads are thread-bound; invalid transfer faults the owner.
+An internal host capability closes reader and worker admission from Prepare through
+the Running publication. Each phase publication is serialized against fault and
+closure. Direct public app startup with an owner is refused.
 
-Worker admission reserves an in-flight start under the owner mutex, then moves
-and destroys arbitrary work objects and creates worker threads outside it. The
-reservation remains counted until the thread handle is published, or callable
-construction/destruction has completed on cancellation. A post-reservation
-construction or thread-launch exception faults and closes the owner. Refusals
-before reservation, including allocation failure or the slot limit, return
-false; the caller must handle them. A timed-out drain remains terminal and requires retaining
-the owner and all borrowed backing. Joining, including thread-local destruction,
-is still needed for readiness. This does not produce a hard wall-clock deadline:
-mutex scheduling and starting the joiner remain outside the timed wait guarantee.
+Owned shutdown closes admission, attempts the real reader/worker drain, and then
+returns Failed while retaining the app, registry and dependencies. It does not
+run exit, task-drop, unload or host-service callbacks: those paths are not known
+to form a failure-atomic transaction. Owner fault closes runtime admission;
+already-admitted work can finish, while later queued work remains retained.
+A fault during DataCore loading refuses
+the result and retains any mutated state. The synthetic transform is refused
+before Running and serializes reentry without holding its input lock across I/O.
+Early native DataCore loading, legacy callbacks, game services and hooks remain
+unsupported. Legacy fixtures that cannot run under this contract return CTest's
+skip code instead of claiming their original assertions passed.
 
-The legacy `void plugins::UnloadAll` signature and behavior are restored;
-`TryUnloadAll` is the separate checked API used by the prototype app path.
-The plain-C `sco_api.h` and `sc_game_pack.h` are unchanged versus `5b010dc`.
-The wider registry branch nevertheless changes C++ host-source interfaces,
-including `app::Stop`, `Platform::registerSignatures`, and resolver signatures;
-consumers need explicit versioned coordination. A failed host-service stop now
-invalidates the owner and returns before subsequent dependent cleanup; earlier
-unloads cannot be undone. Manifest entries cover the new header and tests.
+The old `void plugins::UnloadAll` type and behavior are retained alongside the
+checked `TryUnloadAll`. The top-level plain-C `sco_api.h` and `sc_game_pack.h`
+are unchanged versus `5b010dc`. The broader branch changes C++ host-source APIs,
+including `app::Stop`, `Platform::registerSignatures` and resolver signatures;
+consumers need a deliberate coordinated transition. Source archive manifests
+include the new internal headers and tests.
 
-## Unresolved release blockers
+## Remaining blockers
 
-* A point-in-time `open()` check during activation races owner closure. Startup
-  needs a durable owner-scoped activation/retirement protocol. The product must
-  prove exclusion from first native mutation through publication, and a separate
-  safe transition through shutdown. A callback claiming success is not proof.
-* `ready()` checks in app cleanup race asynchronous `fault()` and callbacks.
-  In particular a host-service stop can fault the owner yet return success after
-  the final check. Simply sampling again cannot restore already-retired state.
-  Arbitrary legacy callbacks and consumers cannot be treated as an atomic
-  retirement transaction; they must be refused or redesigned with a provable
-  owner-scoped protocol and retained closure. Failed retirement must prevent
-  restart and keep all still-needed code, contexts, images and backing live.
-* Generic app and old host fixtures still need reconciliation; restore behavior
-  only where durable reader exclusion and teardown dependencies are established.
-  Do not weaken refusal or use always-true barrier callbacks to make tests green.
-* No Windows/MSVC /WX full suite, SEH, instruction-patch exclusion, quit
-  continuation, or native reader/worker census has been proven on this candidate.
-  The runbook's budget-allocation failure note conflicts with ancestor b420d1a's
-  recorded Windows fix and test claim; neither establishes this exact head.
-* #304 `571fe8e` is the named handoff candidate, not a merged dependency of this
-  branch; #184 must retain native preparation/activation refusal until a real
-  product-owned barrier exists. Coordinate final exact SHAs and deliberate API
-  choices with both owners; do not silently port this branch into either one.
-
-A possible direction is a product-owned lifecycle object with serialized phases
-for preparing, activation, closing admission, draining all enrolled readers
-and worker joins, cleanup, and terminal retirement/fault. Each phase needs a
-precise ownership and reentry contract; the transition into cleanup must exclude
-new readers for its entire duration, and a fault or incomplete cleanup must
-retain dependent backing and prevent restart. It cannot make arbitrary callbacks
-failure-atomic or interpose on hidden native callers. Such paths stay unsupported
-until their complete census, Windows behavior and failure handling are proven.
+* Startup admission is not complete: public `ProvideService` inherits the
+  transition-thread exemption, so a reentrant log or other callback can publish
+  a service while reader admission is shut. DataCore service setup also occurs
+  in Activate before the app binds its runtime owner. The safe fix needs an
+  explicit internal startup capability threaded through subsystem publication,
+  and runtime binding before any publication; do not enable product startup on
+  the basis of the current synthetic Running path.
+* No successful owned retirement exists. Supporting one requires a callback-free,
+  non-failing commit or a different provable lifetime architecture; partial
+  cleanup cannot be made atomic by sampling owner readiness.
+* Every relevant reader/worker must enroll and keep its lease throughout use.
+  The protocol cannot interpose on hidden native threads, cached raw tables,
+  arbitrary plugins or engine execution. No synthetic test proves native safety.
+* No exact-head Windows/MSVC /WX full suite, SEH, native target exclusion or quit
+  continuation proof has been obtained. The older MSVC registry-budget warning
+  conflicts with ancestor b420d1a's recorded fix and historical test claim; neither
+  substitutes for exact-head verification.
+* Core #304 `571fe8e2c911d7c63c372103724896feaabe58f2` and offline #184 are
+  independent candidates. Coordinate exact final SHAs and deliberate API choices;
+  do not silently fold this branch into either one. Offline native activation
+  must remain refused until its real product-owned barrier is proven.
+* Timed waits do not guarantee a hard wall-clock bound for mutex scheduling or
+  thread creation. A timed-out owner, workers and borrowed backing remain live;
+  destruction is only legal after all callers, leases and starts have ended.

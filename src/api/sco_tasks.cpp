@@ -46,13 +46,18 @@ static std::atomic<CalloutGuard> g_calloutGuard{ nullptr };
 
 void SetCalloutGuard(CalloutGuard guard) { g_calloutGuard.store(guard); }
 
-bool detail::Callout(const void* owner, const char* where, TaskFn thunk, void* ctx) {
+static bool CalloutAdmitted(const void* owner, const char* where, TaskFn thunk, void* ctx) {
     detail::CallScope scope;
-    if (detail::RuntimeStopping() || detail::Released(owner)) return false;
+    if (detail::Released(owner)) return false;
     const CalloutGuard guard = owner ? g_calloutGuard.load() : nullptr;
     if (guard) return guard(owner, where, thunk, ctx);
     thunk(ctx);
     return true;
+}
+bool detail::Callout(const void* owner, const char* where, TaskFn thunk, void* ctx) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || detail::RuntimeStopping()) return false;
+    return CalloutAdmitted(owner, where, thunk, ctx);
 }
 
 // Owners that Release() or fault quarantine has started on; grows for the process lifetime.
@@ -86,6 +91,8 @@ static uint64_t        g_nextSeq = 0;   // post order; a drain runs only tasks p
 
 static Result Push(TaskFn fn, TaskFn drop, void* ctx, const void* owner, bool guarded) {
     if (!fn) return Result::BadArg;
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_queueLock);
     if (detail::RuntimeStopping()) return Result::Unavailable;
     if (detail::Released(owner)) return Result::BadArg;
@@ -130,7 +137,8 @@ size_t DrainTasks() {
     // Never nested: a drain inside a callout would run tasks while an outer dispatch is still on
     // the stack, which breaks the "post a task, free ctx there" rule in runtime.h. It would
     // also pop tasks the outer drain counted.
-    if (!OnGameThread() || detail::InCallout() || detail::RuntimeStopping()) return 0;
+    detail::RuntimeLease entry;
+    if (!entry || entry.startup() || !OnGameThread() || detail::InCallout() || detail::RuntimeStopping()) return 0;
     uint64_t end;
     {
         std::lock_guard<std::mutex> hold(g_queueLock);
@@ -139,8 +147,11 @@ size_t DrainTasks() {
     size_t ran = 0;
     for (;;) {
         Task t;
+        detail::RuntimeLease admission;
+        if (!admission) break;
         {
             std::lock_guard<std::mutex> hold(g_queueLock);
+            if (detail::RuntimeStopping()) break;
             // Empty, or only newer tasks left (a task may Release() others mid-drain). The ring
             // is older than the overflow list; when the ring empties, refill it from the list.
             if (g_count == 0) Refill();
@@ -154,7 +165,7 @@ size_t DrainTasks() {
         }
         // Outside the lock: a task may Post().
         if (t.guarded) {
-            detail::Callout(t.owner, "task", t.fn, t.ctx);
+            CalloutAdmitted(t.owner, "task", t.fn, t.ctx);
         } else {
             detail::CallScope scope;
             t.fn(t.ctx);
