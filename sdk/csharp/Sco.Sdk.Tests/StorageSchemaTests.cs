@@ -19,7 +19,7 @@ namespace Sco.Sdk.Tests
         private static bool _arguments;
         private static uint _wanted;
         private static string? _after;
-        private static string _inputTable = "schema";
+        private static string? _inputTable = "schema";
         private static string S(byte* p) => Marshal.PtrToStringUTF8((nint)p) ?? "";
         private static void Check(bool ok, string what)
         { ++_checks; if (!ok) { ++_failed; Console.WriteLine("FAIL storage schema: " + what); } }
@@ -80,7 +80,8 @@ namespace Sco.Sdk.Tests
                                              byte* type, uint* ts, uint* flags)
         {
             ++_calls;
-            _arguments &= self == (void*)1 && table != null && S(table) == _inputTable && *index == _wanted;
+            _arguments &= self == (void*)1 && (table == null ? _inputTable == null : S(table) == _inputTable) && *index == _wanted;
+            if (table == null) return ScoResult.BadArg;
             *index = 999; *flags = 31; // Even broken providers cannot leak these on failure.
             if (_mode == Mode.FailAfterGrowth)
             {
@@ -170,6 +171,28 @@ namespace Sco.Sdk.Tests
                   name == "" && type == "" && flags == 0 && index == _wanted && _arguments,
                   "empty table preserves host failure and index");
 
+            Reset(Mode.Normal); _after = "café🚀";
+            Check(storage.NextTable(_after, out got, out kind) == ScoResult.Ok && _arguments && _calls == 1,
+                  "non-ASCII cursor forwarded exactly");
+            Reset(Mode.Normal); _inputTable = "表🚀"; index = _wanted;
+            Check(storage.NextColumn(_inputTable, ref index, out name, out type, out flags) == ScoResult.Ok &&
+                  _arguments && _calls == 1 && index == 8, "non-ASCII table forwarded exactly");
+            Reset(Mode.Normal); _inputTable = null; index = _wanted;
+            Check(storage.NextColumn(null!, ref index, out name, out type, out flags) == ScoResult.BadArg &&
+                  _arguments && _calls == 1 && name == "" && type == "" && flags == 0 && index == _wanted,
+                  "null table remains null and preserves host refusal");
+
+            foreach (string invalid in new[] { "\0lead", "mid\0dle", "trail\0", "\ud800", "\udc00", "a\ud800b", "a\udc00b" })
+            {
+                Reset(Mode.Normal);
+                Check(storage.NextTable(invalid, out got, out kind) == ScoResult.BadArg && got == "" && kind == 0 && _calls == 0,
+                      "invalid cursor refused before host call");
+                Reset(Mode.Normal); index = _wanted;
+                Check(storage.NextColumn(invalid, ref index, out name, out type, out flags) == ScoResult.BadArg &&
+                      name == "" && type == "" && flags == 0 && index == _wanted && _calls == 0,
+                      "invalid table refused before host call");
+            }
+
             foreach (Mode mode in new[] { Mode.NoProgress, Mode.TooLarge, Mode.BadZero, Mode.BadOver, Mode.MissingNul, Mode.EarlyNul, Mode.BadUtf8, Mode.HostFailure, Mode.FailAfterGrowth, Mode.Forever })
             {
                 ScoResult expected = mode == Mode.HostFailure || mode == Mode.FailAfterGrowth ? ScoResult.WrongThread :
@@ -217,10 +240,16 @@ namespace Sco.Sdk.Tests
             _table = &table;
             Check(storage.Open(p) == ScoResult.Ok, "restore full storage table");
             table.size = 128; Reset(Mode.Normal); index = _wanted;
+            Check(storage.NextTable("\0", out got, out kind) == ScoResult.Unavailable &&
+                  storage.NextColumn("\ud800", ref index, out name, out type, out flags) == ScoResult.Unavailable && _calls == 0,
+                  "missing members take precedence over input validation");
             Check(storage.NextTable("cursor", out got, out kind) == ScoResult.Unavailable && got == "" && kind == 0 &&
                   storage.NextColumn("schema", ref index, out name, out type, out flags) == ScoResult.Unavailable && index == _wanted && _calls == 0,
                   "1.0 table refuses schema tail");
             table.size = (uint)sizeof(ScoStorageV1); table.next_table = null; table.next_column = null;
+            Check(storage.NextTable("\0", out got, out kind) == ScoResult.Unavailable &&
+                  storage.NextColumn("\ud800", ref index, out name, out type, out flags) == ScoResult.Unavailable && _calls == 0,
+                  "null members take precedence over input validation");
             Check(storage.NextTable("cursor", out got, out kind) == ScoResult.Unavailable &&
                   storage.NextColumn("schema", ref index, out name, out type, out flags) == ScoResult.Unavailable && _calls == 0,
                   "null schema members refused");

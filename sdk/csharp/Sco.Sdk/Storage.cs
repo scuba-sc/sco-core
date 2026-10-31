@@ -151,6 +151,25 @@ namespace Sco.Sdk
         private static uint SchemaCapacity(uint current, uint required) =>
             Math.Max(required, Math.Min(current * 2, MaxSchemaBuffer));
 
+        private static ScoResult SchemaInput(string? value, out byte[]? bytes)
+        {
+            bytes = null;
+            if (value == null) return ScoResult.Ok;
+            if (value.IndexOf('\0') >= 0) return ScoResult.BadArg;
+            try
+            {
+                int length = SchemaUtf8.GetByteCount(value);
+                byte[] encoded = new byte[checked(length + 1)];
+                SchemaUtf8.GetBytes(value.AsSpan(), encoded);
+                bytes = encoded;
+                return ScoResult.Ok;
+            }
+            catch (System.Text.EncoderFallbackException) { return ScoResult.BadArg; }
+            catch (ArgumentException) { return ScoResult.TooMany; } // Encoded length exceeds Int32.
+            catch (OutOfMemoryException) { return ScoResult.TooMany; }
+            catch (OverflowException) { return ScoResult.TooMany; }
+        }
+
         private static bool SchemaString(byte[] bytes, uint size, out string value)
         {
             value = "";
@@ -168,9 +187,10 @@ namespace Sco.Sdk
             table = ""; kind = 0;
             if (_t == null || _t->size < (uint)((byte*)&_t->next_table - (byte*)_t + sizeof(nint)) || _t->next_table == null)
                 return ScoResult.Unavailable;
+            ScoResult inputResult = SchemaInput(after, out byte[]? a);
+            if (inputResult != ScoResult.Ok) return inputResult;
             try
             {
-                byte[]? a = Utf8.Z(after);
                 byte[] name = new byte[256];
                 for (int attempt = 0; attempt < MaxSchemaCalls; ++attempt)
                 {
@@ -204,9 +224,10 @@ namespace Sco.Sdk
             name = ""; type = ""; flags = 0;
             if (_t == null || _t->size < (uint)((byte*)&_t->next_column - (byte*)_t + sizeof(nint)) || _t->next_column == null)
                 return ScoResult.Unavailable;
+            ScoResult inputResult = SchemaInput(table, out byte[]? t);
+            if (inputResult != ScoResult.Ok) return inputResult;
             try
             {
-                byte[] t = Utf8.Z(table)!;
                 byte[] n = new byte[256], y = new byte[256];
                 uint wanted = index;
                 for (int attempt = 0; attempt < MaxSchemaCalls; ++attempt)
