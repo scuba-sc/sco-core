@@ -42,6 +42,12 @@ index, both output buffers and their size values, and the flags unchanged.
 - [Hosting it](#hosting-it)
 - [Lua](#lua)
 
+The [Lua notebook](../sdk/examples/notebook/main.lua) demonstrates key-value
+operations and transactions. It does not demonstrate SQL cursors; for the Lua SQL
+route see the [Lua storage guide](../sdk/docs/lua.md#scostore) and for C/C++ SQL
+see the examples below. A missing catalogue example does not mean a method or
+language route is unsupported.
+
 ## Using it from C
 
 ```c

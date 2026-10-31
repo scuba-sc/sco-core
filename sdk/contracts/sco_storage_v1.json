@@ -720,9 +720,7 @@
           ]
         }
       },
-      "examples": [
-        "sdk/examples/notebook/main.lua"
-      ],
+      "examples": [],
       "tests": [
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
@@ -816,9 +814,7 @@
           ]
         }
       },
-      "examples": [
-        "sdk/examples/notebook/main.lua"
-      ],
+      "examples": [],
       "tests": [
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
@@ -912,9 +908,7 @@
           ]
         }
       },
-      "examples": [
-        "sdk/examples/notebook/main.lua"
-      ],
+      "examples": [],
       "tests": [
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
@@ -1008,9 +1002,7 @@
           ]
         }
       },
-      "examples": [
-        "sdk/examples/notebook/main.lua"
-      ],
+      "examples": [],
       "tests": [
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
@@ -1103,9 +1095,7 @@
           ]
         }
       },
-      "examples": [
-        "sdk/examples/notebook/main.lua"
-      ],
+      "examples": [],
       "tests": [
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
@@ -1196,9 +1186,7 @@
           ]
         }
       },
-      "examples": [
-        "sdk/examples/notebook/main.lua"
-      ],
+      "examples": [],
       "tests": [
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
@@ -1290,9 +1278,7 @@
           ]
         }
       },
-      "examples": [
-        "sdk/examples/notebook/main.lua"
-      ],
+      "examples": [],
       "tests": [
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
@@ -1382,9 +1368,7 @@
           ]
         }
       },
-      "examples": [
-        "sdk/examples/notebook/main.lua"
-      ],
+      "examples": [],
       "tests": [
         "tests/abi_storage.c",
         "tests/test_lua.cpp",
