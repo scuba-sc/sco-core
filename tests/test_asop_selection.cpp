@@ -331,11 +331,30 @@ int main() {
     CHECK(table->status(gate,gate_lease,gate_id,&receipt)==SCO_OK &&
           receipt.phase==SC_ASOP_SELECTION_EDIT_CONFLICT && receipt.reason==SC_ASOP_SELECTION_REASON_BUSY);
     CHECK(table->state(gate,&state)==SCO_OK && (state.flags&SC_ASOP_SELECTION_FILE_KNOWN));
+    // A throwing callback at the final commit gate is also busy: no exception or
+    // file mutation escapes, and the known snapshot remains usable.
+    const auto before_throw_state=state;
+    const auto before_throw_document=file.document;
+    const auto before_throw_writes=file.writes;
+    busy_throws=true; gate_request.client_key=2;
+    uint64_t throw_id=0;
+    CHECK(table->replace(gate,gate_lease,&gate_request,&throw_id)==SCO_OK);
+    bool pump_escaped=false; sco::Result pump_result=sco::Result::Failed;
+    try { pump_result=S::Pump(); } catch (...) { pump_escaped=true; }
+    busy_throws=false;
+    CHECK(!pump_escaped && pump_result==sco::Result::Ok && file.writes==before_throw_writes+1 &&
+          file.document.bytes==before_throw_document.bytes && file.document.identity==before_throw_document.identity);
+    receipt.size=sizeof(receipt);
+    CHECK(table->status(gate,gate_lease,throw_id,&receipt)==SCO_OK &&
+          receipt.phase==SC_ASOP_SELECTION_EDIT_CONFLICT && receipt.reason==SC_ASOP_SELECTION_REASON_BUSY);
+    CHECK(table->state(gate,&state)==SCO_OK && state.flags==before_throw_state.flags &&
+          state.file_revision==before_throw_state.file_revision && state.semantic_revision==before_throw_state.semantic_revision &&
+          std::memcmp(state.file_digest,before_throw_state.file_digest,32)==0);
     // Re-saving the same set with the busy class kept succeeds.
     sc_asop_selection_class keep_both[2]{};for(auto& k:keep_both)k.size=sizeof(k);
     std::memcpy(keep_both[0].class_name,"Test_Ship_A",12);
     std::memcpy(keep_both[1].class_name,"Test_Ship_B",12);
-    gate_request.classes=keep_both;gate_request.count=2;gate_request.client_key=2;
+    gate_request.classes=keep_both;gate_request.count=2;gate_request.client_key=3;
     uint64_t keep_id=0;
     CHECK(table->replace(gate,gate_lease,&gate_request,&keep_id)==SCO_OK);
     CHECK(S::Pump()==sco::Result::Ok);
@@ -347,7 +366,7 @@ int main() {
     const auto before_refusal=state;
     gate_request.file_revision=state.file_revision;
     std::memcpy(gate_request.file_digest,state.file_digest,32);
-    gate_request.client_key=3;gate_request.classes=keep;gate_request.count=1;
+    gate_request.client_key=4;gate_request.classes=keep;gate_request.count=1;
     uint64_t adapter_busy_id=0;
     CHECK(table->replace(gate,gate_lease,&gate_request,&adapter_busy_id)==SCO_OK);
     const auto before_refusal_document=file.document;
@@ -365,7 +384,7 @@ int main() {
     CHECK(S::Pump()==sco::Result::Ok && file.writes==before_busy_replay);
     // A pre-permit cancellation is also a proved non-write and must not poison
     // file knowledge or consume the next client's ability to save.
-    gate_request.client_key=4;
+    gate_request.client_key=5;
     uint64_t adapter_cancelled_id=0;
     CHECK(table->replace(gate,gate_lease,&gate_request,&adapter_cancelled_id)==SCO_OK);
     file.replace_result=S::FileResult::Cancelled;
@@ -379,7 +398,7 @@ int main() {
     CHECK(table->replace(gate,gate_lease,&gate_request,&replay)==SCO_OK && replay==adapter_cancelled_id);
     file.replace_result=S::FileResult::Ok;
     busy_name.clear();
-    gate_request.client_key=5;uint64_t released_id=0;
+    gate_request.client_key=6;uint64_t released_id=0;
     CHECK(table->replace(gate,gate_lease,&gate_request,&released_id)==SCO_OK);
     file.release_table=table;file.lease_owner=gate;file.lease_to_release=gate_lease;
     CHECK(S::Pump()==sco::Result::Ok && file.lease_release_result==SCO_OK);

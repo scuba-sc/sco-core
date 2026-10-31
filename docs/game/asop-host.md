@@ -26,8 +26,10 @@ not `Reconfigure` or a `Stop`/`Start` cycle.
 
 The internal transactional fleet helper and append-only slot table are retained:
 a ship URN uses a stable slot index, removed slots are not recycled, and a re-added
-class reuses its slot. Failed resolution, capacity or allocation leaves the prior
-table and buffer intact; retired published buffers remain process-lifetime.
+class reuses its slot. Initial publication skips unresolved entries and reports the
+skipped count; capacity, invalid input or allocation failure leaves the prior table
+and buffer intact. Later transactional replacements also refuse unresolved entries
+and leave the prior publication intact; retired published buffers remain process-lifetime.
 Portable helper tests establish these data-structure properties only, not permission
 for native mid-session mutation or engine/`Stop` overlap.
 
