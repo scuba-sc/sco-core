@@ -57,7 +57,7 @@ public:
         std::lock_guard lock(mutex_);
         if (state_ == State::FailedRetained) return EnqueueResult::Faulted;
         if (state_ != State::Open) return EnqueueResult::Closed;
-        if (outstanding_ == capacity || lastIssued_ == std::numeric_limits<std::uint64_t>::max()) return EnqueueResult::Full;
+        if (outstanding_ == capacity || lastIssued_ == (std::numeric_limits<std::uint64_t>::max)()) return EnqueueResult::Full;
         for (std::size_t i = 0; i < capacity; ++i) {
             if (slots_[i].state == SlotState::Free) {
                 const auto sequence = ++lastIssued_;

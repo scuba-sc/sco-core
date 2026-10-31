@@ -37,6 +37,9 @@ struct Gate {
         if (g.fail) throw std::runtime_error("injected copy failure");
     }
 };
+// Some failure tests intentionally leave a worker alive until process exit.
+// Keep its hook context reachable for the same lifetime, including leak checks.
+static Gate* volatile g_workerGateRoot = nullptr;
 static void HoldNoexcept(void* context) noexcept {
     try { Gate::Hold(context); } catch (...) { std::abort(); }
 }
@@ -161,7 +164,8 @@ int main(int argc, char** argv) {
         Setup(binding, *session);
         const auto table = *rs::QueryMock(*session);
         std::promise<void> release;
-        auto* gate = new Gate{{}, release.get_future().share(), false, {}};
+        g_workerGateRoot = new Gate{{}, release.get_future().share(), false, {}};
+        auto* gate = g_workerGateRoot;
         rs::testing::SetBeforeQueuedWorkHook(Gate::Hold, gate);
         CHECK(table.start_worker(table.context) == sco::Result::Ok);
         CHECK(table.enqueue_set(table.context, 7) == sco::Result::Ok);
@@ -416,7 +420,8 @@ int main(int argc, char** argv) {
         std::promise<void> release;
         // A timed-out worker may outlive this scope; keep its test hook context
         // process-rooted just like the production capsule.
-        auto* gate = new Gate{{}, release.get_future().share(), mode == "worker-fault", {}};
+        g_workerGateRoot = new Gate{{}, release.get_future().share(), mode == "worker-fault", {}};
+        auto* gate = g_workerGateRoot;
         if (mode == "worker-close-race" || mode == "worker-publish-close") {
             if (mode == "worker-close-race") rs::testing::SetBeforeWorkerStartHook(Gate::Hold, gate);
             else rs::testing::SetBeforeWorkerPublishHook(HoldNoexcept, gate);

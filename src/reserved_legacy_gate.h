@@ -53,7 +53,7 @@ class LegacyEntry {
 public:
     explicit LegacyEntry(bool exposesOrMutates = true) noexcept {
         std::lock_guard lock(g_authorityMutex);
-        if (g_reserved || g_legacyEntries == std::numeric_limits<size_t>::max()) return;
+        if (g_reserved || g_legacyEntries == (std::numeric_limits<size_t>::max)()) return;
         ++g_legacyEntries;
         if (exposesOrMutates) g_legacyDirty = true;
         admitted_ = true;

@@ -140,8 +140,10 @@ int main() {
     {
         auto backing = std::make_shared<int>(4);
         std::weak_ptr<int> weak = backing;
-        auto* body = new Gate; // worker may outlive this test scope after timeout
-        auto* bodyDone = new std::promise<void>;
+        // The timed-out worker may outlive this scope, so its callable owns
+        // the test context until it has finished using it.
+        auto body = std::make_shared<Gate>();
+        auto bodyDone = std::make_shared<std::promise<void>>();
         {
             Group group(std::make_unique<Capsule>(backing)); backing.reset();
             { auto start = group.reserve_start(); CHECK(start); CHECK(start.launch([body, bodyDone](const auto&) { body->wait(); bodyDone->set_value(); })); }
