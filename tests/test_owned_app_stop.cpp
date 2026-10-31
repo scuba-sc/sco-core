@@ -31,6 +31,7 @@ struct TableGate {
 static std::shared_ptr<sco::OwnedShutdown> domain;
 static int stopCalls = 0, barrierCalls = 0, exits = 0;
 static int queuedRuns = 0;
+static bool UnexpectedNativeBarrier(void*) { std::abort(); }
 static void Queued(void*) { ++queuedRuns; }
 static void StartupEvent(const char*, const void*, void*) {}
 static void StartupRelease(const void*) {}
@@ -95,6 +96,18 @@ int main(int argc, char** argv) {
     p.privateSession.enabled = false;
     p.shutdownOwner = domain;
     p.beforeDependentStop = Drain;
+    if (argc > 1 && std::string(argv[1]) == "native-service-coverage-unavailable") {
+        std::puts("SKIP: native game-service table fixture requires an enabled production service path");
+        return 77;
+    }
+    if (argc > 1 && std::string(argv[1]) == "native-refusal") {
+        sco::app::Platform native;
+        native.gameServices = true;
+        native.gameReadersQuiesced = UnexpectedNativeBarrier;
+        CHECK(!sco::app::Start(native));
+        CHECK(!sco::net::Started() && !sco::AcquireHostSignatureRegistry());
+        return 0;
+    }
     CHECK(!sco::app::Start(p) && !sco::net::Started());
     if (argc > 1 && (std::string(argv[1]) == "startup-admission" || std::string(argv[1]) == "startup-publication")) {
         CHECK(sco::OwnedShutdownHostAccess::begin_startup(*domain));
@@ -131,6 +144,15 @@ int main(int argc, char** argv) {
         CHECK(transition && !sco::detail::BindRuntimeStartup(domain, transition));
         const void* table = nullptr;
         CHECK(sco::QueryService("fixture.service", 1u << 16, &table) == sco::Result::Ok && table == &legacyTable);
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "provider-refusal") {
+        CHECK(StartFixture(p));
+        static int owner, table;
+        CHECK(sco::ProvideService(&owner, "fixture", "fixture.service", 1u << 16, &table) == sco::Result::Unavailable);
+        const void* result = nullptr;
+        CHECK(sco::QueryService("fixture.service", 1u << 16, &result) == sco::Result::NotFound && !result);
+        CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
         return 0;
     }
     if (argc > 1 && (std::string(argv[1]) == "service-failure" || std::string(argv[1]) == "service-fault-ok")) {

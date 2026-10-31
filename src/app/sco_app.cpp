@@ -782,6 +782,11 @@ static bool StartImpl(const Platform& platform, const sco::detail::StartupPublis
 }
 
 bool Start(const Platform& platform) {
+#ifndef SCO_APP_TEST_SYNTHETIC_GAME_SERVICES
+    // An affirmative callback cannot establish durable exclusion of native
+    // execution. Refuse before any startup or game-service mutation.
+    if (platform.gameServices) return false;
+#endif
     // Owned sessions require the host's startup gate; a generic direct caller
     // cannot establish the host phase publication transaction.
     if (platform.shutdownOwner) return false;

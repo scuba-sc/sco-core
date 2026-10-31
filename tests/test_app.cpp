@@ -575,7 +575,12 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     fs::remove_all(root / "a_needs_bad", ec);
 
 #ifdef SCO_GAME_SERVICES
-#include "game_contracts/app_service_cases.inc"
+    // Production app refuses the game-services request before native mutation.
+    // The synthetic fixture separately tests app-level failure ordering only.
+    pf.gameServices = true;
+    pf.gameReadersQuiesced = [](void*) -> bool { std::abort(); };
+    CHECK(!sco::app::Start(pf));
+    pf.gameServices = false;
 #endif
     fs::remove_all(out / "app", ec);
 }

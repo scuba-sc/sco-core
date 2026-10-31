@@ -50,10 +50,10 @@ include the new internal headers and tests.
 * Every relevant reader/worker must enroll and keep its lease throughout use.
   The protocol cannot interpose on hidden native threads, cached raw tables,
   arbitrary plugins or engine execution. No synthetic test proves native safety.
-* No exact-head Windows/MSVC /WX full suite, SEH, native target exclusion or quit
-  continuation proof has been obtained. The older MSVC registry-budget warning
-  conflicts with ancestor b420d1a's recorded fix and historical test claim; neither
-  substitutes for exact-head verification.
+* Hosted Windows/MSVC /WX full CTest and extracted SDK builds passed at
+  `49eb153d1d0952ebbc7baa258988e6dc6cc67320`; a later head requires its own
+  checks. SEH behavior in the target, native exclusion and quit continuation
+  remain unproven. The earlier registry-budget warning was resolved for that CI run.
 * Core #304's earlier named candidate was `571fe8e2c911d7c63c372103724896feaabe58f2`;
   its remote head is `1b6782bc5c8b7d189cdff4c83e81957f09af35d7` and is merged.
   Offline #184's remote head is `aaf79475b159f0fd76000ba315bef11778cb53b7`
@@ -71,7 +71,7 @@ include the new internal headers and tests.
 The synthetic session's one-slot table is a private, typed fixture: it copies a
 scalar under an owner read, retains its capsule for process lifetime, and has no
 queue, plugin, native entry, mapped view or external callback in its production
-surface. Its terminal `QuiescedRetained` result is not an app-stop result. The
+surface. Its terminal `QuiescedRetained` result is not an app-stop result.
 All UI and storage table functions acquire admission for their complete calls,
 including input and output copying. Refusal at admission returns unavailable
 before invoking the entry; output values are left untouched except that
@@ -91,3 +91,15 @@ fault retains the full closure and refuses restart. Borrowed pointers are not
 ownership tokens. Native patches, old plugin tables, external threads, mapped
 views and the engine quit continuation require their own enrollment and actual
 product exclusion proof before activation can be enabled.
+
+The public `app::Start` refuses `Platform::gameServices` before startup work,
+including when its legacy barrier callback would return true. This does not gate
+direct calls to the separate C++ `game::services::Start` entry; those must remain
+outside the supported composition until independently gated. The current fresh
+admission inspector is not a complete reader barrier: a pre-bind caller can
+capture the old owner before the new owner is installed and then enter the new
+inspector. Both that race and unowned callbacks/returned views block successful
+real-application retirement. The test-only lifecycle fixture is not native proof.
+The earlier Windows app fixture's real game-service table and capability coverage
+is explicitly skipped while production startup refuses these services. The mock
+boundary fixture preserves its failure-order tests but does not replace that coverage.

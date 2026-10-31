@@ -80,6 +80,16 @@ Result FinalizeStopAfterQuiescence() {
 int main(int argc, char** argv) {
     if (argc != 2) return 2;
     mode = argv[1];
+    if (mode == "production-refusal") {
+        sco::app::Platform platform;
+        platform.gameServices = true;
+        platform.gameReadersQuiesced = ReadersQuiesced;
+        platform.gameReadersContext = &token;
+        CHECK(!sco::app::Start(platform));
+        CHECK(calls.empty() && barrierCalls == 0 && capabilityCalls == 0);
+        CHECK(!sco::AcquireHostSignatureRegistry());
+        return failures ? 1 : 0;
+    }
     if (mode != "phase-owner" && mode != "true" && mode != "false" && mode != "null" && mode != "throw" &&
         mode != "stop-false" && mode != "stop-throw" && mode != "stop-fail" && mode != "finalize-fail" &&
         mode != "partial-fail" && mode != "partial-clean" && mode != "throw-stage-1" && mode != "throw-stage-2" &&

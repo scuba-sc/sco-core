@@ -195,7 +195,10 @@ static Result ProvideServiceImpl(const detail::StartupPublish* cap, const void* 
                                  const char* name, uint32_t version, const void* table) {
     if (!owner || !table || !ValidServiceName(name)) return Result::BadArg;
     detail::RuntimeLease admission;
-    if (cap ? !cap->valid() : (!admission || admission.startup())) return Result::Unavailable;
+    // Only the phase-bound host capability may publish into an owned runtime.
+    // A public provider supplies borrowed table/code/context with no lifetime
+    // token and therefore cannot be enrolled in retained retirement.
+    if (cap ? !cap->valid() : (!admission || admission.startup() || admission.owned())) return Result::Unavailable;
     if (prefix) {
         const size_t p = strlen(prefix);
         if (p == 0 || strncmp(name, prefix, p) != 0 || (name[p] != '\0' && name[p] != '.')) return Result::BadArg;

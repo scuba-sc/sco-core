@@ -779,7 +779,7 @@ done
 "$OUT/test_app" "$ROOT/sdk" "$OUT/app-owner-mismatch" registry-owner-mismatch
 
 # Exercise app teardown with a synthetic game-service boundary without a native game.
-OBJ_APP_GAME_SERVICES="$(compile_obj asan "$ROOT/src/app/sco_app.cpp" -DSCO_GAME_SERVICES=1)"
+OBJ_APP_GAME_SERVICES="$(compile_obj asan "$ROOT/src/app/sco_app.cpp" -DSCO_GAME_SERVICES=1 -DSCO_APP_TEST_SYNTHETIC_GAME_SERVICES=1)"
 APP_GAME_SERVICES_ASAN=()
 for obj_path in "${APP_ASAN[@]}"; do
   case "$obj_path" in
@@ -787,6 +787,17 @@ for obj_path in "${APP_ASAN[@]}"; do
     *) APP_GAME_SERVICES_ASAN+=("$obj_path") ;;
   esac
 done
+OBJ_APP_GAME_REFUSAL="$(compile_obj asan "$ROOT/src/app/sco_app.cpp" -DSCO_GAME_SERVICES=1)"
+APP_GAME_REFUSAL_ASAN=()
+for obj_path in "${APP_ASAN[@]}"; do
+  case "$obj_path" in
+    *src_app_sco_app_cpp.o) APP_GAME_REFUSAL_ASAN+=("$OBJ_APP_GAME_REFUSAL") ;;
+    *) APP_GAME_REFUSAL_ASAN+=("$obj_path") ;;
+  esac
+done
+"$CXX" "${FLAGS[@]}" -DSCO_GAME_SERVICES=1 -fsanitize=address,undefined \
+  "$ROOT/tests/test_app_game_service_shutdown.cpp" "${APP_GAME_REFUSAL_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -lm -o "$OUT/test_app_game_service_refusal"
+"$OUT/test_app_game_service_refusal" production-refusal
 "$CXX" "${FLAGS[@]}" -DSCO_GAME_SERVICES=1 -fsanitize=address,undefined \
   "$ROOT/tests/test_app_game_service_shutdown.cpp" "${APP_GAME_SERVICES_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -lm -o "$OUT/test_app_game_service_shutdown"
 for mode in phase-owner true false null throw stop-fail finalize-fail partial-fail partial-clean throw-stage-1 throw-stage-2 throw-log-start throw-log-summary throw-log-stop stop-false stop-throw dependent-retained dependent-throw; do

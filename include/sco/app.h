@@ -30,12 +30,12 @@
 //      ui::Start (sco.ui), surfaces::Start (sco.ui.surfaces) and ui::ReserveChord
 //      for each of reservedChords; ipc::Start (sco.ipc); net::Start (sco.net and the capability
 //      "sco.net"; no socket until the product calls net::Host or net::Join, sco/net/session.h); with
-//      gameServices, game::services::Start (teleport.spatial under the owner "game")
+//      native game services are refused by app::Start pending an exclusion proof
 //   5. the list: every built-in (FromBuiltin), then, with pluginsEnabled, Discover(pluginRoot)
 //   6. ContainCallouts(list)
 //   7. LoadBuiltin for each built-in; then, in list order, LoadNative / LoadScript (a lua plugin
 //      is refused "no script runtime" when scripts is null); then the content index
-//   8. image set: LogSignatureReport(false); then LogReport
+//   8. image set: log the owned registry's signature report; then LogReport
 //   9. Dispatch "game.ready"
 // Signature registry setup failures refuse startup. Other startup problems are logged and reported: a product with no image, no plugin
 // folder or a refused plugin still starts, and every plugin that can load does.
@@ -106,19 +106,10 @@ struct Platform {
     // after the load. Off by default: a product turns it on once its CryPak adapter applies the
     // DataCore load (sc-offline: design plan PR 8). Off, query_service answers SCO_NOT_FOUND.
     bool dataCore = false;
-    // Start also publishes the Star Citizen game pack's services (sco/game/services.h: today
-    // teleport.spatial 1.0) under the owner "game", before any plugin loads, and Stop withdraws
-    // them after UnloadAll. They read the game through the teleport.* rows, so the product resolves
-    // them first (Platform::registerSignatures, or its own registry resolution). Off by default: a product
-    // turns it on once it no longer publishes those names itself. Builds without the game pack's
-    // services (SCO_GAME_SC off, or not Windows) log "[app] game services not built" and go on.
-    // A failed or throwing service startup can leave partially installed native state. The app
-    // retains its backing state until process exit and refuses restart in that case.
+    // Reserved for native game services. Requests currently refuse app startup
+    // before service mutation until durable native exclusion is established.
     bool gameServices = false;
-    // The host must hold a durable barrier before game-service start and before any teardown.
-    // True certifies no in-flight/new native readers or target execution throughout that phase,
-    // while allowing safe synchronous cleanup reentry. The current quit control frame is excluded.
-    // A point-in-time observation is insufficient. Null, false or throw refuses the phase.
+    // Legacy barrier callback; its return value cannot authorize native startup.
     bool (*gameReadersQuiesced)(void*) = nullptr;
     void* gameReadersContext = nullptr;
     // Before any dependent teardown, close product admission and guarantee that product callbacks
