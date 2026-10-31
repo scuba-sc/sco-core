@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Document the packaged container reader workflow and expose its C source through the canonical catalogue example record.
+
 - Refuse native ASOP startup until the host supplies a proven safe phase and reader lifetime protocol.
 
 - Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.

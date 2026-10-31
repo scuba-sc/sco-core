@@ -40,7 +40,7 @@ For where the SDK is going and how to contribute, read the [roadmap](roadmap.md)
 4. Neutral services: [storage](storage.md), [UI](ui.md), [IPC](ipc.md),
    [network messages](net.md) and [network wire](net-wire.md).
 5. Optional extension: [DataCore](datacore.md), [game services](game-services.md)
-   and [current evidence/status](game/status.md). Availability is not gameplay proof.
+   and [current evidence/status](game/status.md). The [container contents example](game/container-contents.md#consumer-example-and-discovery) walks through a copied read and provider absence. Availability is not gameplay proof.
 
 ## SDK integrator / host — Embed a host
 
