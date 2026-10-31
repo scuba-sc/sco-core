@@ -211,7 +211,7 @@ static void TestOwnedBudgetFailure() {
             sco::SignatureRegistry registry(limit);
             sco::SigDef d[] = {{"one", nullptr, 0, 0, AtBase, {}}, {"two", nullptr, 0, 0, AtBase, {}}};
             sco::SignatureTable t{d, 2};
-            auto first = std::make_shared<unsigned char>(1), second = std::make_shared<unsigned char>(2);
+            auto first = std::make_shared<unsigned char>(static_cast<unsigned char>(1)), second = std::make_shared<unsigned char>(static_cast<unsigned char>(2));
             auto code = std::make_shared<int>(1), nextCode = std::make_shared<int>(2);
             if (registry.RegisterTables(&t, 1).status != SigRegistryStatus::Ok || registry.Freeze() != SigRegistryStatus::Ok || registry.Resolve(ImageFor(first.get()), first, code) != SigRegistryStatus::Ok) continue;
             auto old = registry.Snapshot();
