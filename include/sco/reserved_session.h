@@ -243,6 +243,16 @@ SCO_RESERVED_API RetireResult RetireUntil(Session&, std::chrono::steady_clock::t
 SCO_RESERVED_API Phase Status(Session&) noexcept;
 SCO_RESERVED_API void Fault(Session&) noexcept;
 
+#ifdef SCO_RESERVED_DRAIN_TESTING
+namespace testing {
+// Test-only, monotonic observation for a fresh process/session. True means a
+// retire call observed Closing with admitted readers while holding the authority
+// lock. It does not report quiescence or authorize cleanup. Build the authority
+// and test consumer with this define; production builds expose no observer.
+bool ReaderDrainObserved() noexcept;
+}
+#endif
+
 #ifdef SCO_RESERVED_SESSION_TESTING
 namespace testing {
 // Hooks are test-only and execute with a live call pin, outside the lock.

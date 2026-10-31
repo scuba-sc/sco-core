@@ -46,6 +46,9 @@ jobs:
       - name: Consumer workflow index, archive and MCP tests
         run: python3 tools/test_sdk_workflows.py
 
+      - name: Consumer requirements tooling regression
+        run: python3 tools/test_sdk_consumer_requirements.py
+
       - name: Packaging tests (manifest, profiles, refusals)
         run: python3 sdk/test_package.py
 

@@ -55,6 +55,15 @@ archive also ship `sdk-catalogue.json`, `sdk-guides.json` and the discovery laun
 SDK with an AI agent, set the combined kit up as described in
 [SDK discovery in agents and IDEs](../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 
+These game-capable archives also include the optional local consumer requirements report:
+`tools/sdk_consumer_requirements.py`, `docs/sdk-consumer-requirements.md`, and a
+`container_reader` requirements template. Copy the template and bind its placeholders
+to the selected archive catalogue's exact bytes and declared source SHA before running
+it with the matching packaged registry. The report is optional for plugin exploration
+and describes source evidence, not runtime availability or game verification. In the
+host-source archive the example is under `sdk/examples/` and the registry under `sdk/`;
+in plugin kits they are under `examples/` and the kit root.
+
 All generated metadata in the extension has a `.game-sc` suffix; composition preserves both
 inventories and SBOMs. The packer computes the required base digest from the canonical core
 archive produced from the same source checkout. A core archive with the same version but

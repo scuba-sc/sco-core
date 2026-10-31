@@ -373,6 +373,94 @@ class RealManifest(unittest.TestCase):
         self.assertEqual(names["core"] | names["game-sc"], names["legacy"])
         self.assertEqual(names["core"] & names["game-sc"], {"LICENSE"})
 
+    def test_packaged_consumer_requirements(self):
+        """Bound copies of the sample work outside the checkout in every game kit."""
+        sources = ("tools/sdk_consumer_requirements.py", "docs/sdk-consumer-requirements.md",
+                   "sdk/examples/container_reader/consumer-requirements.template.json")
+        for source in sources:
+            selected = {profile for profile in self.m["profiles"]
+                        if any(c["source"] == source for c in pkg.select(self.m, profile))}
+            self.assertEqual(selected, {"game-sc", "legacy", "host-source-sc"})
+        self.assertFalse(any(c["source"] == "tools/test_sdk_consumer_requirements.py"
+                             for c in self.m["components"]))
+        for layout, profiles in (("legacy", ("legacy",)), ("overlay", ("core", "game-sc")),
+                                 ("host-source-sc", ("host-source-sc",))):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as directory:
+                work = Path(directory)
+                kit = work / "kit"
+                kit.mkdir()
+                core_archive = None
+                for profile in profiles:
+                    archive_path = pkg.build(self.m, profile, str(work / ("out-" + profile)))
+                    if profile == "core":
+                        core_archive = archive_path
+                    with zipfile.ZipFile(archive_path) as archive:
+                        if profile == "game-sc":
+                            descriptor = next(n for n in archive.namelist() if "/COMPATIBILITY.json.game-sc" in n)
+                            self.assertEqual(json.loads(archive.read(descriptor))["base_core_sha256"], sha(core_archive))
+                        for member in archive.infolist():
+                            parts = member.filename.split("/", 1)
+                            if len(parts) < 2 or not parts[1] or member.is_dir():
+                                continue
+                            target = kit / parts[1]
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_bytes(archive.read(member))
+                source_layout = layout == "host-source-sc"
+                sample = kit / ("sdk/examples" if source_layout else "examples") / "container_reader/consumer-requirements.template.json"
+                registry = kit / ("sdk/status_registry.json" if source_layout else "status_registry.json")
+                tool = kit / "tools/sdk_consumer_requirements.py"
+                validator = kit / "tools/sco-core-mcp/server.py"
+                self.assertEqual(tool.read_bytes(), Path(HERE, "../tools/sdk_consumer_requirements.py").read_bytes())
+                self.assertEqual(validator.read_bytes(), Path(HERE, "../tools/sco-core-mcp/server.py").read_bytes())
+                catalogue = kit / "sdk-catalogue.json"
+                template = json.loads(sample.read_text(encoding="utf-8"))
+                self.assertIsNone(template["source_sha"])
+                self.assertIsNone(template["catalogue_sha256"])
+                bound = copy.deepcopy(template)
+                bound["source_sha"] = json.loads(catalogue.read_bytes())["source_sha"]
+                bound["catalogue_sha256"] = sha(catalogue)
+                self.assertEqual(bound["source_sha"], pkg.source_commit())
+                req = work / "bound.json"
+                def run(value, registry_file=registry):
+                    req.write_text(json.dumps(value), encoding="utf-8")
+                    return subprocess.run([sys.executable, "-I", str(tool), "--requirements", str(req),
+                                           "--catalogue", str(catalogue), "--registry", str(registry_file)],
+                                          cwd=work, capture_output=True, text=True, timeout=30)
+                refused = run(template)
+                self.assertEqual(refused.returncode, 2)
+                self.assertEqual(refused.stdout, "")
+                result = run(bound)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                receipt = json.loads(result.stdout)
+                self.assertEqual(receipt["inputs"]["source_sha"], bound["source_sha"])
+                self.assertEqual(receipt["checks"]["provider"], "unestablished")
+                self.assertEqual(receipt["checks"]["game"], "not_run")
+                snapshot = next(row for row in receipt["items"]
+                                if row["id"] == "sc-container-contents-v1-snapshot")
+                self.assertEqual(snapshot["static_status"]["scope"], "explicit_method")
+                self.assertEqual(snapshot["static_status"]["capabilities"][0]["default"], "OFF")
+                self.assertEqual(snapshot["static_status"]["capabilities"][0]["evidence_level"], "synthetic_only")
+                wrong = copy.deepcopy(bound)
+                wrong["source_sha"] = "0" * 40
+                refused = run(wrong)
+                self.assertEqual(refused.returncode, 2)
+                self.assertEqual(refused.stdout, "")
+                wrong = copy.deepcopy(bound)
+                wrong["catalogue_sha256"] = "0" * 64
+                refused = run(wrong)
+                self.assertEqual(refused.returncode, 2)
+                self.assertEqual(refused.stdout, "")
+                changed_registry = work / "registry.json"
+                changed_registry.write_bytes(registry.read_bytes() + b" ")
+                refused = run(bound, changed_registry)
+                self.assertEqual(refused.returncode, 2)
+                self.assertEqual(refused.stdout, "")
+                unsupported = copy.deepcopy(bound)
+                unsupported["items"] = [{"id": "sc-container-contents-v1-snapshot", "language": "lua"}]
+                result = run(unsupported)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(json.loads(result.stdout)["items"][0]["result"], "unsupported")
+
     def test_archive_agent_discovery_and_scaffold(self):
         """Real packaged stdio MCP works without a checkout or network catalogue."""
         with zipfile.ZipFile(pkg.build(self.m, "legacy", os.path.join(self.tmp, "agent"))) as archive:
