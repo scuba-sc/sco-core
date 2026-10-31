@@ -967,7 +967,8 @@ static int L_store_columns(lua_State* L) {
         }
         if (result == SCO_NOT_FOUND) break;
         if (result != SCO_OK) return StoreFail(L, s, st, result);
-        if (!StoreSchemaString(cname, ns, nc) || !StoreSchemaString(ctype, ts, tc) || next <= index)
+        if (!StoreSchemaString(cname, ns, nc) || !StoreSchemaString(ctype, ts, tc) ||
+            index == UINT32_MAX || next != index + 1)
             return StoreFail(L, s, st, SCO_FAILED);
         index = next;
         lua_pushlstring(L, cname, ns - 1); lua_rawseti(L, names, n + 1);

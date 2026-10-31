@@ -1470,6 +1470,12 @@ static sco_result SchemaTable(sco_plugin*, const char* after, char* out, uint32_
         return SCO_OK;
     }
     if (after && std::strcmp(after, "first") != 0 && std::strcmp(after, g_schemaName.c_str()) != 0) ++g_schemaErrors;
+    if (g_schemaMode == 12 && after) {
+        const uint32_t needed = 16u * 1024u * 1024u + 1u;
+        if (*size < needed) { *size = needed; return SCO_TOO_MANY; }
+        std::memset(out, 'x', needed - 1); out[needed - 2] = 'z'; out[needed - 1] = '\0';
+        *size = needed; *kind = 2; return SCO_OK;
+    }
     if (g_schemaMode == 1 && after) { *size = 16u * 1024u * 1024u + 2; return SCO_TOO_MANY; }
     if (g_schemaMode == 2 && after) return SCO_TOO_MANY;
     if (g_schemaMode == 3) { ++*size; return SCO_TOO_MANY; }
@@ -1489,14 +1495,15 @@ static sco_result SchemaColumn(sco_plugin*, const char* table, uint32_t* index, 
         name[0] = '\0'; *ns = 1; type[0] = '\0'; *ts = 1;
         *flags = 0; ++*index; return SCO_OK;
     }
-    if (*index == 1 && g_schemaMode >= 6 && g_schemaMode <= 10) {
+    if (*index == 1 && g_schemaMode >= 6 && g_schemaMode <= 11) {
         name[0] = 'x'; name[1] = '\0'; *ns = 2;
         type[0] = 't'; type[1] = '\0'; *ts = 2;
         if (g_schemaMode == 6) *ns = 0;
         else if (g_schemaMode == 8) { name[0] = 'x'; *ns = 1; }
         else if (g_schemaMode == 9) { type[0] = '\0'; type[1] = '\0'; *ts = 2; }
         if (g_schemaMode == 7) *ts = SCO_STORAGE_MAX_KEY + 2;
-        if (g_schemaMode != 10) ++*index;
+        if (g_schemaMode == 11) *index += 2;
+        else if (g_schemaMode != 10) ++*index;
         return SCO_OK;
     }
     if (g_schemaMode == 4) {
@@ -1536,6 +1543,16 @@ static void TestStoreSchema() {
     CHECK(l.p && l.p->state == State::Loaded && g_schemaErrors == 0 && g_schemaCalls == 10);
     if (l.p && l.p->state != State::Loaded) std::printf("  schemalong: %s\n", l.p->reason.c_str());
     Unload(l);
+    Write("schemaboundary", R"lua(
+        local names, kinds = sco.store.tables(2)
+        assert(#names == 2 and names[1] == "first" and #names[2] == 16 * 1024 * 1024)
+        assert(names[2]:sub(1, 1) == "x" and names[2]:sub(-1) == "z" and kinds[2] == 2)
+    )lua");
+    g_schemaMode = 12; g_schemaCalls = g_schemaErrors = 0;
+    Loaded boundary = Load("schemaboundary", &api);
+    CHECK(boundary.p && boundary.p->state == State::Loaded && g_schemaErrors == 0 && g_schemaCalls == 3);
+    if (boundary.p && boundary.p->state != State::Loaded) std::printf("  schemaboundary: %s\n", boundary.p->reason.c_str());
+    Unload(boundary);
     Write("schemaempty", R"lua(
         local names, kinds = sco.store.tables()
         assert(#names == 2 and names[1] == "" and names[2] == "later")
@@ -1563,11 +1580,14 @@ static void TestStoreSchema() {
     Write("schemabadindex", R"lua(
         local a, e = sco.store.columns("first"); assert(a == nil and e == "failed")
     )lua");
-    g_schemaMode = 10;
-    Loaded badindex = Load("schemabadindex", &api);
-    CHECK(badindex.p && badindex.p->state == State::Loaded);
-    if (badindex.p && badindex.p->state != State::Loaded) std::printf("  schemabadindex: %s\n", badindex.p->reason.c_str());
-    Unload(badindex);
+    for (int mode : {10, 11}) {
+        g_schemaMode = mode;
+        Loaded badindex = Load("schemabadindex", &api);
+        CHECK(badindex.p && badindex.p->state == State::Loaded);
+        if (badindex.p && badindex.p->state != State::Loaded)
+            std::printf("  schemabadindex mode %d: %s\n", mode, badindex.p->reason.c_str());
+        Unload(badindex);
+    }
     Write("schemafail", R"lua(
         local a, e = sco.store.tables(); assert(a == nil and e == "too_many")
         a, e = sco.store.columns("first"); assert(a == nil and e == "too_many")
