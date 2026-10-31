@@ -7,3 +7,6 @@ plugins/lua/third_party/** -text
 LICENSES/** -text
 tests/abi/released/sco_api.h -text
 tests/fixtures/plugins/tree/hello/hello.dll -text
+
+# Differential fixture Git-blob hashes require unchanged checkout bytes.
+tests/signature_differential/baseline/** -text

@@ -6,4 +6,8 @@
 #include "sc_vehicles.h"
 #include "sc_creative.h"
 #include "sc_world.h"
+#include "../../src/owned_shutdown_access.h"
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
 #include <thread>

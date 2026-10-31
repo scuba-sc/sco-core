@@ -4,7 +4,13 @@
 #include "sco/game/services.h"
 #include "sco/log.h"
 #include "sco/signature_registry.h"
+#include "../src/owned_shutdown_access.h"
+#include <atomic>
+#include <chrono>
+#include <future>
+#include <thread>
 #include <cstring>
+#include <cstdlib>
 #include <cstdio>
 #include <memory>
 #include <stdexcept>
@@ -74,7 +80,7 @@ Result FinalizeStopAfterQuiescence() {
 int main(int argc, char** argv) {
     if (argc != 2) return 2;
     mode = argv[1];
-    if (mode != "true" && mode != "false" && mode != "null" && mode != "throw" &&
+    if (mode != "phase-owner" && mode != "true" && mode != "false" && mode != "null" && mode != "throw" &&
         mode != "stop-false" && mode != "stop-throw" && mode != "stop-fail" && mode != "finalize-fail" &&
         mode != "partial-fail" && mode != "partial-clean" && mode != "throw-stage-1" && mode != "throw-stage-2" &&
         mode != "throw-log-start" && mode != "throw-log-summary" && mode != "throw-log-stop" && mode != "dependent-retained" && mode != "dependent-throw") return 2;
@@ -94,6 +100,69 @@ int main(int argc, char** argv) {
         platform.beforeDependentStopContext = &token;
         platform.builtins = &builtin;
         platform.nBuiltins = 1;
+    }
+    if (mode == "phase-owner") {
+        platform.pluginsEnabled = false;
+        platform.privateSession.enabled = false;
+        platform.runtimeInspection.enabled = false;
+        sco::OwnedShutdown gate;
+        struct Barrier {
+            sco::OwnedShutdown* gate; sco::OwnedShutdown::Transition* transition = nullptr;
+            std::thread::id control; bool stopping = false; unsigned calls = 0;
+        } barrier{&gate, nullptr, std::this_thread::get_id()};
+        platform.gameReadersContext = &barrier;
+        platform.gameReadersQuiesced = [](void* context) {
+            auto* b = static_cast<Barrier*>(context);
+            if (!b || b->control != std::this_thread::get_id() || b->calls > 1 ||
+                b->stopping != (b->calls == 1)) return false;
+            if (b->stopping ? !b->gate->ready() :
+                (!b->transition || !b->transition->valid_for(*b->gate))) return false;
+            bool admitted = true;
+            std::thread probe([&] { admitted = static_cast<bool>(b->gate->try_read()); });
+            probe.join();
+            if (admitted) return false;
+            ++b->calls;
+            return true;
+        };
+        CHECK(sco::OwnedShutdownHostAccess::begin_startup(gate));
+        std::atomic<int> phase{0};
+        {
+            auto transition = sco::OwnedShutdownHostAccess::transition(gate);
+            CHECK(transition);
+            if (!transition) return 1;
+            barrier.transition = &transition;
+            const bool started = sco::app::Start(platform);
+            CHECK(started && barrier.calls == 1);
+            if (!started || barrier.calls != 1 || !transition.publish_and_open(phase, 0, 1)) std::abort();
+        }
+        barrier.transition = nullptr;
+        std::promise<void> entered, release;
+        auto proceed = release.get_future().share();
+        std::thread reader([&] {
+            auto lease = gate.try_read();
+            if (!lease) { entered.set_exception(std::make_exception_ptr(std::runtime_error("reader refused"))); return; }
+            entered.set_value(); proceed.wait();
+        });
+        auto readerEntered = entered.get_future();
+        const bool enteredInTime = readerEntered.wait_for(std::chrono::seconds(2)) == std::future_status::ready;
+        CHECK(enteredInTime);
+        if (!enteredInTime) std::abort();
+        readerEntered.get();
+        auto drain = std::async(std::launch::async, [&] {
+            return gate.drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(3));
+        });
+        CHECK(gate.wait_until_closed(std::chrono::steady_clock::now() + std::chrono::seconds(2)));
+        CHECK(drain.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
+        release.set_value(); reader.join();
+        const bool drained = drain.get();
+        CHECK(drained);
+        if (!drained) std::abort();
+        barrier.stopping = true;
+        const auto stopped = sco::app::Stop();
+        CHECK(stopped == sco::Result::Ok && barrier.calls == 2 && !gate.try_read());
+        if (stopped != sco::Result::Ok || barrier.calls != 2) std::abort();
+        CHECK((calls == std::vector<std::string>{"start", "stop", "finalize"}));
+        return failures ? 1 : 0;
     }
     const bool started = sco::app::Start(platform);
     CHECK(capabilityCalls == 1);
