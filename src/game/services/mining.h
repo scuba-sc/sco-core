@@ -17,6 +17,8 @@ struct MiningBackend {
 };
 Result StartMining(bool cleanupReady = false); // production adapter remains unavailable until native verification
 Result StartMining(const MiningBackend& backend);
+// Includes an attempted installer: failure does not establish rollback.
+bool MiningHookRetained() noexcept;
 void StopMining();
 void ReleaseMiningOwner(const void* owner); // existing spawn owner-release dispatcher
 // Native worker route; no plugin callbacks/pointers. Counts every native cell.

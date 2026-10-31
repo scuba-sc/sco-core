@@ -18,6 +18,27 @@ SigResult SigPattern(const Section&, const char*) { return {}; }
 #include "../src/game/mining_sigs.cpp"
 #undef FunctionStart
 
+// Invoke the real resolver with a registry-created context and synthetic dependencies.
+#include "sco/signature_registry.h"
+#include <functional>
+#include <cstdlib>
+namespace {
+std::function<sco::SigResult(const sco::SigResolveContext&)> fixtureCall;
+sco::SigResult fixtureResult;
+sco::SigResult fixtureDependency(const sco::Image&, const sco::SigResolveContext&) { return sco::SigOk(nullptr); }
+sco::SigResult fixtureTarget(const sco::Image&, const sco::SigResolveContext& ctx) { fixtureResult = fixtureCall(ctx); return sco::SigOk(nullptr); }
+sco::SigResult withContext(std::function<sco::SigResult(const sco::SigResolveContext&)> call) {
+    fixtureCall = std::move(call);
+    sco::SigDef rows[] = { {"actor.get_stat", nullptr, 0, 0, fixtureDependency, {nullptr}}, {"actor.adjust_stat", nullptr, 0, 0, fixtureDependency, {nullptr}}, {"inventory.unequip_item", nullptr, 0, 0, fixtureDependency, {nullptr}}, {"datacore_live.owner_vtable", nullptr, 0, 0, fixtureDependency, {nullptr}}, {"datacore_live.deleting", nullptr, 0, 0, fixtureDependency, {nullptr}}, {"entities.dump", nullptr, 0, 0, fixtureDependency, {nullptr}}, {"teleport.to_camera", nullptr, 0, 0, fixtureDependency, {nullptr}}, {"teleport.entity_system", nullptr, 0, 0, fixtureDependency, {nullptr}}, {"contracts.reputation_services", nullptr, 0, 0, fixtureDependency, {nullptr}},  {"fixture.target", nullptr, 0, 0, fixtureTarget, {nullptr}} };
+    sco::SignatureTable table{rows, sizeof(rows)/sizeof(rows[0])};
+    sco::SignatureRegistry registry;
+    if (registry.RegisterTables(&table, 1).status != sco::SigRegistryStatus::Ok ||
+        registry.Freeze() != sco::SigRegistryStatus::Ok ||
+        registry.Resolve(sco::Image{}) != sco::SigRegistryStatus::Ok) std::abort();
+    return fixtureResult;
+}
+}
+
 struct Fixture {
     std::unique_ptr<uint8_t[]> bytes{new uint8_t[4096]{}};
     sco::Image img{};
@@ -35,7 +56,7 @@ struct Fixture {
         std::memcpy(p+3,&disp,4);
     }
     sco::SigResult resolve(bool mining) {
-        return mining ? sco::game::kMiningSignatures[0].resolve(img) : sco::game::kGameRulesSignatures[1].resolve(img);
+        return mining ? withContext([&](const sco::SigResolveContext& ctx) { return sco::game::kMiningSignatures[0].resolve(img, ctx); }) : withContext([&](const sco::SigResolveContext& ctx) { return sco::game::kGameRulesSignatures[1].resolve(img, ctx); });
     }
 };
 static void fillPattern(uint8_t* p, const char* pattern) {
@@ -55,7 +76,7 @@ int main(int argc, char** argv) {
             Fixture f(mining);
             f.img.rdata={reinterpret_cast<uint8_t*>(UINTPTR_MAX-10),64};
             assert(f.resolve(mining).state!=sco::SigState::Ok);
-            if (!mining) assert(sco::game::kGameRulesSignatures[0].resolve(f.img).state!=sco::SigState::Ok);
+            if (!mining) assert(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::kGameRulesSignatures[0].resolve(f.img, ctx); }).state!=sco::SigState::Ok);
         }
     } else if (mode=="wrapped-function") {
         Fixture f(true); f.lea(0x9b,true);
@@ -120,9 +141,9 @@ int main(int argc, char** argv) {
                 functionStart=f.img.text.base+2999;
                 assert(f.resolve(false).state!=sco::SigState::Ok);
                 functionStart=f.img.text.base;
-                assert(sco::game::kGameRulesSignatures[0].resolve(f.img).state==sco::SigState::Ok);
+                assert(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::kGameRulesSignatures[0].resolve(f.img, ctx); }).state==sco::SigState::Ok);
                 std::strcpy(reinterpret_cast<char*>(f.img.rdata.base+32),"IGameRulesParamsModule");
-                assert(sco::game::kGameRulesSignatures[0].resolve(f.img).state!=sco::SigState::Ok);
+                assert(withContext([&](const sco::SigResolveContext& ctx) { return sco::game::kGameRulesSignatures[0].resolve(f.img, ctx); }).state!=sco::SigState::Ok);
             }
             f.img.text={reinterpret_cast<uint8_t*>(UINTPTR_MAX-3),16};
             assert(f.resolve(mining).state!=sco::SigState::Ok);

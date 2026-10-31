@@ -189,7 +189,43 @@ def parse_sigs(path, rel):
 
 def registered_tables(root):
     text = strip_comments((root / REGISTRATION).read_text(encoding="utf-8"))
-    return set(re.findall(r"\bRegisterSignatures\(\s*(\w+)\s*,", text))
+    tokens = tokenize(text)
+    # Keep the inventory tied to the table actually passed in the pack's single
+    # atomic registration. Refuse unfamiliar forms rather than indexing a decoy.
+    signature = ["RegisterGameSignatures", "(", "SignatureRegistry", "&", "registry", ")", "{"]
+    starts = [i + len(signature) - 1 for i in range(len(tokens))
+              if tokens[i:i + len(signature)] == signature]
+    if len(starts) != 1:
+        raise NativeIndexError("%s: expected one RegisterGameSignatures definition" % REGISTRATION)
+    start = starts[0]
+    body = tokens[start + 1:matching(tokens, start)]
+    prefix = ["const", "SignatureTable", "kGameSignatureTables", "[", "]", "=", "{"]
+    if body[:len(prefix)] != prefix:
+        raise NativeIndexError("%s: expected authoritative kGameSignatureTables array" % REGISTRATION)
+    opening = len(prefix) - 1
+    closing = matching(body, opening)
+    suffix = [";", "return", "registry", ".", "RegisterTables", "(",
+              "kGameSignatureTables", ",", "std", "::", "size", "(",
+              "kGameSignatureTables", ")", ")", ";"]
+    if body[closing + 1:] != suffix:
+        raise NativeIndexError("%s: pack must submit kGameSignatureTables atomically" % REGISTRATION)
+    registered = set()
+    for element in split_top(body[opening + 1:closing]):
+        if not element or element[0] != "{" or matching(element, 0) != len(element) - 1:
+            raise NativeIndexError("%s: invalid signature table initializer" % REGISTRATION)
+        fields = split_top(element[1:-1])
+        if len(fields) != 2 or any(len(field) != 1 for field in fields):
+            raise NativeIndexError("%s: expected table and count identifiers" % REGISTRATION)
+        table, count = fields[0][0], fields[1][0]
+        if not re.fullmatch(r"[A-Za-z_]\w*Signatures", table):
+            raise NativeIndexError("%s: invalid signature table %s" % (REGISTRATION, table))
+        expected_count = table[:-len("Signatures")] + "SignatureCount"
+        if count != expected_count:
+            raise NativeIndexError("%s: %s requires count %s" % (REGISTRATION, table, expected_count))
+        if table in registered:
+            raise NativeIndexError("%s: table %s registered twice" % (REGISTRATION, table))
+        registered.add(table)
+    return registered
 
 
 def collect(root):

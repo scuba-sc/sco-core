@@ -22,25 +22,30 @@ never a global trigger. No native pointer, event address or backend key is publi
 All operations are synchronous and game-thread-only. Caller strings are copied
 before backend use. No plugin callbacks, asynchronous task or cross-boundary
 allocation is exposed. C++ methods guard the complete function-pointer extent
-and nullness, including physically truncated tables. Cached tables refuse after
-service stop. Tokens expire on owner unload or service stop and are not reused
-across restart of the service within the process.
+and nullness, including physically truncated tables. Cached tables refuse new
+operations after service stop. A still-live owner can explicitly retry `Stop`
+for a retained playback under the backend's failed-stop contract. Other tokens
+expire on owner unload or service stop and are not reused across restart of the
+service within the process.
 
 ## Cleanup and failure
 
 Effect quota and token tracking are reserved before the backend can start an
 effect. A complete backend and registered release hook are required for admission.
-Owner release stops only that owner's effects and expires its triggers. Release
-during a backend call is cleaned immediately after that call returns, including
-when a one-shot call reports a fault, before the operation returns to the caller.
-Cleanup also drains releases made by stop callbacks, attempting each affected owner
-at most once per drain so a failed stop remains tracked without a retry loop.
+While the provider is healthy, owner release stops only that owner's effects and
+expires its triggers. Release during a backend call is cleaned after that call
+returns, including when a one-shot call reports a fault. Cleanup also drains
+releases made by stop callbacks. It stops at the first failed stop and makes no
+further automatic backend calls once the cleanup failure is latched.
 
-A backend stop failure retains its effect and context for retry and latches new
-operations unavailable. Stop can retry a retained token. Service stop withdraws
-publication and attempts all cleanup; failure cannot clear backing context or
-remove its cleanup hook. The provider and host must remain resident until restart.
-A successful later retry does not clear the failure latch or authorize new effects.
+A backend stop failure retains its effect and context and latches new operations
+unavailable. Service stop withdraws publication and attempts cleanup until the
+first failure; a repeated stop or later owner release does not automatically retry
+the backend. An explicit `Stop` can retry a retained token for a live owner under
+the backend contract that failed stop keeps that effect and context valid. A failure
+cannot clear the backing context or remove its cleanup hook. The provider and host
+must remain resident until restart. A successful explicit retry does not clear the
+failure latch or authorize new effects.
 Trusted backend callbacks are synchronous, bounded and nonthrowing; failed play
 must be failure-atomic. A violated failure-atomic result with a returned effect
 is retained and latches the service rather than losing cleanup tracking.

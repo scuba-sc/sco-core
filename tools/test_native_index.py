@@ -36,8 +36,11 @@ extern const SigDef kDemoSignatures[] = {
 '''
 
 REGISTRATION = '''
-bool RegisterGameSignatures() {
-    return RegisterSignatures(kDemoSignatures, kDemoSignatureCount);
+SigRegistrationResult RegisterGameSignatures(SignatureRegistry& registry) {
+    const SignatureTable kGameSignatureTables[] = {
+        {kDemoSignatures, kDemoSignatureCount},
+    };
+    return registry.RegisterTables(kGameSignatureTables, std::size(kGameSignatureTables));
 }
 '''
 
@@ -105,7 +108,36 @@ class ParserTests(unittest.TestCase):
 
     def test_unregistered_table_is_refused(self):
         with self.assertRaisesRegex(native_index.NativeIndexError, "not registered"):
-            self.build(registration="bool RegisterGameSignatures() { return true; }")
+            self.build(registration=REGISTRATION.replace("{kDemoSignatures, kDemoSignatureCount},", ""))
+
+    def test_duplicate_registered_table_is_refused(self):
+        entry = "{kDemoSignatures, kDemoSignatureCount},"
+        with self.assertRaisesRegex(native_index.NativeIndexError, "registered twice"):
+            self.build(registration=REGISTRATION.replace(entry, entry + entry))
+
+    def test_unknown_registered_table_is_refused(self):
+        entry = "{kDemoSignatures, kDemoSignatureCount},"
+        with self.assertRaisesRegex(native_index.NativeIndexError, "which no .* defines"):
+            self.build(registration=REGISTRATION.replace(entry, entry + "{kOtherSignatures, kOtherSignatureCount},"))
+
+    def test_wrong_count_is_refused(self):
+        with self.assertRaisesRegex(native_index.NativeIndexError, "requires count"):
+            self.build(registration=REGISTRATION.replace("kDemoSignatureCount", "kOtherSignatureCount"))
+
+    def test_different_or_conditional_submission_is_refused(self):
+        with self.assertRaisesRegex(native_index.NativeIndexError, "submit .* atomically"):
+            self.build(registration=REGISTRATION.replace("return registry.RegisterTables", "if (ready) return registry.RegisterTables"))
+        with self.assertRaisesRegex(native_index.NativeIndexError, "submit .* atomically"):
+            self.build(registration=REGISTRATION.replace("std::size(kGameSignatureTables)", "1"))
+
+    def test_missing_authoritative_array_is_refused(self):
+        with self.assertRaisesRegex(native_index.NativeIndexError, "authoritative"):
+            self.build(registration=REGISTRATION.replace("kGameSignatureTables[]", "kOtherTables[]"))
+
+    def test_commented_out_table_does_not_count(self):
+        entry = "{kDemoSignatures, kDemoSignatureCount},"
+        with self.assertRaisesRegex(native_index.NativeIndexError, "not registered"):
+            self.build(registration=REGISTRATION.replace(entry, "/* " + entry + " */"))
 
     def test_unknown_element_is_refused(self):
         with self.assertRaisesRegex(native_index.NativeIndexError, "not a row initializer"):

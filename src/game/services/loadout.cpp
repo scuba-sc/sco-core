@@ -243,6 +243,7 @@ void OnRespawnTick(const char*, const void*, void*) {
 }
 Result StartLoadout(const LoadoutBackend* backend, const LoadoutAsyncBackend* async) {
     if (!OnGameThread()) return Result::WrongThread;
+    if (faulted) return Result::Failed; // retained native state must not be overwritten
     if (applying) return Result::Unavailable;
     if (started) return Result::Ok;
     engine = backend ? *backend : LoadoutBackend{};
@@ -335,20 +336,28 @@ sco_result SetLoadoutBackend(const sco_loadout_backend* backend) {
     be.weapons = backend->weapons != 0;
     return static_cast<sco_result>(StartLoadout(&be));
 }
-void StopLoadout() {
-    if (!OnGameThread() || !started || applying) return;
-    sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
+Result StopLoadout() {
+    if (!OnGameThread()) return Result::WrongThread;
+    if (applying) return Result::Failed;
+    if (!started) return faulted ? Result::Failed : Result::Ok;
+    const Result withdrawn = sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
     caps::Set("game.loadout.apply", false, "game loadout stopped");
     caps::Set("game.loadout.weapons", false, "game loadout stopped");
     caps::Set("game.loadout.async", false, "game loadout stopped");
-    Unsubscribe(sco::host::GameOwner(), "tick", OnTick);
+    const Result tick = Unsubscribe(sco::host::GameOwner(), "tick", OnTick);
     for (auto& job : jobs) if (job.owner && Discard(job)) job = {};
-    if (respawnSubscribed) Unsubscribe(sco::host::GameOwner(), "tick", OnRespawnTick);
+    Result respawn = Result::Ok;
+    if (respawnSubscribed) respawn = Unsubscribe(sco::host::GameOwner(), "tick", OnRespawnTick);
     respawnSubscribed = false;
     SetRespawn(false, "game loadout stopped");
     started = false;
     engine = {};
-    if (!faulted) asyncEngine = {};
+    if ((withdrawn != Result::Ok && withdrawn != Result::NotFound) ||
+        (tick != Result::Ok && tick != Result::NotFound) ||
+        (respawn != Result::Ok && respawn != Result::NotFound)) Fault();
+    if (faulted) return Result::Failed;
+    asyncEngine = {};
+    return Result::Ok;
 }
 }
 

@@ -36,6 +36,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <sc_entities.h>
 #include <atomic>
 #include <cmath>
@@ -87,7 +88,9 @@ bool g_prefabFaulted = false; // process-lifetime latch; service reopen cannot c
 bool g_canTransform = false, g_canSpawn = false, g_canClass = false, g_canQuery = false, g_canWatch = false;
 char g_whyTransform[128] = "", g_whySpawn[128] = "", g_whyClass[128] = "", g_whyQuery[160] = "", g_whyWatch[160] = "";
 bool g_diag = false;
-bool g_hooksInstalled = false;
+struct EntityHook { uint8_t* at = nullptr; bool removalFailed = false; };
+EntityHook g_sinksHook, g_deleteHook;
+std::atomic<bool> g_hooksActive{false};
 uint64_t g_startedAt = 0;
 
 // Game thread only. Reserved at start (SC_ENTITIES_MAX_OWNED), so nothing here allocates later.
@@ -129,7 +132,8 @@ sco_result Fail(const void* owner, Result r, const char* fmt, ...) {
 bool LivePlugin(const sco_plugin* self) { return self && host::PluginId(self) && !sco::detail::Released(self); }
 
 bool RowOk(const char* id) {
-    const SigResult* s = SigLookup(id);
+    const auto signatures = AcquireHostSignatureSnapshot();
+    const SigResult* s = (signatures ? signatures->Lookup(id) : nullptr);
     return s && s->state == SigState::Ok;
 }
 
@@ -141,9 +145,11 @@ template <class C> void AddRows(const C* caps, size_t n, const char* name, std::
 // True when every row is OK and the teleport.* reads are ready; else why names the first that
 // isn't.
 bool RowsReady(const std::vector<const char*>& rows, char* why, size_t n) {
+    const auto signatures = AcquireHostSignatureSnapshot();
     why[0] = 0;
+    if (!signatures) { snprintf(why, n, "signature snapshot unavailable"); return false; }
     for (const char* id : rows) {
-        const SigResult* s = SigLookup(id);
+        const SigResult* s = (signatures ? signatures->Lookup(id) : nullptr);
         if (!s) { snprintf(why, n, "unknown signature %s", id); return false; }
         if (s->state != SigState::Ok) { snprintf(why, n, "needs %s (%s)", id, SigStateName(s->state)); return false; }
     }
@@ -472,38 +478,53 @@ void DeletedEntity(const uint64_t* handlePtr) {
 // when they are looked at.
 void __fastcall SinksDetour(void* es, const void* batch) {
     g_origSinks(es, batch);
-    SinksBatch(batch);
+    if (g_hooksActive.load(std::memory_order_acquire)) SinksBatch(batch);
 }
 
 // CEntitySystem::DeleteEntity: looked at first, while the entity is still there.
 void __fastcall DeleteDetour(void* es, const uint64_t* handle) {
-    DeletedEntity(handle);
+    if (g_hooksActive.load(std::memory_order_acquire)) DeletedEntity(handle);
     g_origDelete(es, handle);
 }
 
+bool RemoveHook(EntityHook& h, const char* name) {
+    if (!h.at) return true;
+    if (h.removalFailed) return false;
+    const hook::Error e = hook::RemoveDetour(h.at);
+    if (e != hook::Error::None) {
+        Log("[game] game.entities: removing %s hook failed (%s)", name, hook::ErrorName(e));
+        h.removalFailed = true;
+        return false;
+    }
+    h.at = nullptr;
+    return true;
+}
+
 bool InstallHooks() {
-    if (g_hooksInstalled) return true;
+    if (g_sinksHook.at || g_deleteHook.at || g_sinksHook.removalFailed || g_deleteHook.removalFailed) return false;
     if (!g_game.sinks || !g_game.deleteEntity) return false;
     hook::Error e = hook::InstallDetour(g_game.sinks, 0, reinterpret_cast<void*>(&SinksDetour), reinterpret_cast<void**>(&g_origSinks));
     if (e != hook::Error::None) {
         Log("[game] game.entities: couldn't hook CallOnSpawnSinks (%s)", hook::ErrorName(e));
         return false;
     }
+    g_sinksHook.at = g_game.sinks;
     e = hook::InstallDetour(g_game.deleteEntity, 0, reinterpret_cast<void*>(&DeleteDetour), reinterpret_cast<void**>(&g_origDelete));
     if (e != hook::Error::None) {
         Log("[game] game.entities: couldn't hook DeleteEntity (%s)", hook::ErrorName(e));
-        hook::RemoveDetour(g_game.sinks);
+        RemoveHook(g_sinksHook, "CallOnSpawnSinks");
         return false;
     }
-    g_hooksInstalled = true;
+    g_deleteHook.at = g_game.deleteEntity;
+    g_hooksActive.store(true, std::memory_order_release);
     return true;
 }
 
-void RemoveHooks() {
-    if (!g_hooksInstalled) return;
-    hook::RemoveDetour(g_game.sinks);
-    hook::RemoveDetour(g_game.deleteEntity);
-    g_hooksInstalled = false;
+bool RemoveHooks() {
+    g_hooksActive.store(false, std::memory_order_release);
+    const bool sinks = RemoveHook(g_sinksHook, "CallOnSpawnSinks");
+    const bool deleted = RemoveHook(g_deleteHook, "DeleteEntity");
+    return sinks && deleted;
 }
 
 // ---- the game's entity walk (query_radius and its diagnostic probe) ----------------------------
@@ -1070,6 +1091,8 @@ bool EntitiesOwnedBy(const void* owner, uint64_t id) { return OwnedBy(owner, id)
 
 Result StartEntities() {
     if (g_started) return Result::Ok;
+    if (g_sinksHook.at || g_deleteHook.at || g_sinksHook.removalFailed || g_deleteHook.removalFailed)
+        return Result::Failed;
     g_lookup=EntityLookup({nullptr,OnGameThread});
     caps::Set("game.entities.lookup",false,"no verified registry/name/component adapter");
     char env[8] = "";
@@ -1108,6 +1131,11 @@ Result StartEntities() {
             snprintf(g_whyWatch, sizeof(g_whyWatch), "the stream hooks couldn't be installed");
             caps::Set(kCapWatch, false, g_whyWatch);
         }
+        if (g_sinksHook.removalFailed || g_deleteHook.removalFailed) {
+            g_started = true; // withdraw the partially published service; retain hook backing on failure
+            StopEntities();
+            return Result::Failed;
+        }
     }
     LogCap(kCapTransform, g_canTransform, g_whyTransform);
     LogCap(kCapSpawn, g_canSpawn, g_whySpawn);
@@ -1124,14 +1152,22 @@ Result StartEntities() {
     return Result::Ok;
 }
 
-void StopEntities() {
-    if (!g_started) return;
+Result StopEntities() {
+    const bool removed = RemoveHooks();
+    if (!g_started) return removed ? Result::Ok : Result::Failed;
     g_lookup.Stop();
     caps::Set("game.entities.lookup",false,"stopped");
     StopOwned();
     if (g_prefabsPublished) host::WithdrawGameService(SC_PREFABS_NAME);
     g_prefabsPublished = false;
-    RemoveHooks();
+    if (!removed) {
+        Unsubscribe(host::GameOwner(), "tick", OnTick);
+        host::WithdrawGameService(SC_ENTITIES_NAME);
+        for (const char* cap : { kCapTransform, kCapSpawn, kCapClassOf, kCapQuery, kCapWatch, "game.entities.prefabs" })
+            caps::Set(cap, false, "game.entities hook cleanup failed");
+        g_started = false;
+        return Result::Failed;
+    }
     // Every plugin has unloaded (Stop runs after UnloadAll), so anything still owned belongs to a
     // plugin whose release failed: ask the game to remove it now (game.actors is still started).
     if (!g_owned.empty()) {
@@ -1160,6 +1196,7 @@ void StopEntities() {
     ResetState();
     g_diag = false;
     g_started = false;
+    return Result::Ok;
 }
 
 void ReleaseEntitiesOwner(const void* owner) {

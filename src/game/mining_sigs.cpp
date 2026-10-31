@@ -41,7 +41,7 @@ constexpr rows::Check kCellChecks[] = {
 static_assert(kCellBuilderType == 8 && kCellSpawnGate == 0x29 && kCellHarvestLod == 0x16A8 && kRuleSpawnBit == 8,
               "kCellChecks pin these offsets");
 
-SigResult ResolveCell(const Image& img) {
+SigResult ResolveCell(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size))
         return SigFail("invalid .rdata range");
     const uint8_t* label = FindCString(img.rdata, "CBiomeBuilder::BuildLargeScaleEcoSystem");

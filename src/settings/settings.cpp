@@ -12,6 +12,7 @@
 #include "sco/storage.h"
 #include "sco/ui.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <algorithm>
 #include <cstring>
 #include <mutex>
@@ -255,6 +256,8 @@ bool Same(const Setting& d, const SettingValue& a, const SettingValue& b) {
 
 // The one set: checks, stores, then announces. Game thread.
 Result Set(const char* plugin, const char* name, unsigned mask, const SettingValue& v) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
     if (!plugin || !name) return Result::BadArg;
     const std::string id = plugin, n = name;
@@ -299,25 +302,47 @@ Result Set(const char* plugin, const char* name, unsigned mask, const SettingVal
 
 std::string StorageKey(const char* name) { return std::string("sco.settings.") + (name ? name : ""); }
 
-Result Start() {
+static Result StartImpl(const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (g_started) return Result::BadArg;
         g_started = true;
     }
-    Result r = AddReleaseHook(OnRelease);
+    Result r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r == Result::Ok) {
-        r = host::ProvideHostService(SCO_SETTINGS_NAME, SCO_SETTINGS_VERSION_1_0, &kTable);
-        if (r != Result::Ok) RemoveReleaseHook(OnRelease);
+        r = sco::detail::PublishHostOwned(cap, SCO_SETTINGS_NAME, SCO_SETTINGS_VERSION_1_0, &kTable);
+        if (r != Result::Ok && !cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
     }
     if (r != Result::Ok) {
+        if (cap) return r; // retain partial owned startup for terminal fault handling
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
     }
     return r;
 }
 
+Result Start() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(nullptr);
+}
+namespace owned {
+Result Start(const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(&cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (!g_started) return;
@@ -334,9 +359,15 @@ bool Started() {
     return g_started;
 }
 
-const sco_settings_v1* Table() { return &kTable; }
+const sco_settings_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 
 Result Declare(sco_plugin* self, const std::vector<plugins::Setting>& decls) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
     try {
         const char* pid = host::PluginId(self);
         if (!pid) return Result::BadArg;

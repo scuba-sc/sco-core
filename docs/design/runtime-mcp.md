@@ -262,6 +262,10 @@ All `path:line` references in this document use that revision, not moving PR lin
 | `SigState`, `SigDef` and the `Sig` accessors in `include/sco/signatures.h`; startup rule `docs/architecture.md:94-97` | Copy existing row result only after resolution completes; never `ResolveAll`/`Sig`/subprocess scanner. Exclude `at`, patterns, resolver pointers and image bytes/RVAs. |
 | `app::Start` and `app::Stop` in `src/app/sco_app.cpp`; product configuration `Platform` in `include/sco/app.h` | New lifecycle/capability summary and trusted product offline verdict. No gameplay methods or inferred authorization from service flags. Close diagnostics before plugin teardown, not merely at the existing later IPC stop. |
 
+Current registry source uses a leased `SignatureSnapshot` after successful resolution;
+the historical baseline table above retains its original API names. The metadata
+copy still excludes addresses, patterns, resolver pointers and image bytes.
+
 Publish immutable snapshots on game-thread startup/tick/lifecycle boundaries.
 The worker reads copies only and never triggers a refresh on demand. Registry
 copying must respect lock order and be measured; a metadata read must not change

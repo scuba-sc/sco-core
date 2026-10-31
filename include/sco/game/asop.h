@@ -1,6 +1,6 @@
 #pragma once
 // Addresses behind offline ship terminals (ASOP), ship lifts, personal hangars and ATC. Resolved by
-// sco::ResolveAll(); the rows are in src/game/asop_sigs.cpp (terminal, list, deliver, retrieve,
+// a host registry's Resolve(); the rows are in src/game/asop_sigs.cpp (terminal, list, deliver, retrieve,
 // insurance), src/game/atc_sigs.cpp (ATC data manager) and src/game/hangar_sigs.cpp (hangar
 // instances, ship lifts, landing areas). docs/game/asop.md lists every row with its pattern source,
 // its checks and the root cause (rc1..rc22 of the research doc) it serves.
@@ -10,7 +10,7 @@
 // broken group disables one feature. A row may be in several groups.
 //
 // Resolve before patching or hooking: the rows match the game's original bytes (a 5-byte hook
-// jmp over a prologue, or the OnRequestOpen patch at +0x95E, makes a later ResolveAll fail them).
+// jmp over a prologue, or the OnRequestOpen patch at +0x95E, makes a later resolution fail them).
 #include <cstddef>
 #include <cstdint>
 
@@ -18,7 +18,7 @@ namespace sco::game::asop {
 
 struct Capability {
     const char*        name;    // "asop.terminal"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
     const char*        causes;  // root causes of the research doc it fixes, "rc1" / "rc7-rc11"
 };

@@ -193,7 +193,9 @@ constexpr size_t kMaxPlugins = 128;               // folders beyond this are lis
 // plugin on the cycle; a self-require is "a -> a"), "requires b: plugin 'b' is refused (<reason>)"
 // (the provider is refused, disabled or itself refused for one of these reasons). The reserved ids
 // (sco, host, menu, game) never match a folder. Folder order stays the list order.
-// Discover never runs plugin code and never opens the entry file.
+// Discover never runs plugin code and never opens the entry file. Reserved
+// ingress refusal returns an empty vector without invoking opts.has; this is
+// indistinguishable from a directory containing no plugins.
 std::vector<Plugin> Discover(const fs::path& root, const Options& opts);
 
 // The order to load the plugins of `list` in, as indices into it: list order, except a Ready
@@ -225,6 +227,8 @@ ModuleOps PlatformModuleOps();
 // not walked (too little stack is left): it is blamed on the owner. A guard that records nothing
 // (every non-Windows one) gets owner blame.
 using CallGuard = uint32_t (*)(void (*thunk)(void* ctx), void* ctx);
+// A reserved host session refuses legacy guard changes and calls. SetCallGuard
+// becomes a no-op; Guarded returns a nonzero failure without invoking callbacks.
 void      SetCallGuard(CallGuard guard);         // nullptr restores the default
 uint32_t  Guarded(void (*thunk)(void* ctx), void* ctx);
 
@@ -243,6 +247,10 @@ uint32_t  Guarded(void (*thunk)(void* ctx), void* ctx);
 // load returned non-OK and sco::Release(self) failed ("release failed: TOO_MANY"): the runtime
 // may still hold the plugin's callbacks, so the module is never closed under them.
 // False for anything but Loaded; reason set; one [plugin] log line either way.
+// Reserved-session ingress refusal returns false without changing the plugin,
+// setting a reason or invoking a module operation. The same refusal leaves
+// caller outputs unchanged in the reload/unload helpers below; void helpers
+// become no-ops.
 bool LoadNative(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts,
                 const ModuleOps& ops = PlatformModuleOps());
 
@@ -378,16 +386,14 @@ void CancelUnload(const std::vector<Plugin*>& group);
 // refusal for still-Loaded instances; Faulted instances remain retained.
 void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const ScriptRuntime* runtime = nullptr);
 
-// Unloads every Loaded plugin, last loaded first, built-ins after every other plugin (they are
-// the host's own features, which other plugins may still call while unloading): natives run
-// their unload export, release and close-or-pin without the mid-session refusal; built-ins
-// do the same without a module to close; scripts by sco::Release(self)
-// then runtime.unload(self) (state Unloaded; if Release fails the script is kept and the
-// plugin Crashed, as for natives). This is the host shutdown path: it does not ask CanUnload,
-// so a provider whose service table was handed out is unloaded like any other (its module
-// stays mapped, as for any unload). Faulted instances retain state and are never entered,
-// even at shutdown. runtime may be null when no script was loaded. Data packs
-// stay as they are.
+// Failed or quarantined code aborts shutdown before any unload; a fault during teardown stops
+// the remaining peers. Returns false on refusal or incomplete teardown, true on success.
+// Healthy handed-out providers still bypass the mid-session refusal. Data packs are unchanged.
+bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
+               const ScriptRuntime* runtime = nullptr);
+// Historical void-return API retained for typed function-pointer consumers.
+// This keeps the legacy best-effort behavior; new retirement code must use
+// TryUnloadAll and handle its failure.
 void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
                const ScriptRuntime* runtime = nullptr);
 

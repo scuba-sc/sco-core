@@ -7,6 +7,7 @@
 #include "sco/game/reads.h"
 #include "sco/log.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <atomic>
 #include <cstdio>
 #include <cstring>
@@ -35,7 +36,8 @@ std::atomic<bool>   g_enabled{false};
 bool                g_loggedFail = false;
 
 bool RowOk(const char* id) {
-    const SigResult* s = SigLookup(id);
+    const auto signatures = AcquireHostSignatureSnapshot();
+    const SigResult* s = (signatures ? signatures->Lookup(id) : nullptr);
     return s && s->state == SigState::Ok;
 }
 

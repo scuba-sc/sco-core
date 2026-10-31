@@ -1,7 +1,7 @@
 #pragma once
 // Addresses behind sc-offline's own features: noclip's fly mode (spawner), Clear NPCs (npc), the
 // quantum effect warm-up (quantum), the reputation-service checks contracts patch (contracts) and
-// the offline OR-loop bound patch (offline). Resolved by sco::ResolveAll(); the rows are in
+// the offline OR-loop bound patch (offline). Resolved by a host registry's Resolve(); the rows are in
 // src/game/features_sigs.cpp, and docs/game/features.md lists each one with what it checks.
 //
 // Rows are grouped into capabilities like the ASOP ones (sco/game/asop.h): a feature asks for its
@@ -16,7 +16,7 @@ namespace sco::game::features {
 
 struct Capability {
     const char*        name;    // "spawn.fly_mode"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
 };
 

@@ -6,6 +6,8 @@
 namespace sco {
 
 void Status(const char* fmt, ...);        // stores the message and logs it as "[status] ..."
-bool GetStatus(char* out, size_t n);      // false (and out = "") until the first Status()
+// False and out="" until first Status(); reserved ingress refusal returns false
+// without changing out. Status itself becomes a no-op after reservation.
+bool GetStatus(char* out, size_t n);
 
 }  // namespace sco

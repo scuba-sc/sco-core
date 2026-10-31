@@ -27,6 +27,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <sc_spawn.h>
 #include <algorithm>
 #include <cmath>
@@ -83,12 +84,14 @@ template <typename T> T Row(const char* id) { return reinterpret_cast<T>(Sig(id)
 
 // Every row of an actors capability (sco/game/actors.h) is OK.
 bool RowsOk(const char* capability) {
+    const auto signatures = AcquireHostSignatureSnapshot();
+    if (!signatures) return false;
     size_t n = 0;
     const actors::Capability* c = actors::Capabilities(n);
     for (size_t i = 0; i < n; ++i) {
         if (strcmp(c[i].name, capability) != 0) continue;
         for (size_t k = 0; k < c[i].count; ++k) {
-            const SigResult* s = SigLookup(c[i].rows[k]);
+            const SigResult* s = (signatures ? signatures->Lookup(c[i].rows[k]) : nullptr);
             if (!s || s->state != SigState::Ok) return false;
         }
         return true;

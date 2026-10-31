@@ -4,11 +4,9 @@
 // close) while the DataCore loader runs. Design: docs/design/vfs-datacore.md § 3 ("The
 // game-specific part"); reference: docs/api.md § sco/game/pak.h.
 //
-//   sco::game::RegisterGameSignatures();
-//   sco::ResolveAll(image);
-//   sco::game::pak::Options o;
-//   o.mounts = [] { return g_mountTable.Current(); };   // the product's sco::vfs::MountTable
-//   sco::game::pak::Enable(o);                            // detours the loader; sets "vfs.pak"
+// Native activation is currently refused until a product supplies a proven
+// execution-exclusion and lifecycle protocol. The descriptions below document
+// the adapter's previous behavior and the isolated synthetic fixture.
 //
 // Rows (src/game/pak_sigs.cpp, moved byte for byte from sc-offline's quantum.cpp):
 //   pak.datacore_loader  CDataCoreLoader::InitializeBinary: the function that loads the string
@@ -53,7 +51,7 @@ using ReadFn   = size_t (*)(uintptr_t pak, void* data, size_t length, size_t ele
 using SeekFn   = int (*)(uintptr_t pak, uintptr_t file, int offset, int mode);   // 0 = ok
 using CloseFn  = int (*)(uintptr_t pak, uintptr_t file);
 
-// What Enable hooks. Resolve fills it from the pak.* rows (after sco::ResolveAll); tests pass
+// What Enable hooks. Resolve fills it from the pak.* rows (after the host publishes its resolved snapshot); tests pass
 // their own.
 struct Targets {
     void*      loader = nullptr;   // the DataCore loader (LoaderFn)
@@ -91,7 +89,10 @@ struct Options {
     bool allFilesProbed = false;
 };
 
-// Installs the loader detour (sco::hook::InstallDetour, stolen bytes counted by StolenLength) and
+// Native activation is currently unavailable: neither overload changes code,
+// slots, capabilities or invokes callbacks until continuous exclusion is
+// established by a separate product lifecycle contract. The former behavior:
+// installs the loader detour (sco::hook::InstallDetour, stolen bytes counted by StolenLength) and
 // sets the capability "vfs.pak". Ok, or nothing changes and vfs.pak is off with the reason:
 // BadArg (size, unknown scope, null mounts, null targets, already enabled, AllFiles slots still
 // draining), Unavailable (a pak.* row not OK; Scope::AllFiles without Options.allFilesProbed or

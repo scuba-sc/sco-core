@@ -82,6 +82,10 @@ Result Start(const ServiceOptions& opts = ServiceOptions());
 // No-op unless started. Call after every plugin has unloaded.
 void Stop();
 
+// Owned-session observations refuse during startup/after closure: scalar/copy
+// getters below return false, Idle, zero or empty, without implying cleanup or
+// distinguishing refusal from a real default. An admitted WaitForDelivery
+// holds its reader until delivery or its timeout; owner drain may time out.
 bool Started();
 // Host-only lifecycle wiring check; no plugin entry point.
 bool HasOwnerReleaseDispatcher(void (*callback)(const void*));

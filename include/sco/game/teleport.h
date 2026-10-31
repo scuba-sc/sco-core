@@ -1,5 +1,5 @@
 #pragma once
-// Addresses behind teleport, player lookup and zones. Resolved by sco::ResolveAll().
+// Addresses behind teleport, player lookup and zones. Resolved by a host registry's Resolve().
 //
 //   teleport.to_camera      CmdTeleportToCamera's handler, found from its console-command name,
 //                           with 19 layout checks plus the entity-position and zone vtable checks

@@ -1,7 +1,7 @@
 #include "sco/signatures.h"
 
-// Row fixtures supply Sig/SigPattern locally. Do not link the live registry:
-// these tests inject dependency addresses rather than registering global rows.
+// Fixtures supply legacy Sig/SigPattern locally; their resolver contexts are
+// built in isolated owned registries rather than the live host registry.
 namespace sco {
 bool SigReady(const char* id) { return Sig(id) != nullptr; }
 }
