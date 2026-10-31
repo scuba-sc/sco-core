@@ -1,77 +1,175 @@
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include "sco/log.h"
-#include <cstring>
+#include "owned_registry_reservation.h"
+#include "reserved_legacy_gate.h"
+#include <memory>
+#include <mutex>
+#include <limits>
 
 namespace sco {
-
 namespace {
+// Ownership transitions serialize separately from short-lived registry publication locks.
+std::mutex g_hostOwnership;
+size_t g_hostPins = 0;
+bool g_hostOwnedReservation = false;
+std::shared_ptr<OwnedShutdown> g_hostOwnedOwner;
+std::mutex g_hostRegistryMutex;
+std::shared_ptr<SignatureRegistry> g_hostRegistry;
+thread_local unsigned g_hostCallbackDepth = 0;
+struct HostCallbackScope {
+    HostCallbackScope() { ++g_hostCallbackDepth; }
+    ~HostCallbackScope() { --g_hostCallbackDepth; }
+};
 
-constexpr size_t kMaxRows = 512;
-
-struct Row { const SigDef* def; SigResult res; uint8_t visiting; };
-
-Row    g_rows[kMaxRows];
-size_t g_count = 0;
-
-Row* Find(const char* id) {
-    for (size_t i = 0; i < g_count; ++i)
-        if (strcmp(g_rows[i].def->id, id) == 0) return &g_rows[i];
-    return nullptr;
+std::shared_ptr<SignatureRegistry> LoadHostRegistry() noexcept {
+    std::lock_guard<std::mutex> lock(g_hostRegistryMutex);
+    return g_hostRegistry;
+}
+void StoreHostRegistry(const std::shared_ptr<SignatureRegistry>& registry) noexcept {
+    std::lock_guard<std::mutex> lock(g_hostRegistryMutex);
+    g_hostRegistry = registry;
+}
 }
 
-const Image* g_img = nullptr;
-
-void Resolve(Row& r) {
-    if (r.res.state != SigState::NotRun) return;
-    if (r.visiting) { r.res = SigFail("circular dependency"); return; }
-    r.visiting = 1;
-    for (const char* need : r.def->needs) {
-        if (!need) break;
-        Row* dep = Find(need);
-        if (!dep) { r.res = SigFail("needs an unknown signature"); r.visiting = 0; return; }
-        Resolve(*dep);
-        if (dep->res.state != SigState::Ok) {
-            r.res = { SigState::Blocked, nullptr, 0, dep->def->id };
-            r.visiting = 0;
-            return;
-        }
+bool detail::ReserveEmptyHostRegistry(const std::shared_ptr<OwnedShutdown>& owner,
+                                      const OwnedShutdown::Transition& transition) noexcept {
+    LegacyEntry entry;
+    if (!entry) return false;
+    if (!owner || g_hostCallbackDepth || !transition.valid_for(*owner)) return false;
+    // Never wait on a legacy registry callback which may synchronously re-enter
+    // host startup. A busy registry is a conservative refusal.
+    std::unique_lock<std::mutex> lock(g_hostOwnership, std::try_to_lock);
+    if (!lock.owns_lock()) return false;
+    if (!transition.valid_for(*owner) || g_hostOwnedReservation || g_hostPins || LoadHostRegistry()) return false;
+    g_hostOwnedReservation = true;
+    g_hostOwnedOwner = owner;
+    return true;
+}
+bool detail::HostRegistryReservedFor(const std::shared_ptr<OwnedShutdown>& owner) noexcept {
+    LegacyEntry entry(false);
+    if (!entry) return false;
+    if (g_hostCallbackDepth) return false;
+    std::unique_lock<std::mutex> lock(g_hostOwnership, std::try_to_lock);
+    return lock.owns_lock() && owner && g_hostOwnedReservation && g_hostOwnedOwner == owner;
+}
+void detail::ReleaseUnusedHostRegistryReservation(const std::shared_ptr<OwnedShutdown>& owner) noexcept {
+    LegacyEntry entry;
+    if (!entry) return;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (owner && g_hostOwnedReservation && g_hostOwnedOwner == owner && !g_hostPins && !LoadHostRegistry()) {
+        g_hostOwnedReservation = false;
+        g_hostOwnedOwner.reset();
     }
-    if (r.def->resolve) {
-        r.res = r.def->resolve(*g_img);
-    } else if (r.def->pattern) {
-        r.res = SigPattern(g_img->text, r.def->pattern);
-        if (r.res.state == SigState::Ok && r.def->ripDisp > 0) {
-            const auto source = reinterpret_cast<uintptr_t>(r.res.at);
-            const auto text = reinterpret_cast<uintptr_t>(g_img->text.base);
-            const auto base = reinterpret_cast<uintptr_t>(g_img->base);
-            const auto disp = static_cast<size_t>(r.def->ripDisp);
-            const auto size = r.def->ripSize > 0 ? static_cast<size_t>(r.def->ripSize) : 0;
-            if (!base || !g_img->size || g_img->size > UINTPTR_MAX - base) {
-                r.res = SigFail("image range missing or invalid");
-            } else if (!text || g_img->text.size > UINTPTR_MAX - text || source < text ||
-                       source - text > g_img->text.size || size > g_img->text.size - (source - text)) {
-                r.res = SigFail("RIP source instruction outside .text");
-            } else if (disp > size || size - disp < sizeof(int32_t)) {
-                r.res = SigFail("RIP displacement outside instruction");
-            } else {
-                const auto next = source + size;
-                const int32_t delta = Rel32(r.res.at + disp);
-                const auto magnitude = delta < 0 ? uintptr_t{0} - static_cast<uintptr_t>(delta) : static_cast<uintptr_t>(delta);
-                const bool overflow = delta < 0 ? magnitude > next : magnitude > UINTPTR_MAX - next;
-                const auto target = delta < 0 ? next - magnitude : next + magnitude;
-                if (overflow || target < base || target - base >= g_img->size)
-                    r.res = SigFail("RIP target outside the image");
-                else r.res.at = reinterpret_cast<uint8_t*>(target);
-            }
-        }
-    } else {
-        r.res = SigFail("row has neither a pattern nor a resolver");
-    }
-    if (r.res.state == SigState::Ok && !r.res.at) r.res = SigFail("resolver returned no address");
-    r.visiting = 0;
 }
 
-}  // namespace
+bool InstallHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
+                                  void (*beforeInstall)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    if (!registry) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation || g_hostPins || LoadHostRegistry() ||
+        registry->SealForHost() != SigRegistryStatus::Ok) return false;
+    if (beforeInstall) { HostCallbackScope scope; beforeInstall(); }
+    StoreHostRegistry(registry);
+    return true;
+}
+bool ClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
+                                void (*beforeClear)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    if (!registry) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation) return false;
+    if (g_hostPins || LoadHostRegistry() != registry) return false;
+    if (beforeClear) { HostCallbackScope scope; beforeClear(); }
+    StoreHostRegistry({});
+    return true;
+}
+bool UnpinAndClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
+                                        void (*beforeClear)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    if (!registry) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation) return false;
+    if (g_hostPins != 1 || LoadHostRegistry() != registry) return false;
+    if (beforeClear) { HostCallbackScope scope; beforeClear(); }
+    g_hostPins = 0;
+    StoreHostRegistry({});
+    return true;
+}
+bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& registry,
+                               void (*callback)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    if (!registry || !callback) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation) return false;
+    if (LoadHostRegistry() != registry) return false;
+    { HostCallbackScope scope; callback(); }
+    return true;
+}
+bool WithNoHostSignatureRegistry(void (*callback)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    if (!callback) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation) return false;
+    if (LoadHostRegistry()) return false;
+    { HostCallbackScope scope; callback(); }
+    return true;
+}
+bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& registry,
+                               void (*callback)(void*) noexcept, void* context) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    if (!registry || !callback) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation) return false;
+    if (LoadHostRegistry() != registry) return false;
+    { HostCallbackScope scope; callback(context); }
+    return true;
+}
+bool WithNoHostSignatureRegistry(void (*callback)(void*) noexcept, void* context) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    if (!callback) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation) return false;
+    if (LoadHostRegistry()) return false;
+    { HostCallbackScope scope; callback(context); }
+    return true;
+}
+bool PinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation) return false;
+    if (LoadHostRegistry() != expected ||
+        g_hostPins == std::numeric_limits<size_t>::max()) return false;
+    ++g_hostPins;
+    return true;
+}
+bool UnpinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
+    std::lock_guard<std::mutex> lock(g_hostOwnership);
+    if (g_hostOwnedReservation) return false;
+    if (!g_hostPins || LoadHostRegistry() != expected) return false;
+    --g_hostPins;
+    return true;
+}
+std::shared_ptr<const SignatureRegistry> AcquireHostSignatureRegistry() noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return {};
+    return LoadHostRegistry();
+}
+std::shared_ptr<const SignatureSnapshot> AcquireHostSignatureSnapshot() noexcept {
+    auto registry = AcquireHostSignatureRegistry();
+    return registry ? registry->Snapshot() : nullptr;
+}
 
 const char* SigStateName(SigState s) {
     switch (s) {
@@ -93,67 +191,31 @@ SigResult SigPattern(const Section& text, const char* pattern) {
     return { SigState::Ok, at, 1, nullptr };
 }
 
-bool RegisterSignatures(const SigDef* rows, size_t n) {
-    for (size_t i = 0; i < n; ++i) {
-        if (g_count == kMaxRows) { Log("[core] signature table full at %s", rows[i].id); return false; }
-        if (Find(rows[i].id))    { Log("[core] duplicate signature id %s", rows[i].id); return false; }
-        g_rows[g_count++] = { &rows[i], {}, 0 };
-    }
-    return true;
-}
-
-void ResolveAll(const Image& img) {
-    g_img = &img;
-    for (size_t i = 0; i < g_count; ++i) { g_rows[i].res = {}; g_rows[i].visiting = 0; }
-    const auto imageBase = reinterpret_cast<uintptr_t>(img.base);
-    const auto sectionValid = [&](const Section& section) {
-        if (!section.base && !section.size) return true;
-        const auto at = reinterpret_cast<uintptr_t>(section.base);
-        return imageBase && img.size && img.size <= UINTPTR_MAX - imageBase && at >= imageBase &&
-            at - imageBase <= img.size && section.size <= img.size - (at - imageBase);
-    };
-    if (!sectionValid(img.text) || !sectionValid(img.rdata) || !sectionValid(img.pdata)) {
-        for (size_t i = 0; i < g_count; ++i) g_rows[i].res = SigFail("declared section outside the image");
-        g_img = nullptr;
-        return;
-    }
-    for (size_t i = 0; i < g_count; ++i) Resolve(g_rows[i]);
-    g_img = nullptr;
-}
-
-const SigResult* SigLookup(const char* id) {
-    const Row* r = Find(id);
-    return r ? &r->res : nullptr;
-}
-
 uint8_t* Sig(const char* id) {
-    const SigResult* r = SigLookup(id);
+    auto snapshot = AcquireHostSignatureSnapshot();
+    const SigResult* r = snapshot ? snapshot->Lookup(id) : nullptr;
     return r && r->state == SigState::Ok ? r->at : nullptr;
 }
-
 bool SigReady(const char* id) { return Sig(id) != nullptr; }
 
-size_t           SignatureCount()          { return g_count; }
-const SigDef*    SignatureDef(size_t i)    { return i < g_count ? g_rows[i].def : nullptr; }
-const SigResult& SignatureResult(size_t i) { static const SigResult none{}; return i < g_count ? g_rows[i].res : none; }
-
-void LogSignatureReport(bool verbose) {
+void LogSignatureReport(const SignatureSnapshot& snapshot, bool verbose) {
     size_t ok = 0;
-    for (size_t i = 0; i < g_count; ++i) ok += g_rows[i].res.state == SigState::Ok;
-    Log("[core] signatures: %zu/%zu OK", ok, g_count);
-    for (size_t i = 0; i < g_count; ++i) {
-        const Row& r = g_rows[i];
-        switch (r.res.state) {
+    for (size_t i = 0; i < snapshot.Count(); ++i) ok += snapshot.ResultAt(i)->state == SigState::Ok;
+    Log("[core] signatures: %zu/%zu OK", ok, snapshot.Count());
+    for (size_t i = 0; i < snapshot.Count(); ++i) {
+        const SigResult& r = *snapshot.ResultAt(i);
+        const char* id = snapshot.IdAt(i);
+        switch (r.state) {
         case SigState::Ok:
-            if (verbose) Log("[core] OK       %s", r.def->id);
+            if (verbose) Log("[core] OK       %s", id);
             break;
-        case SigState::Missing:   Log("[core] MISSING  %s (pattern: 0 matches)", r.def->id); break;
-        case SigState::Ambiguous: Log("[core] AMBIG    %s (pattern: %d matches)", r.def->id, r.res.matches); break;
-        case SigState::Blocked:   Log("[core] BLOCKED  %s (needs %s)", r.def->id, r.res.why); break;
-        case SigState::Failed:    Log("[core] FAILED   %s (%s)", r.def->id, r.res.why ? r.res.why : "no reason"); break;
-        case SigState::NotRun:    Log("[core] NOT RUN  %s", r.def->id); break;
+        case SigState::Missing:   Log("[core] MISSING  %s (pattern: 0 matches)", id); break;
+        case SigState::Ambiguous: Log("[core] AMBIG    %s (pattern: %d matches)", id, r.matches); break;
+        case SigState::Blocked:   Log("[core] BLOCKED  %s (needs %s)", id, r.why); break;
+        case SigState::Failed:    Log("[core] FAILED   %s (%s)", id, r.why ? r.why : "no reason"); break;
+        case SigState::NotRun:    Log("[core] NOT RUN  %s", id); break;
         }
     }
 }
 
-}  // namespace sco
+} // namespace sco

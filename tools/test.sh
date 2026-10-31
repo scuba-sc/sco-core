@@ -15,10 +15,10 @@ CC=${CC:-$(command -v clang || command -v gcc)}
 # The complete issue302 matrix is registered by CMake/CTest.
 RESOLVER_FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -I "$ROOT/include")
 for fixture in test_issue302_shared_bounds test_issue302_offline_bounds; do
-  "$CXX" "${RESOLVER_FLAGS[@]}" "$ROOT/tests/$fixture.cpp" "$ROOT/tests/issue302_signature_support.cpp" "$ROOT/src/sco_scan.cpp" -o "$OUT/$fixture"
+  "$CXX" "${RESOLVER_FLAGS[@]}" "$ROOT/tests/$fixture.cpp" "$ROOT/tests/issue302_signature_support.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signature_registry.cpp" -o "$OUT/$fixture"
   "$OUT/$fixture"
 done
-"$CXX" "${RESOLVER_FLAGS[@]}" "$ROOT/tests/test_issue302_registry_bounds.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" -o "$OUT/test_issue302_registry_bounds"
+"$CXX" "${RESOLVER_FLAGS[@]}" "$ROOT/tests/test_issue302_registry_bounds.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signature_registry.cpp" -o "$OUT/test_issue302_registry_bounds"
 "$OUT/test_issue302_registry_bounds"
 python3 "$ROOT/tests/test_issue302_parity_gate.py"
 
@@ -308,7 +308,7 @@ NETSVC_SRC=("$ROOT/src/net/service.cpp" "$ROOT/src/net/scope.cpp" "$ROOT/src/net
             "$ROOT/src/net/udp_posix.cpp" "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable.cpp" "$ROOT/src/net/core.cpp")
 
 SHARED_ASAN_SOURCES=(
-  "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_log_status.cpp" "$ROOT/src/sco_pe_file.cpp"
+  "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp" "$ROOT/src/sco_pe_file.cpp"
   "${GAME[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}"
   "$ROOT/src/game/services/input.cpp" "$ROOT/src/game/services/gamerules.cpp"
   "$ROOT/src/game/services/inventory.cpp" "$ROOT/src/game/services/inventory_layout.cpp"
@@ -330,7 +330,7 @@ SHARED_ASAN_SOURCES=(
 
 SHARED_TSAN_SOURCES=(
   "${RUNTIME[@]}" "${HOST_IMPL[@]}"
-  "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"
+  "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"
   "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
   "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "$ROOT/src/hook/sco_hook.cpp" "${GAME[@]}"
   "$ROOT/src/storage/storage.cpp" "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp"
@@ -344,9 +344,20 @@ parallel_compile asan "${SHARED_ASAN_SOURCES[@]}"
 parallel_compile tsan "${SHARED_TSAN_SOURCES[@]}"
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined \
-  "$ROOT/tests/test_core.cpp" $(obj asan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" \
+  "$ROOT/tests/test_core.cpp" $(obj asan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" \
   "$ROOT/src/sco_log_status.cpp" "$ROOT/src/sco_pe_file.cpp" "${GAME[@]}") -o "$OUT/test_core"
 "$OUT/test_core"
+
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_signature_registry.cpp" \
+  $(obj asan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp") -o "$OUT/test_signature_registry"
+"$OUT/test_signature_registry"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_signature_registry.cpp" \
+  $(obj tsan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp") -o "$OUT/test_signature_registry_tsan"
+"$OUT/test_signature_registry_tsan"
+python3 "$ROOT/tests/signature_differential/run.py" --cxx "$CXX" --sanitize
+"$CXX" "${FLAGS[@]}" -D__fastcall= -fsanitize=address,undefined \
+  "$ROOT/tests/test_game_reads_lifecycle.cpp" "$ROOT/src/game/services/reads.cpp" -o "$OUT/test_game_reads_lifecycle"
+"$OUT/test_game_reads_lifecycle"
 
 # The runtime is cross-thread: run its tests under ASan+UBSan and again under ThreadSanitizer.
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_runtime.cpp" $(obj asan "${RUNTIME[@]}") -o "$OUT/test_runtime"
@@ -362,8 +373,26 @@ parallel_compile tsan "${SHARED_TSAN_SOURCES[@]}"
 "$OUT/test_datacore_live_lifecycle_tsan"
 
 # Capabilities and the host's sco_api table, over the same runtime, under both sanitizer sets.
-HOST_ASAN=($(obj asan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
-HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
+HOST_ASAN=($(obj asan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
+HOST_TSAN=($(obj tsan "${HOST_IMPL[@]}" "${RUNTIME[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp"))
+
+# Exercise the same production refusal symbol and the explicit test-only
+# admission pause seam; neither fixture loads a game or native provider.
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_direct_game_service_refusal.cpp" \
+  "$ROOT/src/game/services/start.cpp" -o "$OUT/test_direct_game_service_refusal"
+"$OUT/test_direct_game_service_refusal"
+ADMISSION_TEST_OBJ="$(compile_obj asan "$ROOT/src/game/admission.cpp" -DSCO_FRESH_ADMISSION_TESTING=1)"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_owned_admission.cpp" \
+  "$ADMISSION_TEST_OBJ" "${HOST_ASAN[@]}" -o "$OUT/test_owned_admission"
+for mode in prebind drain reentry; do "$OUT/test_owned_admission" "$mode"; done
+
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_quantum.cpp" \
+  "$ROOT/src/game/services/quantum.cpp" "$ROOT/src/game/services/quantum_owned.cpp" \
+  $(obj asan "$ROOT/src/hook/sco_hook.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_quantum"
+"$OUT/test_quantum"
+"$OUT/test_quantum" --cleanup-fault
+"$OUT/test_quantum" --stop-cleanup-fault
+
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_input.cpp" \
   $(obj asan "$ROOT/src/game/services/input.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_input"
@@ -461,11 +490,13 @@ echo "offline missions poll fault: PASS (synthetic backend, no game)"
 
 # sco::game::pak: the CryPak adapter over a fake ICryPak and a fake loader, with a second thread on
 # the engine's functions during the load window, so both sanitizer sets.
-PAK_SRC=("$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "${GAME[@]}" "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp" \
-         "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}")
-"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_pak.cpp" $(obj asan "${PAK_SRC[@]}") -o "$OUT/test_pak"
+PAK_SRC=("$ROOT/src/game/datacore_live_lifecycle.cpp" "${GAME[@]}" "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp" \
+         "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}")
+PAK_FIXTURE_ASAN="$(compile_obj asan "$ROOT/src/game/pak_hooks.cpp" -DSCO_PAK_TEST_UNSAFE_FIXTURE=1)"
+PAK_FIXTURE_TSAN="$(compile_obj tsan "$ROOT/src/game/pak_hooks.cpp" -DSCO_PAK_TEST_UNSAFE_FIXTURE=1)"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_pak.cpp" "$PAK_FIXTURE_ASAN" $(obj asan "${PAK_SRC[@]}") -o "$OUT/test_pak"
 "$OUT/test_pak"
-"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_pak.cpp" $(obj tsan "${PAK_SRC[@]}") -o "$OUT/test_pak_tsan"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_pak.cpp" "$PAK_FIXTURE_TSAN" $(obj tsan "${PAK_SRC[@]}") -o "$OUT/test_pak_tsan"
 "$OUT/test_pak_tsan"
 "$OUT/test_vfs_tsan"
 
@@ -580,7 +611,7 @@ NET_C=(-std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -I "$ROOT/include")
 # it saved to data/datacore/pending/, the next launch applying it), release, atomicity, reports,
 # datacore.applied and scosdk/datacore.hpp (ASan+UBSan).
 SERVICE_ASAN=($(obj asan "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}" "${HOST_IMPL[@]}" "${RUNTIME[@]}" \
-  "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp" \
+  "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp" \
   "$ROOT/src/plugins/manifest.cpp" "$ROOT/src/plugins/settings_ini.cpp" "$ROOT/src/plugins/discover.cpp" \
   "$ROOT/src/plugins/loader.cpp" "$ROOT/src/plugins/content.cpp"))
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_datacore_service.cpp" "${SERVICE_ASAN[@]}" -ldl -o "$OUT/test_datacore_service"
@@ -662,7 +693,7 @@ done
 # sco.ui (sco/ui.h, sco_ui.h, scosdk/ui.hpp): built-in plugins under the loader's crash guard (a
 # signal-based stand-in here), registration from threads beside a frame, so both sanitizer sets.
 UI_SRC=("$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" \
-        "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
+        "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_ui.cpp" $(obj asan "${UI_SRC[@]}") -ldl -o "$OUT/test_ui"
 "$OUT/test_ui"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_ui.cpp" $(obj tsan "${UI_SRC[@]}") -ldl -o "$OUT/test_ui_tsan"
@@ -676,7 +707,7 @@ UI_SRC=("$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "${PLUGINS[@]}" "${RUN
 
 # Retained widgets over the neutral real host, and the host-only ImGui API shim.
 WIDGETS_SRC=("$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}" "${HOST_IMPL[@]}" \
-             "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
+             "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_widgets.cpp" $(obj asan "${WIDGETS_SRC[@]}") -o "$OUT/test_widgets"
 "$OUT/test_widgets"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_host_menu_owner.cpp" $(obj asan "${WIDGETS_SRC[@]}") -o "$OUT/test_host_menu_owner"
@@ -695,7 +726,7 @@ WIDGETS_SRC=("$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${R
 # over the real host table and storage, persistence across a restart, settings.changed; readers on
 # threads beside the game thread's sets, so both sanitizer sets.
 SETTINGS_SRC=("$ROOT/src/settings/settings.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/storage/storage.cpp" \
-              "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp")
+              "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_settings.cpp" $(obj asan "${SETTINGS_SRC[@]}") "$SQLITE_ASAN" -ldl -lm -o "$OUT/test_settings"
 "$OUT/test_settings" "$OUT"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_settings.cpp" $(obj tsan "${SETTINGS_SRC[@]}") "$SQLITE_TSAN" -ldl -lm -o "$OUT/test_settings_tsan"
@@ -712,7 +743,7 @@ for f in "$LUA_SRC"/*.c "$ROOT/plugins/lua/sco_lua.c" "$ROOT/plugins/lua/sco_lua
   "$CC" -std=c11 -O1 -g "${W[@]}" -fsanitize=address,undefined -I "$ROOT/include" -I "$LUA_SRC" -c "$f" -o "$o"
   LUA_OBJS+=("$o")
 done
-LUA_TEST_SRC=("${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" \
+LUA_TEST_SRC=("${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" \
               "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/settings/settings.cpp" "$ROOT/src/datacore/service.cpp" \
               "${DATACORE[@]}" "$ROOT/src/storage/storage.cpp" "$ROOT/src/widgets/widgets.cpp")
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -isystem "$LUA_SRC" "$ROOT/tests/test_lua.cpp" $(obj asan "${LUA_TEST_SRC[@]}") \
@@ -725,7 +756,7 @@ LUA_TEST_SRC=("${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" "$ROOT/src/sco_s
 # hello built here as a shared library (CMake: CTest host_sim_examples).
 # The app owns diagnostic transport and advisory sources, unlike the signature-only tests.
 APP_SRC=("$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" \
-         "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/game/diagnostics.cpp" "$ROOT/src/game/private_session.cpp" \
+         "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/game/diagnostics.cpp" "$ROOT/src/game/private_session.cpp" \
          "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/settings/settings.cpp" \
          "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${DIAGNOSTICS_IPC[@]}" "${NETSVC_SRC[@]}" \
          "$ROOT/src/datacore/service.cpp" "${DATACORE[@]}")
@@ -753,6 +784,38 @@ done
   "${APP_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" "${LUA_OBJS[@]}" -ldl -o "$OUT/test_app"
 "$OUT/test_app" "$ROOT/sdk" "$OUT"
 "$OUT/test_app" "$ROOT/sdk" "$OUT" shutdown-only
+"$OUT/test_app" "$ROOT/sdk" "$OUT" fault-retained
+"$OUT/test_app" "$ROOT/sdk" "$OUT" reload-fault-retained
+"$OUT/test_app" "$ROOT/sdk" "$OUT" cascade-fault-retained
+"$OUT/test_app" "$ROOT/sdk" "$OUT/app-stop-failure" registry-stop-failure
+"$OUT/test_app" "$ROOT/sdk" "$OUT/app-owner-mismatch" registry-owner-mismatch
+
+# Exercise app teardown with a synthetic game-service boundary without a native game.
+OBJ_APP_GAME_SERVICES="$(compile_obj asan "$ROOT/src/app/sco_app.cpp" -DSCO_GAME_SERVICES=1 -DSCO_APP_TEST_SYNTHETIC_GAME_SERVICES=1)"
+APP_GAME_SERVICES_ASAN=()
+for obj_path in "${APP_ASAN[@]}"; do
+  case "$obj_path" in
+    *src_app_sco_app_cpp.o) APP_GAME_SERVICES_ASAN+=("$OBJ_APP_GAME_SERVICES") ;;
+    *) APP_GAME_SERVICES_ASAN+=("$obj_path") ;;
+  esac
+done
+OBJ_APP_GAME_REFUSAL="$(compile_obj asan "$ROOT/src/app/sco_app.cpp" -DSCO_GAME_SERVICES=1)"
+APP_GAME_REFUSAL_ASAN=()
+for obj_path in "${APP_ASAN[@]}"; do
+  case "$obj_path" in
+    *src_app_sco_app_cpp.o) APP_GAME_REFUSAL_ASAN+=("$OBJ_APP_GAME_REFUSAL") ;;
+    *) APP_GAME_REFUSAL_ASAN+=("$obj_path") ;;
+  esac
+done
+"$CXX" "${FLAGS[@]}" -DSCO_GAME_SERVICES=1 -fsanitize=address,undefined \
+  "$ROOT/tests/test_app_game_service_shutdown.cpp" "${APP_GAME_REFUSAL_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -lm -o "$OUT/test_app_game_service_refusal"
+"$OUT/test_app_game_service_refusal" production-refusal
+"$CXX" "${FLAGS[@]}" -DSCO_GAME_SERVICES=1 -fsanitize=address,undefined \
+  "$ROOT/tests/test_app_game_service_shutdown.cpp" "${APP_GAME_SERVICES_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -lm -o "$OUT/test_app_game_service_shutdown"
+for mode in phase-owner true false null throw stop-fail finalize-fail partial-fail partial-clean throw-stage-1 throw-stage-2 throw-log-start throw-log-summary throw-log-stop stop-false stop-throw dependent-retained dependent-throw; do
+  "$OUT/test_app_game_service_shutdown" "$mode"
+done
+
 
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_widgets_app.cpp" \
   "${APP_ASAN[@]}" "$SQLITE_ASAN" "$OUT/sha2_asan.o" -ldl -o "$OUT/test_widgets_app"

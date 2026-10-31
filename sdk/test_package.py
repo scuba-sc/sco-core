@@ -568,6 +568,7 @@ class RealManifest(unittest.TestCase):
         for path in ("CMakeLists.txt", "src/host/sco_host.cpp", "src/app/sco_app.cpp",
                      "src/api/sco_tasks.cpp", "plugins/lua/sco_lua.c",
                      "third_party/sqlite/sqlite3.c", "tests/test_host.cpp",
+                     "tests/issue302_test_support.h", "tests/test_synthetic_owned_session.cpp",
                      "tools/abi_snapshot.py", "tests/abi/released/sco_api.h"):
             self.assertIn(path, sources)
         self.assertFalse(any(s.startswith(("src/game/", "src/datacore/")) for s in sources))

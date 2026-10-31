@@ -1,0 +1,6 @@
+{
+  global:
+    reserved_host_mock_table;
+  local:
+    *;
+};

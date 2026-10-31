@@ -16,9 +16,9 @@ struct Check {
     const char* why;     // static reason when it doesn't match
 };
 
-// Extra validation after the checks pass: nullptr = OK, else a static reason. May call Sig() on
-// the row's needs.
-using Extra = const char* (*)(const Image& img, const uint8_t* at);
+// Extra validation after the checks pass: nullptr = OK, else a static reason. May query
+// the row's needs through its resolution context.
+using Extra = const char* (*)(const Image& img, const uint8_t* at, const SigResolveContext& ctx);
 
 struct FnSpec {
     const char*  pattern;   // unique in .text
@@ -75,7 +75,7 @@ inline size_t PatternBytes(const char* p) {
 }
 
 template <const FnSpec& S>
-SigResult ResolveFn(const Image& img) {
+SigResult ResolveFn(const Image& img, const SigResolveContext& ctx) {
     if (!InText(img, img.text.base, img.text.size)) return SigFail(".text outside the image");
     SigResult r = SigPattern(img.text, S.pattern);
     if (r.state != SigState::Ok) return r;
@@ -87,14 +87,14 @@ SigResult ResolveFn(const Image& img) {
         if (!BytesMatch(at, c.bytes)) return SigFail(c.why);
     }
     if (S.extra)
-        if (const char* why = S.extra(img, r.at)) return SigFail(why);
+        if (const char* why = S.extra(img, r.at, ctx)) return SigFail(why);
     return r;
 }
 
 // The RIP target of an operand in another row; fails when it points outside the image.
 template <const RipSpec& S>
-SigResult ResolveRip(const Image& img) {
-    const uint8_t* from = Sig(S.from);
+SigResult ResolveRip(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* from = ctx.Sig(S.from);
     if (!from) return SigFail("source row missing");
     if (!img.base || !img.size) return SigFail("image range missing");
     if (S.off > static_cast<size_t>(PTRDIFF_MAX)) return SigFail("RIP source instruction outside .text");

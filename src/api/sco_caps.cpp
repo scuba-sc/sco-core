@@ -1,6 +1,9 @@
 // Capability registry: a fixed table of names, each ready or not with a reason.
 #include "sco/caps.h"
+#include "internal.h"
+#include "owned_publication.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -43,7 +46,7 @@ Cap* Find(const char* name) {
 
 }  // namespace
 
-Result Set(const char* name, bool ready, const char* reason) {
+static Result SetImpl(const char* name, bool ready, const char* reason) {
     if (!ValidName(name)) return Result::BadArg;
     std::lock_guard<std::mutex> hold(g_lock);
     Cap* c = Find(name);
@@ -57,26 +60,118 @@ Result Set(const char* name, bool ready, const char* reason) {
     return Result::Ok;
 }
 
-Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n) {
-    if (!sigIds || n == 0) return Result::BadArg;
-    for (size_t i = 0; i < n; ++i)
-        if (!sigIds[i]) return Result::BadArg;
-    char why[kMaxReasonLen + 1] = "";
-    bool ready = true;
-    for (size_t i = 0; i < n && ready; ++i) {
-        const SigResult* r = SigLookup(sigIds[i]);
-        if (!r) {
-            snprintf(why, sizeof(why), "unknown signature %s", sigIds[i]);
-            ready = false;
-        } else if (r->state != SigState::Ok) {
-            snprintf(why, sizeof(why), "needs %s (%s)", sigIds[i], SigStateName(r->state));
-            ready = false;
+Result Set(const char* name, bool ready, const char* reason) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return SetImpl(name, ready, reason);
+}
+
+namespace owned {
+Result Set(const detail::StartupPublish& cap, const char* name, bool ready, const char* reason) {
+    if (!cap.valid()) return Result::Unavailable;
+    return SetImpl(name, ready, reason);
+}
+}
+
+namespace {
+
+struct SignatureUpdate {
+    const char* name;
+    const char* const* ids;
+    size_t count;
+    const SignatureRegistry* owner;
+    const SignatureSnapshot* expected;
+    Result result = Result::Unavailable;
+};
+
+// Called under the host ownership lock. Never re-enter host composition here.
+void SetFromCurrentSnapshot(void* opaque) noexcept {
+    auto& request = *static_cast<SignatureUpdate*>(opaque);
+    try {
+        const auto snapshot = request.owner->Snapshot();
+        if (!snapshot || (request.expected && snapshot.get() != request.expected)) return;
+        char why[kMaxReasonLen + 1] = "";
+        bool ready = true;
+        for (size_t i = 0; i < request.count && ready; ++i) {
+            const SigResult* r = snapshot->Lookup(request.ids[i]);
+            if (!r) {
+                snprintf(why, sizeof(why), "unknown signature %s", request.ids[i]);
+                ready = false;
+            } else if (r->state != SigState::Ok) {
+                snprintf(why, sizeof(why), "needs %s (%s)", request.ids[i], SigStateName(r->state));
+                ready = false;
+            }
         }
+        request.result = Set(request.name, ready, ready ? nullptr : why);
+    } catch (...) {
+        request.result = Result::Unavailable;
     }
-    return Set(name, ready, ready ? nullptr : why);
+}
+
+// Only change capability state when the ownership lock confirms no active host.
+void SetWithoutHost(void* opaque) noexcept {
+    auto& request = *static_cast<SignatureUpdate*>(opaque);
+    try {
+        const Result result = Set(request.name, false, "signature snapshot unavailable");
+        request.result = result == Result::Ok ? Result::Unavailable : result;
+    } catch (...) {
+        request.result = Result::Unavailable;
+    }
+}
+
+bool ValidSignatureInput(const char* name, const char* const* ids, size_t n) {
+    if (!ids || n == 0) return false;
+    for (size_t i = 0; i < n; ++i) if (!ids[i]) return false;
+    return ValidName(name);
+}
+
+} // namespace
+
+Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n,
+                         const SignatureSnapshot& signatures) {
+    if (!ValidSignatureInput(name, sigIds, n)) return Result::BadArg;
+    const auto owner = AcquireHostSignatureRegistry();
+    if (!owner) return Result::Unavailable;
+    SignatureUpdate request{name, sigIds, n, owner.get(), &signatures};
+    if (!WithHostSignatureRegistry(owner, SetFromCurrentSnapshot, &request)) return Result::Unavailable;
+    return request.result;
+}
+
+Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n) {
+    if (!ValidSignatureInput(name, sigIds, n)) return Result::BadArg;
+    const auto owner = AcquireHostSignatureRegistry();
+    SignatureUpdate request{name, sigIds, n, owner.get(), nullptr};
+    if (owner) {
+        if (!WithHostSignatureRegistry(owner, SetFromCurrentSnapshot, &request)) return Result::Unavailable;
+    } else if (!WithNoHostSignatureRegistry(SetWithoutHost, &request)) {
+        return Result::Unavailable;
+    }
+    return request.result;
+}
+
+static void InvalidateImpl(const char* reason) noexcept {
+    std::lock_guard<std::mutex> hold(g_lock);
+    for (size_t i = 0; i < g_count; ++i) {
+        g_caps[i].ready = false;
+        snprintf(g_caps[i].reason, sizeof(g_caps[i].reason), "%s", reason ? reason : "");
+    }
+}
+
+void InvalidateAll(const char* reason) noexcept {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
+    InvalidateImpl(reason);
+}
+
+namespace owned {
+void InvalidateForOwner(const std::shared_ptr<OwnedShutdown>& owner, const char* reason) noexcept {
+    if (detail::RuntimeBoundTo(owner)) InvalidateImpl(reason);
+}
 }
 
 bool Has(const char* name) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return false;
     if (!name) return false;
     std::lock_guard<std::mutex> hold(g_lock);
     const Cap* c = Find(name);
@@ -84,6 +179,8 @@ bool Has(const char* name) {
 }
 
 size_t List(Entry* out, size_t max) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return 0;
     std::lock_guard<std::mutex> hold(g_lock);
     if (out)
         for (size_t i = 0; i < g_count && i < max; ++i) {

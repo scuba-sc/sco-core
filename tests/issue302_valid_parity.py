@@ -26,6 +26,9 @@ def run(cmd, **kw):
 
 COMMON = r'''
 #include "sco/signatures.h"
+#ifdef PARITY_CANDIDATE
+#include "sco/signature_registry.h"
+#endif
 #include <cstdio>
 #include <cstring>
 #include <cstdarg>
@@ -34,6 +37,9 @@ COMMON = r'''
 #include <vector>
 namespace parity302 {
 extern std::map<std::string,uint8_t*> deps;
+#ifdef PARITY_CANDIDATE
+sco::SigResult probe(const sco::Image&, sco::SigResolver);
+#endif
 void emit(const char*,const char*,const char*,const sco::Image&,sco::SigResult);
 inline void put(uint8_t* at,const char* pattern) {
     while (*pattern) {
@@ -87,6 +93,7 @@ void emit(const char* file,const char* id,const char* fixture,const sco::Image& 
     printf(",\"fixture_hash\":\"%016llx\"}",static_cast<unsigned long long>(hash));putchar('\n');
 }
 }
+#ifndef PARITY_CANDIDATE
 namespace sco { uint8_t* OriginalSig(const char*); }
 #define Sig OriginalSig
 #include "src/sco_signatures.cpp"
@@ -95,11 +102,46 @@ namespace sco {
 uint8_t* Sig(const char* id) { auto it=parity302::deps.find(id);return it==parity302::deps.end()?OriginalSig(id):it->second; }
 void Log(const char*,...) {}
 }
+#else
+namespace sco { void Log(const char*,...) {} }
+namespace parity302 {
+static sco::SigResolver target;
+static std::shared_ptr<const sco::SignatureSnapshot> probeSnapshot;
+static std::vector<uint8_t*> addresses;
+template<size_t I> static sco::SigResult dependency(const sco::Image&, const sco::SigResolveContext&) {
+    return sco::SigOk(addresses.at(I));
+}
+static sco::SigResult invoke(const sco::Image& img, const sco::SigResolveContext& ctx) {
+    return target(img, ctx);
+}
+sco::SigResult probe(const sco::Image& img, sco::SigResolver resolver) {
+    target=resolver; addresses.clear();
+    static const sco::SigResolver callbacks[]={dependency<0>,dependency<1>,dependency<2>,dependency<3>,dependency<4>,dependency<5>,dependency<6>,dependency<7>};
+    if(deps.size()>std::size(callbacks) || deps.count("__parity_probe")) std::abort();
+    std::vector<sco::SigDef> defs;
+    for(const auto& [id, address]:deps) {
+        auto index=addresses.size(); addresses.push_back(address);
+        defs.push_back({id.c_str(),nullptr,0,0,callbacks[index],{}});
+    }
+    defs.push_back({"__parity_probe",nullptr,0,0,invoke,{}});
+    sco::SignatureRegistry registry;
+    sco::SignatureTable table{defs.data(),defs.size()};
+    if(registry.RegisterTables(&table,1).status!=sco::SigRegistryStatus::Ok ||
+       registry.Freeze()!=sco::SigRegistryStatus::Ok || registry.Resolve(img)!=sco::SigRegistryStatus::Ok) std::abort();
+    probeSnapshot=registry.Snapshot();
+    auto result=probeSnapshot->Lookup("__parity_probe");
+    if(!result) std::abort();
+    return *result;
+}
+}
+#endif
 '''
 
 def generate(source, build):
     files = sorted(source.glob('src/game/*_sigs.cpp'))
     all_sources = [*files, source/'src/game/sig_rows.h', source/'src/sco_scan.cpp', source/'src/sco_signatures.cpp', source/'src/game/signatures.cpp']
+    if source == ROOT:
+        all_sources += [source/'src/sco_signature_registry.cpp', source/'include/sco/signature_registry.h', source/'include/sco/signatures.h']
     source_hashes = {str(p.relative_to(source)):hashlib.sha256(p.read_bytes()).hexdigest() for p in all_sources}
     metadata = {}
     units = []
@@ -148,7 +190,7 @@ def generate(source, build):
         body.append('parity302::extra(row.id,img,at);')
         for setup in (custom_setup, offline_setup, world_setup):
             body.append(setup(p.name))
-        body += ['SigResult r=SigFail("no valid fixture implemented"); if(exercise) {if(row.resolve) r=row.resolve(img);else {r=SigPattern(img.text,row.pattern);if(r.state==SigState::Ok&&row.ripDisp>0)r.at=RipTarget(r.at,row.ripDisp,row.ripSize);}}',f'parity302::emit("{p.name}",row.id,fixture,img,r);','}}']
+        body += ['SigResult r=SigFail("no valid fixture implemented"); if(exercise) {if(row.resolve) {', '#ifdef PARITY_CANDIDATE', 'r=parity302::probe(img,row.resolve);', '#else', 'r=row.resolve(img);', '#endif', '} else {r=SigPattern(img.text,row.pattern);if(r.state==SigState::Ok&&row.ripDisp>0)r.at=RipTarget(r.at,row.ripDisp,row.ripSize);}}',f'parity302::emit("{p.name}",row.id,fixture,img,r);','}}']
         unit=build/f'unit{idx}.cpp';unit.write_text('\n'.join(body));units.append(unit)
         metadata[p.name]={'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'shared_templates':[{'kind':k,'spec':s} for k,s in entries]}
     # Reuse only the existing positive fixture builders, not registration/capability assertions.
@@ -163,12 +205,22 @@ def generate(source, build):
         if start>=0: builders.append(core[start:core.index('static void '+test,start)])
     driver=[COMMON,DRIVER,*builders]
     for i in range(len(files)):driver.append(f'void unit{i}();')
-    driver += ['int main(){',*[f'unit{i}();' for i in range(len(files))], 'parity302::deps.clear(); if(!sco::game::RegisterGameSignatures()) return 2;',
-               'for(int fixture=0;fixture<3;++fixture){sco::Image img{};if(fixture==0){QuitImage(img,true,-1);img.size=sizeof(g_quit);}else if(fixture==1)PakImage(img,true);else AsopImage(img); if(!img.pdata.base){img.pdata={img.base+img.size-16,12};memset(img.pdata.base,0,12);} sco::ResolveAll(img);',
-               'for(size_t i=0;i<sco::SignatureCount();++i)parity302::emit("registry",sco::SignatureDef(i)->id,fixture==0?"existing:QuitImage":fixture==1?"existing:PakImage":"existing:AsopImage",img,sco::SignatureResult(i));}','}']
+    driver += ['int main(){',*[f'unit{i}();' for i in range(len(files))], 'parity302::deps.clear();',
+               '#ifdef PARITY_CANDIDATE',
+               'sco::SignatureRegistry registry; if(sco::game::RegisterGameSignatures(registry).status!=sco::SigRegistryStatus::Ok || registry.Freeze()!=sco::SigRegistryStatus::Ok) return 2;',
+               '#else', 'if(!sco::game::RegisterGameSignatures()) return 2;', '#endif',
+               'for(int fixture=0;fixture<3;++fixture){sco::Image img{};if(fixture==0){QuitImage(img,true,-1);img.size=sizeof(g_quit);}else if(fixture==1)PakImage(img,true);else AsopImage(img); if(!img.pdata.base){img.pdata={img.base+img.size-16,12};memset(img.pdata.base,0,12);}',
+               '#ifdef PARITY_CANDIDATE',
+               'if(registry.Resolve(img)!=sco::SigRegistryStatus::Ok) return 3; auto snapshot=registry.Snapshot(); if(!snapshot) return 4;',
+               'for(size_t i=0;i<snapshot->Count();++i) parity302::emit("registry",snapshot->IdAt(i),fixture==0?"existing:QuitImage":fixture==1?"existing:PakImage":"existing:AsopImage",img,*snapshot->ResultAt(i));',
+               '#else', 'sco::ResolveAll(img);',
+               'for(size_t i=0;i<sco::SignatureCount();++i)parity302::emit("registry",sco::SignatureDef(i)->id,fixture==0?"existing:QuitImage":fixture==1?"existing:PakImage":"existing:AsopImage",img,sco::SignatureResult(i));', '#endif', '}', '}']
     main=build/'driver.cpp';main.write_text('\n'.join(driver))
     exe=build/'parity'
-    cmd=[os.environ.get('CXX','c++'),'-std=c++20','-O0','-g','-I'+str(source/'include'),'-I'+str(source/'src'),'-I'+str(source),main,*units,source/'src/sco_scan.cpp',source/'src/game/signatures.cpp','-o',exe]
+    cmd=[os.environ.get('CXX','c++'),'-std=c++20','-O0','-g','-I'+str(source/'include'),'-I'+str(source/'src'),'-I'+str(source),main,*units,source/'src/sco_scan.cpp',source/'src/game/signatures.cpp']
+    if source == ROOT:
+        cmd += ['-DPARITY_CANDIDATE', source/'src/sco_signatures.cpp', source/'src/sco_signature_registry.cpp']
+    cmd += ['-o',exe]
     (build/'compile-command.json').write_text(json.dumps([str(x) for x in cmd],indent=2))
     run(cmd,stdout=subprocess.PIPE,stderr=(build/'compile.log').open('w'))
     output=run([exe],stdout=subprocess.PIPE).stdout

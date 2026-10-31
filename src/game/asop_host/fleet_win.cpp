@@ -3,6 +3,7 @@
 #include "engine.h"
 #include "sco/runtime.h"
 #include "sco/caps.h"
+#include "sco/signature_registry.h"
 #include "sco/game/asop.h"
 #include <algorithm>
 #include <vector>
@@ -1329,12 +1330,14 @@ bool Fleet_IsSettlingStoredId(uint64_t id) {
 }
 
 bool AsopCapabilityRows(const char* capability, char* why, size_t n) {
+    const auto signatures = sco::AcquireHostSignatureSnapshot();
     size_t count = 0;
     const asop::Capability* caps = asop::Capabilities(count);
     for (size_t i = 0; i < count; ++i) {
         if (strcmp(caps[i].name, capability) != 0) continue;
+        if (!signatures) { snprintf(why, n, "signature snapshot unavailable"); return false; }
         for (size_t r = 0; r < caps[i].count; ++r) {
-            const sco::SigResult* s = sco::SigLookup(caps[i].rows[r]);
+            const sco::SigResult* s = (signatures ? signatures->Lookup(caps[i].rows[r]) : nullptr);
             if (!s) { snprintf(why, n, "unknown signature %s", caps[i].rows[r]); return false; }
             if (s->state != sco::SigState::Ok) {
                 snprintf(why, n, "needs %s (%s)", caps[i].rows[r], sco::SigStateName(s->state));

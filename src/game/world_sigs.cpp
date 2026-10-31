@@ -85,14 +85,14 @@ bool LoadsString(const Image& img, const uint8_t* at, const char* s) {
     return str && start && pos >= start && rows::InText(img, at, 7) && BytesMatch(at, "48 8D 0D") && CheckedRip(img, at, 3, 7) == str;
 }
 
-SigResult ResolveFreeCamOn(const Image& img) {
+SigResult ResolveFreeCamOn(const Image& img, const SigResolveContext&) {
     SigResult r = RegisteredHandler(img, "FreeCamEnable");
     if (r.state != SigState::Ok) return r;
     if (!LoadsString(img, TextAt(img, r.at, 0x23, 7), "Enabling free cam")) return SigFail("\"Enabling free cam\" not loaded at +0x23");
     return r;
 }
 
-SigResult ResolveFreeCamOff(const Image& img) {
+SigResult ResolveFreeCamOff(const Image& img, const SigResolveContext&) {
     SigResult r = RegisteredHandler(img, "FreeCamDisable");
     if (r.state != SigState::Ok) return r;
     if (!LoadsString(img, TextAt(img, r.at, 0x11, 7), "Disabling free cam")) return SigFail("\"Disabling free cam\" not loaded at +0x11");
@@ -104,7 +104,7 @@ constexpr rows::RipSpec kFreeCamFlag{ "build.free_cam_off", 4, 2, 7 };   // cmp 
 
 // ---- build: ground ray (build.cpp ResolveGroundRay / GroundRaySite) ---------------------------
 
-SigResult ResolveRayTag(const Image& img) {
+SigResult ResolveRayTag(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* tag = RdataString(img, "PlanetRayIntersection");
     return tag ? SigOk(tag) : SigFail("\"PlanetRayIntersection\" isn't in .rdata");
@@ -121,17 +121,17 @@ bool GroundRaySite(const Image& img, const uint8_t* L) {
         && CheckedRip(img, TextAt(img, release, 3, 7), 3, 7) && CheckedRip(img, TextAt(img, release, 3, 7), 3, 7) == CheckedRip(img, TextAt(img, L, -0xBF, 7), 3, 7);
 }
 
-SigResult ResolveGroundRay(const Image& img) {
+SigResult ResolveGroundRay(const Image& img, const SigResolveContext& ctx) {
     uint8_t* sites[4] = {};
-    const int n = RipRefs(img, 0x8D, 0x05, Sig("build.ray_tag"), 0, 7, sites, 4,
+    const int n = RipRefs(img, 0x8D, 0x05, ctx.Sig("build.ray_tag"), 0, 7, sites, 4,
                           [&img](const uint8_t* p) { return GroundRaySite(img, p); });
     if (n == 0) return SigFail("no planet ray cast loads the tag with the expected layout");
     if (n > 1) return Ambiguous(n);
     return SigOk(sites[0]);
 }
 
-SigResult ResolvePhysWorld(const Image& img) {   // mov rdi, [phys world] at -0xBF
-    const uint8_t* source = Offset(img, img.text, Sig("build.ground_ray"), 0xBF, 0, 7);
+SigResult ResolvePhysWorld(const Image& img, const SigResolveContext& ctx) {   // mov rdi, [phys world] at -0xBF
+    const uint8_t* source = Offset(img, img.text, ctx.Sig("build.ground_ray"), 0xBF, 0, 7);
     const uint8_t* g = CheckedRip(img, source, 3, 7);
     return g && InImage(img, g) ? SigOk(g) : SigFail("RIP target outside the image");
 }
@@ -169,8 +169,8 @@ constexpr struct { size_t slot; const char* bytes; const char* why; } kEntitySlo
     { kEntitySkipAddSlot,     "48 89 5C 24 08 57 48 83 EC 20 41 0F B6 D8 48 8B FA E8 ?? ?? ?? ?? 48 85 C0 74 12 41 B1 01", "slot 0x430 changed" },
 };
 
-SigResult ResolveEntityVtable(const Image& img) {
-    const uint8_t* get = Sig("build.entity_get_rotation");
+SigResult ResolveEntityVtable(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* get = ctx.Sig("build.entity_get_rotation");
     const uint8_t* vt = nullptr;
     int refs = 0;
     const Section& rd = img.rdata;
@@ -188,8 +188,8 @@ SigResult ResolveEntityVtable(const Image& img) {
 }
 
 template <size_t Slot>
-SigResult ResolveEntitySlot(const Image& img) {
-    const uint8_t* vt = Sig("build.entity_vtable");
+SigResult ResolveEntitySlot(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* vt = ctx.Sig("build.entity_vtable");
     const uint8_t* f = SlotTarget(img, rows::RangeAt(img.rdata, vt, Slot, 8));
     return f ? SigOk(f) : SigFail("slot doesn't point into .text");
 }
@@ -206,8 +206,8 @@ constexpr rows::Check kCameraChecks[] = {
 };
 static_assert(kCameraPosition == 0x6D20 && kCameraRotation == 0x6D38, "kCameraChecks pin these offsets");
 
-SigResult ResolveCameraFields(const Image& img) {
-    const uint8_t* at = Sig("teleport.to_camera");
+SigResult ResolveCameraFields(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* at = ctx.Sig("teleport.to_camera");
     if (!at) return SigFail("teleport.to_camera missing");
     at = Offset(img, img.text, at, 0, 0x17A, 0x43 + 8);
     if (!at) return SigFail("camera fields outside .text");
@@ -218,7 +218,7 @@ SigResult ResolveCameraFields(const Image& img) {
 
 // ---- missions (missions.cpp) ------------------------------------------------------------------
 
-SigResult ResolveMissionSettings(const Image& img) {
+SigResult ResolveMissionSettings(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* fmt = RdataString(img, "[EVMissionManager] Spawn Mission Request - Parsed MissionID: %s (%s)");
     if (!fmt) return SigFail("the spawn mission request format isn't in .rdata");
@@ -231,7 +231,7 @@ SigResult ResolveMissionSettings(const Image& img) {
     return InImage(img, g) ? SigOk(g) : SigFail("RIP target outside the image");
 }
 
-SigResult ResolveLoadAll(const Image& img) {
+SigResult ResolveLoadAll(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* name = RdataString(img, "mission_load_all");
     if (!name) return SigFail("mission_load_all isn't in .rdata");
@@ -251,7 +251,7 @@ SigResult ResolveLoadAll(const Image& img) {
 
 constexpr rows::RipSpec kSubsumption{ "missions.load_all", 0x2E, 3, 7 };   // mov rcx, [subsumption]
 
-SigResult ResolveFileChange(const Image& img) {
+SigResult ResolveFileChange(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* name = RdataString(img, "void __cdecl Subsumption::XmlFileLibrary::OnFileChange(const struct SFileChangeInfo &)");
     if (!name) return SigFail("the OnFileChange label isn't in .rdata");
@@ -272,7 +272,7 @@ SigResult ResolveFileChange(const Image& img) {
 
 constexpr rows::RipSpec kXmlSystem{ "missions.file_change", 0x203, 3, 7 };   // mov rcx, [system]
 
-SigResult ResolveCreateMission(const Image& img) {
+SigResult ResolveCreateMission(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* name = RdataString(img, "dgs.subsumption.mission.create");
     if (!name) return SigFail("dgs.subsumption.mission.create isn't in .rdata");
@@ -292,7 +292,7 @@ SigResult ResolveCreateMission(const Image& img) {
 
 // The console global the "debugGUI_enable 1" calls load (mov rcx, [console]; lea rdx, [str];
 // xor r9d, r9d; ...; call [rax+0x130]). Every site must load the same global.
-SigResult ResolveConsole(const Image& img) {
+SigResult ResolveConsole(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* str = RdataString(img, "debugGUI_enable 1");
     if (!str) return SigFail("\"debugGUI_enable 1\" isn't in .rdata");
@@ -322,7 +322,7 @@ constexpr CVar kCVars[] = {
 // The storage a cvar registers: lea rdx, [name], then within 0x20 bytes a call [rax+slot] (or
 // mov r10, [rax+slot]), and within 0x20 bytes before it lea r8, [storage].
 template <int K>
-SigResult ResolveCVar(const Image& img) {
+SigResult ResolveCVar(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const CVar& c = kCVars[K];
     const uint8_t* name = RdataString(img, c.name);
@@ -354,9 +354,9 @@ SigResult ResolveCVar(const Image& img) {
 
 // ---- capabilities ----------------------------------------------------------------------------
 
-SigResult ResolveReferenceIntTable(const Image& img) {
-    const auto* getter=Sig("cvars.reference_int_get");
-    const auto* setter=Sig("cvars.reference_int_set");
+SigResult ResolveReferenceIntTable(const Image& img, const SigResolveContext& ctx) {
+    const auto* getter=ctx.Sig("cvars.reference_int_get");
+    const auto* setter=ctx.Sig("cvars.reference_int_set");
     if(!getter || !setter || !rows::InImage(img, img.rdata.base, img.rdata.size) || img.rdata.size<0x78) return SigFail("integer methods unavailable");
     uint8_t* found=nullptr;
     for(size_t off=0;off<=img.rdata.size-0x78;off+=sizeof(uintptr_t)) {
@@ -372,8 +372,8 @@ SigResult ResolveReferenceIntTable(const Image& img) {
 }
 
 template<size_t Slot>
-SigResult ResolveReferenceIntMethod(const Image& img) {
-    const auto* table=Sig("cvars.reference_int_vtable");
+SigResult ResolveReferenceIntMethod(const Image& img, const SigResolveContext& ctx) {
+    const auto* table=ctx.Sig("cvars.reference_int_vtable");
     if(!table) return SigFail("reference integer table unavailable");
     const auto* method=SlotTarget(img,rows::RangeAt(img.rdata, table, Slot, 8));
     return method ? SigOk(method) : SigFail("integer method outside image");

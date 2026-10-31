@@ -21,8 +21,8 @@ const uint8_t* TeleportTextAt(const Image& img, const uint8_t* p, ptrdiff_t off,
         ? rows::TextAt(img, p, off, n) : nullptr;
 }
 
-SigResult TeleportRip(const Image& img, size_t off, size_t disp, size_t len, size_t targetBytes) {
-    const uint8_t* source = Sig("teleport.to_camera");
+SigResult TeleportRip(const Image& img, const SigResolveContext& ctx, size_t off, size_t disp, size_t len, size_t targetBytes) {
+    const uint8_t* source = ctx.Sig("teleport.to_camera");
     if (!source) return SigFail("source row missing");
     if (off > static_cast<size_t>(PTRDIFF_MAX)) return SigFail("RIP instruction outside .text");
     const uint8_t* insn = TeleportTextAt(img, source, static_cast<ptrdiff_t>(off), len);
@@ -67,7 +67,7 @@ bool VerifyZoneSlots(const Image& img) {
     return true;
 }
 
-SigResult ResolveToCamera(const Image& img) {
+SigResult ResolveToCamera(const Image& img, const SigResolveContext&) {
     if (!TeleportValidSection(img, img.text)) return SigFail("invalid image .text range");
     if (!TeleportValidSection(img, img.rdata)) return SigFail("invalid image .rdata range");
     const uint8_t* name = FindCString(img.rdata, "CmdTeleportToCamera");
@@ -108,22 +108,22 @@ SigResult ResolveToCamera(const Image& img) {
     return SigOk(f);
 }
 
-SigResult ResolveClientMgr(const Image& img)    { return TeleportRip(img, 0x024, 3, 7, sizeof(uintptr_t)); }
-SigResult ResolveHandleFromId(const Image& img) {
-    const SigResult r = TeleportRip(img, 0x09F, 1, 5, 1);
+SigResult ResolveClientMgr(const Image& img, const SigResolveContext& ctx) { return TeleportRip(img, ctx, 0x024, 3, 7, sizeof(uintptr_t)); }
+SigResult ResolveHandleFromId(const Image& img, const SigResolveContext& ctx) {
+    const SigResult r = TeleportRip(img, ctx, 0x09F, 1, 5, 1);
     if (r.state == SigState::Ok && !rows::InText(img, r.at, 1))
         return SigFail("handle-from-id call target outside .text");
     return r;
 }
-SigResult ResolveEntitySystem(const Image& img) { return TeleportRip(img, 0x2B0, 3, 7, sizeof(uintptr_t)); }
+SigResult ResolveEntitySystem(const Image& img, const SigResolveContext& ctx) { return TeleportRip(img, ctx, 0x2B0, 3, 7, sizeof(uintptr_t)); }
 
 // The game's own teleport call inside CmdTeleportToCamera (4.10.196, bytes read from the image): the actor's
 // teleport component (actor vtable slot 0x9D8) is called through its vtable slot 0x158 with this = component and
 // rdx = a params block on the stack. The stores pin the block's layout as game.relocation fills it: zone id at
 // +0x00, the rotation as doubles x y z w at +0x08..+0x27, the local position at +0x28..+0x3F. A different
 // build fails the row, which keeps capability game.relocation off.
-SigResult ResolveRelocation(const Image& img) {
-    uint8_t* f = Sig("teleport.to_camera");
+SigResult ResolveRelocation(const Image& img, const SigResolveContext& ctx) {
+    uint8_t* f = ctx.Sig("teleport.to_camera");
     if (!f) return SigFail("source row missing");
     static const struct { size_t off; const char* bytes; const char* why; } kChecks[] = {
         { 0x211, "48 8B 10 48 89 54 24 40", "relocation params zone id store changed at +0x211" },

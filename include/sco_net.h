@@ -118,7 +118,8 @@ typedef struct sco_net_v1 {
     /* The session's peers, self first, then by id. *inout_count holds out's capacity on entry
      * (out may be NULL with 0) and the number of peers on return; up to the capacity are
      * written. SCO_TOO_MANY: more peers than the capacity (the first ones were written).
-     * SCO_OK with 0 when no session is active. SCO_BAD_ARG: inout_count NULL, or out NULL with a
+     * SCO_OK with 0 when no session is active. On SCO_UNAVAILABLE no outputs are written.
+     * SCO_BAD_ARG: inout_count NULL, or out NULL with a
      * nonzero capacity. */
     sco_result (*get_peers)(sco_net_peer* out, uint32_t* inout_count);
     /* Copies the peer's chosen name (UTF-8) into buf, NUL-terminated, cut to cap - 1 bytes.

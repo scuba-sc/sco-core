@@ -38,7 +38,7 @@ SigResult Ambiguous(int n)   { return { SigState::Ambiguous, nullptr, n, nullptr
 
 // An .rdata string the patches point code at.
 template <const char* S>
-SigResult ResolveString(const Image& img) {
+SigResult ResolveString(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* s = BoundedCString(img, img.rdata, S);
     return s ? SigOk(s) : Missing();
@@ -84,7 +84,7 @@ int HandshakeSites(const Image& img, uint8_t** out, int max, bool& sameFlag) {
 }
 
 template <int K>
-SigResult ResolveHandshake(const Image& img) {
+SigResult ResolveHandshake(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     uint8_t* sites[kHandshakeSites] = {};
@@ -101,7 +101,7 @@ constexpr RipSpec kIsOnlineFlag{ "offline.handshake_gate.1", 0, 3, 7 };
 
 // ---- megamap keeps record-name case ----------------------------------------------------------
 
-SigResult ResolveMegamapCall(const Image& img) {
+SigResult ResolveMegamapCall(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const Section& text = img.text;
@@ -136,7 +136,7 @@ SigResult ResolveMegamapCall(const Image& img) {
 
 // ---- boot into PU ------------------------------------------------------------------------------
 
-SigResult ResolveBootFrontend(const Image& img) {
+SigResult ResolveBootFrontend(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const Section& text = img.text;
@@ -163,7 +163,7 @@ SigResult ResolveBootFrontend(const Image& img) {
 // ---- offline player data from %USER% -----------------------------------------------------------
 
 template <int K>
-SigResult ResolveOfflineDb(const Image& img) {
+SigResult ResolveOfflineDb(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const Section& text = img.text;
@@ -187,8 +187,8 @@ SigResult ResolveOfflineDb(const Image& img) {
 
 // ---- ASOP / fleet manager on the offline shard -------------------------------------------------
 
-const char* AsopGateOpenExtra(const Image& img, const uint8_t* at) {
-    const uint8_t* persisted = ImageAt(img, Sig("offline.is_online_flag"), 1, 1);
+const char* AsopGateOpenExtra(const Image& img, const uint8_t* at, const SigResolveContext& ctx) {
+    const uint8_t* persisted = ImageAt(img, ctx.Sig("offline.is_online_flag"), 1, 1);
     const uint8_t* cmp = TextAt(img, at, 7, 7);
     return persisted && cmp && CheckedRip(img, cmp, 3, 7) == persisted ? nullptr : "cmp at +7 doesn't read is_online_flag+1";
 }
@@ -196,9 +196,9 @@ constexpr FnSpec kAsopGateOpen{
     "44 89 AD D0 00 00 00 44 38 2D ?? ?? ?? ?? 0F 85 ?? ?? ?? ?? 48 8B 51 08 48 8D 8D D0 00 00 00 E8", nullptr, 0,
     AsopGateOpenExtra };
 
-const char* AsopGateValidationExtra(const Image& img, const uint8_t* at) {
+const char* AsopGateValidationExtra(const Image& img, const uint8_t* at, const SigResolveContext& ctx) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
-    const uint8_t* persisted = ImageAt(img, Sig("offline.is_online_flag"), 1, 1);
+    const uint8_t* persisted = ImageAt(img, ctx.Sig("offline.is_online_flag"), 1, 1);
     if (!persisted || CheckedRip(img, at, 2, 7) != persisted) return "cmp at +0 doesn't read is_online_flag+1";
     const uint8_t* msg = BoundedCString(img, img.rdata, "Can only perform ASOP operations in the PU.");
     if (!msg) return "the ASOP-in-the-PU message isn't in .rdata";
@@ -211,7 +211,7 @@ constexpr FnSpec kAsopGateValidation{
 
 // ---- landing zones don't destroy spawned ships -------------------------------------------------
 
-const char* ImpoundExtra(const Image& img, const uint8_t* f) {
+const char* ImpoundExtra(const Image& img, const uint8_t* f, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
     const uint8_t* msg = BoundedCString(img, img.rdata, "$$: Vehicle '$$' [$$] impounded (or destroyed) by restricted area '$$' [$$]");
     const uint8_t* tag = BoundedCString(img, img.rdata, "Boundary Violation");
@@ -236,7 +236,7 @@ constexpr char kUseService[]        = "contract_broker.use_service";
 constexpr char kUseOnlineMissions[] = "contract_broker.use_online_mission_service";
 
 template <const char* Name>
-SigResult ResolveCvarDefault(const Image& img) {
+SigResult ResolveCvarDefault(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const uint8_t* name = BoundedCString(img, img.rdata, Name);
@@ -299,7 +299,7 @@ int SocialGroupSites(const Image& img, uint8_t** out, int max) {
 }
 
 template <int K>
-SigResult ResolveSocialGroup(const Image& img) {
+SigResult ResolveSocialGroup(const Image& img, const SigResolveContext&) {
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     uint8_t* sites[kSocialGroupSites] = {};
     const int n = SocialGroupSites(img, sites, kSocialGroupSites);
@@ -341,7 +341,7 @@ constexpr char kEcho[]      = "echo::v1::EchoService";
 // Stream function K of N for one service: every function (its .pdata start within 0x200 before
 // the reference, with the stream prologue) that references the service's lambda name.
 template <const char* Service, int K, int N>
-SigResult ResolveServiceStream(const Image& img) {
+SigResult ResolveServiceStream(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     if (!rows::InImage(img, img.base, img.size) ||
@@ -369,7 +369,7 @@ SigResult ResolveServiceStream(const Image& img) {
 
 // ---- remote console only on this PC -------------------------------------------------------------
 
-SigResult ResolveRemoteConsoleBind(const Image& img) {
+SigResult ResolveRemoteConsoleBind(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const uint8_t* s = BoundedCString(img, img.rdata, "Remote console listening on: %u\n");
@@ -402,7 +402,7 @@ constexpr FnSpec kInstanceGroupQuery{
     kInstanceGroupChecks, std::size(kInstanceGroupChecks), nullptr };
 constexpr RipSpec kServicesManager{ "elevator.instance_group_query", 0x5B, 3, 7 };
 
-const char* EntitlementsExtra(const Image& img, const uint8_t* f) {
+const char* EntitlementsExtra(const Image& img, const uint8_t* f, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
     const uint8_t* msg = BoundedCString(img, img.rdata, "QueryEntitlements failed with error: $$");
     if (!msg) return "the QueryEntitlements error line isn't in .rdata";
@@ -416,7 +416,7 @@ constexpr FnSpec kEntitlementsResult{
     "40 55 56 41 56 48 8D AC 24 00 FF FF FF 48 81 EC 00 02 00 00 4C 8B F1 48 8B F2 48 83 C1 08 E8",
     kEntitlementsChecks, std::size(kEntitlementsChecks), EntitlementsExtra };
 
-SigResult ResolveTakeoffCommand(const Image& img) {
+SigResult ResolveTakeoffCommand(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const uint8_t* usage = BoundedCString(img, img.rdata,
@@ -438,8 +438,8 @@ constexpr RipSpec kRequestTakingOff{ "fleet.takeoff_command", 0x190, 1, 5 };
 
 // ---- dllmain.cpp: CSystem::Quit's fast-shutdown test ---------------------------------------------
 
-SigResult ResolveQuitFastShutdown(const Image& img) {
-    uint8_t* q = Sig("system.quit");
+SigResult ResolveQuitFastShutdown(const Image& img, const SigResolveContext& ctx) {
+    uint8_t* q = ctx.Sig("system.quit");
     if (!q) return SigFail("source row missing");
     constexpr const char* pattern =
         "49 8B 8E ?? ?? ?? ?? 48 85 C9 74 0A 48 8B 01 FF 50 10 85 C0 75 0E "

@@ -6,7 +6,7 @@ These rows are the addresses that sc-offline's ship terminal (ASOP), hangar and 
 - Header: [`include/sco/game/asop.h`](../../include/sco/game/asop.h) defines `asop::Capabilities()` and the offsets and slots that the checks pin.
 - Helper: [`src/game/sig_rows.h`](../../src/game/sig_rows.h). `ResolveFn<spec>` handles "unique pattern plus byte checks at offsets", and `ResolveRip<spec>` handles "RIP target of an instruction in another row".
 
-Resolve before patching. The rows match the game's original bytes. A hook's `jmp` over a prologue, or the `OnRequestOpen` patch at `+0x95E`, makes a later `ResolveAll` report the row as `FAILED`.
+Resolve before patching. The rows match the game's original bytes. A hook's `jmp` over a prologue, or the `OnRequestOpen` patch at `+0x95E`, can make a later resolution report the row as `FAILED`. An installed host registry is sealed; resolving another image requires a fresh registry.
 
 ## Capabilities
 

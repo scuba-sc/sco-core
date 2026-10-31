@@ -59,6 +59,8 @@ Result RegisterRaw(const void* owner, const char* prefix, const char* name, cons
         for (const char* r : kReservedPrefixes)
             if (strcmp(prefix, r) == 0) return Result::BadArg;
     }
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_lock);
     if (detail::RuntimeStopping()) return Result::Unavailable;
     if (detail::Released(owner)) return Result::BadArg;
@@ -81,6 +83,8 @@ Result InvokeRaw(const void* caller, const char* name, const void* in, uint32_t 
         return Result::BadArg;
     }
     if (!OnGameThread()) { if (outSize) *outSize = 0; return Result::WrongThread; }
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) { if (outSize) *outSize = 0; return Result::Unavailable; }
     if (detail::RuntimeStopping()) { if (outSize) *outSize = 0; return Result::Unavailable; }
     const void* owner = nullptr;
     RawFn fn = nullptr;
@@ -103,7 +107,11 @@ Result InvokeRaw(const void* caller, const char* name, const void* in, uint32_t 
     uint32_t* size = outSize ? outSize : &none;
     const uint32_t cap = *size;
     RawCall call{ fn, in, inSize, out, size, ctx, Result::Ok };
-    if (!detail::Callout(owner, name, RawThunk, &call)) { *size = 0; return Result::Crashed; }
+    if (!detail::Callout(owner, name, RawThunk, &call)) {
+        *size = 0;
+        return admission.owned() && detail::RuntimeStopping() ? Result::Unavailable : Result::Crashed;
+    }
+    if (admission.owned() && detail::RuntimeStopping()) { *size = 0; return Result::Unavailable; }
     if (call.r == Result::Ok && *size > cap) return Result::TooMany;   // a handler that overstated what it wrote
     return call.r;
 }

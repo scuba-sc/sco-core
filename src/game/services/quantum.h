@@ -41,7 +41,8 @@ Result ConfigureDefaultProductionQuantum();
 // forwarder themselves before passing ownerCleanupReady=true. No extra kernel slot.
 Result StartQuantum(const QuantumBackend& backend = {}, bool ownerCleanupReady = false);
 void TickQuantum(uint32_t nowMs);
-void StopQuantum();
+// Failed retains uncertain bridge/hooks and requires host backing state to stay alive.
+Result StopQuantum();
 // Forwarded by spawn.cpp's one game-pack runtime release hook (no extra kernel slot).
 void ReleaseQuantumOwner(const void* owner);
 }

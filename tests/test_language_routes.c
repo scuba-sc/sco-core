@@ -42,6 +42,10 @@ static sco_result Spawn(sco_plugin* self, const char* cls, uint64_t zone, const 
     *id = 77; return SCO_OK;
 }
 static sco_result Remove(sco_plugin* self, uint64_t id) { return self == owner && id == 77 ? SCO_OK : SCO_NOT_FOUND; }
+static sco_result SpawnNpc(const sc_actors_v1* a, const double* pos, uint64_t* id) {
+    if (!MEMBER(a, sc_actors_v1, spawn_npc)) return SCO_UNAVAILABLE;
+    return a->spawn_npc(owner, "SyntheticNpc", 9, pos, id);
+}
 int main(void) {
     sc_actors_v1 a = {0}; sc_entities_v1 e = {0};
     a.size = sizeof(a); a.local_player = Local; a.health = Health; a.spawn_npc = Spawn; a.despawn = Remove;
@@ -58,7 +62,13 @@ int main(void) {
     CHECK(Inspect(&a, &e) == SCO_UNAVAILABLE);
     const double pos[3] = {1, 2, 3}; uint64_t id = 0;
     owner = (sco_plugin*)&a; /* opaque identity only */
-    CHECK(MEMBER(&a, sc_actors_v1, spawn_npc) && a.spawn_npc(owner, "SyntheticNpc", 9, pos, &id) == SCO_OK && id == 77);
+    CHECK(SpawnNpc(NULL, pos, &id) == SCO_UNAVAILABLE);
+    a.size = offsetof(sc_actors_v1, spawn_npc) + sizeof(a.spawn_npc) - 1;
+    CHECK(SpawnNpc(&a, pos, &id) == SCO_UNAVAILABLE);
+    a.size = sizeof(a); a.spawn_npc = NULL;
+    CHECK(SpawnNpc(&a, pos, &id) == SCO_UNAVAILABLE);
+    a.spawn_npc = Spawn;
+    CHECK(SpawnNpc(&a, pos, &id) == SCO_OK && id == 77);
     CHECK(a.despawn(NULL, id) == SCO_NOT_FOUND);
     CHECK(a.despawn(owner, id) == SCO_OK); /* request started, not proof of disappearance */
     printf("C language routes: %d passed, %d failed\n", passed, failed);

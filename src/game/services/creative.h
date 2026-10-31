@@ -9,7 +9,8 @@ namespace sco::game::services {
 // BadArg when the name is taken; nothing is left published then.
 Result StartCreative();
 // Switches every toggle off, removes the magazine hook, withdraws the table.
-void   StopCreative();
+// Failed means the magazine hook may remain installed and its backing state is retained.
+Result StopCreative();
 
 // spawn.cpp's release hook: owner unloaded or crashed, so every toggle it switched on goes off
 // (god mode, fly, the fly speed, both ammo toggles) and its last error is forgotten. Game thread.

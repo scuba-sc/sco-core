@@ -10,6 +10,8 @@
 #include <optional>
 #include <string_view>
 
+namespace sco { class SignatureSnapshot; }
+
 namespace sco::diagnostics {
 
 constexpr size_t kInventoryLimit = 1024;
@@ -86,6 +88,7 @@ struct Snapshot {
     std::vector<ServiceMetadata> services;
     std::vector<ResolutionMetadata> resolutions;
     bool pluginsTruncated = false, servicesTruncated = false, resolutionsTruncated = false;
+    bool resolutionsAvailable = false; // host-only; no snapshot differs from zero rows
     uint64_t pluginRedactions = 0, serviceRedactions = 0, resolutionRedactions = 0;
 };
 
@@ -124,6 +127,8 @@ private:
     std::deque<std::shared_ptr<const Snapshot>> completed_;
     std::vector<Token> tokens_;
     std::shared_ptr<Snapshot> pending_;
+    // Holds signature metadata steady across incremental capture; does not own the image.
+    std::shared_ptr<const SignatureSnapshot> signatureSnapshot_;
     const std::vector<plugins::Plugin>* list_ = nullptr; // writer-only
     size_t pluginCount_ = 0, rowCount_ = 0, position_ = 0, phase_ = 0;
     uint64_t generation_ = 0, token_ = 0, lastBegin_ = 0;
@@ -167,6 +172,8 @@ private:
     bool active_ = false, freeForm_ = false, exhausted_ = false;
 };
 
-void SetLogCapture(Capture*); // host-owned lifetime, detached before teardown
+// Reserved-session ingress refuses these calls without installing or invoking
+// the borrowed capture. In legacy mode its owner detaches it before teardown.
+void SetLogCapture(Capture*);
 void CapturePluginLog(const void* key,LogLevel,std::string_view);
 } // namespace sco::diagnostics

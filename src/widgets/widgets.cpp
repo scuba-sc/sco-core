@@ -2,6 +2,7 @@
 #include "sco/widgets.h"
 #include "sco/host.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <algorithm>
 #include <functional>
 #include <iterator>
@@ -415,18 +416,42 @@ bool ValidEvent(const Node& n, const Event& e) {
     }
 }
 } // namespace
-Result Start() {
+static Result StartImpl(const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
     std::lock_guard<std::mutex> hold(g_lock);
     if (g_started) return Result::BadArg;
-    if (detail::RuntimeStopping()) return Result::Unavailable;
-    auto r = AddReleaseHook(OnRelease);
+    if (detail::RuntimeStopping() && !(cap && cap->valid())) return Result::Unavailable;
+    auto r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r != Result::Ok) return r;
-    r = host::ProvideHostService(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_3, &kTable);
-    if (r != Result::Ok) { RemoveReleaseHook(OnRelease); return r; }
+    r = sco::detail::PublishHostOwned(cap, SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_3, &kTable);
+    if (r != Result::Ok) {
+        if (!cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
+        return r;
+    }
     g_started = true; return Result::Ok;
 }
+
+Result Start() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(nullptr);
+}
+namespace owned {
+Result Start(const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(&cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     if (!OnGameThread()) return;
     std::lock_guard<std::mutex> hold(g_lock);
     if (!g_started) return;
@@ -434,7 +459,11 @@ void Stop() {
     host::WithdrawHostService(SCO_WIDGETS_NAME); RemoveReleaseHook(OnRelease);
 }
 bool Started() { std::lock_guard<std::mutex> hold(g_lock); return g_started; }
-const sco_widgets_v1* Table() { return &kTable; }
+const sco_widgets_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 std::vector<Panel> Panels() {
     if (!OnGameThread()) return {};
     std::lock_guard<std::mutex> hold(g_lock);
@@ -453,6 +482,8 @@ bool OwnedBy(const sco_plugin* owner, const char* id) {
 }
 uint64_t SnapshotBuilds() { std::lock_guard<std::mutex> hold(g_lock); return g_snapshot_builds; }
 Result RenderPanel(const char* id, Renderer& renderer) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
     std::shared_ptr<const Panel> snapshot;
     sco_plugin* owner = nullptr;

@@ -4,9 +4,51 @@
     // plugins load and withdraws them after. With no game image the teleport.* and spawn.* rows
     // aren't OK, so teleport.spatial answers 0 and spawn.entities says the spawner isn't available.
     CHECK(!pf.dataRoot.empty()); // storage and game services must coexist
+    // A fixture-owned admission domain covers both startup and shutdown.
+    // All six test reader threads enroll below; fixture modules have no
+    // unmanaged reader workers. No game image or native engine is present.
+    // This proves no exclusion for product or native execution.
+    sco::OwnedShutdown readerGate;
+    struct SyntheticBarrier {
+        std::thread::id control; sco::OwnedShutdown* readers;
+        sco::OwnedShutdown::Transition* transition = nullptr;
+        bool beforeStop = false; unsigned calls = 0;
+    };
+    SyntheticBarrier barrier{std::this_thread::get_id(), &readerGate};
+    const bool noImageOrRegistry = !pf.image && !sco::AcquireHostSignatureRegistry();
+    CHECK(noImageOrRegistry);
+    if (!noImageOrRegistry) return;
+    pf.privateSession.enabled = false;
+    pf.runtimeInspection.enabled = false;
+    pf.gameReadersContext = &barrier;
+    pf.gameReadersQuiesced = [](void* context) {
+        auto* state = static_cast<SyntheticBarrier*>(context);
+        if (!state || state->control != std::this_thread::get_id() ||
+            state->calls > 1 || state->beforeStop != (state->calls == 1)) return false;
+        if (state->beforeStop ? !state->readers->ready() :
+            (!state->transition || !state->transition->valid_for(*state->readers))) return false;
+        bool admitted = true;
+        std::thread probe([&] { admitted = static_cast<bool>(state->readers->try_read()); });
+        probe.join();
+        if (admitted) return false;
+        ++state->calls;
+        return true;
+    };
     pf.gameServices = true;
     g_log.clear();
-    CHECK(sco::app::Start(pf));
+    CHECK(sco::OwnedShutdownHostAccess::begin_startup(readerGate));
+    bool fixtureStarted = false;
+    std::atomic<int> fixturePhase{0};
+    {
+        auto transition = sco::OwnedShutdownHostAccess::transition(readerGate);
+        CHECK(transition);
+        if (!transition) std::abort();
+        barrier.transition = &transition;
+        fixtureStarted = sco::app::Start(pf);
+        CHECK(fixtureStarted && barrier.calls == 1);
+        if (!fixtureStarted || barrier.calls != 1 || !transition.publish_and_open(fixturePhase, 0, 1)) std::abort();
+    }
+    barrier.transition = nullptr;
     CHECK(api->query_service("sco.storage", 0x00010000, &table) == SCO_OK && table);
     CHECK(!Logged("[app] game services not started:"));
     if (Logged("[app] game services not started:"))
@@ -62,7 +104,7 @@
               !sco::caps::Has("game.vehicles.flight_ready"));
         sco_result off = SCO_OK, offErr = SCO_OK;
         char offMsg[64] = {};
-        std::thread([&] {
+        std::thread([&] { auto gateRead = readerGate.try_read(); CHECK(gateRead); if (!gateRead) return;
             uint64_t id = 7;
             off = v->player_ship(&id);
             uint32_t size = sizeof(offMsg);
@@ -94,7 +136,7 @@
               !sco::caps::Has("game.creative.ammo") && !sco::caps::Has("game.creative.ship_ammo"));
         sco_result off = SCO_OK, offErr = SCO_OK;
         char offMsg[64] = {};
-        std::thread([&] {
+        std::thread([&] { auto gateRead = readerGate.try_read(); CHECK(gateRead); if (!gateRead) return;
             off = c->set_god_mode(self, 1);
             uint32_t size = sizeof(offMsg);
             offErr = c->last_error(self, offMsg, &size);
@@ -120,7 +162,7 @@
               std::strstr(buf, "local_player: game.actors.local_player isn't available on this game build"));
         CHECK(ga->local_player(nullptr, nullptr) == SCO_BAD_ARG);
         sco_result off = SCO_OK;
-        std::thread([&] { off = ga->local_player(&actor, &entity); }).join();
+        std::thread([&] { auto gateRead = readerGate.try_read(); CHECK(gateRead); if (!gateRead) return; off = ga->local_player(&actor, &entity); }).join();
         CHECK(off == SCO_WRONG_THREAD);
         CHECK(ga->spawn_npc(me, "Human_NPC", 1, pos, &id) == SCO_UNAVAILABLE && id == 0);
         CHECK(ga->spawn_npc(reinterpret_cast<sco_plugin*>(&table), "Human_NPC", 1, pos, &id) == SCO_BAD_ARG);
@@ -143,7 +185,7 @@
         CHECK(ga->last_error(nullptr, buf, &(n = sizeof(buf))) == SCO_OK &&
               std::strstr(buf, "state: game.actors.state isn't available on this game build"));
         CHECK(ga->health(1, nullptr, nullptr) == SCO_BAD_ARG && ga->state(1, nullptr) == SCO_BAD_ARG);
-        std::thread([&] { off = ga->health(1, &hp, &hpMax); }).join();
+        std::thread([&] { auto gateRead = readerGate.try_read(); CHECK(gateRead); if (!gateRead) return; off = ga->health(1, &hp, &hpMax); }).join();
         CHECK(off == SCO_WRONG_THREAD);
         CHECK(api->query_service(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_1, &table) == SCO_OK);   // 1.0 callers asked for 1.0 and still work
         CHECK(api->query_service(SC_ACTORS_NAME, 0x00010002u, &table) == SCO_UNAVAILABLE);   // not published
@@ -201,7 +243,7 @@
         CHECK(ge->watch(stranger, SC_ENTITY_STREAMED_IN, "AEGS_*", nullptr, nullptr, &watchId) == SCO_BAD_ARG);
         sco_result off = SCO_OK;
         int offAlive = 1;
-        std::thread([&] {
+        std::thread([&] { auto gateRead = readerGate.try_read(); CHECK(gateRead); if (!gateRead) return;
             uint32_t size = sizeof(buf);
             off = ge->class_of(1, buf, &size);
             offAlive = ge->alive(1);
@@ -246,7 +288,7 @@
         small.size = 8;   // an older caller's struct: refused, nothing written
         CHECK(w->raycast(9, from, dir, 100.0, &small) == SCO_BAD_ARG && small.size == 8);
         sco_result off = SCO_OK;
-        std::thread([&] { off = w->raycast(9, from, dir, 100.0, &hit); }).join();
+        std::thread([&] { auto gateRead = readerGate.try_read(); CHECK(gateRead); if (!gateRead) return; off = w->raycast(9, from, dir, 100.0, &hit); }).join();
         CHECK(off == SCO_WRONG_THREAD && hit.entity_id == 0);
         n = sizeof(msg);
         CHECK(w->last_error(nullptr, msg, &n) == SCO_OK && std::strstr(msg, "raycast: game thread only"));
@@ -255,7 +297,13 @@
         CHECK(w->last_error(nullptr, msg, nullptr) == SCO_BAD_ARG);
         CHECK(w->last_error(reinterpret_cast<sco_plugin*>(&table), msg, &(n = sizeof(msg))) == SCO_BAD_ARG);   // not a plugin handle
     }
-    sco::app::Stop();
+    barrier.beforeStop = true; // all fixture-created off-thread calls above joined
+    sco::Result fixtureStop = sco::Result::Failed;
+    const bool readersDrained = readerGate.drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(10));
+    if (readersDrained) fixtureStop = sco::app::Stop();
+    CHECK(readersDrained && fixtureStop == sco::Result::Ok && barrier.calls == 2);
+    if (!readersDrained || fixtureStop != sco::Result::Ok || barrier.calls != 2) std::abort();
+    CHECK(!readerGate.try_read());
     CHECK(api->query_service(SC_ENTITIES_NAME, SC_ENTITIES_VERSION_1_0, &table) == SCO_NOT_FOUND);
     for (const char* cap : { "game.entities.transform", "game.entities.spawn", "game.entities.class_of",
                              "game.entities.query_radius", "game.entities.watch" })
@@ -267,3 +315,5 @@
     CHECK(api->query_service(SC_SPAWN_SERVICE_NAME, SC_SPAWN_SERVICE_VERSION, &table) == SCO_NOT_FOUND);
     CHECK(api->query_service(SC_ACTORS_NAME, SC_ACTORS_VERSION_1_0, &table) == SCO_NOT_FOUND);
     pf.gameServices = false;
+    pf.gameReadersQuiesced = nullptr;
+    pf.gameReadersContext = nullptr;

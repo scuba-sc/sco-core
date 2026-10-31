@@ -36,7 +36,7 @@ constexpr char kRequestInstancePrologue[] = "48 89 5C 24 10 48 89 4C 24 08 55 56
 
 // RequestInstanceImpl: the function holding `lea r8, [rip+"IIM_RequestInstanceImpl_Requesting"]`
 // (4.10.196 references it twice, at +0xA9 and +0x2A5; every reference must be in that function).
-SigResult ResolveRequestInstance(const Image& img) {
+SigResult ResolveRequestInstance(const Image& img, const SigResolveContext&) {
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InImage(img, img.base, img.size) ||

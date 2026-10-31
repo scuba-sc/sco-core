@@ -13,6 +13,7 @@
 #include "sco/log.h"
 #include "sco/scan.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <cstdio>
 #include <iterator>
 #include <windows.h>
@@ -41,19 +42,20 @@ Engine     g_e;
 Reputation g_reputation;
 bool       g_published = false;
 
-bool RowOk(const char* id) {
-    const SigResult* s = SigLookup(id);
+bool RowOk(const SignatureSnapshot* signatures, const char* id) {
+    const SigResult* s = signatures ? signatures->Lookup(id) : nullptr;
     return s && s->state == SigState::Ok;
 }
 
 void CheckRowId(int k, char* out, size_t n) { std::snprintf(out, n, "contracts.reputation_check.%d", k); }
 
 bool RowsOk() {
-    if (!RowOk(kServicesRow)) return false;
+    const auto signatures = AcquireHostSignatureSnapshot();
+    if (!RowOk(signatures.get(), kServicesRow)) return false;
     char id[64];
     for (int k = 1; k <= kMaxChecks; ++k) {
         CheckRowId(k, id, sizeof(id));
-        if (!RowOk(id)) return false;
+        if (!RowOk(signatures.get(), id)) return false;
     }
     return true;
 }

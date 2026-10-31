@@ -21,6 +21,7 @@
 #include "sco_api.h"
 #include "sco_lua.h"
 #ifdef SCO_GAME_SERVICES
+#include "sco/game/services.h"
 #include "game_contracts/app_service_headers.inc"
 #endif
 #include <algorithm>
@@ -126,7 +127,8 @@ static void CoreUnload() { g_events.push_back("core1:unload"); }
 
 // ---- built-in "faulty": its tick faults -----------------------------------------------------
 
-static void FaultyTick(const char*, const void*, void*) { Fault(); }
+static bool g_faultOnTick = false;
+static void FaultyTick(const char*, const void*, void*) { if (g_faultOnTick) Fault(); }
 static const sco_plugin_info* FaultyQuery() {
     static const sco_plugin_info info = { sizeof(sco_plugin_info), SCO_API_MAJOR, SCO_API_MINOR, "faulty", "0.1.0", "tests" };
     return &info;
@@ -141,6 +143,7 @@ static const P::Builtin kBuiltins[] = {
 static const P::ScriptRuntime kLua{ sco_lua_load, sco_lua_unload };
 
 static void SetCaps() {
+    CHECK(!sco::app::Start(sco::app::Platform{})); // synchronous startup reentry
     g_events.push_back("caps");
     sco::caps::Set("teleport", true);
 }
@@ -283,8 +286,11 @@ static int g_registerCalls = 0;
 #ifndef SCO_KERNEL_ONLY
 #include "game_contracts/app_register_signatures.inc"
 #else
-static bool RegisterForTest() { ++g_registerCalls; return true; }   // kernel only: no game tables
+static sco::SigRegistrationResult RegisterForTest(sco::SignatureRegistry&) { ++g_registerCalls; return {sco::SigRegistryStatus::Ok, 0, 0}; }   // kernel only: no game tables
 #endif
+static sco::SigRegistrationResult RefuseSignatureRegistration(sco::SignatureRegistry&) {
+    return {sco::SigRegistryStatus::DuplicateId, 0, 0};
+}
 
 static void TestApp(const fs::path& sdk, const fs::path& out) {
     const fs::path root = out / "app" / "plugins";
@@ -321,6 +327,12 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     g_log.clear();
     g_events.clear();
     CHECK(sco::app::Start(pf));
+    // A host started without a registry pins that absence for its lifetime.
+    auto unexpectedRegistry = std::make_shared<sco::SignatureRegistry>();
+    CHECK(unexpectedRegistry->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(unexpectedRegistry->Resolve(sco::Image{}) == sco::SigRegistryStatus::Ok);
+    CHECK(!sco::InstallHostSignatureRegistry(unexpectedRegistry, nullptr));
+    CHECK(!sco::AcquireHostSignatureRegistry());
 
     // Built-ins first, then folders in name order; load order follows.
     const auto& list = sco::app::Plugins();
@@ -361,11 +373,11 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     r = Invoke("greeter.greet", { Str("Pilot"), Bool(true) });
     CHECK(r.r == sco::Result::Ok && r.text == "HI, PILOT!");
 
-    // Tick reaches every subscriber; the faulting built-in is contained and the rest keep going.
+    // Tick reaches every subscriber in a healthy session. Fault containment and
+    // terminal-retirement behavior run in a separate process below.
     sco::app::Tick(100);
     CHECK(g_coreTicks == 1 && FakeTicks("m0") == 1 && FakeTicks("m11") == 1);
-    CHECK(StateOf("faulty") == State::Crashed && Find("faulty")->reason == "crashed in tick (0xC0000005)");
-    CHECK(Logged("[plugin] faulty crashed in tick (0xC0000005) and was disabled"));
+    CHECK(StateOf("faulty") == State::Loaded);
     sco::app::Tick(200);
     CHECK(g_coreTicks == 2 && FakeTicks("m0") == 2 && FakeTicks("m11") == 2);
     CHECK(StateOf("core1") == State::Loaded && StateOf("m0") == State::Loaded);
@@ -379,9 +391,9 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     CHECK((g_events == std::vector<std::string>{ "core1:game.exit", "core1:unload" }));
     CHECK(Logged("[greeter] greeted 1 times"));
     CHECK(LogIndex("[greeter] greeted 1 times") < LogIndex("[plugin] unloaded"));
-    CHECK((Unloaded() == std::vector<std::string>{ "m11", "m0", "greeter", "core1" }));
+    CHECK((Unloaded() == std::vector<std::string>{ "m11", "m0", "greeter", "faulty", "core1" }));
     CHECK(StateOf("core1") == State::Unloaded && StateOf("m0") == State::Unloaded && StateOf("greeter") == State::Unloaded);
-    CHECK(StateOf("faulty") == State::Crashed && StateOf("sample_pack") == State::Loaded);
+    CHECK(StateOf("faulty") == State::Unloaded && StateOf("sample_pack") == State::Loaded);
     CHECK(Invoke("core1.count").r == sco::Result::Unavailable);
     sco::app::Tick(300);                                                     // after Stop: nothing
     CHECK(g_coreTicks == 2);
@@ -397,6 +409,7 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     img.rdata = { mem.data() + 4096, 4096 };
     img.size = static_cast<uint32_t>(mem.size());
     pf.image = &img;
+    pf.imageOwner = pf.resolverOwner = std::make_shared<int>(1);
     g_log.clear();
     CHECK(sco::app::Start(pf));
     CHECK(Logged("[core] signatures: 0/"));
@@ -406,9 +419,24 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     for (const auto& p : sco::app::Plugins()) CHECK(p.state == State::Loaded);
     CHECK(Invoke("core1.count").text == "ticks=0");
     sco::app::Tick(1000);
-    CHECK(g_coreTicks == 1 && StateOf("faulty") == State::Crashed);
+    CHECK(g_coreTicks == 1 && StateOf("faulty") == State::Loaded);
+    CHECK(sco::caps::Has("teleport") && sco::AcquireHostSignatureSnapshot());
     sco::app::Stop();
     CHECK(StateOf("core1") == State::Unloaded);
+    CHECK(!sco::caps::Has("teleport") && !sco::AcquireHostSignatureSnapshot());
+
+    // Registration failure must not publish a partial registry or start plugins/caps;
+    // a new start can retry using a fresh registry.
+    pf.registerSignatures = RefuseSignatureRegistration;
+    g_events.clear();
+    CHECK(!sco::app::Start(pf));
+    CHECK(!sco::AcquireHostSignatureSnapshot() && !sco::caps::Has("teleport"));
+    CHECK(g_events.empty());
+    pf.registerSignatures = RegisterForTest;
+    CHECK(sco::app::Start(pf));
+    CHECK(sco::AcquireHostSignatureSnapshot() && sco::caps::Has("teleport"));
+    sco::app::Stop();
+    CHECK(!sco::AcquireHostSignatureSnapshot() && !sco::caps::Has("teleport"));
 
     // Plugins off: built-ins still load, no folder is read.
     pf.pluginsEnabled = false;
@@ -548,9 +576,41 @@ static void TestApp(const fs::path& sdk, const fs::path& out) {
     fs::remove_all(root / "a_needs_bad", ec);
 
 #ifdef SCO_GAME_SERVICES
-#include "game_contracts/app_service_cases.inc"
+    // Production app refuses the game-services request before native mutation.
+    // The synthetic fixture separately tests app-level failure ordering only.
+    pf.gameServices = true;
+    pf.gameReadersQuiesced = [](void*) -> bool { std::abort(); };
+    CHECK(!sco::app::Start(pf));
+    CHECK(sco::game::services::Start() == sco::Result::Unavailable);
+    CHECK(!sco::game::services::Started());
+    pf.gameServices = false;
 #endif
     fs::remove_all(out / "app", ec);
+}
+
+// A crashed plugin makes retirement terminal. Run in its own process so the
+// deliberately retained session cannot contaminate healthy-session coverage.
+static void TestFaultRetainsSession() {
+    sco::app::Platform pf;
+    pf.pluginsEnabled = false;
+    pf.builtins = kBuiltins;
+    pf.nBuiltins = 2;
+    g_faultOnTick = true;
+    g_events.clear();
+    CHECK(sco::app::Start(pf));
+    const auto* core = Find("core1");
+    CHECK(core && core->self);
+    const auto* coreSelf = core ? core->self : nullptr;
+    sco::app::Tick(100);
+    CHECK(StateOf("faulty") == State::Crashed);
+    CHECK(Logged("[plugin] faulty crashed in tick (0xC0000005) and was disabled"));
+    CHECK(StateOf("core1") == State::Loaded && g_coreTicks == 1);
+    CHECK(sco::app::Stop() == sco::Result::Failed);
+    CHECK(StateOf("core1") == State::Loaded && Find("core1")->self == coreSelf);
+    CHECK(sco::ui::Started()); // dependent host backing stays live
+    CHECK(std::find(g_events.begin(), g_events.end(), "core1:unload") == g_events.end());
+    CHECK(sco::app::Stop() == sco::Result::Failed);
+    CHECK(!sco::app::Start(pf));
 }
 
 // ---- hot reload -----------------------------------------------------------------------------
@@ -701,10 +761,11 @@ static const char* const kRlScript =
 // Hot reload (sco::app::Reload, the host command sco.reload) through the real loader, host table
 // and sco-lua: Lua re-run, natives from a copy, a handed-out provider refused, built-ins refused,
 // busy refused. No timing anywhere: every check is on the result of a call.
-static void TestReload(const fs::path& out) {
-    const fs::path root = out / "reload" / "plugins";
+static void TestReload(const fs::path& out, bool faultCase = false) {
+    const fs::path base = out / (faultCase ? "reload_fault" : "reload");
+    const fs::path root = base / "plugins";
     std::error_code ec;
-    fs::remove_all(out / "reload", ec);
+    fs::remove_all(base, ec);
     fs::create_directories(root);
     for (const char* id : { "m0", "m11", "svc_provider", "svc_caller" }) {
         if (!fs::is_directory(out / "plugins" / id)) {
@@ -869,6 +930,13 @@ static void TestReload(const fs::path& out) {
     CHECK(fromCopy == 4 && g_opened.size() == 4);                            // m0, m11, svc_caller, svc_provider
     CHECK(!Find("m0")->reloadCopy.empty() && sco::app::Reload("m0") == sco::Result::Ok);
 
+    if (!faultCase) {
+        CHECK(sco::app::Stop() == sco::Result::Ok);
+        CHECK(ReloadFiles(root / "m0") == 0 && ReloadFiles(root / "m11") == 0);
+        fs::remove_all(base, ec);
+        return;
+    }
+
     // An attributed provider fault is terminal for this instance, not a recoverable reload.
     const P::Plugin* provider = Find("svc_provider");
     const void* heldFaultTable = nullptr;
@@ -886,16 +954,18 @@ static void TestReload(const fs::path& out) {
     r = Invoke("sco.reload", { Str("svc_provider") });
     CHECK(r.r == sco::Result::Failed && r.text.find("faulted") != std::string::npos &&
           r.text.find("restart the game") != std::string::npos);
-    sco::app::Stop();
+    CHECK(sco::app::Stop() == sco::Result::Failed);
     CHECK(StateOf("svc_provider") == State::Faulted && provider->module == faultModule && FakeUnloads("svc_provider") == 0);
-    CHECK(ReloadFiles(root / "m0") == 0 && ReloadFiles(root / "m11") == 0);
-    fs::remove_all(out / "reload", ec);
+    CHECK(StateOf("m0") == State::Loaded && StateOf("m11") == State::Loaded);
+    CHECK(ReloadFiles(root / "m0") > 0 && ReloadFiles(root / "m11") > 0);
+    CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(pf));
+    // Keep mapped module files and the other backing until process exit.
 }
 
 // A native provider, a diamond of Lua dependents and an unrelated script. Dependencies name
 // both an id and a service; leaf sorts first so folder order cannot stand in for dependency order.
-static void TestReloadCascade(const fs::path& out) {
-    const fs::path base = out / "reload_cascade";
+static void TestReloadCascade(const fs::path& out, bool faultCase = false) {
+    const fs::path base = out / (faultCase ? "reload_cascade_fault" : "reload_cascade");
     const fs::path root = base / "plugins";
     std::error_code ec;
     fs::remove_all(base, ec);
@@ -1008,25 +1078,34 @@ static void TestReloadCascade(const fs::path& out) {
     CHECK(Find("unrelated")->self == unrelated && StateOf("unrelated") == State::Loaded);
     sco::app::Stop();
 
-    // An unload fault must stop before that dependent's providers are touched. Surviving
-    // reservations are cancelled; independent unloaded branches recover, its leaf is refused.
+    if (faultCase) {
+        // Unload faults are terminal for the owning session. Keep this case in
+        // its own process and retain every surviving provider and its backing.
+        WriteText(root / "b_user" / "main.lua", busyScript);
+        CHECK(sco::app::Start(pf));
+        publishProvider();
+        provider = Find("m11")->self;
+        user = Find("b_user")->self;
+        const_cast<P::Plugin*>(Find("svc_provider"))->exports.unload = Fault;
+        g_log.clear();
+        CHECK(sco::app::Reload("m11", &why) == sco::Result::Failed && why.rfind("unload failed: svc_provider:", 0) == 0);
+        CHECK(Find("m11")->self == provider && Find("b_user")->self == user &&
+              StateOf("m11") == State::Loaded && StateOf("b_user") == State::Loaded);
+        CHECK(StateOf("svc_provider") == State::Crashed && StateOf("a_leaf") == State::Refused &&
+              StateOf("z_user") == State::Loaded);
+        CHECK(Find("a_leaf")->reason.rfind("requires svc_provider:", 0) == 0);
+        CHECK(ReloadFiles(root / "m11") == 0 && ReloadFiles(root / "svc_provider") == 0);
+        const void* available = nullptr;
+        CHECK(sco::host::BuildApi({ "test-app 1.0" })->query_service("m11.svc", 2u << 16, &available) == SCO_UNAVAILABLE && !available);
+        CHECK(sco::app::Stop() == sco::Result::Failed);
+        CHECK(StateOf("m11") == State::Loaded && Find("m11")->self == provider);
+        CHECK(StateOf("b_user") == State::Loaded && Find("b_user")->self == user);
+        CHECK(sco::ui::Started());
+        CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(pf));
+        return;
+    }
+
     WriteText(root / "b_user" / "main.lua", busyScript);
-    CHECK(sco::app::Start(pf));
-    publishProvider();
-    provider = Find("m11")->self;
-    user = Find("b_user")->self;
-    const_cast<P::Plugin*>(Find("svc_provider"))->exports.unload = Fault;
-    g_log.clear();
-    CHECK(sco::app::Reload("m11", &why) == sco::Result::Failed && why.rfind("unload failed: svc_provider:", 0) == 0);
-    CHECK(Find("m11")->self == provider && Find("b_user")->self == user &&
-          StateOf("m11") == State::Loaded && StateOf("b_user") == State::Loaded);
-    CHECK(StateOf("svc_provider") == State::Crashed && StateOf("a_leaf") == State::Refused &&
-          StateOf("z_user") == State::Loaded);
-    CHECK(Find("a_leaf")->reason.rfind("requires svc_provider:", 0) == 0);
-    CHECK(ReloadFiles(root / "m11") == 0 && ReloadFiles(root / "svc_provider") == 0);
-    const void* available = nullptr;
-    CHECK(sco::host::BuildApi({ "test-app 1.0" })->query_service("m11.svc", 2u << 16, &available) == SCO_UNAVAILABLE && !available);
-    sco::app::Stop();
 
     // A table handed out by a dependent, not the requested provider, still blocks the whole
     // group. Refusal preserves every owner, service identity, module and original copy count.
@@ -1394,9 +1473,58 @@ static void TestShutdownPendingFault() {
     CHECK(sco::app::Start(pf));
     // Off-thread attribution has closed the owner but its game-thread verdict is pending.
     CHECK(sco::detail::QuarantineOwner(Find("stopprobe")->self) == sco::Result::Ok);
-    sco::app::Stop();
+    CHECK(sco::app::Stop() == sco::Result::Failed);
     CHECK(g_pendingFaultUnloads == 0);
     CHECK(StateOf("stopprobe") == State::Faulted);
+    CHECK(sco::ui::Started());
+    CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(pf));
+}
+
+// These teardown failures intentionally latch the host and therefore run in their own processes.
+static sco::Result FixtureHostStart(void*) { return sco::Result::Ok; }
+static sco::Result FixtureHostTick(void*) { return sco::Result::Ok; }
+static sco::Result FixtureHostStopFail(void* ctx) {
+    ++*static_cast<int*>(ctx);
+    return sco::Result::Failed;
+}
+static void TestHostStopRetainsRegistry() {
+    sco::Image image{};
+    int stopCalls = 0;
+    sco::app::Platform pf;
+    pf.image = &image;
+    pf.imageOwner = pf.resolverOwner = std::make_shared<int>(1);
+    pf.setCapabilities = SetCaps;
+    pf.hostService = {&stopCalls, FixtureHostStart, FixtureHostTick, FixtureHostStopFail};
+    CHECK(sco::app::Start(pf));
+    const auto owner = sco::AcquireHostSignatureRegistry();
+    CHECK(owner && owner->Snapshot() && sco::caps::Has("teleport"));
+    CHECK(sco::app::Stop() == sco::Result::Failed);
+    CHECK(stopCalls == 1 && sco::AcquireHostSignatureRegistry() == owner);
+    CHECK(owner->Snapshot() && !sco::caps::Has("teleport"));
+    CHECK(!sco::app::Start(pf));
+}
+static void TestHostOwnerMismatch() {
+    sco::Image image{};
+    sco::app::Platform pf;
+    pf.image = &image;
+    pf.imageOwner = pf.resolverOwner = std::make_shared<int>(1);
+    pf.setCapabilities = SetCaps;
+    CHECK(sco::app::Start(pf));
+    const auto owner = sco::AcquireHostSignatureRegistry();
+    CHECK(owner && owner->Snapshot());
+    auto successor = std::make_shared<sco::SignatureRegistry>();
+    CHECK(successor->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(successor->Resolve(image) == sco::SigRegistryStatus::Ok);
+    // A synthetic hostile handoff must fail while the app owns its lifecycle pin.
+    auto hostileOwner = std::const_pointer_cast<sco::SignatureRegistry>(owner);
+    CHECK(!sco::ClearHostSignatureRegistry(hostileOwner, nullptr));
+    CHECK(!sco::InstallHostSignatureRegistry(successor, nullptr));
+    CHECK(sco::AcquireHostSignatureRegistry() == owner);
+    CHECK(owner->Snapshot() && hostileOwner->Resolve(image) == sco::SigRegistryStatus::HostSealed);
+    CHECK(sco::app::Stop() == sco::Result::Ok);
+    CHECK(!sco::AcquireHostSignatureRegistry() && !sco::caps::Has("teleport"));
+    CHECK(sco::app::Start(pf));
+    CHECK(sco::app::Stop() == sco::Result::Ok);
 }
 
 int main(int argc, char** argv) {
@@ -1409,6 +1537,31 @@ int main(int argc, char** argv) {
 #ifndef _WIN32
     P::SetCallGuard(SignalGuard);
 #endif
+    if (argc > 3 && std::strcmp(argv[3], "registry-stop-failure") == 0) {
+        TestHostStopRetainsRegistry();
+        std::printf("registry stop failure: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
+    if (argc > 3 && std::strcmp(argv[3], "registry-owner-mismatch") == 0) {
+        TestHostOwnerMismatch();
+        std::printf("registry owner mismatch: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
+    if (argc > 3 && std::strcmp(argv[3], "fault-retained") == 0) {
+        TestFaultRetainsSession();
+        std::printf("fault-retained: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
+    if (argc > 3 && std::strcmp(argv[3], "reload-fault-retained") == 0) {
+        TestReload(argv[2], true);
+        std::printf("reload-fault-retained: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
+    if (argc > 3 && std::strcmp(argv[3], "cascade-fault-retained") == 0) {
+        TestReloadCascade(argv[2], true);
+        std::printf("cascade-fault-retained: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
     if (argc > 3 && std::strcmp(argv[3], "shutdown-only") == 0) {
         TestRecursiveShutdown();
         TestShutdownCalloutSafety();

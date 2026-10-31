@@ -19,6 +19,7 @@ int checks=0,failures=0;
 #define CHECK(x) do{++checks;if(!(x)){++failures;std::printf("FAIL %d: %s\n",__LINE__,#x);}}while(0)
 gh::Admission evidence{gh::Session::Offline,gh::Check::Clear,gh::Check::Clear,gh::Check::Clear};
 gh::Admission Inspect(){return evidence;}
+gh::ConsumerRetirement RetireConsumer(void*) { return gh::ConsumerRetirement::Quiesced; }
 bool Fresh(){return gh::FreshAdmissionAllowed();}
 bool Cleanup(){return Fresh()||gh::detail::CvarCleanupAllowed();}
 const char* name="i_target_selector.targeting2_enabled";
@@ -53,11 +54,30 @@ void ExitConsumer(const char*,const void*,void*){
 }
 int main(int argc,char** argv){
     const bool lost=argc>1&&!std::strcmp(argv[1],"loss");
+    const bool refusal=argc>1&&!std::strcmp(argv[1],"refusal");
     uint8_t image_bytes[8192]{};
     sco::Image image{image_bytes,{image_bytes,4096},{image_bytes+4096,4096},{},0,sizeof(image_bytes)};
-    gh::Options options;options.inspect=Inspect;options.image=&image;options.quit=gh::QuitPolicy::External;
-    CHECK(gh::Prepare(options)==sco::Result::Ok);
-    CHECK(gh::Start()==sco::Result::Ok);
+    gh::Options options;options.inspect=Inspect;options.image=&image;options.quit=gh::QuitPolicy::External;options.retireConsumer=RetireConsumer;
+    auto ownerToken = std::make_shared<int>(1); options.imageOwner = ownerToken; options.resolverOwner = ownerToken;
+    const auto prepared = gh::Prepare(options);
+    CHECK(prepared==sco::Result::Ok);
+    if (prepared!=sco::Result::Ok) return 1;
+    const auto activated = gh::Activate();
+    if (activated==sco::Result::Unavailable) {
+        // The original restoration case requires the old unowned host. The
+        // current host refuses it before native/service work; report the old
+        // scenario as skipped rather than dereferencing unavailable tables.
+        CHECK(gh::Status().phase==gh::Phase::Prepared);
+        CHECK(gh::Start()==sco::Result::Unavailable && !Fresh());
+        if (refusal) return failures ? 1 : 0;
+        std::printf("SKIP cvars host restoration: unowned host activation is refused\n");
+        return failures ? 1 : 77;
+    }
+    CHECK(!refusal && activated==sco::Result::Ok);
+    if (refusal || activated!=sco::Result::Ok) return 1;
+    const auto started=gh::Start();
+    CHECK(started==sco::Result::Ok);
+    if (started!=sco::Result::Ok) return 1;
     CHECK(cs::StartSpawn()==sco::Result::Ok);
     CHECK(cs::SpawnReleaseHooked());
     variable_vt[0x10/8]=reinterpret_cast<uintptr_t>(&Get);variable_vt[0x30/8]=reinterpret_cast<uintptr_t>(&Set);
@@ -70,8 +90,12 @@ int main(int argc,char** argv){
     cs::NativeCvars native(rows,Fresh,Cleanup);
     CHECK(native.Install(rows,true)==sco::Result::Ok);CHECK(cs::StartCvars()==sco::Result::Ok);
     const auto* api=sco::host::BuildApi({"CVar host-stop fixture"});const void* raw=nullptr;
-    CHECK(api->query_service(SC_CVARS_WRITE_NAME,SC_CVARS_WRITE_VERSION,&raw)==SCO_OK);
+    const auto query=api ? api->query_service(SC_CVARS_WRITE_NAME,SC_CVARS_WRITE_VERSION,&raw) : SCO_UNAVAILABLE;
+    CHECK(query==SCO_OK && raw);
+    if (query!=SCO_OK || !raw) return 1;
     write_table=static_cast<const sc_cvars_write_v1*>(raw);owner=sco::host::NewPlugin("cvar_stop_owner");
+    CHECK(owner);
+    if (!owner) return 1;
     CHECK(write_table->set_bool(owner,name,SC_CVAR_BOOL,1)==SCO_OK&&writes==1&&variable.value==1);
     CHECK(cs::PendingCvarRestores()==1);
     CHECK(sco::Subscribe(owner,"game.exit",ExitConsumer,nullptr)==sco::Result::Ok);

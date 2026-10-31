@@ -65,7 +65,7 @@ bool NameIs(const Image& img, const uint8_t* s, const char* want) {
     return InImage(img, s, n) && memcmp(s, want, n) == 0;
 }
 
-SigResult ResolveStatNames(const Image& img) {
+SigResult ResolveStatNames(const Image& img, const SigResolveContext&) {
     if (!Code(img, img.text.base, img.text.size)) return SigFail("invalid .text range");
     SigResult r = SigPattern(img.text, kNameSwitch);
     if (r.state != SigState::Ok) return r;
@@ -85,8 +85,8 @@ SigResult ResolveStatNames(const Image& img) {
     return r;
 }
 
-SigResult ResolveStatArray(const Image& img) {
-    const uint8_t* fn = Sig("actor.get_stat");
+SigResult ResolveStatArray(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* fn = ctx.Sig("actor.get_stat");
     if (!fn) return SigFail("actor.get_stat missing");
     if (!Code(img, fn, 21) || !BytesMatch(fn, kGetStatBody)) return SigFail("GetStat's body changed (record array read)");
     return SigOk(fn + kArrayDisp);
@@ -96,7 +96,7 @@ constexpr const char* kAdjustLabel = "CSCActorStatus::AdjustStatValue";
 constexpr const char* kAdjustPrologue =
     "4C 89 4C 24 20 55 41 54 41 56 48 8D AC 24 ?? ?? ?? ?? B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 2B E0 4C 63 E2 4C 8B F1";
 
-SigResult ResolveAdjustStat(const Image& img) {
+SigResult ResolveAdjustStat(const Image& img, const SigResolveContext&) {
     if (!Code(img, img.text.base, img.text.size)) return SigFail("invalid .text range");
     SigResult r = SigPattern(img.text, kAdjustPrologue);
     if (r.state != SigState::Ok) return r;
@@ -123,11 +123,11 @@ constexpr const char* kAuthorityGate =
 static_assert(actor_stats::kStatusEntity == 0x1F8 && actor_stats::kEntityHasAuthority == 0x7A8, "kAuthorityGate pins these");
 static_assert(actor_stats::kRecordDef == 0x90 && actor_stats::kDefLocalChange == 0x2A, "kAuthorityGate pins these");
 
-SigResult ResolveStatAuthority(const Image& img) {
+SigResult ResolveStatAuthority(const Image& img, const SigResolveContext& ctx) {
     if (!Code(img, img.text.base, img.text.size)) return SigFail("invalid .text range");
     SigResult r = SigPattern(img.text, kAuthorityGate);
     if (r.state != SigState::Ok) return r;
-    const uint8_t* adjust = Sig("actor.adjust_stat");
+    const uint8_t* adjust = ctx.Sig("actor.adjust_stat");
     if (!adjust || !Code(img, adjust, 1)) return SigFail("actor.adjust_stat missing or outside .text");
     if (FunctionStart(img, r.at) != adjust) return SigFail("the authority gate isn't inside AdjustStatValue");
     return r;

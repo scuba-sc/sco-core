@@ -31,6 +31,8 @@ static bool Same(const Subscription& s, const void* owner, const char* event, Ev
 
 Result Subscribe(const void* owner, const char* event, EventFn fn, void* ctx) {
     if (!event || !*event || !fn) return Result::BadArg;
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return Result::Unavailable;
     try {
         std::lock_guard<std::mutex> hold(g_subLock);
         if (detail::RuntimeStopping()) return Result::Unavailable;
@@ -49,6 +51,10 @@ Result Subscribe(const void* owner, const char* event, EventFn fn, void* ctx) {
 
 Result Unsubscribe(const void* owner, const char* event, EventFn fn) {
     if (!event || !fn) return Result::BadArg;
+    detail::RuntimeLease admission;
+    // Removing a callback can release its backing graph. Owned-session
+    // teardown needs a separate failure-atomic cleanup capability.
+    if (!admission || admission.owned()) return Result::Unavailable;
     try {
         std::lock_guard<std::mutex> hold(g_subLock);
         for (size_t i = 0; i < g_subs->size(); ++i) {
@@ -84,6 +90,8 @@ long detail::ReleaseSubscriptions(const void* owner) {
 }
 
 size_t SubscriptionCount() {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return 0;
     std::lock_guard<std::mutex> hold(g_subLock);
     return g_subs->size();
 }
@@ -98,6 +106,8 @@ Result Dispatch(const char* event, const void* data, size_t* called) {
     if (called) *called = 0;
     if (!event) return Result::BadArg;
     if (!OnGameThread()) return Result::WrongThread;
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return Result::Unavailable;
     if (detail::RuntimeStopping()) return Result::Unavailable;
     std::shared_ptr<const SubList> subs;
     {
@@ -106,12 +116,17 @@ Result Dispatch(const char* event, const void* data, size_t* called) {
     }
     size_t n = 0;
     for (const auto& s : *subs) {
+        if (admission.owned() && detail::RuntimeStopping()) {
+            if (called) *called = n;
+            return Result::Unavailable;
+        }
         if (s->event != event || !s->live.load()) continue;
         EventCall call{ s.get(), event, data };
         detail::Callout(s->owner, event, EventThunk, &call);
         ++n;
     }
     if (called) *called = n;
+    if (admission.owned() && detail::RuntimeStopping()) return Result::Unavailable;
     return Result::Ok;
 }
 

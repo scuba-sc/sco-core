@@ -15,10 +15,36 @@
 void TestLoadoutRoutes(const sco_api*, sco_plugin*);
 void TestLoadoutNative(const sco_api*, const char*);
 int main(int argc, char** argv) {
-    CHECK(argc == 2);
+    CHECK(argc == 2 || (argc == 3 && std::strcmp(argv[2], "--discard-fault") == 0));
     sco::SetGameThread();
     const sco_api* api = sco::host::BuildApi({"synthetic loadout host"});
     sco_plugin* self = sco::host::NewPlugin("loadout_test");
+    if (argc == 3) {
+        static unsigned discards = 0;
+        sco::game::services::LoadoutAsyncBackend async{};
+        async.verified = true;
+        async.admit = [](uint64_t* session) { *session = 1; return true; };
+        async.begin = [](uint32_t, const char*, uint64_t* token, sc_loadout_status*) {
+            *token = 42; return true;
+        };
+        async.poll = [](uint64_t, bool* complete, sc_loadout_status*) { *complete = false; return true; };
+        async.discard = [](uint64_t) { ++discards; throw 1; };
+        CHECK(sco::game::services::StartLoadout(nullptr, &async) == sco::Result::Ok);
+        const void* raw = nullptr;
+        CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_2, &raw) == SCO_OK && raw);
+        const auto* service = static_cast<const sc_loadout_v1_2*>(raw);
+        sc_loadout_item item{SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"};
+        sc_loadout_request request{sizeof(request), 1, sizeof(item), 0, &item};
+        uint64_t job = 0;
+        CHECK(service->submit(self, &request, &job) == SCO_OK && job);
+        sco::game::services::TickLoadout(1); // creates one retained provider token
+        CHECK(sco::game::services::StopLoadout() == sco::Result::Failed && discards == 1);
+        CHECK(sco::game::services::StopLoadout() == sco::Result::Failed && discards == 1);
+        CHECK(sco::game::services::StartLoadout(nullptr, &async) == sco::Result::Failed);
+        CHECK(!api->has("game.loadout.async"));
+        std::puts("loadout: failed discard retains provider state and stop does not retry");
+        return 0;
+    }
     TestLoadoutRoutes(api, self);
     CHECK(sco::game::services::StartLoadout() == sco::Result::Ok);
     const void* table = nullptr;
@@ -289,6 +315,7 @@ int main(int argc, char** argv) {
     std::thread worker([&] {
         CHECK(service->apply(self, &request, &report) == SCO_WRONG_THREAD);
         CHECK(sco::game::services::StartLoadout() == sco::Result::WrongThread);
+        CHECK(sco::game::services::StopLoadout() == sco::Result::WrongThread);
     }); worker.join();
     CHECK(calls == before);
     // game.loadout 1.1: slots 8-21 need the backend flag AND capability game.loadout.weapons.
@@ -388,7 +415,9 @@ int main(int argc, char** argv) {
     CHECK(report.applied == 0 && report.slots[0].status == SC_LOADOUT_FAILED && calls == before + 1);
     CHECK(!api->has("game.loadout.apply") && !api->has("game.loadout.weapons")); // Fault() clears both
     CHECK(service->apply(self, &request, &report) == SCO_UNAVAILABLE && calls == before + 1);
-    sco::game::services::StopLoadout();
+    CHECK(sco::game::services::StopLoadout() == sco::Result::Failed);
+    CHECK(sco::game::services::StopLoadout() == sco::Result::Failed);
+    CHECK(sco::game::services::StartLoadout(&backend) == sco::Result::Failed);
 
     std::puts("loadout: publication, partial slots, validation, offline and terminal fault OK");
 }

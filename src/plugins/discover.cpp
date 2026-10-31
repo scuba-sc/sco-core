@@ -2,6 +2,7 @@
 // an entry file and never runs plugin code.
 #include "sco/plugins.h"
 #include "internal.h"
+#include "../reserved_legacy_gate.h"
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
@@ -207,6 +208,8 @@ static void CheckRequires(std::vector<Plugin>& list, const Options& opts) {
 }
 
 std::vector<Plugin> Discover(const fs::path& root, const Options& opts) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return {};
     std::vector<Plugin> list;
     std::error_code ec;
     if (!fs::is_directory(root, ec)) return list;

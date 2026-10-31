@@ -1,7 +1,7 @@
 #pragma once
 // The address behind natural mining: CBiomeBuilder::BuildLargeScaleEcoSystem, the per-cell
 // function the world builder calls for every large-scale ecosystem cell. Resolved by
-// sco::ResolveAll(); the row is in src/game/mining_sigs.cpp, and docs/game/mining.md says what it
+// a host registry's Resolve(); the row is in src/game/mining_sigs.cpp, and docs/game/mining.md says what it
 // checks.
 //
 // Rows are grouped into capabilities like sco/game/world.h: a feature asks for its group with
@@ -15,7 +15,7 @@ namespace sco::game::mining {
 
 struct Capability {
     const char*        name;    // "game.mining"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
 };
 

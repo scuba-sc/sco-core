@@ -3,11 +3,11 @@
 //
 // A row says how to find its address (a unique byte pattern, or a resolver function for the
 // cases a pattern can't express, such as a string reference followed by layout checks), and
-// which other rows it needs. ResolveAll() resolves rows in dependency order and records, per
-// row, whether it was found. A row whose dependency failed is Blocked, not tried.
+// which other rows it needs. A SignatureRegistry resolves rows in dependency order and
+// publishes results. A row whose dependency failed is Blocked, not tried.
 //
-// Rows are plain data so the same table runs in game and in tools/sco-sigcheck against a
-// StarCitizen.exe read from disk.
+// Rows are plain input data; registration copies their text. The same table can be used by
+// a host and by tools/sco-sigcheck against an image read from disk.
 #include "sco/scan.h"
 #include <cstddef>
 #include <cstdint>
@@ -24,8 +24,21 @@ struct SigResult {
     const char* why     = nullptr;   // static string; set for Failed / Blocked
 };
 
-// Resolver for rows a single pattern can't express. Reads other rows with Sig(); must not throw.
-using SigResolver = SigResult (*)(const Image& img);
+// Trusted resolver precondition: bounded read-only image access, no engine/global
+// mutation, hook installation, publication, lifecycle calls, retained context or throws.
+// Image contains writable pointers: const is not enforcement or a sandbox.
+// Exception handling cannot roll back resolver side effects. Keep resolver code live.
+class SigResolveContext {
+public:
+    uint8_t* Sig(const char* id) const noexcept;
+private:
+    using Lookup = uint8_t* (*)(const void*, const char*) noexcept;
+    SigResolveContext(const void* state, Lookup lookup) noexcept : state_(state), lookup_(lookup) {}
+    const void* state_;
+    Lookup lookup_;
+    friend class SignatureRegistry;
+};
+using SigResolver = SigResult (*)(const Image& img, const SigResolveContext& context);
 
 constexpr int kMaxSigNeeds = 4;
 
@@ -43,24 +56,14 @@ inline SigResult SigOk(const void* at)            { return { SigState::Ok, const
 inline SigResult SigFail(const char* why)         { return { SigState::Failed, nullptr, 0, why }; }
 SigResult        SigPattern(const Section& text, const char* pattern);   // Ok / Missing / Ambiguous
 
-// Tables are registered before ResolveAll(); ids must be unique across all tables.
-// Returns false (and logs) on a duplicate id or a table that's too big.
-bool RegisterSignatures(const SigDef* rows, size_t n);
-
-// Resolves every registered row. Unknown or circular needs make the row Failed. Safe to call
-// once per image; calling it again re-resolves everything.
-void ResolveAll(const Image& img);
-
-uint8_t*         Sig(const char* id);                 // address, or nullptr unless Ok
-bool             SigReady(const char* id);
-const SigResult* SigLookup(const char* id);           // nullptr for an unknown id
-
-size_t        SignatureCount();
-const SigDef* SignatureDef(size_t i);
-const SigResult& SignatureResult(size_t i);
+// Host convenience functions read the published host snapshot. The returned address
+// is borrowed from the image and is valid only for that image's lifetime.
+uint8_t* Sig(const char* id);
+bool SigReady(const char* id);
 
 // "[core] signatures: 61/64 OK" plus one line per row that isn't Ok.
 // verbose = also list the Ok rows.
-void LogSignatureReport(bool verbose);
+class SignatureSnapshot;
+void LogSignatureReport(const SignatureSnapshot& snapshot, bool verbose);
 
 }  // namespace sco

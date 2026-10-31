@@ -8,6 +8,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <sqlite3.h>
 #include <atomic>
 #include <chrono>
@@ -263,14 +264,26 @@ Result Enter(sco_plugin* self, Call& call, bool open = true) {
     return Result::Ok;
 }
 
+#ifdef SCO_OWNED_TABLE_TESTING
+void (*g_tableExitHook)(void*) = nullptr;
+void* g_tableExitHookContext = nullptr;
+#endif
+
 // Runs a table function: nothing throws across the C ABI (out of memory is SCO_TOO_MANY).
 template <class F>
 sco_result Guard(F&& f) noexcept {
     try {
-        return C(f());
-    } catch (...) {
-        return SCO_TOO_MANY;
-    }
+        sco::detail::RuntimeLease admission;
+        if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping()))
+            return SCO_UNAVAILABLE;
+        try {
+            const auto result = C(f());
+#ifdef SCO_OWNED_TABLE_TESTING
+            if (g_tableExitHook) g_tableExitHook(g_tableExitHookContext);
+#endif
+            return result;
+        } catch (...) { return SCO_TOO_MANY; }
+    } catch (...) { return SCO_UNAVAILABLE; }
 }
 
 // ---- plugin memory ----------------------------------------------------------------------------
@@ -869,7 +882,17 @@ void OnRelease(const void* owner) {
 
 }  // namespace
 
-Result Start(const Options& opts) {
+#ifdef SCO_OWNED_TABLE_TESTING
+namespace testing {
+void SetTableExitHook(void (*hook)(void*), void* context) noexcept {
+    g_tableExitHook = hook;
+    g_tableExitHookContext = context;
+}
+}
+#endif
+
+static Result StartImpl(const Options& opts, const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (opts.dataRoot.empty() || opts.budgetMs == 0) return Result::BadArg;
     {
         std::lock_guard<std::mutex> hold(g_lock);
@@ -881,19 +904,40 @@ Result Start(const Options& opts) {
         }
         g_started = true;
     }
-    Result r = AddReleaseHook(OnRelease);
+    Result r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r == Result::Ok) {
-        r = host::ProvideHostService(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_1, &kTable);
-        if (r != Result::Ok) RemoveReleaseHook(OnRelease);
+        r = sco::detail::PublishHostOwned(cap, SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_1, &kTable);
+        if (r != Result::Ok && !cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
     }
     if (r != Result::Ok) {
+        if (cap) return r; // retain partial owned startup for terminal fault handling
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
     }
     return r;
 }
 
+Result Start(const Options& opts) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(opts, nullptr);
+}
+namespace owned {
+Result Start(const Options& opts, const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(opts, &cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     std::vector<std::shared_ptr<Db>> dbs;
     {
         std::lock_guard<std::mutex> hold(g_lock);
@@ -911,7 +955,11 @@ bool Started() {
     return g_started;
 }
 
-const sco_storage_v1* Table() { return &kTable; }
+const sco_storage_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 
 fs::path DatabasePath(const char* id) {
     std::lock_guard<std::mutex> hold(g_lock);

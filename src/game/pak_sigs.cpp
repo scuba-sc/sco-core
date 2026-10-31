@@ -24,7 +24,7 @@ constexpr size_t kSlotWindow = 0x2400;     // the slot calls are in its first 0x
 using rows::InText;
 
 // The loader: the function holding `lea r9, [rip+"DCB file is smaller than expected"]`.
-SigResult ResolveLoader(const Image& img) {
+SigResult ResolveLoader(const Image& img, const SigResolveContext&) {
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InImage(img, img.base, img.size) ||
@@ -53,8 +53,8 @@ SigResult ResolveLoader(const Image& img) {
 }
 
 // The ICryPak* global, from the loader's FOpen call (slot 0x148).
-SigResult ResolveCryPak(const Image& img) {
-    uint8_t* loader = Sig("pak.datacore_loader");
+SigResult ResolveCryPak(const Image& img, const SigResolveContext& ctx) {
+    uint8_t* loader = ctx.Sig("pak.datacore_loader");
     if (!loader) return SigFail("pak.datacore_loader missing");
     if (!InText(img, loader, kCryPakWindow + kCryPakLoadBytes)) return SigFail("loader too close to the end of .text");
     const uint8_t* global = nullptr;
@@ -72,8 +72,8 @@ SigResult ResolveCryPak(const Image& img) {
 }
 
 // The loader calls read, seek and close through the same vtable: call [rax+slot] (FF 90 <slot>).
-SigResult CheckSlots(const Image& img) {
-    uint8_t* loader = Sig("pak.datacore_loader");
+SigResult CheckSlots(const Image& img, const SigResolveContext& ctx) {
+    uint8_t* loader = ctx.Sig("pak.datacore_loader");
     if (!loader) return SigFail("pak.datacore_loader missing");
     if (!InText(img, loader, kSlotWindow + 6)) return SigFail("loader too close to the end of .text");
     static const struct { size_t slot; const char* why; } kSlots[] = {

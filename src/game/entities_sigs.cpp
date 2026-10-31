@@ -76,8 +76,8 @@ struct CallSpec {
 };
 
 template <const CallSpec& S>
-SigResult ResolveCall(const Image& img) {
-    const uint8_t* from = Sig(S.from);
+SigResult ResolveCall(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* from = ctx.Sig(S.from);
     if (!from) return SigFail("source row missing");
     const uint8_t* call = LocalTextAt(img, from, S.off, 5);
     if (!call) return SigFail("call instruction outside .text");
@@ -116,8 +116,8 @@ constexpr Check kClassSiteChecks[] = {
     { 0x0AB, "48 8B 07 48 8D 54 24 30 48 8B 5E 20 48 8B CF FF 50 08", "the lambda's id read changed (+0x0ab)" },
 };
 
-SigResult ResolveClassSite(const Image& img) {
-    const uint8_t* dump = Sig("entities.dump");
+SigResult ResolveClassSite(const Image& img, const SigResolveContext& ctx) {
+    const uint8_t* dump = ctx.Sig("entities.dump");
     if (!dump) return SigFail("source row missing");
     const uint8_t* insn = LocalTextAt(img, dump, 0x3B, 7);
     if (!insn) return SigFail("lambda instruction outside .text");
@@ -158,7 +158,7 @@ constexpr Check kSpawnSinksChecks[] = {
     { 0x0F0, "48 8B 0B 48 8B D5 48 8B 01 FF 50 08",                                  "CallOnSpawnSinks' sink call changed (+0x0f0)" },
 };
 
-SigResult ResolveSpawnSinks(const Image& img) {
+SigResult ResolveSpawnSinks(const Image& img, const SigResolveContext&) {
     SigResult r = LabelFunction(img,
         "void __cdecl CEntitySystem::CallOnSpawnSinks(const class std::vector<class IEntityPtr,struct TempAllocator<class IEntityPtr> > &)",
         0x48, 0x8D, 0x05, 0x17);
@@ -176,7 +176,7 @@ constexpr Check kDeleteChecks[] = {
     { 0x0BB, "48 8B 1F 49 23 DC",                                            "DeleteEntity's handle mask changed (+0x0bb)" },
 };
 
-SigResult ResolveDeleteEntity(const Image& img) {
+SigResult ResolveDeleteEntity(const Image& img, const SigResolveContext&) {
     SigResult r = LabelFunction(img, "CEntitySystem::DeleteEntity", 0x4C, 0x8D, 0x05, 0x6C);
     if (r.state != SigState::Ok) return r;
     const SigResult other = LabelFunction(img, "void __cdecl CEntitySystem::DeleteEntity(class CEntityPtr)", 0x48, 0x8D, 0x05, 0x16B);

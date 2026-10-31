@@ -16,7 +16,7 @@ constexpr char kQuitLog[] =
 
 // The function references kQuitLog twice (lea r9 at +0xA3 and +0x176, one per log path).
 // FindRipLea returns the first; the check at +0x176 proves the second belongs to the same function.
-SigResult ResolveQuit(const Image& img) {
+SigResult ResolveQuit(const Image& img, const SigResolveContext&) {
     if (!rows::TextAt(img, img.text.base, 0, img.text.size)) return SigFail("invalid .text");
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     const uint8_t* fmt = FindCString(img.rdata, kQuitLog);

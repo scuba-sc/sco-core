@@ -1,7 +1,7 @@
 #pragma once
 // Addresses behind game.actors 1.1's health and state (actor status) and the game.* bus events
 // (docs/game-services.md, docs/design/game-world-spikes.md B4, B5, B6 and B8). Resolved by
-// sco::ResolveAll(); the rows are in src/game/events_sigs.cpp, and docs/game/events.md lists each
+// a host registry's Resolve(); the rows are in src/game/events_sigs.cpp, and docs/game/events.md lists each
 // one with what it checks. game.zone.changed has no rows of its own: it polls the teleport.* reads.
 //
 // Rows are grouped into capabilities like sco/game/features.h: the game pack asks for its group
@@ -16,7 +16,7 @@ namespace sco::game::events {
 
 struct Capability {
     const char*        name;    // "game.actors.health"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
 };
 

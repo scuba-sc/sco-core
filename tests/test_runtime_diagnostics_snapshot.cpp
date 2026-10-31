@@ -4,6 +4,7 @@
 #include "sco/caps.h"
 #include "sco/host.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <cstdio>
 #include <cstdlib>
 #include <chrono>
@@ -20,7 +21,7 @@ sco_result Load(const sco_api*, sco_plugin*) { ++callbacks; return SCO_OK; }
 void Unload() { ++callbacks; }
 void Task(void*) { ++callbacks; }
 void Event(const char*, const void*, void*) { ++callbacks; }
-sco::SigResult Resolve(const sco::Image&) { ++resolutions; return sco::SigFail("fixture failure /private/fixture secret"); }
+sco::SigResult Resolve(const sco::Image&, const sco::SigResolveContext&) { ++resolutions; return sco::SigFail("fixture failure /private/fixture secret"); }
 const sco::SigDef rows[]{
     {"fixture.ok", "11", 0, 0, nullptr, {}},
     {"fixture.missing", "33", 0, 0, nullptr, {}},
@@ -39,7 +40,12 @@ const PluginMetadata& Plugin(const Snapshot& snapshot, const char* id) {
 void CopiesAndStates() {
     SnapshotStore store;
     const uint64_t queryCalls = FixtureQueryServiceCalls();
-    CHECK(sco::RegisterSignatures(rows, std::size(rows)));
+    auto registry = std::make_shared<sco::SignatureRegistry>();
+    const sco::SignatureTable signatureTable{rows, std::size(rows)};
+    CHECK(registry->RegisterTables(&signatureTable, 1).status == sco::SigRegistryStatus::Ok);
+    CHECK(registry->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(!registry->Snapshot());
+    CHECK(!sco::InstallHostSignatureRegistry(registry, nullptr));
     std::vector<sco::plugins::Plugin> plugins(10);
     static const char* states[]{"off", "disabled", "refused", "ready", "loaded", "crashed", "unloaded", "faulted"};
     for (size_t i = 0; i < 8; ++i) {
@@ -90,20 +96,47 @@ void CopiesAndStates() {
     CHECK(!Plugin(*first, "unknown_1032").manifestValid && Plugin(*first, "unknown_1032").kind == "unknown");
     CHECK(!Plugin(*first, "unknown_8").version && first->pluginRedactions > 0);
     CHECK(first->host.restartRequired && first->game.restartRequired);
-    CHECK(first->resolutions.size() == 5);
-    for (const auto& r : first->resolutions) CHECK(r.state == "not_run" && !r.resolutionGeneration);
+    CHECK(first->resolutions.empty()); // frozen definitions are not published until successful resolution
+    CHECK(!first->resolutionsAvailable);
+    CHECK(store.ReadPage(ListKind::Resolutions, "", "", 25, 120).error == "unknown_metadata");
+    auto emptyRegistry = std::make_shared<sco::SignatureRegistry>();
+    CHECK(emptyRegistry->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(emptyRegistry->Resolve(sco::Image{}) == sco::SigRegistryStatus::Ok);
+    CHECK(sco::InstallHostSignatureRegistry(emptyRegistry, nullptr));
+    SnapshotStore emptyStore;
+    const std::vector<sco::plugins::Plugin> noPlugins;
+    CHECK(emptyStore.Begin(noPlugins, {}, {}, 200)); Finish(emptyStore, 200);
+    CHECK(emptyStore.Latest()->resolutionsAvailable && emptyStore.Latest()->resolutions.empty());
+    CHECK(emptyStore.ReadPage(ListKind::Resolutions, "", "", 25, 200).status == "ok");
+    CHECK(sco::ClearHostSignatureRegistry(emptyRegistry, nullptr));
     CHECK(callbacks == 0 && resolutions == 0);
     CHECK(sco::QueuedTasks() == queued && sco::SubscriptionCount() == subscriptions);
     sco::caps::Entry after[50]{}; CHECK(sco::caps::List(after, 50) == capCount);
     for (size_t i = 0; i < capCount; ++i) CHECK(std::string(before[i].name) == after[i].name && before[i].ready == after[i].ready && std::string(before[i].reason) == after[i].reason);
     std::thread wrong([&] { CHECK(!store.Begin(plugins, {}, {}, 1100)); CHECK(!store.Advance(1100)); store.Reset(); CHECK(store.Latest() == first); }); wrong.join();
     CHECK(!store.Begin(plugins, {}, {}, 1099)); // no more than one refresh/sec
-    uint8_t bytes[]{0x11, 0x22, 0x22, 0x00}; sco::Image image{};
-    image.base = bytes; image.size = sizeof(bytes); image.text = {bytes, sizeof(bytes)};
-    sco::ResolveAll(image); const auto runs = resolutions;
+    uint8_t bytes[]{0x11, 0x22, 0x22, 0x00}; sco::Image image{}; image.base = bytes; image.size = sizeof(bytes); image.text = {bytes, sizeof(bytes)};
+    CHECK(registry->Resolve(image) == sco::SigRegistryStatus::Ok);
+    CHECK(sco::InstallHostSignatureRegistry(registry, nullptr));
+    auto beforeCapture = registry->Snapshot();
+    CHECK(beforeCapture && beforeCapture->Lookup("fixture.ok")->state == sco::SigState::Ok);
     OptionalSources sources; sources.gamePack = GamePackMetadata{"fixture-pack-1", "fixture-build-1"};
     sources.diagnosticsPlugin = DiagnosticsPluginMetadata{true};
-    CHECK(store.Begin(plugins, {}, {}, 1100, sources)); Finish(store, 1100);
+    CHECK(store.Begin(plugins, {}, {}, 1100, sources));
+    CHECK(registry->Resolve(image) == sco::SigRegistryStatus::HostSealed);
+    CHECK(registry->Snapshot() == beforeCapture);
+    // Synthetic owner replacement with no live game services. Production owners must
+    // quiesce services and readers before clearing an image-backed registry.
+    auto nextRegistry = std::make_shared<sco::SignatureRegistry>();
+    CHECK(nextRegistry->RegisterTables(&signatureTable, 1).status == sco::SigRegistryStatus::Ok);
+    CHECK(nextRegistry->Freeze() == sco::SigRegistryStatus::Ok);
+    bytes[0] = 0;
+    CHECK(nextRegistry->Resolve(image) == sco::SigRegistryStatus::Ok);
+    CHECK(nextRegistry->Snapshot()->Lookup("fixture.ok")->state == sco::SigState::Missing);
+    CHECK(sco::ClearHostSignatureRegistry(registry, nullptr));
+    CHECK(sco::InstallHostSignatureRegistry(nextRegistry, nullptr));
+    const auto runs = resolutions;
+    Finish(store, 1100);
     const auto second = store.Latest(); CHECK(second->host.gamePackVersion == "fixture-pack-1");
     CHECK(second->sources.diagnosticsPlugin && second->sources.diagnosticsPlugin->available);
     const char* expected[]{"ambiguous", "blocked", "failed", "missing", "ok"};
@@ -114,7 +147,8 @@ void CopiesAndStates() {
         CHECK(!second->resolutions[i].resolutionGeneration); // registry has no generation fact yet
     }
     CHECK(resolutions == runs && callbacks == 0);
-    CHECK(first->resolutions[0].state == "not_run");
+    CHECK(first->resolutions.empty());
+    CHECK(sco::ClearHostSignatureRegistry(nextRegistry, nullptr));
     for (auto& p : plugins) if (p.self) CHECK(sco::Release(p.self) == sco::Result::Ok);
     CHECK(callbacks == 0 && FixtureQueryServiceCalls() == queryCalls);
 }

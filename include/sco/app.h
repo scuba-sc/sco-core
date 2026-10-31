@@ -23,21 +23,21 @@
 //
 // Start, in order:
 //   1. SetGameThread (the caller's thread)
-//   2. image set: registerSignatures() (when set) + ResolveAll(*image)
+//   2. image set: registerSignatures(registry), freeze, resolve and publish a snapshot
 //   3. setCapabilities() (after the rows are resolved, so it can use caps::SetFromSignatures)
 //   4. host::BuildApi({ hostVersion }); with dataRoot set, storage::Start (sco.storage) and, with
 //      dataCore too, datacore::service::Start (sco.datacore); widgets::Start (sco.widgets);
 //      ui::Start (sco.ui), surfaces::Start (sco.ui.surfaces) and ui::ReserveChord
 //      for each of reservedChords; ipc::Start (sco.ipc); net::Start (sco.net and the capability
 //      "sco.net"; no socket until the product calls net::Host or net::Join, sco/net/session.h); with
-//      gameServices, game::services::Start (teleport.spatial under the owner "game")
+//      native game services are refused by app::Start pending an exclusion proof
 //   5. the list: every built-in (FromBuiltin), then, with pluginsEnabled, Discover(pluginRoot)
 //   6. ContainCallouts(list)
 //   7. LoadBuiltin for each built-in; then, in list order, LoadNative / LoadScript (a lua plugin
 //      is refused "no script runtime" when scripts is null); then the content index
-//   8. image set: LogSignatureReport(false); then LogReport
+//   8. image set: log the owned registry's signature report; then LogReport
 //   9. Dispatch "game.ready"
-// Startup problems are logged and reported, never fatal: a product with no image, no plugin
+// Signature registry setup failures refuse startup. Other startup problems are logged and reported: a product with no image, no plugin
 // folder or a refused plugin still starts, and every plugin that can load does.
 // Tick also writes the owner heartbeat of every sco.ipc channel (ipc::Tick) and delivers sco.net
 // messages and events (net::Tick).
@@ -47,6 +47,7 @@
 // datacore::service::Stop, game::services::Stop and host::WithdrawGameServices, and
 // host::WithdrawHostServices (host and game services outlive every plugin),
 // ContainCallouts(nullptr).
+#include "sco/owned_shutdown.h"
 #include "sco/plugins.h"
 #include "sco/host_menu.h"
 #include "sco/diagnostics.h"
@@ -54,6 +55,7 @@
 #include "sco/runtime.h"
 #include "sco/net/control.h"
 #include "sco/scan.h"
+#include "sco/signature_registry.h"
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -82,11 +84,14 @@ struct Platform {
     size_t nBuiltins = 0;
     const plugins::ScriptRuntime* scripts = nullptr;   // sco-lua, or nullptr: lua plugins refused
     const Image* image = nullptr;                  // resolve signatures against this; nullptr skips
-    // With image set, Start calls this before ResolveAll: the product registers the signature
-    // tables of its game (Star Citizen: sco::game::RegisterGameSignatures). Null registers none, so a
-    // host for another game never scans for Star Citizen's rows. False is logged, never fatal.
-    bool (*registerSignatures)() = nullptr;
-    void (*setCapabilities)() = nullptr;           // the product sets caps after ResolveAll
+    // Conditional provider-owned mapping/code lifetimes; not an execution barrier.
+    std::shared_ptr<const void> imageOwner, resolverOwner;
+    size_t signatureRegistryBudgetBytes = 0;      // 0 uses allocator limits; see SignatureRegistry budget accounting
+    // With image set, Start builds an owned registry, invokes this to register its tables,
+    // freezes and resolves it, then installs the complete snapshot. Null registers none.
+    // Failure or an existing host registry refuses startup before services or plugins start.
+    SigRegistrationResult (*registerSignatures)(SignatureRegistry&) = nullptr;
+    void (*setCapabilities)() = nullptr;           // the product sets caps after resolution
     plugins::ModuleOps moduleOps = plugins::PlatformModuleOps();
     // The product's data folder (sc-offline: data/). Set, Start publishes the host service
     // sco.storage (sco/storage.h) with databases in <dataRoot>/storage/; empty, no storage.
@@ -101,13 +106,19 @@ struct Platform {
     // after the load. Off by default: a product turns it on once its CryPak adapter applies the
     // DataCore load (sc-offline: design plan PR 8). Off, query_service answers SCO_NOT_FOUND.
     bool dataCore = false;
-    // Start also publishes the Star Citizen game pack's services (sco/game/services.h: today
-    // teleport.spatial 1.0) under the owner "game", before any plugin loads, and Stop withdraws
-    // them after UnloadAll. They read the game through the teleport.* rows, so the product resolves
-    // them first (Platform::registerSignatures, or its own ResolveAll). Off by default: a product
-    // turns it on once it no longer publishes those names itself. Builds without the game pack's
-    // services (SCO_GAME_SC off, or not Windows) log "[app] game services not built" and go on.
+    // Reserved for native game services. Requests currently refuse app startup
+    // before service mutation until durable native exclusion is established.
     bool gameServices = false;
+    // Legacy barrier callback; its return value cannot authorize native startup.
+    bool (*gameReadersQuiesced)(void*) = nullptr;
+    void* gameReadersContext = nullptr;
+    // Before any dependent teardown, close product admission and guarantee that product callbacks
+    // and cached users remain drained through teardown; false/throw retains all backing state.
+    bool (*beforeDependentStop)(void*) = nullptr;
+    void* beforeDependentStopContext = nullptr;
+    // Strict owned sessions start only through the internal game-host transition.
+    // Their stop closes admission and retains backing; cleanup and restart refuse.
+    std::shared_ptr<OwnedShutdown> shutdownOwner;
     // Start maps each native plugin from a copy of its DLL (<folder>/.reload-<n>-<entry>), as Reload
     // does, so the original can be rebuilt while the game runs. Off: a native is mapped from its own
     // file until its first Reload (on Windows that file is locked until then). A product turns it on
@@ -127,10 +138,22 @@ struct Platform {
     HostService hostService;
 };
 
-// Starts the host kit (see above). Game thread: it becomes the game thread. False, and nothing
-// changes, when already started and not stopped; true otherwise, whatever failed to load.
-// `platform` is copied; builtins, scripts and hostVersion must outlive Stop.
+// Describes whether this invocation exposed platform dependencies to the host.
+enum class StartResult {
+    Started,
+    RefusedBeforeExposure, // this invocation did not hand dependencies to the host
+    RetainDependencies,    // startup failed after exposure or its state is uncertain
+};
+// Game thread. Retain platform backing, callbacks, modules, and their contexts
+// through a successful Stop. RetainDependencies requires preserving them until
+// process exit; it must not be treated as evidence of cleanup or restart safety.
+// Refusal applies only to this invocation: an earlier invocation may already
+// retain the same pointers. Calls require the game thread and serialized entry.
+StartResult StartDetailed(const Platform& platform);
+// Compatibility wrapper: false combines both refusal and retained failure.
 bool Start(const Platform& platform);
+// Process-retained or uncertain native hook state; never a drainage assertion.
+bool HasRetainedGameHooks() noexcept;
 
 // GameThreadTick(nowMs): queued tasks, then "tick". No-op unless started.
 void Tick(uint32_t nowMs);
@@ -148,7 +171,10 @@ void Tick(uint32_t nowMs);
 // Never from DLL_PROCESS_DETACH: that runs under the loader lock, at the wrong time.
 // game.exit is best effort: a crash or a killed process never sends it (docs/framework.md,
 // Lessons).
-void Stop();
+// After Started, only Ok establishes completed app cleanup. For any other
+// result preserve backing and do not restart unless a later Stop returns Ok.
+// RetainDependencies from startup remains process-retained even if Stop says Ok.
+Result Stop();
 
 // Every plugin of the last Start: built-ins first, then discovered folders. Stable from Start
 // to the next Start (never resized in between).

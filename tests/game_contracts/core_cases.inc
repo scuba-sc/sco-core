@@ -1,3 +1,29 @@
+// The host fixture owns one game registry. Each resolution publishes a new snapshot; the
+// lease remains held while this test reads results from it.
+static std::shared_ptr<sco::SignatureRegistry> g_gameRegistry;
+static std::shared_ptr<const sco::SignatureSnapshot> g_gameSnapshot;
+static bool RegisterGameFixture() {
+    if (g_gameRegistry) return true;
+    g_gameRegistry = std::make_shared<sco::SignatureRegistry>();
+    return sco::game::RegisterGameSignatures(*g_gameRegistry).status == sco::SigRegistryStatus::Ok &&
+           g_gameRegistry->Freeze() == sco::SigRegistryStatus::Ok;
+}
+static void ResolveGameFixture(const sco::Image& img) {
+    if (g_gameSnapshot) {
+        // This synthetic fixture has no active host services; retire its old owner first.
+        CHECK(sco::ClearHostSignatureRegistry(g_gameRegistry, nullptr));
+        g_gameSnapshot.reset();
+        g_gameRegistry.reset();
+        CHECK(RegisterGameFixture());
+    }
+    CHECK(g_gameRegistry->Resolve(img) == sco::SigRegistryStatus::Ok);
+    g_gameSnapshot = g_gameRegistry->Snapshot();
+    CHECK(g_gameSnapshot != nullptr);
+    CHECK(sco::InstallHostSignatureRegistry(g_gameRegistry, nullptr));
+}
+static const sco::SigResult* GameResult(const char* id) {
+    return g_gameSnapshot ? g_gameSnapshot->Lookup(id) : nullptr;
+}
 // SPDX-License-Identifier: GPL-3.0-only
 // Game-only test cases; included by the corresponding test when the game pack is enabled.
 // A fake image with CSystem::Quit's log string and a function laid out like build 4.10.193.11644:
@@ -39,36 +65,36 @@ static uint8_t* QuitImage(sco::Image& img, bool withString, int flip) {
 
 static void TestSystemQuit() {
     using S = sco::SigState;
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     sco::Image img;
     uint8_t* f = QuitImage(img, true, -1);
-    sco::ResolveAll(img);
-    CHECK(sco::SigLookup("system.quit")->state == S::Ok && sco::Sig("system.quit") == f);
+    ResolveGameFixture(img);
+    CHECK(GameResult("system.quit")->state == S::Ok && sco::Sig("system.quit") == f);
     sco::game::QuitHook h;
     CHECK(sco::game::QuitFunction(h) && h.fn == f && h.stolenBytes == 15);
     static_assert(sco::game::kQuitStolenBytes == 15, "quit hook stolen extent");
     CHECK(!sco::Sig("teleport.to_camera"));   // the other game rows don't find this image
 
     QuitImage(img, true, 0x0B);   // one prologue byte, inside the stolen bytes
-    sco::ResolveAll(img);
-    const sco::SigResult* r = sco::SigLookup("system.quit");
+    ResolveGameFixture(img);
+    const sco::SigResult* r = GameResult("system.quit");
     CHECK(r->state == S::Failed && strcmp(r->why, "layout changed at +0x000") == 0);
     sco::game::QuitHook untouched;
     CHECK(!sco::game::QuitFunction(untouched) && untouched.fn == nullptr && untouched.stolenBytes == 0);
     g_lines.clear();
-    sco::LogSignatureReport(false);
+    sco::LogSignatureReport(*g_gameSnapshot, false);
     CHECK(Logged("[core] FAILED   system.quit (layout changed at +0x000)"));
 
     QuitImage(img, true, 0x179);   // the second reference no longer reads the log string
-    sco::ResolveAll(img);
-    r = sco::SigLookup("system.quit");
+    ResolveGameFixture(img);
+    r = GameResult("system.quit");
     CHECK(r->state == S::Failed && strcmp(r->why, "second Quit log line not at +0x176") == 0);
 
     QuitImage(img, false, -1);
-    sco::ResolveAll(img);
-    CHECK(sco::SigLookup("system.quit")->state == S::Missing && !sco::Sig("system.quit"));
+    ResolveGameFixture(img);
+    CHECK(GameResult("system.quit")->state == S::Missing && !sco::Sig("system.quit"));
     g_lines.clear();
-    sco::LogSignatureReport(false);
+    sco::LogSignatureReport(*g_gameSnapshot, false);
     CHECK(Logged("[core] MISSING  system.quit"));
 }
 
@@ -120,7 +146,7 @@ static PakLayout PakImage(sco::Image& img, bool withString) {
 
 static void TestPakRows() {
     using S = sco::SigState;
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     sco::Image img;
     PakLayout l = PakImage(img, true);
     // FunctionStart: the primary entry, through the chain; nothing outside .pdata's ranges.
@@ -133,40 +159,40 @@ static void TestPakRows() {
     noPdata.pdata = {};
     CHECK(sco::FunctionStart(noPdata, l.loader) == nullptr);
 
-    sco::ResolveAll(img);
-    CHECK(sco::SigLookup("pak.datacore_loader")->state == S::Ok && sco::Sig("pak.datacore_loader") == l.loader);
-    CHECK(sco::SigLookup("pak.crypak")->state == S::Ok && sco::Sig("pak.crypak") == l.global);
-    CHECK(sco::SigLookup("pak.slots")->state == S::Ok && sco::Sig("pak.slots") == l.readCall);
+    ResolveGameFixture(img);
+    CHECK(GameResult("pak.datacore_loader")->state == S::Ok && sco::Sig("pak.datacore_loader") == l.loader);
+    CHECK(GameResult("pak.crypak")->state == S::Ok && sco::Sig("pak.crypak") == l.global);
+    CHECK(GameResult("pak.slots")->state == S::Ok && sco::Sig("pak.slots") == l.readCall);
     sco::game::pak::Targets t;
     CHECK(sco::game::pak::Resolve(t) && t.loader == l.loader && reinterpret_cast<uint8_t*>(t.cryPak) == l.global);
     static_assert(sco::game::pak::kOpenSlot == 0x148 && sco::game::pak::kReadSlot == 0x160);
     static_assert(sco::game::pak::kSeekSlot == 0x1D0 && sco::game::pak::kCloseSlot == 0x1E0);
 
     l.loader[3] ^= 1;   // the prologue
-    sco::ResolveAll(img);
-    const sco::SigResult* r = sco::SigLookup("pak.datacore_loader");
+    ResolveGameFixture(img);
+    const sco::SigResult* r = GameResult("pak.datacore_loader");
     CHECK(r->state == S::Failed && strcmp(r->why, "loader prologue changed") == 0);
-    CHECK(sco::SigLookup("pak.crypak")->state == S::Blocked && sco::SigLookup("pak.slots")->state == S::Blocked);
+    CHECK(GameResult("pak.crypak")->state == S::Blocked && GameResult("pak.slots")->state == S::Blocked);
     sco::game::pak::Targets untouched;
     CHECK(!sco::game::pak::Resolve(untouched) && !untouched.loader && !untouched.cryPak);
 
     l = PakImage(img, true);
     img.pdata = {};
-    sco::ResolveAll(img);
-    r = sco::SigLookup("pak.datacore_loader");
+    ResolveGameFixture(img);
+    r = GameResult("pak.datacore_loader");
     CHECK(r->state == S::Failed && strcmp(r->why, "invalid .pdata/image") == 0);
 
     l = PakImage(img, true);
     l.loader[0x2300] = 0xCC;   // no close call
-    sco::ResolveAll(img);
-    r = sco::SigLookup("pak.slots");
+    ResolveGameFixture(img);
+    r = GameResult("pak.slots");
     CHECK(r->state == S::Failed && strcmp(r->why, "no call [rax+0x1e0] (CryPak close) in the loader") == 0);
-    CHECK(sco::SigLookup("pak.crypak")->state == S::Ok && !sco::game::pak::Resolve(untouched));
+    CHECK(GameResult("pak.crypak")->state == S::Ok && !sco::game::pak::Resolve(untouched));
 
     l = PakImage(img, true);
     l.loader[0x41] = 0x8A;   // the CryPak load
-    sco::ResolveAll(img);
-    r = sco::SigLookup("pak.crypak");
+    ResolveGameFixture(img);
+    r = GameResult("pak.crypak");
     CHECK(r->state == S::Failed && strcmp(r->why, "CryPak FOpen call not in the loader's first 0x400 bytes") == 0);
 
     l = PakImage(img, true);   // a second lea r9 of the message, in another function
@@ -174,14 +200,14 @@ static void TestPakRows() {
     memcpy(lea2, l.loader + 0x1000, 3);
     const int32_t m2 = static_cast<int32_t>((img.rdata.base + 0x20) - (lea2 + 7));
     memcpy(lea2 + 3, &m2, 4);
-    sco::ResolveAll(img);
-    CHECK(sco::SigLookup("pak.datacore_loader")->state == S::Ambiguous && sco::SigLookup("pak.datacore_loader")->matches == 2);
+    ResolveGameFixture(img);
+    CHECK(GameResult("pak.datacore_loader")->state == S::Ambiguous && GameResult("pak.datacore_loader")->matches == 2);
 
     PakImage(img, false);
-    sco::ResolveAll(img);
-    CHECK(sco::SigLookup("pak.datacore_loader")->state == S::Missing);
+    ResolveGameFixture(img);
+    CHECK(GameResult("pak.datacore_loader")->state == S::Missing);
     g_lines.clear();
-    sco::LogSignatureReport(false);
+    sco::LogSignatureReport(*g_gameSnapshot, false);
     CHECK(Logged("[core] MISSING  pak.datacore_loader") && Logged("[core] BLOCKED  pak.crypak (needs pak.datacore_loader)"));
 }
 
@@ -220,34 +246,34 @@ static AsopLayout AsopImage(sco::Image& img) {
 
 static void TestAsopRows() {
     using S = sco::SigState;
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     sco::Image img;
     AsopLayout l = AsopImage(img);
-    sco::ResolveAll(img);
-    CHECK(sco::SigLookup("asop.on_request_open")->state == S::Ok && sco::Sig("asop.on_request_open") == l.open);
+    ResolveGameFixture(img);
+    CHECK(GameResult("asop.on_request_open")->state == S::Ok && sco::Sig("asop.on_request_open") == l.open);
     CHECK(sco::Sig("asop.shard_persisted") == l.shardPersisted && sco::Sig("asop.client_gate") == l.clientGate);
     CHECK(sco::Sig("asop.shard_gate_open") == l.open + 0x21);
-    CHECK(sco::SigLookup("asop.shard_gate_validation")->state == S::Blocked);   // no Deliver handler here
-    CHECK(sco::SigLookup("asop.validate_caller")->state == S::Blocked);
-    CHECK(sco::SigLookup("asop.rm_request_deliver")->state == S::Missing);
+    CHECK(GameResult("asop.shard_gate_validation")->state == S::Blocked);   // no Deliver handler here
+    CHECK(GameResult("asop.validate_caller")->state == S::Blocked);
+    CHECK(GameResult("asop.rm_request_deliver")->state == S::Missing);
 
     l.open[0x95F] ^= 1;   // the server half's jmp no longer reaches the exit
-    sco::ResolveAll(img);
-    const sco::SigResult* r = sco::SigLookup("asop.on_request_open");
+    ResolveGameFixture(img);
+    const sco::SigResult* r = GameResult("asop.on_request_open");
     CHECK(r->state == S::Failed && strcmp(r->why, "jmp at +0x95e doesn't reach +0xdc0") == 0);
-    CHECK(sco::SigLookup("asop.client_gate")->state == S::Blocked && sco::SigLookup("asop.shard_gate_open")->state == S::Blocked);
+    CHECK(GameResult("asop.client_gate")->state == S::Blocked && GameResult("asop.shard_gate_open")->state == S::Blocked);
 
     l = AsopImage(img);
     l.open[0x618] = 0xB5;   // mov rsi instead of mov rdi
-    sco::ResolveAll(img);
-    r = sco::SigLookup("asop.on_request_open");
+    ResolveGameFixture(img);
+    r = GameResult("asop.on_request_open");
     CHECK(r->state == S::Failed && strcmp(r->why, "layout changed at +0x616") == 0);
 
     l = AsopImage(img);
     memcpy(l.open + 0x41, l.open + 0x21, 32);   // a second shard gate site 1, not at +0x21
-    sco::ResolveAll(img);
-    CHECK(sco::SigLookup("asop.on_request_open")->state == S::Ok);
-    CHECK(sco::SigLookup("asop.shard_gate_open")->state == S::Ambiguous && sco::SigLookup("asop.shard_gate_open")->matches == 2);
+    ResolveGameFixture(img);
+    CHECK(GameResult("asop.on_request_open")->state == S::Ok);
+    CHECK(GameResult("asop.shard_gate_open")->state == S::Ambiguous && GameResult("asop.shard_gate_open")->matches == 2);
 
     // Every capability names registered rows only, and every asop/atc/hangar row is in one.
     size_t n = 0;
@@ -255,12 +281,12 @@ static void TestAsopRows() {
     CHECK(n == 11);
     for (size_t i = 0; i < n; ++i) {
         CHECK(caps[i].count > 0);
-        for (size_t j = 0; j < caps[i].count; ++j) CHECK(sco::SigLookup(caps[i].rows[j]) != nullptr);
+        for (size_t j = 0; j < caps[i].count; ++j) CHECK(GameResult(caps[i].rows[j]) != nullptr);
         for (size_t j = 0; j < i; ++j) CHECK(strcmp(caps[i].name, caps[j].name) != 0);
     }
     size_t feature = 0;
-    for (size_t i = 0; i < sco::SignatureCount(); ++i) {
-        const char* id = sco::SignatureDef(i)->id;
+    for (size_t i = 0; i < g_gameSnapshot->Count(); ++i) {
+        const char* id = g_gameSnapshot->IdAt(i);
         bool ours = false;
         for (const char* p : { "asop.", "atc.", "hangar.", "lift.", "landing.", "respawn.", "insurance." })
             ours |= strncmp(id, p, strlen(p)) == 0;
@@ -287,15 +313,15 @@ static bool ActorsRow(const char* id) {
 }
 
 static void TestActorsRows() {
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     size_t n = 0;
     const sco::game::actors::Capability* caps = sco::game::actors::Capabilities(n);
     CHECK(caps && n == 12);
     for (size_t c = 0; c < n; ++c)
-        for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
+        for (size_t j = 0; j < caps[c].count; ++j) CHECK(GameResult(caps[c].rows[j]) != nullptr);
     size_t rows = 0;
-    for (size_t i = 0; i < sco::SignatureCount(); ++i) {
-        const char* id = sco::SignatureDef(i)->id;
+    for (size_t i = 0; i < g_gameSnapshot->Count(); ++i) {
+        const char* id = g_gameSnapshot->IdAt(i);
         bool ours = false;
         for (const char* p : { "spawn.", "npc.", "ammo.", "loadout." }) ours |= strncmp(id, p, strlen(p)) == 0;
         if (!ours || strcmp(id, "spawn.request_fly_mode") == 0 || strcmp(id, "npc.remove_entity_call") == 0) continue;
@@ -315,15 +341,15 @@ static bool WorldRow(const char* id) {
 }
 
 static void TestWorldRows() {
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     size_t n = 0;
     const sco::game::world::Capability* caps = sco::game::world::Capabilities(n);
     CHECK(caps && n == 11);
     for (size_t c = 0; c < n; ++c)
-        for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
+        for (size_t j = 0; j < caps[c].count; ++j) CHECK(GameResult(caps[c].rows[j]) != nullptr);
     size_t rows = 0;
-    for (size_t i = 0; i < sco::SignatureCount(); ++i) {
-        const char* id = sco::SignatureDef(i)->id;
+    for (size_t i = 0; i < g_gameSnapshot->Count(); ++i) {
+        const char* id = g_gameSnapshot->IdAt(i);
         bool ours = false;
         for (const char* p : { "build.", "missions.", "cvars.", "quantum." }) ours |= strncmp(id, p, strlen(p)) == 0;
         if (!ours || strcmp(id, "quantum.send_effect_tag") == 0) continue;   // TestFeatureRows
@@ -334,11 +360,11 @@ static void TestWorldRows() {
 }
 
 static void TestMiningRows() {
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     size_t n = 0;
     const sco::game::mining::Capability* caps = sco::game::mining::Capabilities(n);
     CHECK(caps && n == 1 && strcmp(caps[0].name, "game.mining") == 0 && caps[0].count == 1);
-    CHECK(sco::SigLookup("mining.cell") != nullptr);
+    CHECK(GameResult("mining.cell") != nullptr);
 }
 
 // game.events.* (sco/game/events.h): one detour, two events. game.actors.died and game.player.died
@@ -347,12 +373,12 @@ static void TestMiningRows() {
 // second time, which sco::hook would refuse (one detour per target) and which is exactly the
 // collision that took game.player.died down.
 static void TestEventRows() {
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     size_t n = 0;
     const sco::game::events::Capability* caps = sco::game::events::Capabilities(n);
     CHECK(caps && n == 6);
     for (size_t c = 0; c < n; ++c)
-        for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
+        for (size_t j = 0; j < caps[c].count; ++j) CHECK(GameResult(caps[c].rows[j]) != nullptr);
     const sco::game::events::Capability* died = nullptr, *actorDied = nullptr;
     for (size_t c = 0; c < n; ++c) {
         if (strcmp(caps[c].name, "game.events.player_died") == 0) died = &caps[c];
@@ -364,15 +390,15 @@ static void TestEventRows() {
 }
 
 static void TestFeatureRows() {
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     size_t n = 0;
     const sco::game::features::Capability* caps = sco::game::features::Capabilities(n);
     CHECK(caps && n == 5);
     for (size_t c = 0; c < n; ++c)
-        for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
+        for (size_t j = 0; j < caps[c].count; ++j) CHECK(GameResult(caps[c].rows[j]) != nullptr);
     size_t rows = 0, reputation = 0, orLoop = 0;
-    for (size_t i = 0; i < sco::SignatureCount(); ++i) {
-        const char* id = sco::SignatureDef(i)->id;
+    for (size_t i = 0; i < g_gameSnapshot->Count(); ++i) {
+        const char* id = g_gameSnapshot->IdAt(i);
         bool ours = false;
         for (const char* p : { "spawn.", "npc.", "quantum.", "contracts.reputation", "offline.or_loop_bound." }) ours |= strncmp(id, p, strlen(p)) == 0;
         if (!ours || (ActorsRow(id) && strcmp(id, "npc.remove_entity_call") != 0) || WorldRow(id)) continue;   // TestActorsRows, TestWorldRows
@@ -394,20 +420,20 @@ static void TestFeatureRows() {
 #include "sco/game/offline.h"
 namespace sco::game { extern const SigDef kOfflineSignatures[]; extern const size_t kOfflineSignatureCount; }
 static void TestOfflineRows() {
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     size_t n = 0;
     const sco::game::offline::Capability* caps = sco::game::offline::Capabilities(n);
     CHECK(caps && n == 19);
     for (size_t c = 0; c < n; ++c) {
         CHECK(caps[c].count > 0);
-        for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
+        for (size_t j = 0; j < caps[c].count; ++j) CHECK(GameResult(caps[c].rows[j]) != nullptr);
         for (size_t j = 0; j < c; ++j) CHECK(strcmp(caps[c].name, caps[j].name) != 0);
     }
     CHECK(sco::game::kOfflineSignatureCount == 60);
     size_t handshake = 0, db = 0, social = 0, echo = 0;
     for (size_t i = 0; i < sco::game::kOfflineSignatureCount; ++i) {
         const char* id = sco::game::kOfflineSignatures[i].id;
-        CHECK(sco::SigLookup(id) != nullptr);
+        CHECK(GameResult(id) != nullptr);
         handshake += strncmp(id, "offline.handshake_gate.", 23) == 0;
         db += strncmp(id, "offline.offline_db_path.", 24) == 0;
         social += strncmp(id, "offline.social_group.", 21) == 0;
@@ -427,15 +453,15 @@ static void TestOfflineRows() {
 // sc-offline's contracts (sco/game/contracts.h): every capability row is registered, and every
 // contracts.* row of that table is in a capability (the reputation rows are features.h's).
 static void TestContractsRows() {
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     size_t n = 0;
     const sco::game::contracts::Capability* caps = sco::game::contracts::Capabilities(n);
     CHECK(caps && n == 15);
     for (size_t c = 0; c < n; ++c)
-        for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
+        for (size_t j = 0; j < caps[c].count; ++j) CHECK(GameResult(caps[c].rows[j]) != nullptr);
     size_t rows = 0, autoAccept = 0;
-    for (size_t i = 0; i < sco::SignatureCount(); ++i) {
-        const char* id = sco::SignatureDef(i)->id;
+    for (size_t i = 0; i < g_gameSnapshot->Count(); ++i) {
+        const char* id = g_gameSnapshot->IdAt(i);
         if (strncmp(id, "contracts.", 10) != 0 || strncmp(id, "contracts.reputation", 20) == 0) continue;
         ++rows;
         autoAccept += strncmp(id, "contracts.auto_accept_caller.", 29) == 0;
@@ -451,15 +477,15 @@ static void TestContractsRows() {
 // type filter, a pure function the host runs before calling a plugin, refuses and matches exactly
 // what docs/game-services.md says.
 static void TestEntitiesRows() {
-    CHECK(sco::game::RegisterGameSignatures());
+    CHECK(RegisterGameFixture());
     size_t n = 0;
     const sco::game::entities::Capability* caps = sco::game::entities::Capabilities(n);
     CHECK(caps && n == 3);
     for (size_t c = 0; c < n; ++c)
-        for (size_t j = 0; j < caps[c].count; ++j) CHECK(sco::SigLookup(caps[c].rows[j]) != nullptr);
+        for (size_t j = 0; j < caps[c].count; ++j) CHECK(GameResult(caps[c].rows[j]) != nullptr);
     size_t rows = 0;
-    for (size_t i = 0; i < sco::SignatureCount(); ++i) {
-        const char* id = sco::SignatureDef(i)->id;
+    for (size_t i = 0; i < g_gameSnapshot->Count(); ++i) {
+        const char* id = g_gameSnapshot->IdAt(i);
         if (strncmp(id, "entities.", 9) != 0) continue;
         ++rows;
         bool listed = false;

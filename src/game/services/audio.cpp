@@ -61,13 +61,15 @@ void Latch() {
 // May run after an owner has been marked released, including from a backend
 // callout. A busy release is drained immediately after that callout returns.
 void Cleanup(const void* owner, bool all = false) {
-    if (busy) return;
+    // A failed callback leaves its outcome uncertain. Automatic cleanup must not
+    // call the backend again; retain the remaining effects and provider context.
+    if (busy || failed) return;
     busy = true;
     for (auto& p : playbacks) {
         if (!p.token || (!all && p.owner != owner)) continue;
         const auto r = backend.stop ? backend.stop(backend.ctx, p.key) : SCO_UNAVAILABLE;
         if (r == SCO_OK) p = {};
-        else Latch();
+        else { Latch(); break; }
     }
     for (auto& t : triggers) if (t.token && (all || t.owner == owner)) t = {};
     busy = false;
@@ -206,10 +208,11 @@ Result StopAudio() {
     if (busy) return Result::Failed;
     if (!started) return failed ? Result::Failed : Result::Ok;
     host::WithdrawGameService(SC_AUDIO_NAME);
-    caps::Set("game.audio.triggers", false, "audio stopped");
+    caps::Set("game.audio.triggers", false, failed ? "audio cleanup/provider fault; restart required" : "audio stopped");
     caps::Set("game.audio.play_once", false, "audio stopped");
+    if (failed) return Result::Failed;
     Cleanup(nullptr, true);
-    if (failed) return Result::Failed; // backing context and release hook remain for recovery
+    if (failed) return Result::Failed; // retain context, effects and release hook
     RemoveGameReleaseHook(OwnerReleased); hooked = false;
     backend = {}; started = false;
     return Result::Ok;

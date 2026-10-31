@@ -3,6 +3,8 @@
 #include "ipc/diagnostics_ipc.h"
 #include "sco/caps.h"
 #include "sco/host.h"
+#include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <cassert>
 #include <cstring>
 #include <filesystem>
@@ -239,10 +241,24 @@ void ReadsAndNoSideEffects() {
             CHECK(p.Receive(1000,output)==di::Result::Ok);CHECK(output.find(i==5?"rate_limited":"\"host_version\"")!=std::string::npos);}
         p.Close();CHECK(f.host.Poll(1000)==di::Result::Ok);}
     {
+        Fixture f;Raw r;r.Connect(f);r.Push(r.Make(0x104,"{}",2000),r.peerKey);sc_ipc_peer_beat(&r.channel,0,2000);
+        CHECK(f.host.Poll(2000)==di::Result::Ok);auto response=r.Pop(r.hostKey);
+        CHECK(response.opcode==0x104 && response.payload.find("unknown_metadata")!=std::string::npos && response.payload.find("\"data\":null")!=std::string::npos);
+    }
+    static const sco::SigDef row[]{ {"fixture.ipc_row", nullptr, 0, 0, nullptr, {}} };
+    auto registry=std::make_shared<sco::SignatureRegistry>();
+    const sco::SignatureTable tableRows{row,1};
+    CHECK(registry->RegisterTables(&tableRows,1).status==sco::SigRegistryStatus::Ok);
+    CHECK(registry->Freeze()==sco::SigRegistryStatus::Ok);
+    CHECK(registry->Resolve(sco::Image{})==sco::SigRegistryStatus::Ok);
+    CHECK(sco::InstallHostSignatureRegistry(registry,nullptr));
+    {
         Fixture f;Raw r;r.Connect(f);const auto snapshot=f.snapshots.Latest();
         const char* inputs[]{"{}","{}","{\"plugin_id\":\"fixture_ipc\"}","{}","{}","{}"};
         for(uint16_t op=0x100;op<=0x105;++op){const uint64_t now=op==0x105?3000:2000;r.Push(r.Make(op,inputs[op-0x100],now),r.peerKey);sc_ipc_peer_beat(&r.channel,0,now);
-            CHECK(f.host.Poll(now)==di::Result::Ok);auto response=r.Pop(r.hostKey);CHECK(response.opcode==op&&response.payload.find("\"data\":null")==std::string::npos);}
+            CHECK(f.host.Poll(now)==di::Result::Ok);auto response=r.Pop(r.hostKey);
+            if(response.opcode!=op||response.payload.find("\"data\":null")!=std::string::npos)std::cerr<<"opcode="<<op<<" payload="<<response.payload<<'\n';
+            CHECK(response.opcode==op&&response.payload.find("\"data\":null")==std::string::npos);}
         CHECK(f.snapshots.Latest()==snapshot&&f.plugins[0].state==sco::plugins::State::Loaded&&sco::caps::Has("fixture.ipc_cap"));
         for(uint16_t op:{uint16_t(0x200),uint16_t(0x201),uint16_t(0x202),uint16_t(0x203),uint16_t(0xffff)}){
             r.Push(r.Make(op,"{\"name\":\"fixture.raw\"}",3000),r.peerKey);sc_ipc_peer_beat(&r.channel,0,3000);CHECK(f.host.Poll(3000)==di::Result::Ok);
@@ -251,6 +267,7 @@ void ReadsAndNoSideEffects() {
         f.sink.accept=false;r.Push(r.Make(0x100,"{}",4000),r.peerKey);sc_ipc_peer_beat(&r.channel,0,4000);CHECK(f.host.Poll(4000)==di::Result::Audit);
         auto refusal=r.Pop(r.hostKey);CHECK(refusal.payload.find("audit_unavailable")!=std::string::npos&&refusal.payload.find("\"data\":null")!=std::string::npos);
     }
+    CHECK(sco::ClearHostSignatureRegistry(registry,nullptr));
     for(auto count:calls)CHECK(count==0);
     CHECK(!sco::ServiceTableHandedOut(&owner));sco::Release(&owner);
 }

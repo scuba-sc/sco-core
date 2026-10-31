@@ -1,5 +1,5 @@
 #pragma once
-// The engine's system object. Resolved by sco::ResolveAll().
+// The engine's system object. Resolved by a host registry's Resolve().
 //
 //   system.quit  CSystem::Quit, the function that logs "CSystem::Quit invoked with - cause=$$, ..."
 //                (found from that string, start at lea-0xA3, 9 layout checks plus the second

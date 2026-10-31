@@ -11,6 +11,7 @@
 #endif
 #include <cassert>
 #include <cstdio>
+#include <cstring>
 #if defined(_WIN32) && defined(_M_X64)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -45,7 +46,7 @@ template<int N> void NoopRelease(const void*) {
     static volatile int identity = N;
     (void)identity;
 }
-int main(int argc, char**) {
+int main(int argc, char** argv) {
     sco::SetGameThread();
     const auto* api = sco::host::BuildApi({"quantum-test"});
     sco::ReleaseHook hooks[] = {NoopRelease<0>, NoopRelease<1>, NoopRelease<2>, NoopRelease<3>, NoopRelease<4>, NoopRelease<5>, NoopRelease<6>, NoopRelease<7>};
@@ -66,7 +67,7 @@ int main(int argc, char**) {
     assert(state.block == SC_QUANTUM_BLOCK_UNAVAILABLE);
     assert(q->enable(self, 1) == SCO_UNAVAILABLE);
     assert(!api->has("game.quantum.control"));
-    std::thread t([&] { assert(q->enable(self, 1) == SCO_WRONG_THREAD); });
+    std::thread t([&] { assert(q->enable(self, 1) == SCO_WRONG_THREAD); assert(StopQuantum() == sco::Result::WrongThread); });
     t.join();
     assert(q->enable(self, 0) == SCO_OK);
     auto* shortOut = static_cast<sc_quantum_state*>(std::malloc(4));
@@ -233,7 +234,7 @@ int main(int argc, char**) {
     TickQuantum(180); assert(!f.enabled && !f.held);
     sco::detail::SetRuntimeStopping(false);
     const auto previousSession = state.session;
-    StopQuantum(); StopQuantum();
+    assert(StopQuantum() == sco::Result::Ok); assert(StopQuantum() == sco::Result::Ok);
     assert(!f.enabled && !f.held && !api->has("game.quantum.control"));
     assert(q->enable(b, 1) == SCO_UNAVAILABLE);
     assert(StartQuantum(backend, true) == sco::Result::Ok);
@@ -263,6 +264,15 @@ int main(int argc, char**) {
     assert(StartQuantum(backend, true) == sco::Result::Ok);
     f.observation.antiCheatAbsent = true;
     assert(q->enable(b, 1) == SCO_OK);
+    if (argc > 1 && std::strcmp(argv[1], "--stop-cleanup-fault") == 0) {
+        f.fail = true;
+        const int before = f.changes;
+        assert(StopQuantum() == sco::Result::Failed);
+        assert(f.changes == before + 1 && !api->has("game.quantum.control"));
+        assert(StopQuantum() == sco::Result::Failed && f.changes == before + 1);
+        std::puts("quantum: failed stop retains bridge and does not retry cleanup");
+        return 0;
+    }
     if (argc > 1) {
         f.fail = true;
         assert(q->enable(b, 0) == SCO_FAILED);
@@ -279,7 +289,8 @@ int main(int argc, char**) {
     TickQuantum(250);
     assert(sco::Release(b) == sco::Result::Ok);
     assert(f.changes == faultChanges && f.observations == faultObservations);
-    StopQuantum();
+    assert(StopQuantum() == sco::Result::Failed);
+    assert(StopQuantum() == sco::Result::Failed);
     assert(f.changes == faultChanges && f.observations == faultObservations);
     state.block = 99;
     auto* c = sco::host::NewPlugin("quantum_c");

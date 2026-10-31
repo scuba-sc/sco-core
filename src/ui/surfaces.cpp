@@ -7,6 +7,7 @@
 #include "sco/host.h"
 #include "sco/ui.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -340,22 +341,44 @@ Result CheckPose(uint32_t kind, const sco_surface_pose* pose, Pose& out, std::st
     return Result::Ok;
 }
 
-Result Start() {
+static Result StartImpl(const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (!ui::Started()) return Result::Unavailable;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (g_started) return Result::BadArg;
         g_started = true;
     }
-    const Result r = host::ProvideHostService(SCO_UI_SURFACES_NAME, SCO_UI_SURFACES_VERSION_1_0, &kTable);
+    const Result r = sco::detail::PublishHostOwned(cap, SCO_UI_SURFACES_NAME, SCO_UI_SURFACES_VERSION_1_0, &kTable);
     if (r != Result::Ok) {
+        if (cap) return r;
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
     }
     return r;
 }
 
+Result Start() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(nullptr);
+}
+namespace owned {
+Result Start(const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(&cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (!g_started) return;
@@ -372,7 +395,11 @@ bool Started() {
     return g_started;
 }
 
-const sco_ui_surfaces_v1* Table() { return &kTable; }
+const sco_ui_surfaces_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 
 std::vector<SurfaceInfo> Surfaces() {
     std::lock_guard<std::mutex> hold(g_lock);
