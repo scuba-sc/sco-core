@@ -879,6 +879,23 @@ static int L_store_keys(lua_State* L) {
     return 1;
 }
 
+/* The ABI reports sizes including NUL. Keep buffers on the Lua stack so an allocation
+ * failure or budget error cannot leak them. A changing provider gets bounded retries. */
+#define STORE_SCHEMA_MAX (16u * 1024u * 1024u + 1u)
+#define STORE_SCHEMA_TRIES 32
+
+static int StoreSchemaGrow(lua_State* L, int slot, char** buf, uint32_t* cap, uint32_t need) {
+    if (need <= *cap || need > STORE_SCHEMA_MAX) return 0;
+    *buf = (char*)lua_newuserdatauv(L, need, 0);
+    lua_replace(L, slot);
+    *cap = need;
+    return 1;
+}
+
+static int StoreSchemaString(const char* buf, uint32_t size, uint32_t cap) {
+    return size && size <= cap && buf[size - 1] == '\0' && !memchr(buf, '\0', size - 1);
+}
+
 /* tables([limit]): a list of this plugin's own table/view names in byte order, and a parallel
  * list of kinds (1 = table, 2 = view); the host bookkeeping table sco_kv and sqlite_% objects
  * are never listed. Or nil, err, message. */
@@ -890,17 +907,28 @@ static int L_store_tables(lua_State* L) {
         return StoreFail(L, s, st, SCO_UNAVAILABLE);
     const lua_Integer limit = luaL_optinteger(L, 1, STORE_MAX_KEYS);
     if (limit < 1 || limit > STORE_MAX_KEYS) return StoreBad(L);
-    char name[SCO_STORAGE_MAX_KEY + 1], cursor[SCO_STORAGE_MAX_KEY + 1];
     lua_createtable(L, 0, 0); const int list = lua_gettop(L);
     lua_createtable(L, 0, 0); const int kinds = lua_gettop(L);
+    uint32_t cap = SCO_STORAGE_MAX_KEY + 1;
+    char* name = (char*)lua_newuserdatauv(L, cap, 0); const int buffer = lua_gettop(L);
+    const char* cursor = NULL;
     for (lua_Integer n = 0; n < limit; ++n) {
-        uint32_t size = sizeof name, kind = 0;
-        const sco_result r = st->next_table(s->self, n ? cursor : NULL, name, &size, &kind);
-        if (r == SCO_NOT_FOUND) break;
-        if (r != SCO_OK) return StoreFail(L, s, st, r);
-        lua_pushstring(L, name);  lua_rawseti(L, list, n + 1);
+        uint32_t size = 0, kind = 0;
+        sco_result result = SCO_TOO_MANY;
+        for (int tries = 0; tries < STORE_SCHEMA_TRIES; ++tries) {
+            if (tries) sco_lua_step(L, STORE_STEPS);
+            size = cap;
+            const sco_result r = st->next_table(s->self, cursor, name, &size, &kind);
+            result = r;
+            if (r != SCO_TOO_MANY) break;
+            if (tries + 1 == STORE_SCHEMA_TRIES || !StoreSchemaGrow(L, buffer, &name, &cap, size)) break;
+        }
+        if (result == SCO_NOT_FOUND) break;
+        if (result != SCO_OK) return StoreFail(L, s, st, result);
+        if (!StoreSchemaString(name, size, cap)) return StoreFail(L, s, st, SCO_FAILED);
+        lua_pushlstring(L, name, size - 1); cursor = lua_tostring(L, -1);
+        lua_rawseti(L, list, n + 1);
         lua_pushinteger(L, kind); lua_rawseti(L, kinds, n + 1);
-        strcpy(cursor, name);
         if (n + 1 < limit) sco_lua_step(L, STORE_STEPS);
     }
     lua_pushvalue(L, list); lua_pushvalue(L, kinds);
@@ -917,18 +945,34 @@ static int L_store_columns(lua_State* L) {
     const char* table = CString(L, 1);
     const lua_Integer limit = luaL_optinteger(L, 2, STORE_MAX_KEYS);
     if (!table || limit < 1 || limit > STORE_MAX_KEYS) return StoreBad(L);
-    char cname[SCO_STORAGE_MAX_KEY + 1], ctype[SCO_STORAGE_MAX_KEY + 1];
     lua_createtable(L, 0, 0); const int names = lua_gettop(L);
     lua_createtable(L, 0, 0); const int types = lua_gettop(L);
     lua_createtable(L, 0, 0); const int flags = lua_gettop(L);
+    uint32_t nc = SCO_STORAGE_MAX_KEY + 1, tc = SCO_STORAGE_MAX_KEY + 1, index = 0;
+    char* cname = (char*)lua_newuserdatauv(L, nc, 0); const int namebuf = lua_gettop(L);
+    char* ctype = (char*)lua_newuserdatauv(L, tc, 0); const int typebuf = lua_gettop(L);
     for (lua_Integer n = 0; n < limit; ++n) {
-        uint32_t index = (uint32_t)n, ns = sizeof cname, ts = sizeof ctype, f = 0;
-        const sco_result r = st->next_column(s->self, table, &index, cname, &ns, ctype, &ts, &f);
-        if (r == SCO_NOT_FOUND) break;
-        if (r != SCO_OK) return StoreFail(L, s, st, r);
-        lua_pushstring(L, cname); lua_rawseti(L, names, n + 1);
-        lua_pushstring(L, ctype); lua_rawseti(L, types, n + 1);
-        lua_pushinteger(L, f);    lua_rawseti(L, flags, n + 1);
+        uint32_t ns = 0, ts = 0, f = 0, next = index;
+        sco_result result = SCO_TOO_MANY;
+        for (int tries = 0; tries < STORE_SCHEMA_TRIES; ++tries) {
+            if (tries) sco_lua_step(L, STORE_STEPS);
+            ns = nc; ts = tc; next = index;
+            const sco_result r = st->next_column(s->self, table, &next, cname, &ns, ctype, &ts, &f);
+            result = r;
+            if (r != SCO_TOO_MANY) break;
+            if (tries + 1 == STORE_SCHEMA_TRIES || ns > STORE_SCHEMA_MAX || ts > STORE_SCHEMA_MAX ||
+                (ns <= nc && ts <= tc)) break;
+            if (ns > nc) StoreSchemaGrow(L, namebuf, &cname, &nc, ns);
+            if (ts > tc) StoreSchemaGrow(L, typebuf, &ctype, &tc, ts);
+        }
+        if (result == SCO_NOT_FOUND) break;
+        if (result != SCO_OK) return StoreFail(L, s, st, result);
+        if (!StoreSchemaString(cname, ns, nc) || !StoreSchemaString(ctype, ts, tc) || next <= index)
+            return StoreFail(L, s, st, SCO_FAILED);
+        index = next;
+        lua_pushlstring(L, cname, ns - 1); lua_rawseti(L, names, n + 1);
+        lua_pushlstring(L, ctype, ts - 1); lua_rawseti(L, types, n + 1);
+        lua_pushinteger(L, f);             lua_rawseti(L, flags, n + 1);
         if (n + 1 < limit) sco_lua_step(L, STORE_STEPS);
     }
     lua_pushvalue(L, names); lua_pushvalue(L, types); lua_pushvalue(L, flags);

@@ -281,11 +281,13 @@ st.sql("SELECT place FROM visits", nil, function(row) print(row.place) end)   --
 | `sco.store.sql(sql [, params])` | A list of rows, each `{ column = value, ... }`; at most 1000 rows, more is `too_many` (add a `LIMIT`) |
 | `sco.store.sql(sql, params, fn)` | Calls `fn(row)` for each row until it returns `false`, then `true` |
 
+Schema names and declared types may contain up to 16 MiB each (measured in bytes, excluding the terminating NUL). Larger results return `nil, "too_many"`; normal Lua memory and step limits also apply.
+
 Every call fails with `nil, err, message`: `err` is the result name (`"bad_arg"`: a refused or malformed statement, a key too long, a transaction already open; `"failed"`: the statement ran and failed; `"too_many"`: the storage quota is full, or too many rows; `"unavailable"`: the host has no storage), and `message` the host's text when it left one (`"no such table: visits"`). A host without storage (an older one, or a product without a data folder) still has `sco.store`; every call answers `nil, "unavailable"`.
 
 - **SQL**: one statement per call, any SQLite statement on the plugin's own database except those [storage refuses](../../docs/storage.md#sql-what-a-plugin-may-run) (`ATTACH`, `VACUUM`, `BEGIN` / `COMMIT` in SQL: use `begin` / `commit`, most `PRAGMA`s, the `sco_*` tables' schema). The key-value store is the table `sco_kv(key, value)`.
 - **Parameters**: a list bound to `?`, `?NNN` or `:name` in order, at most 32: integers, numbers, strings (bound as TEXT), booleans (1 or 0); set `n` to bind trailing `nil`s as NULL (`{ "a", nil, n = 2 }`). Column values come back as integers, numbers and strings (TEXT and BLOB); NULL columns are absent from the row.
-- **Steps**: each storage call, and each row or key read, counts 100 steps against the [budget](#the-sandbox), on top of the callback's own code.
+- **Steps**: each storage call, and each row or key read, and each schema retry, counts 100 steps against the [budget](#the-sandbox), on top of the callback's own code.
 - **Cursors** are the runtime's: `sql` closes its cursor on every path, including an error in `fn` or the budget running out. Nothing in `sco.store` names a file or a path.
 - A transaction is the plugin's until `commit` or `rollback`: a callback that fails between `begin` and `commit` leaves it open (the next `begin` answers `bad_arg`), so roll back on your error paths.
 

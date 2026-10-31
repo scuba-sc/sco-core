@@ -1440,6 +1440,120 @@ static void TestSettings() {
     sco::settings::Stop();
 }
 
+// Synthetic 1.1 providers exercise both handshakes independently of SQLite limits.
+static sco_storage_v1 g_schema;
+static int g_schemaMode = 0, g_schemaCalls = 0, g_schemaErrors = 0;
+static std::string g_schemaName, g_schemaType;
+static sco_result SchemaError(sco_plugin*, char* out, uint32_t* size) {
+    if (*size) out[0] = '\0';
+    *size = 1; return SCO_OK;
+}
+static sco_result SchemaQuery(const char* name, uint32_t version, const void** out) {
+    if (std::strcmp(name, SCO_STORAGE_NAME) == 0) { *out = &g_schema; return SCO_OK; }
+    return g_api->query_service(name, version, out);
+}
+static sco_result SchemaTable(sco_plugin*, const char* after, char* out, uint32_t* size, uint32_t* kind) {
+    ++g_schemaCalls;
+    if (after && std::strcmp(after, "first") != 0 && std::strcmp(after, g_schemaName.c_str()) != 0) ++g_schemaErrors;
+    if (g_schemaMode == 1 && after) { *size = 16u * 1024u * 1024u + 2; return SCO_TOO_MANY; }
+    if (g_schemaMode == 2 && after) return SCO_TOO_MANY;
+    if (g_schemaMode == 3) { ++*size; return SCO_TOO_MANY; }
+    if (after && std::strcmp(after, g_schemaName.c_str()) == 0) return SCO_NOT_FOUND;
+    const std::string& value = after ? g_schemaName : std::string("first");
+    const uint32_t needed = static_cast<uint32_t>(value.size() + 1);
+    if (*size < needed) { *size = needed; return SCO_TOO_MANY; }
+    std::memcpy(out, value.c_str(), needed); *size = needed; *kind = after ? 2 : 1;
+    return SCO_OK;
+}
+static sco_result SchemaColumn(sco_plugin*, const char*, uint32_t* index, char* name, uint32_t* ns,
+                               char* type, uint32_t* ts, uint32_t* flags) {
+    ++g_schemaCalls;
+    if (g_schemaMode == 4) {
+        if (*ns < 16u * 1024u * 1024u + 1u) { *ns = 16u * 1024u * 1024u + 1u; return SCO_TOO_MANY; }
+        *ts = 16u * 1024u * 1024u + 1u; return SCO_TOO_MANY;
+    }
+    if (*index > 1) return SCO_NOT_FOUND;
+    if (*index == 1 && g_schemaMode == 1) { *ns = 16u * 1024u * 1024u + 2; *index = 99; return SCO_TOO_MANY; }
+    if (*index == 1 && g_schemaMode == 2) { *index = 99; return SCO_TOO_MANY; }
+    const std::string n = *index ? g_schemaName : std::string(256, 'n');
+    const std::string t = *index ? g_schemaType : std::string(255, 't');
+    uint32_t need = static_cast<uint32_t>(n.size() + 1);
+    if (*ns < need) { *ns = need; *index = 99; return SCO_TOO_MANY; }
+    std::memcpy(name, n.c_str(), need); *ns = need;
+    need = static_cast<uint32_t>(t.size() + 1);
+    if (*ts < need) { *ts = need; *index = 99; return SCO_TOO_MANY; }
+    std::memcpy(type, t.c_str(), need); *ts = need;
+    *flags = *index + 1; ++*index; return SCO_OK;
+}
+static void TestStoreSchema() {
+    g_schema = *sco::storage::Table();
+    g_schema.last_error = SchemaError; g_schema.next_table = SchemaTable; g_schema.next_column = SchemaColumn;
+    g_schemaName.clear(); g_schemaType.clear();
+    for (int i = 0; i < 160; ++i) { g_schemaName += "\xc3\xa9"; g_schemaType += "\xe6\xbc\xa2"; }
+    sco_api api = *g_api; api.query_service = SchemaQuery;
+    Write("schemalong", R"lua(
+        local names, kinds = sco.store.tables()
+        assert(#names == 2 and names[1] == "first" and names[2] == string.rep("é", 160))
+        assert(kinds[1] == 1 and kinds[2] == 2)
+        local cols, types, flags = sco.store.columns("first")
+        assert(#cols == 2 and cols[1] == string.rep("n",256) and types[1] == string.rep("t",255))
+        assert(cols[2] == string.rep("é",160) and types[2] == string.rep("漢",160))
+        assert(flags[1] == 1 and flags[2] == 2)
+    )lua");
+    g_schemaMode = 0; g_schemaCalls = g_schemaErrors = 0;
+    Loaded l = Load("schemalong", &api);
+    CHECK(l.p && l.p->state == State::Loaded && g_schemaErrors == 0 && g_schemaCalls == 10);
+    if (l.p && l.p->state != State::Loaded) std::printf("  schemalong: %s\n", l.p->reason.c_str());
+    Unload(l);
+    Write("schemafail", R"lua(
+        local a, e = sco.store.tables(); assert(a == nil and e == "too_many")
+        a, e = sco.store.columns("first"); assert(a == nil and e == "too_many")
+    )lua");
+    for (int mode : {1, 2}) {
+        g_schemaMode = mode; g_schemaCalls = 0;
+        Loaded f = Load("schemafail", &api);
+        CHECK(f.p && f.p->state == State::Loaded && g_schemaCalls == 5);
+        if (f.p && f.p->state != State::Loaded) std::printf("  schemafail: %s\n", f.p->reason.c_str());
+        Unload(f);
+    }
+    Write("schemaold", R"lua(
+        assert(select(2, sco.store.tables()) == "unavailable")
+        assert(select(2, sco.store.columns("first")) == "unavailable")
+    )lua");
+    g_schema.size = static_cast<uint32_t>(offsetof(sco_storage_v1, next_table));
+    Loaded old = Load("schemaold", &api); CHECK(old.p && old.p->state == State::Loaded); Unload(old);
+    g_schema.size = sizeof(g_schema); g_schema.next_table = nullptr; g_schema.next_column = nullptr;
+    Loaded missing = Load("schemaold", &api); CHECK(missing.p && missing.p->state == State::Loaded); Unload(missing);
+    g_schema.next_table = SchemaTable;
+    g_schemaMode = 3; g_schemaCalls = 0;
+    Write("schemaretry", R"lua(
+        local a, e = sco.store.tables(); assert(a == nil and e == "too_many")
+    )lua");
+    Loaded retry = Load("schemaretry", &api);
+    CHECK(retry.p && retry.p->state == State::Loaded && g_schemaCalls == 32);
+    Unload(retry);
+    g_schemaMode = 4; g_schemaCalls = 0;
+    g_schema.next_column = SchemaColumn;
+    Write("schemamemory", R"lua(
+        local chunk, held = string.rep("x", 1024), {}
+        for i = 1, 4 do held[i] = string.rep(chunk, 8192) end
+        local ok = pcall(sco.store.columns, "first")
+        assert(not ok, "schema buffers must count against the memory limit")
+    )lua");
+    Loaded memory = Load("schemamemory", &api);
+    CHECK(memory.p && memory.p->state == State::Loaded && g_schemaCalls == 2);
+    if (memory.p && memory.p->state != State::Loaded) std::printf("  schemamemory: %s\n", memory.p->reason.c_str());
+    Unload(memory);
+    g_schemaMode = 3; g_schemaCalls = 0;
+    Write("schemabudget", R"lua(
+        for i = 1, 1000 do sco.store.tables() end
+    )lua");
+    Loaded budget = Load("schemabudget", &api);
+    CHECK(budget.p && budget.p->state == State::Refused && budget.p->reason.find("step budget") != std::string::npos);
+    CHECK(g_schemaCalls < 11000);
+    Unload(budget);
+}
+
 static void TestStore(const fs::path& sdk) {
     // A host without the service: sco.store is there, every call answers unavailable.
     static const char* const kNone = R"lua(
@@ -1470,6 +1584,8 @@ static void TestStore(const fs::path& sdk) {
     Loaded oldl = Load("stold", &old);
     CHECK(oldl.p && oldl.p->state == State::Loaded && Logged("[stold] no storage: clean"));
     Unload(oldl);
+
+    TestStoreSchema();
 
     Write("storea", R"lua(
         local st = sco.store
@@ -1568,6 +1684,8 @@ static void TestStore(const fs::path& sdk) {
     Unload(a);
 
     // Committed data outlives the script: a reload sees it.
+    TestStoreSchema();
+
     Write("storea", R"lua(
         sco.register_command{ name = "storea.get", title = "Get", args = {{ name = "k", type = "string" }},
                               fn = function(key) return sco.store.get(key) end }
