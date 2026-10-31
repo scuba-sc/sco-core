@@ -1,6 +1,7 @@
 // Game-thread identity, callout depth, the bounded task queue and Release().
 #include "sco/runtime.h"
 #include "internal.h"
+#include "owned_publication.h"
 #include <algorithm>
 #include <atomic>
 #include <iterator>
@@ -28,9 +29,20 @@ const char* ResultName(Result r) {
 
 static std::atomic<std::thread::id> g_gameThread{};   // default id = no thread
 
-void SetGameThread() { g_gameThread.store(std::this_thread::get_id()); }
+void SetGameThread() {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
+    g_gameThread.store(std::this_thread::get_id());
+}
+void detail::SetGameThreadOwned(const StartupPublish* cap) {
+    if (!cap) { SetGameThread(); return; }
+    if (cap->valid()) g_gameThread.store(std::this_thread::get_id());
+}
 
 bool OnGameThread() {
+    // Only a scalar identity observation, but it still participates in the
+    // virgin-runtime census before an owner binds.
+    detail::RuntimeLease admission;
     const std::thread::id id = g_gameThread.load();
     return id != std::thread::id() && id == std::this_thread::get_id();
 }
@@ -44,7 +56,15 @@ CallScope::~CallScope() { --g_callDepth; }
 
 static std::atomic<CalloutGuard> g_calloutGuard{ nullptr };
 
-void SetCalloutGuard(CalloutGuard guard) { g_calloutGuard.store(guard); }
+void SetCalloutGuard(CalloutGuard guard) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
+    g_calloutGuard.store(guard);
+}
+void detail::SetCalloutGuardOwned(const StartupPublish* cap, CalloutGuard guard) {
+    if (!cap) { SetCalloutGuard(guard); return; }
+    if (cap->valid()) g_calloutGuard.store(guard);
+}
 
 static bool CalloutAdmitted(const void* owner, const char* where, TaskFn thunk, void* ctx) {
     detail::CallScope scope;
@@ -129,6 +149,9 @@ Result detail::PostOwned(TaskFn fn, TaskFn drop, void* ctx, const void* owner) {
 Result Post(TaskFn fn, void* ctx, const void* owner) { return Push(fn, nullptr, ctx, owner, true); }
 
 size_t QueuedTasks() {
+    // This scalar observation does not expose task contexts or execute them.
+    // Still acquire a lease so a virgin-runtime bind observes an active entry.
+    detail::RuntimeLease admission;
     std::lock_guard<std::mutex> hold(g_queueLock);
     return g_count + g_overflow.size();
 }
@@ -228,7 +251,7 @@ static std::mutex  g_hookLock;
 static ReleaseHook g_hooks[kMaxReleaseHooks];
 static size_t      g_hookCount = 0;
 
-Result AddReleaseHook(ReleaseHook hook) {
+static Result AddReleaseHookImpl(ReleaseHook hook) {
     if (!hook) return Result::BadArg;
     std::lock_guard<std::mutex> hold(g_hookLock);
     for (size_t i = 0; i < g_hookCount; ++i)
@@ -238,7 +261,21 @@ Result AddReleaseHook(ReleaseHook hook) {
     return Result::Ok;
 }
 
-Result RemoveReleaseHook(ReleaseHook hook) {
+Result AddReleaseHook(ReleaseHook hook) {
+    if (!hook) return Result::BadArg;
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return Result::Unavailable;
+    return AddReleaseHookImpl(hook);
+}
+
+Result detail::AddReleaseHookOwned(const StartupPublish* cap, ReleaseHook hook) {
+    if (!cap) return AddReleaseHook(hook);
+    if (!hook) return Result::BadArg;
+    if (!cap->valid()) return Result::Unavailable;
+    return AddReleaseHookImpl(hook);
+}
+
+static Result RemoveReleaseHookImpl(ReleaseHook hook) {
     std::lock_guard<std::mutex> hold(g_hookLock);
     for (size_t i = 0; i < g_hookCount; ++i)
         if (g_hooks[i] == hook) {
@@ -247,6 +284,18 @@ Result RemoveReleaseHook(ReleaseHook hook) {
             return Result::Ok;
         }
     return Result::NotFound;
+}
+
+Result RemoveReleaseHook(ReleaseHook hook) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return RemoveReleaseHookImpl(hook);
+}
+
+Result detail::RemoveReleaseHookOwned(const StartupPublish* cap, ReleaseHook hook) {
+    if (!cap) return RemoveReleaseHook(hook);
+    if (!cap->valid()) return Result::Unavailable;
+    return RemoveReleaseHookImpl(hook);
 }
 
 Result detail::QuarantineOwner(const void* owner) {
@@ -276,6 +325,10 @@ Result Release(const void* owner, size_t* removed) {
     if (removed) *removed = 0;
     if (!owner) return Result::BadArg;
     if (!OnGameThread()) return Result::WrongThread;
+    detail::RuntimeLease admission;
+    // Arbitrary release hooks are not failure-atomic against owner fault.
+    // Owned sessions keep the entire graph until an explicit safe commit exists.
+    if (!admission || admission.owned()) return Result::Unavailable;
     {
         // Mark first: an add that hasn't taken its module lock yet will see the mark; one that
         // already has finishes before the removal below takes the same lock, and is removed.

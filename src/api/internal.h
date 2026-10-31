@@ -13,15 +13,21 @@ bool InCallout();
 // service registry lock, then cancels all queued work before any unload export.
 bool RuntimeStopping();
 void SetRuntimeStopping(bool stopped);
-void SetRuntimeShutdownOwner(std::shared_ptr<OwnedShutdown> owner);
+bool BindRuntimeStartup(const std::shared_ptr<OwnedShutdown>& owner, const OwnedShutdown::Transition& transition);
+bool RuntimeBoundTo(const std::shared_ptr<OwnedShutdown>& owner);
+bool RuntimeCanStartLegacy();
 // A runtime operation is admitted before it touches caller state. The startup
 // transition itself is the lease on its owning thread. Raw service-table use
 // after a query still requires a caller-held Read for the complete use.
 class RuntimeLease {
 public:
     RuntimeLease();
+    RuntimeLease(const RuntimeLease&) = delete;
+    RuntimeLease& operator=(const RuntimeLease&) = delete;
+    ~RuntimeLease();
     explicit operator bool() const noexcept { return !owner_ || startup_ || static_cast<bool>(read_); }
     bool startup() const noexcept { return startup_; }
+    bool owned() const noexcept { return static_cast<bool>(owner_); }
 private:
     std::shared_ptr<OwnedShutdown> owner_;
     bool startup_;

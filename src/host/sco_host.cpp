@@ -8,6 +8,7 @@
 #include "sco/runtime.h"
 #include "sco/status.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <atomic>
 #include <cstdint>
 #include <cstring>
@@ -269,7 +270,7 @@ sco_result InvokeRawC(sco_plugin* self, const char* name, const void* in, uint32
 
 }  // namespace
 
-const sco_api* BuildApi(const HostInfo& info) {
+static const sco_api* BuildApiImpl(const HostInfo& info) {
     if (!info.version) return nullptr;
     g_version.store(info.version);
     std::call_once(g_apiOnce, [] {
@@ -296,6 +297,18 @@ const sco_api* BuildApi(const HostInfo& info) {
     return &g_api;
 }
 
+const sco_api* BuildApi(const HostInfo& info) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return BuildApiImpl(info);
+}
+
+namespace owned {
+const sco_api* BuildApi(const HostInfo& info, const sco::detail::StartupPublish& cap) {
+    return cap.valid() ? BuildApiImpl(info) : nullptr;
+}
+}
+
 static sco_plugin* ClaimHandle(const char* id) {
     std::lock_guard<std::mutex> hold(g_handleLock);
     const size_t n = g_handleCount.load(std::memory_order_relaxed);
@@ -308,14 +321,22 @@ static sco_plugin* ClaimHandle(const char* id) {
 }
 
 sco_plugin* NewPlugin(const char* id) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return nullptr;
     return ValidId(id) ? ClaimHandle(id) : nullptr;
 }
 
 sco_plugin* NewMenuOwner() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return nullptr;
     return ClaimHandle("menu");
 }
 
-const char* PluginId(const sco_plugin* p) { return Valid(p) ? p->id : nullptr; }
+const char* PluginId(const sco_plugin* p) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return Valid(p) ? p->id : nullptr;
+}
 
 // ---- host-owned services ----------------------------------------------------------------------
 
@@ -334,6 +355,8 @@ Result ProvideHostService(const char* name, uint32_t version, const void* table)
 Result WithdrawHostService(const char* name) { return ReleaseService(HostOwner(), name); }
 
 size_t WithdrawHostServices() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return 0;
     const long n = detail::ReleaseServices(HostOwner());
     return n > 0 ? static_cast<size_t>(n) : 0;
 }
@@ -357,6 +380,8 @@ Result ProvideGameService(const char* name, uint32_t version, const void* table)
 Result WithdrawGameService(const char* name) { return ReleaseService(GameOwner(), name); }
 
 size_t WithdrawGameServices() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return 0;
     const long n = detail::ReleaseServices(GameOwner());
     return n > 0 ? static_cast<size_t>(n) : 0;
 }

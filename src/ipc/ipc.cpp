@@ -16,6 +16,7 @@
 #include "sco/log.h"
 #include "shm.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -376,7 +377,8 @@ void OnRelease(const void* owner) {
 
 }  // namespace
 
-Result Start(const Options& opts) {
+static Result StartImpl(const Options& opts, const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     const size_t n = std::strlen(kPrefix);
     if (opts.prefix.compare(0, n, kPrefix) != 0 || opts.prefix.size() > 64) return Result::BadArg;
     for (char c : opts.prefix.substr(n))
@@ -391,19 +393,40 @@ Result Start(const Options& opts) {
         }
         g_started = true;
     }
-    Result r = AddReleaseHook(OnRelease);
+    Result r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r == Result::Ok) {
-        r = host::ProvideHostService(SCO_IPC_NAME, SCO_IPC_VERSION_1_0, &kTable);
-        if (r != Result::Ok) RemoveReleaseHook(OnRelease);
+        r = sco::detail::PublishHostOwned(cap, SCO_IPC_NAME, SCO_IPC_VERSION_1_0, &kTable);
+        if (r != Result::Ok && !cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
     }
     if (r != Result::Ok) {
+        if (cap) return r; // retain partial owned startup for terminal fault handling
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
     }
     return r;
 }
 
+Result Start(const Options& opts) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(opts, nullptr);
+}
+namespace owned {
+Result Start(const Options& opts, const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(opts, &cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (!g_started) return;
@@ -420,6 +443,8 @@ bool Started() {
 }
 
 void Tick() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return;
     std::vector<std::shared_ptr<Channel>> list;
     {
         std::lock_guard<std::mutex> hold(g_lock);
@@ -433,7 +458,11 @@ void Tick() {
     }
 }
 
-const sco_ipc_v1* Table() { return &kTable; }
+const sco_ipc_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 
 std::string MappingName(const char* pluginId, const char* channel) {
     if (!ValidName(pluginId, host::kMaxIdLen) || !ValidName(channel, SCO_IPC_MAX_NAME)) return {};

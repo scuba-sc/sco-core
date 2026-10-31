@@ -1,5 +1,7 @@
 // Capability registry: a fixed table of names, each ready or not with a reason.
 #include "sco/caps.h"
+#include "internal.h"
+#include "owned_publication.h"
 #include "sco/signatures.h"
 #include "sco/signature_registry.h"
 #include <cstdio>
@@ -44,7 +46,7 @@ Cap* Find(const char* name) {
 
 }  // namespace
 
-Result Set(const char* name, bool ready, const char* reason) {
+static Result SetImpl(const char* name, bool ready, const char* reason) {
     if (!ValidName(name)) return Result::BadArg;
     std::lock_guard<std::mutex> hold(g_lock);
     Cap* c = Find(name);
@@ -56,6 +58,19 @@ Result Set(const char* name, bool ready, const char* reason) {
     c->ready = ready;
     snprintf(c->reason, sizeof(c->reason), "%s", reason ? reason : "");
     return Result::Ok;
+}
+
+Result Set(const char* name, bool ready, const char* reason) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return SetImpl(name, ready, reason);
+}
+
+namespace owned {
+Result Set(const detail::StartupPublish& cap, const char* name, bool ready, const char* reason) {
+    if (!cap.valid()) return Result::Unavailable;
+    return SetImpl(name, ready, reason);
+}
 }
 
 namespace {
@@ -134,7 +149,7 @@ Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n) 
     return request.result;
 }
 
-void InvalidateAll(const char* reason) noexcept {
+static void InvalidateImpl(const char* reason) noexcept {
     std::lock_guard<std::mutex> hold(g_lock);
     for (size_t i = 0; i < g_count; ++i) {
         g_caps[i].ready = false;
@@ -142,7 +157,21 @@ void InvalidateAll(const char* reason) noexcept {
     }
 }
 
+void InvalidateAll(const char* reason) noexcept {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
+    InvalidateImpl(reason);
+}
+
+namespace owned {
+void InvalidateForOwner(const std::shared_ptr<OwnedShutdown>& owner, const char* reason) noexcept {
+    if (detail::RuntimeBoundTo(owner)) InvalidateImpl(reason);
+}
+}
+
 bool Has(const char* name) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return false;
     if (!name) return false;
     std::lock_guard<std::mutex> hold(g_lock);
     const Cap* c = Find(name);
@@ -150,6 +179,8 @@ bool Has(const char* name) {
 }
 
 size_t List(Entry* out, size_t max) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return 0;
     std::lock_guard<std::mutex> hold(g_lock);
     if (out)
         for (size_t i = 0; i < g_count && i < max; ++i) {

@@ -33,16 +33,20 @@ include the new internal headers and tests.
 
 ## Remaining blockers
 
-* Startup admission is not complete: public `ProvideService` inherits the
-  transition-thread exemption, so a reentrant log or other callback can publish
-  a service while reader admission is shut. DataCore service setup also occurs
-  in Activate before the app binds its runtime owner. The safe fix needs an
-  explicit internal startup capability threaded through subsystem publication,
-  and runtime binding before any publication; do not enable product startup on
-  the basis of the current synthetic Running path.
-* No successful owned retirement exists. Supporting one requires a callback-free,
-  non-failing commit or a different provable lifetime architecture; partial
-  cleanup cannot be made atomic by sampling owner readiness.
+* Runtime ownership binds before any owned service publication. A private
+  startup capability is passed explicitly to owned publishers; reentrant public
+  publication and capability mutation are refused. The private owned registry
+  never enters the legacy global slot, which is reserved empty. Previously used
+  legacy runtime state or an occupied registry refuses startup. Public app
+  plugin/content reference getters return empty views in owned sessions; the
+  trusted host copies data under its explicit startup transition. This is not yet
+  a complete census of all externally callable entry points or raw-table users.
+* The isolated synthetic session supports successful `QuiescedRetained` retirement
+  after cooperative readers and workers drain and workers join. It keeps its
+  backing rooted for process lifetime and refuses restart. A timed-out or faulted
+  session retains backing and reports failure; its test intentionally retains an
+  unjoined worker, which unsuppressed ThreadSanitizer reports as a thread leak.
+  This result does not establish successful application or native retirement.
 * Every relevant reader/worker must enroll and keep its lease throughout use.
   The protocol cannot interpose on hidden native threads, cached raw tables,
   arbitrary plugins or engine execution. No synthetic test proves native safety.
@@ -51,9 +55,9 @@ include the new internal headers and tests.
   conflicts with ancestor b420d1a's recorded fix and historical test claim; neither
   substitutes for exact-head verification.
 * Core #304's earlier named candidate was `571fe8e2c911d7c63c372103724896feaabe58f2`;
-  its observed remote head is now `1b6782bc5c8b7d189cdff4c83e81957f09af35d7`.
-  Offline #184's observed remote head is `80dba91491228d7c5ed0b451c5a55eb7954b484f`.
-  These are independent candidates, not dependencies merged into this branch.
+  its remote head is `1b6782bc5c8b7d189cdff4c83e81957f09af35d7` and is merged.
+  Offline #184's remote head is `aaf79475b159f0fd76000ba315bef11778cb53b7`
+  and is merged. These independent lines are not incorporated into this branch.
   Coordinate final SHAs and deliberate API choices; do not silently fold this
   branch into either one. Offline native activation must remain refused until
   its real product-owned barrier is proven.

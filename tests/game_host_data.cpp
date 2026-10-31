@@ -104,11 +104,11 @@ int main(int argc, char** argv) {
     o.platform.setCapabilities = SetCapabilities;
     o.retireConsumer = mode == "partial-null" ? nullptr : RetireConsumer;
     o.consumerContext = &mode;
-    CHECK(sco::caps::Set("fixture.early", true) == sco::Result::Ok); // stale capability must not authorize early data
     if (mode != "plain" && mode != "null" && !partial) o.earlyDataRequirement = EarlyRequirement;
     o.earlyDataContext = &mode;
     if (mode == "plain" || mode == "reentry" || mode == "fault-load" || mode == "prerun-query") {
         o.platform.pluginsEnabled = false;
+        o.platform.privateSession.enabled = false;
         o.platform.setCapabilities = nullptr;
         o.earlyDataRequirement = nullptr;
     }
@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
     }
     CHECK(activated == sco::Result::Ok);
     CHECK(sco::datacore::service::Started() && gh::Status().dataCoreActive);
-    CHECK(sco::datacore::service::Table()->state() == SCO_DC_OPEN);
+    CHECK(!sco::datacore::service::Table()); // raw table is also denied before Running
     if (mode == "prerun-query") {
         // Known red: Activate publishes before app binds the runtime owner.
         const void* table = nullptr;
@@ -149,13 +149,14 @@ int main(int argc, char** argv) {
     // Startup keeps every reader excluded until Running is published.
     CHECK(!gh::testing::TransformDataCore(base, base.bytes.size(), splices));
     CHECK(gh::Start() == sco::Result::Ok);
-    const auto registry = sco::AcquireHostSignatureRegistry();
+    CHECK(sco::datacore::service::Table() && sco::datacore::service::Table()->state() == SCO_DC_OPEN);
+    CHECK(gh::testing::HasPrivateRegistry() && !sco::AcquireHostSignatureRegistry());
     if (mode == "reentry") {
         base.reenter = true;
         CHECK(!gh::testing::TransformDataCore(base, base.bytes.size(), splices));
         CHECK(base.nestedRefused && base.stopRefused && base.reads == 0);
-        CHECK(gh::Status().phase == gh::Phase::Failed && sco::AcquireHostSignatureRegistry() == registry);
-        CHECK(sco::datacore::service::Started() && sco::datacore::service::Table()->state() == SCO_DC_OPEN);
+        CHECK(gh::Status().phase == gh::Phase::Failed && gh::testing::HasPrivateRegistry() && !sco::AcquireHostSignatureRegistry());
+        CHECK(sco::datacore::service::Started() && !sco::datacore::service::Table());
         CHECK(gh::Start() == sco::Result::BadArg);
         return failures ? 1 : 0;
     }
@@ -165,9 +166,9 @@ int main(int argc, char** argv) {
         const auto transformed = gh::testing::TransformDataCore(base, base.bytes.size(), splices);
         sco::SetLogSink(nullptr);
         CHECK(!transformed && loadFaulted && splices.empty());
-        CHECK(sco::datacore::service::Table()->state() == SCO_DC_LOADED);
+        CHECK(!sco::datacore::service::Table());
         CHECK(gh::Tick(1) == sco::Result::Unavailable && gh::Status().phase == gh::Phase::Failed);
-        CHECK(sco::datacore::service::Started() && sco::AcquireHostSignatureRegistry() == registry);
+        CHECK(sco::datacore::service::Started() && gh::testing::HasPrivateRegistry() && !sco::AcquireHostSignatureRegistry());
         CHECK(gh::Start() == sco::Result::BadArg);
         return failures ? 1 : 0;
     }
@@ -177,7 +178,7 @@ int main(int argc, char** argv) {
     CHECK(splices.empty() && sco::datacore::service::Table()->state() == SCO_DC_LOADED);
     CHECK(gh::Stop() == sco::Result::Failed);
     CHECK(gh::Status().phase == gh::Phase::Failed && gh::Status().dataCoreActive);
-    CHECK(sco::datacore::service::Started() && sco::AcquireHostSignatureRegistry() == registry);
+    CHECK(sco::datacore::service::Started() && gh::testing::HasPrivateRegistry() && !sco::AcquireHostSignatureRegistry());
     CHECK(!o.shutdownOwner->try_read() && gh::Start() == sco::Result::BadArg);
     std::vector<sco::vfs::Splice> late;
     CHECK(!gh::testing::TransformDataCore(base, base.bytes.size(), late) && late.empty());

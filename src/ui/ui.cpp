@@ -10,6 +10,7 @@
 #include "sco/host.h"
 #include "sco/surfaces.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <algorithm>
 #include <cstring>
 #include <mutex>
@@ -469,25 +470,47 @@ bool RunDraw(const Entry& e, void* frame) {
 
 }  // namespace
 
-Result Start() {
+static Result StartImpl(const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (g_started) return Result::BadArg;
         g_started = true;
     }
-    Result r = AddReleaseHook(OnRelease);
+    Result r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r == Result::Ok) {
-        r = host::ProvideHostService(SCO_UI_NAME, SCO_UI_VERSION_1_0, &kTable);
-        if (r != Result::Ok) RemoveReleaseHook(OnRelease);
+        r = sco::detail::PublishHostOwned(cap, SCO_UI_NAME, SCO_UI_VERSION_1_0, &kTable);
+        if (r != Result::Ok && !cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
     }
     if (r != Result::Ok) {
+        if (cap) return r; // retain partial owned startup for terminal fault handling
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
     }
     return r;
 }
 
+Result Start() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(nullptr);
+}
+namespace owned {
+Result Start(const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(&cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (!g_started) return;
@@ -507,7 +530,11 @@ bool Started() {
     return g_started;
 }
 
-const sco_ui_v1* Table() { return &kTable; }
+const sco_ui_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 
 bool NormalizeChord(const char* text, std::string& out) {
     try {
@@ -518,6 +545,8 @@ bool NormalizeChord(const char* text, std::string& out) {
 }
 
 Result ReserveChord(const char* chord) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
     std::string c;
     if (!NormalizeChord(chord, c)) return Result::BadArg;
     std::lock_guard<std::mutex> hold(g_lock);
@@ -578,6 +607,8 @@ std::vector<std::string> ReservedChords() {
 }
 
 Result DrawTab(const char* id, void* frame) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
     if (!id) return Result::NotFound;
     Entry e;
@@ -591,6 +622,8 @@ Result DrawTab(const char* id, void* frame) {
 }
 
 size_t DrawOverlays(void* frame) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return 0;
     if (!OnGameThread()) return 0;
     std::vector<uint64_t> pass;   // the overlays live when the pass starts, by sequence number
     {
@@ -620,6 +653,8 @@ void KeepReply(Result, const char* reply, void* ctx) {
 }  // namespace
 
 Result Dispatch(const char* chord, std::string* reply) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return Result::Unavailable;
     if (reply) reply->clear();
     std::string c;
     if (!NormalizeChord(chord, c)) return Result::NotFound;

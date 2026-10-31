@@ -4,6 +4,7 @@
 #include "sco/owned_shutdown.h"
 #include "../owned_shutdown_access.h"
 #include "internal.h"
+#include "owned_publication.h"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -30,6 +31,9 @@ std::atomic<uint64_t> g_fixtureQueryCalls{0}; // no counter/export in non-test b
 std::mutex           g_lock;
 std::atomic<bool>    g_stopped{ false };
 std::atomic<std::shared_ptr<OwnedShutdown>> g_shutdownOwner;
+std::mutex g_bindingLock;
+size_t g_runtimeEntries = 0;
+bool g_legacyRuntimeTouched = false;
 std::vector<Service> g_services;
 // Owners whose table QueryService has returned at least once. Kept after the services are
 // withdrawn: the loader asks once the owner is released, to keep its module mapped. One pointer
@@ -148,17 +152,40 @@ bool ValidCategory(const char* category) {
 
 }  // namespace
 
+static std::shared_ptr<OwnedShutdown> EnterRuntimeSession() {
+    std::lock_guard<std::mutex> lock(g_bindingLock);
+    ++g_runtimeEntries;
+    auto owner = g_shutdownOwner.load();
+    if (!owner) g_legacyRuntimeTouched = true;
+    return owner;
+}
+
 bool detail::RuntimeStopping() {
     const auto owner = g_shutdownOwner.load();
-    return g_stopped.load() ||
-           (owner && !owner->open() && !OwnedShutdownHostAccess::on_transition_thread(*owner));
+    return g_stopped.load() || (owner && !owner->open());
 }
 detail::RuntimeLease::RuntimeLease()
-    : owner_(g_shutdownOwner.load()),
+    : owner_(EnterRuntimeSession()),
       startup_(owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
       read_(owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
-void detail::SetRuntimeShutdownOwner(std::shared_ptr<OwnedShutdown> owner) {
-    g_shutdownOwner.store(std::move(owner));
+detail::RuntimeLease::~RuntimeLease() {
+    std::lock_guard<std::mutex> lock(g_bindingLock);
+    --g_runtimeEntries;
+}
+bool detail::RuntimeBoundTo(const std::shared_ptr<OwnedShutdown>& owner) {
+    return owner && g_shutdownOwner.load() == owner;
+}
+bool detail::RuntimeCanStartLegacy() { return !g_shutdownOwner.load(); }
+bool detail::BindRuntimeStartup(const std::shared_ptr<OwnedShutdown>& owner,
+                                const OwnedShutdown::Transition& transition) {
+    std::lock_guard<std::mutex> lock(g_bindingLock);
+    if (!owner || !transition.valid_for(*owner) || g_shutdownOwner.load() ||
+        g_legacyRuntimeTouched || g_runtimeEntries) return false;
+    g_shutdownOwner.store(owner);
+    return true;
+}
+bool detail::StartupPublish::valid() const {
+    return owner_ && transition_ && RuntimeBoundTo(owner_) && transition_->valid_for(*owner_);
 }
 void detail::SetRuntimeStopping(bool stopped) {
     // Serializes the terminal boundary with the first successful hand-out.
@@ -166,17 +193,17 @@ void detail::SetRuntimeStopping(bool stopped) {
     g_stopped.store(stopped);
 }
 
-Result ProvideService(const void* owner, const char* prefix, const char* name, uint32_t version,
-                      const void* table) {
+static Result ProvideServiceImpl(const detail::StartupPublish* cap, const void* owner, const char* prefix,
+                                 const char* name, uint32_t version, const void* table) {
     if (!owner || !table || !ValidServiceName(name)) return Result::BadArg;
     detail::RuntimeLease admission;
-    if (!admission) return Result::Unavailable;
+    if (cap ? !cap->valid() : (!admission || admission.startup())) return Result::Unavailable;
     if (prefix) {
         const size_t p = strlen(prefix);
         if (p == 0 || strncmp(name, prefix, p) != 0 || (name[p] != '\0' && name[p] != '.')) return Result::BadArg;
     }
     std::lock_guard<std::mutex> hold(g_lock);
-    if (detail::RuntimeStopping()) return Result::Unavailable;
+    if (cap ? !cap->valid() : detail::RuntimeStopping()) return Result::Unavailable;
     if (detail::Released(owner)) return Result::BadArg;
     if (Withdrawing(owner)) return Result::Unavailable;
     for (const Service& s : g_services)
@@ -188,6 +215,14 @@ Result ProvideService(const void* owner, const char* prefix, const char* name, u
     }
     ForgetOldWithdrawal(name);
     return Result::Ok;
+}
+Result ProvideService(const void* owner, const char* prefix, const char* name, uint32_t version,
+                      const void* table) {
+    return ProvideServiceImpl(nullptr, owner, prefix, name, version, table);
+}
+Result detail::ProvideServiceOwned(const StartupPublish& cap, const void* owner, const char* prefix,
+                                   const char* name, uint32_t version, const void* table) {
+    return ProvideServiceImpl(&cap, owner, prefix, name, version, table);
 }
 
 Result QueryService(const char* name, uint32_t minVersion, const void** out) {
@@ -219,6 +254,8 @@ Result QueryService(const char* name, uint32_t minVersion, const void** out) {
 
 bool ServiceExists(const char* name) {
     if (!name) return false;
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return false;
     std::lock_guard<std::mutex> hold(g_lock);
     for (const Service& s : g_services)
         if (s.name == name) return true;
@@ -226,6 +263,8 @@ bool ServiceExists(const char* name) {
 }
 
 bool ServiceTableHandedOut(const void* owner) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return false;
     std::lock_guard<std::mutex> hold(g_lock);
     return std::find(g_handedOut.begin(), g_handedOut.end(), owner) != g_handedOut.end();
 }
@@ -233,6 +272,8 @@ bool ServiceTableHandedOut(const void* owner) {
 Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
                          bool allowInUse, bool& inUse) {
     inUse = false;
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_lock);
     // Off-thread quarantine marks the owner before its game-thread state verdict. Reject
     // administrative teardown under the admission lock even while Plugin::state is Loaded.
@@ -256,6 +297,8 @@ Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
 }
 
 void CancelServiceWithdrawal(const void* const* owners, size_t count) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     std::lock_guard<std::mutex> hold(g_lock);
     for (size_t i = 0; i < count; ++i) {
         if (detail::Released(owners[i])) continue;   // quarantine reservations stay terminal
@@ -266,6 +309,8 @@ void CancelServiceWithdrawal(const void* const* owners, size_t count) {
 
 Result ReleaseService(const void* owner, const char* name) {
     if (!owner || !name) return Result::BadArg;
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_lock);
     for (size_t i = 0; i < g_services.size(); ++i)
         if (g_services[i].owner == owner && g_services[i].name == name) {
@@ -294,6 +339,8 @@ uint64_t FixtureQueryServiceCalls() { return g_fixtureQueryCalls.load(); }
 #endif
 
 ServiceInventory CopyServiceMetadata() {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return {};
     std::lock_guard<std::mutex> hold(g_lock);
     ServiceInventory result;
     const size_t liveCount = std::min(g_services.size(), kMaxDiagnosticServices);
@@ -322,6 +369,8 @@ Result SetServiceDiagnosticMetadata(const void* owner, const char* name, const c
                                     const char* category, std::optional<uint32_t> tableSize) {
     if (!owner || !ValidServiceName(name) || !ValidOwnerId(safeOwnerId) || !ValidCategory(category) ||
         (tableSize && *tableSize > 65536)) return Result::BadArg;
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_lock);
     if (std::none_of(g_services.begin(), g_services.end(),
         [&](const Service& s) { return s.owner == owner && s.name == name; })) return Result::NotFound;
@@ -339,6 +388,8 @@ Result SetServiceDiagnosticMetadata(const void* owner, const char* name, const c
 }
 
 void ResetServiceDiagnosticHistory() {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     std::lock_guard<std::mutex> hold(g_lock);
     g_withdrawalHistory.clear();
     g_diagnosticHistoryLost = false;

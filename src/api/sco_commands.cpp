@@ -10,6 +10,7 @@
 #include "sco/runtime.h"
 #include "sco_api.h"
 #include "internal.h"
+#include "owned_publication.h"
 #include <atomic>
 #include <cstddef>
 #include <cstring>
@@ -48,9 +49,19 @@ static size_t              g_created = 0;          // slots allocated so far: g_
 static uint64_t            g_nextGen = 1;
 static std::atomic<CapabilityCheck> g_capCheck{ nullptr };
 
-void SetCapabilityCheck(CapabilityCheck check) { g_capCheck.store(check); }
+void SetCapabilityCheck(CapabilityCheck check) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
+    g_capCheck.store(check);
+}
+void detail::SetCapabilityCheckOwned(const StartupPublish* cap, CapabilityCheck check) {
+    if (!cap) { SetCapabilityCheck(check); return; }
+    if (cap->valid()) g_capCheck.store(check);
+}
 
 bool detail::CapabilityAvailable(const char* cap) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return false;
     const CapabilityCheck check = g_capCheck.load();
     return check && cap && check(cap);
 }
@@ -137,6 +148,8 @@ Result RegisterCommand(const void* owner, const char* prefix, const Command& cmd
         if (!Fits(d.name, kMaxArgNameLen) || !Fits(d.help, kMaxArgHelpLen)) return Result::BadArg;
     }
 
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_regLock);
     if (detail::RuntimeStopping()) return Result::Unavailable;
     if (detail::Released(owner) || FindLive(cmd.name)) return Result::BadArg;
@@ -180,6 +193,8 @@ long detail::ReleaseCommands(const void* owner) {
 }
 
 size_t ListCommands(const Command** out, size_t max) {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return 0;
     std::lock_guard<std::mutex> hold(g_regLock);
     if (out)
         for (size_t i = 0; i < g_liveCount && i < max; ++i) out[i] = &g_live[i]->view;
@@ -187,6 +202,8 @@ size_t ListCommands(const Command** out, size_t max) {
 }
 
 size_t detail::VisitCommands(CommandVisitor visit, void* ctx) {
+    RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && RuntimeStopping())) return 0;
     std::lock_guard<std::mutex> hold(g_regLock);
     for (size_t i = 0; i < g_liveCount; ++i) visit(i, g_live[i]->index, g_live[i]->gen, g_live[i]->view, ctx);
     return g_liveCount;
@@ -246,6 +263,16 @@ static void DoneThunk(void* p) {
     k->done(k->r, k->reply, k->ctx);
 }
 
+// An arbitrary ctx drop can destroy backing concurrently with owner fault.
+// Without an atomic cleanup capability, keep that caller-owned context for
+// the process lifetime in owned sessions. Legacy unowned sessions retain their
+// historical drop behavior.
+static void DropContext(TaskFn dropCtx, void* ctx) {
+    if (!dropCtx) return;
+    detail::RuntimeLease admission;
+    if (!admission.owned()) dropCtx(ctx);
+}
+
 // owner: the invoking owner, the owner done runs as. If the command released that owner, done is
 // not called (the owner's code may be gone): dropCtx(ctx) runs instead, and also when done
 // faulted before it could free its ctx.
@@ -256,7 +283,7 @@ static void RunAndReport(const char* name, const Arg* args, uint32_t nargs, Invo
     if (done) {
         DoneCall call{ done, r, reply, ctx };
         if (detail::Released(owner) || !detail::Callout(owner, "invoke done", DoneThunk, &call)) {
-            if (dropCtx) dropCtx(ctx);
+            DropContext(dropCtx, ctx);
         }
     }
     if (out) *out = r;
@@ -283,7 +310,7 @@ static void FreePending(void* p) {
 
 static void DropPending(void* p) {
     Pending* job = static_cast<Pending*>(p);
-    if (job->dropCtx) job->dropCtx(job->ctx);
+    DropContext(job->dropCtx, job->ctx);
     FreePending(job);
 }
 
@@ -300,10 +327,13 @@ Result Invoke(const char* name, const Arg* args, uint32_t nargs, InvokeDone done
 Result detail::InvokeOwned(const char* name, const Arg* args, uint32_t nargs, InvokeDone done, void* ctx,
                            const void* owner, TaskFn dropCtx) {
     if (!name || nargs > kMaxCommandArgs || (nargs && !args) || detail::Released(owner)) return Result::BadArg;
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return Result::Unavailable;
     if (detail::RuntimeStopping()) return Result::Unavailable;
     if (OnGameThread()) {
         Result r = Result::Ok;
         RunAndReport(name, args, nargs, done, ctx, owner, dropCtx, &r);
+        if (admission.owned() && detail::RuntimeStopping()) return Result::Unavailable;
         return r;
     }
     Pending* job = new (std::nothrow) Pending;

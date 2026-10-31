@@ -14,10 +14,13 @@ outlive all calls and remain retained after failed shutdown. An owner lease is
 cooperative: it cannot interpose on hidden native execution, cached tables or
 unmanaged threads. Read leases are thread-bound and cover the complete use.
 
-Even this fixture remains quarantined: public service publication currently
-inherits startup-thread authority, and DataCore setup precedes runtime owner
-binding. Reentrant callbacks can therefore bypass the intended startup gate.
-Neither path is a product-ready activation protocol.
+The owned fixture binds the runtime before publishing DataCore and requires an
+explicit private startup capability for subsystem publication. Public runtime
+publication does not inherit startup authority from a reentrant callback. It
+reserves the global signature-registry slot empty and keeps its registry private.
+A previously used legacy runtime or occupied registry refuses owned startup.
+The fixture remains quarantined: full public entry coverage and native resource
+lifetimes require independent proof before product activation.
 
 `Prepare`, `Activate`, and `Start` are separate host entries. Owner admission is
 closed across all three phases; an already-entered reader or worker start prevents

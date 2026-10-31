@@ -14,12 +14,14 @@
 
 namespace sco {
 class OwnedShutdownHostAccess;
+class SyntheticOwnedSession;
 // Host-source ownership contract, NOT a native target execution barrier. Every
 // cached read must hold Read for its entire use; every worker must be owned here.
 // Arbitrary plugins/native targets cannot be retrofitted by returning true from a
 // callback. Keep this object and all borrowed backing live after a failed drain.
 class OwnedShutdown {
     friend class OwnedShutdownHostAccess;
+    friend class SyntheticOwnedSession;
     struct Worker {
         std::thread thread;
         bool finished = false, starting = true;
@@ -279,17 +281,49 @@ public:
     }
     void fault() {
         std::lock_guard<std::mutex> lock(mutex_);
+        // The synthetic retirement commit is terminal. A fault that acquires
+        // this mutex after that commit is ordered later and cannot revoke it.
+        if (retired_) return;
         faulted_ = closed_ = true;
         ready_ = false;
         stop_.store(true);
         cv_.notify_all();
     }
 private:
+    // After all worker joins have finished, the internal joiner itself can be
+    // reaped without holding the owner mutex. It executes no user callback.
+    // A still-running joiner stays owned and retained on a failed timeout.
+    bool reap_completed_joiner() {
+        std::thread finished;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (!joined_ || !joiner_.joinable()) return true;
+            finished = std::move(joiner_);
+        }
+        try { finished.join(); }
+        catch (...) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            joiner_ = std::move(finished);
+            return false;
+        }
+        return true;
+    }
+    // The synthetic session uses this as its final linearization point. A
+    // later fault is a no-op; an earlier fault makes commit fail. It does not
+    // run cleanup, user code, or release any backing while locked.
+    bool commit_retired(std::chrono::steady_clock::time_point deadline) {
+        if (!reap_completed_joiner()) return false;
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!closed_ || !attempted_ || !ready_ || faulted_ || retired_ ||
+            std::chrono::steady_clock::now() > deadline) return false;
+        retired_ = true;
+        return true;
+    }
     mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::atomic<bool> stop_{false};
     inline static thread_local OwnedShutdown* currentWorker_ = nullptr;
-    bool closed_ = false, attempted_ = false, ready_ = false, faulted_ = false;
+    bool closed_ = false, attempted_ = false, ready_ = false, faulted_ = false, retired_ = false;
     size_t readers_ = 0;
     std::vector<std::thread::id> readerThreads_;
     size_t starting_ = 0;

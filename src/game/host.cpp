@@ -1,7 +1,10 @@
 #include "sco/game/host.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include "../app/owned_start.h"
+#include "../app/owned_subsystems.h"
 #include "../owned_shutdown_access.h"
+#include "../owned_registry_reservation.h"
 #include "sco/game/signatures.h"
 #include "sco/signatures.h"
 #include "sco/log.h"
@@ -52,14 +55,14 @@ enum class RetirementState { NotAttempted, InProgress, Quiesced, Retained };
 RetirementState consumerRetirement = RetirementState::NotAttempted;
 
 void InvalidateBeforeHostInstall() noexcept {
-    caps::InvalidateAll("game host preparing");
+    caps::owned::InvalidateForOwner(options.shutdownOwner, "game host preparing");
 }
 void InvalidateFailedHostCapabilities() noexcept {
-    caps::InvalidateAll("game host failed");
+    caps::owned::InvalidateForOwner(options.shutdownOwner, "game host failed");
 }
 
 void RevokeFailedHostCapabilities() noexcept {
-    if (signatureRegistry) WithHostSignatureRegistry(signatureRegistry, InvalidateFailedHostCapabilities);
+    if (signatureRegistry) InvalidateFailedHostCapabilities();
 }
 
 // Legacy retirement assertion retained for source migration only; it is not
@@ -91,7 +94,7 @@ bool Admitted() noexcept {
     } catch (...) { return false; }
 }
 bool OwnsSignatureRegistry() noexcept {
-    return signatureRegistry && AcquireHostSignatureRegistry() == signatureRegistry;
+    return signatureRegistry && options.shutdownOwner && !options.shutdownOwner->closed();
 }
 bool AdmittedAndOwnsSignatureRegistry() noexcept {
     return Admitted() && OwnsSignatureRegistry();
@@ -132,9 +135,9 @@ std::shared_ptr<const vfs::Table> Mounts() {
     std::lock_guard<std::mutex> hold(dataMutex);
     return dataActive.load() ? dataMounts : nullptr;
 }
-Result PrepareData() {
+Result PrepareData(const sco::detail::StartupPublish& cap) {
     if (!options.platform.dataCore) return Result::Ok;
-    const Result r = datacore::service::Start({options.platform.dataRoot});
+    const Result r = datacore::service::owned::Start({options.platform.dataRoot}, cap);
     if (r != Result::Ok) return r;
     dataActive = true;
     auto inputs = std::make_shared<DataInputs>();
@@ -188,6 +191,13 @@ Result Prepare(const Options& o) {
     }
     auto transition = o.shutdownOwner ? OwnedShutdownHostAccess::transition(*o.shutdownOwner) : OwnedShutdown::Transition{};
     if (o.shutdownOwner && !transition) {
+        o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Unavailable;
+    }
+    if (o.shutdownOwner && !sco::detail::ReserveEmptyHostRegistry(o.shutdownOwner, transition)) {
+        o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Unavailable;
+    }
+    if (o.shutdownOwner && !sco::detail::BindRuntimeStartup(o.shutdownOwner, transition)) {
+        sco::detail::ReleaseUnusedHostRegistryReservation(o.shutdownOwner);
         o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Unavailable;
     }
     try { options = o; } catch (...) {
@@ -265,7 +275,8 @@ Result Activate() {
         options.nativeDataCoreReads || pf.gameServices || pf.pluginsEnabled || pf.nBuiltins || pf.scripts ||
         pf.hostService.start || pf.hostService.tick || pf.hostService.stop ||
         pf.hostMenu.context || pf.hostMenu.load || pf.hostMenu.frame || pf.hostMenu.stop ||
-        pf.setCapabilities || options.earlyDataRequirement) {
+        pf.setCapabilities || options.earlyDataRequirement || pf.diagnosticSources.diagnosticsPlugin ||
+        pf.runtimeInspection.enabled || pf.privateSession.enabled || pf.reservedChords || pf.nReservedChords) {
         return refuse();
     }
     if ((options.quit == QuitPolicy::Required ||
@@ -275,14 +286,10 @@ Result Activate() {
     }
     if (!Admitted()) return refuse();
     try {
-        if (!InstallHostSignatureRegistry(signatureRegistry, InvalidateBeforeHostInstall)) {
-            return RetainTransitionFailure(Result::Failed);
-        }
+        if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
+        // No global registry, raw address or snapshot escapes the strict host.
+        InvalidateBeforeHostInstall();
         if (testLogAfterRegistryInstall.load()) Log("[game-host] injected activation log");
-        if (!PinHostSignatureRegistry(signatureRegistry)) {
-            Log("[game-host] could not pin signature registry");
-            return RetainTransitionFailure(Result::Failed);
-        }
         resolved = true;
         if (!AdmittedAndOwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
         if (options.quit == QuitPolicy::Required) {
@@ -290,7 +297,8 @@ Result Activate() {
             if (q != Result::Ok) return RetainTransitionFailure(q);
         }
         if (!AdmittedAndOwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
-        const Result d = PrepareData();
+        const sco::detail::StartupPublish cap(options.shutdownOwner, transition);
+        const Result d = PrepareData(cap);
         if (d != Result::Ok) return RetainTransitionFailure(d);
         if (!AdmittedAndOwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
 #if defined(SCO_GAME_SERVICES)
@@ -325,12 +333,12 @@ Result Start() {
     if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
     if (!Admitted()) {
         // Preserve the existing retry on admission refusal before startup work.
-        if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
+        if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Failed);
         if (!transition.publish(phase, Phase::Starting, Phase::Activated))
             return RetainTransitionFailure(Result::Unavailable);
         return Result::Unavailable;
     }
-    if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Unavailable);
+    if (!OwnsSignatureRegistry()) return RetainTransitionFailure(Result::Failed);
     detail::SetFreshAdmissionEnabled(true);
     try {
         auto platform = options.platform;
@@ -347,7 +355,8 @@ Result Start() {
         if (testFailAfterAppStart.load()) throw std::runtime_error("injected post-start failure");
         if (dataActive) {
             auto inputs = std::make_shared<DataInputs>();
-            inputs->list = app::Plugins(); inputs->index = app::Content();
+            if (!app::detail::CopyOwnedData(transition, options.shutdownOwner, inputs->list, inputs->index))
+                return RetainTransitionFailure(Result::Unavailable);
             std::lock_guard<std::mutex> hold(dataMutex);
             dataInputs = std::move(inputs);
         }
@@ -406,6 +415,7 @@ Result BeforeQuit() { return Stop(); }
 namespace testing {
 void FailAfterAppStart(bool enabled) { testFailAfterAppStart.store(enabled); }
 void LogAfterRegistryInstall(bool enabled) { testLogAfterRegistryInstall.store(enabled); }
+bool HasPrivateRegistry() { return static_cast<bool>(signatureRegistry); }
 void ForwardQuit(QuitFn original, void* system, void* info, int code) {
     const Result r = BeforeQuit();
     if (r != Result::Ok) Log("[game-host] quit teardown refused: %s", ResultName(r));

@@ -2,6 +2,9 @@
 // Everything runs on the game thread; the state below is touched by nothing else.
 #include "sco/app.h"
 #include "owned_start.h"
+#include "owned_subsystems.h"
+#include "../api/owned_publication.h"
+#include "../owned_registry_reservation.h"
 #include "../ipc/diagnostics_worker.h"
 #include "../api/internal.h"
 #include "../plugins/internal.h"
@@ -470,17 +473,20 @@ bool FinishGameServicesAfterQuiescence() noexcept {
 }
 #endif
 
-Result StartSubsystems(const Platform& pf) {
+Result StartSubsystems(const Platform& pf, const sco::detail::StartupPublish* cap) {
+    const auto failed = [cap](Result r) { return cap && (r != Result::Ok || !cap->valid()); };
     if (!pf.dataRoot.empty()) {   // before any plugin loads, built-ins included
         storage::Options so;
         so.dataRoot = pf.dataRoot;
-        const Result sr = storage::Start(so);
+        const Result sr = cap ? storage::owned::Start(so, *cap) : storage::Start(so);
+        if (failed(sr)) return sr == Result::Ok ? Result::Unavailable : sr;
         if (sr != Result::Ok) Log("[app] storage not started: %s", ResultName(sr));
         if (pf.dataCore) {
 #ifndef SCO_KERNEL_ONLY
             datacore::service::Options dco;
             dco.dataRoot = pf.dataRoot;
-            const Result dr = datacore::service::Start(dco);
+            const Result dr = cap ? datacore::service::owned::Start(dco, *cap) : datacore::service::Start(dco);
+            if (failed(dr)) return dr == Result::Ok ? Result::Unavailable : dr;
             if (dr != Result::Ok) Log("[app] sco.datacore not started: %s", ResultName(dr));
 #else
             Log("[app] sco.datacore not started: this build has no game pack (SCO_GAME_SC=OFF)");
@@ -492,25 +498,34 @@ Result StartSubsystems(const Platform& pf) {
         const Result dr = diagnostics::StartPublisher(pf.diagnosticSources);
         if (dr != Result::Ok) Log("[app] diagnostics publisher not started: %s", ResultName(dr));
     }
-    const Result ur = ui::Start();
+    const Result ur = cap ? ui::owned::Start(*cap) : ui::Start();
+    if (failed(ur)) return ur == Result::Ok ? Result::Unavailable : ur;
     if (ur != Result::Ok) Log("[app] ui not started: %s", ResultName(ur));
-    const Result sur = surfaces::Start();   // after ui: owner cleanup rides its release hook
+    const Result sur = cap ? surfaces::owned::Start(*cap) : surfaces::Start();
+    if (failed(sur)) return sur == Result::Ok ? Result::Unavailable : sur;
     if (sur != Result::Ok) Log("[app] ui surfaces not started: %s", ResultName(sur));
-    const Result wr = widgets::Start();
+    const Result wr = cap ? widgets::owned::Start(*cap) : widgets::Start();
+    if (failed(wr)) return wr == Result::Ok ? Result::Unavailable : wr;
     if (wr != Result::Ok) Log("[app] widgets not started: %s", ResultName(wr));
-    const Result str = settings::Start();   // after storage: kept values are read from it
+    const Result str = cap ? settings::owned::Start(*cap) : settings::Start();
+    if (failed(str)) return str == Result::Ok ? Result::Unavailable : str;
     if (str != Result::Ok) Log("[app] settings not started: %s", ResultName(str));
-    const Result cr = content::Start(); // before discovery: requires=sco.content is public
+    const Result cr = cap ? content::owned::Start(*cap) : content::Start();
+    if (failed(cr)) return cr == Result::Ok ? Result::Unavailable : cr;
     if (cr != Result::Ok) Log("[app] content not started: %s", ResultName(cr));
-    const Result ir = ipc::Start();
+    const Result ir = cap ? ipc::owned::Start({}, *cap) : ipc::Start();
+    if (failed(ir)) return ir == Result::Ok ? Result::Unavailable : ir;
     if (ir != Result::Ok) Log("[app] sco.ipc not started: %s", ResultName(ir));
     net::ServiceOptions networkOptions;
 #ifndef SCO_KERNEL_ONLY
     networkOptions.ownerReleased = game::private_session::ReleaseOwner;
 #endif
-    const Result nr = net::Start(networkOptions); // inert until explicit Host/Join
+    const Result nr = cap ? net::owned::Start(networkOptions, *cap) : net::Start(networkOptions);
+    if (failed(nr)) return nr == Result::Ok ? Result::Unavailable : nr;
 #ifndef SCO_KERNEL_ONLY
-    const Result pr = game::private_session::Start({pf.privateSession, pf.privateSessionAdmitted});
+    const game::private_session::Options sessionOptions{pf.privateSession, pf.privateSessionAdmitted};
+    const Result pr = cap ? game::private_session::owned::Start(sessionOptions, *cap) : game::private_session::Start(sessionOptions);
+    if (failed(pr)) return pr == Result::Ok ? Result::Unavailable : pr;
     if (pr != Result::Ok) Log("[app] private-session broker not started: %s", ResultName(pr));
 #endif
     if (nr != Result::Ok) Log("[app] sco.net not started: %s", ResultName(nr));
@@ -541,7 +556,7 @@ Result StartSubsystems(const Platform& pf) {
     return cr;
 }
 
-plugins::Options DiscoverPlugins(const Platform& pf, const sco_api* api) {
+plugins::Options DiscoverPlugins(const Platform& pf, const sco_api* api, const sco::detail::StartupPublish* cap) {
     plugins::Options opts;
     opts.enabled = pf.pluginsEnabled;
     opts.has = HasCap;
@@ -566,11 +581,11 @@ plugins::Options DiscoverPlugins(const Platform& pf, const sco_api* api) {
     g_opts = opts;
     g_list = std::move(list);
     g_index.Clear();
-    plugins::ContainCallouts(&g_list);
+    if (!cap) plugins::ContainCallouts(&g_list);
     return opts;
 }
 
-bool PrepareDataPacks(Result cr) {
+bool PrepareDataPacks(Result cr, const sco::detail::StartupPublish* cap) {
     // Packs are indexed and snapshotted before ANY consumer load callback.
     // A startup pack cannot depend on code that has not run. Refuse that
     // dependency explicitly instead of exposing content from a failed provider.
@@ -593,7 +608,7 @@ bool PrepareDataPacks(Result cr) {
         }
     }
     g_index.Build(g_list);
-    const Result csr = cr == Result::Ok ? content::Snapshot(g_list, g_index) : cr;
+    const Result csr = cr == Result::Ok ? (cap ? content::owned::Snapshot(g_list, g_index, *cap) : content::Snapshot(g_list, g_index)) : cr;
     if (csr != Result::Ok) {
         Log("[app] content snapshot failed: %s; consumers not loaded", ResultName(csr));
         Stop();
@@ -602,7 +617,7 @@ bool PrepareDataPacks(Result cr) {
     return true;
 }
 
-void LoadPlugins(const Platform& pf, const sco_api* api, const plugins::Options& opts) {
+void LoadPlugins(const Platform& pf, const sco_api* api, const plugins::Options& opts, const sco::detail::StartupPublish* cap) {
     // Built-ins first: they are the product's features, and register before any plugin can.
     for (auto& p : g_list)
         if (p.state == plugins::State::Ready && p.manifest.kind == plugins::Kind::Builtin)
@@ -632,12 +647,14 @@ void LoadPlugins(const Platform& pf, const sco_api* api, const plugins::Options&
             }
         }
     }
-    RegisterReloadCommand();
+    if (!cap) RegisterReloadCommand();
 }
 
-void FinalizeStartup(const Platform& pf) {
+void FinalizeStartup(const Platform& pf, const sco::detail::StartupPublish* cap) {
     if (pf.image) { auto snapshot = AcquireHostSignatureSnapshot(); if (snapshot) LogSignatureReport(*snapshot, false); }
     plugins::LogReport(g_list, pf.pluginsEnabled);
+
+    if (cap) return; // no arbitrary callbacks or diagnostic workers in owned startup
 
     const Result r = Dispatch("game.ready", nullptr);
     if (r != Result::Ok) Log("[app] game.ready: %s", ResultName(r));
@@ -695,7 +712,7 @@ bool HasRetainedGameHooks() noexcept {
 #endif
 }
 
-static bool StartImpl(const Platform& platform) {
+static bool StartImpl(const Platform& platform, const sco::detail::StartupPublish* cap) {
     if (g_startEntry.test_and_set()) return false;
     struct Entry { ~Entry() { g_startEntry.clear(); } } entry;
     if (g_started || g_teardownFailed) {
@@ -703,8 +720,7 @@ static bool StartImpl(const Platform& platform) {
         return false;
     }
     try {
-    SetGameThread();
-    sco::detail::SetRuntimeShutdownOwner(platform.shutdownOwner);
+    sco::detail::SetGameThreadOwned(cap);
     sco::detail::SetRuntimeStopping(false);
     g_diagnostics.Reset();
     diagnostics::ResetServiceDiagnosticHistory();
@@ -714,26 +730,34 @@ static bool StartImpl(const Platform& platform) {
     g_platform = platform;
     const Platform& pf = g_platform;
 
-    const bool signaturesReady = InitPlatformAndSignatures(pf);
+    // The strict synthetic host owns its private registry; never borrow or
+    // pin an unrelated global snapshot on the owned path.
+    const bool signaturesReady = cap ? true : InitPlatformAndSignatures(pf);
     g_platform.imageOwner.reset(); g_platform.resolverOwner.reset();
     if (!signaturesReady) return false;
     const char* version = pf.hostVersion ? pf.hostVersion : "sco-core host";
-    const sco_api* api = host::BuildApi({ version });
+    if (cap) sco::detail::SetCapabilityCheckOwned(cap, caps::Has);
+    const sco_api* api = cap ? host::owned::BuildApi({ version }, *cap) : host::BuildApi({ version });
+    if (!api) { if (cap) detail::RetainFailedOwnedStartup(platform.shutdownOwner); return false; }
 
-    const Result cr = StartSubsystems(pf);
+    const Result cr = StartSubsystems(pf, cap);
+    if (cap && (cr != Result::Ok || !cap->valid())) {
+        detail::RetainFailedOwnedStartup(platform.shutdownOwner);
+        return false;
+    }
     if (g_gameServicesStartFailed) {
         g_started = true;
         try { Log("[app] game services left retained state; stopping startup"); } catch (...) {}
         Stop();
         return false;
     }
-    const plugins::Options opts = DiscoverPlugins(pf, api);
+    const plugins::Options opts = DiscoverPlugins(pf, api, cap);
     g_started = true;
 
-    if (!PrepareDataPacks(cr)) return false;
+    if (!PrepareDataPacks(cr, cap)) return false;
 
     // Discovery installs the plugin guard; compose it only after discovery and pack preparation.
-    sco::SetCalloutGuard(MenuCallout);
+    if (!cap) sco::SetCalloutGuard(MenuCallout);
     StartMenu(pf.hostMenu, api);
     g_hostServiceStarted = false;
     if (pf.hostService.start && pf.hostService.tick && pf.hostService.stop) {
@@ -741,8 +765,8 @@ static bool StartImpl(const Platform& platform) {
         catch (...) { g_hostServiceStarted = false; }
         if (!g_hostServiceStarted) Log("[app] optional host service unavailable");
     }
-    LoadPlugins(pf, api, opts);
-    FinalizeStartup(pf);
+    LoadPlugins(pf, api, opts, cap);
+    FinalizeStartup(pf, cap);
     return true;
     } catch (...) {
         // Startup can have installed consumers even if its aggregate state was
@@ -761,23 +785,43 @@ bool Start(const Platform& platform) {
     // Owned sessions require the host's startup gate; a generic direct caller
     // cannot establish the host phase publication transaction.
     if (platform.shutdownOwner) return false;
-    return StartImpl(platform);
+    sco::detail::RuntimeLease admission;
+    if (admission.owned() || !sco::detail::RuntimeCanStartLegacy()) return false;
+    return StartImpl(platform, nullptr);
 }
 
 namespace detail {
+bool CopyOwnedData(const OwnedShutdown::Transition& transition, const std::shared_ptr<OwnedShutdown>& owner,
+                   std::vector<plugins::Plugin>& list, plugins::ContentIndex& index) {
+    if (!owner || !transition.valid_for(*owner) || !sco::detail::RuntimeBoundTo(owner)) return false;
+    list = g_list;
+    index = g_index;
+    return transition.valid_for(*owner);
+}
 void RetainFailedOwnedStartup(const std::shared_ptr<OwnedShutdown>& owner) noexcept {
     if (owner) owner->fault();
     if (g_platform.shutdownOwner != owner) return;
     g_teardownFailed = true;
     sco::detail::SetRuntimeStopping(true);
     try {
-        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+        if (owner) caps::owned::InvalidateForOwner(owner, "signature host unavailable");
+        else if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
         else WithNoHostSignatureRegistry(RevokeCapabilities);
     } catch (...) {}
 }
 bool StartOwned(const Platform& platform, const OwnedShutdown::Transition& transition) {
     if (!platform.shutdownOwner || !transition.valid_for(*platform.shutdownOwner)) return false;
-    const bool started = StartImpl(platform);
+    const sco::detail::StartupPublish cap(platform.shutdownOwner, transition);
+    if (!cap.valid() || !sco::detail::HostRegistryReservedFor(platform.shutdownOwner)) return false;
+    if (platform.pluginsEnabled || platform.nBuiltins || platform.scripts || platform.gameServices ||
+        platform.hostService.start || platform.hostService.tick || platform.hostService.stop ||
+        platform.hostMenu.context || platform.hostMenu.load || platform.hostMenu.frame || platform.hostMenu.stop ||
+        platform.setCapabilities || platform.diagnosticSources.diagnosticsPlugin || platform.runtimeInspection.enabled ||
+        platform.privateSession.enabled || platform.reservedChords || platform.nReservedChords) {
+        platform.shutdownOwner->fault();
+        return false;
+    }
+    const bool started = StartImpl(platform, &cap);
     if (!started || !transition.valid_for(*platform.shutdownOwner)) {
         RetainFailedOwnedStartup(platform.shutdownOwner);
         return false;
@@ -837,8 +881,7 @@ Result Stop() {
         g_platform.shutdownOwner->fault();
         g_teardownFailed = true;
         g_stopping = false;
-        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
-        else WithNoHostSignatureRegistry(RevokeCapabilities);
+        caps::owned::InvalidateForOwner(g_platform.shutdownOwner, "signature host unavailable");
         try { Log("[app] owned retirement retained: cleanup is not failure-atomic"); } catch (...) {}
         return Result::Failed;
     }
@@ -1007,9 +1050,21 @@ Result Reload(std::string_view id, std::string* why) {
     return result;
 }
 
-const std::vector<plugins::Plugin>& Plugins() { return g_list; }
-std::shared_ptr<const diagnostics::Snapshot> DiagnosticSnapshot() { return g_diagnostics.Latest(); }
+const std::vector<plugins::Plugin>& Plugins() {
+    sco::detail::RuntimeLease admission;
+    static const std::vector<plugins::Plugin> empty;
+    return admission && !admission.owned() ? g_list : empty;
+}
+std::shared_ptr<const diagnostics::Snapshot> DiagnosticSnapshot() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup()) return {};
+    return g_diagnostics.Latest();
+}
 
-const plugins::ContentIndex& Content() { return g_index; }
+const plugins::ContentIndex& Content() {
+    sco::detail::RuntimeLease admission;
+    static const plugins::ContentIndex empty;
+    return admission && !admission.owned() ? g_index : empty;
+}
 
 }  // namespace sco::app

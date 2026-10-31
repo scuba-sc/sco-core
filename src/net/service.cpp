@@ -20,6 +20,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
@@ -653,7 +654,8 @@ void MessageThunk(void* p) {
 
 }  // namespace
 
-Result Start(const ServiceOptions& opts) {
+static Result StartImpl(const ServiceOptions& opts, const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (opts.quotaMsgs == 0 || opts.quotaBytes < SCO_NET_MAX_RELIABLE || opts.pollMs == 0 || opts.pollMs > 1000 ||
         opts.pbkdf2Iters == 0)
         return Result::BadArg;
@@ -671,23 +673,45 @@ Result Start(const ServiceOptions& opts) {
         g_stats = ServiceStats();
         g_reason.clear();
     }
-    Result r = AddReleaseHook(OnRelease);
+    Result r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r == Result::Ok) {
-        r = host::ProvideHostService(SCO_NET_NAME, SCO_NET_VERSION_1_0, &kTable);
+        r = sco::detail::PublishHostOwned(cap, SCO_NET_NAME, SCO_NET_VERSION_1_0, &kTable);
         if (r == Result::Ok) {
-            r = caps::Set(kCapability, true);
-            if (r != Result::Ok) host::WithdrawHostService(SCO_NET_NAME);
+            r = cap ? sco::caps::owned::Set(*cap, kCapability, true)
+                    : caps::Set(kCapability, true);
+            if (r != Result::Ok && !cap) host::WithdrawHostService(SCO_NET_NAME);
         }
-        if (r != Result::Ok) RemoveReleaseHook(OnRelease);
+        if (r != Result::Ok && !cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
     }
     if (r != Result::Ok) {
+        if (cap) return r; // retain partial owned startup for terminal fault handling
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
     }
     return r;
 }
 
+Result Start(const ServiceOptions& opts) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(opts, nullptr);
+}
+namespace owned {
+Result Start(const ServiceOptions& opts, const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(opts, &cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     std::lock_guard<std::mutex> control(g_control);
     {
         std::lock_guard<std::mutex> hold(g_lock);
@@ -717,6 +741,8 @@ bool Started() {
 }
 
 void Tick() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return;
     if (!OnGameThread() || detail::InCallout()) return;
     std::deque<Item> items;
     {
@@ -764,6 +790,8 @@ bool WaitForDelivery(uint32_t timeoutMs) {
 }
 
 void PumpNetwork() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     std::lock_guard<std::mutex> control(g_control);
     if (!g_session) return;
     if (!Step(*g_session, Now())) {
@@ -773,6 +801,8 @@ void PumpNetwork() {
 }
 
 Result Host(const HostOptions& o) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
     std::lock_guard<std::mutex> control(g_control);
     if (!Started()) return Result::Unavailable;
     if (o.passphrase.empty() || !ValidName(o.playerName) || o.maxPeers < 2 || o.maxPeers > kMaxPeers) return Result::BadArg;
@@ -804,6 +834,8 @@ Result Host(const HostOptions& o) {
 }
 
 Result Join(const JoinOptions& o) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
     std::lock_guard<std::mutex> control(g_control);
     if (!Started()) return Result::Unavailable;
     if (o.passphrase.empty() || !ValidName(o.playerName)) return Result::BadArg;
@@ -838,6 +870,8 @@ Result Join(const JoinOptions& o) {
 }
 
 void Leave(const char* reason) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     std::lock_guard<std::mutex> control(g_control);
     LeaveLocked(reason);
 }
@@ -858,6 +892,8 @@ uint16_t BoundPort() {
 }
 
 Result SetPeerEntity(PeerId peer, uint64_t entityId) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_lock);
     if (!g_started || !g_active) return Result::NotFound;
     const bool known = std::any_of(g_peers.begin(), g_peers.end(), [peer](const PeerInfo& p) { return p.id == peer; });
@@ -877,6 +913,10 @@ ServiceStats GetServiceStats() {
     return g_stats;
 }
 
-const sco_net_v1* Table() { return &kTable; }
+const sco_net_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 
 }  // namespace sco::net
