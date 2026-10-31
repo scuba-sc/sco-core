@@ -68,16 +68,20 @@ int FindPattern(const Section& text, const char* pattern, uint8_t** out, int max
 }
 
 uint8_t* FunctionStart(const Image& img, const uint8_t* at) {
-    if (!img.base || !img.pdata.base || !at || at < img.base || at >= img.base + img.size) return nullptr;
-    const uint32_t rva = static_cast<uint32_t>(at - img.base);
+    const auto base = reinterpret_cast<uintptr_t>(img.base);
+    const auto address = reinterpret_cast<uintptr_t>(at);
+    const auto directory = reinterpret_cast<uintptr_t>(img.pdata.base);
+    if (!base || !img.size || img.size > UINTPTR_MAX - base || !at || address < base ||
+        address - base >= img.size || !directory || directory < base ||
+        directory - base > img.size || img.pdata.size > img.size - (directory - base)) return nullptr;
+    const uint32_t rva = static_cast<uint32_t>(address - base);
     struct Entry { uint32_t begin, end, unwind; };
     const auto entry = [&](size_t off, Entry& e) {   // false when the 12 bytes at off aren't inside the image
         if (off > img.size || img.size - off < sizeof(Entry)) return false;
         memcpy(&e, img.base + off, sizeof(Entry));
         return true;
     };
-    if (img.pdata.base < img.base || img.pdata.base > img.base + img.size) return nullptr;
-    const size_t pdata = static_cast<size_t>(img.pdata.base - img.base);
+    const size_t pdata = static_cast<size_t>(directory - base);
     // The entries are sorted by begin and don't overlap: binary search, as RtlLookupFunctionEntry does.
     size_t lo = 0, hi = img.pdata.size / sizeof(Entry);
     bool found = false;
@@ -93,13 +97,15 @@ uint8_t* FunctionStart(const Image& img, const uint8_t* at) {
     // A chained entry's unwind info ends with the parent RUNTIME_FUNCTION (after the 2-byte unwind
     // codes, padded to an even count): follow it to the primary function.
     constexpr uint8_t kChainInfo = 4;   // UNW_FLAG_CHAININFO
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i <= 8; ++i) {
         if (e.unwind >= img.size || img.size - e.unwind < 4) return nullptr;
         const uint8_t* info = img.base + e.unwind;
-        if (!((info[0] >> 3) & kChainInfo)) break;
-        if (!entry(size_t{ e.unwind } + 4 + ((info[2] + 1u) & ~1u) * 2, e)) return nullptr;
+        if (!((info[0] >> 3) & kChainInfo))
+            return e.begin < img.size ? img.base + e.begin : nullptr;
+        const size_t tail = 4 + ((info[2] + 1u) & ~1u) * 2;
+        if (i == 8 || tail > img.size - e.unwind || !entry(size_t{e.unwind} + tail, e)) return nullptr;
     }
-    return e.begin < img.size ? img.base + e.begin : nullptr;
+    return nullptr;
 }
 
 uint8_t* FindUniquePattern(const Section& text, const char* pattern, int& matches) {

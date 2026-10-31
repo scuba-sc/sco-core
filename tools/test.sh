@@ -11,6 +11,17 @@ fi
 CXX=${CXX:-$(command -v clang++ || command -v g++)}
 CC=${CC:-$(command -v clang || command -v gcc)}
 
+# Critical resolver boundaries also run under sanitizers in this standalone path.
+# The complete issue302 matrix is registered by CMake/CTest.
+RESOLVER_FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -I "$ROOT/include")
+for fixture in test_issue302_shared_bounds test_issue302_offline_bounds; do
+  "$CXX" "${RESOLVER_FLAGS[@]}" "$ROOT/tests/$fixture.cpp" "$ROOT/tests/issue302_signature_support.cpp" "$ROOT/src/sco_scan.cpp" -o "$OUT/$fixture"
+  "$OUT/$fixture"
+done
+"$CXX" "${RESOLVER_FLAGS[@]}" "$ROOT/tests/test_issue302_registry_bounds.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_scan.cpp" -o "$OUT/test_issue302_registry_bounds"
+"$OUT/test_issue302_registry_bounds"
+python3 "$ROOT/tests/test_issue302_parity_gate.py"
+
 # Plugin ABI pin (tests/abi_v1.c): compile-only. As C and C++ for this host, for x64 Windows
 # (the real target; -ffreestanding so no Windows SDK is needed), and with -fshort-enums to prove
 # the enums keep 4 bytes whatever the compiler's enum setting.
