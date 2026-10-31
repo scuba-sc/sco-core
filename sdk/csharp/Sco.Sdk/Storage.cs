@@ -143,6 +143,24 @@ namespace Sco.Sdk
 
         // ---- transactions ------------------------------------------------------------------
 
+        // Schema strings are bounded by the host's 16 MiB SQLite value limit, plus NUL.
+        private const uint MaxSchemaBuffer = (16u << 20) + 1;
+        private const int MaxSchemaCalls = 64;
+        private static readonly System.Text.UTF8Encoding SchemaUtf8 = new(false, true);
+
+        private static uint SchemaCapacity(uint current, uint required) =>
+            Math.Max(required, Math.Min(current * 2, MaxSchemaBuffer));
+
+        private static bool SchemaString(byte[] bytes, uint size, out string value)
+        {
+            value = "";
+            if (size == 0 || size > (uint)bytes.Length || bytes[(int)size - 1] != 0) return false;
+            ReadOnlySpan<byte> payload = bytes.AsSpan(0, (int)size - 1);
+            if (payload.IndexOf((byte)0) >= 0) return false;
+            try { value = SchemaUtf8.GetString(payload); return true; }
+            catch (System.Text.DecoderFallbackException) { return false; }
+        }
+
         /// <summary>1.1 next_table: the first own table/view sorting after <paramref name="after"/>
         /// (null from the start); sco_kv and sqlite_% objects are never listed.</summary>
         public ScoResult NextTable(string? after, out string table, out uint kind)
@@ -150,15 +168,33 @@ namespace Sco.Sdk
             table = ""; kind = 0;
             if (_t == null || _t->size < (uint)((byte*)&_t->next_table - (byte*)_t + sizeof(nint)) || _t->next_table == null)
                 return ScoResult.Unavailable;
-            byte[]? a = Utf8.Z(after);
-            byte[] name = new byte[256];
-            uint size = (uint)name.Length, k = 0;
-            fixed (byte* ap = a) fixed (byte* np = name)
+            try
             {
-                var r = _t->next_table(Self, ap, np, &size, &k);
-                if (r == ScoResult.Ok) { table = Utf8.FromBytes(name); kind = k; }
-                return r;
+                byte[]? a = Utf8.Z(after);
+                byte[] name = new byte[256];
+                for (int attempt = 0; attempt < MaxSchemaCalls; ++attempt)
+                {
+                    Array.Fill(name, (byte)0xff); // A provider must actually write the terminating NUL.
+                    uint size = (uint)name.Length, k = 0;
+                    ScoResult result;
+                    fixed (byte* ap = a) fixed (byte* np = name)
+                    {
+                        var r = _t->next_table(Self, ap, np, &size, &k);
+                        result = r;
+                    }
+                    if (result == ScoResult.Ok)
+                    {
+                        if (!SchemaString(name, size, out string decoded)) return ScoResult.Failed;
+                        table = decoded; kind = k;
+                        return ScoResult.Ok;
+                    }
+                    if (result != ScoResult.TooMany) return result;
+                    if (size <= (uint)name.Length || size > MaxSchemaBuffer) return ScoResult.TooMany;
+                    name = new byte[SchemaCapacity((uint)name.Length, size)];
+                }
             }
+            catch (OutOfMemoryException) { return ScoResult.TooMany; }
+            return ScoResult.TooMany;
         }
 
         /// <summary>1.1 next_column: the column at declaration position <paramref name="index"/> of an
@@ -168,15 +204,37 @@ namespace Sco.Sdk
             name = ""; type = ""; flags = 0;
             if (_t == null || _t->size < (uint)((byte*)&_t->next_column - (byte*)_t + sizeof(nint)) || _t->next_column == null)
                 return ScoResult.Unavailable;
-            byte[] t = Utf8.Z(table)!;
-            byte[] n = new byte[256], y = new byte[256];
-            uint ns = (uint)n.Length, ys = (uint)y.Length, f = 0, idx = index;
-            fixed (byte* tp = t) fixed (byte* np = n) fixed (byte* yp = y)
+            try
             {
-                var r = _t->next_column(Self, tp, &idx, np, &ns, yp, &ys, &f);
-                if (r == ScoResult.Ok) { index = idx; name = Utf8.FromBytes(n); type = Utf8.FromBytes(y); flags = f; }
-                return r;
+                byte[] t = Utf8.Z(table)!;
+                byte[] n = new byte[256], y = new byte[256];
+                uint wanted = index;
+                for (int attempt = 0; attempt < MaxSchemaCalls; ++attempt)
+                {
+                    Array.Fill(n, (byte)0xff); Array.Fill(y, (byte)0xff);
+                    uint ns = (uint)n.Length, ys = (uint)y.Length, f = 0, idx = wanted;
+                    ScoResult result;
+                    fixed (byte* tp = t) fixed (byte* np = n) fixed (byte* yp = y)
+                    {
+                        var r = _t->next_column(Self, tp, &idx, np, &ns, yp, &ys, &f);
+                        result = r;
+                    }
+                    if (result == ScoResult.Ok)
+                    {
+                        if (idx <= wanted || !SchemaString(n, ns, out string decodedName) || !SchemaString(y, ys, out string decodedType))
+                            return ScoResult.Failed;
+                        index = idx; name = decodedName; type = decodedType; flags = f;
+                        return ScoResult.Ok;
+                    }
+                    if (result != ScoResult.TooMany) return result;
+                    bool growName = ns > (uint)n.Length, growType = ys > (uint)y.Length;
+                    if ((!growName && !growType) || ns > MaxSchemaBuffer || ys > MaxSchemaBuffer) return ScoResult.TooMany;
+                    if (growName) n = new byte[SchemaCapacity((uint)n.Length, ns)];
+                    if (growType) y = new byte[SchemaCapacity((uint)y.Length, ys)];
+                }
             }
+            catch (OutOfMemoryException) { return ScoResult.TooMany; }
+            return ScoResult.TooMany;
         }
 
         public ScoResult Begin() => _t == null || _t->size < (uint)((byte*)&_t->rollback - (byte*)_t + sizeof(nint)) || _t->begin == null || _t->rollback == null ? ScoResult.Unavailable : _t->begin(Self);

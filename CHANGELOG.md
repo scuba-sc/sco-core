@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- C# storage schema enumeration retries bounded sized strings, preserves outputs on failure, and rejects malformed successful replies. Synthetic fake-host tests cover schema growth and limits.
+
 - Add an optional packaged consumer requirements report bound to explicit catalogue
   and registry hashes, with language support, scoped static capability evidence
   and a container-reader declaration. It does not establish provider readiness
