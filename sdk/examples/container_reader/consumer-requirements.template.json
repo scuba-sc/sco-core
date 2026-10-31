@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source_sha": null,
+  "catalogue_sha256": null,
+  "items": [
+    {"id": "sco-plugin-query", "language": "c"},
+    {"id": "sco-plugin-load", "language": "c"},
+    {"id": "sco-plugin-unload", "language": "c"},
+    {"id": "sco-api-register-command", "language": "c"},
+    {"id": "sco-api-query-service", "language": "c"},
+    {"id": "sc-container-contents-v1-snapshot", "language": "c"}
+  ]
+}
