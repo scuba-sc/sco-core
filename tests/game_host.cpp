@@ -15,6 +15,7 @@
 #include <future>
 
 namespace gh = sco::game::host;
+namespace sco::net::testing { bool RawStarted(); }
 static int failures = 0, checks = 0;
 #define CHECK(x) do { ++checks; if (!(x)) { ++failures; std::printf("FAIL %d: %s\n", __LINE__, #x); } } while (0)
 static gh::Admission evidence;
@@ -333,7 +334,7 @@ int main(int argc, char** argv) {
                 CHECK(result == sco::Result::Failed);
                 CHECK(!appStartFault || faultSinkFired);
                 CHECK(!faultOwner->open() && sco::detail::RuntimeStopping());
-                CHECK(sco::net::Started() && gh::testing::HasPrivateRegistry() && !sco::AcquireHostSignatureRegistry());
+                CHECK(!sco::net::Started() && sco::net::testing::RawStarted() && gh::testing::HasPrivateRegistry() && !sco::AcquireHostSignatureRegistry());
                 CHECK(gh::Status().phase == gh::Phase::Failed && gh::Start() == sco::Result::BadArg);
                 return failures ? 1 : 0;
             }
@@ -374,7 +375,7 @@ int main(int argc, char** argv) {
                 CHECK(gh::Tick(1) == sco::Result::Unavailable);
                 fault.join();
                 CHECK(sco::detail::RuntimeStopping() && gh::Status().phase == gh::Phase::Failed);
-                CHECK(sco::net::Started() && gh::Start() == sco::Result::BadArg);
+                CHECK(!sco::net::Started() && sco::net::testing::RawStarted() && gh::Start() == sco::Result::BadArg);
                 return failures ? 1 : 0;
             }
             if (runningFault) {

@@ -18,13 +18,22 @@
 #include <cstdlib>
 #define CHECK(expr) do { if (!(expr)) { std::fprintf(stderr, "CHECK failed: %s:%d: %s\n", __FILE__, __LINE__, #expr); std::abort(); } } while (0)
 #include <chrono>
+#include <atomic>
 #include <future>
 #include <stdexcept>
 #include <string>
 #include <thread>
 namespace sco::ui::testing { void SetTableExitHook(void (*)(void*), void*) noexcept; }
 namespace sco::storage::testing { void SetTableExitHook(void (*)(void*), void*) noexcept; }
-namespace sco::net::testing { void SetTableExitHook(void (*)(void*), void*) noexcept; const sco_net_v1* TableUnchecked() noexcept; }
+namespace sco::net::testing {
+void SetTableExitHook(void (*)(void*), void*) noexcept;
+const sco_net_v1* TableUnchecked() noexcept;
+void SetObservationHook(void (*)(void*), void*) noexcept;
+void SetWaitPredicateHook(void (*)(void*), void*) noexcept;
+bool RawStarted();
+void SeedObservations(void (*)(const void*));
+bool RawObservationsRetained(void (*)(const void*));
+}
 struct TableGate {
     std::promise<void> entered;
     std::shared_future<void> release;
@@ -41,6 +50,15 @@ static int stopCalls = 0, barrierCalls = 0, exits = 0;
 static int queuedRuns = 0;
 static bool UnexpectedNativeBarrier(void*) { std::abort(); }
 static void ThrowCapabilities() { throw std::runtime_error("startup fault"); }
+static void ThrowObservation(void*) { throw std::runtime_error("observation fault"); }
+struct WaitSignal {
+    std::promise<void> entered;
+    std::atomic<bool> signaled{false};
+    static void Signal(void* p) {
+        auto& self = *static_cast<WaitSignal*>(p);
+        if (!self.signaled.exchange(true)) self.entered.set_value();
+    }
+};
 static bool RefuseCleanup(void* p) { ++*static_cast<int*>(p); return false; }
 static void Queued(void*) { ++queuedRuns; }
 static void StartupEvent(const char*, const void*, void*) {}
@@ -118,6 +136,57 @@ int main(int argc, char** argv) {
     p.privateSession.enabled = false;
     p.shutdownOwner = domain;
     p.beforeDependentStop = Drain;
+    if (argc > 1 && std::string(argv[1]) == "observer-startup-seeded") {
+        CHECK(sco::OwnedShutdownHostAccess::begin_startup(*domain));
+        auto transition = sco::OwnedShutdownHostAccess::transition(*domain);
+        CHECK(transition && sco::detail::BindRuntimeStartup(domain, transition));
+        sco::net::testing::SeedObservations(StartupRelease);
+        const auto checkClosed = [] {
+            { sco::detail::RuntimeObservation observation; CHECK(!observation); }
+            CHECK(!sco::net::Started() && !sco::net::HasOwnerReleaseDispatcher(StartupRelease));
+            CHECK(!sco::net::WaitForDelivery(0) && sco::net::GetState() == sco::net::State::Idle);
+            CHECK(sco::net::LastReason().empty() && sco::net::BoundPort() == 0);
+            CHECK(sco::net::GetServiceStats().quotaRefused == 0);
+        };
+        checkClosed();
+        std::thread worker(checkClosed);
+        worker.join();
+        CHECK(sco::net::testing::RawObservationsRetained(StartupRelease));
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "observer-prebind") {
+        std::promise<void> release; TableGate gate{{}, release.get_future().share(), {}};
+        sco::net::testing::SetObservationHook(TableGate::Hold, &gate);
+        auto call = std::async(std::launch::async, [] { return sco::net::Started(); });
+        CHECK(gate.entered.get_future().wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+        CHECK(sco::OwnedShutdownHostAccess::begin_startup(*domain));
+        {
+            auto transition = sco::OwnedShutdownHostAccess::transition(*domain);
+            CHECK(transition && !sco::detail::BindRuntimeStartup(domain, transition));
+        }
+        release.set_value();
+        CHECK(!call.get());
+        sco::net::testing::SetObservationHook(nullptr, nullptr);
+        auto transition = sco::OwnedShutdownHostAccess::transition(*domain);
+        CHECK(transition && sco::detail::BindRuntimeStartup(domain, transition));
+        return 0;
+    }
+#ifdef SCO_RUNTIME_OBSERVER_TESTING
+    if (argc > 1 && std::string(argv[1]) == "observer-close-before-read") {
+        CHECK(StartFixture(p));
+        std::promise<void> release; TableGate gate{{}, release.get_future().share(), {}};
+        sco::detail::SetObservationEntryHookForTest(TableGate::Hold, &gate);
+        auto call = std::async(std::launch::async, [] { return sco::net::Started(); });
+        CHECK(gate.entered.get_future().wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+        CHECK(domain->drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(2)));
+        release.set_value();
+        CHECK(!call.get());
+        sco::detail::SetObservationEntryHookForTest(nullptr, nullptr);
+        CHECK(sco::net::testing::RawStarted());
+        CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
+        return 0;
+    }
+#endif
     if (argc > 1 && std::string(argv[1]) == "start-success") {
         sco::app::Platform legacy;
         legacy.pluginsEnabled = false;
@@ -202,6 +271,10 @@ int main(int argc, char** argv) {
             CHECK(sco::QueryService("fixture.service", 1u << 16, &table) == sco::Result::Unavailable && !table);
             CHECK(!sco::net::Table());
             CheckClosedNet(*sco::net::testing::TableUnchecked());
+            CHECK(!sco::net::Started() && !sco::net::HasOwnerReleaseDispatcher(StartupRelease));
+            CHECK(!sco::net::WaitForDelivery(0) && sco::net::GetState() == sco::net::State::Idle);
+            CHECK(sco::net::LastReason().empty() && sco::net::BoundPort() == 0);
+            CHECK(sco::net::GetServiceStats().quotaRefused == 0);
             if (std::string(argv[1]) == "startup-publication") {
                 static int reentrantOwner, reentrantTable;
                 CHECK(sco::ProvideService(&reentrantOwner, "rogue", "rogue.service", 1u << 16, &reentrantTable) == sco::Result::Unavailable);
@@ -236,6 +309,111 @@ int main(int argc, char** argv) {
         CHECK(sco::ProvideService(&owner, "fixture", "fixture.service", 1u << 16, &table) == sco::Result::Unavailable);
         const void* result = nullptr;
         CHECK(sco::QueryService("fixture.service", 1u << 16, &result) == sco::Result::NotFound && !result);
+        CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "observer-seeded-refusal") {
+        CHECK(StartFixture(p));
+        sco::net::testing::SeedObservations(StartupRelease);
+        CHECK(sco::net::Started() && sco::net::HasOwnerReleaseDispatcher(StartupRelease));
+        CHECK(sco::net::WaitForDelivery(0) && sco::net::GetState() == sco::net::State::Hosting);
+        CHECK(sco::net::LastReason() == "fixture" && sco::net::BoundPort() == 1234);
+        CHECK(sco::net::GetServiceStats().quotaRefused == 3);
+        sco::detail::SetRuntimeStopping(true);
+        CHECK(domain->open());
+        CHECK(!sco::net::Started() && !sco::net::HasOwnerReleaseDispatcher(StartupRelease));
+        CHECK(!sco::net::WaitForDelivery(0) && sco::net::GetState() == sco::net::State::Idle);
+        CHECK(sco::net::LastReason().empty() && sco::net::BoundPort() == 0);
+        CHECK(sco::net::GetServiceStats().quotaRefused == 0);
+        CHECK(sco::net::testing::RawObservationsRetained(StartupRelease));
+        sco::detail::SetRuntimeStopping(false);
+        domain->fault();
+        CHECK(!sco::net::Started() && !sco::net::HasOwnerReleaseDispatcher(StartupRelease));
+        CHECK(!sco::net::WaitForDelivery(0) && sco::net::GetState() == sco::net::State::Idle);
+        CHECK(sco::net::LastReason().empty() && sco::net::BoundPort() == 0);
+        CHECK(sco::net::GetServiceStats().quotaRefused == 0);
+        CHECK(sco::net::testing::RawObservationsRetained(StartupRelease));
+        CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
+        return 0;
+    }
+    if (argc > 1 && (std::string(argv[1]) == "observer-dispatcher-drain" ||
+                     std::string(argv[1]) == "observer-state-drain" ||
+                     std::string(argv[1]) == "observer-reason-drain" ||
+                     std::string(argv[1]) == "observer-port-drain" ||
+                     std::string(argv[1]) == "observer-stats-drain")) {
+        CHECK(StartFixture(p));
+        sco::net::testing::SeedObservations(StartupRelease);
+        std::promise<void> release; TableGate gate{{}, release.get_future().share(), {}};
+        sco::net::testing::SetObservationHook(TableGate::Hold, &gate);
+        const std::string mode = argv[1];
+        auto call = std::async(std::launch::async, [&]() -> uint64_t {
+            if (mode == "observer-dispatcher-drain") return sco::net::HasOwnerReleaseDispatcher(StartupRelease) ? 1 : 0;
+            if (mode == "observer-state-drain") return static_cast<uint64_t>(sco::net::GetState());
+            if (mode == "observer-reason-drain") return sco::net::LastReason().size();
+            if (mode == "observer-port-drain") return sco::net::BoundPort();
+            return sco::net::GetServiceStats().quotaRefused;
+        });
+        CHECK(gate.entered.get_future().wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+        auto drain = std::async(std::launch::async, [&] {
+            return domain->drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(3));
+        });
+        CHECK(domain->wait_until_closed(std::chrono::steady_clock::now() + std::chrono::seconds(2)));
+        CHECK(drain.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
+        release.set_value();
+        const uint64_t expected = mode == "observer-dispatcher-drain" ? 1 :
+            mode == "observer-state-drain" ? static_cast<uint64_t>(sco::net::State::Hosting) :
+            mode == "observer-reason-drain" ? 7 : mode == "observer-port-drain" ? 1234 : 3;
+        CHECK(call.get() == expected && drain.get());
+        sco::net::testing::SetObservationHook(nullptr, nullptr);
+        CHECK(sco::net::testing::RawObservationsRetained(StartupRelease));
+        CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
+        return 0;
+    }
+    if (argc > 1 && (std::string(argv[1]) == "observer-call-drain" ||
+                     std::string(argv[1]) == "observer-wait-drain" ||
+                     std::string(argv[1]) == "observer-exception")) {
+        CHECK(StartFixture(p));
+        if (std::string(argv[1]) == "observer-exception") {
+            sco::net::testing::SetObservationHook(ThrowObservation, nullptr);
+            bool threw = false;
+            try { (void)sco::net::Started(); } catch (const std::runtime_error&) { threw = true; }
+            CHECK(threw);
+            sco::net::testing::SetObservationHook(nullptr, nullptr);
+            CHECK(domain->drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(2)));
+        } else {
+            std::promise<void> release; TableGate gate{{}, release.get_future().share(), {}};
+            const bool waiting = std::string(argv[1]) == "observer-wait-drain";
+            WaitSignal signal;
+            if (waiting) sco::net::testing::SetWaitPredicateHook(WaitSignal::Signal, &signal);
+            else sco::net::testing::SetObservationHook(TableGate::Hold, &gate);
+            auto call = std::async(std::launch::async, [&] {
+                return waiting ? sco::net::WaitForDelivery(2000) : sco::net::Started();
+            });
+            if (waiting) {
+                CHECK(signal.entered.get_future().wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+                // RawStarted takes g_lock; returning proves the waiter released it.
+                CHECK(sco::net::testing::RawStarted());
+                CHECK(call.wait_for(std::chrono::milliseconds(0)) == std::future_status::timeout);
+            } else {
+                CHECK(gate.entered.get_future().wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+            }
+            auto drain = std::async(std::launch::async, [&] {
+                return domain->drain_until(std::chrono::steady_clock::now() + std::chrono::seconds(4));
+            });
+            CHECK(domain->wait_until_closed(std::chrono::steady_clock::now() + std::chrono::seconds(2)));
+            CHECK(drain.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
+            if (!waiting) release.set_value();
+            CHECK(call.get() == !waiting);
+            CHECK(drain.get());
+            sco::net::testing::SetObservationHook(nullptr, nullptr);
+            sco::net::testing::SetWaitPredicateHook(nullptr, nullptr);
+        }
+        CHECK(!sco::net::Started() && sco::net::testing::RawStarted());
+        CHECK(!sco::net::HasOwnerReleaseDispatcher(StartupRelease));
+        CHECK(!sco::net::WaitForDelivery(0));
+        CHECK(sco::net::GetState() == sco::net::State::Idle);
+        CHECK(sco::net::LastReason().empty() && sco::net::BoundPort() == 0);
+        CHECK(sco::net::GetServiceStats().quotaRefused == 0);
         CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
         return 0;
     }
@@ -360,7 +538,7 @@ int main(int argc, char** argv) {
         entered.get_future().wait();
         CHECK(sco::app::Stop() == sco::Result::Failed);
         fault.join();
-        CHECK(stopCalls == 0 && barrierCalls == 0 && sco::net::Started());
+        CHECK(stopCalls == 0 && barrierCalls == 0 && !sco::net::Started() && sco::net::testing::RawStarted());
         CHECK(!domain->try_read() && !domain->ready());
         CHECK(sco::app::Stop() == sco::Result::Failed && !sco::app::Start(p));
         return 0;

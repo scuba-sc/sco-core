@@ -16,9 +16,13 @@ void SetRuntimeStopping(bool stopped);
 bool BindRuntimeStartup(const std::shared_ptr<OwnedShutdown>& owner, const OwnedShutdown::Transition& transition);
 bool RuntimeBoundTo(const std::shared_ptr<OwnedShutdown>& owner);
 bool RuntimeCanStartLegacy();
+#ifdef SCO_RUNTIME_OBSERVER_TESTING
+void SetObservationEntryHookForTest(void (*hook)(void*), void* context) noexcept;
+#endif
 // A runtime operation is admitted before it touches caller state. The startup
 // transition itself is the lease on its owning thread. Raw service-table use
 // after a query still requires a caller-held Read for the complete use.
+class RuntimeObservation;
 class RuntimeLease {
 public:
     RuntimeLease();
@@ -29,8 +33,12 @@ public:
     bool startup() const noexcept { return startup_; }
     bool owned() const noexcept { return static_cast<bool>(owner_); }
 private:
+    friend class RuntimeObservation;
+    struct ObserveOnly {};
+    explicit RuntimeLease(ObserveOnly);
     struct Entry {
         Entry();
+        explicit Entry(ObserveOnly);
         ~Entry();
         Entry(const Entry&) = delete;
         Entry& operator=(const Entry&) = delete;
@@ -38,6 +46,17 @@ private:
     std::shared_ptr<OwnedShutdown> owner_;
     bool startup_;
     OwnedShutdown::Read read_;
+};
+// Only for synchronous, non-mutating copy/scalar observations. It counts
+// against binding and owned drain without marking completed virgin reads as
+// legacy mutation. It must never hand out references, views or callbacks.
+class RuntimeObservation {
+public:
+    RuntimeObservation();
+    explicit operator bool() const noexcept { return static_cast<bool>(lease_) && !lease_.startup(); }
+    bool owned() const noexcept { return lease_.owned(); }
+private:
+    RuntimeLease lease_;
 };
 void StopRuntime();
 

@@ -79,8 +79,12 @@ before invoking the entry; output values are left untouched except that
 `normalize_chord` clears its size; network scalar entries return zero and its
 result entries return unavailable without writing outputs. An already admitted
 network call may return its computed result after a concurrent fault, while the
-fault prevents successful retirement. Direct network C++ observers, including
-`WaitForDelivery`, remain outside this table census. This is not a census of other service tables,
+fault prevents successful retirement. Network C++ scalar/copy observers now
+use a read-only runtime census that permits completed pre-bind observations and
+counts active owned reads through their last copy. After closure their false,
+zero, Idle or empty defaults indicate refusal or a real default, not cleanup.
+An admitted `WaitForDelivery` holds its read until delivery or its own timeout;
+it can force a retained drain failure. This is not a census of other service tables,
 callbacks or pointers returned by tables. The current C query API can return arbitrary opaque plugin tables;
 it cannot interpose on calls after lookup, and IPC mapped views outlive calls.
 Those paths cannot establish successful application retirement.
@@ -141,6 +145,18 @@ resolver, no external plugins, scripts, built-ins, private session, native hook,
 runtime inspection or host menu. Avoid IPC mapping views and native network
 sessions. Any mock provider must be an explicitly enumerated, capsule-owned
 fixture, never an arbitrary foreign provider or unloadable module.
+
+This is a product-side closed-world contract, not an enforced core reservation.
+Today `app::StartDetailed` does not reserve all core startup/mutation entry
+points before consumer globals change: a reentrant legacy startup callback can
+successfully publish and query a foreign service. A shared process gate with
+explicit private startup capability and lifetime-long reservation is required
+before claiming core-enforced exclusive startup. Failed or uncertain retirement
+must retain that reservation. An OS singleton alone does not prevent another
+call path within the process from mutating core globals. The core targets are
+static libraries, so multiple modules can also contain separate gate instances;
+the supported composition must use one physical gate or explicitly refuse
+duplicate core instances.
 
 The engine must keep a thread-safe admission gate around **every entire ordinary
 call** into the app, each mock table, its callbacks and any output copy;

@@ -126,7 +126,16 @@ sco_result C(Result r) { return static_cast<sco_result>(static_cast<uint32_t>(r)
 #ifdef SCO_OWNED_TABLE_TESTING
 void (*g_tableExitHook)(void*) = nullptr;
 void* g_tableExitHookContext = nullptr;
+void (*g_observationHook)(void*) = nullptr;
+void* g_observationHookContext = nullptr;
+void (*g_waitPredicateHook)(void*) = nullptr;
+void* g_waitPredicateHookContext = nullptr;
 #endif
+void ObservationHook() {
+#ifdef SCO_OWNED_TABLE_TESTING
+    if (g_observationHook) g_observationHook(g_observationHookContext);
+#endif
+}
 template <class F>
 sco_result Guard(F&& f) noexcept {
     try {
@@ -684,6 +693,30 @@ void MessageThunk(void* p) {
 #ifdef SCO_OWNED_TABLE_TESTING
 namespace testing {
 const sco_net_v1* TableUnchecked() noexcept { return &kTable; }
+bool RawStarted() { std::lock_guard<std::mutex> hold(g_lock); return g_started; }
+void SeedObservations(void (*callback)(const void*)) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    g_started = true;
+    g_state = State::Hosting;
+    g_reason = "fixture";
+    g_port = 1234;
+    g_stats.quotaRefused = 3;
+    g_opts.ownerReleased = callback;
+    g_inbox.push_back(Item{});
+}
+bool RawObservationsRetained(void (*callback)(const void*)) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    return g_started && g_state == State::Hosting && g_reason == "fixture" && g_port == 1234 &&
+           g_stats.quotaRefused == 3 && g_opts.ownerReleased == callback && !g_inbox.empty();
+}
+void SetObservationHook(void (*hook)(void*), void* context) noexcept {
+    g_observationHook = hook;
+    g_observationHookContext = context;
+}
+void SetWaitPredicateHook(void (*hook)(void*), void* context) noexcept {
+    g_waitPredicateHook = hook;
+    g_waitPredicateHookContext = context;
+}
 void SetTableExitHook(void (*hook)(void*), void* context) noexcept {
     g_tableExitHook = hook;
     g_tableExitHookContext = context;
@@ -768,13 +801,21 @@ void Stop() {
 }
 
 bool HasOwnerReleaseDispatcher(void (*callback)(const void*)) {
-    std::lock_guard<std::mutex> hold(g_lock);
-    return g_started && callback && g_opts.ownerReleased == callback;
+    sco::detail::RuntimeObservation admission;
+    if (!admission || (admission.owned() && sco::detail::RuntimeStopping())) return false;
+    bool result;
+    { std::lock_guard<std::mutex> hold(g_lock); result = g_started && callback && g_opts.ownerReleased == callback; }
+    ObservationHook();
+    return result;
 }
 
 bool Started() {
-    std::lock_guard<std::mutex> hold(g_lock);
-    return g_started;
+    sco::detail::RuntimeObservation admission;
+    if (!admission || (admission.owned() && sco::detail::RuntimeStopping())) return false;
+    bool result;
+    { std::lock_guard<std::mutex> hold(g_lock); result = g_started; }
+    ObservationHook();
+    return result;
 }
 
 void Tick() {
@@ -822,8 +863,16 @@ void Tick() {
 }
 
 bool WaitForDelivery(uint32_t timeoutMs) {
+    sco::detail::RuntimeObservation admission;
+    if (!admission || (admission.owned() && sco::detail::RuntimeStopping())) return false;
+    ObservationHook();
     std::unique_lock<std::mutex> hold(g_lock);
-    return g_delivery.wait_for(hold, std::chrono::milliseconds(timeoutMs), [] { return !g_inbox.empty(); });
+    return g_delivery.wait_for(hold, std::chrono::milliseconds(timeoutMs), [] {
+#ifdef SCO_OWNED_TABLE_TESTING
+        if (g_waitPredicateHook) g_waitPredicateHook(g_waitPredicateHookContext);
+#endif
+        return !g_inbox.empty();
+    });
 }
 
 void PumpNetwork() {
@@ -914,18 +963,30 @@ void Leave(const char* reason) {
 }
 
 State GetState() {
-    std::lock_guard<std::mutex> hold(g_lock);
-    return g_state;
+    sco::detail::RuntimeObservation admission;
+    if (!admission || (admission.owned() && sco::detail::RuntimeStopping())) return State::Idle;
+    State result;
+    { std::lock_guard<std::mutex> hold(g_lock); result = g_state; }
+    ObservationHook();
+    return result;
 }
 
 std::string LastReason() {
-    std::lock_guard<std::mutex> hold(g_lock);
-    return g_reason;
+    sco::detail::RuntimeObservation admission;
+    if (!admission || (admission.owned() && sco::detail::RuntimeStopping())) return {};
+    std::string result;
+    { std::lock_guard<std::mutex> hold(g_lock); result = g_reason; }
+    ObservationHook();
+    return result;
 }
 
 uint16_t BoundPort() {
-    std::lock_guard<std::mutex> hold(g_lock);
-    return g_port;
+    sco::detail::RuntimeObservation admission;
+    if (!admission || (admission.owned() && sco::detail::RuntimeStopping())) return 0;
+    uint16_t result;
+    { std::lock_guard<std::mutex> hold(g_lock); result = g_port; }
+    ObservationHook();
+    return result;
 }
 
 Result SetPeerEntity(PeerId peer, uint64_t entityId) {
@@ -946,8 +1007,12 @@ Result SetPeerEntity(PeerId peer, uint64_t entityId) {
 }
 
 ServiceStats GetServiceStats() {
-    std::lock_guard<std::mutex> hold(g_lock);
-    return g_stats;
+    sco::detail::RuntimeObservation admission;
+    if (!admission || (admission.owned() && sco::detail::RuntimeStopping())) return {};
+    ServiceStats result;
+    { std::lock_guard<std::mutex> hold(g_lock); result = g_stats; }
+    ObservationHook();
+    return result;
 }
 
 const sco_net_v1* Table() {

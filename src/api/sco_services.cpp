@@ -34,6 +34,10 @@ std::atomic<std::shared_ptr<OwnedShutdown>> g_shutdownOwner;
 std::mutex g_bindingLock;
 size_t g_runtimeEntries = 0;
 bool g_legacyRuntimeTouched = false;
+#ifdef SCO_RUNTIME_OBSERVER_TESTING
+void (*g_observationEntryHook)(void*) = nullptr;
+void* g_observationEntryHookContext = nullptr;
+#endif
 std::vector<Service> g_services;
 // Owners whose table QueryService has returned at least once. Kept after the services are
 // withdrawn: the loader asks once the owner is released, to keep its module mapped. One pointer
@@ -157,6 +161,27 @@ detail::RuntimeLease::Entry::Entry() {
     ++g_runtimeEntries;
     if (!g_shutdownOwner.load()) g_legacyRuntimeTouched = true;
 }
+detail::RuntimeLease::Entry::Entry(ObserveOnly) {
+    {
+        std::lock_guard<std::mutex> lock(g_bindingLock);
+        ++g_runtimeEntries;
+    }
+#ifdef SCO_RUNTIME_OBSERVER_TESTING
+    try {
+        if (g_observationEntryHook) g_observationEntryHook(g_observationEntryHookContext);
+    } catch (...) {
+        std::lock_guard<std::mutex> lock(g_bindingLock);
+        --g_runtimeEntries;
+        throw;
+    }
+#endif
+}
+#ifdef SCO_RUNTIME_OBSERVER_TESTING
+void detail::SetObservationEntryHookForTest(void (*hook)(void*), void* context) noexcept {
+    g_observationEntryHook = hook;
+    g_observationEntryHookContext = context;
+}
+#endif
 detail::RuntimeLease::Entry::~Entry() {
     std::lock_guard<std::mutex> lock(g_bindingLock);
     --g_runtimeEntries;
@@ -169,7 +194,12 @@ detail::RuntimeLease::RuntimeLease()
     : owner_(g_shutdownOwner.load()),
       startup_(owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
       read_(owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
+detail::RuntimeLease::RuntimeLease(ObserveOnly tag)
+    : entry_(tag), owner_(g_shutdownOwner.load()),
+      startup_(owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
+      read_(owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
 detail::RuntimeLease::~RuntimeLease() = default;
+detail::RuntimeObservation::RuntimeObservation() : lease_(RuntimeLease::ObserveOnly{}) {}
 bool detail::RuntimeBoundTo(const std::shared_ptr<OwnedShutdown>& owner) {
     return owner && g_shutdownOwner.load() == owner;
 }
