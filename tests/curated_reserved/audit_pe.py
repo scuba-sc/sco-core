@@ -62,7 +62,8 @@ def check(host_exports, module_exports, module_imports, lib_symbols, exe_name):
     if host_imports != ['reserved_host_mock_table']: raise ValueError('wrong host import descriptor: ' + repr(host_imports))
     for dll, names in module_imports.items():
         if dll != exe_name.lower() and any('reserved_host_mock_table' in x for x in names): raise ValueError('accessor from unexpected library: ' + dll)
-    if not re.search(r'(?<!\w)__imp_reserved_host_mock_table(?!\w)', lib_symbols): raise ValueError('missing import library accessor symbol')
+    if not re.search(r'^\s*[0-9A-Fa-f]+\s+__imp_reserved_host_mock_table\s*$', lib_symbols, re.MULTILINE):
+        raise ValueError('missing import library accessor symbol')
 
 def selftest():
     header = ' ordinal hint RVA name\n'
@@ -77,9 +78,12 @@ def selftest():
         try: exports(header + bad_export)
         except ValueError: continue
         raise AssertionError('unexpected export alias accepted')
-    check(exports(ex), exports(me), imports(im), '__imp_reserved_host_mock_table', 'reserved_host.exe')
+    check(exports(ex), exports(me), imports(im), ' 123 __imp_reserved_host_mock_table\n', 'reserved_host.exe')
+    try: check(exports(ex), exports(me), imports(im), 'text __imp_reserved_host_mock_table\n', 'reserved_host.exe')
+    except ValueError: pass
+    else: raise AssertionError('unrecognized import-library row accepted')
     for bad in [im.replace('reserved_host.exe', 'other.exe'), im.replace('reserved_host_mock_table', 'other'), im.replace('reserved_host_mock_table', 'reserved_host_mock_table\n          1 hidden_symbol')]:
-        try: check(exports(ex), exports(me), imports(bad), '__imp_reserved_host_mock_table', 'reserved_host.exe')
+        try: check(exports(ex), exports(me), imports(bad), ' 123 __imp_reserved_host_mock_table\n', 'reserved_host.exe')
         except ValueError: continue
         raise AssertionError('negative control passed')
     print('synthetic parser self-test passed; no PE or Windows execution was tested')
@@ -100,12 +104,14 @@ def main():
         proc = subprocess.run([a.dumpbin, '/nologo', flag, str(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         out = proc.stdout.decode('utf-8', errors='replace')
         (a.evidence_dir / (name + '.txt')).write_text(out, encoding='utf-8')
-        if proc.returncode: raise ValueError('dumpbin failed: ' + name)
+        if proc.returncode: raise ValueError('dumpbin failed: ' + name + '\n' + out)
         return out
     he = dump('host-exports', '/exports', a.exe)
     me = dump('module-exports', '/exports', a.module)
     mi = dump('module-imports', '/imports', a.module)
-    il = dump('host-import-lib-symbols', '/symbols', a.import_lib)
+    # Short COFF import members are listed by the archive linker index; they
+    # are not necessarily expanded by dumpbin's ordinary /symbols view.
+    il = dump('host-import-lib-symbols', '/linkermember:1', a.import_lib)
     try:
         check(exports(he), exports(me), imports(mi), il, a.exe.name)
     except ValueError:
