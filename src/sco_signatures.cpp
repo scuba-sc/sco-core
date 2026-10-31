@@ -2,6 +2,7 @@
 #include "sco/signature_registry.h"
 #include "sco/log.h"
 #include "owned_registry_reservation.h"
+#include "reserved_legacy_gate.h"
 #include <memory>
 #include <mutex>
 #include <limits>
@@ -33,6 +34,8 @@ void StoreHostRegistry(const std::shared_ptr<SignatureRegistry>& registry) noexc
 
 bool detail::ReserveEmptyHostRegistry(const std::shared_ptr<OwnedShutdown>& owner,
                                       const OwnedShutdown::Transition& transition) noexcept {
+    LegacyEntry entry;
+    if (!entry) return false;
     if (!owner || g_hostCallbackDepth || !transition.valid_for(*owner)) return false;
     // Never wait on a legacy registry callback which may synchronously re-enter
     // host startup. A busy registry is a conservative refusal.
@@ -44,11 +47,15 @@ bool detail::ReserveEmptyHostRegistry(const std::shared_ptr<OwnedShutdown>& owne
     return true;
 }
 bool detail::HostRegistryReservedFor(const std::shared_ptr<OwnedShutdown>& owner) noexcept {
+    LegacyEntry entry(false);
+    if (!entry) return false;
     if (g_hostCallbackDepth) return false;
     std::unique_lock<std::mutex> lock(g_hostOwnership, std::try_to_lock);
     return lock.owns_lock() && owner && g_hostOwnedReservation && g_hostOwnedOwner == owner;
 }
 void detail::ReleaseUnusedHostRegistryReservation(const std::shared_ptr<OwnedShutdown>& owner) noexcept {
+    LegacyEntry entry;
+    if (!entry) return;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (owner && g_hostOwnedReservation && g_hostOwnedOwner == owner && !g_hostPins && !LoadHostRegistry()) {
         g_hostOwnedReservation = false;
@@ -58,6 +65,8 @@ void detail::ReleaseUnusedHostRegistryReservation(const std::shared_ptr<OwnedShu
 
 bool InstallHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
                                   void (*beforeInstall)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     if (!registry) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation || g_hostPins || LoadHostRegistry() ||
@@ -68,6 +77,8 @@ bool InstallHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& regi
 }
 bool ClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
                                 void (*beforeClear)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     if (!registry) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation) return false;
@@ -78,6 +89,8 @@ bool ClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& regist
 }
 bool UnpinAndClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>& registry,
                                         void (*beforeClear)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     if (!registry) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation) return false;
@@ -89,6 +102,8 @@ bool UnpinAndClearHostSignatureRegistry(const std::shared_ptr<SignatureRegistry>
 }
 bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& registry,
                                void (*callback)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     if (!registry || !callback) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation) return false;
@@ -97,6 +112,8 @@ bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& r
     return true;
 }
 bool WithNoHostSignatureRegistry(void (*callback)() noexcept) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     if (!callback) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation) return false;
@@ -106,6 +123,8 @@ bool WithNoHostSignatureRegistry(void (*callback)() noexcept) noexcept {
 }
 bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& registry,
                                void (*callback)(void*) noexcept, void* context) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     if (!registry || !callback) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation) return false;
@@ -114,6 +133,8 @@ bool WithHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& r
     return true;
 }
 bool WithNoHostSignatureRegistry(void (*callback)(void*) noexcept, void* context) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     if (!callback) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation) return false;
@@ -122,6 +143,8 @@ bool WithNoHostSignatureRegistry(void (*callback)(void*) noexcept, void* context
     return true;
 }
 bool PinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation) return false;
     if (LoadHostRegistry() != expected ||
@@ -130,6 +153,8 @@ bool PinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& ex
     return true;
 }
 bool UnpinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& expected) noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return false;
     std::lock_guard<std::mutex> lock(g_hostOwnership);
     if (g_hostOwnedReservation) return false;
     if (!g_hostPins || LoadHostRegistry() != expected) return false;
@@ -137,6 +162,8 @@ bool UnpinHostSignatureRegistry(const std::shared_ptr<const SignatureRegistry>& 
     return true;
 }
 std::shared_ptr<const SignatureRegistry> AcquireHostSignatureRegistry() noexcept {
+    detail::LegacyEntry entry;
+    if (!entry) return {};
     return LoadHostRegistry();
 }
 std::shared_ptr<const SignatureSnapshot> AcquireHostSignatureSnapshot() noexcept {

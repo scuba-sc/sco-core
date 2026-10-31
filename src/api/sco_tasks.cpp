@@ -43,6 +43,7 @@ bool OnGameThread() {
     // Only a scalar identity observation, but it still participates in the
     // virgin-runtime census before an owner binds.
     detail::RuntimeLease admission;
+    if (!admission.ingress_admitted()) return false;
     const std::thread::id id = g_gameThread.load();
     return id != std::thread::id() && id == std::this_thread::get_id();
 }
@@ -152,6 +153,7 @@ size_t QueuedTasks() {
     // This scalar observation does not expose task contexts or execute them.
     // Still acquire a lease so a virgin-runtime bind observes an active entry.
     detail::RuntimeLease admission;
+    if (!admission.ingress_admitted()) return 0;
     std::lock_guard<std::mutex> hold(g_queueLock);
     return g_count + g_overflow.size();
 }

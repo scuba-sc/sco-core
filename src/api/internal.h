@@ -3,6 +3,7 @@
 // of Release().
 #include "sco/runtime.h"
 #include "sco/owned_shutdown.h"
+#include "../reserved_legacy_gate.h"
 #include <memory>
 
 namespace sco::detail {
@@ -29,7 +30,8 @@ public:
     RuntimeLease(const RuntimeLease&) = delete;
     RuntimeLease& operator=(const RuntimeLease&) = delete;
     ~RuntimeLease();
-    explicit operator bool() const noexcept { return !owner_ || startup_ || static_cast<bool>(read_); }
+    explicit operator bool() const noexcept { return entry_.admitted() && (!owner_ || startup_ || static_cast<bool>(read_)); }
+    bool ingress_admitted() const noexcept { return entry_.admitted(); }
     bool startup() const noexcept { return startup_; }
     bool owned() const noexcept { return static_cast<bool>(owner_); }
 private:
@@ -42,6 +44,8 @@ private:
         ~Entry();
         Entry(const Entry&) = delete;
         Entry& operator=(const Entry&) = delete;
+        bool admitted() const noexcept { return static_cast<bool>(legacy_); }
+        LegacyEntry legacy_;
     } entry_;
     std::shared_ptr<OwnedShutdown> owner_;
     bool startup_;

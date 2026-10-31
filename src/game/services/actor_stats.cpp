@@ -225,6 +225,8 @@ void Clear() {
 }  // namespace
 
 void SetActorStatWritesEnabled(bool enabled) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     g_writesEnabled.store(enabled);
     if (OnGameThread()) UpdateWriteCap();   // otherwise the next StartActorStats or write sees it
 }

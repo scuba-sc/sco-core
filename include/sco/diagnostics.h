@@ -172,6 +172,8 @@ private:
     bool active_ = false, freeForm_ = false, exhausted_ = false;
 };
 
-void SetLogCapture(Capture*); // host-owned lifetime, detached before teardown
+// Reserved-session ingress refuses these calls without installing or invoking
+// the borrowed capture. In legacy mode its owner detaches it before teardown.
+void SetLogCapture(Capture*);
 void CapturePluginLog(const void* key,LogLevel,std::string_view);
 } // namespace sco::diagnostics

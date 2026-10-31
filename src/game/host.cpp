@@ -172,6 +172,8 @@ Result RetainTransitionFailure(Result result) noexcept {
 }
 }
 Result Prepare(const Options& o) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return Result::Unavailable;
     Phase expected = Phase::Idle;
     if (!phase.compare_exchange_strong(expected, Phase::Preparing)) return Result::BadArg;
     if (o.size < sizeof(Options) || !o.inspect || o.tickIntervalMs > 0x7fffffffu ||
@@ -256,6 +258,8 @@ Result Prepare(const Options& o) {
     }
 }
 Result Activate() {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return Result::Unavailable;
     Phase expected = Phase::Prepared;
     if (!phase.compare_exchange_strong(expected, Phase::Activating)) return Result::BadArg;
     if (!options.shutdownOwner) { phase = Phase::Prepared; return Result::Unavailable; }
@@ -322,6 +326,8 @@ Result Activate() {
     }
 }
 Result Start() {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return Result::Unavailable;
     if (phase.load() == Phase::Prepared) {
         const auto result = Activate();
         if (result != Result::Ok) return result;
@@ -371,6 +377,8 @@ Result Start() {
     }
 }
 Result Tick(uint32_t nowMs) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return Result::Unavailable;
     if (phase.load() != Phase::Running) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
     if (sco::detail::InCallout() || ticking) return Result::Unavailable;
@@ -393,6 +401,8 @@ Result Tick(uint32_t nowMs) {
     return Result::Unavailable;
 }
 Result Stop() {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return Result::Unavailable;
     const Phase p = phase.load();
     if (p == Phase::Idle || p == Phase::Stopped) return Result::Ok;
     if (!OnGameThread()) return Result::WrongThread;

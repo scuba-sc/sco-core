@@ -8,6 +8,7 @@
 // Not in sco_core (sco-sigcheck and the signature tests don't need hooks): library sco_pak.
 #include "sco/caps.h"
 #include "sco/game/pak.h"
+#include "../reserved_legacy_gate.h"
 #include "datacore_live_lifecycle.h"
 #include "sco/hook.h"
 #include "sco/log.h"
@@ -618,7 +619,18 @@ const char* OutcomeName(Outcome o) {
     return "?";
 }
 
+static bool NativeFixtureEnabled() noexcept {
+#ifdef SCO_PAK_TEST_UNSAFE_FIXTURE
+    return true;
+#else
+    return false;
+#endif
+}
+
 Result Enable(const Options& options) {
+    // No public caller can currently supply continuous exclusion of native
+    // execution while the patch and its later restoration take place.
+    if (!NativeFixtureEnabled()) return Result::Unavailable;
     Targets t;
     if (!Resolve(t)) {
         static const char* const kRows[] = { "pak.datacore_loader", "pak.crypak", "pak.slots" };
@@ -630,6 +642,7 @@ Result Enable(const Options& options) {
 }
 
 Result Enable(const Options& options, const Targets& targets) {
+    if (!NativeFixtureEnabled()) return Result::Unavailable;
     if (options.size != sizeof(Options)) return Refuse(Result::BadArg, "Options.size mismatch");
     if (options.scope != Scope::DataCoreLoad && options.scope != Scope::AllFiles) return Refuse(Result::BadArg, "unknown scope");
     if (!options.mounts) return Refuse(Result::BadArg, "no mount table (Options.mounts)");
@@ -657,6 +670,8 @@ Result Enable(const Options& options, const Targets& targets) {
 }
 
 void Disable() {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     datacore_live::LifecycleGate::ExclusiveLease lifecycle;
     if (datacore_live::ProcessLifecycleGate().EnterExclusive(lifecycle) !=
         datacore_live::LifecycleGate::Status::Acquired) return;

@@ -193,7 +193,9 @@ constexpr size_t kMaxPlugins = 128;               // folders beyond this are lis
 // plugin on the cycle; a self-require is "a -> a"), "requires b: plugin 'b' is refused (<reason>)"
 // (the provider is refused, disabled or itself refused for one of these reasons). The reserved ids
 // (sco, host, menu, game) never match a folder. Folder order stays the list order.
-// Discover never runs plugin code and never opens the entry file.
+// Discover never runs plugin code and never opens the entry file. Reserved
+// ingress refusal returns an empty vector without invoking opts.has; this is
+// indistinguishable from a directory containing no plugins.
 std::vector<Plugin> Discover(const fs::path& root, const Options& opts);
 
 // The order to load the plugins of `list` in, as indices into it: list order, except a Ready
@@ -225,6 +227,8 @@ ModuleOps PlatformModuleOps();
 // not walked (too little stack is left): it is blamed on the owner. A guard that records nothing
 // (every non-Windows one) gets owner blame.
 using CallGuard = uint32_t (*)(void (*thunk)(void* ctx), void* ctx);
+// A reserved host session refuses legacy guard changes and calls. SetCallGuard
+// becomes a no-op; Guarded returns a nonzero failure without invoking callbacks.
 void      SetCallGuard(CallGuard guard);         // nullptr restores the default
 uint32_t  Guarded(void (*thunk)(void* ctx), void* ctx);
 
@@ -243,6 +247,10 @@ uint32_t  Guarded(void (*thunk)(void* ctx), void* ctx);
 // load returned non-OK and sco::Release(self) failed ("release failed: TOO_MANY"): the runtime
 // may still hold the plugin's callbacks, so the module is never closed under them.
 // False for anything but Loaded; reason set; one [plugin] log line either way.
+// Reserved-session ingress refusal returns false without changing the plugin,
+// setting a reason or invoking a module operation. The same refusal leaves
+// caller outputs unchanged in the reload/unload helpers below; void helpers
+// become no-ops.
 bool LoadNative(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts,
                 const ModuleOps& ops = PlatformModuleOps());
 

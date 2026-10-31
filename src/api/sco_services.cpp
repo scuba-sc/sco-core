@@ -156,12 +156,14 @@ bool ValidCategory(const char* category) {
 
 }  // namespace
 
-detail::RuntimeLease::Entry::Entry() {
+detail::RuntimeLease::Entry::Entry() : legacy_(true) {
+    if (!legacy_) return;
     std::lock_guard<std::mutex> lock(g_bindingLock);
     ++g_runtimeEntries;
     if (!g_shutdownOwner.load()) g_legacyRuntimeTouched = true;
 }
-detail::RuntimeLease::Entry::Entry(ObserveOnly) {
+detail::RuntimeLease::Entry::Entry(ObserveOnly) : legacy_(false) {
+    if (!legacy_) return;
     {
         std::lock_guard<std::mutex> lock(g_bindingLock);
         ++g_runtimeEntries;
@@ -183,6 +185,7 @@ void detail::SetObservationEntryHookForTest(void (*hook)(void*), void* context) 
 }
 #endif
 detail::RuntimeLease::Entry::~Entry() {
+    if (!legacy_) return;
     std::lock_guard<std::mutex> lock(g_bindingLock);
     --g_runtimeEntries;
 }
@@ -192,12 +195,12 @@ bool detail::RuntimeStopping() {
 }
 detail::RuntimeLease::RuntimeLease()
     : owner_(g_shutdownOwner.load()),
-      startup_(owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
-      read_(owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
+      startup_(entry_.admitted() && owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
+      read_(entry_.admitted() && owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
 detail::RuntimeLease::RuntimeLease(ObserveOnly tag)
     : entry_(tag), owner_(g_shutdownOwner.load()),
-      startup_(owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
-      read_(owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
+      startup_(entry_.admitted() && owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
+      read_(entry_.admitted() && owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
 detail::RuntimeLease::~RuntimeLease() = default;
 detail::RuntimeObservation::RuntimeObservation() : lease_(RuntimeLease::ObserveOnly{}) {}
 bool detail::RuntimeBoundTo(const std::shared_ptr<OwnedShutdown>& owner) {
@@ -206,6 +209,8 @@ bool detail::RuntimeBoundTo(const std::shared_ptr<OwnedShutdown>& owner) {
 bool detail::RuntimeCanStartLegacy() { return !g_shutdownOwner.load(); }
 bool detail::BindRuntimeStartup(const std::shared_ptr<OwnedShutdown>& owner,
                                 const OwnedShutdown::Transition& transition) {
+    LegacyEntry entry;
+    if (!entry) return false;
     std::lock_guard<std::mutex> lock(g_bindingLock);
     if (!owner || !transition.valid_for(*owner) || g_shutdownOwner.load() ||
         g_legacyRuntimeTouched || g_runtimeEntries) return false;

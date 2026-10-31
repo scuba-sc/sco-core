@@ -490,11 +490,13 @@ echo "offline missions poll fault: PASS (synthetic backend, no game)"
 
 # sco::game::pak: the CryPak adapter over a fake ICryPak and a fake loader, with a second thread on
 # the engine's functions during the load window, so both sanitizer sets.
-PAK_SRC=("$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "${GAME[@]}" "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp" \
+PAK_SRC=("$ROOT/src/game/datacore_live_lifecycle.cpp" "${GAME[@]}" "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp" \
          "$ROOT/src/api/sco_caps.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_log_status.cpp" "${RUNTIME[@]}")
-"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_pak.cpp" $(obj asan "${PAK_SRC[@]}") -o "$OUT/test_pak"
+PAK_FIXTURE_ASAN="$(compile_obj asan "$ROOT/src/game/pak_hooks.cpp" -DSCO_PAK_TEST_UNSAFE_FIXTURE=1)"
+PAK_FIXTURE_TSAN="$(compile_obj tsan "$ROOT/src/game/pak_hooks.cpp" -DSCO_PAK_TEST_UNSAFE_FIXTURE=1)"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_pak.cpp" "$PAK_FIXTURE_ASAN" $(obj asan "${PAK_SRC[@]}") -o "$OUT/test_pak"
 "$OUT/test_pak"
-"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_pak.cpp" $(obj tsan "${PAK_SRC[@]}") -o "$OUT/test_pak_tsan"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_pak.cpp" "$PAK_FIXTURE_TSAN" $(obj tsan "${PAK_SRC[@]}") -o "$OUT/test_pak_tsan"
 "$OUT/test_pak_tsan"
 "$OUT/test_vfs_tsan"
 

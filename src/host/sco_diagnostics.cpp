@@ -3,6 +3,7 @@
 #include "sco/caps.h"
 #include "sco/signatures.h"
 #include "sco/signature_registry.h"
+#include "../reserved_legacy_gate.h"
 #include <algorithm>
 #include <chrono>
 #include <limits>
@@ -16,8 +17,13 @@
 
 namespace sco::diagnostics {
 namespace { std::atomic<Capture*> logCapture{nullptr}; }
-void SetLogCapture(Capture* capture){logCapture.store(capture,std::memory_order_release);}
+void SetLogCapture(Capture* capture){
+    sco::detail::LegacyEntry entry;
+    if (entry) logCapture.store(capture,std::memory_order_release);
+}
 void CapturePluginLog(const void* key,LogLevel level,std::string_view text){
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     auto* capture=logCapture.load(std::memory_order_acquire);if(!capture)return;
 #ifdef _WIN32
     const uint64_t now=GetTickCount64();

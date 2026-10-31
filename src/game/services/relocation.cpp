@@ -213,7 +213,7 @@ sco_result Status(sco_plugin* self,uint64_t ticket,sc_relocation_status* out) {
 }
 const sc_relocation_v1_1 kRelocation{sizeof(sc_relocation_v1_1),Request,Cancel,Status,RequestPosition};
 }
-void SetRelocationEnabled(bool enabled) { g_enabled.store(enabled); }
+void SetRelocationEnabled(bool enabled) { sco::detail::LegacyEntry entry; if (entry) g_enabled.store(enabled); }
 bool RelocationEnabled() { return g_enabled.load(); }
 Result StartRelocation(const RelocationBackend* backend) {
     return StartRelocationV2(backend,nullptr);

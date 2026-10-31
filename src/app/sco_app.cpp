@@ -792,7 +792,7 @@ StartResult StartDetailed(const Platform& platform) {
     if (platform.shutdownOwner) return StartResult::RefusedBeforeExposure;
     try {
         sco::detail::RuntimeLease admission;
-        if (admission.owned() || !sco::detail::RuntimeCanStartLegacy()) return StartResult::RefusedBeforeExposure;
+        if (!admission || admission.owned() || !sco::detail::RuntimeCanStartLegacy()) return StartResult::RefusedBeforeExposure;
         return StartImpl(platform, nullptr) ? StartResult::Started : StartResult::RetainDependencies;
     } catch (...) {
         // Treat unexpected failure conservatively even when exposure is unclear.

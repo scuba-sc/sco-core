@@ -254,7 +254,12 @@ void   Disable();                // restores slots and the detour (tests, unload
 }
 ```
 
-With `Scope::DataCoreLoad`, the slots are swapped only while the DataCore loader runs, on the loader's thread, exactly as `quantum.cpp` does today. That keeps the current, proven risk profile until persistent hooks are measured. The capabilities are `vfs.pak` (rows OK and hooks in) and `datacore.patch` (section 4).
+**Current status:** public PAK activation is refused until product-owned
+execution exclusion and lifecycle guarantees are established. The design and
+example in this section describe the former implementation and its synthetic
+fixture; they are not evidence of game safety or enabled gameplay behavior.
+
+With `Scope::DataCoreLoad`, the proposed slots are swapped only while the DataCore loader runs, on the loader's thread. The capabilities are `vfs.pak` (rows OK and hooks in) and `datacore.patch` (section 4).
 
 **What sc-offline keeps:** a call to `sco::game::pak::Enable` from `StartOffline` (DllMain time, before the game loads DataCore, where `ResolveQuantumApi` hooks today), and its data. At first that data is the existing `dcb_patch.h` edits, mounted as a `Splices` producer with expected old bytes. Later it is a built-in data pack (plan PRs 8-9).
 

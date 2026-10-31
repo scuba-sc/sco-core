@@ -415,6 +415,11 @@ All mounts of a path splice the same base. Higher `priority` wins an overlap, an
 
 ## `sco/game/pak.h`: the CryPak adapter
 
+**Current status:** both public `Enable` overloads return `Unavailable` without
+patching code, changing slots or invoking mount callbacks. Activation requires a
+separate product-owned exclusion and lifecycle proof. The historical behavior
+below is exercised only by an isolated synthetic fixture.
+
 `sco::game::pak` (library `sco_pak`: links `sco_core`, `sco_hook`, `sco_vfs`, `sco_host`) serves `sco::vfs` mounts to Star Citizen's CryPak, the engine's own file I/O. Design: [vfs-datacore.md § 3](design/vfs-datacore.md#the-game-specific-part-scogamepak-in-sco-core); it lives in sco-core by [decision 1](design/vfs-datacore.md#decisions-maintainer-2026-10-09), and a product only enables it.
 
 ```cpp
@@ -423,13 +428,13 @@ auto snapshot = sco::AcquireHostSignatureSnapshot();
 if (!snapshot) return;
 sco::game::pak::Options o;                              // scope = Scope::DataCoreLoad
 o.mounts = [] { return g_mountTable.Current(); };       // the product's sco::vfs::MountTable
-if (sco::game::pak::Enable(o) == sco::Result::Ok) ...   // "vfs.pak" set
+auto result = sco::game::pak::Enable(o);               // currently Unavailable
 ```
 
 | Function | Does |
 |---|---|
-| `Result Enable(const Options&)` | `Resolve`, then the overload below. `Unavailable` (and `vfs.pak` off, `needs pak.<row> (<STATE>)`) when a `pak.*` row isn't OK |
-| `Result Enable(const Options&, const Targets&)` | Detours the loader (`InstallDetour`, stolen bytes counted by `StolenLength`) and sets `vfs.pak`. Refusals change nothing and turn `vfs.pak` off with the reason: `BadArg` (`Options.size` mismatch, unknown scope, null `mounts`, null targets; already enabled, `vfs.pak` untouched; `Scope::AllFiles` slots still draining), `Unavailable` (`Scope::AllFiles` without `Options::allFilesProbed`, or with the `ICryPak*` still null), `Failed` (the detour or slot swap was refused). `Scope::AllFiles` is described below. Tests pass their own `Targets` |
+| `Result Enable(const Options&)` | Currently returns `Unavailable` without resolving or changing state. |
+| `Result Enable(const Options&, const Targets&)` | Currently returns `Unavailable` without touching the targets or calling the mount provider. |
 | `void Disable()` | Removes the loader detour and clears `vfs.pak` (`disabled`). Idempotent. Slots are only swapped inside a load window, and a window always restores them when the loader returns (`Transaction::Rollback` of its `SwapSlot`s), so a `Disable` during a load leaves that load whole and its slots go back at its end |
 | `bool Enabled()` | |
 | `LoadReport LastLoad()` | `{ outcome, loaderOk, path, baseSize, size, reason, durationMs }` of the last load (`durationMs`: the engine's loader call, start to return, steady clock): `Applied` (served from its mount), `Passed` (a `.dcb` was tracked but not mounted, or every mount of it inert; `reason` names the mount's own reason), `NoDcb`, `NoCryPak` (the global was null: nothing swapped), `SwapFailed`. `OutcomeName` gives `applied`, `passed`, ... |
