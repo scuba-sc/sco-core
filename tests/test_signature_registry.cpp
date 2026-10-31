@@ -178,7 +178,7 @@ static void TestBudgetDuringPublication() {
     CHECK(observed);
 }
 static void TestOwnedSnapshots() {
-    auto image = std::make_shared<unsigned char>(42);
+    auto image = std::make_shared<unsigned char>(static_cast<unsigned char>(42));
     auto code = std::make_shared<int>(7); // stand-in for a provider's code-module owner
     std::weak_ptr<unsigned char> imageWeak = image;
     std::weak_ptr<int> codeWeak = code;

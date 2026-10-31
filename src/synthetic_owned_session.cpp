@@ -11,7 +11,8 @@ namespace sco {
 struct SyntheticOwnedSession::Backing {
     explicit Backing(std::vector<Entry> values) : entries(std::move(values)) {
         constexpr size_t width = 18;
-        if (entries.size() > std::numeric_limits<size_t>::max() / width)
+        // Image::size is uint32_t; check before multiplication or allocation.
+        if (entries.size() > std::numeric_limits<uint32_t>::max() / width)
             throw std::length_error("synthetic image is too large");
         bytes.reserve(entries.size() * width);
         std::vector<std::string> patterns;
@@ -49,7 +50,7 @@ struct SyntheticOwnedSession::Backing {
             throw std::runtime_error("synthetic registry freeze failed");
         Image image{};
         image.base = bytes.data();
-        image.size = bytes.size();
+        image.size = static_cast<uint32_t>(bytes.size());
         image.text = {bytes.data(), bytes.size()};
         // The private synthetic image and registry share this backing's lifetime.
         // Rows use patterns only; no resolver or user callback is invoked.
