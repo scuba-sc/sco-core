@@ -60,6 +60,17 @@ legacy APIs safe. Engine adoption must use and test the bounded table rather tha
 infer safety from a boolean startup or lookup result. Existing copied graph
 fields do not implement the full engine scene, inventory, services or editor.
 
+The cooperating executable must restrict its reachable operations to the
+reserved interface and explicitly reviewed facades. In particular, low-level
+`sco::hook` patch and allocation operations, scanner APIs returning raw image
+addresses, plugin `ModuleOps`, generic `OwnedShutdown` workers,
+`surfaces::detail` and game-pack mutators are not enrolled in this session.
+Some remain callable in a general core build and do
+not all pass through the reservation gate. In particular, prior hook installation
+or direct module loading does not dirty that gate, so a successful reservation
+does not prove those operations never occurred. A broader composition needs its
+own complete admission and lifetime coverage.
+
 Native/PAK activation stays refused pending a distinct product proof of
 continuous reader and instruction exclusion. Original-quit continuation also
 needs proof that worker code and argument objects remain valid after the game
