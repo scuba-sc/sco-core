@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Guard optional C# service and raw-handler host slots against truncated extents and null pointers; the C++ hello example also checks its greeter function pointer. Synthetic tests cover refusal and forwarding.
+
 - Refuse native ASOP startup until the host supplies a proven safe phase and reader lifetime protocol.
 
 - Stage initial ASOP fleets outside the ships lock, refuse reentry and abort on registry failures.

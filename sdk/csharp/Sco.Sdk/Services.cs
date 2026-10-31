@@ -56,7 +56,7 @@ namespace Sco.Sdk
             if (sizeof(T) < sizeof(uint) || table == null || *(uint*)table < sizeof(uint)) return ScoResult.BadArg;
             ScoApi* a = Api;
             if (a == null || !IsLoaded) return ScoResult.BadArg;
-            if (!ApiCovers(ApiOffset.provide_service)) return ScoResult.Unavailable;
+            if (a->size < ApiOffset.provide_service + (uint)sizeof(nint) || a->provide_service == null) return ScoResult.Unavailable;
             fixed (byte* n = Utf8.Z(name)) return a->provide_service(SelfPtr, n, version, table);
         }
 
@@ -66,7 +66,7 @@ namespace Sco.Sdk
             ArgumentNullException.ThrowIfNull(name);
             ScoApi* a = Api;
             if (a == null || !IsLoaded) return ScoResult.BadArg;
-            if (!ApiCovers(ApiOffset.release_service)) return ScoResult.Unavailable;
+            if (a->size < ApiOffset.release_service + (uint)sizeof(nint) || a->release_service == null) return ScoResult.Unavailable;
             fixed (byte* n = Utf8.Z(name)) return a->release_service(SelfPtr, n);
         }
 
@@ -106,7 +106,7 @@ namespace Sco.Sdk
             ArgumentNullException.ThrowIfNull(handler);
             ScoApi* a = Api;
             if (a == null || !IsLoaded) return ScoResult.BadArg;
-            if (!ApiCovers(ApiOffset.register_raw)) return ScoResult.Unavailable;
+            if (a->size < ApiOffset.register_raw + (uint)sizeof(nint) || a->register_raw == null) return ScoResult.Unavailable;
             nint id = Registry.Add(new RawEntry(this, name, handler));
             ScoResult r;
             fixed (byte* n = Utf8.Z(name))
@@ -202,7 +202,7 @@ namespace Sco.Sdk
             written = 0;
             ScoApi* a = Api;
             if (a == null || !IsLoaded) return ScoResult.BadArg;
-            if (!ApiCovers(ApiOffset.invoke_raw)) return ScoResult.Unavailable;
+            if (a->size < ApiOffset.invoke_raw + (uint)sizeof(nint) || a->invoke_raw == null) return ScoResult.Unavailable;
             uint size = (uint)output.Length;
             ScoResult r;
             fixed (byte* n = Utf8.Z(name))

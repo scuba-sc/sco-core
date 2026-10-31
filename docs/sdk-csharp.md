@@ -124,12 +124,13 @@ public unsafe struct GreeterV1 { public uint size; public uint _pad; public dele
 
 Provide("my_plugin.greeter", ServiceVersion(1, 0), table);          // table: GreeterV1*, size set
 
-if (Query("my_plugin.greeter", ServiceVersion(1, 0), out ServiceRef<GreeterV1> g) == ScoResult.Ok && g.Covers(8))
+if (Query("my_plugin.greeter", ServiceVersion(1, 0), out ServiceRef<GreeterV1> g) == ScoResult.Ok && g.Covers(8) && g.Table->greet != null)
     g.Table->greet(...);                                             // in another plugin
 ```
 
 - `Query` answers like `query_service` (`Ok`, `Unavailable` for another major or an older version, `NotFound`), `Unavailable` on a 1.0 host, and `BadArg` when the table found doesn't start with a size of at least 4. The `ServiceRef` is empty unless `Ok`.
-- `ServiceRef.Covers(offset, fieldSize = 8)` is true when the provider's `size` covers the field: the check before calling a function a later minor added.
+- `ServiceRef.Covers(offset, fieldSize = 8)` checks the provider's `size` covers the field; also check the function pointer for null before calling it.
+- `Provide`, `Release`, `RegisterRawBytes` and `InvokeRawBytes` return `Unavailable` if the host table does not fully cover their slot or the slot is null. Otherwise they return the host result.
 - `Release(name)` stops new lookup of that service; the host withdraws the rest at unload. It does not revoke cached pointers or wait for calls through them.
 - `ServiceRef` is a borrowed pointer holder, not a lease. Once a native table has been handed out, administrative unload/reload is refused for the admitted session. Retained code/state after a fault is not permission to call it: stop using cached tables and restart after a native fault. Do not use peer tables during shutdown or across sessions. Host services under `sco.` may be kept for the plugin lifetime, subject to their individual shutdown rules. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
 - Ids, never pointers: a service that deals with game objects takes and returns entity ids and resolves them on every call ([the API rule](api-v1.md#services-11)).

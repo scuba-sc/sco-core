@@ -71,6 +71,10 @@ namespace Sco.Sdk.Tests
         private static uint* _smallTable;   // a service table whose size covers only itself
         private static ScoStorageV1* _storageTable;
         private static int _schemaCalls;
+        private static int _provideCalls, _releaseCalls, _registerCalls, _invokeCalls;
+        private static bool _forwarded, _registerForwarded, _invokeForwarded;
+        private static ScoResult _registerResult = ScoResult.Ok;
+        private static Raw? _rejectedRaw;
         private static void* _self;
         private static int _failures;
 
@@ -152,8 +156,12 @@ namespace Sco.Sdk.Tests
         private static uint ListCommands(ScoCommand** o, uint max) => (uint)Cmds.Count;
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
-        private static ScoResult ProvideService(void* self, byte* name, uint version, void* table) =>
-            table == null ? ScoResult.BadArg : ScoResult.Ok;
+        private static ScoResult ProvideService(void* self, byte* name, uint version, void* table)
+        {
+            ++_provideCalls;
+            _forwarded = self == _self && S(name) == "test.service" && version == 0x10002 && table == _smallTable;
+            return ScoResult.TooMany;
+        }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult QueryService(byte* name, uint minVersion, void** o)
@@ -196,11 +204,19 @@ namespace Sco.Sdk.Tests
         }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
-        private static ScoResult ReleaseService(void* self, byte* name) => ScoResult.Ok;
+        private static ScoResult ReleaseService(void* self, byte* name)
+        {
+            ++_releaseCalls;
+            _forwarded = self == _self && S(name) == "test.service";
+            return ScoResult.NotFound;
+        }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult InvokeRaw(void* self, byte* name, void* i, uint inSize, void* o, uint* outSize)
         {
+            ++_invokeCalls;
+            _invokeForwarded = self == _self && S(name) == "test.double" && inSize == sizeof(int) &&
+                               i != null && new ReadOnlySpan<byte>(i, (int)inSize).SequenceEqual(BitConverter.GetBytes(2)) && o == null && outSize != null && *outSize == 0;
             string n = S(name);
             Raw? r = Raws.Find(x => x.Name == n);
             if (r == null) { if (outSize != null) *outSize = 0; return ScoResult.NotFound; }
@@ -210,7 +226,11 @@ namespace Sco.Sdk.Tests
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static ScoResult RegisterRaw(void* self, byte* name, byte* cap, delegate* unmanaged[Cdecl]<void*, uint, void*, uint*, void*, ScoResult> fn, void* ctx)
         {
-            Raws.Add(new Raw(S(name), fn, ctx));
+            ++_registerCalls;
+            _registerForwarded = self == _self && S(name) == "test.rejected" && S(cap) == "test.cap" && fn != null && ctx != null;
+            var raw = new Raw(S(name), fn, ctx);
+            if (_registerResult != ScoResult.Ok) { _rejectedRaw = raw; return _registerResult; }
+            Raws.Add(raw);
             return ScoResult.Ok;
         }
 
@@ -305,6 +325,67 @@ namespace Sco.Sdk.Tests
             }
         }
 
+        private static ScoResult NoopRaw(ReadOnlySpan<byte> input, Span<byte> output, out uint written)
+        { written = 0; return ScoResult.Ok; }
+
+        private static void OptionalRootTests(TestPlugin p, ScoApi* api)
+        {
+            uint fullSize = api->size;
+            uint[] offsets = { ApiOffset.provide_service, ApiOffset.release_service, ApiOffset.register_raw, ApiOffset.invoke_raw };
+            int entries = Registry.Count, raws = Raws.Count;
+            int calls = _provideCalls + _releaseCalls + _registerCalls + _invokeCalls;
+            byte[] output = { 0x5a };
+            for (int slot = 0; slot < offsets.Length; ++slot)
+            {
+                // Every partial pointer extent must be rejected before the field is read.
+                for (uint extent = 0; extent < (uint)sizeof(nint); ++extent)
+                {
+                    api->size = offsets[slot] + extent;
+                    uint partialWritten = 42;
+                    ScoResult result = slot switch
+                    {
+                        0 => p.Provide("test.service", 0x10002, _smallTable),
+                        1 => p.Release("test.service"),
+                        2 => p.RegisterRawBytes("test.refused", null, NoopRaw),
+                        _ => p.InvokeRawBytes("test.double", ReadOnlySpan<byte>.Empty, output, out partialWritten),
+                    };
+                    Expect(result == ScoResult.Unavailable && (slot != 3 || partialWritten == 0),
+                           $"partial optional root slot {slot}, extent {extent}");
+                }
+            }
+            api->size = fullSize;
+            var provide = api->provide_service; api->provide_service = null;
+            Expect(p.Provide("test.service", 0x10002, _smallTable) == ScoResult.Unavailable, "null provide refused");
+            api->provide_service = provide;
+            var release = api->release_service; api->release_service = null;
+            Expect(p.Release("test.service") == ScoResult.Unavailable, "null release refused");
+            api->release_service = release;
+            var register = api->register_raw; api->register_raw = null;
+            Expect(p.RegisterRawBytes("test.refused", null, NoopRaw) == ScoResult.Unavailable, "null register refused");
+            api->register_raw = register;
+            var invoke = api->invoke_raw; api->invoke_raw = null;
+            Expect(p.InvokeRawBytes("test.double", ReadOnlySpan<byte>.Empty, output, out uint written) == ScoResult.Unavailable &&
+                   written == 0 && output[0] == 0x5a, "null invoke preserves output and zeroes written");
+            api->invoke_raw = invoke;
+            Expect(Registry.Count == entries && Raws.Count == raws &&
+                   calls == _provideCalls + _releaseCalls + _registerCalls + _invokeCalls && output[0] == 0x5a,
+                   "unavailable slots never call host or retain handlers");
+
+            Expect(p.Provide("test.service", 0x10002, _smallTable) == ScoResult.TooMany && _forwarded, "provide forwards arguments and host result");
+            Expect(p.Release("test.service") == ScoResult.NotFound && _forwarded, "release forwards arguments and host result");
+            _registerResult = ScoResult.Unavailable;
+            Expect(p.RegisterRawBytes("test.rejected", "test.cap", NoopRaw) == ScoResult.Unavailable &&
+                   _registerForwarded && Registry.Count == entries && Raws.Count == raws, "host rejection forwards arguments and removes registration");
+            _registerResult = ScoResult.Ok;
+            uint size = 0;
+            Expect(_rejectedRaw != null && _rejectedRaw.Fn(null, 0, null, &size, _rejectedRaw.Ctx) == ScoResult.NotFound,
+                   "rejected registration callback has no live context");
+            Expect(p.RegisterRawBytes("test.forward", null, NoopRaw) == ScoResult.Ok && Registry.Count == entries + 1 &&
+                   Raws.Count == raws + 1 && Raws[^1].Name == "test.forward", "register forwards and retains handler on success");
+            Expect(p.InvokeRawBytes("test.double", BitConverter.GetBytes(2), Span<byte>.Empty, out written) == ScoResult.TooMany &&
+                   written == 4 && _invokeForwarded, "invoke forwards arguments, host result and required size");
+        }
+
         public static int Run()
         {
             _smallTable = (uint*)NativeMemory.AllocZeroed(8);
@@ -318,6 +399,7 @@ namespace Sco.Sdk.Tests
             Expect(PluginExports.LoadPlugin(p, api, self, "test") == ScoResult.Ok, "load");
             Expect(Cmds.Count == 2 && Cmds[0].Name == "test.echo" && Cmds[0].NArgs == 1, "two commands registered");
             Expect(Subs.Count == 1, "one host subscription for two handlers of one event");
+            OptionalRootTests(p, api);
 
             (ScoResult r, string reply) = Call(Cmds[0], "hi");
             Expect(r == ScoResult.Ok && reply == "echo: hi", $"echo answered {r} \"{reply}\"");
