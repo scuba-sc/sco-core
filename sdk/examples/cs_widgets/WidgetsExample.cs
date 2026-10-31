@@ -16,6 +16,12 @@ namespace CsWidgets
             ScoResult r = _widgets.Open(this);
             if (r is ScoResult.NotFound or ScoResult.Unavailable) return ScoResult.Ok;
             if (r != ScoResult.Ok) return r;
+            r = new CommandBuilder(this, "cs_widgets.ping")
+                .Title("Ping")
+                .Help("Responds to the widgets example button")
+                .Handle((_, reply) => { reply.Set("pong"); return ScoResult.Ok; })
+                .Register();
+            if (r != ScoResult.Ok) return r;
             WidgetNode[] nodes = {
                 new() { Id = 1, Kind = WidgetKind.Column },
                 new() { Id = 2, Kind = WidgetKind.Row, Parent = 1 },
@@ -31,7 +37,12 @@ namespace CsWidgets
             r = _widgets.SetPanel("cs_widgets.main", "C# widgets", nodes, (_, e) =>
             {
                 ++Events;
-                if (e.Kind == WidgetKind.Button) Invoke("example.ping", out _);
+                if (e.Kind == WidgetKind.Button)
+                {
+                    ScoResult invoked = Invoke("cs_widgets.ping", out string reply);
+                    if (invoked == ScoResult.Ok) Info($"ping: {reply}");
+                    else Warn($"ping unavailable (result {invoked})");
+                }
                 Info($"widgets event {e.Kind} node {e.NodeId}");
             });
             return r == ScoResult.Unavailable ? ScoResult.Ok : r;
