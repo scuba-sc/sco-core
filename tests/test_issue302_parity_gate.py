@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -11,6 +12,42 @@ import issue302_valid_parity as parity
 
 
 class ParityGateTest(unittest.TestCase):
+    def test_cmake_checkouts_materialize_baseline_from_shallow_source(self):
+        # The integration workflow starts from checkout's depth-one default. The
+        # gate archives a pinned commit, so its jobs must materialize history.
+        workflow = (parity.ROOT / '.github/workflows/cmake.yml').read_text()
+        for job in ('linux', 'windows'):
+            section = workflow.split(f'  {job}:', 1)[1].split('\n  #', 1)[0]
+            checkout = section.split('      - name: ', 1)[0]
+            self.assertIn('fetch-depth: 0', checkout)
+
+        def git(*args, cwd):
+            return subprocess.run(['git', *map(str, args)], cwd=cwd, check=True,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            source.mkdir()
+            git('init', cwd=source)
+            (source / 'fixture').write_text('baseline\n')
+            git('add', 'fixture', cwd=source)
+            commit = ['-c', 'user.name=CI Fixture', '-c', 'user.email=fixture@example.invalid',
+                      'commit', '-m']
+            git(*commit, 'baseline', cwd=source)
+            baseline = git('rev-parse', 'HEAD', cwd=source).stdout.decode().strip()
+            (source / 'fixture').write_text('current\n')
+            git('add', 'fixture', cwd=source)
+            git(*commit, 'current', cwd=source)
+            clone = root / 'shallow'
+            git('clone', '--depth=1', source.as_uri(), clone, cwd=root)
+            missing = subprocess.run(['git', 'cat-file', '-e', baseline], cwd=clone,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.assertNotEqual(missing.returncode, 0)
+            git('fetch', '--unshallow', cwd=clone)
+            archive = git('archive', baseline, cwd=clone).stdout
+            self.assertTrue(archive)
+
     def run_gate(self, baseline, current):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / 'out'
