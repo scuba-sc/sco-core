@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -39,9 +40,11 @@ public:
     OwnedShutdown() = default;
     OwnedShutdown(const OwnedShutdown&) = delete;
     OwnedShutdown& operator=(const OwnedShutdown&) = delete;
-    // Destruction is legal only after all readers finish. It joins, never detaches
-    // or terminates. A timed-out owner must not destroy this or borrowed backing;
-    // the explicit drain itself remains bounded even for a stuck worker.
+    // Destruction requires no concurrent public calls, starts or Read leases.
+    // It joins, never detaches or terminates. A timed-out owner must retain this
+    // and borrowed backing until all starts, workers and callers have ended;
+    // Timed waits can refuse a stuck worker, but the overall call has no hard
+    // wall-clock bound: mutex acquisition and thread creation can be delayed.
     ~OwnedShutdown() {
         stop_.store(true);
         if (joiner_.joinable()) joiner_.join();
@@ -54,22 +57,63 @@ public:
         return Read(this);
     }
     template<class Work> bool start_worker(Work&& work) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (closed_ || workers_.size() == 64) return false;
-        auto worker = std::make_unique<Worker>();
+        // User-defined callable construction and std::thread construction can
+        // block or re-enter this domain. Neither may run under mutex_. Reserve
+        // an in-flight start first so a concurrent drain cannot join too early.
+        std::unique_ptr<Worker> worker;
+        try { worker = std::make_unique<Worker>(); } catch (...) { return false; }
         Worker* p = worker.get();
-        workers_.push_back(std::move(worker));
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (closed_ || workers_.size() == 64) return false;
+            try { workers_.push_back(std::move(worker)); } catch (...) { return false; }
+            ++starting_;
+        }
         try {
-            p->thread = std::thread([this, p, fn = std::forward<Work>(work)]() mutable {
+            auto fn = std::make_shared<std::decay_t<Work>>(std::forward<Work>(work));
+            bool canceled;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                canceled = closed_;
+            }
+            if (canceled) {
+                // Destructors can also execute user code. Keep the reservation
+                // until it has completed, without holding the mutex.
+                fn.reset();
+                std::lock_guard<std::mutex> lock(mutex_);
+                p->finished = true;
+                --starting_;
+                cv_.notify_all();
+                return false;
+            }
+            std::thread thread([this, p, fn]() mutable {
                 bool failed = false;
-                try { fn([this] { return stop_.load(); }); } catch (...) { failed = true; }
+                try { (*fn)([this] { return stop_.load(); }); } catch (...) { failed = true; }
                 std::lock_guard<std::mutex> done(mutex_);
                 faulted_ = faulted_ || failed;
                 if (failed) { closed_ = true; stop_.store(true); }
                 p->finished = true;
                 cv_.notify_all();
             });
-        } catch (...) { workers_.pop_back(); return false; }
+            // The thread or its join owns the last callable reference before
+            // the start reservation is released.
+            fn.reset();
+            std::lock_guard<std::mutex> lock(mutex_);
+            p->thread = std::move(thread);
+            --starting_;
+            cv_.notify_all();
+        } catch (...) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            // The slot has no thread and will be ignored by the joiner. A
+            // failed start is terminal: callers cannot assume an incomplete
+            // worker census is safe to retire.
+            p->finished = true;
+            --starting_;
+            faulted_ = closed_ = true;
+            stop_.store(true);
+            cv_.notify_all();
+            return false;
+        }
         return true;
     }
     bool drain_until(std::chrono::steady_clock::time_point deadline) {
@@ -78,7 +122,7 @@ public:
         attempted_ = closed_ = true;
         stop_.store(true);
         const auto done = [&] {
-            if (readers_) return false;
+            if (readers_ || starting_) return false;
             for (const auto& w : workers_) if (!w->finished) return false;
             return true;
         };
@@ -120,6 +164,7 @@ private:
     std::atomic<bool> stop_{false};
     bool closed_ = false, attempted_ = false, ready_ = false, faulted_ = false;
     size_t readers_ = 0;
+    size_t starting_ = 0;
     bool joined_ = false;
     std::thread joiner_;
     std::vector<std::unique_ptr<Worker>> workers_;

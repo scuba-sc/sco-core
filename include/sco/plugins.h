@@ -381,7 +381,12 @@ void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const Scri
 // Failed or quarantined code aborts shutdown before any unload; a fault during teardown stops
 // the remaining peers. Returns false on refusal or incomplete teardown, true on success.
 // Healthy handed-out providers still bypass the mid-session refusal. Data packs are unchanged.
-bool UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
+bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
+               const ScriptRuntime* runtime = nullptr);
+// Historical void-return API retained for typed function-pointer consumers.
+// This keeps the legacy best-effort behavior; new retirement code must use
+// TryUnloadAll and handle its failure.
+void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
                const ScriptRuntime* runtime = nullptr);
 
 // ---- status ---------------------------------------------------------------------------------

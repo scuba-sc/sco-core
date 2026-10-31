@@ -659,7 +659,7 @@ void RemoveReloadCopies(const Plugin& p) {
     for (const fs::path& f : stale) { std::error_code rc; fs::remove(f, rc); }   // a mapped one stays on Windows
 }
 
-bool UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
     const auto faulted = [&list] {
         for (const auto& p : list) {
             if (p.manifest.kind == Kind::Data) continue;
@@ -685,6 +685,19 @@ bool UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRunt
         if (p->state != State::Unloaded || faulted()) return false;
     }
     return true;
+}
+
+void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    std::vector<Plugin*> loaded;
+    for (auto& p : list)
+        if (p.state == State::Loaded && p.manifest.kind != Kind::Data) loaded.push_back(&p);
+    auto before = [](const Plugin* a, const Plugin* b) {
+        const bool ab = a->manifest.kind == Kind::Builtin, bb = b->manifest.kind == Kind::Builtin;
+        return ab != bb ? bb : a->loadOrder > b->loadOrder;
+    };
+    for (size_t i = 1; i < loaded.size(); ++i)
+        for (size_t j = i; j > 0 && before(loaded[j], loaded[j - 1]); --j) std::swap(loaded[j - 1], loaded[j]);
+    for (Plugin* p : loaded) UnloadOneNow(*p, &ops, runtime);
 }
 
 // ---- status ---------------------------------------------------------------------------------

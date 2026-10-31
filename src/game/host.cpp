@@ -392,6 +392,7 @@ Result Stop() {
     }
     if ((options.platform.gameServices || pakOwned || quitInstalled.load() || options.nativeDataCoreReads) &&
         !NativeBarrierHeld()) {
+        options.shutdownOwner->fault();
         RevokeFailedHostCapabilities();
         Log("[game-host] native reader barrier unavailable");
         phase = Phase::Failed; return Result::Failed;
@@ -403,7 +404,7 @@ Result Stop() {
     // Stop transport/producer access first, but keep DataCore tables available for unload.
     if (pakOwned) {
         pak::Disable();
-        if(pak::Enabled()) {RevokeFailedHostCapabilities(); phase=Phase::Failed;return Result::Failed;}
+        if(pak::Enabled()) {options.shutdownOwner->fault(); RevokeFailedHostCapabilities(); phase=Phase::Failed;return Result::Failed;}
         pakOwned=false;
     }
     // Keep producer inputs until app retirement commits: exit/unload/release may
@@ -411,17 +412,19 @@ Result Stop() {
     Result stopped = Result::Failed;
     try { stopped = app::Stop(); } // service withdrawal AFTER plugin unload
     catch (...) { Log("[game-host] app stop failed with an exception"); }
-    if (stopped != Result::Ok) { RevokeFailedHostCapabilities(); phase = Phase::Failed; return stopped; }
+    if (stopped != Result::Ok) { options.shutdownOwner->fault(); RevokeFailedHostCapabilities(); phase = Phase::Failed; return stopped; }
     { std::lock_guard<std::mutex> hold(dataMutex); dataInputs.reset(); dataMounts.reset(); }
     dataActive = false;
     // Quit and native DataCore lifecycle detours are process-retained. Their
     // image and provider code must stay live, so keep the host registry pinned.
     if (quitInstalled.load() || options.nativeDataCoreReads || app::HasRetainedGameHooks()) {
+        options.shutdownOwner->fault();
         if (signatureRegistry) WithHostSignatureRegistry(signatureRegistry, InvalidateHostCapabilities);
         Log("[game-host] process-retained hooks keep the signature registry pinned");
         phase = Phase::Failed; return Result::Failed;
     }
     if (!ReleaseSignatureRegistry()) {
+        options.shutdownOwner->fault();
         RevokeFailedHostCapabilities();
         Log("[game-host] signature registry is still in use");
         phase = Phase::Failed; return Result::Failed;

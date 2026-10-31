@@ -791,6 +791,7 @@ Result Stop() {
     if (g_gameServicesAttempted && !ConfirmGameReaderBarrier(g_platform)) productReady = false;
 #endif
     if (!productReady) {
+        if (g_platform.shutdownOwner) g_platform.shutdownOwner->fault();
         g_teardownFailed = true;
         sco::detail::SetRuntimeStopping(true); // close admission without unloading retained providers
         g_stopping = false;
@@ -809,6 +810,7 @@ Result Stop() {
     const Result r = Dispatch("game.exit", nullptr);
     if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
     const auto refuseRetirement = [] {
+        if (g_platform.shutdownOwner) g_platform.shutdownOwner->fault();
         g_teardownFailed = true;
         sco::detail::SetRuntimeStopping(true);
         g_stopping = false;
@@ -822,14 +824,17 @@ Result Stop() {
     StopMenu();  // drain host-owned cleanup even if no subsequent Tick occurs
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
     try {
-        if (!plugins::UnloadAll(g_list, g_platform.moduleOps, g_platform.scripts)) return refuseRetirement();
+        if (!plugins::TryUnloadAll(g_list, g_platform.moduleOps, g_platform.scripts)) return refuseRetirement();
     } catch (...) { return refuseRetirement(); }
     if (g_platform.shutdownOwner && !g_platform.shutdownOwner->ready()) return refuseRetirement();
     bool registryCleanupSafe = !HasRetainedGameHooks();
     if (g_hostServiceStarted) {
         bool stopped = false;
         try { stopped = g_platform.hostService.stop(g_platform.hostService.context) == Result::Ok; } catch (...) {}
-        if (!stopped) { Log("[app] host service stop failed; context and signature registry must remain retained"); registryCleanupSafe = false; }
+        if (!stopped) {
+            Log("[app] host service stop failed; context and dependent backing remain retained");
+            return refuseRetirement();
+        }
         g_hostServiceStarted = false;
     }
     for (auto& p : g_list)
@@ -875,6 +880,7 @@ Result Stop() {
             else if (registryCleanupSafe) g_appBorrowedRegistry.reset();
         } else if (!WithNoHostSignatureRegistry(RevokeCapabilities)) registryCleanupSafe = false;
     }
+    if (!registryCleanupSafe && g_platform.shutdownOwner) g_platform.shutdownOwner->fault();
     g_teardownFailed = !registryCleanupSafe;
     g_started = false;
     g_stopping = false;
