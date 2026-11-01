@@ -51,6 +51,7 @@
     "site"
   ],
   "excluded": [
+    {"path":"tools/test_notebook.lua","why":"Repository-only synthetic failure tests for the notebook example."},
     {"path":"tools/test_sdk_workflows.py","why":"Repository workflow index, archive and MCP integration tests; not a runtime dependency."},
     {"path":"tools/test_sdk_mvp_host.mjs","why":"Repository cross-product native host MCP acceptance harness; requires separately built studio."},
     {"path":"tools/test_sdk_mvp.py","why":"Repository archive-only developer workflow acceptance runner."},
@@ -109,6 +110,10 @@
     {
       "path": "tools/test_native_index.py",
       "why": "Repository native index parser, tier, collision and leak tests; not part of the kernel source kit."
+    },
+    {
+      "path": "sdk/CANDIDATE_TAG",
+      "why": "Source-controlled automatic candidate target for repository release readiness; not part of an installed SDK or source kit."
     },
     {
       "path": "sdk/package.py",
@@ -250,7 +255,7 @@
     {"id":"issue302.tests.test_issue302_system_bounds.cpp","source":"tests/test_issue302_system_bounds.cpp","destination":"tests/test_issue302_system_bounds.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
     {"id":"issue302.tests.test_world_bounds_302.cpp","source":"tests/test_world_bounds_302.cpp","destination":"tests/test_world_bounds_302.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
 
-    {"id": "contract-record.native-plugin", "source": "sdk/contracts/native-plugin.json", "destination": "contracts/native-plugin.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.native-plugin", "source": "sdk/contracts/native-plugin.json", "destination": "contracts/native-plugin.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "contract-record.sc_actors_v1", "source": "sdk/contracts/sc_actors_v1.json", "destination": "contracts/sc_actors_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "contract-record.sc_asop_v1", "source": "sdk/contracts/sc_asop_v1.json", "destination": "contracts/sc_asop_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "contract-record.sc_contracts_v1", "source": "sdk/contracts/sc_contracts_v1.json", "destination": "contracts/sc_contracts_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
@@ -274,17 +279,17 @@
     {"id": "contract-record.sc_vehicles_v1", "source": "sdk/contracts/sc_vehicles_v1.json", "destination": "contracts/sc_vehicles_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "contract-record.sc_world_control_v1", "source": "sdk/contracts/sc_world_control_v1.json", "destination": "contracts/sc_world_control_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "contract-record.sc_world_v1", "source": "sdk/contracts/sc_world_v1.json", "destination": "contracts/sc_world_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_api", "source": "sdk/contracts/sco_api.json", "destination": "contracts/sco_api.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_content_v1", "source": "sdk/contracts/sco_content_v1.json", "destination": "contracts/sco_content_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_api", "source": "sdk/contracts/sco_api.json", "destination": "contracts/sco_api.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_content_v1", "source": "sdk/contracts/sco_content_v1.json", "destination": "contracts/sco_content_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "contract-record.sco_datacore_v1", "source": "sdk/contracts/sco_datacore_v1.json", "destination": "contracts/sco_datacore_v1.json", "profiles": ["game-sc", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_diagnostics_publisher_v1", "source": "sdk/contracts/sco_diagnostics_publisher_v1.json", "destination": "contracts/sco_diagnostics_publisher_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_ipc_v1", "source": "sdk/contracts/sco_ipc_v1.json", "destination": "contracts/sco_ipc_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_net_v1", "source": "sdk/contracts/sco_net_v1.json", "destination": "contracts/sco_net_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_settings_v1", "source": "sdk/contracts/sco_settings_v1.json", "destination": "contracts/sco_settings_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_storage_v1", "source": "sdk/contracts/sco_storage_v1.json", "destination": "contracts/sco_storage_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_ui_surfaces_v1", "source": "sdk/contracts/sco_ui_surfaces_v1.json", "destination": "contracts/sco_ui_surfaces_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_ui_v1", "source": "sdk/contracts/sco_ui_v1.json", "destination": "contracts/sco_ui_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "contract-record.sco_widgets_v1", "source": "sdk/contracts/sco_widgets_v1.json", "destination": "contracts/sco_widgets_v1.json", "profiles": ["core", "core-source", "host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_diagnostics_publisher_v1", "source": "sdk/contracts/sco_diagnostics_publisher_v1.json", "destination": "contracts/sco_diagnostics_publisher_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_ipc_v1", "source": "sdk/contracts/sco_ipc_v1.json", "destination": "contracts/sco_ipc_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_net_v1", "source": "sdk/contracts/sco_net_v1.json", "destination": "contracts/sco_net_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_settings_v1", "source": "sdk/contracts/sco_settings_v1.json", "destination": "contracts/sco_settings_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_storage_v1", "source": "sdk/contracts/sco_storage_v1.json", "destination": "contracts/sco_storage_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_ui_surfaces_v1", "source": "sdk/contracts/sco_ui_surfaces_v1.json", "destination": "contracts/sco_ui_surfaces_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_ui_v1", "source": "sdk/contracts/sco_ui_v1.json", "destination": "contracts/sco_ui_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "contract-record.sco_widgets_v1", "source": "sdk/contracts/sco_widgets_v1.json", "destination": "contracts/sco_widgets_v1.json", "profiles": ["core", "core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
 
     {"id":"source.asop.fleet_transaction","source":"src/game/asop_host/fleet_transaction.h","destination":"src/game/asop_host/fleet_transaction.h","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
     {"id":"test.asop.fleet_transaction","source":"tests/test_asop_fleet_transaction.cpp","destination":"tests/test_asop_fleet_transaction.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
@@ -1287,7 +1292,8 @@
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
-      "public_header": false
+      "public_header": false,
+      "group": "host-source-sc"
     },
     {
       "id": "g13.src.game.private_session.cpp",
@@ -1297,7 +1303,8 @@
         "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
     },
     {
       "id": "g13.tests.abi_private_session.c",
@@ -1307,7 +1314,8 @@
         "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
     },
     {
       "id": "g13.docs.game.private-session.md",
@@ -1340,7 +1348,8 @@
         "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
     },
     {
       "id": "mining.src.game.admission.cpp",
@@ -1350,7 +1359,8 @@
         "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
     },
     {
       "id": "mining.src.game.services.mining.h",
@@ -1360,7 +1370,8 @@
         "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
     },
     {
       "id": "mining.src.game.services.mining.cpp",
@@ -1370,7 +1381,8 @@
         "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
     },
     {
       "id": "mining.src.game.services.mining_native.cpp",
@@ -1380,7 +1392,8 @@
         "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
     },
     {
       "id": "mining.tests.test_mining.cpp",
@@ -1390,7 +1403,8 @@
         "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc"
     },
     {
       "id": "mining.docs.game.mining-service.md",
@@ -3141,6 +3155,16 @@
       "profiles": [
         "game-sc",
         "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "csharp.Sco.Sdk.Tests.StorageSchemaTests.cs",
+      "source": "sdk/csharp/Sco.Sdk.Tests/StorageSchemaTests.cs",
+      "destination": "csharp/Sco.Sdk.Tests/StorageSchemaTests.cs",
+      "profiles": [
+        "core"
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only"
@@ -5981,11 +6005,11 @@
       "origin": "project-authored",
       "license": "GPL-3.0-only"
     },
-    {"id": "source.tests.test_app_game_service_shutdown.cpp", "source": "tests/test_app_game_service_shutdown.cpp", "destination": "tests/test_app_game_service_shutdown.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "source.tests.test_owned_admission.cpp", "source": "tests/test_owned_admission.cpp", "destination": "tests/test_owned_admission.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "source.src.game.services.start.cpp", "source": "src/game/services/start.cpp", "destination": "src/game/services/start.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "source.tests.test_direct_game_service_refusal.cpp", "source": "tests/test_direct_game_service_refusal.cpp", "destination": "tests/test_direct_game_service_refusal.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "source.tests.test_game_reads_lifecycle.cpp", "source": "tests/test_game_reads_lifecycle.cpp", "destination": "tests/test_game_reads_lifecycle.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.test_app_game_service_shutdown.cpp", "source": "tests/test_app_game_service_shutdown.cpp", "destination": "tests/test_app_game_service_shutdown.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "source.tests.test_owned_admission.cpp", "source": "tests/test_owned_admission.cpp", "destination": "tests/test_owned_admission.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "source.src.game.services.start.cpp", "source": "src/game/services/start.cpp", "destination": "src/game/services/start.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "source.tests.test_direct_game_service_refusal.cpp", "source": "tests/test_direct_game_service_refusal.cpp", "destination": "tests/test_direct_game_service_refusal.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "source.tests.test_game_reads_lifecycle.cpp", "source": "tests/test_game_reads_lifecycle.cpp", "destination": "tests/test_game_reads_lifecycle.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
     {"id": "source.src.lifecycle_gate.h", "source": "src/lifecycle_gate.h", "destination": "src/lifecycle_gate.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.owned_shutdown_access.h", "source": "src/owned_shutdown_access.h", "destination": "src/owned_shutdown_access.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.app.owned_start.h", "source": "src/app/owned_start.h", "destination": "src/app/owned_start.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
@@ -5995,6 +6019,7 @@
     {"id": "source.src.synthetic_owned_session.h", "source": "src/synthetic_owned_session.h", "destination": "src/synthetic_owned_session.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.synthetic_owned_session.cpp", "source": "src/synthetic_owned_session.cpp", "destination": "src/synthetic_owned_session.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.tests.test_synthetic_owned_session.cpp", "source": "tests/test_synthetic_owned_session.cpp", "destination": "tests/test_synthetic_owned_session.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.owned_shutdown_test_access.h", "source": "tests/owned_shutdown_test_access.h", "destination": "tests/owned_shutdown_test_access.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.include.sco.reserved_session.h", "source": "include/sco/reserved_session.h", "destination": "include/sco/reserved_session.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.reserved_session.cpp", "source": "src/reserved_session.cpp", "destination": "src/reserved_session.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.src.reserved_legacy_gate.h", "source": "src/reserved_legacy_gate.h", "destination": "src/reserved_legacy_gate.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
@@ -6019,7 +6044,7 @@
     {"id": "source.tests.reserved_modules_linux.cpp", "source": "tests/reserved_modules_linux.cpp", "destination": "tests/reserved_modules_linux.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.tests.reserved_modules_win.cpp", "source": "tests/reserved_modules_win.cpp", "destination": "tests/reserved_modules_win.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.tests.reserved_duplicate_runtime_fixture.cpp", "source": "tests/reserved_duplicate_runtime_fixture.cpp", "destination": "tests/reserved_duplicate_runtime_fixture.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
-    {"id": "source.tests.test_reserved_game_entry.cpp", "source": "tests/test_reserved_game_entry.cpp", "destination": "tests/test_reserved_game_entry.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.tests.test_reserved_game_entry.cpp", "source": "tests/test_reserved_game_entry.cpp", "destination": "tests/test_reserved_game_entry.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
     {"id": "source.include.sco.owned_shutdown.h", "source": "include/sco/owned_shutdown.h", "destination": "include/sco/owned_shutdown.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.tests.test_owned_shutdown.cpp", "source": "tests/test_owned_shutdown.cpp", "destination": "tests/test_owned_shutdown.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.tests.test_owned_app_stop.cpp", "source": "tests/test_owned_app_stop.cpp", "destination": "tests/test_owned_app_stop.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
@@ -6120,6 +6145,16 @@
       "id": "source.tests.test_sdk.cpp",
       "source": "tests/test_sdk.cpp",
       "destination": "tests/test_sdk.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_sdk_host_slots.cpp",
+      "source": "tests/test_sdk_host_slots.cpp",
+      "destination": "tests/test_sdk_host_slots.cpp",
       "profiles": [
         "core-source"
       ],
@@ -8025,6 +8060,7 @@
       "group": "host-source-sc",
       "public_header": false
     },
+    {"id": "host-source-sc-tests-test_game_host_reports.cpp", "source": "tests/test_game_host_reports.cpp", "destination": "tests/test_game_host_reports.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
     {
       "id": "host-source-sc-tests-game_host.cpp",
       "source": "tests/game_host.cpp",
@@ -9566,7 +9602,8 @@
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
-      "public_header": false
+      "public_header": false,
+      "group": "host-source-sc"
     },
     {
       "id": "relocation-position-tests-game_contracts-relocation-test_position_provider-cpp",
@@ -9577,7 +9614,8 @@
       ],
       "origin": "project-authored",
       "license": "GPL-3.0-only",
-      "public_header": false
+      "public_header": false,
+      "group": "host-source-sc"
     },
     {
       "id": "relocation-position-docs-game-relocation-position-md",

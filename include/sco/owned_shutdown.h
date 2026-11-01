@@ -14,6 +14,7 @@
 
 namespace sco {
 class OwnedShutdownHostAccess;
+class OwnedShutdownTestAccess;
 class SyntheticOwnedSession;
 // Host-source ownership contract, NOT a native target execution barrier. Every
 // cached read must hold Read for its entire use; every worker must be owned here.
@@ -21,13 +22,47 @@ class SyntheticOwnedSession;
 // callback. Keep this object and all borrowed backing live after a failed drain.
 class OwnedShutdown {
     friend class OwnedShutdownHostAccess;
+    friend class OwnedShutdownTestAccess;
     friend class SyntheticOwnedSession;
     struct Worker {
         std::thread thread;
         bool finished = false, starting = true;
         std::thread::id starter;
     };
+    // Serialize joins even while the owner mutex is released for waits/join.
+    // Declare before each operation's unique_lock so that lock is destroyed
+    // before this guard reacquires it to release the control slot.
+    enum class JoinPurpose { Drain, RetainedMaintenance, CompletedHelper };
+    class JoinControl {
+    public:
+        JoinControl(OwnedShutdown& owner, JoinPurpose purpose) : owner_(owner) {
+            std::lock_guard<std::mutex> lock(owner_.mutex_);
+            // An ineligible maintenance/repeated-drain call must not briefly
+            // reserve the slot and make a legitimate retirement commit fail.
+            const bool eligible = purpose == JoinPurpose::Drain ? !owner_.attempted_ :
+                purpose == JoinPurpose::RetainedMaintenance ?
+                    owner_.attempted_ && owner_.closed_ && owner_.faulted_ &&
+                    !owner_.ready_ && !owner_.retired_ && !owner_.on_obligation_thread_locked() : true;
+            if (eligible && !owner_.joinControlActive_) {
+                entered_ = owner_.joinControlActive_ = true;
+                owner_.cv_.notify_all();
+            }
+        }
+        JoinControl(const JoinControl&) = delete;
+        JoinControl& operator=(const JoinControl&) = delete;
+        ~JoinControl() {
+            if (!entered_) return;
+            std::lock_guard<std::mutex> lock(owner_.mutex_);
+            owner_.joinControlActive_ = false;
+            owner_.cv_.notify_all();
+        }
+        explicit operator bool() const noexcept { return entered_; }
+    private:
+        OwnedShutdown& owner_;
+        bool entered_ = false;
+    };
 public:
+    enum class ReapResult { ReapedRetained, PendingRetained, Refused };
     // Thread-bound host transition. Publication is linearized against close
     // and fault under the owner mutex; the lease remains counted until it is
     // released. No caller-provided code runs under that mutex.
@@ -225,44 +260,103 @@ private:
     }
 public:
     bool drain_until(std::chrono::steady_clock::time_point deadline) {
+        JoinControl control(*this, JoinPurpose::Drain);
+        if (!control) return false;
         std::unique_lock<std::mutex> lock(mutex_);
         if (attempted_) return false;
         attempted_ = closed_ = true;
         stop_.store(true);
         cv_.notify_all();
-        const auto current = std::this_thread::get_id();
-        bool self = transitioning_ && transitionThread_ == current;
-        self = self || std::find(readerThreads_.begin(), readerThreads_.end(), current) != readerThreads_.end();
-        self = self || currentWorker_ == this;
-        for (const auto& w : workers_)
-            self = self || (w->starting && w->starter == current);
-        if (self) {
+        if (on_obligation_thread_locked()) {
             faulted_ = true;
             cv_.notify_all();
             return false;
         }
+        if (!join_workers_until_locked(lock, deadline)) { faulted_ = true; return false; }
+        ready_ = !faulted_ && std::chrono::steady_clock::now() <= deadline;
+        return ready_;
+    }
+    // Explicit post-failure handle maintenance, not another retirement attempt.
+    // ReapedRetained proves actual worker/callable/TLS and helper joins only.
+    // It never changes ready_, faulted_, retired_, admission or backing ownership.
+    // Retain the owner and full backing on every result; no cleanup/restart is
+    // authorized. Retry PendingRetained after late completion if desired.
+    // As for drain, mutex scheduling/thread creation/final helper join have no
+    // hard wall-clock bound. The deadline is checked after actual helper join.
+    ReapResult reap_retained_until(std::chrono::steady_clock::time_point deadline) {
+        JoinControl control(*this, JoinPurpose::RetainedMaintenance);
+        if (!control) return ReapResult::Refused;
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!attempted_ || !closed_ || !faulted_ || ready_ || retired_ || on_obligation_thread_locked())
+            return ReapResult::Refused;
+        return join_workers_until_locked(lock, deadline)
+            ? ReapResult::ReapedRetained : ReapResult::PendingRetained;
+    }
+private:
+    bool on_obligation_thread_locked() const {
+        const auto current = std::this_thread::get_id();
+        if ((transitioning_ && transitionThread_ == current) || currentWorker_ == this ||
+            std::find(readerThreads_.begin(), readerThreads_.end(), current) != readerThreads_.end()) return true;
+        for (const auto& w : workers_) if (w->starting && w->starter == current) return true;
+        return false;
+    }
+    bool join_workers_until_locked(std::unique_lock<std::mutex>& lock,
+                                  std::chrono::steady_clock::time_point deadline) {
         const auto done = [&] {
             if (readers_ || starting_ || transitioning_) return false;
             for (const auto& w : workers_) if (!w->finished) return false;
             return true;
         };
-        if (!cv_.wait_until(lock, deadline, done)) { faulted_ = true; return false; }
+        if (!cv_.wait_until(lock, deadline, done)) return false;
+        // No thread/TLS obligation exists when no worker was ever registered.
+        // A process-retained owner must not create an otherwise unnecessary
+        // joiner whose finished-but-unjoined handle would itself be retained.
+        // Reader/start/transition drainage above is still required, under this
+        // same lock, and closed admission prevents a new worker appearing here.
+        if (workers_.empty()) {
+            joined_ = true;
+            return std::chrono::steady_clock::now() <= deadline;
+        }
         // Joining on this control thread is not bounded (thread-local destructors
         // may still run after finished). An owned joiner supplies actual join proof.
-        try {
-            joiner_ = std::thread([this] {
+        if (!joined_ && !joiner_.joinable()) {
+            // Thread construction can allocate or reenter host diagnostics.
+            // JoinControl reserves this slot while the mutex is released, so
+            // such calls can refuse without deadlocking or launching a helper.
+            std::thread helper;
+            lock.unlock();
+            try { helper = std::thread([this] {
                 for (auto& w : workers_) if (w->thread.joinable()) w->thread.join();
                 std::lock_guard<std::mutex> joined(mutex_);
                 joined_ = true;
                 cv_.notify_all();
-            });
-        } catch (...) { faulted_ = true; return false; }
-        if (!cv_.wait_until(lock, deadline, [&] { return joined_; })) {
-            faulted_ = true; return false;
+            }); } catch (...) { lock.lock(); return false; }
+            lock.lock();
+            joiner_ = std::move(helper);
+            cv_.notify_all();
         }
-        ready_ = !faulted_ && std::chrono::steady_clock::now() <= deadline;
-        return ready_;
+        if (!cv_.wait_until(lock, deadline, [&] { return joined_; })) return false;
+        if (!join_completed_helper_locked(lock)) return false;
+        return std::chrono::steady_clock::now() <= deadline;
     }
+    bool join_completed_helper_locked(std::unique_lock<std::mutex>& lock) {
+        if (!joiner_.joinable()) return true;
+        // joined_ proves the worker joins, not the joiner's own thread exit.
+        // Retained owners never reach their destructor, so reap this completed
+        // helper here. Keep readiness unpublished through its actual join and
+        // recheck fault/deadline afterwards; no user code runs under mutex_.
+        std::thread completed = std::move(joiner_);
+        lock.unlock();
+        try { completed.join(); }
+        catch (...) {
+            lock.lock();
+            joiner_ = std::move(completed);
+            return false;
+        }
+        lock.lock();
+        return true;
+    }
+public:
     bool ready() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return ready_ && !faulted_;
@@ -294,19 +388,11 @@ private:
     // reaped without holding the owner mutex. It executes no user callback.
     // A still-running joiner stays owned and retained on a failed timeout.
     bool reap_completed_joiner() {
-        std::thread finished;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (!joined_ || !joiner_.joinable()) return true;
-            finished = std::move(joiner_);
-        }
-        try { finished.join(); }
-        catch (...) {
-            std::lock_guard<std::mutex> lock(mutex_);
-            joiner_ = std::move(finished);
-            return false;
-        }
-        return true;
+        JoinControl control(*this, JoinPurpose::CompletedHelper);
+        if (!control) return false;
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!joined_) return true;
+        return join_completed_helper_locked(lock);
     }
     // The synthetic session uses this as its final linearization point. A
     // later fault is a no-op; an earlier fault makes commit fail. It does not
@@ -331,6 +417,7 @@ private:
     bool startup_ = false;
     std::thread::id transitionThread_;
     bool joined_ = false;
+    bool joinControlActive_ = false;
     std::thread joiner_;
     std::vector<std::unique_ptr<Worker>> workers_;
 };

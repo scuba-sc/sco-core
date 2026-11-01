@@ -12,6 +12,17 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define SCO_QUANTUM_TEST_ASAN 1
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__) && !defined(SCO_QUANTUM_TEST_ASAN)
+#define SCO_QUANTUM_TEST_ASAN 1
+#endif
+#if defined(SCO_QUANTUM_TEST_ASAN)
+#include <sanitizer/asan_interface.h>
+#endif
 #if defined(_WIN32) && defined(_M_X64)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -70,10 +81,22 @@ int main(int argc, char** argv) {
     std::thread t([&] { assert(q->enable(self, 1) == SCO_WRONG_THREAD); assert(StopQuantum() == sco::Result::WrongThread); });
     t.join();
     assert(q->enable(self, 0) == SCO_OK);
-    auto* shortOut = static_cast<sc_quantum_state*>(std::malloc(4));
-    *reinterpret_cast<uint32_t*>(shortOut) = 4;
-    assert(q->state(self, shortOut) == SCO_BAD_ARG);
-    std::free(shortOut);
+    // The full object has a valid C++ lifetime; size exposes only its prefix.
+    // ASan builds additionally poison the tail to test the physical boundary.
+    alignas(8) sc_quantum_state shortOut{sizeof(uint32_t), 11, 12, 13, 14, 15, 16};
+#if defined(SCO_QUANTUM_TEST_ASAN)
+    auto* bytes = reinterpret_cast<unsigned char*>(&shortOut);
+    __asan_poison_memory_region(bytes + sizeof(shortOut.size), sizeof(shortOut) - sizeof(shortOut.size));
+    for (size_t i = 0; i < sizeof(shortOut); ++i)
+        assert((__asan_address_is_poisoned(bytes + i) != 0) == (i >= sizeof(shortOut.size)));
+#endif
+    const auto shortResult = q->state(self, &shortOut);
+#if defined(SCO_QUANTUM_TEST_ASAN)
+    __asan_unpoison_memory_region(bytes + sizeof(shortOut.size), sizeof(shortOut) - sizeof(shortOut.size));
+#endif
+    assert(shortResult == SCO_BAD_ARG);
+    assert(shortOut.size == sizeof(uint32_t) && shortOut.enabled == 11 && shortOut.held == 12 &&
+           shortOut.phase == 13 && shortOut.block == 14 && shortOut.progress == 15 && shortOut.session == 16);
     assert(sco::Release(self) == sco::Result::Ok);
     assert(q->enable(self, 1) == SCO_BAD_ARG);
     StopQuantum();

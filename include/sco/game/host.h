@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 namespace sco::game::host {
 enum class Session : uint32_t { Unknown, Offline, Online };
@@ -62,6 +63,69 @@ struct Options {
     std::shared_ptr<OwnedShutdown> shutdownOwner;
     uint32_t drainTimeoutMs = 1000; // 1..60000; timeout is terminal, never readiness
 };
+
+// Additive C++ host-source reporting, separate from the frozen plugin ABI.
+// These reports never authorize cleanup, unload, native activation or restart.
+enum class DependencyDisposition : uint32_t { NeverExposed, ProcessRetained };
+struct HostReport {
+    Result result = Result::Unavailable;
+    Phase phase = Phase::Idle;
+    uint64_t sessionId = 0; // process-scoped; nonzero only for an adopted capsule
+    DependencyDisposition dependencies = DependencyDisposition::NeverExposed;
+};
+
+// Build privately before calling PrepareDetailed. Owns Options, its Image
+// descriptor and host-version string. backing must ACTUALLY own every referenced
+// image byte and accepted context through process exit; resolver/inspector code
+// is strongly pinned or part of the audited process-resident executable.
+// A borrowed pointer, no-op deleter or merely non-null token is not ownership.
+// This is a trusted, audited host composition contract, not automatic ownership
+// validation or support for arbitrary providers/modules. Construction may throw;
+// it performs no core mutation or callback. Do not copy/move this object because
+// its Options point into its own immutable descriptor/string storage.
+class HostCapsule final {
+public:
+    HostCapsule(const Options&, std::shared_ptr<const void> backing);
+    HostCapsule(const HostCapsule&) = delete;
+    HostCapsule& operator=(const HostCapsule&) = delete;
+    HostCapsule(HostCapsule&&) = delete;
+    HostCapsule& operator=(HostCapsule&&) = delete;
+    const Options& configuration() const noexcept { return options_; }
+    bool hasBacking() const noexcept { return static_cast<bool>(backing_); }
+private:
+    std::shared_ptr<const void> backing_;
+    Options options_;
+    Image image_{};
+    std::string hostVersion_;
+};
+
+// Fresh, serialized non-native composition only: external quit/data hooks; no
+// DataCore, storage root, native services, plugins/scripts, private session,
+// host adapters or legacy callback assertions. The inspector and code must be
+// process-pinned by the audited capsule. Every ordinary user holds its owner's
+// Read through the final output copy. Only audited capsule-owned copied facades
+// are qualified: app/global raw service tables, views and foreign workers are
+// not enrolled by this API. This is not successful app retirement.
+// Adopt/root before existing Prepare can copy Options or expose dependencies.
+// Adoption is terminal even on failure. A later refusal/exception/Stop == Ok
+// never lowers ProcessRetained. NeverExposed applies only to a fresh pre-adoption state or refusal;
+// it cannot discharge aliases held by a prior invocation/session.
+HostReport PrepareDetailed(const std::shared_ptr<const HostCapsule>&) noexcept;
+HostReport ActivateDetailed() noexcept;
+HostReport StartDetailed() noexcept;
+HostReport StopDetailed() noexcept;
+// Busy status returns Unavailable with conservative retained data; it is not
+// a completed control result/adoption decision and does not latch exposure.
+// Busy means the initial gate observation was held. Overlapping status calls
+// may return an older observation after a newer one; no return-order monotonicity
+// is promised. Only the completed PrepareDetailed result classifies its input.
+HostReport StatusDetailed() noexcept;
+// Prior legacy control use is conservatively ProcessRetained with id 0: its
+// backing is caller-owned, not retroactively adopted. A busy, not-yet-adopted
+// control frame also reports conservative ProcessRetained with id 0. These
+// reports do not assert that new input was adopted. Detailed Prepare refuses
+// that composition. Once adopted, legacy Prepare cannot replace the capsule;
+// legacy Activate/Start/Stop/Tick share the detailed control gate and floor.
 // Serialized host entries, outside loader lock/runtime callouts. Prepare may precede the game
 // thread; Start binds the game thread via app::Start. Unknown/online/EAC/unblocked-network/wrong
 // target refuses BEFORE registration/resolution, hooks, service publication or plugin callbacks.

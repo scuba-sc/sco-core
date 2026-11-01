@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #define CHECK(expr) do { if (!(expr)) { std::fprintf(stderr, "CHECK failed: %s:%d: %s\n", __FILE__, __LINE__, #expr); std::abort(); } } while (0)
 #include <chrono>
 #include <atomic>
@@ -85,8 +86,21 @@ static void CheckClosedNet(const sco_net_v1& net) {
     CHECK(net.register_channel(nullptr, "a.b", 0, 1, nullptr, nullptr) == SCO_UNAVAILABLE);
     CHECK(net.unregister_channel(nullptr, "a.b") == SCO_UNAVAILABLE);
 }
+static void CheckClosedSchema(const sco_storage_v1& s) {
+    char table[] = "table sentinel";
+    uint32_t tableSize = sizeof(table), kind = 123;
+    CHECK(s.next_table(nullptr, "", table, &tableSize, &kind) == SCO_UNAVAILABLE &&
+          tableSize == sizeof(table) && kind == 123 && std::memcmp(table, "table sentinel", sizeof(table)) == 0);
+
+    char name[] = "name sentinel", type[] = "type sentinel";
+    uint32_t nameSize = sizeof(name), typeSize = sizeof(type), index = 4, flags = 5;
+    CHECK(s.next_column(nullptr, "", &index, name, &nameSize, type, &typeSize, &flags) == SCO_UNAVAILABLE &&
+          index == 4 && flags == 5 && nameSize == sizeof(name) && typeSize == sizeof(type) &&
+          std::memcmp(name, "name sentinel", sizeof(name)) == 0 &&
+          std::memcmp(type, "type sentinel", sizeof(type)) == 0);
+}
 static void CheckClosedTables(const sco_ui_v1& u, const sco_storage_v1& s) {
-    char buffer[16] = {}; uint32_t size = sizeof(buffer), index = 4, flags = 5, count = 6;
+    char buffer[16] = {}; uint32_t size = sizeof(buffer), count = 6;
     int64_t changes = 7; uint64_t cursor = 8; sco_sql_value value{};
     CHECK(u.register_tab(nullptr, "a", "b", 0, nullptr, nullptr) == SCO_UNAVAILABLE);
     CHECK(u.unregister_tab(nullptr, "a") == SCO_UNAVAILABLE);
@@ -113,9 +127,7 @@ static void CheckClosedTables(const sco_ui_v1& u, const sco_storage_v1& s) {
     CHECK(s.column_name(nullptr, cursor, 0, buffer, &size) == SCO_UNAVAILABLE);
     CHECK(s.close(nullptr, cursor) == SCO_UNAVAILABLE);
     CHECK(s.last_error(nullptr, buffer, &size) == SCO_UNAVAILABLE);
-    CHECK(s.next_table(nullptr, nullptr, buffer, &size, &flags) == SCO_UNAVAILABLE && flags == 5);
-    uint32_t typeSize = sizeof(buffer);
-    CHECK(s.next_column(nullptr, "a", &index, buffer, &size, buffer, &typeSize, &flags) == SCO_UNAVAILABLE && index == 4);
+    CheckClosedSchema(s);
 }
 static bool StartFixture(const sco::app::Platform& p) {
     if (!sco::OwnedShutdownHostAccess::begin_startup(*domain)) return false;
@@ -521,6 +533,7 @@ int main(int argc, char** argv) {
         CHECK(ui.normalize_chord("Shift + F1", result, &size) == SCO_UNAVAILABLE && size == 0);
         CheckClosedTables(ui, storage);
         CHECK(!domain->try_read() && sco::app::Stop() == sco::Result::Failed);
+        CheckClosedSchema(storage);
         CHECK(!sco::app::Start(p));
         return 0;
     }

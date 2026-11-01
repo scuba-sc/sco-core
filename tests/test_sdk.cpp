@@ -142,6 +142,32 @@ public:
 
 SCO_PLUGIN(Provider, "prov", "1.2.3", "sco SDK tests");
 
+// Exercise the shipped example itself against a synthetic service table.
+#define sco_sdk_slot_ cpp_hello_test_slot_
+#define sco_plugin_query cpp_hello_test_query
+#define sco_plugin_load cpp_hello_test_load
+#define sco_plugin_unload cpp_hello_test_unload
+#if __has_include("../sdk/examples/cpp_hello/cpp_hello.cpp")
+#include "../sdk/examples/cpp_hello/cpp_hello.cpp"
+#else  // core-source archive installs examples/ alongside tests/
+#include "../examples/cpp_hello/cpp_hello.cpp"
+#endif
+#undef sco_sdk_slot_
+#undef sco_plugin_query
+#undef sco_plugin_load
+#undef sco_plugin_unload
+
+static greeter_v1 g_exampleGreeter = { sizeof(greeter_v1), nullptr };
+static int g_exampleCalls = 0;
+static int ExampleGreet(const char* who, char* out, uint32_t size) {
+    ++g_exampleCalls;
+    return std::snprintf(out, size, "Hello, %s", who);
+}
+static sco_result ExampleQuery(const char*, uint32_t, const void** out) {
+    *out = &g_exampleGreeter;
+    return SCO_OK;
+}
+
 // ---- the other plugins ----------------------------------------------------------------------
 
 class Consumer : public sdk::Plugin {};
@@ -175,6 +201,23 @@ int main() {
     sco::SetLogSink(Capture);
     const sco_api* api = sco::host::BuildApi({ "sco-sdk test" });
     CHECK(api != nullptr);
+
+    // The example must refuse a full-size null slot and a truncated slot, then call a valid one.
+    sco_api exampleApi = *api;
+    exampleApi.query_service = &ExampleQuery;
+    sco_plugin* exampleSelf = sco::host::NewPlugin("cpp_hello");
+    CppHello example;
+    CHECK(exampleSelf && sdk::LoadPlugin(example, &exampleApi, exampleSelf) == SCO_OK);
+    size_t exampleCalled = 0;
+    CHECK(sco::Dispatch("game.ready", nullptr, &exampleCalled) == sco::Result::Ok && exampleCalled == 1);
+    CHECK(g_exampleCalls == 0 && Logged("[cpp_hello] warning: greeter service: unavailable"));
+    g_exampleGreeter.size = static_cast<uint32_t>(offsetof(greeter_v1, greet));
+    g_exampleGreeter.greet = &ExampleGreet;
+    CHECK(sco::Dispatch("game.ready", nullptr) == sco::Result::Ok && g_exampleCalls == 0);
+    g_exampleGreeter.size = sizeof(g_exampleGreeter);
+    CHECK(sco::Dispatch("game.ready", nullptr) == sco::Result::Ok && g_exampleCalls == 1 && Logged("[cpp_hello] Hello, services"));
+    sdk::UnloadPlugin(example);
+    CHECK(sco::Release(exampleSelf) == sco::Result::Ok);
 
     // ---- SCO_PLUGIN's exports, loaded as the loader does --------------------------------------
     const sco_plugin_info* info = sco_plugin_query();

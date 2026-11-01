@@ -23,7 +23,7 @@
     "cleanup": "Service stop withdraws table and drops host-owned backend references. Read-only, no engine state to restore.",
     "limitations": ["No native game adapter or in-game evidence.", "No mutation, paging, persistent identifiers or C#/Lua route."],
     "tests": ["tests/abi_container_contents.c", "tests/test_container_contents.cpp"],
-    "examples": [],
+    "examples": ["sdk/examples/container_reader/container_reader.c"],
     "language_mappings": {
       "c": {"status":"direct","evidence":[{"path":"include/sc_container_contents.h","token":"(*snapshot)"}],"tests":["tests/abi_container_contents.c"]},
       "cpp": {"status":"typed-wrapper","evidence":[{"path":"include/scosdk/game/container_contents.hpp","token":"table_->snapshot(owner_, container, &out)"}],"tests":["tests/test_container_contents.cpp"]},

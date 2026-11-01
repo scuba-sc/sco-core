@@ -2,6 +2,7 @@
 #define SCO_OWNED_SHUTDOWN_TESTING
 #include "sco/owned_shutdown.h"
 #include "../src/owned_shutdown_access.h"
+#include "owned_shutdown_test_access.h"
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -104,6 +105,68 @@ struct DrainFromDestructor {
 };
 
 int main() {
+    using Reap = sco::OwnedShutdown::ReapResult;
+    {
+        sco::OwnedShutdown fresh;
+        CHECK(fresh.reap_retained_until(std::chrono::steady_clock::now() + 1s) == Reap::Refused);
+        CHECK(fresh.open() && fresh.try_read());
+    }
+    {
+        // Timeout before body completion creates no helper. Later maintenance
+        // times out inside TLS join, then retries that SAME retained helper.
+        sco::OwnedShutdown retained;
+        std::promise<void> bodyEntered, bodyRelease, tlsEntered, tlsRelease;
+        auto bodyGo = bodyRelease.get_future().share();
+        auto tlsGo = tlsRelease.get_future().share();
+        std::atomic<bool> tlsDestroyed{false};
+        struct Tail {
+            std::promise<void>* entered;
+            std::shared_future<void> release;
+            std::atomic<bool>* destroyed;
+            ~Tail() { entered->set_value(); release.wait(); destroyed->store(true); }
+        };
+        CHECK(retained.start_worker([&](const auto&) {
+            thread_local Tail tail{&tlsEntered, tlsGo, &tlsDestroyed};
+            (void)tail;
+            bodyEntered.set_value(); bodyGo.wait();
+        }));
+        bodyEntered.get_future().wait();
+        CHECK(!retained.drain_until(std::chrono::steady_clock::now() + 1ms));
+        CHECK(!sco::OwnedShutdownTestAccess::helper_owned(retained));
+        CHECK(retained.reap_retained_until(std::chrono::steady_clock::now() + 1ms) == Reap::PendingRetained);
+        auto maintenance = std::async(std::launch::async, [&] {
+            return retained.reap_retained_until(std::chrono::steady_clock::now() + 2s);
+        });
+        CHECK(sco::OwnedShutdownTestAccess::wait_for_join_control(retained, std::chrono::steady_clock::now() + 1s));
+        CHECK(retained.reap_retained_until(std::chrono::steady_clock::now() + 1s) == Reap::Refused);
+        CHECK(!retained.drain_until(std::chrono::steady_clock::now() + 1s));
+        bodyRelease.set_value();
+        tlsEntered.get_future().wait();
+        CHECK(sco::OwnedShutdownTestAccess::wait_for_helper(retained, std::chrono::steady_clock::now() + 1s));
+        CHECK(!tlsDestroyed.load() && !retained.ready());
+        CHECK(!sco::OwnedShutdownTestAccess::handles_reaped(retained));
+        CHECK(maintenance.get() == Reap::PendingRetained);
+        CHECK(sco::OwnedShutdownTestAccess::helper_owned(retained));
+        tlsRelease.set_value();
+        CHECK(retained.reap_retained_until(std::chrono::steady_clock::now() + 2s) == Reap::ReapedRetained);
+        CHECK(tlsDestroyed.load() && sco::OwnedShutdownTestAccess::handles_reaped(retained));
+        CHECK(!retained.ready() && retained.closed() && !retained.try_read());
+        CHECK(!retained.start_worker([](const auto&) {}));
+        CHECK(!retained.drain_until(std::chrono::steady_clock::now() + 1s));
+        CHECK(retained.reap_retained_until(std::chrono::steady_clock::now() + 1s) == Reap::ReapedRetained);
+    }
+    {
+        // Maintenance refuses a worker/TLS thread instead of self-joining.
+        sco::OwnedShutdown self;
+        std::promise<bool> refused;
+        CHECK(self.start_worker([&](const auto&) {
+            const bool failed = !self.drain_until(std::chrono::steady_clock::now() + 2s);
+            refused.set_value(failed && self.reap_retained_until(std::chrono::steady_clock::now() + 2s) == Reap::Refused);
+        }));
+        CHECK(refused.get_future().get());
+        CHECK(self.reap_retained_until(std::chrono::steady_clock::now() + 2s) == Reap::ReapedRetained);
+        CHECK(!self.ready() && sco::OwnedShutdownTestAccess::handles_reaped(self));
+    }
     {
         sco::OwnedShutdown pending;
         std::promise<void> moving, resume;
@@ -293,6 +356,7 @@ int main() {
     }));
     started.get_future().wait();
     CHECK(good.drain_until(std::chrono::steady_clock::now() + 1s));
+    CHECK(sco::OwnedShutdownTestAccess::handles_reaped(good));
     CHECK(good.ready() && !good.try_read());
     CHECK(!good.start_worker([](const auto&) {}));
     sco::OwnedShutdown throwing;
@@ -319,5 +383,8 @@ int main() {
     tlsEntered.get_future().wait();
     CHECK(!tls.drain_until(std::chrono::steady_clock::now() + 1ms));
     CHECK(!tls.ready());
+    CHECK(sco::OwnedShutdownTestAccess::helper_owned(tls));
     tlsRelease.set_value();
+    CHECK(tls.reap_retained_until(std::chrono::steady_clock::now() + 2s) == Reap::ReapedRetained);
+    CHECK(sco::OwnedShutdownTestAccess::handles_reaped(tls) && !tls.ready());
 }

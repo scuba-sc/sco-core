@@ -2,8 +2,10 @@
 // No game: real host dispatcher/mapping; synthetic policy/plugins/collector by default.
 // Driven only by the repository-owned integration harness, never the runtime launcher.
 #include "ipc/diagnostics_ipc.h"
+#include "ipc/diagnostics_json.h"
 #include "sco/caps.h"
 #include "sco/host.h"
+#include "sco/signature_registry.h"
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -22,9 +24,10 @@ struct SyntheticCollector final:audit::Collector {
     }
 };
 class Fixture {
-    SnapshotStore snapshots_; Capture capture_;di::Host host_{snapshots_,capture_};
+    SnapshotStore snapshots_; Capture capture_;di::Host host_{snapshots_,capture_,di::ClockNow};
     std::vector<sco::plugins::Plugin> plugins_{3};di::Options options_;
     std::shared_ptr<SyntheticCollector> sink_=std::make_shared<SyntheticCollector>();
+    std::shared_ptr<sco::SignatureRegistry> registry_=std::make_shared<sco::SignatureRegistry>();
     std::atomic<bool> stopping_{true};std::thread worker_;
     unsigned callbacks_=0;uint64_t snapshotMicros_=0,workUnits_=0;
 public:
@@ -42,8 +45,14 @@ public:
         CHECK(sco::RegisterCommand(this,"fixture",command)==sco::Result::Ok);
         static const uint8_t service=0;CHECK(sco::ProvideService(this,"fixture","fixture.observed",0x10000,&service)==sco::Result::Ok);
         CHECK(sco::caps::Set("fixture.integration",true)==sco::Result::Ok);
+        static const sco::SigDef rows[]{{"fixture.ipc_row",nullptr,0,0,nullptr,{}}};
+        const sco::SignatureTable table{rows,1};
+        CHECK(registry_->RegisterTables(&table,1).status==sco::SigRegistryStatus::Ok);
+        CHECK(registry_->Freeze()==sco::SigRegistryStatus::Ok);
+        CHECK(registry_->Resolve(sco::Image{})==sco::SigRegistryStatus::Ok);
+        CHECK(sco::InstallHostSignatureRegistry(registry_,nullptr));
     }
-    ~Fixture(){Stop();sco::Release(this);}
+    ~Fixture(){Stop();sco::Release(this);CHECK(sco::ClearHostSignatureRegistry(registry_,nullptr));}
     void Copy(){
         const auto begin=std::chrono::steady_clock::now();const auto now=di::ClockNow();
         HostMetadata metadata;metadata.hostVersion="fixture-host-1";metadata.hostBuild="fixture-host-1";
@@ -53,6 +62,8 @@ public:
         CHECK(snapshots_.Begin(plugins_,metadata,lifecycle,now));workUnits_=0;
         while(!snapshots_.Advance(now))CHECK(++workUnits_<2048);
         snapshotMicros_=uint64_t(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-begin).count());
+        const auto response=json::Serialize(0x104,{},snapshots_,capture_,std::string(32,'0'),1,now);
+        CHECK(response.find("\"row_id\":\"fixture.ipc_row\"")!=std::string::npos);
     }
     void Start(){
         Stop();sink_->accepting=true;options_.policy.admission->store(OfflineAdmission::Authorized);
@@ -71,7 +82,8 @@ public:
     }
     void Stop(){
         options_.policy.admission->store(OfflineAdmission::Denied,std::memory_order_release);stopping_=true;
-        if(worker_.joinable())worker_.join();host_.Stop();snapshots_.Reset();capture_.Stop();
+        if(worker_.joinable())worker_.join();
+        host_.Stop();snapshots_.Reset();capture_.Stop();
     }
     void Deny(){sink_->accepting=false;}
     void Revoke(){options_.policy.admission->store(OfflineAdmission::Denied);}

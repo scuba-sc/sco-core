@@ -16,6 +16,48 @@ permissions:
   contents: read
 
 jobs:
+  gcc14-reliable-net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install GCC 14
+        run: sudo apt-get update && sudo apt-get install -y gcc-14 g++-14
+
+      - name: Configure optimized GCC 14 build
+        env:
+          CC: gcc-14
+          CXX: g++-14
+        run: cmake -S . -B build-gcc14 -DCMAKE_BUILD_TYPE=Release -DSCO_WERROR=ON -DSCO_GAME_SC=OFF
+
+      - name: Build and test reliable networking
+        run: |
+          cmake --build build-gcc14 --parallel 2 --target test_net
+          ctest --test-dir build-gcc14 --output-on-failure --no-tests=error -R '^test_net$'
+
+  gcc-language-routes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure GCC 13 language recipes with warnings as errors
+        env:
+          CC: gcc-13
+          CXX: g++-13
+        run: cmake -S . -B build-gcc -DCMAKE_BUILD_TYPE=Debug -DSCO_WERROR=ON
+
+      - name: Build language recipes
+        run: cmake --build build-gcc --parallel 2 --target test_language_routes_c test_language_routes
+
+      - name: Test language recipes
+        run: ctest --test-dir build-gcc --output-on-failure -R '^test_language_routes(_c)?$'
+
   linux:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

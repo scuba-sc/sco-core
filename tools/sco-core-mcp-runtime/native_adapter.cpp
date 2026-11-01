@@ -11,7 +11,7 @@
 namespace di=sco::diagnostics::ipc;
 EXPORT unsigned sco_rt_adapter_version(){return 1;}
 EXPORT uint64_t sco_rt_now(){return di::ClockNow();}
-EXPORT void* sco_rt_create(){try{return new di::Peer();}catch(...){return nullptr;}}
+EXPORT void* sco_rt_create(){try{return new di::Peer(di::ClockNow);}catch(...){return nullptr;}}
 EXPORT void sco_rt_destroy(void* p){delete static_cast<di::Peer*>(p);}
 EXPORT void sco_rt_close(void* p){if(p)static_cast<di::Peer*>(p)->Close();}
 EXPORT int sco_rt_begin(void* p,const char* path){
@@ -25,9 +25,11 @@ EXPORT int sco_rt_send(void* p,unsigned opcode,const char* input,unsigned bytes)
     try{return int(static_cast<di::Peer*>(p)->Send(uint16_t(opcode),std::string_view(input,bytes),di::ClockNow()));}catch(...){return int(di::Result::Unavailable);}
 }
 EXPORT int sco_rt_receive(void* p,char* output,unsigned capacity,unsigned* bytes){
-    if(bytes)*bytes=0;if(!p||!output||!bytes||capacity!=65536)return int(di::Result::Corrupt);
+    if(bytes)*bytes=0;
+    if(!p||!output||!bytes||capacity!=65536)return int(di::Result::Corrupt);
     try{std::string text;auto r=static_cast<di::Peer*>(p)->Receive(di::ClockNow(),text);
-        if(r!=di::Result::Ok)return int(r);if(text.size()>capacity)return int(di::Result::Corrupt);
+        if(r!=di::Result::Ok)return int(r);
+        if(text.size()>capacity)return int(di::Result::Corrupt);
         std::memcpy(output,text.data(),text.size());*bytes=unsigned(text.size());return int(di::Result::Ok);
     }catch(...){return int(di::Result::Unavailable);}
 }

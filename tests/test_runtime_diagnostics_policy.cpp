@@ -74,7 +74,7 @@ struct Collector final:audit::Collector {
 int main(int argc,char** argv){
     CHECK(argc==3);sco::SetGameThread();sco::app::Platform defaults;
     CHECK(!defaults.runtimeInspection.enabled&&!defaults.runtimeInspection.disclosureConsent);
-    SnapshotStore snapshots;Capture capture;di::Host host(snapshots,capture);di::Options o;
+    SnapshotStore snapshots;Capture capture;di::Host host(snapshots,capture,di::ClockNow);di::Options o;
     auto collector=std::make_shared<Collector>();o.policy.collector=collector;
     o.policy.admission=collector->admission=std::make_shared<std::atomic<OfflineAdmission>>(OfflineAdmission::Unknown);
     CHECK(host.Start(o,di::ClockNow())==di::Result::Disabled);
@@ -103,7 +103,7 @@ int main(int argc,char** argv){
         collector->status=status;CHECK_RESULT(host.Start(o,di::ClockNow()),di::Result::Audit);CHECK(!host.Started());
     }
     collector->status=audit::Status::Accepted;CHECK_RESULT(host.Start(o,di::ClockNow()),di::Result::Ok);
-    di::Peer peer;CHECK(peer.Begin(o.credentialPath,di::ClockNow())==di::Result::Ok);
+    di::Peer peer(di::ClockNow);CHECK(peer.Begin(o.credentialPath,di::ClockNow())==di::Result::Ok);
     CHECK(host.Poll(di::ClockNow())==di::Result::Ok);CHECK(peer.Challenge(di::ClockNow())==di::Result::Ok);
     CHECK(host.Poll(di::ClockNow())==di::Result::Ok);CHECK(peer.Ready(di::ClockNow())==di::Result::Ok);
     collector->revoke=true;CHECK(peer.Send(0x100,"{}",di::ClockNow())==di::Result::Ok);

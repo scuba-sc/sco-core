@@ -65,8 +65,11 @@ struct Out {
 };
 
 Out Run(Tree& t, uintptr_t root, uint32_t capacity = SC_INVENTORY_MAX_PORTS) {
-    Out o;
-    memset(&o, 0xCD, sizeof(o));
+    Out o{};
+    // Poison the plain C port records and result fields without overwriting the
+    // nontrivial WalkResult object or giving bool an invalid representation.
+    std::memset(o.ports, 0xCD, sizeof(o.ports));
+    o.r = {0xCDCDCDCDu, 0xCDCDCDCDu, 0xCDCDCDCDu};
     o.ok = Walk(AccessOf(t), root, capacity, o.ports, o.r);
     return o;
 }
@@ -139,8 +142,12 @@ void TestCapAndTruncation() {
     // A smaller capacity, zero capacity, and exactly the cap.
     Out five = Run(t, 1, 5);
     CHECK(five.ok && five.r.count == 5 && five.r.totalSeen == 200 && five.r.flags == SC_INVENTORY_FLAG_TRUNCATED);
+    CHECK(five.ports[5].size == 0xCDCDCDCDu && five.ports[5].valid == 0xCDCDCDCDu &&
+          five.ports[5].item_class_id == UINT64_C(0xCDCDCDCDCDCDCDCD) && five.ports[5].entity_id == UINT64_C(0xCDCDCDCDCDCDCDCD));
     Out zero = Run(t, 1, 0);
     CHECK(zero.ok && zero.r.count == 0 && zero.r.totalSeen == 200 && zero.r.flags == SC_INVENTORY_FLAG_TRUNCATED);
+    CHECK(zero.ports[0].size == 0xCDCDCDCDu && zero.ports[0].valid == 0xCDCDCDCDu &&
+          zero.ports[0].item_class_id == UINT64_C(0xCDCDCDCDCDCDCDCD) && zero.ports[0].entity_id == UINT64_C(0xCDCDCDCDCDCDCDCD));
     Tree exact;
     exact.containers[1].assign(128, Empty());
     Out e = Run(exact, 1);

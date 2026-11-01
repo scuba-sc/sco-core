@@ -49,6 +49,10 @@ public headers of a profile).
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
 
+The `core-source` and `host-source-sc` kits exclude the separately packaged runtime MCP
+peer. Keep `SCO_BUILD_RUNTIME_MCP=OFF` in these kits; building that peer requires a full
+source checkout. Its build is separate from runtime connection and readiness.
+
 The combined `sco-sdk-<version>.zip`, the `game-sc` overlay and the `host-source-sc`
 archive also ship `sdk-catalogue.json`, `sdk-guides.json` and the discovery launcher
 `tools/sco-core-mcp/server.py`. The `core` and `core-source` archives do not. To use the

@@ -39,9 +39,13 @@ struct Options {
     InspectionOptions policy;
 };
 uint64_t ClockNow(); // transport and collector share one machine monotonic clock
+// The supplied clock and every now argument must share one monotonic domain.
+// Use ClockNow for the live transport; nullptr keeps deterministic injected time
+// fixed during each operation (for tests or single-threaded synthetic callers).
+using ClockResampler = uint64_t (*)();
 class Host {
 public:
-    Host(SnapshotStore&,Capture&); ~Host();
+    Host(SnapshotStore&,Capture&,ClockResampler); ~Host();
     Host(const Host&)=delete; Host& operator=(const Host&)=delete;
     Result Start(const Options&,FixtureAudit*,uint64_t now);
     Result Start(const Options&,uint64_t now); // protected production collector only
@@ -52,7 +56,7 @@ private: struct State; std::unique_ptr<State> state_;
 // Native open-only asynchronous peer; no socket/process/discovery/auto-retry.
 class Peer {
 public:
-    Peer(); ~Peer(); Peer(const Peer&)=delete; Peer& operator=(const Peer&)=delete;
+    explicit Peer(ClockResampler); ~Peer(); Peer(const Peer&)=delete; Peer& operator=(const Peer&)=delete;
     Result Begin(const std::string& credentialPath,uint64_t now);
     Result Challenge(uint64_t now); Result Ready(uint64_t now);
     Result Send(uint16_t opcode,std::string_view input,uint64_t now);

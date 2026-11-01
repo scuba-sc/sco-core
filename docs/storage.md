@@ -13,6 +13,22 @@ tail method. C# exposes `Storage.NextTable`/`NextColumn`; Lua exposes
 `sco.store.tables`/`columns`. C++ callers can use the public C table directly; typed
 C++ schema wrappers are not supplied.
 
+The `next_table` continuation (`after`, when non-null) and `next_column` table
+name must be NUL-terminated strings of at most 16,777,216 bytes, excluding the
+NUL. An empty string is a valid SQLite name: a null continuation starts before
+all names, while an empty continuation starts after the empty name. Longer inputs
+return `SCO_BAD_ARG`; this is separate from the 255-byte key-value key limit.
+Inputs within this bound remain subject to SQLite's
+execution and resource limits, including for its schema-introspection pragma.
+The output handshake does not truncate or skip names at that input limit. An
+existing identifier longer than the limit can be
+returned, but cannot be supplied as a continuation or table name; such a schema
+is not fully enumerable through these calls. If SQLite cannot bind a validated
+name, the call reports that failure instead of continuing with an unbound value.
+Column enumeration also reports a SQLite execution failure rather than treating
+it as the end of the column list. On `SCO_NOT_FOUND`, `next_column` leaves the
+index, both output buffers and their size values, and the flags unchanged.
+
 ## Contents
 
 - [Using it from C](#using-it-from-c)
@@ -25,6 +41,12 @@ C++ schema wrappers are not supplied.
 - [Unload, crash and shutdown](#unload-crash-and-shutdown)
 - [Hosting it](#hosting-it)
 - [Lua](#lua)
+
+The [Lua notebook](../sdk/examples/notebook/main.lua) demonstrates key-value
+operations and transactions. It does not demonstrate SQL cursors; for the Lua SQL
+route see the [Lua storage guide](../sdk/docs/lua.md#scostore) and for C/C++ SQL
+see the examples below. A missing catalogue example does not mean a method or
+language route is unsupported.
 
 ## Using it from C
 
@@ -171,7 +193,7 @@ Ordinary unload, ordinary failed-load cleanup and non-retained `crashed` cleanup
 
 The host reads and writes plugin memory (keys, values, SQL, buffers) only while it holds no lock, so a bad pointer from a plugin faults in plugin-facing code with nothing held, and the crash guard can quarantine the owner without those locks held; whether resource hooks run still depends on the retention rules above.
 
-At terminal shutdown `sco::app::Stop` closes runtime admission and unloads still-loaded plugins (retained faulted instances are not entered), then stops storage: `sco.storage` is withdrawn, any transaction still open is rolled back and every database is closed, including databases retained by the fault/failed-load exceptions above. Calls through a held storage table then answer `SCO_UNAVAILABLE`; this does not authorise calls through a retained peer-provider table.
+After a successful app startup, a successful `sco::app::Stop` closes runtime admission and unloads still-loaded plugins (retained faulted instances are not entered), then stops storage: `sco.storage` is withdrawn, any transaction still open is rolled back and every database is closed, including databases retained by the fault/failed-load exceptions above. A failed or refused stop does not establish that cleanup occurred: dependent backing can remain retained, and the caller must follow the stop result's retention rules. A startup that returned `RetainDependencies` remains process-retained even if a later stop returns success. The current owned-shutdown path closes admission and returns failure while retaining the app and storage; it does not promise rollback or closure. Calls through a held storage table after admission closes answer `SCO_UNAVAILABLE`; this does not authorise calls through a retained peer-provider table.
 
 ## Hosting it
 

@@ -8,6 +8,14 @@ it does not rebuild them.
 
 - The nine required jobs pass on the candidate source commit: CMake Linux, kernel-only and Windows;
   SDK package, Windows and C# host simulation; test; IP compliance; and docs-site.
+- Each of those five main-push workflows must also finish successfully for the same source SHA.
+  That workflow-level check catches non-tolerated failures outside the nine evidence jobs, including
+  the focused GCC 14 networking job in CMake; readiness waits for every workflow and validates its
+  latest exact-SHA attempt before dispatching a candidate.
+- Automatic readiness reads its prospective tag from `sdk/CANDIDATE_TAG`, validates that it is a
+  supported SDK tag for `sdk/VERSION`, and refuses a missing or mismatched designation. Update that
+  source-controlled value deliberately as the development candidate advances; it is not a Git tag,
+  release approval, or authorization to publish.
 - The documentation gate checks the version, profile scope and download coordinates. The candidate
   builds all five archives, verifies isolation and overlay compatibility, audits notices and SPDX
   metadata, exercises each archive, and writes checksums and build attestations.

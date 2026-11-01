@@ -21,6 +21,7 @@ import test_release_verify as verify_tests
 REPO = "example/sdk"
 SHA = "a" * 40
 TAG = "sdk-v9.9.9"
+AUTO_TAG = "sdk-v9.9.9-rc.3"
 
 
 def archive(members):
@@ -652,9 +653,12 @@ class PromotionTests(unittest.TestCase):
         trigger = runs[0]
         (self.root / "sdk").mkdir(exist_ok=True)
         (self.root / "sdk/VERSION").write_text("9.9.9\n")
+        (self.root / "sdk/CANDIDATE_TAG").write_text(
+            "# SPDX-License-Identifier: GPL-3.0-only\n# current automatic target\n" + AUTO_TAG + "\n")
         event = {"repository": {"full_name": REPO}, "workflow_run": trigger}
         self.github.add(("api", f"repos/{REPO}/actions/runs/{trigger['id']}"), trigger)
-        self.github.add(("api", "--paginate", "--slurp", f"repos/{REPO}/git/matching-refs/tags/sdk-v9.9.9"), [[]])
+        self.github.add(("api", "--paginate", "--slurp",
+                         f"repos/{REPO}/git/matching-refs/tags/{AUTO_TAG}"), [[]])
         self.github.add(("api", "--paginate", "--slurp", f"repos/{REPO}/releases?per_page=100"), [[]])
         self.github.add(("api", "--paginate", "--slurp",
                          f"repos/{REPO}/actions/workflows/release-candidate.yml/runs?branch=main&head_sha={SHA}&per_page=100"),
@@ -692,7 +696,11 @@ class PromotionTests(unittest.TestCase):
                 with self.assertRaisesRegex(promote.Refusal, message + ": " + pattern):
                     promote.verified_readiness(REPO, SHA, self.github)
 
-    def test_verified_readiness_refuses_failed_newer_workflow_run(self):
+    def test_verified_readiness_refuses_failed_newer_workflow_run_even_for_unlisted_job(self):
+        # gcc14-reliable-net is not one of the nine evidence jobs, but its ordinary
+        # non-tolerated failure makes the whole cmake workflow fail. Readiness must
+        # refuse that exact-SHA workflow before it can issue candidate evidence.
+        self.assertNotIn("gcc14-reliable-net", promote.REQUIRED["cmake"])
         self.readiness_fixtures()
         workflow = ".github/workflows/cmake.yml"
         key = ("api", "--paginate", "--slurp",
@@ -737,15 +745,48 @@ class PromotionTests(unittest.TestCase):
         with self.assertRaisesRegex(promote.Refusal, "stale or does not match"):
             promote.auto_candidate(REPO, event, self.root, self.github)
 
+    def test_auto_candidate_refuses_missing_malformed_and_mismatched_designation(self):
+        cases = ((None, "unavailable"),
+                 ("sdk-v9.9.9-rc.3\nsdk-v9.9.9-rc.4\n", "exactly one tag"),
+                 ("sdk-v9.9.9-rc.0\n", "malformed"),
+                 ("sdk-v9.8.8-rc.3\n", "does not match sdk/VERSION"))
+        for value, message in cases:
+            with self.subTest(value=value):
+                self.github = FakeGitHub()
+                event = self.auto_fixture()
+                designation = self.root / "sdk/CANDIDATE_TAG"
+                if value is None:
+                    designation.unlink()
+                else:
+                    designation.write_text(value)
+                with self.assertRaisesRegex(promote.Refusal, message):
+                    promote.auto_candidate(REPO, event, self.root, self.github)
+                self.assertFalse(any("/matching-refs/tags/" in call[1]
+                                     or call[1].endswith("/dispatches")
+                                     for call in self.github.calls if len(call) > 1))
+
+    def test_auto_candidate_refuses_nonregular_designation(self):
+        event = self.auto_fixture()
+        designation = self.root / "sdk/CANDIDATE_TAG"
+        designation.unlink()
+        designation.mkdir()
+        with self.assertRaisesRegex(promote.Refusal, "not a regular file"):
+            promote.auto_candidate(REPO, event, self.root, self.github)
+        self.assertFalse(any("/matching-refs/tags/" in call[1]
+                             or call[1].endswith("/dispatches")
+                             for call in self.github.calls if len(call) > 1))
+
     def test_auto_candidate_dispatches_once_with_main_and_expected_source_sha(self):
         event = self.auto_fixture()
         dispatch = ("api", f"repos/{REPO}/actions/workflows/release-candidate.yml/dispatches",
-                    "-X", "POST", "-f", "ref=main", "-f", f"inputs[tag]={TAG}",
+                    "-X", "POST", "-f", "ref=main", "-f", f"inputs[tag]={AUTO_TAG}",
                     "-f", f"inputs[expected_source_sha]={SHA}")
         self.github.add(dispatch, b"")
-        with mock.patch.object(promote.subprocess, "run", return_value=mock.Mock(returncode=0)):
+        with mock.patch.object(promote.subprocess, "run", return_value=mock.Mock(returncode=0)) as gate:
             self.assertEqual(promote.auto_candidate(REPO, event, self.root, self.github), "dispatched")
         self.assertEqual(self.github.calls.count(dispatch), 1)
+        gate.assert_called_once_with([sys.executable, "tools/doc_release_gate.py", "--tag", AUTO_TAG],
+                                     cwd=self.root, capture_output=True)
 
     def test_auto_candidate_suppresses_any_visible_active_or_successful_candidate(self):
         for status, conclusion in (("queued", None), ("in_progress", None), ("completed", "success")):
@@ -784,7 +825,7 @@ class PromotionTests(unittest.TestCase):
         event = self.auto_fixture([own])
         self.github.add(("api", f"repos/{REPO}/git/ref/heads/main"), {"object": {"sha": SHA}})
         dispatch = ("api", f"repos/{REPO}/actions/workflows/release-candidate.yml/dispatches",
-                    "-X", "POST", "-f", "ref=main", "-f", f"inputs[tag]={TAG}",
+                    "-X", "POST", "-f", "ref=main", "-f", f"inputs[tag]={AUTO_TAG}",
                     "-f", f"inputs[expected_source_sha]={SHA}")
         self.github.add(dispatch, b"")
         with mock.patch.object(promote.subprocess, "run", return_value=mock.Mock(returncode=0)), \
@@ -816,11 +857,11 @@ class PromotionTests(unittest.TestCase):
                 self.github = FakeGitHub()
                 event = self.auto_fixture()
                 if kind == "tag":
-                    key = ("api", "--paginate", "--slurp", f"repos/{REPO}/git/matching-refs/tags/sdk-v9.9.9")
-                    self.github.responses[key] = [[[{"ref": "refs/tags/sdk-v9.9.9"}]]]
+                    key = ("api", "--paginate", "--slurp", f"repos/{REPO}/git/matching-refs/tags/{AUTO_TAG}")
+                    self.github.responses[key] = [[[{"ref": f"refs/tags/{AUTO_TAG}"}]]]
                 elif kind == "release":
                     key = ("api", "--paginate", "--slurp", f"repos/{REPO}/releases?per_page=100")
-                    self.github.responses[key] = [[[{"tag_name": "sdk-v9.9.9", "draft": True}]]]
+                    self.github.responses[key] = [[[{"tag_name": AUTO_TAG, "draft": True}]]]
                 else:
                     self.github.responses[("api", f"repos/{REPO}/git/ref/heads/main")] = [{"object": {"sha": "b" * 40}}]
                 with mock.patch.object(promote.subprocess, "run", return_value=mock.Mock(returncode=0)):
@@ -830,7 +871,7 @@ class PromotionTests(unittest.TestCase):
     def test_auto_candidate_unknown_dispatch_outcome_is_not_retried(self):
         event = self.auto_fixture()
         dispatch = ("api", f"repos/{REPO}/actions/workflows/release-candidate.yml/dispatches",
-                    "-X", "POST", "-f", "ref=main", "-f", f"inputs[tag]={TAG}",
+                    "-X", "POST", "-f", "ref=main", "-f", f"inputs[tag]={AUTO_TAG}",
                     "-f", f"inputs[expected_source_sha]={SHA}")
         def client(*args):
             if args == dispatch:
@@ -854,6 +895,7 @@ class PromotionTests(unittest.TestCase):
         with contextlib.chdir(fixture.review_root):
             self.assertEqual(promote.main(["review-bundle"], env, fixture.github), 0)
         review = json.loads((output / "candidate-review.json").read_bytes())
+        self.assertEqual(review["tag"], TAG)
         self.assertEqual((review["candidate_run_id"], review["candidate_run_attempt"]), (123, 1))
         self.assertEqual((review["candidate_artifact_id"], review["readiness_artifact_id"]), (456, 457))
         self.assertEqual(len(review["readiness_jobs"]), 9)
@@ -868,6 +910,50 @@ class PromotionTests(unittest.TestCase):
         self.assertFalse({"approved_by", "approved_at", "signature"} & set(review))
         self.assertIn("does not authorize release", (output / "CANDIDATE-REVIEW.md").read_text())
         self.assertFalse(any(call[0] == "release" for call in fixture.github.calls))
+
+    def test_review_bundle_accepts_rc3_and_preserves_identity_without_authorizing_release(self):
+        fixture = self.review_bundle_fixtures()
+        output = self.root / "review-output-rc3"
+        env = self.cli_environment()
+        env.update({"RELEASE_TAG": AUTO_TAG, "GITHUB_RUN_ATTEMPT": "1",
+                    "READINESS_ARTIFACT_ID": "457", "REVIEW_OUTPUT": str(output)})
+        with contextlib.chdir(fixture.review_root):
+            self.assertEqual(promote.main(["review-bundle"], env, fixture.github), 0)
+
+        review = json.loads((output / "candidate-review.json").read_bytes())
+        self.assertEqual((review["tag"], review["source_sha"], review["source_ref"]),
+                         (AUTO_TAG, SHA, "refs/heads/main"))
+        self.assertEqual((review["candidate_run_id"], review["candidate_run_attempt"],
+                          review["candidate_artifact_id"], review["readiness_artifact_id"]),
+                         (123, 1, 456, 457))
+        expected_jobs = []
+        for workflow, required in promote.REQUIRED.items():
+            for name in sorted(required):
+                job = next(item for item in fixture.evidence["jobs"]
+                           if item["workflow"] == workflow and item["job"] == name)
+                expected_jobs.append({
+                    "workflow": workflow, "path": f".github/workflows/{workflow}.yml",
+                    "run_id": job["run_id"], "attempt": job["attempt"], "job_id": job["id"],
+                    "job": name, "head_sha": SHA, "status": "completed", "conclusion": "success"})
+        self.assertEqual(review["readiness_jobs"], expected_jobs)
+        self.assertEqual([(item["name"], item["size"], item["sha256"]) for item in review["payload"]],
+                         [(name, len(data), hashlib.sha256(data).hexdigest())
+                          for name, data in sorted(fixture.files.items())])
+        self.assertEqual({path.name: path.read_bytes() for path in output.iterdir()
+                          if path.name in fixture.files}, fixture.files)
+        self.assertFalse({"approved_by", "approved_at", "signature"} & set(review))
+        self.assertIn("does not authorize release", (output / "CANDIDATE-REVIEW.md").read_text())
+        self.assertFalse(any(call[0] == "release" for call in fixture.github.calls))
+
+    def test_review_bundle_refuses_malformed_and_zero_rc_tags(self):
+        for tag in ("not-a-tag", "sdk-v9.9.9-rc.0"):
+            with self.subTest(tag=tag):
+                fixture = self.review_bundle_fixtures()
+                with self.assertRaisesRegex(promote.Refusal, "candidate identity is malformed"):
+                    promote.review_bundle(REPO, tag, SHA, 123, 1, 456, 457,
+                                          fixture.dist, self.root / "review", fixture.review_root,
+                                          fixture.github)
+                self.assertEqual(fixture.github.calls, [])
 
     def test_review_bundle_refuses_readiness_from_another_run_or_attempt(self):
         fixture = self.review_bundle_fixtures()
