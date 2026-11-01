@@ -256,6 +256,17 @@ Result Host::Poll(uint64_t now) {
     if(r!=Result::Ok)return fail(r);
     if(s.phase==2&&sc_ipc_i_ld64(&s.response.ring->head)!=sc_ipc_i_ld64(&s.response.ring->tail))return fail(Result::Busy);
     if(f.session!=s.credentials.session||f.epoch!=s.credentials.epoch)return fail(Result::Epoch);
+    // The producer may create a request after Poll sampled now. Only resample
+    // an apparently overlong deadline, in the same clock domain, and recheck
+    // transport freshness before using that later time for this operation.
+    if(f.deadline>=now&&f.deadline-now>2000&&s.clock) {
+        const auto sampled=s.clock();
+        if(sampled<now||sampled>kMaxMonotonicMs)return fail(Result::Deadline);
+        now=sampled;s.lastNow=now;
+        geometry=Rings(s.map,s.credentials,s.channel,s.request,s.response,now,s.clock);s.lastNow=now;
+        if(geometry!=Result::Ok)return fail(geometry);
+        sc_ipc_owner_beat(&s.channel,now);
+    }
     if(f.deadline<now||f.deadline-now>2000)return fail(Result::Deadline);
     s.ackDeadline=f.deadline;
     if(!Coordinates(f,s.credentials,1,s.phase==0?0:s.nextPeer,now))return fail(Result::Auth);

@@ -241,6 +241,27 @@ void ConcurrentHeartbeatClock() {
             sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->owner_heartbeat_ms,6001);resampledTime=6001;}};
         CHECK(f.host.Poll(1000)==di::Result::Deadline);}
 }
+void ConcurrentRequestClock() {
+    // A valid request created just after Poll sampled its clock can have a
+    // deadline 2001 ms past that old sample. The later sample governs the
+    // deadline, monotonic state, response and audit event.
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=3001;
+        r.Push(hello,r.c.secret);resampledTime=1001;
+        CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(r.Pop(r.c.secret).deadline==3001);
+        CHECK(f.sink.times.back()==1001);CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
+    // No tolerance: still-overlong, expired, backwards clock and stale
+    // heartbeat cases all refuse, including when time advances mid-operation.
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=3002;
+        r.Push(hello,r.c.secret);resampledTime=1001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=999;
+        r.Push(hello,r.c.secret);resampledTime=1001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=3001;
+        r.Push(hello,r.c.secret);resampledTime=999;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=3001;
+        r.Push(hello,r.c.secret);resampledTime=3002;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=9001;
+        r.Push(hello,r.c.secret);resampledTime=7001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+}
 void PendingPublication() {
     // pushed is an accounting hint; a producer publishes the readable head
     // only after it has written the full frame. Model the interval in between.
@@ -376,6 +397,6 @@ int main(int argc,char** argv) {
     // an alias (notably /tmp on macOS). Resolve only that directory: the transport
     // must continue refusing symlink components and credential-file aliases.
     path=PlainFixturePath(std::filesystem::canonical(dir)/"session.json");
-    Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();ConcurrentHeartbeatClock();PendingPublication();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
+    Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();ConcurrentHeartbeatClock();ConcurrentRequestClock();PendingPublication();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
     CHECK(!std::filesystem::exists(path));std::filesystem::remove(dir);std::cout<<"runtime diagnostics IPC: literals, real transport, mutual auth, hostile peers and zero side effects passed\n";
 }

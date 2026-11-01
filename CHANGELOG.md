@@ -5,6 +5,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 ## Unreleased
 
 - Keep host-only test and source components out of neutral SDK kits, with manifest checks for their classification.
+- Recheck diagnostics request deadlines against a later same-domain clock sample when a request arrives during host polling; expired and overlong deadlines remain refused.
 - Keep the diagnostics host open while a producer has not yet published a complete request frame; malformed or pipelined frames remain refused.
 - Avoid false diagnostic transport corruption when a concurrent heartbeat advances after the caller samples its monotonic clock, while still refusing future heartbeats and expired requests.
 
