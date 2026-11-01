@@ -609,18 +609,21 @@ class RealManifest(unittest.TestCase):
                         versions = z.read(z.namelist()[0].split("/")[0] + "/VERSIONS.txt").decode()
                         z.extractall(os.path.join(tmp, "empty"))
                         root = Path(tmp, "empty", z.namelist()[0].split("/")[0])
-                    opts = ["-DSCO_GAME_SC=" + game, "-DSCO_BUILD_TESTS=OFF"]
-                    result = subprocess.run(["cmake", "-S", str(root), "-B", os.path.join(tmp, profile + "-on"),
-                                             *opts, "-DSCO_BUILD_RUNTIME_MCP=ON"],
-                                            cwd=root, env=env, capture_output=True, text=True)
-                    output = " ".join((result.stdout + result.stderr).split())
-                    self.assertNotEqual(result.returncode, 0, output)
-                    self.assertIn("Runtime MCP peer source is missing.", output)
-                    self.assertIn("full source checkout", output)
-                    self.assertIn("-DSCO_BUILD_RUNTIME_MCP=OFF", output)
+                    opts = ["-DSCO_GAME_SC=" + game]
+                    for tests in ("OFF", "ON"):
+                        with self.subTest(profile=profile, tests=tests):
+                            result = subprocess.run(
+                                ["cmake", "-S", str(root), "-B", os.path.join(tmp, profile + "-on-tests-" + tests),
+                                 *opts, "-DSCO_BUILD_TESTS=" + tests, "-DSCO_BUILD_RUNTIME_MCP=ON"],
+                                cwd=root, env=env, capture_output=True, text=True)
+                            output = " ".join((result.stdout + result.stderr).split())
+                            self.assertNotEqual(result.returncode, 0, output)
+                            self.assertIn("Runtime MCP peer source is missing.", output)
+                            self.assertIn("full source checkout", output)
+                            self.assertIn("-DSCO_BUILD_RUNTIME_MCP=OFF", output)
                     self.assertIn("Runtime MCP peer is separately packaged", versions)
                     result = subprocess.run(["cmake", "-S", str(root), "-B", os.path.join(tmp, profile + "-off"),
-                                             *opts, "-DSCO_BUILD_RUNTIME_MCP=OFF"],
+                                             *opts, "-DSCO_BUILD_TESTS=OFF", "-DSCO_BUILD_RUNTIME_MCP=OFF"],
                                             cwd=root, env=env, capture_output=True, text=True)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
