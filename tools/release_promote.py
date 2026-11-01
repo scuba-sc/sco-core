@@ -338,7 +338,7 @@ def review_bundle(repo, tag, sha, run_id, attempt, artifact_id, readiness_artifa
     run_id, attempt = positive_id(run_id), positive_id(attempt)
     artifact_id, readiness_artifact_id = positive_id(artifact_id), positive_id(readiness_artifact_id)
     if (not re.fullmatch(r"[0-9a-f]{40}", sha)
-            or not re.fullmatch(r"sdk-v[0-9]+\.[0-9]+\.[0-9]+", tag)):
+            or base_tag(tag) is None):
         raise Refusal("candidate identity is malformed")
     candidate = api(client, f"repos/{repo}/actions/runs/{run_id}")
     if (candidate.get("path") != ".github/workflows/release-candidate.yml"
