@@ -82,7 +82,8 @@ public:
     }
     void Stop(){
         options_.policy.admission->store(OfflineAdmission::Denied,std::memory_order_release);stopping_=true;
-        if(worker_.joinable())worker_.join();host_.Stop();snapshots_.Reset();capture_.Stop();
+        if(worker_.joinable())worker_.join();
+        host_.Stop();snapshots_.Reset();capture_.Stop();
     }
     void Deny(){sink_->accepting=false;}
     void Revoke(){options_.policy.admission->store(OfflineAdmission::Denied);}
