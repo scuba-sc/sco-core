@@ -11,7 +11,7 @@
 namespace di=sco::diagnostics::ipc;
 EXPORT unsigned sco_rt_adapter_version(){return 1;}
 EXPORT uint64_t sco_rt_now(){return di::ClockNow();}
-EXPORT void* sco_rt_create(){try{return new di::Peer();}catch(...){return nullptr;}}
+EXPORT void* sco_rt_create(){try{return new di::Peer(di::ClockNow);}catch(...){return nullptr;}}
 EXPORT void sco_rt_destroy(void* p){delete static_cast<di::Peer*>(p);}
 EXPORT void sco_rt_close(void* p){if(p)static_cast<di::Peer*>(p)->Close();}
 EXPORT int sco_rt_begin(void* p,const char* path){

@@ -5,6 +5,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 ## Unreleased
 
 - Keep host-only test and source components out of neutral SDK kits, with manifest checks for their classification.
+- Avoid false diagnostic transport corruption when a concurrent heartbeat advances after the caller samples its monotonic clock, while still refusing future heartbeats and expired requests.
 
 - Build the optional runtime MCP adapter with GCC 14 warning-as-error checks.
 

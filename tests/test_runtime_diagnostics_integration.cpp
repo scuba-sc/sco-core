@@ -24,7 +24,7 @@ struct SyntheticCollector final:audit::Collector {
     }
 };
 class Fixture {
-    SnapshotStore snapshots_; Capture capture_;di::Host host_{snapshots_,capture_};
+    SnapshotStore snapshots_; Capture capture_;di::Host host_{snapshots_,capture_,di::ClockNow};
     std::vector<sco::plugins::Plugin> plugins_{3};di::Options options_;
     std::shared_ptr<SyntheticCollector> sink_=std::make_shared<SyntheticCollector>();
     std::shared_ptr<sco::SignatureRegistry> registry_=std::make_shared<sco::SignatureRegistry>();
