@@ -895,6 +895,7 @@ class PromotionTests(unittest.TestCase):
         with contextlib.chdir(fixture.review_root):
             self.assertEqual(promote.main(["review-bundle"], env, fixture.github), 0)
         review = json.loads((output / "candidate-review.json").read_bytes())
+        self.assertEqual(review["tag"], TAG)
         self.assertEqual((review["candidate_run_id"], review["candidate_run_attempt"]), (123, 1))
         self.assertEqual((review["candidate_artifact_id"], review["readiness_artifact_id"]), (456, 457))
         self.assertEqual(len(review["readiness_jobs"]), 9)
@@ -909,6 +910,50 @@ class PromotionTests(unittest.TestCase):
         self.assertFalse({"approved_by", "approved_at", "signature"} & set(review))
         self.assertIn("does not authorize release", (output / "CANDIDATE-REVIEW.md").read_text())
         self.assertFalse(any(call[0] == "release" for call in fixture.github.calls))
+
+    def test_review_bundle_accepts_rc3_and_preserves_identity_without_authorizing_release(self):
+        fixture = self.review_bundle_fixtures()
+        output = self.root / "review-output-rc3"
+        env = self.cli_environment()
+        env.update({"RELEASE_TAG": AUTO_TAG, "GITHUB_RUN_ATTEMPT": "1",
+                    "READINESS_ARTIFACT_ID": "457", "REVIEW_OUTPUT": str(output)})
+        with contextlib.chdir(fixture.review_root):
+            self.assertEqual(promote.main(["review-bundle"], env, fixture.github), 0)
+
+        review = json.loads((output / "candidate-review.json").read_bytes())
+        self.assertEqual((review["tag"], review["source_sha"], review["source_ref"]),
+                         (AUTO_TAG, SHA, "refs/heads/main"))
+        self.assertEqual((review["candidate_run_id"], review["candidate_run_attempt"],
+                          review["candidate_artifact_id"], review["readiness_artifact_id"]),
+                         (123, 1, 456, 457))
+        expected_jobs = []
+        for workflow, required in promote.REQUIRED.items():
+            for name in sorted(required):
+                job = next(item for item in fixture.evidence["jobs"]
+                           if item["workflow"] == workflow and item["job"] == name)
+                expected_jobs.append({
+                    "workflow": workflow, "path": f".github/workflows/{workflow}.yml",
+                    "run_id": job["run_id"], "attempt": job["attempt"], "job_id": job["id"],
+                    "job": name, "head_sha": SHA, "status": "completed", "conclusion": "success"})
+        self.assertEqual(review["readiness_jobs"], expected_jobs)
+        self.assertEqual([(item["name"], item["size"], item["sha256"]) for item in review["payload"]],
+                         [(name, len(data), hashlib.sha256(data).hexdigest())
+                          for name, data in sorted(fixture.files.items())])
+        self.assertEqual({path.name: path.read_bytes() for path in output.iterdir()
+                          if path.name in fixture.files}, fixture.files)
+        self.assertFalse({"approved_by", "approved_at", "signature"} & set(review))
+        self.assertIn("does not authorize release", (output / "CANDIDATE-REVIEW.md").read_text())
+        self.assertFalse(any(call[0] == "release" for call in fixture.github.calls))
+
+    def test_review_bundle_refuses_malformed_and_zero_rc_tags(self):
+        for tag in ("not-a-tag", "sdk-v9.9.9-rc.0"):
+            with self.subTest(tag=tag):
+                fixture = self.review_bundle_fixtures()
+                with self.assertRaisesRegex(promote.Refusal, "candidate identity is malformed"):
+                    promote.review_bundle(REPO, tag, SHA, 123, 1, 456, 457,
+                                          fixture.dist, self.root / "review", fixture.review_root,
+                                          fixture.github)
+                self.assertEqual(fixture.github.calls, [])
 
     def test_review_bundle_refuses_readiness_from_another_run_or_attempt(self):
         fixture = self.review_bundle_fixtures()
