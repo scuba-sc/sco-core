@@ -1,11 +1,14 @@
 # sco-core SDK 2.4.0 release notes
 
-Final tag `sdk-v2.4.0`, combined archive `sco-sdk-2.4.0.zip`.
-**Current publication.** The latest published SDK release is
-[`sdk-v2.4.0-rc.2`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2),
-published on 2026-10-28. Its tag points to source commit
-`844e136ccb280ad8cb43f73bc43c9447e8f6799d`; later `main` commits do not change
-the attached release bytes. The final `sdk-v2.4.0` release remains pending.
+Final tag [`sdk-v2.4.0`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), combined archive `sco-sdk-2.4.0.zip`.
+**Current publication.** Stable SDK 2.4.0 was published on 2026-11-01 from
+`main` source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. The five
+profile archives and their SBOMs were built once by [candidate run
+41342490537](https://github.com/scuba-sc/sco-core/actions/runs/41342490537),
+then verified and promoted without rebuilding by [release run
+41343086992](https://github.com/scuba-sc/sco-core/actions/runs/41343086992).
+The published release includes `SHA256SUMS` and `release.json`. No 2.4.0
+behavior has been run in game.
 
 **RC1 history.** On 2026-10-21 the five archives were published as the
 release [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
@@ -218,16 +221,17 @@ validation. **Not run in game** remains the result; this is not a test pass or
 proof of native behavior. This RC2-specific decision does not establish final
 2.4.0 acceptance or waive the other release and provenance checks.
 
-### Steps to the final release
+### Final release verification
 
-Step 3 produced release candidate 1: the release-candidate workflow ran on `main` commit
-`48d7055` and its attested archives are the `sdk-v2.4.0-rc.1` release. Step 4 remains.
-
-1. The nine required jobs succeed on the exact `main` commit that will be built.
-2. Obtain static signature evidence for the final signature implementation. The recorded 332/332 run is historical and source-bound; the current index inventory includes additional async-loadout rows. Inventory is not proof of resolution against the executable. A local `sco-sigcheck` run of the 2026-10-21 candidate source resolved 347/347 rows on 4.10.197.2878 (static only).
-3. The designated human owner/operator dispatches `release-candidate.yml` on the exact fully green main commit. Local ZIP generation is separate from that candidate and its attestations.
-4. Tag the exact candidate source and promote its verified artifact. The final `sdk-v2.4.0`
-   tag and publication remain. Neither is done here.
+- The nine required jobs and their main-push workflows passed on source
+  `6106fa3639cbcc28f78a1ded8de2707de019f4d3` before candidate generation.
+- Candidate run 41342490537 completed successfully with the `sdk-v2.4.0` tag
+  designation. Its immutable candidate artifact was verified and promoted as
+  the published stable release.
+- The `sdk-v2.4.0` tag resolves to that same source commit. Release run
+  41343086992 verified the candidate checksums and provenance, checked every
+  asset after the draft round trip, and published the stable release.
+- Native and in-game acceptance were not run; this page does not claim either.
 
 
 ## Coordinates and distribution
