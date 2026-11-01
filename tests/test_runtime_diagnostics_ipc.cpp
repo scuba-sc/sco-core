@@ -241,6 +241,23 @@ void ConcurrentHeartbeatClock() {
             sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->owner_heartbeat_ms,6001);resampledTime=6001;}};
         CHECK(f.host.Poll(1000)==di::Result::Deadline);}
 }
+void PendingPublication() {
+    // pushed is an accounting hint; a producer publishes the readable head
+    // only after it has written the full frame. Model the interval in between.
+    {Fixture f;Raw r;sc_ipc_i_st64r(&r.request.ring->pushed,1);
+        CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+        sc_ipc_i_st64r(&r.request.ring->pushed,0);r.Push(r.Hello(),r.c.secret);
+        CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(r.Pop(r.c.secret).opcode==2);}
+    // A partial next request does not count as a pipelined request. Once its
+    // head is published, an unread response still makes the host reject it.
+    {Fixture f;Raw r;r.Connect(f);r.Push(r.Make(0x100,"{}"),r.peerKey);
+        CHECK(f.host.Poll(1000)==di::Result::Ok);
+        const auto pushed=sc_ipc_i_ld64(&r.request.ring->pushed);
+        sc_ipc_i_st64r(&r.request.ring->pushed,pushed+1);
+        CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+        sc_ipc_i_st64r(&r.request.ring->pushed,pushed);r.Push(r.Make(0x100,"{}"),r.peerKey);
+        CHECK(f.host.Poll(1000)==di::Result::Busy&&!f.host.Started());}
+}
 void HostileFrames() {
     for(unsigned kind=0;kind<12;++kind){Fixture f;Raw r;auto hello=r.Hello();auto key=r.c.secret;
         if(kind==0)key[0]^=1;
@@ -359,6 +376,6 @@ int main(int argc,char** argv) {
     // an alias (notably /tmp on macOS). Resolve only that directory: the transport
     // must continue refusing symlink components and credential-file aliases.
     path=PlainFixturePath(std::filesystem::canonical(dir)/"session.json");
-    Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();ConcurrentHeartbeatClock();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
+    Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();ConcurrentHeartbeatClock();PendingPublication();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
     CHECK(!std::filesystem::exists(path));std::filesystem::remove(dir);std::cout<<"runtime diagnostics IPC: literals, real transport, mutual auth, hostile peers and zero side effects passed\n";
 }

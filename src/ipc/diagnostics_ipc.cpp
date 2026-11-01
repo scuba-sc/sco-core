@@ -249,9 +249,12 @@ Result Host::Poll(uint64_t now) {
     // A response not consumed yet means one read remains outstanding. No pipelining.
     const uint64_t queued=sc_ipc_i_ld64(&s.request.ring->pushed)-sc_ipc_i_ld64(&s.request.ring->popped);
     if(queued==0)return Result::Ok;
-    if(s.phase==2&&sc_ipc_i_ld64(&s.response.ring->head)!=sc_ipc_i_ld64(&s.response.ring->tail))return fail(Result::Busy);
+    // The producer increments pushed before publishing head, and can publish a
+    // padding record before its next frame. Neither makes a request readable.
     Frame f;auto r=Pop(s.request,s.phase==0?s.credentials.secret:s.peerKey,f,kRequest);
+    if(r==Result::Empty)return Result::Ok;
     if(r!=Result::Ok)return fail(r);
+    if(s.phase==2&&sc_ipc_i_ld64(&s.response.ring->head)!=sc_ipc_i_ld64(&s.response.ring->tail))return fail(Result::Busy);
     if(f.session!=s.credentials.session||f.epoch!=s.credentials.epoch)return fail(Result::Epoch);
     if(f.deadline<now||f.deadline-now>2000)return fail(Result::Deadline);
     s.ackDeadline=f.deadline;
