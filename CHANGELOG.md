@@ -4,11 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-- Add synthetic owned-signature capacity regressions at 511/512/513, 1,501 and 2,049 rows: incremental ID-index growth, actual allocation failure/retry, and immutable snapshot lifetime during publication and registry destruction. Core-source kit includes the test. The MSVC allocation fixture uses the same core sources with a private static CRT so its replacement allocator intercepts PMR allocations. Not run in game.
+## sdk-v2.4.0
 
-- Select automatic SDK candidate readiness from the source-controlled
-  `sdk/CANDIDATE_TAG` (`sdk-v2.4.0-rc.3` for this development cycle); refuse a
-  missing or version-mismatched designation while preserving manual final release promotion.
+This release incorporates the development changes listed below. The previously
+published RC2 archive bytes remain unchanged.
+
+- Add synthetic owned-signature capacity regressions at 511/512/513, 1,501 and 2,049 rows: incremental ID-index growth, actual allocation failure/retry, and immutable snapshot lifetime during publication and registry destruction. Core-source kit includes the test. The MSVC allocation fixture uses the same core sources with a private static CRT so its replacement allocator intercepts PMR allocations. Not run in game.
 
 - Keep the synthetic C language recipes warning-clean with GCC 13 while testing
   null, truncated and missing spawn table members. No game provider is qualified.
@@ -65,11 +66,6 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Reject malformed exception directories and overlong unwind chains, and detect adjacent
   duplicate signature references. Synthetic resolver checks only; not run in game.
-
-## sdk-v2.4.0 (RC2 published 2026-10-28; final release pending)
-
-**Prepared release-line changes; final publication is pending.** These source changes
-do not alter the published RC2 archives.
 
 - Automatic release-candidate readiness waits instead of failing while a mandatory workflow is
   still running (every workflow triggers it as it completes, so early triggers are normal), and
