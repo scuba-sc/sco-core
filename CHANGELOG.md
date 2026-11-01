@@ -4,6 +4,9 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Keep the synthetic C language recipes warning-clean with GCC 13 while testing
+  null, truncated and missing spawn table members. No game provider is qualified.
+
 - Add an optional packaged consumer requirements report bound to explicit catalogue
   and registry hashes, with language support, scoped static capability evidence
   and a container-reader declaration. It does not establish provider readiness
