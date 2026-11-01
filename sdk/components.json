@@ -112,6 +112,10 @@
       "why": "Repository native index parser, tier, collision and leak tests; not part of the kernel source kit."
     },
     {
+      "path": "sdk/CANDIDATE_TAG",
+      "why": "Source-controlled automatic candidate target for repository release readiness; not part of an installed SDK or source kit."
+    },
+    {
       "path": "sdk/package.py",
       "why": "packaging tool"
     },

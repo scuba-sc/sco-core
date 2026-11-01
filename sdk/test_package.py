@@ -80,6 +80,12 @@ class RealManifest(unittest.TestCase):
                         if any(c["source"] == source for c in pkg.select(self.m, profile))}
             self.assertEqual(selected, expected, source)
 
+    def test_candidate_designation_is_repository_only(self):
+        self.assertIn("sdk/CANDIDATE_TAG", {item["path"] for item in self.m["excluded"]})
+        self.assertFalse(any(component["source"] == "sdk/CANDIDATE_TAG"
+                             for profile in self.m["profiles"]
+                             for component in pkg.select(self.m, profile)))
+
     def test_contract_records_follow_public_headers(self):
         # Ship each per-method authority with its corresponding public header.
         records = {}
