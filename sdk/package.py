@@ -235,6 +235,7 @@ def select(m, profile):
     chosen = [c for c in m["components"] if wanted & set(c["profiles"])]
     if profile == "core":
         game = [c["id"] for c in chosen if c.get("group") == "host-source-sc" or
+                "host-source-sc" in c["profiles"] or
                 ("game-sc" in c["profiles"] and c["source"] != "LICENSE")]
         if game:
             raise ManifestError(f"core would hold game-sc or host-source-sc components: {', '.join(game)}")

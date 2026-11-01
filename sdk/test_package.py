@@ -855,6 +855,13 @@ class Refused(unittest.TestCase):
         with self.assertRaisesRegex(pkg.ManifestError, "core would hold game-sc or host-source-sc components"):
             pkg.select(m, "core")
 
+    def test_core_refuses_host_reclassification_by_membership_and_group(self):
+        def reclassify(m):
+            component = self.comp(m, "tests/test_game_host_reports.cpp")
+            del component["group"]
+            component["profiles"].append("core")
+        self.refused(reclassify, "core would hold game-sc or host-source-sc components")
+
     def test_host_source_only_requires_classification(self):
         def remove_group(m):
             del self.comp(m, "tests/test_game_host_reports.cpp")["group"]
