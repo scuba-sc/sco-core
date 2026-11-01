@@ -70,8 +70,8 @@ static void CreatePrivateFixtureDirectory(const std::filesystem::path& dir) {
 } while (0)
 
 struct Sink final : di::FixtureAudit {
-    unsigned events=0; bool accept=true; std::function<void(const di::AuditEvent&)> onAck;
-    bool Acknowledge(const di::AuditEvent& event) override {++events;if(onAck)onAck(event);return accept;}
+    unsigned events=0; bool accept=true; std::vector<uint64_t> times; std::function<void(const di::AuditEvent&)> onAck;
+    bool Acknowledge(const di::AuditEvent& event) override {++events;times.push_back(event.time);if(onAck)onAck(event);return accept;}
 };
 std::string root,path;
 std::vector<uint8_t> Bytes(const char* hex) {std::vector<uint8_t>b(std::strlen(hex)/2);CHECK(di::Unhex(hex,b.data(),b.size()));return b;}
@@ -210,6 +210,15 @@ void ConcurrentHeartbeatClock() {
         resampledTime=999;CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
     {Fixture f(ResampleTime);Raw r;sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->owner_heartbeat_ms,7001);
         resampledTime=7001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    // Refusal and closed audit events retain monotonic observed time when
+    // geometry fails, including after a valid resample advanced the clock.
+    {Fixture f;Raw r;sc_ipc_i_st64(&r.request.ring->head,1);
+        CHECK(f.host.Poll(2000)==di::Result::Corrupt);CHECK(f.sink.times.size()>=2);
+        CHECK(f.sink.times[f.sink.times.size()-2]==2000&&f.sink.times.back()==2000);}
+    {Fixture f(ResampleTime);Raw r;sc_ipc_i_st64(&r.request.ring->head,1);
+        sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,1001);resampledTime=1001;
+        CHECK(f.host.Poll(1000)==di::Result::Corrupt);CHECK(f.sink.times.size()>=2);
+        CHECK(f.sink.times[f.sink.times.size()-2]==1001&&f.sink.times.back()==1001);}
     // The later sample must be used for frame deadlines on both host and peer.
     {Fixture f(ResampleTime);Raw r;r.Push(r.Hello(),r.c.secret);
         sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,3001);resampledTime=3001;
@@ -223,6 +232,13 @@ void ConcurrentHeartbeatClock() {
     {Fixture f(ResampleTime);Raw r;r.Connect(f);r.Push(r.Make(0x100,"{}"),r.peerKey);
         f.sink.onAck=[&](const di::AuditEvent& event){if(event.opcode==0x100){
             sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,3000);resampledTime=3000;}};
+        CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    // An expired request remains a deadline refusal even if the same late
+    // snapshot also detects a stale peer heartbeat after the audit callback.
+    {Fixture f(ResampleTime);Raw r;r.Connect(f);r.Push(r.Make(0x100,"{}"),r.peerKey);
+        sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,1);
+        f.sink.onAck=[&](const di::AuditEvent& event){if(event.opcode==0x100){
+            sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->owner_heartbeat_ms,6001);resampledTime=6001;}};
         CHECK(f.host.Poll(1000)==di::Result::Deadline);}
 }
 void HostileFrames() {

@@ -242,8 +242,8 @@ Result Host::Poll(uint64_t now) {
     if(!s.Admitted()){Stop();s.capture.Stop();return Result::Disabled;}
     auto fail=[&](Result r){s.Ack(0,{},now,"refused");Stop();return r;};
     if(now<s.lastNow||now>kMaxMonotonicMs)return fail(Result::Corrupt);
-    auto geometry=Rings(s.map,s.credentials,s.channel,s.request,s.response,now,s.clock);if(geometry!=Result::Ok)return fail(geometry);
-    s.lastNow=now;
+    auto geometry=Rings(s.map,s.credentials,s.channel,s.request,s.response,now,s.clock);s.lastNow=now;
+    if(geometry!=Result::Ok)return fail(geometry);
     sc_ipc_owner_beat(&s.channel,now);
     if(s.phase==1&&now>s.handshakeDeadline)return fail(Result::Deadline);
     // A response not consumed yet means one read remains outstanding. No pipelining.
@@ -304,8 +304,8 @@ Result Host::Poll(uint64_t now) {
     now=completed;s.lastNow=now;
     if(now>=f.deadline)return fail(Result::Deadline);
     geometry=Rings(s.map,s.credentials,s.channel,s.request,s.response,now,s.clock);s.lastNow=now;
-    if(geometry!=Result::Ok)return fail(Result::Corrupt);
     if(now>=f.deadline)return fail(Result::Deadline);
+    if(geometry!=Result::Ok)return fail(Result::Corrupt);
     if(!Push(s.response,reply,s.hostKey))return fail(Result::Corrupt);
     return Result::Ok;
 }
