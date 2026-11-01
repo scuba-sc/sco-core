@@ -234,9 +234,10 @@ def select(m, profile):
     wanted = {profile, *p.get("includes", [])}
     chosen = [c for c in m["components"] if wanted & set(c["profiles"])]
     if profile == "core":
-        game = [c["id"] for c in chosen if "game-sc" in c["profiles"] and c["source"] != "LICENSE"]
+        game = [c["id"] for c in chosen if c.get("group") == "host-source-sc" or
+                ("game-sc" in c["profiles"] and c["source"] != "LICENSE")]
         if game:
-            raise ManifestError(f"core would hold game-sc components: {', '.join(game)}")
+            raise ManifestError(f"core would hold game-sc or host-source-sc components: {', '.join(game)}")
     if profile == "core-source":
         forbidden = ("src/game/", "src/datacore/", "include/sco/game/", "include/sco/datacore",
                      "plugins/lua/sco_lua_game.", "third_party/tomlplusplus/")

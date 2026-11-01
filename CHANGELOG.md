@@ -4,7 +4,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-- Keep host-only test and source components out of the neutral source SDK, with manifest checks for their classification.
+- Keep host-only test and source components out of neutral SDK kits, with manifest checks for their classification.
 
 - Build the optional runtime MCP adapter with GCC 14 warning-as-error checks.
 

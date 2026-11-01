@@ -324,6 +324,9 @@ class RealManifest(unittest.TestCase):
         z = zipfile.ZipFile(pkg.build(self.m, "core", os.path.join(self.tmp, "c")))
         bad = [n for n in z.namelist() if any(k in n for k in GAME_MARKERS)]
         self.assertEqual(bad, [])
+        host_only = {c["destination"] for c in self.m["components"] if c.get("group") == "host-source-sc"}
+        held = {n.split("/", 1)[1] for n in z.namelist()}
+        self.assertFalse(held & host_only, sorted(held & host_only))
         versions = pkg.metadata_names(self.m, "core")[0]
         self.assertNotIn("game pack", z.read(next(n for n in z.namelist() if n.endswith(versions))).decode())
 
@@ -845,6 +848,12 @@ class Refused(unittest.TestCase):
             self.comp(m, source)["profiles"].append("core-source")
             with self.subTest(source=source), self.assertRaisesRegex(pkg.ManifestError, "game implementation"):
                 pkg.select(m, "core-source")
+
+    def test_core_refuses_host_source_membership(self):
+        m = copy.deepcopy(self.good)
+        self.comp(m, "tests/test_game_host_reports.cpp")["profiles"].append("core")
+        with self.assertRaisesRegex(pkg.ManifestError, "core would hold game-sc or host-source-sc components"):
+            pkg.select(m, "core")
 
     def test_host_source_only_requires_classification(self):
         def remove_group(m):
