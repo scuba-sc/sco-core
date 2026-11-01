@@ -4,6 +4,9 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Keep the synthetic C language recipes warning-clean with GCC 13 while testing
+  null, truncated and missing spawn table members. No game provider is qualified.
+
 - Source kits explain that the separately packaged runtime MCP peer requires a full source checkout when its CMake build option is enabled.
 
 - Keep host-only test and source components out of neutral SDK kits, with manifest checks for their classification.

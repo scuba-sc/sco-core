@@ -62,12 +62,24 @@ int main(void) {
     CHECK(Inspect(&a, &e) == SCO_UNAVAILABLE);
     const double pos[3] = {1, 2, 3}; uint64_t id = 0;
     owner = (sco_plugin*)&a; /* opaque identity only */
+    const sc_actors_v1* actors = NULL;
+    CHECK(!MEMBER(actors, sc_actors_v1, spawn_npc));
     CHECK(SpawnNpc(NULL, pos, &id) == SCO_UNAVAILABLE);
-    a.size = offsetof(sc_actors_v1, spawn_npc) + sizeof(a.spawn_npc) - 1;
-    CHECK(SpawnNpc(&a, pos, &id) == SCO_UNAVAILABLE);
+    actors = &a;
+    for (uint32_t n = offsetof(sc_actors_v1, spawn_npc); n < offsetof(sc_actors_v1, spawn_npc) + sizeof(a.spawn_npc); ++n) {
+        a.size = n;
+        CHECK(!MEMBER(actors, sc_actors_v1, spawn_npc));
+        CHECK(SpawnNpc(&a, pos, &id) == SCO_UNAVAILABLE);
+    }
     a.size = sizeof(a); a.spawn_npc = NULL;
+    CHECK(!MEMBER(actors, sc_actors_v1, spawn_npc));
     CHECK(SpawnNpc(&a, pos, &id) == SCO_UNAVAILABLE);
     a.spawn_npc = Spawn;
+    a.size = offsetof(sc_actors_v1, spawn_npc) + sizeof(a.spawn_npc);
+    CHECK(MEMBER(actors, sc_actors_v1, spawn_npc) && actors->spawn_npc(owner, "SyntheticNpc", 9, pos, &id) == SCO_OK && id == 77);
+    id = 0;
+    CHECK(SpawnNpc(&a, pos, &id) == SCO_OK && id == 77);
+    a.size = sizeof(a); id = 0;
     CHECK(SpawnNpc(&a, pos, &id) == SCO_OK && id == 77);
     CHECK(a.despawn(NULL, id) == SCO_NOT_FOUND);
     CHECK(a.despawn(owner, id) == SCO_OK); /* request started, not proof of disappearance */
