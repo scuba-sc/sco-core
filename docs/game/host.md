@@ -106,7 +106,11 @@ data; it is not a completed control/adoption decision. Pure status observation
 does not latch exposure or poison a private prepare that subsequently fails. ID zero does not assert that a new input was rooted. A later
 legacy idle Stop returning Ok cannot clear that floor. NeverExposed does not
 release aliases retained by another invocation. Status is an observation, not an
-admission permit or cleanup certificate.
+admission permit or cleanup certificate. Busy means the initial gate observation
+found it held; completing Prepare cannot turn that busy observation into success.
+Overlapping status calls may nevertheless return older observations after newer
+ones. There is no monotonicity guarantee in completion order. Only the completed
+PrepareDetailed report classifies adoption of that invocation's input.
 
 One nonblocking control gate covers old and detailed game-host controls. No
 mutex spans the inspector or other callouts; synchronous reentry refuses. Private
@@ -122,3 +126,14 @@ and a no-read negative control. A test-only static-reference release checks the
 private registry's process root. These are not native product, original-quit,
 physical cleanup or successful application retirement proofs. Fixed fault seams
 exist only in the separately instrumented test executable.
+
+A successful worker drain joins both worker threads (including callable/TLS
+destruction) and its internal helper before publishing readiness. The process
+root still retains backing. If the timed wait expires before the helper's
+worker-join completion marker is observed, the helper and owner remain retained:
+a later exit cannot upgrade terminal failure. That timeout path does not detach
+or perform an unbounded join. After observing the marker, the final helper join
+can still be scheduler-delayed; the deadline is rechecked afterwards. A failed owner
+retained through process exit can retain a finished helper's joinable handle too;
+there is no general late-reap or disposal API. This is separate from the fixed
+successful-drain helper leak and supplies no cleanup or native guarantee.

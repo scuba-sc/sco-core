@@ -116,6 +116,9 @@ HostReport StartDetailed() noexcept;
 HostReport StopDetailed() noexcept;
 // Busy status returns Unavailable with conservative retained data; it is not
 // a completed control result/adoption decision and does not latch exposure.
+// Busy means the initial gate observation was held. Overlapping status calls
+// may return an older observation after a newer one; no return-order monotonicity
+// is promised. Only the completed PrepareDetailed result classifies its input.
 HostReport StatusDetailed() noexcept;
 // Prior legacy control use is conservatively ProcessRetained with id 0: its
 // backing is caller-owned, not retroactively adopted. A busy, not-yet-adopted

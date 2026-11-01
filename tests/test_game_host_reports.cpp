@@ -27,12 +27,19 @@ static thread_local bool reenterAllocation = false;
 static thread_local bool failNextOrdinaryAllocation = false, ordinaryAllocationFired = false;
 static thread_local gh::HostReport allocationReport, allocationStatus;
 static thread_local bool statusAllocation = false, failAfterStatus = false;
+static thread_local bool pauseRootAllocation = false;
+static std::atomic<bool> rootAllocationReached{false}, rootAllocationRelease{false};
 #if defined(_MSC_VER)
 #define HOST_REPORT_NOINLINE __declspec(noinline)
 #else
 #define HOST_REPORT_NOINLINE __attribute__((noinline))
 #endif
 HOST_REPORT_NOINLINE void* operator new(std::size_t n) {
+    if (pauseRootAllocation) {
+        pauseRootAllocation = false;
+        rootAllocationReached.store(true, std::memory_order_release);
+        while (!rootAllocationRelease.load(std::memory_order_acquire)) std::this_thread::yield();
+    }
     if (failNextOrdinaryAllocation) {
         failNextOrdinaryAllocation = false;
         ordinaryAllocationFired = true;
@@ -99,6 +106,24 @@ static void Retained(const gh::HostReport& report) {
 int main(int argc, char** argv) {
     if (argc != 2) return 2;
     const std::string mode = argv[1];
+    if (mode == "retained-worker" || mode == "retained-worker-fault") {
+        // Stack destruction would hide a finished but unjoined helper. Keep
+        // the actual owner process-rooted so TSan checks the production path.
+        static auto* owner = new sco::OwnedShutdown;
+        static std::atomic<bool> tlsDestroyed{false};
+        struct Tail { ~Tail() { tlsDestroyed.store(true, std::memory_order_release); } };
+        CHECK(owner->start_worker([&](const auto&) {
+            thread_local Tail tail;
+            (void)tail;
+            if (mode == "retained-worker-fault") throw 1;
+        }));
+        const bool drained = owner->drain_until(std::chrono::steady_clock::now() + 2s);
+        CHECK(drained == (mode == "retained-worker"));
+        CHECK(owner->ready() == drained && tlsDestroyed.load(std::memory_order_acquire));
+        CHECK(!owner->drain_until(std::chrono::steady_clock::now() + 2s));
+        std::puts("retained worker: callable/TLS joined, completed helper reaped");
+        return 0;
+    }
     if (mode == "empty-owner-no-allocation") {
         sco::OwnedShutdown owner;
         failNextOrdinaryAllocation = true;
@@ -128,6 +153,45 @@ int main(int argc, char** argv) {
     backing->image = {}; backing->version = "discarded builder version";
     CHECK(capsule->configuration().image->base == backing->bytes.data());
     CHECK(std::strcmp(capsule->configuration().platform.hostVersion, "owned mock host") == 0);
+    if (mode == "status-overlap") {
+        gh::HostReport prepared, delayed;
+        std::thread preparing([&] {
+            pauseRootAllocation = true;
+            prepared = gh::PrepareDetailed(capsule);
+        });
+        const auto until = std::chrono::steady_clock::now() + 5s;
+        while (!rootAllocationReached.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < until)
+            std::this_thread::yield();
+        const bool rootPaused = rootAllocationReached.load(std::memory_order_acquire);
+        if (!rootPaused) { rootAllocationRelease.store(true); preparing.join(); CHECK(rootPaused); }
+        gh::testing::StatusPause pause;
+        gh::testing::PauseNextStatus(&pause);
+        std::thread observing([&] { delayed = gh::StatusDetailed(); });
+        while (!pause.reached.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < until)
+            std::this_thread::yield();
+        const bool statusPaused = pause.reached.load(std::memory_order_acquire);
+        if (!statusPaused) {
+            // Cancel an unconsumed pause, and release one already consumed by
+            // either thread, before joining or making another status call.
+            gh::testing::PauseNextStatus(nullptr);
+            pause.release.store(true, std::memory_order_release);
+            rootAllocationRelease.store(true, std::memory_order_release);
+            preparing.join(); observing.join();
+            CHECK(statusPaused);
+        }
+        rootAllocationRelease.store(true, std::memory_order_release);
+        preparing.join();
+        const auto newer = gh::StatusDetailed();
+        pause.release.store(true, std::memory_order_release);
+        observing.join();
+        CHECK(statusPaused && prepared.result == R::Ok && newer.result == R::Ok);
+        Retained(prepared); Retained(newer);
+        CHECK(delayed.result == R::Unavailable && delayed.sessionId == 0 && delayed.dependencies == D::ProcessRetained);
+        configuration = gh::Options{}; capsule.reset(); backing.reset();
+        CHECK(!weakCapsule.expired() && !weakBacking.expired() && destroyed == 0);
+        std::puts("status overlap: busy observation stays pending after adoption; actual capsule retained");
+        return 0;
+    }
     if (mode == "legacy") {
         CHECK(gh::Stop() == R::Ok);
         CHECK(gh::StatusDetailed().dependencies == D::ProcessRetained);

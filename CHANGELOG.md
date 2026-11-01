@@ -32,6 +32,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Add host-source game-host dependency reports and an explicitly rooted, bounded
   non-native capsule path. Retained results never authorize cleanup or restart.
+  Keep an observed busy status pending across Prepare completion, and reap the
+  completed worker-join helper before publishing owned drain readiness.
 
 - Add a test-only reserved-session drain observer and bounded engine consumer
   qualification guidance. Retained retirement still requires complete consumer

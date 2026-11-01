@@ -69,6 +69,7 @@ std::atomic_flag hostControl = ATOMIC_FLAG_INIT;
 #ifdef SCO_GAME_HOST_REPORT_TESTING
 std::atomic<testing::ReportFault> reportFault{testing::ReportFault::None};
 thread_local bool optionsAllocationArmed = false;
+std::atomic<testing::StatusPause*> statusPause{nullptr};
 #endif
 struct ControlEntry {
     bool entered = !hostControl.test_and_set(std::memory_order_acquire);
@@ -545,11 +546,20 @@ HostReport StopDetailed() noexcept {
     }
 }
 HostReport StatusDetailed() noexcept {
-    auto report = Report(Result::Ok);
-    if (hostControl.test(std::memory_order_acquire)) {
+    // Classify the gate observation before collecting the scalar snapshot.
+    // A busy observation remains busy even if Prepare finishes before return.
+    // Overlapping calls can still return earlier observations after newer ones.
+    const bool busy = hostControl.test(std::memory_order_acquire);
+    auto report = Report(busy ? Result::Unavailable : Result::Ok);
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+    if (auto* pause = statusPause.exchange(nullptr, std::memory_order_acq_rel)) {
+        pause->reached.store(true, std::memory_order_release);
+        while (!pause->release.load(std::memory_order_acquire)) std::this_thread::yield();
+    }
+#endif
+    if (busy) {
         // Observation is pending, not a completed control/exposure decision.
         // It must not latch the legacy floor and poison a private failed prepare.
-        report.result = Result::Unavailable;
         report.dependencies = DependencyDisposition::ProcessRetained;
     }
     return report;
@@ -589,6 +599,7 @@ namespace testing {
 #ifdef SCO_GAME_HOST_REPORT_TESTING
 void SetReportFault(ReportFault fault) noexcept { reportFault.store(fault); }
 bool ConsumeOptionsAllocationFault() noexcept { return std::exchange(optionsAllocationArmed, false); }
+void PauseNextStatus(StatusPause* pause) noexcept { statusPause.store(pause, std::memory_order_release); }
 bool RetainedRegistrySurvivesStaticRelease() {
     std::weak_ptr<SignatureRegistry> weak = signatureRegistry;
     signatureRegistry.reset();

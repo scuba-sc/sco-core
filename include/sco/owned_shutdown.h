@@ -270,6 +270,20 @@ public:
         if (!cv_.wait_until(lock, deadline, [&] { return joined_; })) {
             faulted_ = true; return false;
         }
+        // joined_ proves the worker joins, not the joiner's own thread exit.
+        // Retained owners never reach their destructor, so reap this completed
+        // helper here. Keep readiness unpublished through its actual join and
+        // recheck fault/deadline afterwards; no user code runs under mutex_.
+        std::thread completed = std::move(joiner_);
+        lock.unlock();
+        try { completed.join(); }
+        catch (...) {
+            lock.lock();
+            joiner_ = std::move(completed);
+            faulted_ = true;
+            return false;
+        }
+        lock.lock();
         ready_ = !faulted_ && std::chrono::steady_clock::now() <= deadline;
         return ready_;
     }
