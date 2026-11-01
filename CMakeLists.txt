@@ -1440,6 +1440,26 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_signature_registry PRIVATE sco_core)
   sco_project_target(test_signature_registry)
   add_test(NAME test_signature_registry COMMAND test_signature_registry)
+  if(MSVC)
+    # The shared MSVC STL's PMR resource does not reach this executable's
+    # replacement new/delete. Build the same core sources with a private static
+    # CRT so the allocation-failure sweep actually interposes on PMR allocations.
+    # The ordinary registry test above still exercises the normal host libraries.
+    get_target_property(_capacity_core_sources sco_core SOURCES)
+    get_target_property(_capacity_authority_sources sco_authority SOURCES)
+    add_executable(test_signature_capacity tests/test_signature_capacity.cpp
+      ${_capacity_core_sources} ${_capacity_authority_sources})
+    target_include_directories(test_signature_capacity PRIVATE "${SCO_INCLUDE_DIR}")
+    target_link_libraries(test_signature_capacity PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+    set_property(TARGET test_signature_capacity PROPERTY MSVC_RUNTIME_LIBRARY
+      "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  else()
+    add_executable(test_signature_capacity tests/test_signature_capacity.cpp)
+    target_link_libraries(test_signature_capacity PRIVATE sco_core)
+  endif()
+  sco_project_target(test_signature_capacity)
+  add_test(NAME test_signature_capacity COMMAND test_signature_capacity)
+  set_tests_properties(test_signature_capacity PROPERTIES TIMEOUT 30)
   add_executable(test_signature_baseline
     tests/signature_differential/scenarios.cpp
     tests/signature_differential/baseline/src/sco_signatures.cpp

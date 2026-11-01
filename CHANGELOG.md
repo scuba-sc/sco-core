@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Add synthetic owned-signature capacity regressions at 511/512/513, 1,501 and 2,049 rows: incremental ID-index growth, actual allocation failure/retry, and immutable snapshot lifetime during publication and registry destruction. Core-source kit includes the test. The MSVC allocation fixture uses the same core sources with a private static CRT so its replacement allocator intercepts PMR allocations. Not run in game.
+
 - Select automatic SDK candidate readiness from the source-controlled
   `sdk/CANDIDATE_TAG` (`sdk-v2.4.0-rc.3` for this development cycle); refuse a
   missing or version-mismatched designation while preserving manual final release promotion.

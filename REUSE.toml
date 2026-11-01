@@ -3955,3 +3955,9 @@ path = "tests/owned_shutdown_test_access.h"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_signature_capacity.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
