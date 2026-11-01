@@ -262,6 +262,60 @@ void ConcurrentRequestClock() {
     {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=9001;
         r.Push(hello,r.c.secret);resampledTime=7001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
 }
+void PendingWrapPadding() {
+    // Model sc_ipc_ring_push at its two publication points: first the wrap
+    // padding, then the pushed counter, with the frame head published last.
+    // The record bytes and header are written before pushed just as in push.
+    for(bool outstanding:{false,true}) {
+        Fixture f;Raw r;r.Connect(f);
+        if(outstanding) {
+            r.Push(r.Make(0x100,"{}"),r.peerKey);
+            CHECK(f.host.Poll(1000)==di::Result::Ok);
+        }
+        auto* ring=r.request.ring;
+        CHECK(sc_ipc_i_ld64(&ring->head)==sc_ipc_i_ld64(&ring->tail));
+        // Advance the empty ring to the last header-sized slot using real
+        // operations, preserving coherent head/tail and record counters.
+        const auto offset=sc_ipc_i_ld64(&ring->head)&(r.request.capacity-1);
+        const uint64_t advance=r.request.capacity-SC_IPC_REC_BYTES-offset;
+        if(advance) {
+            CHECK(advance>=SC_IPC_REC_BYTES);
+            std::vector<uint8_t> filler(size_t(advance-SC_IPC_REC_BYTES),0x5a),received(filler.size());
+            CHECK(sc_ipc_ring_push(&r.request,7,filler.data(),uint32_t(filler.size()))==SC_IPC_OK);
+            uint32_t type=0,size=uint32_t(received.size());
+            CHECK(sc_ipc_ring_pop(&r.request,&type,received.data(),&size)==SC_IPC_OK);
+            CHECK(type==7&&size==filler.size()&&received==filler);
+        }
+        const uint64_t start=sc_ipc_i_ld64(&ring->head);
+        CHECK(start==sc_ipc_i_ld64(&ring->tail));
+        CHECK((start&(r.request.capacity-1))==r.request.capacity-SC_IPC_REC_BYTES);
+        const uint64_t pushed=sc_ipc_i_ld64(&ring->pushed);
+        CHECK(pushed==sc_ipc_i_ld64(&ring->popped));
+        const sc_ipc_rec pad{0,SC_IPC_REC_PAD};
+        sc_ipc_i_copy_in(r.request.data+(start&(r.request.capacity-1)),&pad,sizeof pad);
+        sc_ipc_i_st64(&ring->head,start+SC_IPC_REC_BYTES);
+        CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+        CHECK(sc_ipc_i_ld64(&ring->tail)==start); // no record counted yet
+
+        const auto request=r.Make(0x100,"{}");
+        const auto bytes=di::Encode(request,r.peerKey);CHECK(!bytes.empty());
+        const sc_ipc_rec record{uint32_t(bytes.size()),1};
+        sc_ipc_i_copy_in(r.request.data,&record,sizeof record);
+        sc_ipc_i_copy_in(r.request.data+SC_IPC_REC_BYTES,bytes.data(),bytes.size());
+        sc_ipc_i_st64r(&ring->pushed,pushed+1);
+        CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+        CHECK(sc_ipc_i_ld64(&ring->tail)==start+SC_IPC_REC_BYTES); // padding consumed
+        CHECK(sc_ipc_i_ld64(&ring->popped)==pushed); // frame not consumed
+
+        sc_ipc_i_st64(&ring->head,start+2*SC_IPC_REC_BYTES+sc_ipc_i_align8(bytes.size()));
+        if(outstanding) CHECK(f.host.Poll(1000)==di::Result::Busy&&!f.host.Started());
+        else {
+            CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+            const auto reply=r.Pop(r.hostKey);
+            CHECK(reply.opcode==request.opcode&&reply.sequence==2&&reply.request==request.request);
+        }
+    }
+}
 void PendingPublication() {
     // pushed is an accounting hint; a producer publishes the readable head
     // only after it has written the full frame. Model the interval in between.
@@ -397,6 +451,6 @@ int main(int argc,char** argv) {
     // an alias (notably /tmp on macOS). Resolve only that directory: the transport
     // must continue refusing symlink components and credential-file aliases.
     path=PlainFixturePath(std::filesystem::canonical(dir)/"session.json");
-    Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();ConcurrentHeartbeatClock();ConcurrentRequestClock();PendingPublication();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
+    Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();ConcurrentHeartbeatClock();ConcurrentRequestClock();PendingWrapPadding();PendingPublication();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
     CHECK(!std::filesystem::exists(path));std::filesystem::remove(dir);std::cout<<"runtime diagnostics IPC: literals, real transport, mutual auth, hostile peers and zero side effects passed\n";
 }
