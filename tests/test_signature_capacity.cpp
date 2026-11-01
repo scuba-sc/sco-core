@@ -11,6 +11,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#if !defined(SCO_SIGNATURE_CAPACITY_TSAN)
 #ifdef _MSC_VER
 #include <malloc.h>
 #define CAPACITY_NOINLINE __declspec(noinline)
@@ -60,11 +61,14 @@ CAPACITY_NOINLINE void operator delete(void* p, std::align_val_t) noexcept {
 CAPACITY_NOINLINE void operator delete[](void* p, std::align_val_t a) noexcept { ::operator delete(p, a); }
 CAPACITY_NOINLINE void operator delete(void* p, std::size_t, std::align_val_t a) noexcept { ::operator delete(p, a); }
 CAPACITY_NOINLINE void operator delete[](void* p, std::size_t, std::align_val_t a) noexcept { ::operator delete(p, a); }
+#endif
 
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); std::abort(); } } while (0)
 using Status = sco::SigRegistryStatus;
 static sco::SigResult AtBase(const sco::Image& image, const sco::SigResolveContext&) { return sco::SigOk(image.base); }
+#if !defined(SCO_SIGNATURE_CAPACITY_TSAN)
 static sco::SigResult Reason(const sco::Image&, const sco::SigResolveContext&) { return sco::SigFail("copied allocator failure reason"); }
+#endif
 static sco::Image ImageFor(unsigned char* p) { sco::Image image{}; image.base = p; return image; }
 struct Rows {
     std::vector<std::string> ids;
@@ -106,6 +110,7 @@ static void TestBoundariesAndGrowth() {
     }
 }
 
+#if !defined(SCO_SIGNATURE_CAPACITY_TSAN)
 static void TestRegistrationAllocationFailure() {
     Rows rows(513);
     size_t failures = 0;
@@ -175,6 +180,7 @@ static void TestResolutionAllocationFailure() {
     CHECK(success && failures > 0);
     std::printf("resolution: %zu allocation failure points, previous snapshot preserved\n", failures);
 }
+#endif
 
 static void TestPublicationAndLifetime() {
     constexpr size_t count = 2049;
@@ -232,8 +238,14 @@ static void TestPublicationAndLifetime() {
 
 int main() {
     TestBoundariesAndGrowth();
+#if !defined(SCO_SIGNATURE_CAPACITY_TSAN)
     TestRegistrationAllocationFailure();
     TestResolutionAllocationFailure();
+#endif
     TestPublicationAndLifetime();
+#if defined(SCO_SIGNATURE_CAPACITY_TSAN)
+    std::puts("signature capacity TSan: boundaries and concurrent publication/lifetime passed, 0 failed");
+#else
     std::puts("signature capacity: boundary, allocation, publication and lifetime checks passed, 0 failed");
+#endif
 }

@@ -357,7 +357,7 @@ parallel_compile tsan "${SHARED_TSAN_SOURCES[@]}"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_signature_registry.cpp" \
   $(obj tsan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp") -o "$OUT/test_signature_registry_tsan"
 "$OUT/test_signature_registry_tsan"
-"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_signature_capacity.cpp" \
+"$CXX" "${FLAGS[@]}" -DSCO_SIGNATURE_CAPACITY_TSAN=1 -fsanitize=thread "$ROOT/tests/test_signature_capacity.cpp" \
   $(obj tsan "$ROOT/src/sco_scan.cpp" "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_log_status.cpp") -o "$OUT/test_signature_capacity_tsan"
 "$OUT/test_signature_capacity_tsan"
 python3 "$ROOT/tests/signature_differential/run.py" --cxx "$CXX" --sanitize
