@@ -70,6 +70,13 @@ class Mcp(Child):
         assert json.loads(result['content'][0]['text']) == result['structuredContent']
         return result['structuredContent']
 
+def assert_fixture_resolution(value):
+    assert value['status'] in ('ok', 'stale', 'restart_required'), value
+    data = value['data']
+    assert not data['has_more'] and data['next_cursor'] is None and not data['truncated'], value
+    assert len(data['items']) == 1, value
+    assert data['items'][0]['row_id'] == 'fixture.ipc_row' and data['items'][0]['state'] == 'failed', value
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--host', required=True, type=Path)
@@ -115,6 +122,8 @@ def main():
             if name == NAMES[2]:
                 assert value['data']['redacted_count'] >= 1
                 assert all(e['untrusted_content'] and 'ignore previous' not in e['message'] for e in value['data']['entries'])
+            if name == NAMES[4]:
+                assert_fixture_resolution(value)
         secondary = Mcp(args)
         assert secondary.tool(NAMES[0])['error']['code'] == 'peer_busy'
         secondary.close(); secondary = None
@@ -128,6 +137,8 @@ def main():
         assert not (directory / 'session.json').exists()
         host.send('restart'); assert host.line() == 'ok'
         primary = Mcp(args); new = primary.tool(NAMES[0]); assert new['provenance']['session_id'] != session
+        resolution = primary.tool(NAMES[4]); assert_fixture_resolution(resolution)
+        assert resolution['provenance']['session_id'] == new['provenance']['session_id']
         if not a.collector_log:
             host.send('deny'); assert host.line() == 'ok'
             denied = primary.tool(NAMES[0]); assert denied['error']['code'] == 'audit_unavailable' and denied['data'] is None
