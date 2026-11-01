@@ -10,6 +10,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -424,24 +425,27 @@ fs::path PendingPath(const fs::path& dataRoot, std::string_view id) {
     return dataRoot / "datacore" / "pending" / (std::string(id) + ".toml");
 }
 
-Result Start(const Options& opts) {
+static Result StartImpl(const Options& opts, const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (opts.dataRoot.empty()) return Result::BadArg;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (g_started) return Result::BadArg;
     }
-    Result r = AddReleaseHook(OnRelease);
+    Result r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r != Result::Ok) return r;
     {
         std::lock_guard<std::mutex> hold(g_lock);
+        if (cap && !g_patches.empty()) return Result::BadArg;
         g_opts = opts;
         g_state = SCO_DC_OPEN;
-        g_patches.clear();
+        if (!cap) g_patches.clear();
         g_started = true;
     }
-    r = host::ProvideHostService(SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_1, &kTable);
+    r = sco::detail::PublishHostOwned(cap, SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_1, &kTable);
     if (r != Result::Ok) {
-        RemoveReleaseHook(OnRelease);
+        if (cap) return r;
+        sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
         g_state = SCO_DC_LOADED;
@@ -449,7 +453,27 @@ Result Start(const Options& opts) {
     return r;
 }
 
+Result Start(const Options& opts) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(opts, nullptr);
+}
+namespace owned {
+Result Start(const Options& opts, const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(opts, &cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (!g_started) return;
@@ -466,11 +490,20 @@ bool Started() {
     return g_started;
 }
 
-const sco_datacore_v1* Table() { return &kTable; }
+const sco_datacore_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 
 LoadResult Load(const Schema& base, const std::vector<plugins::Plugin>& list, const plugins::ContentIndex& index,
                 const fs::path& dataRoot) {
     LoadResult out;
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) {
+        out.result.status = {Refusal::Unsupported, "DataCore load refused: runtime unavailable"};
+        return out;
+    }
     // The patches committed before the load, by plugin, in commit (id) order.
     std::map<std::string, std::vector<std::pair<uint64_t, Pack>>> queued;
     {

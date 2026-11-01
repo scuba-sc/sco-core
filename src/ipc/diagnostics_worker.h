@@ -20,7 +20,7 @@ public:
         thread_=std::thread([this]{
             Options o;o.enabled=true;o.policy=options_;o.credentialPath=options_.credentialPath;
             o.excludedRoots=options_.excludedRoots;o.hostBuild=options_.hostBuild;
-            Host host(snapshots_,capture_);
+            Host host(snapshots_,capture_,ClockNow);
             if(host.Start(o,ClockNow())!=Result::Ok){capture_.Stop();return;}
             while(!stopping_.load(std::memory_order_acquire)&&Authorized(options_)){
                 if(host.Poll(ClockNow())!=Result::Ok)break;

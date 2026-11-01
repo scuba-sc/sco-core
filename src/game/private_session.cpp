@@ -5,6 +5,7 @@
 #include "sco/caps.h"
 #include "sco/log.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <chrono>
 #include <memory>
 #include <string_view>
@@ -110,16 +111,23 @@ sco_result State(sc_private_session_state_v1* out) {
     if (!broker || calling || detail::RuntimeStopping()) return SCO_UNAVAILABLE;
     CallScope scope;
     if (!Admitted()) { End("admission lost"); return SCO_UNAVAILABLE; }
-    uint32_t count = 0; (void)net::Table()->get_peers(nullptr, &count);
+    const auto* netTable = net::Table();
+    if (!netTable) return SCO_UNAVAILABLE;
+    uint32_t count = 0; (void)netTable->get_peers(nullptr, &count);
     *out = {sizeof(*out), static_cast<uint32_t>(net::GetState()), count, maxPeers};
     return SCO_OK;
 }
 const sc_private_session_v1 table{sizeof(table), 0, Host, Join, Leave, State};
 }
-Result Start(const Options& options) {
+static Result StartImpl(const Options& options, const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
     if (broker || calling) return Result::BadArg;
-    caps::Set(SC_PRIVATE_SESSION_NAME, false, "broker not published");
+    if (cap && options.policy.enabled) return Result::Unavailable; // no owned broker lifecycle yet
+    const auto initialCap = cap
+        ? sco::caps::owned::Set(*cap, SC_PRIVATE_SESSION_NAME, false, "broker not published")
+        : caps::Set(SC_PRIVATE_SESSION_NAME, false, "broker not published");
+    if (cap && initialCap != Result::Ok) return initialCap;
     if (!options.policy.enabled) return Result::Ok;
     if (!net::Started() || !net::HasOwnerReleaseDispatcher(ReleaseOwner) || !options.admitted)
         return Result::Unavailable;
@@ -130,16 +138,39 @@ Result Start(const Options& options) {
         auto next = std::make_unique<net::SessionControlV1>(options.syntheticTransport);
         const auto configured = next->Configure(options.policy);
         if (configured != Result::Ok) { inspect = nullptr; return configured; }
-        const auto result = host::ProvideGameService(SC_PRIVATE_SESSION_NAME, SC_PRIVATE_SESSION_VERSION, &table);
+        const auto result = sco::detail::PublishGameOwned(cap, SC_PRIVATE_SESSION_NAME, SC_PRIVATE_SESSION_VERSION, &table);
         if (result != Result::Ok) { inspect = nullptr; return result; }
         broker = std::move(next);
     } catch (...) { inspect = nullptr; return Result::TooMany; }
     owner = nullptr; maxPeers = 0; lastState = net::State::Idle;
-    caps::Set(SC_PRIVATE_SESSION_NAME, true, "enabled; explicit consent required");
+    const auto enabledCap = cap
+        ? sco::caps::owned::Set(*cap, SC_PRIVATE_SESSION_NAME, true, "enabled; explicit consent required")
+        : caps::Set(SC_PRIVATE_SESSION_NAME, true, "enabled; explicit consent required");
+    if (cap && enabledCap != Result::Ok) return enabledCap;
     Log("[private-session] broker published; no session started");
     return Result::Ok;
 }
+
+Result Start(const Options& options) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(options, nullptr);
+}
+namespace owned {
+Result Start(const Options& options, const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(options, &cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
 void Tick() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return;
     if (!OnGameThread() || !broker || calling) return;
     CallScope scope;
     if (!Admitted()) {
@@ -155,6 +186,8 @@ void Tick() {
     }
 }
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     if (!OnGameThread() || calling) return;
     if (!broker) return;
     CallScope scope;
@@ -164,6 +197,8 @@ void Stop() {
     Log("[private-session] broker stopped");
 }
 void ReleaseOwner(const void* released) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     if (OnGameThread() && released && owner == released) End("owner release");
 }
 }

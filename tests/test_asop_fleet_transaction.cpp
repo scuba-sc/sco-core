@@ -8,9 +8,28 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <vector>
 using namespace sco::game::asop_host;
+static size_t allocationCalls=0, unavailableCalls=0;
+static void* countAlloc(size_t count,size_t size) {
+    ++allocationCalls; return std::calloc(count,size);
+}
+static bool sameFleet(const FleetTable& a,const FleetTable& b) {
+    if(a.count!=b.count) return false;
+    for(size_t i=0;i<kFleetCapacity;++i) {
+        const auto& lhs=a.slots[i]; const auto& rhs=b.slots[i];
+        if(std::memcmp(lhs.name,rhs.name,sizeof(lhs.name)) ||
+           lhs.guid[0]!=rhs.guid[0] || lhs.guid[1]!=rhs.guid[1] ||
+           lhs.cls!=rhs.cls || lhs.selected!=rhs.selected) return false;
+    }
+    return true;
+}
 static FleetResolveResult resolve(void*, const char* name, uintptr_t& cls, uint64_t guid[2]) {
     if (!std::strcmp(name,"missing") || !std::strcmp(name,"MISSING")) return FleetResolveResult::Missing;
+    if (!std::strcmp(name,"reverse_unavailable")) {
+        ++unavailableCalls; cls=42; guid[0]=7; guid[1]=9;
+        return FleetResolveResult::Unavailable;
+    }
     if (!std::strcmp(name,"null_class")) { cls=0; guid[0]=7; return FleetResolveResult::Resolved; }
     if (!std::strcmp(name,"zero_guid")) { cls=42; guid[0]=guid[1]=0; return FleetResolveResult::Resolved; }
     cls=42; guid[0]=7; guid[1]=9; return FleetResolveResult::Resolved;
@@ -21,6 +40,13 @@ static uint64_t idAt(const FleetBuffer& b,size_t row) {
 int main() {
     // FleetTable is large; keep snapshots off the default Windows thread stack.
     auto table=std::make_unique<FleetTable>(); FleetBuffer buffer{};
+    auto empty=std::make_unique<FleetTable>(*table);
+    const char* reverseFailure[]={"synthetic_alpha","reverse_unavailable"};
+    size_t failedSkipped=99;
+    assert(!RebuildFleet(*table,buffer,reverseFailure,2,resolve,nullptr,countAlloc,&failedSkipped));
+    // Only the supplied entitlement-buffer allocator is counted; the planning table is separate.
+    assert(unavailableCalls==1 && allocationCalls==0 && failedSkipped==99);
+    assert(sameFleet(*empty,*table) && !buffer.data && buffer.count==0);
     const char* initial[]={"synthetic_alpha","synthetic_beta"};
     size_t skipped=99;
     assert(RebuildFleet(*table,buffer,initial,2,resolve,nullptr,std::calloc,&skipped));
@@ -34,6 +60,11 @@ int main() {
     assert(retained[0x10]==oldBytes && buffer.data!=retained);
     assert(idAt(buffer,0)==(kFleetUrnMarker|1) && idAt(buffer,1)==(kFleetUrnMarker|2));
     auto before=std::make_unique<FleetTable>(*table); const auto published=buffer;
+    const std::vector<uint8_t> publishedBytes(buffer.data,buffer.data+buffer.count*kFleetEntitlementSize);
+    assert(!RebuildFleet(*table,buffer,reverseFailure,2,resolve,nullptr,countAlloc));
+    assert(unavailableCalls==2 && allocationCalls==0);
+    assert(sameFleet(*before,*table) && buffer.data==published.data && buffer.count==published.count);
+    assert(!std::memcmp(buffer.data,publishedBytes.data(),publishedBytes.size()));
     const char* missing[]={"missing"};
     assert(!RebuildFleet(*table,buffer,missing,1,resolve,nullptr,std::calloc));
     assert(!std::memcmp(before.get(),table.get(),sizeof(*table)) && buffer.data==published.data && buffer.count==published.count);

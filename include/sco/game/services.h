@@ -1,12 +1,10 @@
 #pragma once
-// The Star Citizen game pack's services (docs/game-services.md), published under the owner
-// "game" with host::ProvideGameService. sco::app::Start calls Start when the product sets
-// Platform::gameServices and the game pack's services are built (SCO_GAME_SC, Windows: the
-// sco_game_services library, which defines SCO_GAME_SERVICES); Stop calls Stop after UnloadAll.
+// The Star Citizen game pack's host-source service interface. Native service startup is
+// currently unavailable until native execution and reader exclusion are proven.
 //
 // Today: teleport.spatial 1.0 (sc_spatial.h), spawn.entities 1.2 (sc_spawn.h), game.actors 1.0
 // (sc_actors.h) and game.vehicles 1.0 (sc_vehicles.h). teleport.spatial answers 0 until the
-// teleport.* rows are resolved (the product's ResolveAll before Start) and you've spawned;
+// teleport.* rows are resolved (the product publishes its resolved snapshot before Start) and you've spawned;
 // spawn.entities answers "the spawner isn't available on this game build" (and 0) unless the
 // spawn.helpers rows (sco/game/actors.h) were OK at Start too; game.actors sets the capabilities
 // game.actors.local_player, .spawn_npc and .despawn, and game.vehicles game.vehicles.seats, .seat
@@ -19,11 +17,20 @@
 
 namespace sco::game::services {
 
-// Game thread. Publishes the services and subscribes their tick. BadArg when a name is taken
-// (a product still provides teleport.spatial or spawn.entities itself); nothing is left published
-// then.
+// Refuses before mutation until a native exclusion proof is available.
 Result Start();
-void   Stop();
+// Game thread. In a fresh process, after Start refuses, Stop is an idempotent
+// game-service cleanup no-op returning Ok; on another thread it returns
+// WrongThread without cleanup. Even that call counts as legacy runtime use and
+// prevents later strict owned-runtime binding.
+// Failed means cleanup is live or uncertain: retain backing state and
+// require process restart. Other services are withdrawn where safe; repeated Stop
+// does not retry a latched uncertain cleanup.
+Result Stop();
+// After successful Stop, the host must first prove all in-flight game readers have drained,
+// then call this on the game thread. It clears cached reads and permits another Start. Failed
+// or uncertain cleanup must retain the old reads, image and registry until process exit.
+Result FinalizeStopAfterQuiescence();
 bool   Started();
 
 // The switch for game.relocation 1.0 (sc_relocation.h), settable by the product from a player or host

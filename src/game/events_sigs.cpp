@@ -42,7 +42,7 @@ bool CallTargetsEqual(const Image& img, const uint8_t* at, size_t a, size_t b) {
     return x && y && x == y;
 }
 
-const char* HealthExtra(const Image& img, const uint8_t* at) {
+const char* HealthExtra(const Image& img, const uint8_t* at, const SigResolveContext&) {
     if (!LocalTextAt(img, at, 0, 5)) return "status accessor call outside .text";
     const uint8_t* accessor = LocalRip(img, at, 0, 1, 5);
     if (!LocalTextAt(img, accessor, 0, 14)) return "status accessor outside .text";
@@ -67,7 +67,7 @@ constexpr Check kStateChecks[] = {
     { 0x17, "48 8B 51 60", "the status vtable slot 0x60 predicate changed (+0x17)" },
 };
 
-const char* StateExtra(const Image& img, const uint8_t* at) {
+const char* StateExtra(const Image& img, const uint8_t* at, const SigResolveContext&) {
     if (!LocalTextAt(img, at, 0, 5)) return "status accessor call outside .text";
     const uint8_t* accessor = LocalRip(img, at, 0, 1, 5);
     if (!LocalTextAt(img, accessor, 0, 14)) return "status accessor outside .text";
@@ -120,11 +120,11 @@ SigResult LabelFunction(const Image& img, const char* label, uint8_t r0, uint8_t
     return SigOk(f);
 }
 
-SigResult ResolveIsDeadConfirmed(const Image& img) {
+SigResult ResolveIsDeadConfirmed(const Image& img, const SigResolveContext& ctx) {
     const uint8_t* lea = nullptr;
     SigResult r = LabelFunction(img, "CSCActorStatus::IsDeadConfirmed", 0x48, 0x8D, 0x05, &lea);
     if (r.state != SigState::Ok) return r;
-    const uint8_t* site = Sig("actor.state_site");
+    const uint8_t* site = ctx.Sig("actor.state_site");
     if (!site) return SigFail("actor.state_site missing");
     const uint8_t* call = LocalTextAt(img, site, 0x0B, 5);
     const uint8_t* p2 = LocalRip(img, site, 0x0B, 1, 5);
@@ -138,7 +138,7 @@ SigResult ResolveIsDeadConfirmed(const Image& img) {
 
 constexpr const char* kSpawnLabel = "void __cdecl SCigEventDispatcher::QueueEvent<struct SPI_Player_OnSpawn>(const struct SPI_Player_OnSpawn &)";
 
-const char* SpawnExtra(const Image& img, const uint8_t* at) {
+const char* SpawnExtra(const Image& img, const uint8_t* at, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
     const uint8_t* label = FindCString(img.rdata, kSpawnLabel);
     if (!label || LocalRip(img, at, 0x60, 3, 7) != label) return "the function doesn't load the SPI_Player_OnSpawn label at +0x60";
@@ -159,7 +159,7 @@ constexpr rows::FnSpec kPlayerSpawn = {
 
 // ---- player died (B6) --------------------------------------------------------------------------
 
-SigResult ResolvePlayerDeath(const Image& img) {
+SigResult ResolvePlayerDeath(const Image& img, const SigResolveContext&) {
     const uint8_t* lea = nullptr;
     SigResult r = LabelFunction(img, "void __cdecl SCigEventDispatcher::QueueEvent<struct SPI_Player_OnDeath>(const struct SPI_Player_OnDeath &)",
                                 0x48, 0x8D, 0x05, &lea);
@@ -181,7 +181,7 @@ SigResult ResolvePlayerDeath(const Image& img) {
 
 // ---- seat transitions (B8) ---------------------------------------------------------------------
 
-SigResult ResolveSeatEnter(const Image& img) {
+SigResult ResolveSeatEnter(const Image& img, const SigResolveContext&) {
     SigResult r = LabelFunction(img, "CSCActorResultStateLinked::Enter", 0x4C, 0x8D, 0x05, nullptr);
     if (r.state != SigState::Ok) return r;
     if (!LocalTextAt(img, r.at, 0, 21)) return SigFail("seat prologue outside .text");
@@ -190,7 +190,7 @@ SigResult ResolveSeatEnter(const Image& img) {
     return r;
 }
 
-SigResult ResolveSeatExit(const Image& img) {
+SigResult ResolveSeatExit(const Image& img, const SigResolveContext&) {
     SigResult r = LabelFunction(img, "CSCActorResultStateLinked::Exit", 0x4C, 0x8D, 0x05, nullptr);
     if (r.state != SigState::Ok) return r;
     if (!LocalTextAt(img, r.at, 0, 19)) return SigFail("seat prologue outside .text");

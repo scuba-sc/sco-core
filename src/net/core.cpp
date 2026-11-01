@@ -941,7 +941,8 @@ struct Core::Impl {
             for (const OutUnit* u : kv.second.Due(now, opts.resendMs, opts.maxResendMs)) {
                 if (u->sends > 1) ++stats.retransmits;
                 std::vector<uint8_t> b;
-                b.reserve(28 + u->data.size());
+                // SendStream fragments payloads to kFragBytes; bound the reserve even if that changes.
+                b.reserve(SC_NET_DATA_HEAD_REL + std::min(u->data.size(), size_t{kFragBytes}));
                 Writer w(b);
                 w.U8(static_cast<uint8_t>(kDataReliable | (u->toHost ? kDataToHost : 0)));
                 w.U8(0);

@@ -81,7 +81,7 @@ class RuntimeTests(unittest.TestCase):
                   {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'}]
         catalogue_tools = ['search_api', 'get_symbol', 'list_services', 'get_example',
                            'get_capability_status', 'check_compatibility']
-        discovery_tools = catalogue_tools + ['list_engine_natives', 'get_engine_native',
+        discovery_tools = catalogue_tools + ['get_service_status', 'list_engine_natives', 'get_engine_native',
             'validate_manifest_and_widgets', 'generate_plugin_scaffold', 'search_guides',
             'get_guide_section', 'list_workflows', 'get_workflow']
         for options, expected in (([], discovery_tools), (['--minimal-tools'], catalogue_tools)):

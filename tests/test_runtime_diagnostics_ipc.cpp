@@ -3,6 +3,8 @@
 #include "ipc/diagnostics_ipc.h"
 #include "sco/caps.h"
 #include "sco/host.h"
+#include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <cassert>
 #include <cstring>
 #include <filesystem>
@@ -68,8 +70,8 @@ static void CreatePrivateFixtureDirectory(const std::filesystem::path& dir) {
 } while (0)
 
 struct Sink final : di::FixtureAudit {
-    unsigned events=0; bool accept=true;
-    bool Acknowledge(const di::AuditEvent&) override {++events;return accept;}
+    unsigned events=0; bool accept=true; std::vector<uint64_t> times; std::function<void(const di::AuditEvent&)> onAck;
+    bool Acknowledge(const di::AuditEvent& event) override {++events;times.push_back(event.time);if(onAck)onAck(event);return accept;}
 };
 std::string root,path;
 std::vector<uint8_t> Bytes(const char* hex) {std::vector<uint8_t>b(std::strlen(hex)/2);CHECK(di::Unhex(hex,b.data(),b.size()));return b;}
@@ -95,7 +97,7 @@ void Vectors() {
 struct Fixture {
     SnapshotStore snapshots;Capture capture;Sink sink;di::Host host;di::Options options;
     std::vector<sco::plugins::Plugin> plugins;
-    Fixture():host(snapshots,capture){options.enabled=true;options.credentialPath=path;options.excludedRoots={root};options.hostBuild="fixture-host-1";
+    explicit Fixture(di::ClockResampler clock=nullptr):host(snapshots,capture,clock){options.enabled=true;options.credentialPath=path;options.excludedRoots={root};options.hostBuild="fixture-host-1";
         HostMetadata metadata;metadata.hostBuild="fixture-host-1";metadata.readiness="ready";
         LifecycleMetadata lifecycle;lifecycle.lifecycle="ready";lifecycle.offlineAdmission="authorized";
         plugins.resize(1);plugins[0].manifestOk=true;plugins[0].manifest.id="fixture_ipc";plugins[0].manifest.version="1.0";
@@ -123,9 +125,9 @@ struct Raw {
         finish.sequence=1;sequence=2;Push(finish,peerKey);CHECK(fixture.host.Poll(1000)==di::Result::Ok);CHECK(Pop(hostKey).opcode==4);}
 };
 void DisabledAndCredential() {
-    SnapshotStore s;Capture c;Sink sink;di::Host h(s,c);di::Options o;o.credentialPath=path;
+    SnapshotStore s;Capture c;Sink sink;di::Host h(s,c,nullptr);di::Options o;o.credentialPath=path;
     CHECK(h.Start(o,&sink,1000)==di::Result::Disabled);CHECK(!std::filesystem::exists(path));
-    di::Peer p;CHECK(p.Begin(path,1000)==di::Result::Auth);
+    di::Peer p(nullptr);CHECK(p.Begin(path,1000)==di::Result::Auth);
     // A null fixture sink selects production admission: policy defaults refuse
     // first, but an authorized product must still fail closed without a collector.
     o.enabled=true;o.excludedRoots={root};CHECK(h.Start(o,nullptr,1000)==di::Result::Disabled);
@@ -153,7 +155,7 @@ void GeometryAttacks() {
         // Some targets hold per-run random bytes (ring epochs): always change the byte.
         uint8_t* target=static_cast<uint8_t*>(m.base)+offset;const uint8_t before=sc_ipc_i_ld8r(target);
         sc_ipc_i_st8r(target,before==value?uint8_t(~value):value);CHECK(sc_ipc_i_ld8r(target)!=before);
-        di::Peer p;CHECK(p.Begin(path,1000)!=di::Result::Ok);CHECK(f.host.Poll(1000)!=di::Result::Ok);os::Close(m);}
+        di::Peer p(nullptr);CHECK(p.Begin(path,1000)!=di::Result::Ok);CHECK(f.host.Poll(1000)!=di::Result::Ok);os::Close(m);}
     for(unsigned kind=0;kind<5;++kind){Fixture f;Raw r;auto* ring=r.request.ring;
         if(kind==0)sc_ipc_i_st64(&ring->head,1);
         if(kind==1)sc_ipc_i_st64(&ring->head,32776);
@@ -162,12 +164,174 @@ void GeometryAttacks() {
         if(kind==4)sc_ipc_i_st64(&ring->head,UINT64_MAX-7);
         CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
     {Fixture f;Raw r;sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,1001);CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
-    {Fixture f;Raw r;sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->owner_heartbeat_ms,1001);di::Peer p;CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
+    {Fixture f;Raw r;sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->owner_heartbeat_ms,1001);di::Peer p(nullptr);CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
     {Fixture f;Raw r;CHECK(f.host.Poll(6001)==di::Result::Deadline);}
     // Descriptor complete literal, including session bytes independently substituted from credential.
     {Fixture f;Raw r;auto expected=Bytes("5347443101004000000102030405060708090a0b0c0d0e0f80000000000000004081000000000000001000000000010000000000000000000000000000000000");
         std::memcpy(expected.data()+8,r.c.session.data(),16);std::array<uint8_t,64>actual{};sc_ipc_i_copy_out(actual.data(),static_cast<uint8_t*>(r.mapping.base)+64,64);
         CHECK(std::equal(actual.begin(),actual.end(),expected.begin()));}
+}
+// Model a heartbeat written after an operation's initial time sample but before
+// its header snapshot, without scheduler sleeps or real-time dependencies.
+uint64_t resampledTime=0;
+uint64_t ResampleTime(){return resampledTime;}
+void ConcurrentHeartbeatClock() {
+    // Peer observes a just-published owner heartbeat; later requests use the
+    // advanced clock rather than going backwards after a successful begin.
+    {Fixture f;os::Mapping m;CHECK(os::Open(m));auto* h=static_cast<sc_ipc_hdr*>(m.base);
+        sc_ipc_i_st64(&h->owner_heartbeat_ms,1001);resampledTime=1001;
+        di::Peer p(ResampleTime);CHECK(p.Begin(path,1000)==di::Result::Ok);
+        CHECK(f.host.Poll(3001)==di::Result::Ok);CHECK(p.Challenge(3001)==di::Result::Ok);os::Close(m);}
+    // A later heartbeat must not hide an explicitly regressing caller clock.
+    {Fixture f;os::Mapping m;CHECK(os::Open(m));auto* h=static_cast<sc_ipc_hdr*>(m.base);
+        sc_ipc_i_st64(&h->owner_heartbeat_ms,1001);resampledTime=1001;
+        di::Peer p(ResampleTime);CHECK(p.Begin(path,1000)==di::Result::Ok);
+        sc_ipc_i_st64(&h->owner_heartbeat_ms,1002);resampledTime=1002;
+        CHECK(p.Challenge(1000)==di::Result::Deadline);os::Close(m);}
+    {Fixture f;os::Mapping m;CHECK(os::Open(m));auto* h=static_cast<sc_ipc_hdr*>(m.base);
+        sc_ipc_i_st64(&h->owner_heartbeat_ms,1002);resampledTime=1001;
+        di::Peer p(ResampleTime);CHECK(p.Begin(path,1000)==di::Result::Corrupt);os::Close(m);}
+    // A successful geometry check advances observed time even if no response
+    // is ready; later calls cannot regress after an Empty result.
+    {Fixture f;os::Mapping m;CHECK(os::Open(m));auto* h=static_cast<sc_ipc_hdr*>(m.base);
+        di::Peer p(ResampleTime);CHECK(p.Begin(path,1000)==di::Result::Ok);
+        sc_ipc_i_st64(&h->owner_heartbeat_ms,1001);resampledTime=1001;
+        CHECK(p.Challenge(1000)==di::Result::Empty);
+        sc_ipc_i_st64(&h->owner_heartbeat_ms,1000);CHECK(p.Challenge(1000)==di::Result::Deadline);os::Close(m);}
+    // Host observes a just-published peer heartbeat and records the advanced
+    // time so the next call cannot regress.
+    {Fixture f(ResampleTime);Raw r;sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,1001);
+        resampledTime=1001;CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
+    // Resampling must not accept a heartbeat still in the future, backwards
+    // clock readings, or stale peer heartbeats.
+    {Fixture f(ResampleTime);Raw r;sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,1002);
+        resampledTime=1001;CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
+    {Fixture f(ResampleTime);Raw r;sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,1001);
+        resampledTime=999;CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
+    {Fixture f(ResampleTime);Raw r;sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->owner_heartbeat_ms,7001);
+        resampledTime=7001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    // Refusal and closed audit events retain monotonic observed time when
+    // geometry fails, including after a valid resample advanced the clock.
+    {Fixture f;Raw r;sc_ipc_i_st64(&r.request.ring->head,1);
+        CHECK(f.host.Poll(2000)==di::Result::Corrupt);CHECK(f.sink.times.size()>=2);
+        CHECK(f.sink.times[f.sink.times.size()-2]==2000&&f.sink.times.back()==2000);}
+    {Fixture f(ResampleTime);Raw r;sc_ipc_i_st64(&r.request.ring->head,1);
+        sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,1001);resampledTime=1001;
+        CHECK(f.host.Poll(1000)==di::Result::Corrupt);CHECK(f.sink.times.size()>=2);
+        CHECK(f.sink.times[f.sink.times.size()-2]==1001&&f.sink.times.back()==1001);}
+    // The later sample must be used for frame deadlines on both host and peer.
+    {Fixture f(ResampleTime);Raw r;r.Push(r.Hello(),r.c.secret);
+        sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,3001);resampledTime=3001;
+        CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f;di::Peer p(ResampleTime);CHECK(p.Begin(path,1000)==di::Result::Ok);
+        CHECK(f.host.Poll(1000)==di::Result::Ok);os::Mapping m;CHECK(os::Open(m));
+        sc_ipc_i_st64(&static_cast<sc_ipc_hdr*>(m.base)->owner_heartbeat_ms,3001);resampledTime=3001;
+        CHECK(p.Challenge(1000)==di::Result::Deadline);os::Close(m);}
+    // An audit may advance the clock during the second geometry check. The
+    // completed response must not escape once the request deadline is reached.
+    {Fixture f(ResampleTime);Raw r;r.Connect(f);r.Push(r.Make(0x100,"{}"),r.peerKey);
+        f.sink.onAck=[&](const di::AuditEvent& event){if(event.opcode==0x100){
+            sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,3000);resampledTime=3000;}};
+        CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    // An expired request remains a deadline refusal even if the same late
+    // snapshot also detects a stale peer heartbeat after the audit callback.
+    {Fixture f(ResampleTime);Raw r;r.Connect(f);r.Push(r.Make(0x100,"{}"),r.peerKey);
+        sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->peer_heartbeat_ms,1);
+        f.sink.onAck=[&](const di::AuditEvent& event){if(event.opcode==0x100){
+            sc_ipc_i_st64(&sc_ipc_i_hdr(&r.channel)->owner_heartbeat_ms,6001);resampledTime=6001;}};
+        CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+}
+void ConcurrentRequestClock() {
+    // A valid request created just after Poll sampled its clock can have a
+    // deadline 2001 ms past that old sample. The later sample governs the
+    // deadline, monotonic state, response and audit event.
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=3001;
+        r.Push(hello,r.c.secret);resampledTime=1001;
+        CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(r.Pop(r.c.secret).deadline==3001);
+        CHECK(f.sink.times.back()==1001);CHECK(f.host.Poll(1000)==di::Result::Corrupt);}
+    // No tolerance: still-overlong, expired, backwards clock and stale
+    // heartbeat cases all refuse, including when time advances mid-operation.
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=3002;
+        r.Push(hello,r.c.secret);resampledTime=1001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=999;
+        r.Push(hello,r.c.secret);resampledTime=1001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=3001;
+        r.Push(hello,r.c.secret);resampledTime=999;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=3001;
+        r.Push(hello,r.c.secret);resampledTime=3002;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+    {Fixture f(ResampleTime);Raw r;auto hello=r.Hello();hello.deadline=9001;
+        r.Push(hello,r.c.secret);resampledTime=7001;CHECK(f.host.Poll(1000)==di::Result::Deadline);}
+}
+void PendingWrapPadding() {
+    // Model sc_ipc_ring_push at its two publication points: first the wrap
+    // padding, then the pushed counter, with the frame head published last.
+    // The record bytes and header are written before pushed just as in push.
+    for(bool outstanding:{false,true}) {
+        Fixture f;Raw r;r.Connect(f);
+        if(outstanding) {
+            r.Push(r.Make(0x100,"{}"),r.peerKey);
+            CHECK(f.host.Poll(1000)==di::Result::Ok);
+        }
+        auto* ring=r.request.ring;
+        CHECK(sc_ipc_i_ld64(&ring->head)==sc_ipc_i_ld64(&ring->tail));
+        // Advance the empty ring to the last header-sized slot using real
+        // operations, preserving coherent head/tail and record counters.
+        const auto offset=sc_ipc_i_ld64(&ring->head)&(r.request.capacity-1);
+        const uint64_t advance=r.request.capacity-SC_IPC_REC_BYTES-offset;
+        if(advance) {
+            CHECK(advance>=SC_IPC_REC_BYTES);
+            std::vector<uint8_t> filler(size_t(advance-SC_IPC_REC_BYTES),0x5a),received(filler.size());
+            CHECK(sc_ipc_ring_push(&r.request,7,filler.data(),uint32_t(filler.size()))==SC_IPC_OK);
+            uint32_t type=0,size=uint32_t(received.size());
+            CHECK(sc_ipc_ring_pop(&r.request,&type,received.data(),&size)==SC_IPC_OK);
+            CHECK(type==7&&size==filler.size()&&received==filler);
+        }
+        const uint64_t start=sc_ipc_i_ld64(&ring->head);
+        CHECK(start==sc_ipc_i_ld64(&ring->tail));
+        CHECK((start&(r.request.capacity-1))==r.request.capacity-SC_IPC_REC_BYTES);
+        const uint64_t pushed=sc_ipc_i_ld64(&ring->pushed);
+        CHECK(pushed==sc_ipc_i_ld64(&ring->popped));
+        const sc_ipc_rec pad{0,SC_IPC_REC_PAD};
+        sc_ipc_i_copy_in(r.request.data+(start&(r.request.capacity-1)),&pad,sizeof pad);
+        sc_ipc_i_st64(&ring->head,start+SC_IPC_REC_BYTES);
+        CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+        CHECK(sc_ipc_i_ld64(&ring->tail)==start); // no record counted yet
+
+        const auto request=r.Make(0x100,"{}");
+        const auto bytes=di::Encode(request,r.peerKey);CHECK(!bytes.empty());
+        const sc_ipc_rec record{uint32_t(bytes.size()),1};
+        sc_ipc_i_copy_in(r.request.data,&record,sizeof record);
+        sc_ipc_i_copy_in(r.request.data+SC_IPC_REC_BYTES,bytes.data(),bytes.size());
+        sc_ipc_i_st64r(&ring->pushed,pushed+1);
+        CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+        CHECK(sc_ipc_i_ld64(&ring->tail)==start+SC_IPC_REC_BYTES); // padding consumed
+        CHECK(sc_ipc_i_ld64(&ring->popped)==pushed); // frame not consumed
+
+        sc_ipc_i_st64(&ring->head,start+2*SC_IPC_REC_BYTES+sc_ipc_i_align8(bytes.size()));
+        if(outstanding) CHECK(f.host.Poll(1000)==di::Result::Busy&&!f.host.Started());
+        else {
+            CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+            const auto reply=r.Pop(r.hostKey);
+            CHECK(reply.opcode==request.opcode&&reply.sequence==2&&reply.request==request.request);
+        }
+    }
+}
+void PendingPublication() {
+    // pushed is an accounting hint; a producer publishes the readable head
+    // only after it has written the full frame. Model the interval in between.
+    {Fixture f;Raw r;sc_ipc_i_st64r(&r.request.ring->pushed,1);
+        CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+        sc_ipc_i_st64r(&r.request.ring->pushed,0);r.Push(r.Hello(),r.c.secret);
+        CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(r.Pop(r.c.secret).opcode==2);}
+    // A partial next request does not count as a pipelined request. Once its
+    // head is published, an unread response still makes the host reject it.
+    {Fixture f;Raw r;r.Connect(f);r.Push(r.Make(0x100,"{}"),r.peerKey);
+        CHECK(f.host.Poll(1000)==di::Result::Ok);
+        const auto pushed=sc_ipc_i_ld64(&r.request.ring->pushed);
+        sc_ipc_i_st64r(&r.request.ring->pushed,pushed+1);
+        CHECK(f.host.Poll(1000)==di::Result::Ok&&f.host.Started());
+        sc_ipc_i_st64r(&r.request.ring->pushed,pushed);r.Push(r.Make(0x100,"{}"),r.peerKey);
+        CHECK(f.host.Poll(1000)==di::Result::Busy&&!f.host.Started());}
 }
 void HostileFrames() {
     for(unsigned kind=0;kind<12;++kind){Fixture f;Raw r;auto hello=r.Hello();auto key=r.c.secret;
@@ -204,7 +368,7 @@ void HostileFrames() {
         CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Busy);}
 }
 void PeerChecks() {
-    for(unsigned kind=0;kind<6;++kind){Fixture f;di::Peer p;CHECK(p.Begin(path,1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);
+    for(unsigned kind=0;kind<6;++kind){Fixture f;di::Peer p(nullptr);CHECK(p.Begin(path,1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);
         os::Mapping m;CHECK(os::Open(m));std::string text;di::Credentials c;CHECK(os::ReadCredential(path,text)&&di::ParseCredential(text,c));
         sc_ipc_chan channel{};sc_ipc_ring_view request{},response{};CHECK(di::Geometry(m,c,channel,request,response,1000)==di::Result::Ok);
         auto pos=sc_ipc_i_ld64(&response.ring->tail)&(response.capacity-1);sc_ipc_rec record{};sc_ipc_i_copy_out(&record,response.data+pos,8);
@@ -212,7 +376,7 @@ void PeerChecks() {
         json::Object o;CHECK(json::Parse(challenge.payload,o));di::Key client{},host{},peerKey{},hostKey{};CHECK(di::Unhex(o.strings.at("client_nonce"),client.data(),32)&&di::Unhex(o.strings.at("host_nonce"),host.data(),32));
         di::Derive(c,client,host,peerKey,hostKey);
         CHECK(p.Challenge(1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(p.Ready(1000)==di::Result::Ok);
-        di::Peer second;CHECK(second.Begin(path,1000)==di::Result::Busy);CHECK(p.Send(0x100,"{}",1000)==di::Result::Ok);CHECK(p.Send(0x100,"{}",1000)==di::Result::Busy);CHECK(f.host.Poll(1000)==di::Result::Ok);
+        di::Peer second(nullptr);CHECK(second.Begin(path,1000)==di::Result::Busy);CHECK(p.Send(0x100,"{}",1000)==di::Result::Ok);CHECK(p.Send(0x100,"{}",1000)==di::Result::Busy);CHECK(f.host.Poll(1000)==di::Result::Ok);
         pos=sc_ipc_i_ld64(&response.ring->tail)&(response.capacity-1);sc_ipc_i_copy_out(&record,response.data+pos,8);b.resize(record.size);sc_ipc_i_copy_out(b.data(),response.data+pos+8,b.size());
         di::Frame reply;CHECK(di::Decode(b.data(),b.size(),hostKey,reply,65536)==di::Result::Ok);
         if(kind==0)b.back()^=1;
@@ -220,10 +384,10 @@ void PeerChecks() {
         CHECK(b.size()==record.size);sc_ipc_i_copy_in(response.data+pos+8,b.data(),b.size());std::string output="not-cleared";
         CHECK(p.Receive(1000,output)!=di::Result::Ok&&output.empty());os::Close(m);
     }
-    {Fixture f;di::Peer p;CHECK(p.Begin(path,1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);
+    {Fixture f;di::Peer p(nullptr);CHECK(p.Begin(path,1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);
         os::Mapping m;CHECK(os::Open(m));auto* hdr=static_cast<sc_ipc_hdr*>(m.base);sc_ipc_i_st64(&hdr->epoch,sc_ipc_i_ld64(&hdr->epoch)+1);
         CHECK(p.Challenge(1000)==di::Result::Epoch);os::Close(m);}
-    {Fixture f;di::Peer p;CHECK(p.Begin(path,1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(p.Challenge(3001)==di::Result::Deadline);}
+    {Fixture f;di::Peer p(nullptr);CHECK(p.Begin(path,1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(p.Challenge(3001)==di::Result::Deadline);}
 }
 void ReadsAndNoSideEffects() {
     static const int owner=0;unsigned calls[4]{};unsigned index=0;
@@ -233,16 +397,30 @@ void ReadsAndNoSideEffects() {
         CHECK(sco::RegisterCommand(&owner,"fixture",command)==sco::Result::Ok);}
     static const uint8_t table=0;CHECK(sco::ProvideService(&owner,"fixture","fixture.side_effect",0x10000,&table)==sco::Result::Ok);
     CHECK(!sco::ServiceTableHandedOut(&owner));CHECK(sco::caps::Set("fixture.ipc_cap",true)==sco::Result::Ok);
-    {Fixture f;di::Peer p;CHECK(p.Begin(path,1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);
+    {Fixture f;di::Peer p(nullptr);CHECK(p.Begin(path,1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);
         CHECK(p.Challenge(1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);CHECK(p.Ready(1000)==di::Result::Ok);
         for(unsigned i=0;i<6;++i){CHECK(p.Send(0x100,"{}",1000)==di::Result::Ok);CHECK(f.host.Poll(1000)==di::Result::Ok);std::string output;
             CHECK(p.Receive(1000,output)==di::Result::Ok);CHECK(output.find(i==5?"rate_limited":"\"host_version\"")!=std::string::npos);}
         p.Close();CHECK(f.host.Poll(1000)==di::Result::Ok);}
     {
+        Fixture f;Raw r;r.Connect(f);r.Push(r.Make(0x104,"{}",2000),r.peerKey);sc_ipc_peer_beat(&r.channel,0,2000);
+        CHECK(f.host.Poll(2000)==di::Result::Ok);auto response=r.Pop(r.hostKey);
+        CHECK(response.opcode==0x104 && response.payload.find("unknown_metadata")!=std::string::npos && response.payload.find("\"data\":null")!=std::string::npos);
+    }
+    static const sco::SigDef row[]{ {"fixture.ipc_row", nullptr, 0, 0, nullptr, {}} };
+    auto registry=std::make_shared<sco::SignatureRegistry>();
+    const sco::SignatureTable tableRows{row,1};
+    CHECK(registry->RegisterTables(&tableRows,1).status==sco::SigRegistryStatus::Ok);
+    CHECK(registry->Freeze()==sco::SigRegistryStatus::Ok);
+    CHECK(registry->Resolve(sco::Image{})==sco::SigRegistryStatus::Ok);
+    CHECK(sco::InstallHostSignatureRegistry(registry,nullptr));
+    {
         Fixture f;Raw r;r.Connect(f);const auto snapshot=f.snapshots.Latest();
         const char* inputs[]{"{}","{}","{\"plugin_id\":\"fixture_ipc\"}","{}","{}","{}"};
         for(uint16_t op=0x100;op<=0x105;++op){const uint64_t now=op==0x105?3000:2000;r.Push(r.Make(op,inputs[op-0x100],now),r.peerKey);sc_ipc_peer_beat(&r.channel,0,now);
-            CHECK(f.host.Poll(now)==di::Result::Ok);auto response=r.Pop(r.hostKey);CHECK(response.opcode==op&&response.payload.find("\"data\":null")==std::string::npos);}
+            CHECK(f.host.Poll(now)==di::Result::Ok);auto response=r.Pop(r.hostKey);
+            if(response.opcode!=op||response.payload.find("\"data\":null")!=std::string::npos)std::cerr<<"opcode="<<op<<" payload="<<response.payload<<'\n';
+            CHECK(response.opcode==op&&response.payload.find("\"data\":null")==std::string::npos);}
         CHECK(f.snapshots.Latest()==snapshot&&f.plugins[0].state==sco::plugins::State::Loaded&&sco::caps::Has("fixture.ipc_cap"));
         for(uint16_t op:{uint16_t(0x200),uint16_t(0x201),uint16_t(0x202),uint16_t(0x203),uint16_t(0xffff)}){
             r.Push(r.Make(op,"{\"name\":\"fixture.raw\"}",3000),r.peerKey);sc_ipc_peer_beat(&r.channel,0,3000);CHECK(f.host.Poll(3000)==di::Result::Ok);
@@ -251,6 +429,7 @@ void ReadsAndNoSideEffects() {
         f.sink.accept=false;r.Push(r.Make(0x100,"{}",4000),r.peerKey);sc_ipc_peer_beat(&r.channel,0,4000);CHECK(f.host.Poll(4000)==di::Result::Audit);
         auto refusal=r.Pop(r.hostKey);CHECK(refusal.payload.find("audit_unavailable")!=std::string::npos&&refusal.payload.find("\"data\":null")!=std::string::npos);
     }
+    CHECK(sco::ClearHostSignatureRegistry(registry,nullptr));
     for(auto count:calls)CHECK(count==0);
     CHECK(!sco::ServiceTableHandedOut(&owner));sco::Release(&owner);
 }
@@ -272,6 +451,6 @@ int main(int argc,char** argv) {
     // an alias (notably /tmp on macOS). Resolve only that directory: the transport
     // must continue refusing symlink components and credential-file aliases.
     path=PlainFixturePath(std::filesystem::canonical(dir)/"session.json");
-    Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
+    Vectors();RunDiagnosticsJsonTests();DisabledAndCredential();GeometryAttacks();ConcurrentHeartbeatClock();ConcurrentRequestClock();PendingWrapPadding();PendingPublication();HostileFrames();PeerChecks();ReadsAndNoSideEffects();
     CHECK(!std::filesystem::exists(path));std::filesystem::remove(dir);std::cout<<"runtime diagnostics IPC: literals, real transport, mutual auth, hostile peers and zero side effects passed\n";
 }

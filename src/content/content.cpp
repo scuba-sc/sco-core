@@ -4,6 +4,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -155,17 +156,43 @@ sco_result Read(sco_plugin* self, uint64_t id, void* out, uint32_t* io) {
 const sco_content_v1 kTable{ sizeof(sco_content_v1), 0, Item, Read };
 }
 
-Result Start() {
+static Result StartImpl(const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
     if (g_started) return Result::BadArg;
-    const auto r = host::ProvideHostService(SCO_CONTENT_NAME, SCO_CONTENT_VERSION_1_0, &kTable);
-    if (r == Result::Ok) { g_started = true; g_snapshotted = false; g_entries.clear(); }
+    const auto r = sco::detail::PublishHostOwned(cap, SCO_CONTENT_NAME, SCO_CONTENT_VERSION_1_0, &kTable);
+    if (r == Result::Ok) {
+        g_started = true;
+        g_snapshotted = false;
+        if (!cap) g_entries.clear();
+    }
     return r;
 }
-Result Snapshot(std::vector<plugins::Plugin>& list, plugins::ContentIndex& index) {
+
+Result Start() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(nullptr);
+}
+namespace owned {
+Result Start(const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(&cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+static Result SnapshotImpl(std::vector<plugins::Plugin>& list, plugins::ContentIndex& index,
+                           const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (!OnGameThread()) return Result::WrongThread;
-    if (!g_started || detail::RuntimeStopping()) return Result::Unavailable;
+    if (!g_started || (detail::RuntimeStopping() && !(cap && cap->valid()))) return Result::Unavailable;
     if (g_snapshotted) return Result::BadArg;
+    if (cap && !g_entries.empty()) return Result::BadArg;
     try {
         std::vector<Entry> all;
         uint64_t total = 0;
@@ -226,14 +253,40 @@ Result Snapshot(std::vector<plugins::Plugin>& list, plugins::ContentIndex& index
         return Result::Ok;
     } catch (...) {
         // No partial snapshot becomes public. Caller must refuse consumer loading.
-        g_entries.clear();
+        if (!cap) g_entries.clear();
         return Result::TooMany;
     }
 }
+
+Result Snapshot(std::vector<plugins::Plugin>& list, plugins::ContentIndex& index) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return SnapshotImpl(list, index, nullptr);
+}
+namespace owned {
+Result Snapshot(std::vector<plugins::Plugin>& list, plugins::ContentIndex& index,
+                const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = SnapshotImpl(list, index, &cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     if (!OnGameThread()) return;
     g_started = false; g_snapshotted = false; g_entries.clear();
     host::WithdrawHostService(SCO_CONTENT_NAME);
 }
-const sco_content_v1* Table() { return &kTable; }
+const sco_content_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 }

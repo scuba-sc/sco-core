@@ -124,6 +124,30 @@ REQUIRED = {
 }
 
 
+def current_candidate_tag(root, version):
+    """Read the source-controlled automatic candidate designation for this SDK version."""
+    path = root / "sdk/CANDIDATE_TAG"
+    try:
+        if not stat.S_ISREG(path.lstat().st_mode):
+            raise Refusal("automatic candidate tag designation is not a regular file")
+        raw = path.read_text(encoding="utf-8")
+    except Refusal:
+        raise
+    except (OSError, UnicodeError) as exc:
+        raise Refusal("automatic candidate tag designation is unavailable") from exc
+    configured = [line.strip() for line in raw.splitlines()
+                  if line.strip() and not line.lstrip().startswith("#")]
+    if len(configured) != 1:
+        raise Refusal("automatic candidate tag designation must contain exactly one tag")
+    tag = configured[0]
+    base = base_tag(tag)
+    if base is None:
+        raise Refusal("automatic candidate tag designation is malformed")
+    if base != f"sdk-v{version}":
+        raise Refusal("automatic candidate tag designation does not match sdk/VERSION")
+    return tag
+
+
 class ReadinessJob(TypedDict):
     workflow: str
     path: str
@@ -261,7 +285,7 @@ def auto_candidate(repo, event, root, client=github):
     version = (root / "sdk/VERSION").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise Refusal("sdk/VERSION is not strict X.Y.Z")
-    tag = f"sdk-v{version}"
+    tag = current_candidate_tag(root, version)
     gate = subprocess.run([sys.executable, "tools/doc_release_gate.py", "--tag", tag],
                           cwd=root, capture_output=True)
     if gate.returncode:

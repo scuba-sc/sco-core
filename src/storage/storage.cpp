@@ -8,6 +8,7 @@
 #include "sco/host.h"
 #include "sco/log.h"
 #include "../api/internal.h"
+#include "../api/owned_publication.h"
 #include <sqlite3.h>
 #include <atomic>
 #include <chrono>
@@ -263,14 +264,26 @@ Result Enter(sco_plugin* self, Call& call, bool open = true) {
     return Result::Ok;
 }
 
+#ifdef SCO_OWNED_TABLE_TESTING
+void (*g_tableExitHook)(void*) = nullptr;
+void* g_tableExitHookContext = nullptr;
+#endif
+
 // Runs a table function: nothing throws across the C ABI (out of memory is SCO_TOO_MANY).
 template <class F>
 sco_result Guard(F&& f) noexcept {
     try {
-        return C(f());
-    } catch (...) {
-        return SCO_TOO_MANY;
-    }
+        sco::detail::RuntimeLease admission;
+        if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping()))
+            return SCO_UNAVAILABLE;
+        try {
+            const auto result = C(f());
+#ifdef SCO_OWNED_TABLE_TESTING
+            if (g_tableExitHook) g_tableExitHook(g_tableExitHookContext);
+#endif
+            return result;
+        } catch (...) { return SCO_TOO_MANY; }
+    } catch (...) { return SCO_UNAVAILABLE; }
 }
 
 // ---- plugin memory ----------------------------------------------------------------------------
@@ -309,6 +322,15 @@ bool CopyKey(const char* key, std::string& out, bool emptyOk = false) {
     const size_t n = strnlen(key, SCO_STORAGE_MAX_KEY + 1);
     if (n > SCO_STORAGE_MAX_KEY || (n == 0 && !emptyOk)) return false;
     out.assign(key, n);
+    return true;
+}
+
+// Schema names are not KV keys. Bound the copy independently of the 255-byte KV limit.
+bool CopySchemaName(const char* name, std::string& out) {
+    if (!name) return false;
+    const size_t n = strnlen(name, static_cast<size_t>(kMaxSqlValueBytes) + 1);
+    if (n > static_cast<size_t>(kMaxSqlValueBytes)) return false;
+    out.assign(name, n);
     return true;
 }
 
@@ -766,7 +788,7 @@ sco_result NextTable(sco_plugin* self, const char* after, char* out, uint32_t* i
         std::string a, name, type;
         if (!out_kind) return Result::BadArg;
         if (!TakeBuffer(out, io, capacity)) return Result::BadArg;
-        if (after && !CopyKey(after, a)) return Result::BadArg;
+        if (after && !CopySchemaName(after, a)) return Result::BadArg;
         {
             Call call;
             const Result r = Enter(self, call);
@@ -778,7 +800,10 @@ sco_result NextTable(sco_plugin* self, const char* after, char* out, uint32_t* i
             sql += " ORDER BY name LIMIT 1";
             HostStmt q(d, sql.c_str());
             if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
-            if (after) BindText(q.s, 1, a);
+            if (after) {
+                const int bind = sqlite3_bind_text(q.s, 1, a.data(), static_cast<int>(a.size()), SQLITE_STATIC);
+                if (bind != SQLITE_OK) return Fail(d, bind, Result::Failed);
+            }
             const int rc = sqlite3_step(q.s);
             if (rc == SQLITE_DONE) return Result::NotFound;
             if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
@@ -802,9 +827,10 @@ sco_result NextColumn(sco_plugin* self, const char* table, uint32_t* inout_index
         std::string t, name, type;
         if (!inout_index || !out_flags) return Result::BadArg;
         if (!TakeBuffer(name_out, name_io, ncap) || !TakeBuffer(type_out, type_io, tcap)) return Result::BadArg;
-        if (!table || !CopyKey(table, t) || t.empty()) return Result::BadArg;
+        if (!CopySchemaName(table, t)) return Result::BadArg;
         const uint32_t wanted = *inout_index;
         uint32_t flags = 0;
+        bool notFound = false;
         {
             Call call;
             const Result r = Enter(self, call);
@@ -812,18 +838,29 @@ sco_result NextColumn(sco_plugin* self, const char* table, uint32_t* inout_index
             Db& d = *call.db;
             HostStmt q(d, "SELECT name, type, \"notnull\", pk FROM pragma_table_info(?1) ORDER BY cid");
             if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
-            BindText(q.s, 1, t);
+            const int bind = sqlite3_bind_text(q.s, 1, t.data(), static_cast<int>(t.size()), SQLITE_STATIC);
+            if (bind != SQLITE_OK) return Fail(d, bind, Result::Failed);
             uint32_t seen = 0;
             int rc;
             while ((rc = sqlite3_step(q.s)) == SQLITE_ROW && seen++ != wanted) {}
-            if (rc != SQLITE_ROW) return Result::NotFound;
-            const unsigned char* nm = sqlite3_column_text(q.s, 0);
-            if (!nm) return Fail(d, SQLITE_NOMEM, Result::TooMany);
-            name.assign(reinterpret_cast<const char*>(nm), static_cast<size_t>(sqlite3_column_bytes(q.s, 0)));
-            const unsigned char* tp = sqlite3_column_text(q.s, 1);   // NULL: column without declared type
-            if (tp) type.assign(reinterpret_cast<const char*>(tp), static_cast<size_t>(sqlite3_column_bytes(q.s, 1)));
-            flags = (sqlite3_column_int(q.s, 2) ? SCO_STORAGE_COLUMN_NOTNULL : 0u) |
-                    (sqlite3_column_int(q.s, 3) ? SCO_STORAGE_COLUMN_PK : 0u);
+            if (rc == SQLITE_DONE) {
+                notFound = true;
+            } else {
+                if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
+                const unsigned char* nm = sqlite3_column_text(q.s, 0);
+                if (!nm) return Fail(d, SQLITE_NOMEM, Result::TooMany);
+                name.assign(reinterpret_cast<const char*>(nm), static_cast<size_t>(sqlite3_column_bytes(q.s, 0)));
+                const unsigned char* tp = sqlite3_column_text(q.s, 1);   // NULL: column without declared type
+                if (tp) type.assign(reinterpret_cast<const char*>(tp), static_cast<size_t>(sqlite3_column_bytes(q.s, 1)));
+                flags = (sqlite3_column_int(q.s, 2) ? SCO_STORAGE_COLUMN_NOTNULL : 0u) |
+                        (sqlite3_column_int(q.s, 3) ? SCO_STORAGE_COLUMN_PK : 0u);
+            }
+        }
+        if (notFound) {
+            // TakeBuffer cleared the capacities; restore them after releasing the database lock.
+            *name_io = ncap;
+            if (type_io != name_io) *type_io = tcap;
+            return Result::NotFound;
         }
         *name_io = ncap;
         *type_io = tcap;
@@ -869,7 +906,17 @@ void OnRelease(const void* owner) {
 
 }  // namespace
 
-Result Start(const Options& opts) {
+#ifdef SCO_OWNED_TABLE_TESTING
+namespace testing {
+void SetTableExitHook(void (*hook)(void*), void* context) noexcept {
+    g_tableExitHook = hook;
+    g_tableExitHookContext = context;
+}
+}
+#endif
+
+static Result StartImpl(const Options& opts, const sco::detail::StartupPublish* cap) {
+    if (cap && !cap->valid()) return Result::Unavailable;
     if (opts.dataRoot.empty() || opts.budgetMs == 0) return Result::BadArg;
     {
         std::lock_guard<std::mutex> hold(g_lock);
@@ -881,19 +928,40 @@ Result Start(const Options& opts) {
         }
         g_started = true;
     }
-    Result r = AddReleaseHook(OnRelease);
+    Result r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r == Result::Ok) {
-        r = host::ProvideHostService(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_1, &kTable);
-        if (r != Result::Ok) RemoveReleaseHook(OnRelease);
+        r = sco::detail::PublishHostOwned(cap, SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_1, &kTable);
+        if (r != Result::Ok && !cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
     }
     if (r != Result::Ok) {
+        if (cap) return r; // retain partial owned startup for terminal fault handling
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
     }
     return r;
 }
 
+Result Start(const Options& opts) {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return Result::Unavailable;
+    return StartImpl(opts, nullptr);
+}
+namespace owned {
+Result Start(const Options& opts, const sco::detail::StartupPublish& cap) {
+    try {
+        const auto result = StartImpl(opts, &cap);
+        if (result != Result::Ok && cap.owner()) cap.owner()->fault();
+        return result;
+    } catch (...) {
+        if (cap.owner()) cap.owner()->fault();
+        return Result::Failed;
+    }
+}
+}
+
 void Stop() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.owned()) return;
     std::vector<std::shared_ptr<Db>> dbs;
     {
         std::lock_guard<std::mutex> hold(g_lock);
@@ -911,7 +979,11 @@ bool Started() {
     return g_started;
 }
 
-const sco_storage_v1* Table() { return &kTable; }
+const sco_storage_v1* Table() {
+    sco::detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
+    return &kTable;
+}
 
 fs::path DatabasePath(const char* id) {
     std::lock_guard<std::mutex> hold(g_lock);

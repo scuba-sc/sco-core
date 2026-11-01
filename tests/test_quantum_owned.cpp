@@ -267,7 +267,8 @@ int main(int argc, char**) {
         assert(q->enable(c, 1) == SCO_FAILED && q->hold(c, 10) == SCO_FAILED);
         TickQuantum(1100);
         assert(sco::Release(c) == sco::Result::Ok);
-        StopQuantum();
+        assert(StopQuantum() == sco::Result::Failed);
+        assert(StopQuantum() == sco::Result::Failed);
         assert(f.log.size() == calls && f.cvar[0] == 1);
         std::puts("quantum_owned: restore failure latches restart and suppresses every later callback");
         return 0;
@@ -306,7 +307,7 @@ int main(int argc, char**) {
     std::puts("quantum_owned: lease expiry restores and keeps the owner");
 
     assert(q->hold(a, 500) == SCO_OK && !Restored(f));
-    StopQuantum();
+    assert(StopQuantum() == sco::Result::Ok);
     assert(Restored(f) && !api->has("game.quantum.control"));
     assert(StartQuantum(backend, true) == sco::Result::Ok);
     std::puts("quantum_owned: stop while holding restores");

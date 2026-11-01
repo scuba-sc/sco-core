@@ -69,5 +69,9 @@ std::optional<DiagnosticsPluginMetadata> CopyPublisherMetadata(uint64_t now) {
         !owner || detail::Released(owner) || !latest || !latest->observedMs || *latest->observedMs > now) return {};
     return latest;
 }
-const sco_diagnostics_publisher_v1* PublisherTable() { return &table; }
+const sco_diagnostics_publisher_v1* PublisherTable() {
+    detail::RuntimeLease admission;
+    if (!admission || admission.startup() || (admission.owned() && detail::RuntimeStopping())) return nullptr;
+    return &table;
+}
 }

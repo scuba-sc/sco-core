@@ -1,7 +1,7 @@
 #pragma once
 // Addresses behind sc-offline's boot / offline-mode patches (patches.cpp), the hooks it installs at
 // startup (hooks.cpp) and its CSystem::Quit hook's fast-shutdown test (dllmain.cpp). Resolved by
-// sco::ResolveAll(); the rows are in src/game/offline_sigs.cpp, and docs/game/offline.md lists each
+// a host registry's Resolve(); the rows are in src/game/offline_sigs.cpp, and docs/game/offline.md lists each
 // one with what it checks. Each resolver is the scan sc-offline ran itself, moved byte for byte;
 // where that scan took "every match", the row insists on the count found in 4.10.196.36804
 // (numbered rows <id>.1..N), so a game patch that adds or loses a site shows as a failed row.
@@ -11,7 +11,7 @@
 // is ready. The OR-loop bound patch uses features' offline.or_loop_bound capability.
 //
 // Rows only find addresses. sc-offline writes the patches and installs the hooks, after
-// ResolveAll: every row matches the game's original bytes.
+// resolution: every row matches the game's original bytes.
 #include <cstddef>
 #include <cstdint>
 
@@ -19,7 +19,7 @@ namespace sco::game::offline {
 
 struct Capability {
     const char*        name;    // "offline.handshake"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
 };
 

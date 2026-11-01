@@ -1,5 +1,6 @@
 #include "sco/log.h"
 #include "sco/status.h"
+#include "reserved_legacy_gate.h"
 #include <atomic>
 #include <cstdarg>
 #include <cstdio>
@@ -9,13 +10,15 @@ namespace sco {
 
 static std::atomic<LogSink> g_sink{ nullptr };
 
-void SetLogSink(LogSink sink) { g_sink.store(sink); }
+void SetLogSink(LogSink sink) { detail::LegacyEntry entry; if (entry) g_sink.store(sink); }
 
 static void Emit(const char* line) {
     if (LogSink sink = g_sink.load()) sink(line);
 }
 
 void Log(const char* fmt, ...) {
+    detail::LegacyEntry entry;
+    if (!entry) return;
     char buf[512];
     va_list ap; va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
@@ -28,6 +31,8 @@ static char       g_status[256] = "";
 static bool       g_statusSet = false;
 
 void Status(const char* fmt, ...) {
+    detail::LegacyEntry entry;
+    if (!entry) return;
     char buf[sizeof(g_status)];
     va_list ap; va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
@@ -41,6 +46,8 @@ void Status(const char* fmt, ...) {
 }
 
 bool GetStatus(char* out, size_t n) {
+    detail::LegacyEntry entry(false);
+    if (!entry) return false;
     if (!out || n == 0) return false;
     std::lock_guard<std::mutex> hold(g_statusLock);
     snprintf(out, n, "%s", g_status);

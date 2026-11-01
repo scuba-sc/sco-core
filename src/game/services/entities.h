@@ -12,7 +12,8 @@ namespace sco::game::services {
 Result StartEntities();
 // Removes every entity still owned (a plugin whose release failed), removes the stream hooks and
 // withdraws.
-void   StopEntities();
+// Failed means a hook may remain installed and its backing state is retained.
+Result StopEntities();
 
 // spawn.cpp's release hook: owner unloaded or crashed, so every entity it spawned through
 // game.entities and still owns leaves the world (decision 6; 1.1's keep releases an entity from this,

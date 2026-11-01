@@ -80,6 +80,12 @@ class RealManifest(unittest.TestCase):
                         if any(c["source"] == source for c in pkg.select(self.m, profile))}
             self.assertEqual(selected, expected, source)
 
+    def test_candidate_designation_is_repository_only(self):
+        self.assertIn("sdk/CANDIDATE_TAG", {item["path"] for item in self.m["excluded"]})
+        self.assertFalse(any(component["source"] == "sdk/CANDIDATE_TAG"
+                             for profile in self.m["profiles"]
+                             for component in pkg.select(self.m, profile)))
+
     def test_contract_records_follow_public_headers(self):
         # Ship each per-method authority with its corresponding public header.
         records = {}
@@ -324,6 +330,9 @@ class RealManifest(unittest.TestCase):
         z = zipfile.ZipFile(pkg.build(self.m, "core", os.path.join(self.tmp, "c")))
         bad = [n for n in z.namelist() if any(k in n for k in GAME_MARKERS)]
         self.assertEqual(bad, [])
+        host_only = {c["destination"] for c in self.m["components"] if c.get("group") == "host-source-sc"}
+        held = {n.split("/", 1)[1] for n in z.namelist()}
+        self.assertFalse(held & host_only, sorted(held & host_only))
         versions = pkg.metadata_names(self.m, "core")[0]
         self.assertNotIn("game pack", z.read(next(n for n in z.namelist() if n.endswith(versions))).decode())
 
@@ -461,6 +470,14 @@ class RealManifest(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(json.loads(result.stdout)["items"][0]["result"], "unsupported")
 
+    def test_storage_examples_match_notebook_coverage(self):
+        records = {record["symbol"]: record for record in json.loads(pkg.developer_catalogue("legacy"))["records"]}
+        notebook = "sdk/examples/notebook/main.lua"
+        for method in ("get", "put", "del", "next_key", "begin", "commit", "rollback"):
+            self.assertIn(notebook, records["sco_storage_v1." + method]["examples"])
+        for method in ("exec", "query", "step", "column_count", "column", "column_name", "close", "last_error"):
+            self.assertNotIn(notebook, records["sco_storage_v1." + method]["examples"])
+
     def test_archive_agent_discovery_and_scaffold(self):
         """Real packaged stdio MCP works without a checkout or network catalogue."""
         with zipfile.ZipFile(pkg.build(self.m, "legacy", os.path.join(self.tmp, "agent"))) as archive:
@@ -506,6 +523,11 @@ class RealManifest(unittest.TestCase):
         for index in range(3, 13):
             self.assertNotIn("error", replies[index])
             self.assertFalse(replies[index]["result"].get("isError", False), replies[index])
+        example = replies[7]["result"]["structuredContent"]["examples"]
+        self.assertEqual([item["path"] for item in example],
+                         ["sdk/examples/container_reader/container_reader.c"])
+        self.assertEqual(example[0]["content"],
+                         (kit / "examples/container_reader/container_reader.c").read_text(encoding="utf-8"))
         found = replies[9]["result"]["structuredContent"]
         self.assertEqual((found["guides"]["mode"], found["guides"]["matches_catalogue_source_sha"]), ("file", True))
         self.assertEqual(found["sections"][0]["doc"], "docs/getting-started.md")
@@ -568,6 +590,7 @@ class RealManifest(unittest.TestCase):
         for path in ("CMakeLists.txt", "src/host/sco_host.cpp", "src/app/sco_app.cpp",
                      "src/api/sco_tasks.cpp", "plugins/lua/sco_lua.c",
                      "third_party/sqlite/sqlite3.c", "tests/test_host.cpp",
+                     "tests/issue302_test_support.h", "tests/test_synthetic_owned_session.cpp",
                      "tools/abi_snapshot.py", "tests/abi/released/sco_api.h"):
             self.assertIn(path, sources)
         self.assertFalse(any(s.startswith(("src/game/", "src/datacore/")) for s in sources))
@@ -576,19 +599,56 @@ class RealManifest(unittest.TestCase):
         with unittest.mock.patch.object(pkg, "game_pack", side_effect=AssertionError("game version read")):
             self.assertIn("-DSCO_GAME_SC=OFF", pkg.versions_txt("core-source", "1.2.0"))
 
+    def test_source_kits_explain_runtime_mcp_exclusion(self):
+        """Both extracted source kits refuse the excluded runtime peer with an actionable reason."""
+        env = os.environ.copy()
+        for key in ("CPATH", "CPLUS_INCLUDE_PATH", "C_INCLUDE_PATH", "LIBRARY_PATH",
+                    "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "CMAKE_PREFIX_PATH"):
+            env.pop(key, None)
+        with tempfile.TemporaryDirectory(prefix="source-runtime-mcp-") as tmp:
+            for profile, game in (("core-source", "OFF"), ("host-source-sc", "ON")):
+                with self.subTest(profile=profile):
+                    archive = pkg.build(self.m, profile, os.path.join(tmp, "dist"))
+                    with zipfile.ZipFile(archive) as z:
+                        files = {n.split("/", 1)[1] for n in z.namelist()}
+                        self.assertNotIn("tools/sco-core-mcp-runtime/native_adapter.cpp", files)
+                        versions = z.read(z.namelist()[0].split("/")[0] + "/VERSIONS.txt").decode()
+                        z.extractall(os.path.join(tmp, "empty"))
+                        root = Path(tmp, "empty", z.namelist()[0].split("/")[0])
+                    opts = ["-DSCO_GAME_SC=" + game]
+                    for tests in ("OFF", "ON"):
+                        with self.subTest(profile=profile, tests=tests):
+                            result = subprocess.run(
+                                ["cmake", "-S", str(root), "-B", os.path.join(tmp, profile + "-on-tests-" + tests),
+                                 *opts, "-DSCO_BUILD_TESTS=" + tests, "-DSCO_BUILD_RUNTIME_MCP=ON"],
+                                cwd=root, env=env, capture_output=True, text=True)
+                            output = " ".join((result.stdout + result.stderr).split())
+                            self.assertNotEqual(result.returncode, 0, output)
+                            self.assertIn("Runtime MCP peer source is missing.", output)
+                            self.assertIn("full source checkout", output)
+                            self.assertIn("-DSCO_BUILD_RUNTIME_MCP=OFF", output)
+                    self.assertIn("Runtime MCP peer is separately packaged", versions)
+                    result = subprocess.run(["cmake", "-S", str(root), "-B", os.path.join(tmp, profile + "-off"),
+                                             *opts, "-DSCO_BUILD_TESTS=OFF", "-DSCO_BUILD_RUNTIME_MCP=OFF"],
+                                            cwd=root, env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_core_source_has_no_game_contracts(self):
         game = {c["source"] for c in self.m["components"]
-                if c.get("group") == "game-contract" or
+                if c.get("group") in ("game-contract", "host-source-sc") or
                 ("game-sc" in c["profiles"] and c["source"] != "LICENSE")}
-        # Profile membership classifies game files; no filename-pattern allowlist.
+        # Profile membership and explicit host classification are independent of filename patterns.
         selected = {c["source"] for c in pkg.select(self.m, "core-source")}
         self.assertFalse(selected & game, sorted(selected & game))
         for path in ("tests/abi_datacore.c", "tests/abi_game_actors.c",
-                     "tests/abi_spatial.c", "tests/abi_spawn.c"):
+                     "tests/abi_spatial.c", "tests/abi_spawn.c", "tests/test_game_host_reports.cpp"):
             self.assertIn(path, game)
         with zipfile.ZipFile(pkg.build(self.m, "core-source", self.tmp)) as z:
             files = {n.split("/", 1)[1] for n in z.namelist()}
             self.assertFalse(files & game, sorted(files & game))
+        with zipfile.ZipFile(pkg.build(self.m, "host-source-sc", self.tmp)) as z:
+            files = {n.split("/", 1)[1] for n in z.namelist()}
+            self.assertIn("tests/test_game_host_reports.cpp", files)
 
     def test_core_source_builds_from_extracted_root(self):
         """CI and local runs exercise every neutral CTest, with no checkout include paths."""
@@ -598,7 +658,7 @@ class RealManifest(unittest.TestCase):
                 z.extractall(os.path.join(tmp, "empty"))
                 root = Path(tmp, "empty", z.namelist()[0].split("/", 1)[0])
             game = {c["source"] for c in self.m["components"]
-                    if c.get("group") == "game-contract" or
+                    if c.get("group") in ("game-contract", "host-source-sc") or
                     ("game-sc" in c["profiles"] and c["source"] != "LICENSE")}
             self.assertFalse(any((root / path).exists() for path in game))
             env = os.environ.copy()
@@ -821,6 +881,42 @@ class Refused(unittest.TestCase):
             self.comp(m, source)["profiles"].append("core-source")
             with self.assertRaisesRegex(pkg.ManifestError, "contracts"):
                 pkg.select(m, "core-source")
+
+    def test_source_refuses_host_source_membership(self):
+        for source in ("tests/test_game_host_reports.cpp", "tests/test_mining.cpp"):
+            m = copy.deepcopy(self.good)
+            self.comp(m, source)["profiles"].append("core-source")
+            with self.subTest(source=source), self.assertRaisesRegex(pkg.ManifestError, "game implementation"):
+                pkg.select(m, "core-source")
+
+    def test_core_refuses_host_source_membership(self):
+        m = copy.deepcopy(self.good)
+        self.comp(m, "tests/test_game_host_reports.cpp")["profiles"].append("core")
+        with self.assertRaisesRegex(pkg.ManifestError, "core would hold game-sc or host-source-sc components"):
+            pkg.select(m, "core")
+
+    def test_core_refuses_host_reclassification_by_membership_and_group(self):
+        def reclassify(m):
+            component = self.comp(m, "tests/test_game_host_reports.cpp")
+            del component["group"]
+            component["profiles"].append("core")
+        self.refused(reclassify, "core would hold game-sc or host-source-sc components")
+
+    def test_host_source_only_requires_classification(self):
+        def remove_group(m):
+            del self.comp(m, "tests/test_game_host_reports.cpp")["group"]
+        self.refused(remove_group, "host-source-only files need group host-source-sc")
+
+    def test_source_refuses_host_reclassification_by_membership_and_group(self):
+        def reclassify(m):
+            component = self.comp(m, "tests/test_game_host_reports.cpp")
+            del component["group"]
+            component["profiles"].append("core-source")
+        self.refused(reclassify, "host-source-sc includes core-source; do not list both")
+
+    def test_host_source_must_include_core_source(self):
+        self.refused(lambda m: m["profiles"]["host-source-sc"].update(includes=[]),
+                     "profile host-source-sc must include core-source")
 
     def test_public_header_source_does_not_prove_destination(self):
         m = copy.deepcopy(self.good)

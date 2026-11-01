@@ -2,7 +2,7 @@
 // Addresses behind sc-offline's actor features: the ship/entity spawner, seat control, Daymar
 // lookup, Flight Ready, noclip's fly speed, god mode and prefab spawning (spawner), Clear NPCs'
 // direct removal fallback (npc), infinite ammo (ammo) and the gear menu / outfit loader (loadout).
-// Resolved by sco::ResolveAll(); the rows are in src/game/actors_sigs.cpp, and docs/game/actors.md
+// Resolved by a host registry's Resolve(); the rows are in src/game/actors_sigs.cpp, and docs/game/actors.md
 // lists each one with what it checks.
 //
 // Rows are grouped into capabilities like features.h: a feature asks for its group with
@@ -18,7 +18,7 @@ namespace sco::game::actors {
 
 struct Capability {
     const char*        name;    // "spawn.helpers"
-    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures()
+    const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
 };
 

@@ -187,23 +187,27 @@ void TickQuantum(uint32_t nowMs) {
         if (Apply(true, false)) { held = false; holdMs = 0; }
     }
 }
-void StopQuantum() {
-    if (!OnGameThread() || busy) return;
+Result StopQuantum() {
+    if (!OnGameThread()) return Result::WrongThread;
+    if (busy) return Result::Failed;
     if (!started) {
-        // A failed start may leave an explicit selection whose lifetime ends at stop.
         // Faulted rollback retains its backing state until process exit.
-        if (!restart) { production = {}; productionExplicit = false; }
-        return;
+        if (restart) return Result::Failed;
+        production = {}; productionExplicit = false;
+        return Result::Ok;
     }
-    host::WithdrawGameService(SC_QUANTUM_SERVICE_NAME);
+    const Result withdrawn = host::WithdrawGameService(SC_QUANTUM_SERVICE_NAME);
     caps::Set("game.quantum.control", false, "quantum service stopped");
     started = false;
-    Unsubscribe(host::GameOwner(), "tick", OnTick);
-    if (!restart && Clear()) {
-        if (hooks.Rollback() == hook::Error::None) {
-            bridge = {}; production = {}; productionExplicit = false; cleanupReady = false;
-        }
-        else Fault();
+    const Result unsubscribed = Unsubscribe(host::GameOwner(), "tick", OnTick);
+    if ((withdrawn != Result::Ok && withdrawn != Result::NotFound) ||
+        (unsubscribed != Result::Ok && unsubscribed != Result::NotFound)) {
+        Fault();
+        return Result::Failed;
     }
+    if (restart || !Clear()) return Result::Failed;
+    if (hooks.Rollback() != hook::Error::None) { Fault(); return Result::Failed; }
+    bridge = {}; production = {}; productionExplicit = false; cleanupReady = false;
+    return Result::Ok;
 }
-}
+} // namespace sco::game::services

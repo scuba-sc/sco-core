@@ -3,6 +3,7 @@
 #include "sco/plugins.h"
 #include "sco/log.h"
 #include "sco/runtime.h"
+#include "../reserved_legacy_gate.h"
 #include "sco/status.h"
 #include "internal.h"
 #include "../api/internal.h"
@@ -75,7 +76,7 @@ uint32_t detail::DefaultGuard(void (*thunk)(void*), void* ctx) { thunk(ctx); ret
 
 static std::atomic<CallGuard> g_guard{ nullptr };
 
-void SetCallGuard(CallGuard guard) { g_guard.store(guard); }
+void SetCallGuard(CallGuard guard) { sco::detail::LegacyEntry entry; if (entry) g_guard.store(guard); }
 
 // What the guard on this thread reported about the last fault it caught (internal.h).
 static thread_local detail::FaultTrace t_trace;
@@ -89,6 +90,8 @@ void detail::RecordFaultTrace(void* const* modules, uint32_t n) {
 // it, so one a guard left behind (a fault in a call nobody asked about) never reaches a later,
 // unrelated fault; a guard that doesn't report leaves it empty.
 static uint32_t GuardedTraced(void (*thunk)(void*), void* ctx, detail::FaultTrace& out) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) { out.n = 0; return 0xffffffffu; }
     t_trace.n = 0;
     const CallGuard g = g_guard.load();
     const uint32_t code = g ? g(thunk, ctx) : detail::DefaultGuard(thunk, ctx);
@@ -258,10 +261,14 @@ static bool UnloadGate(const std::vector<const Plugin*>& group, std::string& why
 }
 
 bool CanUnload(const Plugin& p, std::string& why) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
     return UnloadGate({ &p }, why, UnloadAdmission::Inspect);
 }
 
 bool BeginUnload(const std::vector<Plugin*>& group, std::string& why) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
     try {
         return UnloadGate(std::vector<const Plugin*>(group.begin(), group.end()), why, UnloadAdmission::Withdraw);
     } catch (...) {
@@ -271,6 +278,8 @@ bool BeginUnload(const std::vector<Plugin*>& group, std::string& why) {
 }
 
 void CancelUnload(const std::vector<Plugin*>& group) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     // Cancel one at a time without allocations: only still-live survivors can be reopened.
     for (const Plugin* p : group)
         if (p && p->self && p->state == State::Loaded && !sco::detail::Released(p->self)) {
@@ -356,6 +365,8 @@ static bool QueryAndLoad(Plugin& p, const sco_api* api, sco_plugin* self, const 
 }
 
 bool LoadNative(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts, const ModuleOps& ops) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
     if (p.state != State::Ready || p.manifest.kind != Kind::Native) return false;
     if (!api || !self) return RefuseLoad(p, "host passed no api or owner", nullptr);
 
@@ -410,6 +421,8 @@ Plugin FromBuiltin(const Builtin& b) {
 }
 
 bool LoadBuiltin(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
     if (p.state != State::Ready || p.manifest.kind != Kind::Builtin) return false;
     if (!api || !self) return RefuseLoad(p, "host passed no api or owner", nullptr);
     QueryCall q{};
@@ -417,6 +430,8 @@ bool LoadBuiltin(Plugin& p, const sco_api* api, sco_plugin* self, const Options&
 }
 
 void MarkCrashed(Plugin& p, const char* where, uint32_t code) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     if (p.state != State::Loaded) return;
     Crash(p, where ? where : "a callback", code);
 }
@@ -480,6 +495,8 @@ static void BlameProvider(Plugin& culprit, const Plugin& caller, uint32_t code) 
 }
 
 bool CallPlugin(Plugin& p, const char* where, void (*thunk)(void*), void* ctx) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
     if (p.state != State::Loaded || !thunk || sco::detail::Released(p.self)) return false;
     detail::FaultTrace trace;
     ++p.running;
@@ -494,6 +511,8 @@ bool CallPlugin(Plugin& p, const char* where, void (*thunk)(void*), void* ctx) {
 }
 
 bool detail::ContainedCallout(const void* owner, const char* where, TaskFn thunk, void* ctx) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
     Plugin* p = nullptr;
     if (g_contained)
         for (Plugin& q : *g_contained)
@@ -506,6 +525,8 @@ bool detail::ContainedCallout(const void* owner, const char* where, TaskFn thunk
 }
 
 void ContainCallouts(std::vector<Plugin>* list) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     g_contained = list;
     sco::SetCalloutGuard(list ? detail::ContainedCallout : nullptr);
 }
@@ -518,6 +539,7 @@ static void UnloadCode(Plugin& p, const ModuleOps* ops) {
     }
     if (p.state != State::Loaded) return;   // a nested fault in unload() marked it Crashed: keep that
     if (const Result r = ReleaseOwner(p); r != Result::Ok) { ReleaseFailed(p, r); return; }   // never unmap
+    if (p.state != State::Loaded) return;   // release hooks may fault this plugin
     CloseOrKeep(p, ops);   // stays mapped when a service table of p's was handed out
     p.exports = {};
     p.state = State::Unloaded;
@@ -525,6 +547,8 @@ static void UnloadCode(Plugin& p, const ModuleOps* ops) {
 }
 
 void UnloadNative(Plugin& p, const ModuleOps& ops) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     if (p.state != State::Loaded || p.manifest.kind != Kind::Native) return;
     UnloadOne(p, ops);   // public mid-session entry: use the same refusal as reload
 }
@@ -546,6 +570,8 @@ static void ScriptThunk(void* c) {
 }
 
 bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRuntime& runtime) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
     if (p.state != State::Ready || p.manifest.kind != Kind::Lua) return false;
     auto refuse = [&](std::string why, bool unload = false) {
         std::string admission;
@@ -596,13 +622,14 @@ bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRun
 
 static void UnloadScript(Plugin& p, const ScriptRuntime* runtime) {
     if (const Result r = ReleaseOwner(p); r != Result::Ok) { ReleaseFailed(p, r); return; }   // script kept
+    if (p.state != State::Loaded) return;
     if (runtime && runtime->unload) runtime->unload(p.self);
+    if (p.state != State::Loaded) return;
     p.state = State::Unloaded;
     sco::Log("[plugin] unloaded %s", IdOf(p));
 }
 
-// The teardown of one Loaded plugin, without the session-lifetime check: UnloadAll (host
-// shutdown) must unload everything, so it calls this directly; UnloadOne reserves admission first.
+// Teardown of one Loaded plugin without the mid-session service handout check.
 static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* runtime) {
     if (p.state != State::Loaded) return;
     if (p.self && sco::detail::Released(p.self)) {
@@ -622,6 +649,8 @@ static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* r
 }
 
 void UnloadOne(Plugin& p, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     if (p.state != State::Loaded) return;
     std::string why;
     if (!BeginUnload({ &p }, why)) {   // atomic refusal or reservation before any teardown
@@ -636,6 +665,8 @@ void UnloadOne(Plugin& p, const ModuleOps& ops, const ScriptRuntime* runtime) {
 static const char kReloadPrefix[] = ".reload-";
 
 bool CopyForReload(const Plugin& p, fs::path& copy, std::string& error) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
     if (p.manifest.kind != Kind::Native || p.dir.empty()) { error = "not a native plugin"; return false; }
     static std::atomic<uint32_t> counter{ 0 };   // a name per copy for the life of the process
     const fs::path to = p.dir / detail::FromUtf8(kReloadPrefix + std::to_string(counter.fetch_add(1) + 1) + "-" + p.manifest.entry);
@@ -647,6 +678,8 @@ bool CopyForReload(const Plugin& p, fs::path& copy, std::string& error) {
 }
 
 void RemoveReloadCopies(const Plugin& p) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     if (p.dir.empty()) return;
     std::vector<fs::path> stale;
     std::error_code ec;
@@ -657,7 +690,24 @@ void RemoveReloadCopies(const Plugin& p) {
     for (const fs::path& f : stale) { std::error_code rc; fs::remove(f, rc); }   // a mapped one stays on Windows
 }
 
-void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return false;
+    const auto faulted = [&list] {
+        bool found = false;
+        for (auto& p : list) {
+            if (p.manifest.kind == Kind::Data) continue;
+            if (p.state == State::Loaded && p.self && sco::detail::Released(p.self)) {
+                // The pending verdict may be cancelled by shutdown. Publish
+                // the terminal state without invoking plugin code; assigning
+                // the state itself cannot fail, even if reporting later does.
+                p.state = State::Faulted;
+            }
+            if (p.state == State::Crashed || p.state == State::Faulted) found = true;
+        }
+        return found;
+    };
+    if (faulted()) return false;
     std::vector<Plugin*> loaded;
     for (auto& p : list)
         if (p.state == State::Loaded && p.manifest.kind != Kind::Data) loaded.push_back(&p);
@@ -669,8 +719,26 @@ void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRunt
     for (size_t i = 1; i < loaded.size(); ++i)         // insertion sort
         for (size_t j = i; j > 0 && before(loaded[j], loaded[j - 1]); --j) std::swap(loaded[j - 1], loaded[j]);
     for (Plugin* p : loaded) {
-        UnloadOneNow(*p, &ops, runtime);               // no refusal: host shutdown tears everything down
-    }                                                  // (no-op when one crashed while an earlier one unloaded)
+        if (faulted()) return false;
+        UnloadOneNow(*p, &ops, runtime);
+        if (p->state != State::Unloaded || faulted()) return false;
+    }
+    return true;
+}
+
+void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
+    std::vector<Plugin*> loaded;
+    for (auto& p : list)
+        if (p.state == State::Loaded && p.manifest.kind != Kind::Data) loaded.push_back(&p);
+    auto before = [](const Plugin* a, const Plugin* b) {
+        const bool ab = a->manifest.kind == Kind::Builtin, bb = b->manifest.kind == Kind::Builtin;
+        return ab != bb ? bb : a->loadOrder > b->loadOrder;
+    };
+    for (size_t i = 1; i < loaded.size(); ++i)
+        for (size_t j = i; j > 0 && before(loaded[j], loaded[j - 1]); --j) std::swap(loaded[j - 1], loaded[j]);
+    for (Plugin* p : loaded) UnloadOneNow(*p, &ops, runtime);
 }
 
 // ---- status ---------------------------------------------------------------------------------

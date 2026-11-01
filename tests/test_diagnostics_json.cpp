@@ -3,6 +3,7 @@
 #include "ipc/diagnostics_json.h"
 #include "sco/caps.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -56,7 +57,12 @@ void Serialization() {
     JSON_CHECK(missing.find("\"session_id\":null") != std::string::npos);
     JSON_CHECK(Error("arbitrary \"injection") == Error("invalid_request"));
     static const sco::SigDef row[]{ {"fixture.json_row", nullptr, 0, 0, nullptr, {}} };
-    JSON_CHECK(sco::RegisterSignatures(row, 1));
+    auto registry = std::make_shared<sco::SignatureRegistry>();
+    const sco::SignatureTable signatureTable{row, 1};
+    JSON_CHECK(registry->RegisterTables(&signatureTable, 1).status == sco::SigRegistryStatus::Ok);
+    JSON_CHECK(registry->Freeze() == sco::SigRegistryStatus::Ok);
+    JSON_CHECK(registry->Resolve(sco::Image{}) == sco::SigRegistryStatus::Ok);
+    JSON_CHECK(sco::InstallHostSignatureRegistry(registry, nullptr));
     JSON_CHECK(sco::caps::Set("fixture.json_cap", true) == sco::Result::Ok);
     std::vector<sco::plugins::Plugin> plugins(2);
     for (size_t i = 0; i < plugins.size(); ++i) {
@@ -120,6 +126,7 @@ void Serialization() {
     Object tail; JSON_CHECK(Parse("{\"plugin_id\":\"fixture_0\"}", tail));
     JSON_CHECK(Serialize(0x102, tail, store, capture, session, 1, 1100) == Error("runtime_disabled"));
     store.Reset();
+    JSON_CHECK(sco::ClearHostSignatureRegistry(registry, nullptr));
 }
 }
 void RunDiagnosticsJsonTests() { Parser(); Validation(); Serialization(); }

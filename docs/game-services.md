@@ -1,6 +1,11 @@
 # Game services
 
-The Star Citizen game pack publishes its services under the reserved owner `game` ([design](design/game-services.md), implemented). Plugins find them with the ordinary `query_service`; `sco_api.h` doesn't change. They exist only in builds with the game pack ([game pack](game-pack.md)), and only when the product turns them on (`sco::app::Platform::gameServices`). Where they sit among the layers (kernel, host services, game pack, plugin SDK, consumers): [architecture](architecture.md#layers).
+**Current HOLD:** Native game-service startup is unavailable. Both `app::Start`
+with `Platform::gameServices` and the public `game::services::Start` entry
+refuse before mutation. The descriptions below describe contracts and prior
+composition, not currently published or game-verified services.
+
+The Star Citizen game pack's service contracts use the reserved owner `game` ([design](design/game-services.md)). Plugins would find published services with the ordinary `query_service`; `sco_api.h` doesn't change. Where they sit among the layers (kernel, host services, game pack, plugin SDK, consumers): [architecture](architecture.md#layers).
 
 **What is on, and what has been checked:** [Status of every game.* table](game/status.md), generated from [`sdk/status_registry.json`](../sdk/status_registry.json). Contract version, provider readiness, default capability and evidence are separate: static metadata can be available without an engine backend, while a published table can still return `SCO_UNAVAILABLE`. **None has been verified in game since it landed.** `game.entities.watch`, `game.entities.query_radius`, `game.events.vehicle_seat` and `game.actors.state` are off until an in-game check; the camera's field of view is blocked. The "Since game pack" column says which game-pack release first carried the table.
 
@@ -104,7 +109,7 @@ delete or new player-vehicle registration. [Policy and owed acceptance](design/o
 Synthetic evidence only; **not run in game**.
 
 - `sco::host::ProvideGameService(name, version, table)` publishes under the owner `game` (`sco/host.h`): `game.<name>`, or one of the product names a game pack took over (`kGameCompatNames`). The owner is never released; `sco::app::Stop` withdraws game services after every plugin has unloaded.
-- `sco::app::Platform::gameServices = true` starts them before any plugin loads. They read the game through the `teleport.*` and `spawn.*` rows, so resolve the rows first. A product that still publishes `teleport.spatial` or `spawn.entities` itself must leave it off, or drop its own provider: the second provider of a name is refused.
+- `sco::app::Platform::gameServices = true` currently refuses app startup before publication. A future proven composition must resolve the rows and avoid duplicate service names.
 - `spawn.entities`' mover lets any plugin move the player's own vehicle once the product registers it (`sco::game::services::RegisterPlayerVehicle` / `UnregisterPlayerVehicle`, `sco/game/services.h`, game thread). Entities a plugin spawned through `spawn_as` stay movable by that plugin only. Ordinary owner release (including unload or non-retained `crashed` cleanup) forgets their ownership; restart-required retained-provider faults skip the hook and retain that state.
 - `game.actors` reads your player through the `teleport.*` rows and `spawn.handle_to_id`, spawns through `spawn.entities`' spawner (`spawn.helpers` rows), and removes NPCs as sc-offline's Clear NPCs did (`npc.clear` rows: RemoveEntity, checked 1.5 s later, then the `npc.direct_remove` fallback, then a move far out of range). It logs `[game] game.actors: <plugin> spawned <class> as NPC <id>` and `[game] game.actors: <plugin> unloaded: removing the <n> NPCs it spawned`. `spawn_npc` refuses when it couldn't remove the NPC again (no `npc.clear` rows, or no release hook).
 - `game.world` casts through the physics world the `build.*` rows find (`build.ground_ray` capability rows; the ray block, slot `0x1C0` and grid release are sc-offline's build mode moved over) and reads the camera at the offsets `build.camera_fields` pins. The cast tries the zone you pass and up to two of its parents, never the world's root zone. It logs nothing on success. The first cast checks a live entity's vtable slots against the rows and answers `SCO_UNAVAILABLE` if the game changed them.

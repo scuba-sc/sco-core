@@ -85,7 +85,7 @@ namespace detail {
 
 inline sco_result AddRaw(Plugin& plugin, const char* name, const char* capability, RawBytesFn fn) noexcept {
     if (!plugin.Api() || !name || !fn) return SCO_BAD_ARG;
-    if (!plugin.ApiCovers(offsetof(sco_api, register_raw))) return SCO_UNAVAILABLE;
+    if (!plugin.ApiCovers(offsetof(sco_api, register_raw)) || !plugin.Api()->register_raw) return SCO_UNAVAILABLE;
     std::shared_ptr<RawNode> node;
     try {
         node = std::make_shared<RawNode>();
@@ -106,8 +106,8 @@ inline sco_result AddRaw(Plugin& plugin, const char* name, const char* capabilit
 }  // namespace detail
 
 // Registers a byte handler under name ("<plugin id>.<name>"), gated on capability (nullptr:
-// none). The handler lives until the plugin unloads. SCO_UNAVAILABLE on a 1.0 host; else the
-// host's answer (SCO_BAD_ARG: a bad or taken name). Any thread.
+// none). The handler lives until the plugin unloads. SCO_UNAVAILABLE if the host slot is absent
+// or null; else the host's answer (SCO_BAD_ARG: a bad or taken name). Any thread.
 inline sco_result RegisterRawBytes(Plugin& plugin, const char* name, const char* capability, RawBytesFn fn) noexcept {
     return detail::AddRaw(plugin, name, capability, std::move(fn));
 }
@@ -159,7 +159,7 @@ inline sco_result InvokeRawBytes(Plugin& plugin, const char* name, std::span<con
                                  std::span<std::byte> out, uint32_t& written) noexcept {
     written = 0;
     if (!plugin.Api()) return SCO_BAD_ARG;
-    if (!plugin.ApiCovers(offsetof(sco_api, invoke_raw))) return SCO_UNAVAILABLE;
+    if (!plugin.ApiCovers(offsetof(sco_api, invoke_raw)) || !plugin.Api()->invoke_raw) return SCO_UNAVAILABLE;
     if (in.size() > UINT32_MAX || out.size() > UINT32_MAX) return SCO_BAD_ARG;
     uint32_t size = static_cast<uint32_t>(out.size());
     const sco_result r = plugin.Api()->invoke_raw(plugin.Self(), name, in.empty() ? nullptr : in.data(),

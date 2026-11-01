@@ -9,6 +9,8 @@
 #include "sco/runtime.h"
 #include <cstddef>
 
+namespace sco { class SignatureSnapshot; }
+
 namespace sco::caps {
 
 constexpr size_t kMaxCaps = 256;          // distinct names for the life of the process
@@ -26,9 +28,22 @@ Result Set(const char* name, bool ready, const char* reason = nullptr);
 
 // Sets `name` ready when every listed signature row is OK. Otherwise not ready, with reason
 // "needs <id> (<STATE>)" for the first row that isn't OK, or "unknown signature <id>".
-// Reads the registry, so call it after sco::ResolveAll(). BadArg for a null list, n == 0, a
-// null id or a bad name; TooMany as Set.
+// The snapshot overload succeeds only for the current host's published snapshot. A retired
+// or replaced snapshot returns Unavailable without modifying capability state. The convenience
+// overload uses the current host snapshot; when no host is installed, it marks the capability
+// unavailable and returns Unavailable. Ownership is checked through the capability write, so a
+// racing host replacement returns Unavailable without overwriting its state. BadArg for a null
+// list, n == 0, a null id or a bad name; TooMany as Set. This does not guard arbitrary Set calls;
+// the host must still drain all capability writers before teardown.
 Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n);
+Result SetFromSignatures(const char* name, const char* const* sigIds, size_t n,
+                         const SignatureSnapshot& snapshot);
+
+// Host teardown: retain names and their order, mark every capability unavailable, and copy
+// reason (nullptr means empty). Invoke after all capability writers and dependent services stop
+// and while the retiring host still owns publication; serialize with any replacement host.
+// This is not a latch: a later Set can make a name ready again.
+void InvalidateAll(const char* reason) noexcept;
 
 // True when `name` was Set ready. Unknown names and nullptr are false.
 bool Has(const char* name);

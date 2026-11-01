@@ -1,120 +1,154 @@
-# Star Citizen offline host composition (host-source)
+# Offline host composition — held synthetic candidate
 
-`include/sco/game/host.h`, target `sco_game_host`, composes the game signature pack
-with `sco::app`. This is a C++ source contract for trusted host builders, **not**
-a plugin service, frozen wire ABI, or permission to patch the game. Plugins still
-build from `core` + `game-sc` public SDK archives. Kernel-only hosts do not compile
-or link this adapter.
+This branch is a **do-not-merge host-source experiment**. It does not establish
+native instruction-patch safety, game reader exclusion, an in-game result, or a
+release-ready SDK. The plain-C plugin ABI is separate from these C++ host-source
+interfaces. Product adoption needs an explicit, coordinated SDK/API change.
 
-## Admission, resolve, start
+The currently supported fixture has an owner-held `OwnedShutdown`, an external
+quit and DataCore transport, no native game services or hooks, no plugins,
+built-ins, scripts, host menus, host-service adapters, or early requirement and
+capability callbacks. Legacy configurations are refused before activation.
+The owner and every borrowed image, resolver, context and backing resource must
+outlive all calls and remain retained after failed shutdown. An owner lease is
+cooperative: it cannot interpose on hidden native execution, cached tables or
+unmanaged threads. Read leases are thread-bound and cover the complete use.
 
-1. The shell collects fresh OS evidence: correct target process, anti-cheat absent,
-   official-network access blocked, and positively known offline session. All
-   fields default to unknown; failed process/service/module inspections remain
-   unknown. A launcher flag or a plugin capability is not sufficient evidence.
-2. `Prepare(options)` refuses online/unknown/present evidence before registering
-   any row or resolving the original image. It copies options, registers the game
-   signature tables, then resolves every row. Missing rows stay unavailable.
-   The original image must be readable, with nonempty text/rdata; the adapter is
-   not a general arbitrary-pointer validator. Prepare runs outside loader lock.
-3. On the actual game thread, `Start()` re-inspects admission and calls `app::Start`
-   exactly once. Platform image/registerSignatures are rejected: resolution has a
-   single owner. Other platform inputs follow `sco/app.h` lifetime rules.
-4. `Stop()` runs on the game thread, outside callouts/reload. Runtime teardown
-   retains the existing app ordering and cancellation contract. Repeated stop is
-   harmless, and wrong-thread stop cannot claim completion.
+The owned fixture binds the runtime before publishing DataCore and requires an
+explicit private startup capability for subsystem publication. Public runtime
+publication does not inherit startup authority from a reentrant callback. It
+reserves the global signature-registry slot empty and keeps its registry private.
+A previously used legacy runtime or occupied registry refuses owned startup.
+The fixture remains quarantined: full public entry coverage and native resource
+lifetimes require independent proof before product activation.
 
-A refusal remains retryable before startup; completed/failed composition does not
-restart in the same process. Host entries must be serialized; scalar `Status()`
-is safe to observe from other threads, not an authorization grant.
+`Prepare`, `Activate`, and `Start` are separate host entries. Owner admission is
+closed across all three phases; an already-entered reader or worker start prevents
+startup. Each entry holds a host transition and publishes its phase under the
+owner lock. A concurrent close or fault prevents publication and retains partially
+created state. `Start` opens cooperative admission only with the Running phase.
+This is a synthetic lifecycle protocol, not evidence of a native barrier. Product
+native preparation and mutation must remain refused until the product supplies a
+real exclusion protocol and Windows synthetic-target proof.
 
-```cpp
-sco::game::host::Options opts;
-opts.inspect = InspectOfflineEnvironment; // OS shell; unknown on every failed probe
-opts.image = &originalImage;
-opts.platform.hostVersion = "synthetic-host 1.0";
-opts.platform.dataRoot = "data";
-opts.platform.pluginRoot = "data/plugins";
-opts.platform.pluginsEnabled = true;
-opts.platform.gameServices = true;
-// No image/registerSignatures in opts.platform.
-auto prepared = sco::game::host::Prepare(opts);
-// Later, from the game thread, only when prepared == Result::Ok:
-auto started = sco::game::host::Start();
-```
+The optional synthetic DataCore service can start during activation. Its transform
+refuses until Running, obtains a read lease, and rejects reentry or a concurrent
+transform. An owner fault during a transform refuses the result and keeps mutated
+service state retained. Early engine loading and the earlier plugin/requirement
+callback scenarios are unsupported; those legacy tests are explicitly skipped.
 
-No network socket, anti-cheat modification, process launch, proxy DLL, Windows
-message hook or renderer is created by this adapter. The shell keeps OS/render
-policy. Admission must not silently treat an inspection failure as absence.
+`Tick` admits a full-operation read lease and refuses reentry. The fresh admission
+boolean is an observation, not a substitute for that lease. Owner fault or admission
+loss closes runtime admission. Already-admitted work can finish; later queued
+callbacks remain retained.
 
-## Tick adapter
+`Stop` closes admission and attempts to drain all cooperative reads and owned
+workers, including their thread-local destruction. It **returns Failed and retains
+the app, registry, provider code, image and dependent backing**, even after a
+successful drain. Existing cleanup can call arbitrary code or irreversibly destroy
+state, so there is no proved failure-atomic cleanup commit. Restart is refused;
+the host must keep retained resources valid. Timed waits do not guarantee a hard
+wall-clock deadline for mutex scheduling or thread creation. No fail-stop process
+termination is supplied.
 
-The shell keeps its Windows message hook, renderer frames and input polling. On
-each game-thread pass call `Tick(nowMs)`; do not throttle the OS shell itself.
-The adapter performs the first plugin tick immediately, then uses a configurable
-unsigned millisecond cadence (default 100, zero means every pass), including clock
-wrap. It drains app tasks and dispatches only the app tick; there are no product
-feature fallbacks. A contained synthetic plugin fault stays disabled.
+The legacy `retireConsumer` and native barrier callbacks are not accepted as
+ownership proof. A future successful retirement needs a complete reader/worker
+census, owner-controlled cleanup, failure injection, and Windows native evidence;
+a callback that merely returns success cannot provide those guarantees. Native
+evidence is required for native consumers, not for a bounded non-native fixture.
 
-Admission is rechecked on every pass, before cadence filtering. Lost/unknown
-admission stops the app and cancels queued tasks without running a tick. Nested
-runtime-callout and wrong-thread entries refuse. The `game_host_loss` fixture
-proves loss during a throttled pass does not execute a queued task.
+## Detailed exposure reports (local host-source increment)
 
-## Quit adapter
+`HostCapsule` and the additive `PrepareDetailed`, `ActivateDetailed`,
+`StartDetailed`, `StopDetailed` and `StatusDetailed` entries describe dependency
+exposure on this game-host route. They do not call public `app::StartDetailed`
+instead of `app::detail::StartOwned`. The old `Result` function signatures remain
+available but cannot tell a product whether failed startup exposed dependencies.
+No frozen plugin table or existing `Options` layout changes.
 
-By default Prepare requires the validated `system.quit` target and installs its
-entry detour through the shared hook owner. Failure/missing row refuses startup,
-not a silent WM_QUIT-only fallback. The adapter calls `BeforeQuit()` synchronously
-before the engine original on **both** normal and fast shutdown. It reads no
-CSystem/ICVar fast-shutdown fields. The engine receives the original system/info
-pointers and exit code exactly once. OS WM_QUIT is a secondary Stop trigger, not
-the sole shutdown guarantee; never call from DLL_PROCESS_DETACH/loader lock.
+Construct a capsule privately using `HostCapsule(options, backingOwner)` before
+calling detailed Prepare. The capsule owns an Options copy, Image descriptor and
+host-version string. `backingOwner` must actually own every referenced image
+byte, mapping and accepted context. Resolver and inspector code must be strongly
+pinned or linked into the audited process-resident executable. A dummy shared
+pointer, no-op deleter or borrowed pointer is not ownership. A non-null token
+cannot mechanically prove this contract. Capsule construction can throw without
+core exposure; the original input pointers must remain valid through construction.
 
-`QuitPolicy::External` is an explicit trusted-host integration route only when
-the shell already guarantees synchronous `BeforeQuit()` on the game thread
-before engine shutdown; it grants no plugin hook/patch service. It is used in
-synthetic fixtures. Wrong-thread/callout quits cannot safely marshal a caller
-stack to a future tick: teardown refuses/logs but the original engine call still
-runs. This limitation is not represented as successful cleanup. A game-thread
-quit is required for the lifecycle guarantee. The entry hook remains installed
-for process lifetime, including after Stop; no in-flight detour is removed.
+The detailed path is deliberately restricted: external quit/data hooks, no
+native game services or native DataCore, no DataCore/storage root, plugins,
+built-ins, scripts, private sessions or host adapters. No app/global raw service
+tables, mapped views or foreign workers are enrolled by this API. A separately
+audited capsule-owned copy facade must hold the owner's Read through its last
+output copy and unwind. Rooting dependencies is not a native execution barrier.
 
-The private ForwardQuit seam tests actual adapter ordering/argument passthrough
-without writing executable memory. ARM/macOS cannot prove a real x86-64 detour;
-Windows hook/game proof remains owed.
+Detailed Prepare privately allocates retention storage, then roots the actual
+capsule before existing Prepare reserves the registry, binds the runtime, copies
+Options or invokes the inspector. The private registry is also pinned by that
+root. The root is not destroyed during module-static teardown. Adoption issues
+one nonzero process-scoped session ID; there is no second session or root
+replacement in the same process. A failed adopted Prepare closes/faults its owner
+and preserves the capsule, including a failure partway through Options copying.
 
-## DataCore timing
+Each `HostReport` contains the operation result, observed phase, session ID and
+`NeverExposed` or `ProcessRetained` dependency disposition. A fresh invalid or
+unsupported request, or allocation failure before adoption, can be NeverExposed.
+Every post-adoption result remains ProcessRetained, including refusal, exception,
+wrong-thread calls and stop failure. No result authorizes destruction, unload or
+restart. The existing activation refusal may retry the same prepared transition;
+it cannot replace the capsule or start a new session.
 
-With Platform dataCore enabled, Prepare starts the service and indexes folder
-manifests/data packs without running plugin code; builtin inputs are refused on
-this early route. Required CryPak transport is installed before engine load,
-using the validated pak rows and a bounded Data/Game2.dcb transform. Start does
-not reset an already LOADED service. After app startup, the frozen data inputs
-are refreshed from the actual app list/content. The loader checks fresh offline
-evidence, reads/parses a bounded base, then invokes the existing service pack/
-saved-patch pipeline. Inspect must be thread-safe and non-reentrant on any loader
-thread. Stop disables transport and drains active producers before plugin
-teardown; service tables stay alive through unload.
+Legacy control use before adoption conservatively reports ProcessRetained with
+ID zero and prevents detailed Prepare: its caller-owned backing is not
+retroactively adopted. A refused overlapping control before adoption also latches that
+conservative floor. Busy status returns Unavailable with conservative retained
+data; it is not a completed control/adoption decision. Pure status observation
+does not latch exposure or poison a private prepare that subsequently fails. ID zero does not assert that a new input was rooted. A later
+legacy idle Stop returning Ok cannot clear that floor. NeverExposed does not
+release aliases retained by another invocation. Status is an observation, not an
+admission permit or cleanup certificate. Busy means the initial gate observation
+found it held; completing Prepare cannot turn that busy observation into success.
+Overlapping status calls may nevertheless return older observations after newer
+ones. There is no monotonicity guarantee in completion order. Only the completed
+PrepareDetailed report classifies adoption of that invocation's input.
 
-External DataCore transport is an explicit synthetic/host integration route, not
-a plugin service. The synthetic game_host_data fixture proves an early pack
-load survives Start and late producers refuse after Stop. It does not prove
-Windows CryPak hooks. Early discovery can only enforce manifest/readiness known
-at that time, not predict a future plugin-load fault. Hosts must not enable
-engine loading before Prepare completes.
+One nonblocking control gate covers old and detailed game-host controls. No
+mutex spans the inspector or other callouts; synchronous reentry refuses. Private
+internal transitions preserve Start-to-Activate and Tick-to-Stop behavior without
+granting an external callback ambient startup authority.
 
-## Decision pending owner / migration limits
+`game_host_report_*` fresh-process tests exercise this production route with
+synthetic image bytes and executable-pinned code. They cover capsule destruction
+counters, descriptor/string copies, pre-adoption refusal, actual ordinary
+allocation failure inside Options assignment, partial-start failure, reentry,
+wrong-thread stop, a read held through final output copying, timeout/self-drain,
+and a no-read negative control. A test-only static-reference release checks the
+private registry's process root. These are not native product, original-quit,
+physical cleanup or successful application retirement proofs. Fixed fault seams
+exist only in the separately instrumented test executable.
 
-This first composition slice deliberately does **not** copy the product's
-`ApplyOfflinePatches`, fake service implementations, environment variables, or
-feature fallback ticks. It accepts an already positively admitted offline
-execution environment; it never turns online/unknown into offline. Engine
-mutation policy and staged migration of those legacy mechanics remain separate
-work. The product must not delete its remaining engine setup just because this
-host target exists. G1 is not fully closed until those mechanics and the product
-call sites migrate, and Windows/game acceptance is supplied.
+A successful worker drain joins both worker threads (including callable/TLS
+destruction) and its internal helper before publishing readiness. The process
+root still retains backing. If the timed wait expires before the helper's
+worker-join completion marker is observed, the helper and owner remain retained:
+a later exit cannot upgrade terminal failure. That timeout path does not detach
+or perform an unbounded join. After observing the marker, the final helper join
+can still be scheduler-delayed; the deadline is rechecked afterwards.
 
-Evidence: synthetic `game_host` CTest only, no game image or bytes. Not run in
-game; Windows/MSVC, loader hooks, anti-cheat evidence collection, actual network
-blocking and renderer behavior are not verified by this fixture.
+`OwnedShutdown::reap_retained_until(deadline)` is explicit post-failure handle
+maintenance. `ReapedRetained` proves actual worker/callable/TLS and helper joins;
+`PendingRetained` permits a later maintenance retry, and `Refused` covers wrong
+phase, self-obligation or overlapping join control. It reuses an existing helper
+instead of launching another. All three results preserve the original failed
+retirement, closed admission, backing root and restart refusal. None permits
+destruction, unmapping, provider cleanup or native activation. A completed
+maintenance call cannot upgrade `FailedRetained` to `QuiescedRetained` or make
+`ready()` true. The caller must retain the owner and all backing through every
+maintenance call; resources are not automatically collected after a timeout.
+
+The synthetic timeout fixture captures its real process-rooted owner before
+disposing the wrapper, then explicitly collects late worker handles and checks
+TLS destruction, cached-call refusal and retained backing. A test-only observer
+checks every worker/helper handle plus the in-progress control flag; readiness
+alone would not distinguish a finished but unjoined helper. No warning is
+suppressed and no fixture detaches a worker or fabricates a retirement success.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "state.h"
 #include "fleet_transaction.h"
+#include "../../reserved_legacy_gate.h"
 #ifdef _WIN32
 #include "sco/runtime.h"
 #endif
@@ -35,6 +36,8 @@ Result Catalog::Configure(const Config& c) {
     return Result::Ok;
 }
 Result Start(const Config& c) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return Result::Unavailable;
     std::lock_guard guard(lock);
     if (status.configured || status.stopped) return Result::AlreadyStarted;
     Catalog next;
@@ -61,6 +64,8 @@ Status Snapshot() {
     return copy;
 }
 void Pump(uint32_t now) {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
 #ifdef _WIN32
     if(admitted.load() && sco::OnGameThread()) {
         PumpInitialFleet();
@@ -73,6 +78,8 @@ void Pump(uint32_t now) {
 #endif
 }
 void Stop() {
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     bool wasAdmitted = false;
     {
         std::lock_guard guard(lock);

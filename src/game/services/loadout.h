@@ -36,7 +36,8 @@ Result StartLoadout(const LoadoutBackend* backend = nullptr, const LoadoutAsyncB
 void TickLoadout(uint32_t now);
 void ReleaseLoadoutOwner(const void* owner);
 const LoadoutAsyncBackend* ProductionLoadoutBackend();
-void StopLoadout();
+// Failed retains uncertain provider resources and requires host backing state to stay alive.
+Result StopLoadout();
 // Host producer seam for the verified adapter's native hook: records one occurrence and never runs
 // plugin code. Safe from any thread (one generation-tagged atomic state). Returns
 // false, recording nothing, unless the respawnCompleted backend is started and the capability is

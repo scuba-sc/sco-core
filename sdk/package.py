@@ -140,6 +140,11 @@ def load_manifest(path=MANIFEST, root=ROOT):
             raise ManifestError(f"profile {name}: unknown layout")
         if not p.get("zip") or not p.get("version_from"):
             raise ManifestError(f"profile {name}: needs zip and version_from")
+    if "host-source-sc" in profiles and "core-source" in profiles:
+        includes = profiles["host-source-sc"].get("includes", [])
+        includes = [includes] if isinstance(includes, str) else includes
+        if "core-source" not in includes:
+            raise ManifestError("profile host-source-sc must include core-source")
     comps = m.get("components")
     if not isinstance(comps, list) or not comps:
         raise ManifestError("no components")
@@ -163,6 +168,10 @@ def load_manifest(path=MANIFEST, root=ROOT):
             raise ManifestError(f"component {cid}: origin '{c['origin']}' is not one of {', '.join(sorted(ORIGINS))}")
         if not isinstance(c["profiles"], list) or not set(c["profiles"]) <= set(profiles):
             raise ManifestError(f"component {cid}: profiles must be a list of declared profiles")
+        if {"host-source-sc", "core-source"} <= set(c["profiles"]):
+            raise ManifestError(f"component {cid}: host-source-sc includes core-source; do not list both")
+        if set(c["profiles"]) == {"host-source-sc"} and c.get("group") != "host-source-sc":
+            raise ManifestError(f"component {cid}: host-source-only files need group host-source-sc")
         if "core" in c["profiles"] and "game-sc" in c["profiles"] and c["source"] != "LICENSE":
             raise ManifestError(f"component {cid}: in both core and game-sc; core files reach game-sc through 'requires'")
         for key in ("source", "destination"):
@@ -225,14 +234,16 @@ def select(m, profile):
     wanted = {profile, *p.get("includes", [])}
     chosen = [c for c in m["components"] if wanted & set(c["profiles"])]
     if profile == "core":
-        game = [c["id"] for c in chosen if "game-sc" in c["profiles"] and c["source"] != "LICENSE"]
+        game = [c["id"] for c in chosen if c.get("group") == "host-source-sc" or
+                "host-source-sc" in c["profiles"] or
+                ("game-sc" in c["profiles"] and c["source"] != "LICENSE")]
         if game:
-            raise ManifestError(f"core would hold game-sc components: {', '.join(game)}")
+            raise ManifestError(f"core would hold game-sc or host-source-sc components: {', '.join(game)}")
     if profile == "core-source":
         forbidden = ("src/game/", "src/datacore/", "include/sco/game/", "include/sco/datacore",
                      "plugins/lua/sco_lua_game.", "third_party/tomlplusplus/")
         game = [c["source"] for c in chosen
-                if c["source"].startswith(forbidden) or c.get("group") == "game-contract" or
+                if c["source"].startswith(forbidden) or c.get("group") in ("game-contract", "host-source-sc") or
                 ("game-sc" in c["profiles"] and c["source"] != "LICENSE")]
         if game:
             raise ManifestError("core-source would hold game implementation or contracts: " + ", ".join(game))
@@ -457,11 +468,12 @@ def game_pack():
 
 
 def versions_txt(profile, version):
-    """VERSIONS.txt: every line comes from a header the zip ships (or, for game-sc, the core it needs)."""
+    """VERSIONS.txt: versions from shipped headers and profile-specific build guidance."""
     abi = abi_version()
     if profile == "core-source":
         return (f"sco SDK core source {version}\n\nplugin ABI (sco_api.h): {abi}\n"
                 "Configure with -DSCO_GAME_SC=OFF. Game implementation and contracts are not included.\n"
+                "Runtime MCP peer is separately packaged and excluded; build it from a full source checkout.\n"
                 "The frozen release header is hash-checked by tools/abi_snapshot.py.\n")
     if profile == "core":
         return (f"sco SDK core {version}\n\nkernel (sdk/VERSION, tag sdk-v{version}): {version}\n"
@@ -473,6 +485,7 @@ def versions_txt(profile, version):
                 f"kernel (sdk/VERSION): {version}\nplugin ABI (sco_api.h): {abi}\n"
                 f"game pack (SCO_GAME_PACK_VERSION): {gp}\n\n"
                 "Standalone source kit; configure with -DSCO_GAME_SC=ON. Do not overlay plugin SDK zips.\n"
+                "Runtime MCP peer is separately packaged and excluded; build it from a full source checkout.\n"
                 "Local synthetic packaging proof only; game runtime and release publication are not verified.\n"
                 f"signature metadata: {build} (PE timestamp {stamp}): {how}\n")
     if profile == "game-sc":

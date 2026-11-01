@@ -7,9 +7,11 @@ namespace sco::game::services {
 
 // Sets the game.events.* capabilities from the rows, installs the hooks whose rows are OK and
 // subscribes the tick that publishes. Never fails on a missing row (that event's capability is
-// off); a tick that can't be subscribed leaves nothing installed and returns the error.
+// off). If cleanup after a failed start cannot remove a hook, it is retained and StopEvents
+// returns Failed until process exit.
 Result StartEvents();
 // Removes the hooks, unsubscribes the tick and turns the capabilities off.
-void   StopEvents();
+// Failed means a hook may remain installed and its backing state is retained.
+Result StopEvents();
 
 }  // namespace sco::game::services

@@ -70,12 +70,13 @@ namespace Sco.Sdk
         /// state. Stop your own threads here.</summary>
         public virtual void OnUnload() { }
 
-        /// <summary>True when the host's table has the function at this offset (the api->size check):
-        /// <c>ApiCovers(ApiOffset.query_service)</c>.</summary>
+        /// <summary>True when the host's table fully covers a function pointer at this offset
+        /// (the api->size check): <c>ApiCovers(ApiOffset.query_service)</c>. Check the pointer
+        /// for null separately.</summary>
         public bool ApiCovers(uint offset)
         {
             ScoApi* a = _api;
-            return a != null && a->size > offset;
+            return a != null && (ulong)offset + (uint)sizeof(nint) <= a->size;
         }
 
         // ---- logging -----------------------------------------------------------------------

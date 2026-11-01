@@ -19,6 +19,6 @@ fi
 # Only the signature registration/tables belong to this scanner CLI.
 GAME=("$ROOT/src/game/signatures.cpp" "$ROOT"/src/game/*_sigs.cpp)
 "$CXX" -std=c++20 -O2 -Wall -Wextra -Werror -I "$ROOT/include" "$ROOT/tools/sco-sigcheck.cpp" \
-  "$ROOT"/src/sco_scan.cpp "$ROOT"/src/sco_signatures.cpp "$ROOT"/src/sco_log_status.cpp \
+  "$ROOT"/src/sco_scan.cpp "$ROOT"/src/sco_signatures.cpp "$ROOT"/src/sco_signature_registry.cpp "$ROOT"/src/sco_log_status.cpp \
   "$ROOT"/src/sco_pe_file.cpp "${GAME[@]}" -o "$OUT/sco-sigcheck"
 exec "$OUT/sco-sigcheck" "$@"

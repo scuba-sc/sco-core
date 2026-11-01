@@ -4,8 +4,53 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Select automatic SDK candidate readiness from the source-controlled
+  `sdk/CANDIDATE_TAG` (`sdk-v2.4.0-rc.3` for this development cycle); refuse a
+  missing or version-mismatched designation while preserving manual final release promotion.
+
 - Keep the synthetic C language recipes warning-clean with GCC 13 while testing
   null, truncated and missing spawn table members. No game provider is qualified.
+
+- Source kits explain that the separately packaged runtime MCP peer requires a full source checkout when its CMake build option is enabled.
+
+- Keep host-only test and source components out of neutral SDK kits, with manifest checks for their classification.
+- Recheck diagnostics request deadlines against a later same-domain clock sample when a request arrives during host polling; expired and overlong deadlines remain refused.
+- Keep the diagnostics host open while a producer has not yet published a complete request frame; malformed or pipelined frames remain refused.
+- Avoid false diagnostic transport corruption when a concurrent heartbeat advances after the caller samples its monotonic clock, while still refusing future heartbeats and expired requests.
+
+- Build the optional runtime MCP adapter with GCC 14 warning-as-error checks.
+
+- C# storage schema enumeration retries bounded sized strings, preserves outputs on failure, and rejects malformed successful replies. Synthetic fake-host tests cover schema growth and limits.
+
+- `sco.storage` schema enumeration accepts table names and continuations up to
+  16 MiB (excluding NUL), instead of the unrelated 255-byte key-value limit.
+  Empty names are accepted; existing larger output names are not truncated and
+  cannot be passed back as inputs. Column enumeration reports SQLite errors
+  instead of mistaking them for the end of the list, and leaves output sizes
+  unchanged on `SCO_NOT_FOUND` as documented.
+
+- Let Lua schema enumeration read long names and declared types using bounded size-handshake retries. Synthetic provider tests only; not run in game.
+
+- C++ service and raw wrappers return `SCO_UNAVAILABLE` for missing or null host function slots, including on full-size host tables.
+
+- Fix the C# widgets example button to invoke its own registered ping command and report refusals.
+
+- Guard C# `ApiCovers` and optional service and raw-handler host slots against truncated extents and null pointers; the C++ hello example also checks its greeter function pointer. Synthetic tests cover refusal and forwarding.
+
+- Make the Lua notebook example roll back ordinary write and commit failures and report failed deletes.
+
+- Add host-source game-host dependency reports and an explicitly rooted, bounded
+  non-native capsule path. Retained results never authorize cleanup or restart.
+  Keep an observed busy status pending across Prepare completion, and reap the
+  completed worker-join helper before publishing owned drain readiness.
+  Add explicit failed-retained worker-handle maintenance without upgrading the
+  retirement result or releasing backing, including after synthetic wrapper disposal.
+
+- Add a test-only reserved-session drain observer and bounded engine consumer
+  qualification guidance. Retained retirement still requires complete consumer
+  admission and ownership; native activation remains unavailable.
+
+- Document the packaged container reader workflow and expose its C source through the canonical catalogue example record.
 
 - Add an optional packaged consumer requirements report bound to explicit catalogue
   and registry hashes, with language support, scoped static capability evidence

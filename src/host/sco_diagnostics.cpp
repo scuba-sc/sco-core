@@ -2,6 +2,8 @@
 #include "sco/diagnostics.h"
 #include "sco/caps.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
+#include "../reserved_legacy_gate.h"
 #include <algorithm>
 #include <chrono>
 #include <limits>
@@ -15,8 +17,13 @@
 
 namespace sco::diagnostics {
 namespace { std::atomic<Capture*> logCapture{nullptr}; }
-void SetLogCapture(Capture* capture){logCapture.store(capture,std::memory_order_release);}
+void SetLogCapture(Capture* capture){
+    sco::detail::LegacyEntry entry;
+    if (entry) logCapture.store(capture,std::memory_order_release);
+}
 void CapturePluginLog(const void* key,LogLevel level,std::string_view text){
+    sco::detail::LegacyEntry entry;
+    if (!entry) return;
     auto* capture=logCapture.load(std::memory_order_acquire);if(!capture)return;
 #ifdef _WIN32
     const uint64_t now=GetTickCount64();
@@ -126,9 +133,13 @@ bool SnapshotStore::Begin(const std::vector<plugins::Plugin>& list, HostMetadata
     next->host = std::move(host); next->game = std::move(game); next->sources = std::move(sources);
     next->generation = generation_ + 1;
     pluginCount_ = std::min(list.size(), kInventoryLimit);
-    rowCount_ = std::min(SignatureCount(), kInventoryLimit);
+    auto signatures = AcquireHostSignatureSnapshot();
+    next->resolutionsAvailable = bool(signatures);
+    const size_t signatureCount = signatures ? signatures->Count() : 0;
+    rowCount_ = std::min(signatureCount, kInventoryLimit);
     next->pluginsTruncated = list.size() > pluginCount_;
-    next->resolutionsTruncated = SignatureCount() > rowCount_;
+    next->resolutionsTruncated = signatureCount > rowCount_;
+    signatureSnapshot_ = std::move(signatures);
     list_ = &list; pending_ = std::move(next); phase_ = position_ = 0;
     lastBegin_ = now; haveBegin_ = true;
     return true;
@@ -138,7 +149,7 @@ bool SnapshotStore::Advance(uint64_t now) {
     if (!OnGameThread()) return false;
     if (!pending_) return true;
     if (now > kMaxMonotonicMs || now < lastBegin_ || list_->size() < pluginCount_) {
-        pending_.reset(); list_ = nullptr; return false;
+        pending_.reset(); signatureSnapshot_.reset(); list_ = nullptr; return false;
     }
     const auto start = std::chrono::steady_clock::now();
     for (size_t unit = 0; unit < 4; ++unit) {
@@ -182,14 +193,14 @@ bool SnapshotStore::Advance(uint64_t now) {
         } else if (phase_ == 2) {
             if (position_ == rowCount_) { phase_ = 3; position_ = 0; continue; }
             const size_t i = position_++;
-            const auto* def = SignatureDef(i);
-            const auto& result = SignatureResult(i); // existing result only; no address/pattern copy
-            if (!def || !def->id || !Id(def->id, 128, true)) { ++pending_->resolutionRedactions; continue; }
+            const char* id = signatureSnapshot_ ? signatureSnapshot_->IdAt(i) : nullptr;
+            const SigResult* result = signatureSnapshot_ ? signatureSnapshot_->ResultAt(i) : nullptr;
+            if (!id || !result || !Id(id, 128, true)) { ++pending_->resolutionRedactions; continue; }
             ResolutionMetadata out;
-            out.rowId = def->id; out.state = Resolution(result.state);
-            if (result.state != SigState::NotRun && result.matches >= 0) out.matchCount = static_cast<uint32_t>(result.matches);
+            out.rowId = id; out.state = Resolution(result->state);
+            if (result->state != SigState::NotRun && result->matches >= 0) out.matchCount = static_cast<uint32_t>(result->matches);
             // Snapshot generations do not certify a signature-resolution generation.
-            if (result.why) { ++pending_->resolutionRedactions; out.reason = "resolution_failed"; }
+            if (result->why) { ++pending_->resolutionRedactions; out.reason = "resolution_failed"; }
             if (pending_->sources.gamePack) out.gameBuild = pending_->sources.gamePack->gameBuild;
             pending_->resolutions.push_back(std::move(out));
         } else if (phase_ == 3) {
@@ -211,7 +222,7 @@ bool SnapshotStore::Advance(uint64_t now) {
             completed_.push_back(pending_);
             if (completed_.size() > 2) completed_.pop_front();
             generation_ = pending_->generation;
-            pending_.reset(); list_ = nullptr;
+            pending_.reset(); signatureSnapshot_.reset(); list_ = nullptr;
             return true;
         }
     }
@@ -220,7 +231,7 @@ bool SnapshotStore::Advance(uint64_t now) {
 
 void SnapshotStore::Reset() {
     if (!OnGameThread()) return;
-    pending_.reset(); list_ = nullptr; haveBegin_ = false;
+    pending_.reset(); signatureSnapshot_.reset(); list_ = nullptr; haveBegin_ = false;
     std::lock_guard<std::mutex> hold(lock_);
     completed_.clear(); tokens_.clear(); // counters never reused, even across resets
 }
@@ -257,6 +268,7 @@ Page SnapshotStore::ReadPage(ListKind tool, std::string_view filter, std::string
         snapshot = *found; next = token->next;
     }
     if (now < snapshot->observedMs) { page.error = "invalid_request"; return page; }
+    if (tool == ListKind::Resolutions && !snapshot->resolutionsAvailable) { page.error = "unknown_metadata"; return page; }
     const size_t count = tool == ListKind::Plugins ? snapshot->plugins.size() :
                          tool == ListKind::Services ? snapshot->services.size() : snapshot->resolutions.size();
     std::vector<size_t> matches;

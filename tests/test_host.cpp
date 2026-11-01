@@ -6,6 +6,7 @@
 #include "sco/log.h"
 #include "sco/runtime.h"
 #include "sco/signatures.h"
+#include "sco/signature_registry.h"
 #include "sco/status.h"
 #include "sco_api.h"
 #include <atomic>
@@ -42,8 +43,8 @@ static bool Logged(const char* exact) {
 
 // ---- capabilities ---------------------------------------------------------------------------
 
-static sco::SigResult ResolveOk(const sco::Image&) { static uint8_t b; return sco::SigOk(&b); }
-static sco::SigResult ResolveFail(const sco::Image&) { return sco::SigFail("layout check"); }
+static sco::SigResult ResolveOk(const sco::Image&, const sco::SigResolveContext&) { static uint8_t b; return sco::SigOk(&b); }
+static sco::SigResult ResolveFail(const sco::Image&, const sco::SigResolveContext&) { return sco::SigFail("layout check"); }
 static const sco::SigDef kRows[] = {
     { "test.good", nullptr, 0, 0, ResolveOk, { nullptr } },
     { "test.good2", nullptr, 0, 0, ResolveOk, { "test.good", nullptr } },
@@ -58,6 +59,7 @@ static std::string ReasonOf(const char* name) {
     return "<absent>";
 }
 
+static int g_installCallbacks = 0, g_clearCallbacks = 0, g_ownedCallbacks = 0;
 static void TestCaps() {
     CHECK(sco::caps::List(nullptr, 0) == 0);
     CHECK(!sco::caps::Has("teleport") && !sco::caps::Has(nullptr));
@@ -89,14 +91,38 @@ static void TestCaps() {
     CHECK(strcmp(two[0].name, "teleport") == 0 && !two[0].ready && strcmp(two[0].reason, "zone lost") == 0);
     CHECK(strcmp(two[1].name, "spawn.ship") == 0 && two[1].ready);
 
+    // Before publication, capability derivation fails closed.
+    const char* unpublished[] = { "test.good" };
+    CHECK(sco::caps::SetFromSignatures("sig.unpublished", unpublished, 1) == Result::Unavailable);
+    CHECK(!sco::caps::Has("sig.unpublished"));
+
     // Backed by signature rows.
-    CHECK(sco::RegisterSignatures(kRows, sizeof(kRows) / sizeof(kRows[0])));
-    sco::ResolveAll(sco::Image{});
+    auto registry = std::make_shared<sco::SignatureRegistry>();
+    const sco::SignatureTable signatureTable{kRows, sizeof(kRows) / sizeof(kRows[0])};
+    CHECK(registry->RegisterTables(&signatureTable, 1).status == sco::SigRegistryStatus::Ok);
+    CHECK(registry->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(registry->Resolve(sco::Image{}) == sco::SigRegistryStatus::Ok);
+    CHECK(sco::InstallHostSignatureRegistry(registry, []() noexcept {
+        ++g_installCallbacks; sco::caps::InvalidateAll("fixture host installed");
+    }));
+    CHECK(g_installCallbacks == 1 && ReasonOf("teleport") == "fixture host installed");
+    auto otherRegistry = std::make_shared<sco::SignatureRegistry>();
+    CHECK(otherRegistry->Freeze() == sco::SigRegistryStatus::Ok);
+    CHECK(otherRegistry->Resolve(sco::Image{}) == sco::SigRegistryStatus::Ok);
+    CHECK(!sco::InstallHostSignatureRegistry(otherRegistry, []() noexcept { ++g_installCallbacks; }));
+    CHECK(!sco::ClearHostSignatureRegistry(otherRegistry, []() noexcept { ++g_clearCallbacks; }));
+    CHECK(g_installCallbacks == 1 && g_clearCallbacks == 0);
+    CHECK(!sco::WithHostSignatureRegistry(otherRegistry, []() noexcept { ++g_ownedCallbacks; }));
+    CHECK(sco::WithHostSignatureRegistry(registry, []() noexcept { ++g_ownedCallbacks; }));
+    CHECK(g_ownedCallbacks == 1);
+    CHECK(sco::AcquireHostSignatureRegistry() == registry);
     const char* good[] = { "test.good", "test.good2" };
     const char* bad[] = { "test.good", "test.blocked", "test.bad" };
     const char* unknown[] = { "test.nope" };
     const char* withNull[] = { "test.good", nullptr };
     CHECK(sco::caps::SetFromSignatures("sig.good", good, 2) == Result::Ok && sco::caps::Has("sig.good"));
+    const auto currentSnapshot = registry->Snapshot();
+    CHECK(currentSnapshot && sco::caps::SetFromSignatures("sig.good", good, 2, *currentSnapshot) == Result::Ok);
     CHECK(sco::caps::SetFromSignatures("sig.bad", bad, 3) == Result::Ok && !sco::caps::Has("sig.bad"));
     CHECK(ReasonOf("sig.bad") == "needs test.blocked (BLOCKED)");   // first row that isn't OK
     CHECK(sco::caps::SetFromSignatures("sig.unknown", unknown, 1) == Result::Ok && !sco::caps::Has("sig.unknown"));
@@ -106,6 +132,22 @@ static void TestCaps() {
     CHECK(sco::caps::SetFromSignatures("sig.none", nullptr, 1) == Result::BadArg);
     CHECK(sco::caps::SetFromSignatures("Bad", good, 2) == Result::BadArg);
     CHECK(ReasonOf("sig.null") == "<absent>" && ReasonOf("sig.none") == "<absent>");
+
+    // Shutdown revokes all capabilities while preserving their names and order.
+    sco::caps::Entry beforeInvalidation[sco::caps::kMaxCaps]{};
+    const size_t countBefore = sco::caps::List(beforeInvalidation, sco::caps::kMaxCaps);
+    sco::caps::InvalidateAll("host stopped");
+    sco::caps::Entry afterInvalidation[sco::caps::kMaxCaps]{};
+    CHECK(sco::caps::List(afterInvalidation, sco::caps::kMaxCaps) == countBefore);
+    for (size_t i = 0; i < countBefore; ++i)
+        CHECK(std::strcmp(beforeInvalidation[i].name, afterInvalidation[i].name) == 0 &&
+              !afterInvalidation[i].ready && std::strcmp(afterInvalidation[i].reason, "host stopped") == 0);
+    CHECK(!sco::caps::Has("sig.good") && !sco::caps::Has("sig.bad"));
+    CHECK(sco::caps::Set("sig.good", true) == Result::Ok && sco::caps::Has("sig.good"));
+    sco::caps::InvalidateAll(nullptr);
+    CHECK(!sco::caps::Has("sig.good") && ReasonOf("sig.good").empty());
+    sco::caps::InvalidateAll(longReason.c_str());
+    CHECK(ReasonOf("sig.good") == std::string(sco::caps::kMaxReasonLen, 'r'));
 
     // Concurrent writers and readers (ThreadSanitizer run). Names are fixed in advance so the
     // table fill below stays exact.
@@ -131,6 +173,33 @@ static void TestCaps() {
     CHECK(sco::caps::Set("fill.one_more", true) == Result::TooMany);
     CHECK(sco::caps::Set("teleport", true) == Result::Ok && sco::caps::Has("teleport"));
     CHECK(sco::caps::List(nullptr, 0) == sco::caps::kMaxCaps);
+    // A delayed writer holding the old snapshot must not overwrite a successor's caps.
+    const auto retiredSnapshot = registry->Snapshot();
+    std::atomic<int> stage{0};
+    std::atomic<int> staleResult{static_cast<int>(Result::Ok)};
+    std::thread delayed([&] {
+        stage.store(1, std::memory_order_release);
+        while (stage.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+        staleResult.store(static_cast<int>(sco::caps::SetFromSignatures("sig.good", good, 1, *retiredSnapshot)),
+                          std::memory_order_release);
+    });
+    while (stage.load(std::memory_order_acquire) != 1) std::this_thread::yield();
+    CHECK(sco::ClearHostSignatureRegistry(registry, []() noexcept { ++g_clearCallbacks; sco::caps::InvalidateAll("fixture host stopped"); }));
+    CHECK(g_clearCallbacks == 1 && !sco::caps::Has("teleport") && ReasonOf("teleport") == "fixture host stopped");
+    CHECK(!sco::AcquireHostSignatureSnapshot());
+    CHECK(sco::InstallHostSignatureRegistry(otherRegistry, []() noexcept { sco::caps::InvalidateAll("successor installed"); }));
+    CHECK(sco::caps::Set("sig.good", false, "successor sentinel") == Result::Ok);
+    stage.store(2, std::memory_order_release);
+    delayed.join();
+    CHECK(staleResult.load(std::memory_order_acquire) == static_cast<int>(Result::Unavailable));
+    CHECK(!sco::caps::Has("sig.good") && ReasonOf("sig.good") == "successor sentinel");
+    CHECK(sco::ClearHostSignatureRegistry(otherRegistry, []() noexcept { sco::caps::InvalidateAll("successor stopped"); }));
+    CHECK(!sco::AcquireHostSignatureSnapshot());
+    CHECK(sco::caps::SetFromSignatures("sig.good", good, 1, *retiredSnapshot) == Result::Unavailable);
+    CHECK(!sco::caps::Has("sig.good") && ReasonOf("sig.good") == "successor stopped");
+    CHECK(sco::caps::Set("sig.good", true) == Result::Ok);
+    CHECK(sco::caps::SetFromSignatures("sig.good", good, 1) == Result::Unavailable);
+    CHECK(!sco::caps::Has("sig.good") && ReasonOf("sig.good") == "signature snapshot unavailable");
 }
 
 // ---- the table ------------------------------------------------------------------------------
@@ -197,6 +266,8 @@ static const sco_command* FindView(const sco_api* api, const char* name) {
 }
 
 static void TestTable() {
+    // A new host explicitly repopulates capabilities after the prior host was revoked.
+    CHECK(sco::caps::Set("teleport", true) == Result::Ok);
     CHECK(sco::host::BuildApi({ nullptr }) == nullptr);
     const sco_api* api = sco::host::BuildApi({ "sc-offline test" });
     CHECK(api && api->size == sizeof(sco_api) && api->major == SCO_API_MAJOR && api->minor == SCO_API_MINOR);
