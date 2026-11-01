@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Select automatic SDK candidate readiness from the source-controlled
+  `sdk/CANDIDATE_TAG` (`sdk-v2.4.0-rc.3` for this development cycle); refuse a
+  missing or version-mismatched designation while preserving manual final release promotion.
+
 - Keep the synthetic C language recipes warning-clean with GCC 13 while testing
   null, truncated and missing spawn table members. No game provider is qualified.
 
