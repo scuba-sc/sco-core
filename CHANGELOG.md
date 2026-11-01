@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Keep host-only test and source components out of the neutral source SDK, with manifest checks for their classification.
+
 - Build the optional runtime MCP adapter with GCC 14 warning-as-error checks.
 
 - C# storage schema enumeration retries bounded sized strings, preserves outputs on failure, and rejects malformed successful replies. Synthetic fake-host tests cover schema growth and limits.

@@ -592,17 +592,20 @@ class RealManifest(unittest.TestCase):
 
     def test_core_source_has_no_game_contracts(self):
         game = {c["source"] for c in self.m["components"]
-                if c.get("group") == "game-contract" or
+                if c.get("group") in ("game-contract", "host-source-sc") or
                 ("game-sc" in c["profiles"] and c["source"] != "LICENSE")}
-        # Profile membership classifies game files; no filename-pattern allowlist.
+        # Profile membership and explicit host classification are independent of filename patterns.
         selected = {c["source"] for c in pkg.select(self.m, "core-source")}
         self.assertFalse(selected & game, sorted(selected & game))
         for path in ("tests/abi_datacore.c", "tests/abi_game_actors.c",
-                     "tests/abi_spatial.c", "tests/abi_spawn.c"):
+                     "tests/abi_spatial.c", "tests/abi_spawn.c", "tests/test_game_host_reports.cpp"):
             self.assertIn(path, game)
         with zipfile.ZipFile(pkg.build(self.m, "core-source", self.tmp)) as z:
             files = {n.split("/", 1)[1] for n in z.namelist()}
             self.assertFalse(files & game, sorted(files & game))
+        with zipfile.ZipFile(pkg.build(self.m, "host-source-sc", self.tmp)) as z:
+            files = {n.split("/", 1)[1] for n in z.namelist()}
+            self.assertIn("tests/test_game_host_reports.cpp", files)
 
     def test_core_source_builds_from_extracted_root(self):
         """CI and local runs exercise every neutral CTest, with no checkout include paths."""
@@ -612,7 +615,7 @@ class RealManifest(unittest.TestCase):
                 z.extractall(os.path.join(tmp, "empty"))
                 root = Path(tmp, "empty", z.namelist()[0].split("/", 1)[0])
             game = {c["source"] for c in self.m["components"]
-                    if c.get("group") == "game-contract" or
+                    if c.get("group") in ("game-contract", "host-source-sc") or
                     ("game-sc" in c["profiles"] and c["source"] != "LICENSE")}
             self.assertFalse(any((root / path).exists() for path in game))
             env = os.environ.copy()
@@ -835,6 +838,29 @@ class Refused(unittest.TestCase):
             self.comp(m, source)["profiles"].append("core-source")
             with self.assertRaisesRegex(pkg.ManifestError, "contracts"):
                 pkg.select(m, "core-source")
+
+    def test_source_refuses_host_source_membership(self):
+        for source in ("tests/test_game_host_reports.cpp", "tests/test_mining.cpp"):
+            m = copy.deepcopy(self.good)
+            self.comp(m, source)["profiles"].append("core-source")
+            with self.subTest(source=source), self.assertRaisesRegex(pkg.ManifestError, "game implementation"):
+                pkg.select(m, "core-source")
+
+    def test_host_source_only_requires_classification(self):
+        def remove_group(m):
+            del self.comp(m, "tests/test_game_host_reports.cpp")["group"]
+        self.refused(remove_group, "host-source-only files need group host-source-sc")
+
+    def test_source_refuses_host_reclassification_by_membership_and_group(self):
+        def reclassify(m):
+            component = self.comp(m, "tests/test_game_host_reports.cpp")
+            del component["group"]
+            component["profiles"].append("core-source")
+        self.refused(reclassify, "host-source-sc includes core-source; do not list both")
+
+    def test_host_source_must_include_core_source(self):
+        self.refused(lambda m: m["profiles"]["host-source-sc"].update(includes=[]),
+                     "profile host-source-sc must include core-source")
 
     def test_public_header_source_does_not_prove_destination(self):
         m = copy.deepcopy(self.good)

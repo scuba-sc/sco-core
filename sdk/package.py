@@ -140,6 +140,11 @@ def load_manifest(path=MANIFEST, root=ROOT):
             raise ManifestError(f"profile {name}: unknown layout")
         if not p.get("zip") or not p.get("version_from"):
             raise ManifestError(f"profile {name}: needs zip and version_from")
+    if "host-source-sc" in profiles and "core-source" in profiles:
+        includes = profiles["host-source-sc"].get("includes", [])
+        includes = [includes] if isinstance(includes, str) else includes
+        if "core-source" not in includes:
+            raise ManifestError("profile host-source-sc must include core-source")
     comps = m.get("components")
     if not isinstance(comps, list) or not comps:
         raise ManifestError("no components")
@@ -163,6 +168,10 @@ def load_manifest(path=MANIFEST, root=ROOT):
             raise ManifestError(f"component {cid}: origin '{c['origin']}' is not one of {', '.join(sorted(ORIGINS))}")
         if not isinstance(c["profiles"], list) or not set(c["profiles"]) <= set(profiles):
             raise ManifestError(f"component {cid}: profiles must be a list of declared profiles")
+        if {"host-source-sc", "core-source"} <= set(c["profiles"]):
+            raise ManifestError(f"component {cid}: host-source-sc includes core-source; do not list both")
+        if set(c["profiles"]) == {"host-source-sc"} and c.get("group") != "host-source-sc":
+            raise ManifestError(f"component {cid}: host-source-only files need group host-source-sc")
         if "core" in c["profiles"] and "game-sc" in c["profiles"] and c["source"] != "LICENSE":
             raise ManifestError(f"component {cid}: in both core and game-sc; core files reach game-sc through 'requires'")
         for key in ("source", "destination"):
@@ -232,7 +241,7 @@ def select(m, profile):
         forbidden = ("src/game/", "src/datacore/", "include/sco/game/", "include/sco/datacore",
                      "plugins/lua/sco_lua_game.", "third_party/tomlplusplus/")
         game = [c["source"] for c in chosen
-                if c["source"].startswith(forbidden) or c.get("group") == "game-contract" or
+                if c["source"].startswith(forbidden) or c.get("group") in ("game-contract", "host-source-sc") or
                 ("game-sc" in c["profiles"] and c["source"] != "LICENSE")]
         if game:
             raise ManifestError("core-source would hold game implementation or contracts: " + ", ".join(game))
