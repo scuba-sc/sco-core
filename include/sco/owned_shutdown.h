@@ -247,6 +247,16 @@ public:
             return true;
         };
         if (!cv_.wait_until(lock, deadline, done)) { faulted_ = true; return false; }
+        // No thread/TLS obligation exists when no worker was ever registered.
+        // A process-retained owner must not create an otherwise unnecessary
+        // joiner whose finished-but-unjoined handle would itself be retained.
+        // Reader/start/transition drainage above is still required, under this
+        // same lock, and closed admission prevents a new worker appearing here.
+        if (workers_.empty()) {
+            joined_ = true;
+            ready_ = !faulted_ && std::chrono::steady_clock::now() <= deadline;
+            return ready_;
+        }
         // Joining on this control thread is not bounded (thread-local destructors
         // may still run after finished). An owned joiner supplies actual join proof.
         try {

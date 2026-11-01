@@ -25,6 +25,9 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Make the Lua notebook example roll back ordinary write and commit failures and report failed deletes.
 
+- Add host-source game-host dependency reports and an explicitly rooted, bounded
+  non-native capsule path. Retained results never authorize cleanup or restart.
+
 - Add a test-only reserved-session drain observer and bounded engine consumer
   qualification guidance. Retained retirement still requires complete consumer
   admission and ownership; native activation remains unavailable.

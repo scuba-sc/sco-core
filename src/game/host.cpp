@@ -19,6 +19,8 @@
 #include "services/datacore_live_engine.h"
 #endif
 #include <atomic>
+#include <cstring>
+#include <new>
 #include <mutex>
 #include <limits>
 #include <stdexcept>
@@ -53,6 +55,51 @@ std::shared_ptr<const vfs::Table> dataMounts;
 std::shared_ptr<SignatureRegistry> signatureRegistry;
 enum class RetirementState { NotAttempted, InProgress, Quiesced, Retained };
 RetirementState consumerRetirement = RetirementState::NotAttempted;
+
+// One physical game-host composition. No mutex is held through external code.
+// The immutable root is intentionally never destroyed, including static teardown.
+struct RetainedHost {
+    std::shared_ptr<const HostCapsule> capsule;
+    std::shared_ptr<SignatureRegistry> registry; // survives module-static teardown
+    const uint64_t id = 1; // one terminal detailed session per process
+};
+std::atomic<RetainedHost*> retainedHost{nullptr};
+std::atomic<bool> legacyControlUsed{false};
+std::atomic_flag hostControl = ATOMIC_FLAG_INIT;
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+std::atomic<testing::ReportFault> reportFault{testing::ReportFault::None};
+thread_local bool optionsAllocationArmed = false;
+#endif
+struct ControlEntry {
+    bool entered = !hostControl.test_and_set(std::memory_order_acquire);
+    ~ControlEntry() { if (entered) hostControl.clear(std::memory_order_release); }
+};
+HostReport Report(Result result, bool uncertain = false) noexcept {
+    // Refused overlapping control cannot later advertise a lower floor.
+    // Pure status observation does not latch exposure or poison startup.
+    if (uncertain) legacyControlUsed.store(true, std::memory_order_release);
+    const auto observedPhase = phase.load();
+    const auto* root = retainedHost.load(std::memory_order_acquire);
+    return {result, observedPhase, root ? root->id : 0,
+        root || uncertain || legacyControlUsed.load(std::memory_order_acquire)
+            ? DependencyDisposition::ProcessRetained : DependencyDisposition::NeverExposed};
+}
+bool DetailedConfiguration(const Options& o) noexcept {
+    const auto& p = o.platform;
+    return o.size >= sizeof(Options) && o.inspect && o.shutdownOwner &&
+        o.quit == QuitPolicy::External && o.dataCoreHook == DataCoreHook::External &&
+        !o.nativeDataCoreReads && !o.preEngineQuiesced && !o.earlyDataRequirement && !o.earlyDataContext &&
+        !o.retireConsumer && !o.consumerContext && o.drainTimeoutMs && o.drainTimeoutMs <= 60000 &&
+        o.tickIntervalMs <= 0x7fffffffu && !p.image && !p.registerSignatures &&
+        !p.shutdownOwner && !p.dataCore && p.dataRoot.empty() && !p.gameServices && !p.gameReadersQuiesced &&
+        !p.gameReadersContext && !p.pluginsEnabled && !p.builtins && !p.nBuiltins && !p.scripts &&
+        !p.beforeDependentStop && !p.beforeDependentStopContext && !p.setCapabilities &&
+        !p.hostService.context && !p.hostService.start && !p.hostService.tick && !p.hostService.stop &&
+        !p.hostMenu.context && !p.hostMenu.load && !p.hostMenu.frame && !p.hostMenu.stop &&
+        !p.diagnosticSources.diagnosticsPlugin && !p.runtimeInspection.enabled && !p.privateSession.enabled &&
+        !p.privateSessionAdmitted && !p.reservedChords && !p.nReservedChords;
+}
+
 
 void InvalidateBeforeHostInstall() noexcept {
     caps::owned::InvalidateForOwner(options.shutdownOwner, "game host preparing");
@@ -171,7 +218,18 @@ Result RetainTransitionFailure(Result result) noexcept {
     return result;
 }
 }
-Result Prepare(const Options& o) {
+HostCapsule::HostCapsule(const Options& o, std::shared_ptr<const void> backing)
+    : backing_(std::move(backing)), options_(o), image_(o.image ? *o.image : Image{}) {
+    if (o.platform.hostVersion) {
+        const size_t n = strnlen(o.platform.hostVersion, 4097);
+        if (n > 4096) throw std::invalid_argument("host version exceeds 4096 bytes");
+        hostVersion_.assign(o.platform.hostVersion, n);
+        options_.platform.hostVersion = hostVersion_.c_str();
+    }
+    options_.image = o.image ? &image_ : nullptr;
+}
+
+static Result PrepareImpl(const Options& o) {
     sco::detail::LegacyEntry entry;
     if (!entry) return Result::Unavailable;
     Phase expected = Phase::Idle;
@@ -202,7 +260,20 @@ Result Prepare(const Options& o) {
         sco::detail::ReleaseUnusedHostRegistryReservation(o.shutdownOwner);
         o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Unavailable;
     }
-    try { options = o; } catch (...) {
+    try {
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+        if (reportFault.load() == testing::ReportFault::BeforeOptionsCopy) throw std::bad_alloc();
+        optionsAllocationArmed = reportFault.load() == testing::ReportFault::OptionsAllocation;
+#endif
+        options = o;
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+        optionsAllocationArmed = false;
+        if (reportFault.load() == testing::ReportFault::AfterOptionsCopy) throw std::bad_alloc();
+#endif
+    } catch (...) {
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+        optionsAllocationArmed = false;
+#endif
         if (o.shutdownOwner) { o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Failed; }
         phase = Phase::Idle; return Result::Failed;
     }
@@ -218,6 +289,7 @@ Result Prepare(const Options& o) {
     try {
         auto candidate = std::make_shared<SignatureRegistry>(o.signatureRegistryBudgetBytes);
         if (o.shutdownOwner) signatureRegistry = candidate; // retain partial state on terminal failure
+        if (auto* root = retainedHost.load(std::memory_order_acquire)) root->registry = candidate;
         const auto registration = RegisterGameSignatures(*candidate);
         if (registration.status != SigRegistryStatus::Ok) {
             Log("[game-host] signature registration failed: %s (table %zu, row %zu)",
@@ -257,7 +329,7 @@ Result Prepare(const Options& o) {
         phase = Phase::Failed; return Result::Failed;
     }
 }
-Result Activate() {
+static Result ActivateImpl() {
     sco::detail::LegacyEntry entry;
     if (!entry) return Result::Unavailable;
     Phase expected = Phase::Prepared;
@@ -325,11 +397,11 @@ Result Activate() {
         return result;
     }
 }
-Result Start() {
+static Result StartImpl() {
     sco::detail::LegacyEntry entry;
     if (!entry) return Result::Unavailable;
     if (phase.load() == Phase::Prepared) {
-        const auto result = Activate();
+        const auto result = ActivateImpl();
         if (result != Result::Ok) return result;
     }
     Phase expected = Phase::Activated;
@@ -376,7 +448,8 @@ Result Start() {
         return RetainTransitionFailure(Result::Failed);
     }
 }
-Result Tick(uint32_t nowMs) {
+static Result StopImpl();
+static Result TickImpl(uint32_t nowMs) {
     sco::detail::LegacyEntry entry;
     if (!entry) return Result::Unavailable;
     if (phase.load() != Phase::Running) return Result::Unavailable;
@@ -397,10 +470,10 @@ Result Tick(uint32_t nowMs) {
             return Result::Ok;
         }
     } // Do not wait for our own lease in Stop.
-    Stop();
+    StopImpl();
     return Result::Unavailable;
 }
-Result Stop() {
+static Result StopImpl() {
     sco::detail::LegacyEntry entry;
     if (!entry) return Result::Unavailable;
     const Phase p = phase.load();
@@ -421,8 +494,107 @@ Result Stop() {
     try { Log("[game-host] owned shutdown retained (%s)", drained ? "drained" : "not drained"); } catch (...) {}
     return result;
 }
+HostReport PrepareDetailed(const std::shared_ptr<const HostCapsule>& capsule) noexcept {
+    ControlEntry control;
+    if (!control.entered) return Report(Result::Unavailable, true);
+    if (retainedHost.load()) return Report(Result::BadArg);
+    if (legacyControlUsed.load()) return Report(Result::Unavailable);
+    if (!capsule || !capsule->hasBacking() || !DetailedConfiguration(capsule->configuration()))
+        return Report(Result::BadArg);
+    try {
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+        if (reportFault.load() == testing::ReportFault::BeforeRootAllocation) throw std::bad_alloc();
+#endif
+        auto* root = new RetainedHost{capsule, {}};
+        // Coherent publication of actual ownership, identity and retained floor.
+        // No allocation, callback, destructor or legacy operation follows before
+        // this store; subsequent failures cannot retract the process root.
+        retainedHost.store(root, std::memory_order_release);
+        const auto result = PrepareImpl(root->capsule->configuration());
+        if (result != Result::Ok) {
+            root->capsule->configuration().shutdownOwner->fault();
+            phase = Phase::Failed;
+        }
+        return Report(result);
+    } catch (...) {
+        if (const auto* root = retainedHost.load()) {
+            try { root->capsule->configuration().shutdownOwner->fault(); } catch (...) {}
+            phase = Phase::Failed;
+        }
+        return Report(Result::Failed);
+    }
+}
+HostReport ActivateDetailed() noexcept {
+    ControlEntry control;
+    if (!control.entered) return Report(Result::Unavailable, true);
+    if (!retainedHost.load()) return Report(Result::Unavailable);
+    try { return Report(ActivateImpl()); } catch (...) { return Report(RetainTransitionFailure(Result::Failed)); }
+}
+HostReport StartDetailed() noexcept {
+    ControlEntry control;
+    if (!control.entered) return Report(Result::Unavailable, true);
+    if (!retainedHost.load()) return Report(Result::Unavailable);
+    try { return Report(StartImpl()); } catch (...) { return Report(RetainTransitionFailure(Result::Failed)); }
+}
+HostReport StopDetailed() noexcept {
+    ControlEntry control;
+    if (!control.entered) return Report(Result::Unavailable, true);
+    try { return Report(StopImpl()); } catch (...) {
+        if (retainedHost.load()) return Report(RetainTransitionFailure(Result::Failed));
+        return Report(Result::Failed);
+    }
+}
+HostReport StatusDetailed() noexcept {
+    auto report = Report(Result::Ok);
+    if (hostControl.test(std::memory_order_acquire)) {
+        // Observation is pending, not a completed control/exposure decision.
+        // It must not latch the legacy floor and poison a private failed prepare.
+        report.result = Result::Unavailable;
+        report.dependencies = DependencyDisposition::ProcessRetained;
+    }
+    return report;
+}
+Result Prepare(const Options& o) {
+    ControlEntry control;
+    if (!control.entered || retainedHost.load()) return Result::BadArg;
+    legacyControlUsed.store(true, std::memory_order_release);
+    return PrepareImpl(o);
+}
+Result Activate() {
+    ControlEntry control;
+    if (!control.entered) return Result::BadArg;
+    if (!retainedHost.load()) legacyControlUsed.store(true, std::memory_order_release);
+    return ActivateImpl();
+}
+Result Start() {
+    ControlEntry control;
+    if (!control.entered) return Result::BadArg;
+    if (!retainedHost.load()) legacyControlUsed.store(true, std::memory_order_release);
+    return StartImpl();
+}
+Result Tick(uint32_t nowMs) {
+    ControlEntry control;
+    if (!control.entered) return Result::Unavailable;
+    if (!retainedHost.load()) legacyControlUsed.store(true, std::memory_order_release);
+    return TickImpl(nowMs);
+}
+Result Stop() {
+    ControlEntry control;
+    if (!control.entered) return Result::Unavailable;
+    if (!retainedHost.load()) legacyControlUsed.store(true, std::memory_order_release);
+    return StopImpl();
+}
 Result BeforeQuit() { return Stop(); }
 namespace testing {
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+void SetReportFault(ReportFault fault) noexcept { reportFault.store(fault); }
+bool ConsumeOptionsAllocationFault() noexcept { return std::exchange(optionsAllocationArmed, false); }
+bool RetainedRegistrySurvivesStaticRelease() {
+    std::weak_ptr<SignatureRegistry> weak = signatureRegistry;
+    signatureRegistry.reset();
+    return !weak.expired();
+}
+#endif
 void FailAfterAppStart(bool enabled) { testFailAfterAppStart.store(enabled); }
 void LogAfterRegistryInstall(bool enabled) { testLogAfterRegistryInstall.store(enabled); }
 bool HasPrivateRegistry() { return static_cast<bool>(signatureRegistry); }

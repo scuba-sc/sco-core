@@ -856,3 +856,13 @@ provider_at=$(grep -nF '[plugin] loaded counter_service ' "$OUT/sim-counter.log"
 consumer_at=$(grep -nF '[plugin] loaded counter_panel ' "$OUT/sim-counter.log" | head -n 1 | cut -d: -f1)
 [ -n "$provider_at" ] && [ -n "$consumer_at" ] && [ "$provider_at" -lt "$consumer_at" ] || { cat "$OUT/sim-counter.log"; echo "sco-host-sim: counter_panel loaded before its provider"; exit 1; }
 echo "sco-host-sim: SDK examples load, tick, answer and unload; counter_panel calls counter_service across plugins"
+
+# Same production game-host route with its separate library closure; keep it out
+# of the scanner-only source list above. Neutral source kits omit this route.
+if [ -f "$ROOT/src/game/host.cpp" ]; then
+  cmake -S "$ROOT" -B "$OUT/game-host-reports" -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
+    -DSCO_GAME_SC=ON -DSCO_BUILD_TESTS=ON -DSCO_SANITIZE=address,undefined
+  cmake --build "$OUT/game-host-reports" --target test_game_host_reports --parallel 4
+  ctest --test-dir "$OUT/game-host-reports" --output-on-failure -R '^game_host_report_'
+fi
