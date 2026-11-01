@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Source kits explain that the separately packaged runtime MCP peer requires a full source checkout when its CMake build option is enabled.
+
 - Keep host-only test and source components out of neutral SDK kits, with manifest checks for their classification.
 - Recheck diagnostics request deadlines against a later same-domain clock sample when a request arrives during host polling; expired and overlong deadlines remain refused.
 - Keep the diagnostics host open while a producer has not yet published a complete request frame; malformed or pipelined frames remain refused.

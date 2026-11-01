@@ -593,6 +593,37 @@ class RealManifest(unittest.TestCase):
         with unittest.mock.patch.object(pkg, "game_pack", side_effect=AssertionError("game version read")):
             self.assertIn("-DSCO_GAME_SC=OFF", pkg.versions_txt("core-source", "1.2.0"))
 
+    def test_source_kits_explain_runtime_mcp_exclusion(self):
+        """Both extracted source kits refuse the excluded runtime peer with an actionable reason."""
+        env = os.environ.copy()
+        for key in ("CPATH", "CPLUS_INCLUDE_PATH", "C_INCLUDE_PATH", "LIBRARY_PATH",
+                    "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "CMAKE_PREFIX_PATH"):
+            env.pop(key, None)
+        with tempfile.TemporaryDirectory(prefix="source-runtime-mcp-") as tmp:
+            for profile, game in (("core-source", "OFF"), ("host-source-sc", "ON")):
+                with self.subTest(profile=profile):
+                    archive = pkg.build(self.m, profile, os.path.join(tmp, "dist"))
+                    with zipfile.ZipFile(archive) as z:
+                        files = {n.split("/", 1)[1] for n in z.namelist()}
+                        self.assertNotIn("tools/sco-core-mcp-runtime/native_adapter.cpp", files)
+                        versions = z.read(z.namelist()[0].split("/")[0] + "/VERSIONS.txt").decode()
+                        z.extractall(os.path.join(tmp, "empty"))
+                        root = Path(tmp, "empty", z.namelist()[0].split("/")[0])
+                    opts = ["-DSCO_GAME_SC=" + game, "-DSCO_BUILD_TESTS=OFF"]
+                    result = subprocess.run(["cmake", "-S", str(root), "-B", os.path.join(tmp, profile + "-on"),
+                                             *opts, "-DSCO_BUILD_RUNTIME_MCP=ON"],
+                                            cwd=root, env=env, capture_output=True, text=True)
+                    output = " ".join((result.stdout + result.stderr).split())
+                    self.assertNotEqual(result.returncode, 0, output)
+                    self.assertIn("Runtime MCP peer source is missing.", output)
+                    self.assertIn("full source checkout", output)
+                    self.assertIn("-DSCO_BUILD_RUNTIME_MCP=OFF", output)
+                    self.assertIn("Runtime MCP peer is separately packaged", versions)
+                    result = subprocess.run(["cmake", "-S", str(root), "-B", os.path.join(tmp, profile + "-off"),
+                                             *opts, "-DSCO_BUILD_RUNTIME_MCP=OFF"],
+                                            cwd=root, env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_core_source_has_no_game_contracts(self):
         game = {c["source"] for c in self.m["components"]
                 if c.get("group") in ("game-contract", "host-source-sc") or

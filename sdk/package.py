@@ -468,11 +468,12 @@ def game_pack():
 
 
 def versions_txt(profile, version):
-    """VERSIONS.txt: every line comes from a header the zip ships (or, for game-sc, the core it needs)."""
+    """VERSIONS.txt: versions from shipped headers and profile-specific build guidance."""
     abi = abi_version()
     if profile == "core-source":
         return (f"sco SDK core source {version}\n\nplugin ABI (sco_api.h): {abi}\n"
                 "Configure with -DSCO_GAME_SC=OFF. Game implementation and contracts are not included.\n"
+                "Runtime MCP peer is separately packaged and excluded; build it from a full source checkout.\n"
                 "The frozen release header is hash-checked by tools/abi_snapshot.py.\n")
     if profile == "core":
         return (f"sco SDK core {version}\n\nkernel (sdk/VERSION, tag sdk-v{version}): {version}\n"
@@ -484,6 +485,7 @@ def versions_txt(profile, version):
                 f"kernel (sdk/VERSION): {version}\nplugin ABI (sco_api.h): {abi}\n"
                 f"game pack (SCO_GAME_PACK_VERSION): {gp}\n\n"
                 "Standalone source kit; configure with -DSCO_GAME_SC=ON. Do not overlay plugin SDK zips.\n"
+                "Runtime MCP peer is separately packaged and excluded; build it from a full source checkout.\n"
                 "Local synthetic packaging proof only; game runtime and release publication are not verified.\n"
                 f"signature metadata: {build} (PE timestamp {stamp}): {how}\n")
     if profile == "game-sc":
