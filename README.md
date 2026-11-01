@@ -28,11 +28,11 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 ## Quick start: write a plugin
 
 The SDK is **2.4.0**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** (unchanged
-since 2.3.0). The latest published release is [SDK 2.4.0 RC2](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2), whose tag identifies source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`. Later `main` commits do not change those released archive bytes. The [RC1 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) is historical. Download
+since 2.3.0). The latest published release is the stable [SDK 2.4.0](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), built from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. The [RC2](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) and [RC1 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) are historical. Download
 `sco-sdk-2.4.0.zip` (or `sco-sdk-core-2.4.0.zip`) and `SHA256SUMS` from the selected release page and
 check the digest as in [Start your first plugin](docs/getting-started.md), or build an archive
-with `python3 sdk/package.py`. See the [2.4.0 release notes](docs/releases/sdk-v2.4.0.md); nothing
-new in 2.4.0 has been run in game. Then:
+with `python3 sdk/package.py`. See the [2.4.0 release notes](docs/releases/sdk-v2.4.0.md);
+behavior in 2.4.0 has not been run in game. Then:
 
 ```sh
 cd sco-sdk-<version>
