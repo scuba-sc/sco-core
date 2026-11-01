@@ -133,7 +133,22 @@ root still retains backing. If the timed wait expires before the helper's
 worker-join completion marker is observed, the helper and owner remain retained:
 a later exit cannot upgrade terminal failure. That timeout path does not detach
 or perform an unbounded join. After observing the marker, the final helper join
-can still be scheduler-delayed; the deadline is rechecked afterwards. A failed owner
-retained through process exit can retain a finished helper's joinable handle too;
-there is no general late-reap or disposal API. This is separate from the fixed
-successful-drain helper leak and supplies no cleanup or native guarantee.
+can still be scheduler-delayed; the deadline is rechecked afterwards.
+
+`OwnedShutdown::reap_retained_until(deadline)` is explicit post-failure handle
+maintenance. `ReapedRetained` proves actual worker/callable/TLS and helper joins;
+`PendingRetained` permits a later maintenance retry, and `Refused` covers wrong
+phase, self-obligation or overlapping join control. It reuses an existing helper
+instead of launching another. All three results preserve the original failed
+retirement, closed admission, backing root and restart refusal. None permits
+destruction, unmapping, provider cleanup or native activation. A completed
+maintenance call cannot upgrade `FailedRetained` to `QuiescedRetained` or make
+`ready()` true. The caller must retain the owner and all backing through every
+maintenance call; resources are not automatically collected after a timeout.
+
+The synthetic timeout fixture captures its real process-rooted owner before
+disposing the wrapper, then explicitly collects late worker handles and checks
+TLS destruction, cached-call refusal and retained backing. A test-only observer
+checks every worker/helper handle plus the in-progress control flag; readiness
+alone would not distinguish a finished but unjoined helper. No warning is
+suppressed and no fixture detaches a worker or fabricates a retirement success.

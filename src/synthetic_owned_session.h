@@ -74,7 +74,10 @@ public:
 
 #ifdef SCO_SYNTHETIC_SESSION_TESTING
     // Synthetic test seams; not present in the production interface. A worker
-    // supplied here is enrolled in the same owner and must be joined by retire.
+    // supplied here is enrolled in the same owner. After a terminal timeout,
+    // explicit owner.reap_retained_until may collect its late handles while
+    // preserving FailedRetained and the full process root. The owner is inside
+    // that rooted capsule and outlives wrapper destruction.
     OwnedShutdown& owner_for_test() noexcept;
     std::weak_ptr<const void> backing_for_test() const noexcept;
     void set_table_hook_for_test(void (*hook)(void*), void* context) noexcept;

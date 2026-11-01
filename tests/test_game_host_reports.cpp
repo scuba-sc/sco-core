@@ -3,6 +3,7 @@
 // Same production game-host route, synthetic bytes and executable-pinned code.
 #include "sco/game/host.h"
 #include "../src/game/host_testing.h"
+#include "owned_shutdown_test_access.h"
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -13,6 +14,7 @@
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <utility>
 
 namespace gh = sco::game::host;
 using D = gh::DependencyDisposition;
@@ -29,12 +31,18 @@ static thread_local gh::HostReport allocationReport, allocationStatus;
 static thread_local bool statusAllocation = false, failAfterStatus = false;
 static thread_local bool pauseRootAllocation = false;
 static std::atomic<bool> rootAllocationReached{false}, rootAllocationRelease{false};
+static thread_local sco::OwnedShutdown* helperAllocationOwner = nullptr;
+static thread_local bool helperAllocationObserved = false;
 #if defined(_MSC_VER)
 #define HOST_REPORT_NOINLINE __declspec(noinline)
 #else
 #define HOST_REPORT_NOINLINE __attribute__((noinline))
 #endif
 HOST_REPORT_NOINLINE void* operator new(std::size_t n) {
+    if (auto* owner = std::exchange(helperAllocationOwner, nullptr)) {
+        helperAllocationObserved = owner->reap_retained_until(std::chrono::steady_clock::now() + 1s) ==
+            sco::OwnedShutdown::ReapResult::Refused && !owner->ready();
+    }
     if (pauseRootAllocation) {
         pauseRootAllocation = false;
         rootAllocationReached.store(true, std::memory_order_release);
@@ -106,7 +114,7 @@ static void Retained(const gh::HostReport& report) {
 int main(int argc, char** argv) {
     if (argc != 2) return 2;
     const std::string mode = argv[1];
-    if (mode == "retained-worker" || mode == "retained-worker-fault") {
+    if (mode == "retained-worker" || mode == "retained-worker-fault" || mode == "retained-helper-allocation-reentry") {
         // Stack destruction would hide a finished but unjoined helper. Keep
         // the actual owner process-rooted so TSan checks the production path.
         static auto* owner = new sco::OwnedShutdown;
@@ -117,9 +125,15 @@ int main(int argc, char** argv) {
             (void)tail;
             if (mode == "retained-worker-fault") throw 1;
         }));
+        if (mode == "retained-helper-allocation-reentry") {
+            owner->fault();
+            helperAllocationOwner = owner;
+        }
         const bool drained = owner->drain_until(std::chrono::steady_clock::now() + 2s);
+        if (mode == "retained-helper-allocation-reentry") CHECK(helperAllocationObserved);
         CHECK(drained == (mode == "retained-worker"));
         CHECK(owner->ready() == drained && tlsDestroyed.load(std::memory_order_acquire));
+        CHECK(sco::OwnedShutdownTestAccess::handles_reaped(*owner));
         CHECK(!owner->drain_until(std::chrono::steady_clock::now() + 2s));
         std::puts("retained worker: callable/TLS joined, completed helper reaped");
         return 0;

@@ -2,6 +2,7 @@
 #include "../src/synthetic_owned_session.h"
 #include "sco/signature_registry.h"
 #include "issue302_test_support.h"
+#include "owned_shutdown_test_access.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -236,22 +237,47 @@ int main(int argc, char** argv) {
         CHECK(session.retire_until(Clock::now() + 1s) == Result::FailedRetained);
     }
     {
-        struct Signals { std::promise<void> entered, release, finished; };
+        struct Signals {
+            std::promise<void> entered, release, finished;
+            std::atomic<bool> tlsDestroyed{false};
+        };
         auto signals = std::make_shared<Signals>();
         auto proceed = signals->release.get_future().share();
         auto session = std::make_unique<Session>(std::vector<Session::Entry>{{"worker", 1}});
         auto weak = session->backing_for_test();
+        const auto cached = session->table();
+        // The actual capsule (including this owner) is process-rooted even
+        // after wrapper disposal. This accessor is test-only.
+        auto* retainedOwner = &session->owner_for_test();
         CHECK(session->owner_for_test().start_worker([signals, proceed](const auto&) {
+            struct Tail {
+                std::shared_ptr<Signals> signals;
+                ~Tail() { signals->tlsDestroyed.store(true, std::memory_order_release); }
+            };
+            thread_local Tail tail{signals};
+            (void)tail;
             signals->entered.set_value();
             proceed.wait();
             signals->finished.set_value();
         }));
         signals->entered.get_future().wait();
         CHECK(session->retire_until(Clock::now() + 20ms) == Result::FailedRetained);
+        CHECK(session->status() == Status::FailedRetained && !retainedOwner->ready());
+        CHECK(!sco::OwnedShutdownTestAccess::handles_reaped(*retainedOwner));
+        CHECK(session->retire_until(Clock::now() + 1s) == Result::Unavailable);
         session.reset();
         CHECK(!weak.expired());
         signals->release.set_value();
         signals->finished.get_future().wait();
+        CHECK(retainedOwner->reap_retained_until(Clock::now() + 3s) ==
+              sco::OwnedShutdown::ReapResult::ReapedRetained);
+        CHECK(sco::OwnedShutdownTestAccess::handles_reaped(*retainedOwner));
+        CHECK(signals->tlsDestroyed.load(std::memory_order_acquire));
+        CHECK(retainedOwner->closed() && !retainedOwner->ready() && !retainedOwner->try_read());
+        CHECK(!retainedOwner->start_worker([](const auto&) {}));
+        CHECK(!retainedOwner->drain_until(Clock::now() + 1s));
+        uint64_t unchanged = 91;
+        CHECK(!cached.lookup(cached.context, "worker", &unchanged) && unchanged == 91);
         CHECK(!weak.expired());
     }
     {
