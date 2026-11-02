@@ -1,16 +1,16 @@
 # Roadmap and direction
 
 sco-core is the SDK that Star Citizen offline mods are built on. This page says where the platform
-is today, what SDK 2.4.0 is meant to deliver, and where it goes after that. It is a direction, not a
+is today, what stable SDK 2.4.0 delivers, and where the platform goes next. It is a direction, not a
 release promise: there are no dates, and a feature named here exists only when its contract,
 implementation and evidence say so in [game capability status](game/status.md) and the release notes.
 
-SDK 2.4.0 RC2 is the latest published release. Its assets are on the
-[RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2),
-and its tag points to source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`.
-Later `main` commits do not change those released bytes. The final `sdk-v2.4.0`
-release is still pending. [Release notes](releases/sdk-v2.4.0.md) retain the
-RC1 and RC2 history.
+SDK 2.4.0 is the current stable release, published on 2026-11-01 from source
+commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. The release includes five
+profile archives, `SHA256SUMS`, SPDX records and release documentation. See the
+[stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0).
+RC1 and RC2 remain historical records in the [release notes](releases/sdk-v2.4.0.md).
+The published bytes do not establish that a game capability has been verified in game.
 
 ## How to read status on this page
 
@@ -52,6 +52,13 @@ separate requirements.
 
 ### Start contributing today
 
+For a first out-of-game contribution, follow this path:
+
+1. Download `sco-sdk-2.4.0.zip` and `SHA256SUMS` from the [stable release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), verify the archive, and build the first plugin with [the getting-started guide](getting-started.md).
+2. Use the bundled `sco-core-mcp` to discover a contract, generate a scaffold, and check the plugin with the [SDK and MCP tutorial](sdk-mcp-tutorial.md).
+3. Exercise the plugin against `scuba-engine` mock services outside the game. Its native runtime targets Windows and Linux; the native editor is Windows-only, while Browser Studio and portable tools are separate. Mock results are not gameplay evidence.
+4. When a community mod suggests a missing SDK capability, submit a clean-room gap report through a public SDK issue. Describe observed behavior and the requested contract without uploading game files, dumps, mod binaries or leaked source.
+
 | You want to | Start here |
 |---|---|
 | Write your first plugin | [Start a plugin](getting-started.md), then [plugins](plugins.md) and the [plugin rules](../sdk/docs/plugin-rules.md) |
@@ -71,11 +78,12 @@ must have the right to contribute what you send.
 supported language, validate it without the game, and deploy it on a compatible host, without
 reverse engineering anything.
 
-Status: the latest published release is **RC2** (`sdk-v2.4.0-rc.2`, with five
-archives, built from source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`).
-RC1 is historical; the final `sdk-v2.4.0` release is still pending. Plugin ABI
-1.1 stays byte-identical. Star Citizen game pack 0.8.0 targets verified build
-4.10.197.2878. Nothing new in 2.4.0 has been run in game.
+Status: **shipped as stable** (`sdk-v2.4.0`, published 2026-11-01 from source
+`6106fa3639cbcc28f78a1ded8de2707de019f4d3`; five profile archives with checksums,
+SPDX records and docs). Plugin ABI 1.1 remains byte-identical. Star Citizen game
+pack 0.8.0 targets verified build 4.10.197.2878. Publication is not gameplay
+evidence: the new SDK capabilities have not been promoted to verified-in-game on
+this page.
 
 ### Developer kit
 
@@ -114,70 +122,59 @@ class-name lookup, value-change GameRules reads, fire-and-forget audio), but the
 yet show that the game objects involved stay valid for the whole call. Until it does, the table
 answers unavailable and nothing is hooked. They are first in line after 2.4.0 (section 4).
 
-### What must be true before 2.4.0 is called ready
+### Shipped and remaining acceptance
 
-2.4.0 does not need every capability finished. It needs to be a foundation people can build on
-without starting over later:
+The stable release provides the published contributor platform described above. The remaining
+acceptance work concerns consumer coverage and human gameplay evidence; it does not change the
+release identity. Keep contract, implementation, availability and evidence separate. The product
+and studio states below describe their current public source, not an in-game certification.
 
-- **A stability promise.** A published contract for what will not break, and a Stable or
-  Experimental label on every service. The plugin ABI and host services are Stable; a game table is
-  Stable once its signature rows resolve on the verified build. An Experimental table can later be
-  replaced by a new major version, with the old one kept through a deprecation window.
-- **MCP tools for the whole development loop:** run the plugin checker, scaffold C# and Lua plugins
-  as well as C and C++, search the guides, and build/test a plugin project when operator project roots are configured.
-- **A plugin design principles guide** with a modular example, and a **community plugin directory**:
-  plugins live in their authors' own repositories and are listed with their compatibility.
-- **An outsider dry run:** starting only from the published archive, the docs site and the MCP, an
-  assistant with no access to the source gets to a checked plugin without help.
-- **An in-game smoke run:** a plugin built from the 2.4.0 archive loads, runs a command and unloads.
-- **The release itself:** the final source passes every check and hosted CI on that exact commit, the
-  five archives are built and hashed, the maintainer tags and promotes the verified candidate, and
-  the docs site switches to 2.4.0. Nothing on this page publishes a release.
+The [interactive one-page roadmap](https://scuba-sc.github.io/sco-core/roadmap/) is a companion
+status view. This document is the maintained contributor roadmap; follow the release page and
+public issue links below for current source evidence.
 
-Progress on each of these is counted on the [one-page roadmap](https://scuba-sc.github.io/sco-core/roadmap/).
+## 3. Milestone 2: consumers and out-of-game studio
 
-## 3. Milestone 2: products and studio on the 2.4.0 SDK
+SDK 2.4.0 is stable; consumer integration has advanced, while full suite and gameplay acceptance
+remain separate gates.
 
-SDK 2.4.0 is the platform; these releases prove it by being built only on it.
+- **sc-offline:** current `main` is `e0ed7dba102b3463b04e02af1ff49a2addabe7ea`. PRs #185 and #192
+  are merged on the stable SDK baseline. [Issue #183](https://github.com/scuba-sc/sc-offline/issues/183)
+  has synthetic VPN-range coverage; Windows firewall behavior and in-game join acceptance remain
+  open.
+- **scuba-engine:** current `main` is `7d9cf369cf718d6a108dd594288dc7d46267f166`. Native runtime
+  builds target Windows and Linux; the native editor is Windows-only. Browser Studio and portable
+  developer tools are separate. The Studio MCP bridge is implemented with 16 tools; its presence
+  does not mean every acceptance scenario is certified. Full out-of-game suite certification is
+  still a next-horizon task, and mock runs do not establish gameplay behavior.
+- **sc-mp:** current `main` is `9b73627b07a4d7a585b68f38ba6a50e4fb3968fa`; integration PRs #14–#18
+  and #20 are merged. Windows/Linux CI exercises a synthetic relay and host context. Authority and
+  receipts are process-rooted and volatile; durable recovery, a native game authority bridge and
+  in-game co-presence have not been demonstrated.
+- **Core parity:** [issue #302](https://github.com/scuba-sc/sco-core/issues/302) remains open for
+  valid-input parity across all signature rows. Bounds-check implementation and synthetic
+  regression work landed in [merged PR #304](https://github.com/scuba-sc/sco-core/pull/304),
+  merge commit `7ee83fa95680aa482d8b160987b472547a67b888`; the issue's broader closure evidence
+  remains outstanding.
 
-- **sc-offline (next release):** every built-in feature becomes a plugin that uses only the public
-  SDK: spawning, loadouts, ASOP terminals, firearm and multitool attachments, contracts, NPCs, the
-  inspector, mining, quantum travel, relocation, creative tools and build info. Community
-  contributions land as plugins on the same interface.
-- **scuba-engine studio:** run the whole product out of game. A mock provider for every `game.*`
-  table lets plugin authors build, inspect and test against the same contracts the game pack serves.
-- **sc-mp:** private co-presence between sc-offline players over LAN or VPN, built on the SDK's
-  private-session and `sco.net` services, never on Cloud Imperium Games' servers.
+## 4. Milestone 3: next horizon
 
-## 4. Milestone 3: after 2.4.0, toward full engine coverage
+Planned work is to close the remaining acceptance gaps in evidence order:
 
-The north star is that any game capability a mod needs has a published contract, a grounded native
-backend, a mock, and in-game evidence. Work moves through the same pipeline every time:
+1. Owner-run, one-launch SDK 2.4.0 acceptance on the named game build, including the recorded V-row
+   observations. No row becomes verified in game until its run evidence is recorded.
+2. Durable sc-mp authority/recovery and a native ghost bridge, followed by normal in-game validation.
+3. A complete out-of-game suite certification across the bundled plugins, mock providers, scenario
+   runner and refusal paths.
+4. Core valid-input parity for #302, then native expansion including container traversal,
+   spatial/zone conversion, multi-hit raycasts, mission/economy catalogues, and seated actor/crew
+   persistence.
+5. Independent first-time-contributor dry run: follow the delivered archive-to-plugin
+   documentation without help, then use observed friction to improve it.
 
-1. **Contract:** a versioned table and its rules in a public header. The ABI only grows.
-2. **Synthetic provider and mock:** tests in sco-core and a scuba-engine mock, so plugins can be
-   written before the game side exists.
-3. **Static check:** signature rows resolve on the verified build. Static checks find code; they do
-   not prove behavior.
-4. **Native backend, off by default:** only the grounded path, with fault containment, and fail-closed
-   everywhere else.
-5. **In-game evidence:** a recorded run on a named build.
-6. **On by default:** only after the evidence.
-
-Planned areas, in rough order:
-
-| Area | Direction |
-|---|---|
-| Rays, entities, GameRules, audio | Ground and ship the four narrowed native backends that 2.4.0 holds fail-closed. |
-| Spatial, zones and world control | Coordinate conversion across nested zones, filtered multi-hit rays, camera and aim control. |
-| Containers, economy and missions | Native stored-container traversal, mission catalogue reads and writes, generated contracts. |
-| Vehicles, crew and seated actors | Safe seated-actor removal, multi-crew state, persistent ASOP data. |
-| Audio and events | Spatial audio events and typed entity and game event producers on the event bus. |
-| Private co-presence | Session relay and ghost co-presence over LAN or VPN in sc-mp. |
-| Patch days | Faster revalidation of every signature row on each new game build. |
-
-Each row becomes contract and backend work items as it starts; watch this repository's issues and
-pull requests to pick one up.
+Each capability still moves through contract, implementation, availability and evidence. Static
+checks, mock results and CI are not gameplay evidence. Follow the linked public issues for current
+implementation details; the human owner records and decides game acceptance.
 
 ## Out of scope, always
 

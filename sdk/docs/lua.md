@@ -2,7 +2,7 @@
 
 A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`) and its scripts. sc-offline's bundled `sco-lua` runtime runs the entry script once at load, in a sandbox. The script registers commands and subscribes to events; those callbacks run on the game thread.
 
-> **SDK 2.4.0** uses unchanged plugin ABI 1.1. This guide covers RC2 workflows. Check the selected kit and host identities separately; published RC1 retains its earlier bindings. This page describes the `plugins/lua/` runtime and its operation-specific limits, not release availability or game-service readiness. Its tests exercise [`examples/greeter`](../examples/greeter) and [`examples/notebook`](../examples/notebook).
+> **Stable SDK 2.4.0** uses unchanged plugin ABI 1.1. The [`sdk-v2.4.0` release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0) was published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; verify the selected archive against its `SHA256SUMS` and check the host identity separately. RC1 and RC2 are historical releases whose packaged bytes do not change with this source guide. This page describes the `plugins/lua/` runtime and its operation-specific limits, not game-service readiness. Its tests exercise [`examples/greeter`](../examples/greeter) and [`examples/notebook`](../examples/notebook).
 
 ## The sandbox
 

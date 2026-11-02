@@ -4,7 +4,7 @@
 
 Curated guides by audience, not an exhaustive inventory of historical records.
 For the project overview, start with the [root README](../README.md).
-For where the SDK is going and how to contribute, read the [roadmap](roadmap.md).
+For the current release, consumer integration state, next horizon and contribution path, read the [roadmap](roadmap.md).
 
 ## New plugin author — Start a plugin
 
@@ -95,9 +95,9 @@ Client-specific instructions live in the integration guide, not in this index.
 1. [Contributing](../CONTRIBUTING.md) and [building/testing](building.md):
    source policy, named tests, CI and product adoption.
 2. [Changelog](../CHANGELOG.md), [SDK 2.4.0 notes](releases/sdk-v2.4.0.md) and the
-   latest published release, [SDK 2.4.0 RC2](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2).
-   The final `sdk-v2.4.0` release is still pending. See the
-   [prepublication RC2 history](releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication)
+   current stable release, [SDK 2.4.0](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0),
+   built from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. See the
+   [historical RC2 record](releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication)
    and keep SDK/package, plugin ABI and game-pack version coordinates distinct.
 3. [Release checklist](legal/release-checklist.md) and
    [release decisions](legal/release-decisions/README.md): candidate versus

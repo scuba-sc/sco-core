@@ -10,6 +10,20 @@ then verified and promoted without rebuilding by [release run
 The published release includes `SHA256SUMS` and `release.json`. No 2.4.0
 behavior has been run in game.
 
+<a id="stable-archive-identity"></a>
+
+## Stable SDK 2.4.0 archive identities
+
+These five ZIPs are the immutable assets on the [`sdk-v2.4.0` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0). The digests below match that release's `SHA256SUMS`; select the profile from `COMPATIBILITY.json` and verify the downloaded asset before extraction. A later source-document edit does not change these published bytes.
+
+| Profile | Release asset | SHA-256 |
+|---|---|---|
+| `core` | `sco-sdk-core-2.4.0.zip` | `d2a8313ec5e3a7ae9ff95c253841b40e75454bec9799dccba5cbab9346432a7b` |
+| `game-sc` | `sco-sdk-game-sc-0.8.0.zip` | `a5881e321bb456a3a17894413a07ece9ce6d3787bd6d1ad7dcc34fc288951f6b` |
+| `legacy` | `sco-sdk-2.4.0.zip` | `0df4995624e9b094d24e9c5534b1ea7357f517c83a0a8c8ed6ad7d4d475afcbc` |
+| `core-source` | `sco-sdk-core-source-2.4.0.zip` | `df756719da0de54ead18973258d3bc35640e26d44088b3b6ffcf8672ebb1ee51` |
+| `host-source-sc` | `sco-sdk-host-source-sc-2.4.0.zip` | `a0aaaba07e3d4eb0d8c264912cd6f2ab23f0d237a99fa07816005790a76efc4c` |
+
 **RC1 history.** On 2026-10-21 the five archives were published as the
 release [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
 release-candidate workflow from `main` commit `48d7055`, with every file attested. Before RC2 was
