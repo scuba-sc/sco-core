@@ -304,20 +304,22 @@ class ArchiveAndMCP(unittest.TestCase):
                     for name, (data, _) in entries.items():
                         self.assertEqual(archive.read(top + '/' + name), data)
                     if profile == 'legacy':
-                        # The kit snapshot must describe RC2 without presenting RC1 as its current release.
+                        # A current-source kit must describe stable 2.4.0 and keep RC2 historical.
                         readme = archive.read(top + '/README.md').decode()
                         lua = archive.read(top + '/docs/lua.md').decode()
                         mcp = archive.read(top + '/tools/sco-core-mcp/README.md').decode()
                         guide_index = json.loads(archive.read(top + '/sdk-guides.json'))
-                        self.assertIn('This guide covers RC2 workflows', readme)
-                        self.assertIn('sdk-v2.4.0-rc.2', readme)
-                        self.assertIn('This guide covers RC2 workflows', lua)
-                        self.assertIn('sdk-v2.4.0-rc.2', mcp)
+                        self.assertIn('Stable SDK 2.4.0', readme)
+                        self.assertIn('RC1 and RC2 are historical releases', readme)
+                        self.assertIn('Stable SDK 2.4.0', lua)
+                        self.assertIn('Stable SDK 2.4.0', mcp)
+                        self.assertIn('sdk-v2.4.0', mcp)
+                        self.assertIn('historical RC2 launcher', mcp)
                         for text in (readme, lua, mcp):
                             self.assertNotIn('latest release', ' '.join(text.lower().split()))
                         sections = [s for s in guide_index['sections']
                                     if s['doc'] == 'docs/getting-started.md']
-                        self.assertTrue(any('RC2 release page' in s['text'] for s in sections))
+                        self.assertTrue(any('stable release' in s['text'].lower() for s in sections))
                         self.assertFalse(any('latest release' in ' '.join(s['text'].lower().split())
                                              for s in sections))
                 sums = entries['SHA256SUMS'][0].decode()

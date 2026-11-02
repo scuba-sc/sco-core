@@ -254,7 +254,7 @@ class CheckTests(SyntheticTree):
 
 
 class RealTreeTests(unittest.TestCase):
-    def test_rc2_candidate_snapshot_in_index(self):
+    def test_stable_release_status_in_index(self):
         data = guides.build(ROOT, SHA)
         entries = {(s['doc'], s['heading']): s for s in data['sections']}
         status = entries[('docs/releases/sdk-v2.4.0.md', 'Historical RC2 candidate status')]['text']
@@ -262,7 +262,8 @@ class RealTreeTests(unittest.TestCase):
         self.assertIn('b7541dc91802f5fa1b050151bbc82e0e47834b6f', status)
         self.assertIn('not published', status)
         lua = next(s for s in data['sections'] if s['doc'] == 'sdk/docs/lua.md' and s['level'] == 1)
-        self.assertIn('This guide covers RC2 workflows', lua['text'])
+        self.assertIn('Stable SDK 2.4.0', lua['text'])
+        self.assertIn('RC1 and RC2 are historical releases', lua['text'])
         self.assertNotIn('release candidate 1, tag', lua['text'])
         tutorial = entries[('docs/sdk-mcp-tutorial.md', '2. Obtain SDK and build your own copies in isolation')]['text']
         self.assertIn('tutorial wrapper', tutorial)
