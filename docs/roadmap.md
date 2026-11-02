@@ -166,8 +166,8 @@ Planned work is to close the remaining acceptance gaps in evidence order:
 4. Core valid-input parity for #302, then native expansion including container traversal,
    spatial/zone conversion, multi-hit raycasts, mission/economy catalogues, and seated actor/crew
    persistence.
-5. Public onboarding that starts from the verified release archive and documents the supported
-   language bindings and current capability limits.
+5. Independent first-time-contributor dry run: follow the delivered archive-to-plugin
+   documentation without help, then use observed friction to improve it.
 
 Each capability still moves through contract, implementation, availability and evidence. Static
 checks, mock results and CI are not gameplay evidence. Follow the linked public issues for current
