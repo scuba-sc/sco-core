@@ -151,8 +151,11 @@ remain separate gates.
   and #20 are merged. Windows/Linux CI exercises a synthetic relay and host context. Authority and
   receipts are process-rooted and volatile; durable recovery, a native game authority bridge and
   in-game co-presence have not been demonstrated.
-- **Core parity:** [issue #302](https://github.com/scuba-sc/sco-core/issues/302) remains open. The
-  bounds-check paths are fixed, while valid-input parity across all signature rows is still pending.
+- **Core parity:** [issue #302](https://github.com/scuba-sc/sco-core/issues/302) remains open for
+  valid-input parity across all signature rows. Bounds-check implementation and synthetic
+  regression work landed in [merged PR #304](https://github.com/scuba-sc/sco-core/pull/304),
+  merge commit `7ee83fa95680aa482d8b160987b472547a67b888`; the issue's broader closure evidence
+  remains outstanding.
 
 ## 4. Milestone 3: next horizon
 
