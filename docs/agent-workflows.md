@@ -1,6 +1,6 @@
 # Consumer workflows for agents
 
-Current source contains six focused skills for developers building extensions, targeting the **SDK 2.4.0** baseline. Check the selected kit’s workflow manifest and index for the actual bundle version and source identity; source changes do not modify the already published RC1/RC2 archives or authorize a release. API truth stays in public headers, contracts and the matching catalogue.
+Current source contains six focused skills for developers building extensions, targeting stable **SDK 2.4.0**. It was published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; the five profile archive identities are in the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity). Check the selected kit's workflow manifest and index for its actual bundle version and source identity; later source edits do not modify the already published stable, RC2 or RC1 archive bytes or authorize a new release. API truth stays in public headers, contracts and the matching catalogue.
 
 | Task | Entrypoint |
 | --- | --- |
@@ -47,12 +47,14 @@ The builder takes inputs only from the explicit `sdk/skills/manifest.json` allow
 
 ## Cross-repository capability integration inventory
 
-This campaign separates the published baseline from current source. Published RC2 is
-SDK 2.4.0 source `844e136ccb280ad8cb43f73bc43c9447e8f6799d`; sco-core `main` at the
-campaign start is `0c977d3229012ab7bdf70e17da24dd2189fc4f40`, after the #289 receive-buffer
-change. Current engine, offline and multiplayer pins still consume RC2. A current-source
-catalogue, mock, signature match or synthetic test does not change those archive bytes or
-prove a native provider ran in game.
+This campaign separates a dated RC2 baseline from later source. Its published RC2
+SDK 2.4.0 source was `844e136ccb280ad8cb43f73bc43c9447e8f6799d`; sco-core `main` at the
+campaign start was `0c977d3229012ab7bdf70e17da24dd2189fc4f40`, after the #289 receive-buffer
+change. Stable SDK 2.4.0 superseded RC2 on 2026-11-01 from source
+`6106fa3639cbcc28f78a1ded8de2707de019f4d3`. The product pins recorded below are a
+campaign snapshot, not current-repository assertions; recheck each exact consumer ref
+before describing adoption. A current-source catalogue, mock, signature match or synthetic
+test does not change published archive bytes or prove a native provider ran in game.
 
 Use these labels when checking each feature: **mapped** means a public header/contract
 names the operation; **synthetic** means a fake provider or stand-in test covers selected
@@ -70,7 +72,7 @@ provider is absent or available, and sc-mp remains a separate consumer.
 
 | Consumer need | Existing sco-core contract and evidence | Integration gap and owner action |
 |---|---|---|
-| scuba-engine studio and plugin profiles | The frozen plugin root is `sco_api` 1.1 (128 bytes). Game calls use their own versioned `sc_*` tables. Engine #35/#36 added selected profile loading and bounded plugin snapshots; a later owner-reported local engine patch `30067f4` adds the four-plugin app-suite profile and stable `widgets` 1.2 tags through owned node snapshots. Its owner reports 75/76 full-suite tests passing, with the known RC2 eight-peer failure remaining. These local changes are not part of the pinned RC2 source or evidence of native gameplay. | Keep a mock per service separate from native status. Map each enabled profile to exact service versions and full member extents, and add engine-owned mock tables as new public contracts are adopted. Promote one common published kit and matching host pin together; the current engine pin remains RC2. |
+| scuba-engine studio and plugin profiles | The frozen plugin root is `sco_api` 1.1 (128 bytes). Game calls use their own versioned `sc_*` tables. Engine PRs #35/#36 added selected profile loading and bounded plugin snapshots. The exact current profile set and suite results must be rechecked against the public main branch before describing them as accepted; a mock is not native gameplay evidence. | Keep a mock per service separate from native status. Map each enabled profile to exact service versions and full member extents, and add engine-owned mock tables as new public contracts are adopted. Promote a common published SDK and matching host pin together after verifying the current repository coordinates. |
 | sc-offline build, world and entity writes | The named contracts exist: `game.entities` 1.2 includes spawn/despawn and transform methods; `spawn.entities` 1.2 provides product spawn helpers; `game.world.control` 1.1 includes filtered ray queries. In current core status, lookup rows and filtered-ray support are synthetic/OFF, while entity transform/spawn rows have static sigcheck records. Existing core issues [#223](https://github.com/scuba-sc/sco-core/issues/223), [#224](https://github.com/scuba-sc/sco-core/issues/224) and [#225](https://github.com/scuba-sc/sco-core/issues/225) cover adjacent entity, ray and coordinate surfaces. | Map each Build action to a callable method, capability, fallback and test. The main gaps are provider readiness and target evidence; do not treat methodless sigcheck rows or the synthetic ray provider as live support. Extend or close existing core issues from current product evidence instead of opening duplicate contracts. |
 | sc-offline crew, spawn, NPC, seat and flight-ready behavior | The named contracts exist: `game.actors` 1.1, `game.entities` 1.2, `spawn.entities` 1.2 and `game.vehicles` 1.0 contain actor/entity spawn and seat/flight-ready methods. Selected actor/entity/vehicle rows have static sigcheck records; they do not prove each operation worked in game. | Map each Crew/Spawn action to its exact method/provider and an owner test. The main gaps are provider readiness and operation-level evidence. Retain owner-scoped cleanup and session-valid IDs. The existing vehicle contract already names seat/eject/power-on; do not propose a duplicate contract from feature wording alone. |
 | sc-offline contracts, mining and creative modules | `game.missions` 1.0 has offer/accept/status/advance/abandon/ingest contracts and a callback/provider seam with synthetic tests; no production Windows provider is installed, and the registry remains OFF. The provider must satisfy admission and the operation-specific callbacks before calls can be ready. `game.mining` 1.0 exists but is OFF; its native adapter is unverified on Windows/game. `game.creative` 1.0 has mapped operations and static signature rows; the offline owner reports its product module disabled. | Keep provider readiness and product enablement distinct. Missions needs a grounded production adapter and readiness evidence; mining needs native verification and target evidence; creative needs an explicit product-policy decision. Do not read the core's static rows as offline plugin policy. |
@@ -106,20 +108,21 @@ version and test evidence before a header is designed; no authority ABI is imple
 3. Only after that inventory shows a shared contract is absent should core consider a new
    size-prefixed surface. Preserve the frozen C ABI, opaque/session-scoped IDs and explicit
    owner cleanup. Product owners add their mocks/adapters and tests against the same contract.
-4. Move every cooperating repo to one latest **published** kit after a maintainer release
-   decision. Until then, new source changes remain proposals and consumers keep their verified
-   RC2 pins. In-game validation remains a separate deferred gate.
+4. Move each cooperating repo to a selected, checksum-verified **published** kit after a
+   maintainer release decision. Stable SDK 2.4.0 is now published; verify the exact
+   SDK/archive and host pin for every consumer instead of assuming publication moves them.
+   In-game validation remains a separate deferred gate.
 
 ## RC2 consumer reconciliation
 
-This is the bounded consumer-workflow portion of [SDK 2.4.0 preparation](roadmap-2.4.0.md).
-RC2 was published on 2026-10-28 and is the latest GitHub release. Its tag points
-to release source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`; current
-`main` may be newer, and later source edits do not change the published archive
-bytes. The prepublication RC2 state remains in the
+This is the bounded consumer-workflow portion of the RC2 stage of [SDK 2.4.0 preparation](roadmap-2.4.0.md).
+Stable SDK 2.4.0 is now the current published release, published on 2026-11-01
+from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. RC2 was published on
+2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`; it remains an
+immutable historical archive. The prepublication RC2 state remains in the
 [historical notes](releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication).
-Published archives, the product's host revision and any final release approval
-have separate identities. The following
+Published archive, product-host and source identities are separate. Recheck each
+consumer's exact ref before describing adoption. The following
 issues explain demand for contracts already present in source. Their proposals
 are not API declarations, and this reconciliation does not close them or certify
 their full acceptance.
@@ -131,7 +134,7 @@ their full acceptance.
 | [#192](https://github.com/scuba-sc/sco-core/issues/192), partial pack application | `PackApplyPolicy::BestEffort` is explicit opt-in with `PackApplyReceipt`; Atomic remains default. `sco-dcb lint <pack>...` checks syntax; `sco-dcb check <file.dcb> <pack>...` also needs the database. The issue's one-input example is not the implemented CLI. [Pack contract](datacore.md#packs-lint-check-show-diff) | `tests/test_datacore_pack.cpp`, `tests/dcb_pack.cmake` |
 | [#194](https://github.com/scuba-sc/sco-core/issues/194), action vocabulary | `game.input` 1.0 has **1,297** actions, ids 1..1297, re-derived on 4.10.197.2878. The older 1,267-member proposal is superseded by source evidence. Lookup is metadata only; no input dispatch or binding API is implied. [Contract](game/input.md) | `tests/abi_game_input.c`, `tests/test_input.cpp` |
 | [#195](https://github.com/scuba-sc/sco-core/issues/195), respawn completion | `game.loadout.respawn_completed` deliberately carries only the size-prefixed 8-byte occurrence marker (`size`, padding), with occurrences within a tick coalesced. It has no proposed entity/result fields and is not per-slot success. The producer seam is tested; the native hook remains unresolved and the capability OFF. [Lifecycle](game/loadout.md#respawn-completed-event-gameloadoutrespawn_completed) | `tests/abi_game_events.c`, `tests/game_contracts/loadout/test_loadout.cpp` |
-| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and published RC2 inventory. Use the release archive and its independently recorded identity. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
+| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and stable SDK 2.4.0 release inventory. Use the selected release archive and its independently recorded identity. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
 
 Additional current-source contracts are not contained in published RC1:
 
@@ -153,7 +156,7 @@ admission, or verified it in game. Check the product's exact host source pin and
 observed capability separately from the plugin kit version; an unavailable or
 untested provider does not by itself mean that an adapter is absent from source.
 
-For an RC2 consumer evaluation:
+For a historical RC2 consumer evaluation:
 
 1. Select a bounded author-owned plugin task with `sco-plan-sdk-work`. Record the
    roadmap revision/hash, public contracts, supported language route and expected

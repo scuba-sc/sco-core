@@ -47,14 +47,17 @@ optional and default-off; static discovery never certifies gameplay or performs 
 
 ## Using an extracted SDK archive
 
-RC2 was published on 2026-10-28; its source, archive and release checksums are recorded in the
-[release notes](../../docs/releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication).
+RC2 was published on 2026-10-28; its immutable archive identity is recorded in the
+[release notes](../../docs/releases/sdk-v2.4.0.md#published-rc2-archive-identity).
 Use matching source, archive, catalogue and workflow identities for any supplied kit.
 
-The [RC2 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) holds the published RC2
-assets. The intended final coordinate is `sdk-v2.4.0` with combined archive
-`sco-sdk-2.4.0.zip`; it is not published yet. Continue using the RC2 link and its
-checksums until the final release exists and its own archive identity is verified.
+Stable SDK 2.4.0 is the current published release. The [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
+provides the five profile archives and `SHA256SUMS`. Download `sco-sdk-2.4.0.zip`
+and check the downloaded file against that manifest; the [release notes](../../docs/releases/sdk-v2.4.0.md#stable-archive-identity)
+record the release source and all profile identities.
+The published bytes are immutable. The archived README and workflow index retain
+some prepublication wording; this current source page corrects its release status,
+but does not rewrite the packaged snapshot.
 The combined kit (`sco-sdk-2.4.0.zip`), matching `game-sc` overlay and
 `host-source-sc` kit include the discovery launcher,
 compiler-built `sdk-catalogue.json` and matching `sdk-guides.json`. Historical RC1
@@ -70,11 +73,11 @@ extraction directory or an uncomposed overlay. The
 `host-source-sc` archive retains repository layout. Core and core-source profiles
 remain game-neutral and contain neither this game catalogue nor its launcher.
 
-The published RC2 launcher has its fourteen-tool default and matching workflow index.
-It does not include `get_service_status` or the schema-2 catalogue described for current
-source. The older published RC1 launcher retains its original six-tool default and twelve
-with `--extended-tools`; it has no workflow tools/index. The fifteen-tool default
-described here applies to updated source and kits built from it, not to RC2 bytes.
+The stable 2.4.0 launcher has the fifteen-tool default and matching workflow index.
+The historical RC2 launcher has fourteen tools; it predates `get_service_status` and
+the schema-2 catalogue. The older RC1 launcher retains its original six-tool default
+and twelve with `--extended-tools`; it has no workflow tools/index. These release
+archives retain their original bytes and behavior.
 Append `--extended-tools` to a developer
 launcher for RC1 compatibility and expect twelve. For an updated-source kit, this
 command uses the default developer profile (append `--minimal-tools` for six):
@@ -768,7 +771,7 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | `catalogue refused: FileNotFoundError`, exit code 1 | `server.py` started, but the `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
 | Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
-| Developer/workflow tool is unknown | Remove `--minimal-tools` and grant the fifteen exact current-source names in the client. Published RC2 has fourteen; RC1 needs `--extended-tools` for twelve tools and has no workflow tools. |
+| Developer/workflow tool is unknown | Remove `--minimal-tools` and grant the fifteen exact stable SDK 2.4.0 names in the client. Historical RC2 has fourteen; RC1 needs `--extended-tools` for twelve tools and has no workflow tools. |
 | Development tool is unknown or refused | Configure an operator `--project-root`; current source offers execution tools automatically. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
 | Scaffold/native metadata unavailable | `--repo-root` must be the SDK folder, not its parent folder: the server starts either way. Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
 | Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |

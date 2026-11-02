@@ -1,18 +1,18 @@
 # sco-core SDK 2.4.0 roadmap
 
 SDK **2.4.0**, optional Star Citizen game pack **0.8.0**, frozen plugin ABI
-**1.1**. The latest published release is
-[RC2](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2), whose
-tag points to source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`.
-Later `main` commits do not change those released archive bytes. The final
-`sdk-v2.4.0` release is still pending. This roadmap is not a release announcement.
-Contract presence, implementation, default availability, synthetic validation and
-in-game acceptance are separate. No game behavior is certified here.
+**1.1**. Stable SDK 2.4.0 is the current published release, published on
+2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`.
+Its five archive identities are listed in the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity).
+RC2 was published on 2026-10-28 from source `844e136ccb280ad8cb43f73bc43c9447e8f6799d`;
+RC1 and RC2 are historical releases with unchanged bytes. This is a planning snapshot,
+not a release announcement. Contract presence, implementation, default availability,
+synthetic validation and in-game acceptance are separate. No game behavior is certified here.
 
-RC2 was published on 2026-10-28 and is the current release baseline. The
-[release notes](releases/sdk-v2.4.0.md) retain the prepublication history. The
-checks below do not change published RC1 or RC2 bytes. See the [RC2 consumer reconciliation](agent-workflows.md#rc2-consumer-reconciliation)
-for the bounded issue contracts and acceptance path.
+The remaining sections preserve the RC2-baselined planning snapshot and its dated
+evidence. They do not change RC1, RC2 or stable release bytes. For current package
+selection use the stable release page and its checksums; the [RC2 consumer reconciliation](agent-workflows.md#rc2-consumer-reconciliation)
+retains the historical issue contracts and acceptance path.
 
 ## Scope
 
@@ -23,7 +23,7 @@ integration branches.
 
 ## Distribution profiles
 
-| Profile | Published RC2 archive | Purpose |
+| Profile | Stable SDK 2.4.0 archive | Purpose |
 |---|---|---|
 | core | `sco-sdk-core-2.4.0.zip` | Game-neutral plugin headers, bindings, examples and tools |
 | game-sc | `sco-sdk-game-sc-0.8.0.zip` | Optional overlay over the exact compatible core archive |
@@ -70,10 +70,11 @@ pure scaffolding and guide-section search; it does not invoke game services.
 Local build/check tools require a separately configured `--project-root`.
 Runtime inspection is a separate default-off launcher with its own six-read allowlist.
 
-Published RC1 retains its six-tool default and twelve tools with `--extended-tools`;
-it contains no workflow bundle/index. Published RC2 retains its fourteen-tool default.
-The current-source service-status tool and matching catalogue schema are source changes;
-they do not alter RC2 bytes. Read the selected kit manifest for its bundle version. Use the [consumer workflows](agent-workflows.md), [agent integration](agent-integration.md)
+Published stable SDK 2.4.0 has the fifteen-tool default, including `get_service_status`,
+and the matching schema-2 catalogue and workflow index. Historical RC2 retains its
+fourteen-tool default; RC1 retains six tools or twelve with `--extended-tools` and
+has no workflow bundle/index. Source edits do not alter any published archive bytes.
+Read the selected kit manifest for its bundle version. Use the [consumer workflows](agent-workflows.md), [agent integration](agent-integration.md)
 and [SDK/MCP tutorial](sdk-mcp-tutorial.md) for the matching input path.
 
 ## Community plugin directory
@@ -97,8 +98,9 @@ compatibility information, not an endorsement or in-game verification.
 - For RC2, retain an extracted-kit consumer receipt bound to the exact release
   source, archive hashes, workflow index and target host; source-tree tests alone
   do not establish that path or upgrade an installed consumer.
-- RC2 is published as the latest GitHub release. The docs-site run for source
-  commit `72dc30c8e10d9ca7365dd9d67dc57c0c86ed9a20` passed and deployed that
-  commit's site, verifying all 12 RC2 release asset digests ([run 40760191439, attempt 2](https://github.com/scuba-sc/sco-core/actions/runs/40760191439/attempts/2)).
-  Remaining: the gates above and the final `sdk-v2.4.0` tag and publication. No
-  release approval or in-game result is implied by this plan.
+- At the time of this plan, the docs-site run for source commit
+  `72dc30c8e10d9ca7365dd9d67dc57c0c86ed9a20` deployed that commit's site and
+  verified all 12 RC2 release asset digests ([run 40760191439, attempt 2](https://github.com/scuba-sc/sco-core/actions/runs/40760191439/attempts/2)).
+  Stable SDK 2.4.0 has since been published with five profile archives and
+  `SHA256SUMS`; see the [stable release record](releases/sdk-v2.4.0.md). The product
+  and in-game acceptance gates above remain separate; no game result is implied.
