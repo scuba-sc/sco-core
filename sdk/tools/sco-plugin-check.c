@@ -688,7 +688,8 @@ static int manifest_stdin_mode(const char* expected_folder) {
     if (read_manifest_stdin(&m)) {
         if (strcmp(expected_folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, expected_folder);
         if (!failures) {
-            printf("id\t%s\nkind\t%s\napi\t%s\nentry\t%s\n", m.id, m.kind, m.api, m.entry);
+            printf("id\t%s\nkind\t%s\napi\t%s\nentry\t%s\n", m.id, m.kind, m.api,
+                   safe_path_text(m.entry));
             for (i = 0; i < m.nrequires; ++i) printf("requires\t%s\n", m.requires_[i]);
         }
     }
@@ -2093,7 +2094,8 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
     }
 #undef SYM
     if (!query || !load || !unload) {
-        fail("%s: missing export (needs sco_plugin_query, sco_plugin_load, sco_plugin_unload)", m->entry);
+        fail("%s: missing export (needs sco_plugin_query, sco_plugin_load, sco_plugin_unload)",
+             safe_path_text(m->entry));
         return;
     }
 

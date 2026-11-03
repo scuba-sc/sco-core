@@ -95,6 +95,25 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         result = self.verify()
         self.assertEqual(result["plugin"]["requires"], ["future.service"])
 
+    def test_manifest_parser_round_trips_unicode_entry_names(self):
+        entry = "pilot-é.dll"
+        write_archive(self.archive_path, [
+            ("pilot/plugin.ini", native_manifest(entry=entry, api="1.0")),
+            (f"pilot/{entry}", b"opaque"),
+        ])
+        result = self.verify()
+        self.assertEqual(result["plugin"]["entry"], entry)
+
+    def test_manifest_only_entry_output_escapes_del(self):
+        manifest = (b"id = pilot\nname = Pilot\nversion = 1.0\napi = 1.0\nkind = native\n"
+                    b"entry = pilot\x7f.dll\n")
+        completed = subprocess.run(
+            [CHECKER, "--manifest-stdin", "pilot"], input=manifest, capture_output=True, check=False
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertNotIn(b"\x7f", completed.stdout + completed.stderr)
+        self.assertIn(b"entry\tpilot\\x7F.dll\n", completed.stdout)
+
     def test_archive_parser_diagnostics_escape_untrusted_setting_values(self):
         manifest = (b"id = pilot\nname = Pilot\nversion = 1.0\napi = 1.0\nkind = native\n"
                     b"entry = pilot.dll\n[settings]\nenabled = bool default \x1b[2J\n")

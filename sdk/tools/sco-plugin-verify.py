@@ -281,6 +281,29 @@ def _inspect_entries(infos, central_directory_offset):
     return by_path, file_count, total_uncompressed
 
 
+def _decode_entry_field(value):
+    """Decode the parser's ASCII-safe entry field, preserving UTF-8 path bytes."""
+    data = bytearray()
+    index = 0
+    while index < len(value):
+        if value[index] == "\\":
+            if (index + 3 >= len(value) or value[index + 1] != "x" or
+                    any(char not in "0123456789abcdefABCDEF" for char in value[index + 2:index + 4])):
+                raise VerifyError("SDK manifest parser returned malformed escaped entry metadata")
+            data.append(int(value[index + 2:index + 4], 16))
+            index += 4
+        else:
+            try:
+                data.extend(value[index].encode("ascii", "strict"))
+            except UnicodeEncodeError as exc:
+                raise VerifyError("SDK manifest parser returned non-ASCII entry metadata") from exc
+            index += 1
+    try:
+        return data.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        raise VerifyError("plugin.ini entry is not valid UTF-8") from exc
+
+
 def _manifest_metadata(checker, manifest_bytes, folder):
     try:
         completed = subprocess.run(
@@ -305,7 +328,9 @@ def _manifest_metadata(checker, manifest_bytes, folder):
             raise VerifyError("SDK manifest parser returned malformed metadata")
         if key == "requires":
             metadata["requires"].append(value)
-        elif key in {"id", "kind", "api", "entry"} and key not in metadata:
+        elif key == "entry" and key not in metadata:
+            metadata[key] = _decode_entry_field(value)
+        elif key in {"id", "kind", "api"} and key not in metadata:
             metadata[key] = value
         else:
             raise VerifyError("SDK manifest parser returned unexpected metadata")
