@@ -2,6 +2,7 @@
  * sco-plugin-check: checks a built plugin folder on a dev machine, without the game.
  *
  *   sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]
+ *   sco-plugin-check --manifest-stdin <plugin-folder-name>
  *
  * For every kind it reads plugin.ini with the same rules as the host (id, name, version, api,
  * kind, entry, requires and the [settings] section) and checks the folder name matches the id. A requires name is a
@@ -474,19 +475,13 @@ static int setting_line(strv line, manifest* m, int lineno) {
     return 1;
 }
 
-static int read_manifest(const char* path, manifest* m) {
+static int parse_manifest_bytes(const char* buf, size_t len, manifest* m, int check_discovery_rules) {
     enum { K_ID, K_NAME, K_VERSION, K_AUTHOR, K_API, K_KIND, K_ENTRY, K_REQUIRES, K_COUNT };
     static const char* const keys[K_COUNT] = { "id", "name", "version", "author", "api", "kind", "entry", "requires" };
-    static char buf[MAX_MANIFEST_BYTES + 1];
     int seen[K_COUNT] = { 0 };
     int line = 0, k, i;
     int section = 0, seen_settings = 0;   /* 0 top level, 1 [settings], 2 another section */
-    size_t len;
     strv all;
-    FILE* f = fopen(path, "rb");
-    if (!f) { fail("%s: can't open", path); return 0; }
-    len = fread(buf, 1, sizeof buf, f);
-    fclose(f);
     memset(m, 0, sizeof *m);
     if (len > MAX_MANIFEST_BYTES) { fail("plugin.ini: too big (over %d bytes)", MAX_MANIFEST_BYTES); return 0; }
     all.p = buf;
@@ -593,20 +588,59 @@ static int read_manifest(const char* path, manifest* m) {
     if (!strcmp(m->kind, "data") && seen[K_ENTRY]) { fail("plugin.ini: a data pack has no entry"); return 0; }
     if (strcmp(m->kind, "data") && !seen[K_ENTRY]) { fail("plugin.ini: missing key 'entry'"); return 0; }
     if (!strcmp(m->kind, "data") && m->nsettings) { fail("plugin.ini: a data pack has no settings"); return 0; }
-    /* A plugin that requires itself or one of its own services is a requires cycle (discover.cpp). */
-    for (i = 0; i < m->nrequires; ++i) {
-        const size_t n = strlen(m->id);
-        if (!strncmp(m->requires_[i], m->id, n) && (m->requires_[i][n] == 0 || m->requires_[i][n] == '.')) {
-            fail("plugin.ini: requires '%s' names the plugin itself (a requires cycle)", m->requires_[i]);
+    if (check_discovery_rules) {
+        /* A plugin that requires itself or one of its own services is a requires cycle (discover.cpp). */
+        for (i = 0; i < m->nrequires; ++i) {
+            const size_t n = strlen(m->id);
+            if (!strncmp(m->requires_[i], m->id, n) && (m->requires_[i][n] == 0 || m->requires_[i][n] == '.')) {
+                fail("plugin.ini: requires '%s' names the plugin itself (a requires cycle)", m->requires_[i]);
+                return 0;
+            }
+        }
+        /* What discovery checks next (src/plugins/discover.cpp). */
+        if (m->api_major != SCO_API_MAJOR || m->api_minor > SCO_API_MINOR) {
+            fail("plugin.ini: api %s, but this SDK is %d.%d", m->api, SCO_API_MAJOR, SCO_API_MINOR);
             return 0;
         }
     }
-    /* What discovery checks next (src/plugins/discover.cpp). */
-    if (m->api_major != SCO_API_MAJOR || m->api_minor > SCO_API_MINOR) {
-        fail("plugin.ini: api %s, but this SDK is %d.%d", m->api, SCO_API_MAJOR, SCO_API_MINOR);
-        return 0;
-    }
     return 1;
+}
+
+static int read_manifest(const char* path, manifest* m) {
+    static char buf[MAX_MANIFEST_BYTES + 1];
+    size_t len;
+    FILE* f = fopen(path, "rb");
+    if (!f) { fail("%s: can't open", path); return 0; }
+    len = fread(buf, 1, sizeof buf, f);
+    if (ferror(f)) { fclose(f); fail("%s: can't read", path); return 0; }
+    fclose(f);
+    return parse_manifest_bytes(buf, len, m, 1);
+}
+
+/* The archive verifier feeds only the bounded plugin.ini bytes here. This path applies the same
+ * syntax/settings parser as the folder checker, but deliberately skips discovery/runtime checks. */
+static int read_manifest_stdin(manifest* m) {
+    static char buf[MAX_MANIFEST_BYTES + 1];
+    const size_t len = fread(buf, 1, sizeof buf, stdin);
+    if (ferror(stdin)) { fail("plugin.ini: can't read standard input"); return 0; }
+    return parse_manifest_bytes(buf, len, m, 0);
+}
+
+static int manifest_stdin_mode(const char* expected_folder) {
+    manifest m;
+    int i;
+    if (!expected_folder || !expected_folder[0] || strchr(expected_folder, '/') || strchr(expected_folder, '\\')) {
+        fprintf(stderr, "usage: sco-plugin-check --manifest-stdin <plugin-folder-name>\n");
+        return 2;
+    }
+    if (read_manifest_stdin(&m)) {
+        if (strcmp(expected_folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, expected_folder);
+        if (!failures) {
+            printf("id\t%s\nkind\t%s\napi\t%s\nentry\t%s\n", m.id, m.kind, m.api, m.entry);
+            for (i = 0; i < m.nrequires; ++i) printf("requires\t%s\n", m.requires_[i]);
+        }
+    }
+    return failures ? 1 : 0;
 }
 
 /* ---- files -------------------------------------------------------------- */
@@ -1854,6 +1888,16 @@ int main(int argc, char** argv) {
     char path[1024], folder[256];
     manifest m;
 
+    /* Static manifest mode for sco-plugin-verify. It consumes only bounded stdin text and returns
+     * parsed metadata; it never opens a plugin folder, entry file, or native/script code. */
+    if (argc > 1 && !strcmp(argv[1], "--manifest-stdin")) {
+        if (argc != 3) {
+            fprintf(stderr, "usage: sco-plugin-check --manifest-stdin <plugin-folder-name>\n");
+            return 2;
+        }
+        return manifest_stdin_mode(argv[2]);
+    }
+
     for (i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--cap") && i + 1 < argc && ncaps < 32) caps[ncaps++] = argv[++i];
         else if (!strcmp(argv[i], "--short-tables")) short_tables = 1;
@@ -1866,7 +1910,8 @@ int main(int argc, char** argv) {
         else { dir = NULL; break; }
     }
     if (!dir) {
-        fprintf(stderr, "usage: sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]\n");
+        fprintf(stderr, "usage: sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]\n"
+                        "       sco-plugin-check --manifest-stdin <plugin-folder-name>\n");
         return 2;
     }
 

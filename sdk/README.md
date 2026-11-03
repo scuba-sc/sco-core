@@ -229,6 +229,32 @@ The stand-in serves `sco.widgets` 1.2 by default. It validates complete preorder
 
 The stand-in host is not the game: it has no game thread, no crash guard and no game features. A plugin that passes still needs a run in the game.
 
+## Verify a plugin archive
+
+Before sharing a plugin ZIP, run the read-only archive verifier. The ZIP must contain exactly one
+top-level folder named for the plugin id, with `plugin.ini` directly inside it. For native and Lua
+plugins, the manifest's `entry` must name a regular file directly inside that folder. Archive paths
+must be safe and unique across case-insensitive and Unicode-normalized filesystems; symlinks,
+special files, encrypted entries, ZIP64 archives, and compression methods beyond stored/deflate
+are refused.
+
+```sh
+python3 tools/sco-plugin-verify.py ../pilot.zip --checker out/bin/sco-plugin-check
+python3 tools/sco-plugin-verify.py ../pilot.zip --checker out/bin/sco-plugin-check --json
+```
+
+It prints the archive SHA-256, a SHA-256 for each file, the parsed plugin id and kind, the API value
+declared in `plugin.ini`, and the dependency names declared by `requires`. The verifier streams
+archive contents for hashing and sends only `plugin.ini` text to `sco-plugin-check`'s manifest-only
+parser; it never writes archive entries to disk or opens an entry as code. Resource bounds are
+256 MiB compressed archive, 4,096 entries, 128 MiB per file, 512 MiB total uncompressed data, a
+200:1 maximum compression ratio, an 8 MiB central directory, and a 16 KiB manifest.
+
+This establishes archive structure, manifest syntax, folder identity and declared-entry presence.
+The reported API and dependencies are not compared with a host or resolved. Passing does not test
+runtime compatibility or provider behavior, inspect native-code safety, or establish trust. It is
+separate from `sco-plugin-check`, which loads native plugins in its stand-in host.
+
 ## Install a plugin
 
 1. Copy the plugin's folder, for example `out\data\plugins\hello`, into sc-offline's `data\plugins\` folder, so you have `data\plugins\hello\plugin.ini`.
