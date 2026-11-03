@@ -61,8 +61,9 @@ See [contracts](contracts.md), [game capability status](game/status.md) and
 
 ## MCP developer workflow
 
-The current-source stdio discovery server uses protocol `2025-11-25`: fifteen
-read-only discovery tools by default, including `list_workflows` and `get_workflow`.
+The current-source stdio discovery server supports `2026-07-28` and legacy
+`2025-11-25`. It exposes fifteen read-only discovery tools by default, including
+`list_workflows` and `get_workflow`.
 `--minimal-tools` selects the original six catalogue tools; `--extended-tools`
 and `--workflow-tools` remain compatibility aliases. Discovery exposes recorded
 contracts, examples, compatibility, native metadata, manifest/widget validation,

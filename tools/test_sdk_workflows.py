@@ -50,7 +50,9 @@ class Inputs(unittest.TestCase):
             ('SYMBOL = {"symbol_or_id":', 'SYMBOL = {"renamed_symbol":'),
             ('"with_menu": {"type": "boolean"', '"with_menu": {"type": "string"'),
             ('PROTOCOL_VERSION = "2025-11-25"', 'PROTOCOL_VERSION = "2099-01-01"'),
-            ('SERVER_VERSION = "1.0.0"', 'SERVER_VERSION = "9.0.0"'),
+            ('SUPPORTED_PROTOCOL_VERSIONS = (MODERN_PROTOCOL_VERSION, LEGACY_PROTOCOL_VERSION)',
+             'SUPPORTED_PROTOCOL_VERSIONS = ("2099-01-01", LEGACY_PROTOCOL_VERSION)'),
+            ('SERVER_VERSION = "1.1.0"', 'SERVER_VERSION = "9.0.0"'),
         ):
             with self.subTest(before=before):
                 self.assertIn(before, original)
@@ -226,6 +228,8 @@ class Inputs(unittest.TestCase):
             lambda d: d['skills'][0]['resources'].append('/private.md'),
             lambda d: d['skills'][0]['resources'].append('references/hidden.py'),
             lambda d: d.update(bundle_version='99.0.0'),
+            lambda d: d['mcp']['supported_protocols'].append('2026-07-28'),
+            lambda d: d['mcp']['supported_protocols'].__setitem__(0, 'not-a-version'),
             lambda d: d.update(extra='unexpected'),
         ):
             d = copy.deepcopy(original)
@@ -352,6 +356,7 @@ class ArchiveAndMCP(unittest.TestCase):
             manifest = json.loads((kit / 'skills/manifest.json').read_bytes())
             self.assertEqual(init['protocolVersion'], manifest['mcp']['protocol'])
             self.assertEqual(init['serverInfo']['version'], manifest['mcp']['server_version'])
+            self.assertEqual(manifest['mcp']['supported_protocols'], ['2026-07-28', '2025-11-25'])
             tools = {t['name']: t['inputSchema'] for t in c.request('tools/list')['result']['tools']}
             self.assertLessEqual(set(manifest['mcp']['tools']), set(tools))
             for name, expected_hash in manifest['mcp']['tools'].items():
