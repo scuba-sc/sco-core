@@ -556,6 +556,18 @@
       "public_header": false
     },
     {
+      "id": "wave2.tests.test_input_cpp.cpp",
+      "source": "tests/test_input_cpp.cpp",
+      "destination": "tests/test_input_cpp.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "wave2.tests.abi_game_input.c",
       "source": "tests/abi_game_input.c",
       "destination": "tests/abi_game_input.c",
@@ -2693,6 +2705,18 @@
       "id": "include.scosdk.game.gamerules.hpp",
       "source": "include/scosdk/game/gamerules.hpp",
       "destination": "include/scosdk/game/gamerules.hpp",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "include.scosdk.game.input.hpp",
+      "source": "include/scosdk/game/input.hpp",
+      "destination": "include/scosdk/game/input.hpp",
       "profiles": [
         "game-sc",
         "host-source-sc"
