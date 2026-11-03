@@ -233,10 +233,11 @@ The stand-in host is not the game: it has no game thread, no crash guard and no 
 
 Before sharing a plugin ZIP, run the read-only archive verifier. The ZIP must contain exactly one
 top-level folder named for the plugin id, with `plugin.ini` directly inside it. For native and Lua
-plugins, the manifest's `entry` must name a regular file directly inside that folder. Archive paths
-must be safe and unique across case-insensitive and Unicode-normalized filesystems; symlinks,
-special files, encrypted entries, ZIP64 archives, and compression methods beyond stored/deflate
-are refused.
+plugins, the manifest's `entry` must exactly match a regular file directly inside that folder.
+Archive paths must be safe and unique across case-insensitive and Unicode-normalized filesystems.
+Windows-invalid characters, alternate-data-stream syntax, reserved device names, trailing dots or
+spaces, symlinks, special files, encrypted entries, ZIP64 archives, and compression methods beyond
+stored/deflate are refused.
 
 ```sh
 python3 tools/sco-plugin-verify.py ../pilot.zip --checker out/bin/sco-plugin-check
@@ -245,8 +246,10 @@ python3 tools/sco-plugin-verify.py ../pilot.zip --checker out/bin/sco-plugin-che
 
 It prints the archive SHA-256, a SHA-256 for each file, the parsed plugin id and kind, the API value
 declared in `plugin.ini`, and the dependency names declared by `requires`. The verifier streams
-archive contents for hashing and sends only `plugin.ini` text to `sco-plugin-check`'s manifest-only
-parser; it never writes archive entries to disk or opens an entry as code. Resource bounds are
+archive contents for hashing and sends only bounded `plugin.ini` text to `sco-plugin-check`'s
+manifest-only parser. That mode parses stdin and returns before the checker's folder inspection or
+dynamic-loader paths. The verifier never writes archive entries to disk or opens an entry as code.
+It checks declared resource bounds before hashing archive bytes or opening members. Resource bounds are
 256 MiB compressed archive, 4,096 entries, 128 MiB per file, 512 MiB total uncompressed data, a
 200:1 maximum compression ratio, an 8 MiB central directory, and a 16 KiB manifest.
 

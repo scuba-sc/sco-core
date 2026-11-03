@@ -254,7 +254,7 @@ cmake --install "$WORK/build" --config Release --prefix "$WORK/out"
 CHECK="$WORK/out/bin/sco-plugin-check"
 [ -f "$CHECK.exe" ] && CHECK="$CHECK.exe"
 P="$WORK/out/data/plugins"
-"$PY" "$SDK/test_plugin_verify.py" --checker "$CHECK"
+"$PY" "$SDK/test_plugin_verify.py" --checker "$CHECK" --packaged-sdk "$ROOT"
 if [ "$GAME" = 1 ]; then
   ROUTES="$WORK/out/bin/sdk-language-routes"
   [ -f "$ROUTES.exe" ] && ROUTES="$ROUTES.exe"

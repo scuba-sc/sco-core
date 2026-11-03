@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import warnings
 import zipfile
 
@@ -28,7 +29,10 @@ spec.loader.exec_module(verifier)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--checker", required=True)
-CHECKER = str(Path(parser.parse_args().checker).resolve())
+parser.add_argument("--packaged-sdk", help="extracted SDK root; also exercise its packaged verifier")
+ARGS = parser.parse_args()
+CHECKER = str(Path(ARGS.checker).resolve())
+PACKAGED_SDK = Path(ARGS.packaged_sdk).resolve() if ARGS.packaged_sdk else None
 sys.argv = [sys.argv[0]]
 
 
@@ -101,6 +105,14 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         with self.assertRaisesRegex(verifier.VerifyError, "declared entry"):
             self.verify()
 
+    def test_declared_entry_match_is_case_sensitive_even_on_windows(self):
+        write_archive(self.archive_path, [
+            ("pilot/plugin.ini", native_manifest(entry="PILOT.DLL")),
+            ("pilot/pilot.dll", b"opaque"),
+        ])
+        with self.assertRaisesRegex(verifier.VerifyError, "declared entry"):
+            self.verify()
+
     def test_data_pack_has_no_declared_entry_requirement(self):
         manifest = b"id = pilot\nname = Pilot\nversion = 1.0\napi = 500.1\nkind = data\nrequires = teleport\n"
         write_archive(self.archive_path, [("pilot/plugin.ini", manifest), ("pilot/lists/places.txt", b"Lorville\n")])
@@ -128,10 +140,13 @@ class PluginArchiveVerifierTests(unittest.TestCase):
                          {"pilot/plugin.ini", "pilot/pilot.dll"})
 
     def test_rejects_unsafe_paths(self):
-        for bad_path in ("../escape", "pilot/../../escape", "/pilot/plugin.ini", "pilot\\escape", "C:/escape"):
+        for bad_path in ("../escape", "pilot/../../escape", "/pilot/plugin.ini", "pilot\\escape", "C:/escape",
+                         "pilot/bad?.txt", "pilot/bad*.txt", 'pilot/bad".txt', "pilot/bad<.txt",
+                         "pilot/bad>.txt", "pilot/bad|.txt", "pilot/CONIN$.txt", "pilot/CONOUT$"):
             with self.subTest(path=bad_path):
                 write_archive(self.archive_path, [(bad_path, b"x")])
-                with self.assertRaises(verifier.VerifyError):
+                with self.assertRaisesRegex(verifier.VerifyError,
+                                            "unsafe archive path|portable to Windows|reserved Windows device"):
                     self.verify()
 
     def test_rejects_nul_truncated_zip_member_name(self):
@@ -155,6 +170,22 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         write_archive(self.archive_path, [
             ("pilot/plugin.ini", native_manifest()),
             ("Pilot/pilot.dll", b"opaque"),
+        ])
+        with self.assertRaisesRegex(verifier.VerifyError, "collision"):
+            self.verify()
+
+        write_archive(self.archive_path, [
+            ("pilot/plugin.ini", native_manifest()),
+            ("pilot/data/é.txt", b"one"),
+            ("pilot/data/e\u0301.txt", b"two"),
+        ])
+        with self.assertRaisesRegex(verifier.VerifyError, "collision"):
+            self.verify()
+
+        write_archive(self.archive_path, [
+            ("pilot/plugin.ini", native_manifest()),
+            ("pilot/data/K.txt", b"one"),
+            ("pilot/data/K.txt", b"two"),
         ])
         with self.assertRaisesRegex(verifier.VerifyError, "collision"):
             self.verify()
@@ -184,19 +215,82 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         bomb = b"0" * (1024 * 1024)
         write_archive(self.archive_path, [("pilot/plugin.ini", native_manifest()), ("pilot/pilot.dll", bomb)],
                       compression=zipfile.ZIP_DEFLATED)
-        with self.assertRaisesRegex(verifier.VerifyError, "compression ratio"):
-            self.verify()
+        with mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")), \
+                mock.patch.object(zipfile.ZipFile, "open", side_effect=AssertionError("decompressed before bounds")):
+            with self.assertRaisesRegex(verifier.VerifyError, "compression ratio"):
+                self.verify()
 
         entries = [(f"p{i}/x", b"") for i in range(verifier.MAX_ENTRIES + 1)]
         write_archive(self.archive_path, entries)
-        with self.assertRaisesRegex(verifier.VerifyError, "entries; limit"):
-            self.verify()
+        with mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")):
+            with self.assertRaisesRegex(verifier.VerifyError, "entries; limit"):
+                self.verify()
+
+    def test_member_bounds_are_checked_before_archive_hashing_or_decompression(self):
+        write_archive(self.archive_path, [
+            ("pilot/plugin.ini", native_manifest()),
+            ("pilot/pilot.dll", b"opaque"),
+        ])
+        with mock.patch.object(verifier, "MAX_FILE_BYTES", 1), \
+                mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")), \
+                mock.patch.object(zipfile.ZipFile, "open", side_effect=AssertionError("decompressed before bounds")):
+            with self.assertRaisesRegex(verifier.VerifyError, "file exceeds"):
+                self.verify()
+
+    def test_archive_size_bound_is_checked_before_archive_hashing(self):
+        write_archive(self.archive_path, [("pilot/plugin.ini", native_manifest())])
+        with mock.patch.object(verifier, "MAX_ARCHIVE_BYTES", 1), \
+                mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")):
+            with self.assertRaisesRegex(verifier.VerifyError, "archive exceeds"):
+                self.verify()
 
     def test_rejects_invalid_plugin_manifest(self):
         invalid = native_manifest().replace(b"requires = sco.storage,teleport", b"requires = Missing")
         write_archive(self.archive_path, [("pilot/plugin.ini", invalid), ("pilot/pilot.dll", b"opaque")])
         with self.assertRaisesRegex(verifier.VerifyError, "manifest parser"):
             self.verify()
+
+    def test_core_sdk_package_contains_verifier_checker_and_parser_build_dependencies(self):
+        package_spec = importlib.util.spec_from_file_location("sco_sdk_package", HERE / "package.py")
+        self.assertIsNotNone(package_spec)
+        package = importlib.util.module_from_spec(package_spec)
+        package_spec.loader.exec_module(package)
+        manifest = package.load_manifest()
+        selected = {package.destination(manifest, "core", component): component["source"]
+                    for component in package.select(manifest, "core")}
+        expected = {
+            "tools/sco-plugin-check.c": "sdk/tools/sco-plugin-check.c",
+            "tools/sco-plugin-verify.py": "sdk/tools/sco-plugin-verify.py",
+            "include/sco_api.h": "include/sco_api.h",
+            "include/sco_widgets.h": "include/sco_widgets.h",
+            "CMakeLists.txt": "sdk/CMakeLists.txt",
+            "cmake/sco-plugin.cmake": "sdk/cmake/sco-plugin.cmake",
+        }
+        for destination, source in expected.items():
+            with self.subTest(destination=destination):
+                self.assertEqual(selected.get(destination), source)
+        checker_source = (HERE / "tools" / "sco-plugin-check.c").read_text(encoding="utf-8")
+        cmake_source = (HERE / "CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn('"sco_api.h"', checker_source)
+        self.assertIn('"sco_widgets.h"', checker_source)
+        self.assertIn("add_executable(sco-plugin-check tools/sco-plugin-check.c)", cmake_source)
+
+    @unittest.skipUnless(PACKAGED_SDK, "requires an extracted SDK archive")
+    def test_extracted_sdk_verifier_runs_with_its_built_manifest_parser(self):
+        packaged_verifier = PACKAGED_SDK / "tools" / "sco-plugin-verify.py"
+        self.assertTrue(packaged_verifier.is_file(), f"SDK archive omitted {packaged_verifier}")
+        write_archive(self.archive_path, [
+            ("pilot/plugin.ini", native_manifest()),
+            ("pilot/pilot.dll", b"opaque, never loaded"),
+        ])
+        completed = subprocess.run(
+            [sys.executable, str(packaged_verifier), str(self.archive_path), "--checker", CHECKER, "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertEqual(json.loads(completed.stdout)["plugin"]["id"], "pilot")
 
 
 if __name__ == "__main__":

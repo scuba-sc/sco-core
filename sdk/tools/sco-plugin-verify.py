@@ -38,7 +38,7 @@ EOCD = struct.Struct("<4s4H2LH")
 EOCD_SIGNATURE = b"PK\x05\x06"
 CENTRAL_HEADER = struct.Struct("<4s6H3L5H2L")
 CENTRAL_SIGNATURE = b"PK\x01\x02"
-WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL"}
+WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
 WINDOWS_RESERVED.update(f"COM{i}" for i in range(1, 10))
 WINDOWS_RESERVED.update(f"LPT{i}" for i in range(1, 10))
 WINDOWS_RESERVED.update({"COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³"})
@@ -157,7 +157,7 @@ def _path_parts(name, is_directory):
             raise VerifyError(f"archive path is not valid Unicode: {name!r}") from exc
         if len(part_bytes) > MAX_SEGMENT_BYTES:
             raise VerifyError(f"archive path segment exceeds {MAX_SEGMENT_BYTES} UTF-8 bytes: {name!r}")
-        if part[-1] in (".", " ") or ":" in part:
+        if part[-1] in (".", " ") or any(char in part for char in '<>:"|?*'):
             raise VerifyError(f"path is not portable to Windows: {name!r}")
         if any(unicodedata.category(char) in {"Cc", "Cf", "Cs"} for char in part):
             raise VerifyError(f"archive path contains a control character: {name!r}")
@@ -307,13 +307,26 @@ def _file_hashes(zip_file, infos, manifest_path):
         try:
             with zip_file.open(info, "r") as member:
                 while True:
-                    chunk = member.read(CHUNK_BYTES)
+                    remaining = min(MAX_FILE_BYTES - file_read,
+                                    MAX_TOTAL_BYTES - total_read,
+                                    info.file_size - file_read)
+                    if data is not None:
+                        remaining = min(remaining, MAX_MANIFEST_BYTES - file_read)
+                    # Ask for at most one byte beyond a limit so a dishonest stream can be
+                    # detected without expanding or hashing another full chunk past the bound.
+                    chunk = member.read(min(CHUNK_BYTES, max(1, remaining + 1)))
                     if not chunk:
                         break
-                    file_read += len(chunk)
-                    total_read += len(chunk)
-                    if file_read > MAX_FILE_BYTES or total_read > MAX_TOTAL_BYTES:
+                    next_file_read = file_read + len(chunk)
+                    next_total_read = total_read + len(chunk)
+                    if next_file_read > MAX_FILE_BYTES or next_total_read > MAX_TOTAL_BYTES:
                         raise VerifyError("archive expanded beyond configured limits while reading")
+                    if next_file_read > info.file_size:
+                        raise VerifyError(f"uncompressed size exceeds ZIP metadata: {info.filename!r}")
+                    if data is not None and next_file_read > MAX_MANIFEST_BYTES:
+                        raise VerifyError(f"{manifest_path!r} exceeds {MAX_MANIFEST_BYTES} bytes")
+                    file_read = next_file_read
+                    total_read = next_total_read
                     digest.update(chunk)
                     if data is not None:
                         data.extend(chunk)
@@ -322,8 +335,6 @@ def _file_hashes(zip_file, infos, manifest_path):
         if file_read != info.file_size:
             raise VerifyError(f"uncompressed size disagrees with ZIP metadata: {info.filename!r}")
         if data is not None:
-            if len(data) > MAX_MANIFEST_BYTES:
-                raise VerifyError(f"{manifest_path!r} exceeds {MAX_MANIFEST_BYTES} bytes")
             manifest_bytes = bytes(data)
         artifacts.append({"path": info.filename, "size_bytes": file_read, "sha256": digest.hexdigest()})
     return artifacts, manifest_bytes, total_read
@@ -362,7 +373,6 @@ def verify_archive(archive_path, checker_path=None):
             raise VerifyError(f"archive exceeds {MAX_ARCHIVE_BYTES} bytes")
         if archive_size <= 0:
             raise VerifyError("archive is empty")
-        archive_hash_before = _archive_sha256(fp)
         central_directory_offset, expected_entries = _preflight_zip(fp, archive_size)
         fp.seek(0)
         try:
@@ -385,6 +395,9 @@ def verify_archive(archive_path, checker_path=None):
                 if manifest_record[1].file_size > MAX_MANIFEST_BYTES:
                     raise VerifyError(f"{manifest_path!r} exceeds {MAX_MANIFEST_BYTES} bytes")
 
+                # Validate every member's declared size and compression bounds before hashing
+                # archive bytes or opening any member for decompression.
+                archive_hash_before = _archive_sha256(fp)
                 artifacts, manifest_bytes, actual_total = _file_hashes(zip_file, infos, manifest_path)
                 if manifest_bytes is None:
                     raise VerifyError(f"could not read {manifest_path!r}")
