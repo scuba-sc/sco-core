@@ -215,6 +215,12 @@ echo "toml++: 3.4.0, sha256 of toml.hpp and LICENSE match third_party/tomlpluspl
 FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -pthread -I "$ROOT/include" -isystem "$ROOT/third_party/sqlite"
        -isystem "$ROOT/third_party/tomlplusplus")
 
+# Historical plugin startup snapshot projection and atomic writer. Synthetic rows only; no game or
+# native plugin execution.
+"$CXX" "${FLAGS[@]}" "$ROOT/tests/test_plugin_startup_snapshot.cpp" "$ROOT/src/app/plugin_startup_snapshot.cpp" \
+  -o "$OUT/test_plugin_startup_snapshot"
+"$OUT/test_plugin_startup_snapshot" "$OUT/plugin-startup-contract"
+
 # Shared object cache for ASan and TSan compilations to eliminate repeated translation-unit compiles.
 OBJ_ASAN=$OUT/obj_asan
 OBJ_TSAN=$OUT/obj_tsan
@@ -323,7 +329,7 @@ SHARED_ASAN_SOURCES=(
   "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp"
   "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable.cpp" "$ROOT/src/net/core.cpp"
   "$ROOT/src/net/service.cpp" "$ROOT/src/net/scope.cpp" "$ROOT/src/net/control.cpp" "$ROOT/src/net/udp_posix.cpp"
-  "$ROOT/src/datacore/service.cpp" "$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp"
+  "$ROOT/src/datacore/service.cpp" "$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/app/plugin_startup_snapshot.cpp"
   "$ROOT/src/game/diagnostics.cpp" "$ROOT/src/game/private_session.cpp"
   "${DIAGNOSTICS_IPC[@]}"
 )
@@ -763,7 +769,7 @@ LUA_TEST_SRC=("${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" "$ROOT/src/sco_s
 # sco::app (ASan+UBSan). Then sco-host-sim over the SDK examples, laid out like data/plugins with
 # hello built here as a shared library (CMake: CTest host_sim_examples).
 # The app owns diagnostic transport and advisory sources, unlike the signature-only tests.
-APP_SRC=("$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" \
+APP_SRC=("$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/app/plugin_startup_snapshot.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" \
          "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/game/diagnostics.cpp" "$ROOT/src/game/private_session.cpp" \
          "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/settings/settings.cpp" \
          "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${DIAGNOSTICS_IPC[@]}" "${NETSVC_SRC[@]}" \
