@@ -2,6 +2,7 @@
  * sco-plugin-check: checks a built plugin folder on a dev machine, without the game.
  *
  *   sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]
+ *   sco-plugin-check <plugin folder> --no-load
  *   sco-plugin-check --manifest-stdin <plugin-folder-name>
  *
  * For every kind it reads plugin.ini with the same rules as the host (id, name, version, api,
@@ -15,6 +16,9 @@
  *           sco_api, fires game.ready and a few ticks, runs every command that takes no
  *           arguments (and the one given with --invoke), then sco_plugin_unload. Retained
  *           sco.widgets panels get one deterministic headless interaction pass before commands.
+ * --no-load validates the folder identity, manifest and entry-file presence (or data-pack inventory)
+ * without loading or executing plugin code. It is not a safety, binary ABI, provider, or runtime check.
+ * --no-load cannot be combined with the dynamic-only --cap, --short-tables, or --invoke options.
  * --cap NAME makes has(NAME) answer 1 (default: only the built-in sco.widgets service is present). Give a --cap for a
  * capability or a host or game service the plugin requires; a plugin id or another plugin's
  * service is only found by the real host, which sees the other plugins.
@@ -650,6 +654,17 @@ static int file_exists(const char* path) {
     if (!f) return 0;
     fclose(f);
     return 1;
+}
+
+/* The no-load path promises an entry file, not merely an openable path such as a directory. */
+static int regular_file_exists(const char* path) {
+#if defined(_WIN32)
+    const DWORD attributes = GetFileAttributesA(path);
+    return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
+#else
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+#endif
 }
 
 static const char* base_name(const char* path) {
@@ -1884,7 +1899,7 @@ int main(int argc, char** argv) {
     const char* dir = NULL;
     const char* invoke_name = NULL;
     char** invoke_args = NULL;
-    int ninvoke_args = 0, i;
+    int ninvoke_args = 0, i, no_load = 0;
     char path[1024], folder[256];
     manifest m;
 
@@ -1901,7 +1916,12 @@ int main(int argc, char** argv) {
     for (i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--cap") && i + 1 < argc && ncaps < 32) caps[ncaps++] = argv[++i];
         else if (!strcmp(argv[i], "--short-tables")) short_tables = 1;
+        else if (!strcmp(argv[i], "--no-load")) no_load = 1;
         else if (!strcmp(argv[i], "--invoke") && i + 1 < argc) {
+            if (no_load) {
+                fprintf(stderr, "--no-load cannot be combined with --invoke\n");
+                return 2;
+            }
             invoke_name = argv[++i];
             invoke_args = argv + i + 1;
             ninvoke_args = argc - i - 1;
@@ -1909,8 +1929,12 @@ int main(int argc, char** argv) {
         } else if (!dir && argv[i][0] != '-') dir = argv[i];
         else { dir = NULL; break; }
     }
+    if (no_load && (ncaps || short_tables)) {
+        fprintf(stderr, "--no-load cannot be combined with --cap or --short-tables\n");
+        return 2;
+    }
     if (!dir) {
-        fprintf(stderr, "usage: sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]\n"
+        fprintf(stderr, "usage: sco-plugin-check <plugin folder> [--no-load] [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]\n"
                         "       sco-plugin-check --manifest-stdin <plugin-folder-name>\n");
         return 2;
     }
@@ -1918,18 +1942,26 @@ int main(int argc, char** argv) {
     snprintf(folder, sizeof folder, "%s", base_name(dir));
     for (i = (int)strlen(folder); i > 0 && (folder[i - 1] == '/' || folder[i - 1] == '\\'); --i) folder[i - 1] = 0;
     printf("%s\n", dir);
+    if (no_load) printf("  mode    no-load; plugin code will not be loaded or executed\n");
     snprintf(path, sizeof path, "%s/plugin.ini", dir);
     if (read_manifest(path, &m)) {
         snprintf(plugin_id, sizeof plugin_id, "%s", m.id);
         printf("  ini     id=%s kind=%s api=%s%s%s\n", m.id, m.kind, m.api, m.entry[0] ? " entry=" : "", m.entry);
         if (strcmp(folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, folder);
-        for (i = 0; i < m.nrequires; ++i)
-            printf("  needs   %s%s\n", m.requires_[i], has(m.requires_[i]) ? "" : " (no --cap: the host checks it, loading this plugin after the plugin that provides it)");
+        for (i = 0; i < m.nrequires; ++i) {
+            if (no_load)
+                printf("  needs   %s (declared; provider availability not checked)\n", m.requires_[i]);
+            else
+                printf("  needs   %s%s\n", m.requires_[i], has(m.requires_[i]) ? "" : " (no --cap: the host checks it, loading this plugin after the plugin that provides it)");
+        }
         for (i = 0; i < m.nsettings; ++i)
             printf("  setting %s (%s)\n", m.settings[i].name, m.settings[i].type);
         if (m.entry[0]) {
             snprintf(path, sizeof path, "%s/%s", dir, m.entry);
-            if (!file_exists(path)) fail("entry '%s' not found", m.entry);
+            if (no_load) {
+                if (!regular_file_exists(path)) fail("entry '%s' is not a regular file or was not found", m.entry);
+                else printf("  entry   %s present; not loaded or executed\n", m.entry);
+            } else if (!file_exists(path)) fail("entry '%s' not found", m.entry);
         }
         if (!failures && !strcmp(m.kind, "data")) {
             int n = list_content(dir, "missions", ".cwmission", 0) + list_content(dir, "rules", ".rules", 0) +
@@ -1941,10 +1973,14 @@ int main(int argc, char** argv) {
             if (n == 0) fail("data pack has no content (missions/*.cwmission, rules/*.rules, scripts/**.xml, lists/*.txt, datacore/*.toml)");
             else if (n > MAX_PACK_FILES) fail("data pack has %d content files; the host refuses more than %d", n, MAX_PACK_FILES);
             else printf("  pack    %d file(s)\n", n);
-        } else if (!failures && !strcmp(m.kind, "native")) {
+        } else if (!failures && !no_load && !strcmp(m.kind, "native")) {
             check_native(dir, &m, invoke_name, invoke_args, ninvoke_args);
         }
     }
-    printf("%s: %d failure(s)\n", failures ? "FAILED" : "OK", failures);
+    if (no_load)
+        printf("%s: %d failure(s) (folder checks only; plugin code not executed)\n",
+               failures ? "NO-LOAD FAILED" : "NO-LOAD OK", failures);
+    else
+        printf("%s: %d failure(s)\n", failures ? "FAILED" : "OK", failures);
     return failures ? 1 : 0;
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic tests for the read-only SDK plugin archive verifier.
+"""Synthetic tests for the read-only SDK plugin archive verifier and folder no-load mode.
 
     python3 sdk/test_plugin_verify.py --checker build/sco-plugin-check
 
@@ -263,6 +263,7 @@ class PluginArchiveVerifierTests(unittest.TestCase):
             "tools/sco-plugin-verify.py": "sdk/tools/sco-plugin-verify.py",
             "include/sco_api.h": "include/sco_api.h",
             "include/sco_widgets.h": "include/sco_widgets.h",
+            "README.md": "sdk/README.md",
             "CMakeLists.txt": "sdk/CMakeLists.txt",
             "cmake/sco-plugin.cmake": "sdk/cmake/sco-plugin.cmake",
         }
@@ -271,8 +272,11 @@ class PluginArchiveVerifierTests(unittest.TestCase):
                 self.assertEqual(selected.get(destination), source)
         checker_source = (HERE / "tools" / "sco-plugin-check.c").read_text(encoding="utf-8")
         cmake_source = (HERE / "CMakeLists.txt").read_text(encoding="utf-8")
+        sdk_readme = (HERE / "README.md").read_text(encoding="utf-8")
         self.assertIn('"sco_api.h"', checker_source)
         self.assertIn('"sco_widgets.h"', checker_source)
+        self.assertIn("--no-load", checker_source)
+        self.assertIn("does not establish code safety", sdk_readme)
         self.assertIn("add_executable(sco-plugin-check tools/sco-plugin-check.c)", cmake_source)
 
     @unittest.skipUnless(PACKAGED_SDK, "requires an extracted SDK archive")
@@ -291,6 +295,90 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertEqual(json.loads(completed.stdout)["plugin"]["id"], "pilot")
+
+
+class PluginFolderNoLoadTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.plugin = self.root / "pilot"
+        self.plugin.mkdir()
+
+    @staticmethod
+    def manifest(plugin_id="pilot", kind="native", entry="pilot.dll"):
+        lines = [f"id = {plugin_id}", "name = Pilot", "version = 1.0", "api = 1.0", f"kind = {kind}"]
+        if kind != "data":
+            lines.append(f"entry = {entry}")
+        return ("\n".join(lines) + "\n").encode()
+
+    def write_plugin(self, manifest=None, entry_bytes=b"not a loadable native library", include_entry=True):
+        (self.plugin / "plugin.ini").write_bytes(manifest or self.manifest())
+        if include_entry:
+            (self.plugin / "pilot.dll").write_bytes(entry_bytes)
+
+    def run_check(self, *args):
+        return subprocess.run([CHECKER, str(self.plugin), *args], capture_output=True, text=True, check=False)
+
+    def test_no_load_accepts_fake_native_binary_while_normal_mode_still_attempts_loading(self):
+        self.write_plugin(entry_bytes=b"not a loadable native library")
+
+        static = self.run_check("--no-load")
+        self.assertEqual(static.returncode, 0, static.stdout + static.stderr)
+        self.assertIn("NO-LOAD OK", static.stdout)
+        self.assertIn("pilot.dll present; not loaded or executed", static.stdout)
+        self.assertNotIn("load    ok", static.stdout)
+
+        dynamic = self.run_check()
+        self.assertEqual(dynamic.returncode, 1, dynamic.stdout + dynamic.stderr)
+        self.assertIn("can't load", dynamic.stdout)
+
+    def test_no_load_rejects_malformed_manifest(self):
+        self.write_plugin(manifest=b"id = pilot\nthis is malformed\n")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("expected key = value", result.stdout)
+        self.assertIn("NO-LOAD FAILED", result.stdout)
+
+    def test_no_load_rejects_manifest_id_that_differs_from_folder(self):
+        self.write_plugin(manifest=self.manifest(plugin_id="different"))
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("id 'different' does not match folder 'pilot'", result.stdout)
+
+    def test_no_load_rejects_missing_entry_file(self):
+        self.write_plugin(include_entry=False)
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("entry 'pilot.dll' is not a regular file or was not found", result.stdout)
+
+    def test_no_load_reports_data_pack_inventory(self):
+        (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))
+        (self.plugin / "lists").mkdir()
+        (self.plugin / "lists" / "routes.txt").write_text("Lorville\n")
+        (self.plugin / "scripts" / "nested").mkdir(parents=True)
+        (self.plugin / "scripts" / "nested" / "events.xml").write_text("<events/>\n")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("content lists/routes.txt", result.stdout)
+        self.assertIn("content scripts/nested/events.xml", result.stdout)
+        self.assertIn("pack    2 file(s)", result.stdout)
+        self.assertIn("NO-LOAD OK", result.stdout)
+
+    def test_no_load_rejects_invoke_flag_conflict(self):
+        self.write_plugin()
+        result = self.run_check("--no-load", "--invoke", "pilot.ping")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--no-load cannot be combined with --invoke", result.stderr)
+
+    def test_no_load_rejects_dynamic_only_flags(self):
+        self.write_plugin()
+        for flag, value in (("--cap", "teleport"), ("--short-tables", None)):
+            with self.subTest(flag=flag):
+                args = ("--no-load", flag) + ((value,) if value else ())
+                result = self.run_check(*args)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("--no-load cannot be combined with --cap or --short-tables", result.stderr)
 
 
 if __name__ == "__main__":

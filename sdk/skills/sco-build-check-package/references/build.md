@@ -12,11 +12,12 @@ cmake --install "$WORK/pilot_probe/build" --config Release --prefix "$WORK/stage
 Check each exit code before proceeding. Use `cpp` for C++20; C is C11. On Windows use an x64 developer toolchain and add `-A x64` when selecting a fresh Visual Studio generator. Locate the checker under the build tree (possibly Release/), set CHECKER to that actual executable, and check final staged bytes:
 
 ```sh
+"$CHECKER" "$WORK/stage/data/plugins/pilot_probe" --no-load
 "$CHECKER" "$WORK/stage/data/plugins/pilot_probe" --invoke pilot_probe.ping
 "$CHECKER" "$WORK/stage/data/plugins/pilot_probe" --short-tables --invoke pilot_probe.ping
 ```
 
-Assert exact `pong` replies. The generated native manifest and exported info both declare API 1.1. The generated check target exercises full and truncated root-table modes; it does not simulate an actual API 1.0 loader admission, a real service provider or game behavior. Re-run after the last source/manifest edit and after archive extraction.
+The first command performs a folder-level static preflight without loading or executing plugin code. It checks manifest rules, folder identity, entry-file presence and, for data packs, recognized content inventory. A pass does not establish code safety, binary ABI compatibility, provider availability or runtime compatibility. `--no-load` cannot be combined with `--cap`, `--short-tables` or `--invoke`. The following commands use the normal dynamic checker path and load native plugin code. Assert exact `pong` replies. The generated native manifest and exported info both declare API 1.1. The generated check target exercises full and truncated root-table modes; it does not simulate an actual API 1.0 loader admission, a real service provider or game behavior. Re-run after the last source/manifest edit and after archive extraction.
 
 | Language/kind | Route and limits |
 | --- | --- |

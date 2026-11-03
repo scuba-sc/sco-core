@@ -368,6 +368,20 @@ class ArchiveAndMCP(unittest.TestCase):
                 self.assertIn('outer `data/plugins/` wrapper is not accepted', reference)
                 self.assertNotIn('data/plugins/pilot_probe/plugin.ini', reference)
 
+                build_workflow = next(item for item in index['workflows']
+                                      if item['id'] == 'sco-build-check-package')
+                build_files = {item['path']: item['text'] for item in build_workflow['files']}
+                build_skill = build_files[prefix + 'skills/sco-build-check-package/SKILL.md']
+                build_reference = build_files[prefix + 'skills/sco-build-check-package/references/build.md']
+                for text in (build_skill, build_reference):
+                    self.assertIn('--no-load', text)
+                    self.assertIn('provider availability', text)
+                    self.assertIn('runtime compatibility', text)
+                readme_path = prefix + 'README.md'
+                sdk_readme = entries[readme_path][0].decode()
+                self.assertIn('--no-load', sdk_readme)
+                self.assertIn('does not establish code safety', sdk_readme)
+
     def client(self, **kw):
         c = client_module.Client(self.cat, **kw)
         self.addCleanup(c.close)

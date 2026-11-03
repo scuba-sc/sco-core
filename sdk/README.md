@@ -212,12 +212,15 @@ cmake --install build --prefix out
 ## Check a plugin
 
 ```sh
+out/bin/sco-plugin-check out/data/plugins/hello --no-load
 out/bin/sco-plugin-check out/data/plugins/hello
 out/bin/sco-plugin-check out/data/plugins/hello --cap teleport --invoke hello.wave "Pilot One"
 lua5.4 tools/lua-check.lua examples/greeter --invoke greeter.greet "Pilot One" true
 ```
 
-`sco-plugin-check` reads `plugin.ini` with the host's rules. For a native plugin it then loads the DLL, calls `sco_plugin_query` and `sco_plugin_load` against a stand-in host that enforces the documented rules, fires `game.ready` and a few `tick`s, runs every command that takes no arguments (and the one you name with `--invoke`), and unloads. For a data pack it lists the files the host would index. `--cap NAME` makes `has(NAME)` answer 1; by default every capability is missing, as on a game build the mod doesn't support yet. Exit code 0 means every check passed.
+`--no-load` validates `plugin.ini` with the host's folder-check rules, the manifest id against the folder name, and regular entry-file presence; for a data pack it inventories files in the host-indexed locations. It does not load or execute plugin code. A passing no-load check does not establish code safety, ABI compatibility, provider availability or runtime compatibility. `--no-load` cannot be combined with dynamic-only `--cap`, `--short-tables` or `--invoke` options.
+
+Without `--no-load`, `sco-plugin-check` keeps its normal dynamic behavior: for a native plugin it loads the DLL, calls `sco_plugin_query` and `sco_plugin_load` against a stand-in host that enforces the documented rules, fires `game.ready` and a few `tick`s, runs every command that takes no arguments (and the one you name with `--invoke`), and unloads. This executes native plugin code with the checker's user rights. For a data pack it lists the files the host would index. `--cap NAME` makes `has(NAME)` answer 1; by default every capability is missing, as on a game build the mod doesn't support yet. Exit code 0 means every check passed.
 
 An automatic no-argument call may return `SCO_NOT_FOUND` when there is no current resource, such as an equip job. The checker prints that observation without counting it as a structural failure; it does not report the command as successful. An explicitly named `--invoke` still fails on `SCO_NOT_FOUND`, including a missing command name. `SCO_FAILED`, `SCO_BAD_ARG`, unknown results and API misuse remain failures.
 

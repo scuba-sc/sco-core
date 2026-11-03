@@ -141,7 +141,7 @@
     },
     {
       "path": "sdk/test_plugin_verify.py",
-      "why": "Repository-only synthetic tests for tools/sco-plugin-verify.py; not part of an SDK archive."
+      "why": "Repository-only synthetic tests for tools/sco-plugin-verify.py and the folder --no-load checker mode; not part of an SDK archive."
     },
     {
       "path": "tools/ip_audit.py",
