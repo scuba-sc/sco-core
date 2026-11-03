@@ -2,7 +2,7 @@
 name: sco-package-plugin
 description: "Stage and statically verify a distributable SCO native, Lua or data extension, including single-folder ZIP checks, archive round trips, payload inventories, licenses and manual SC Offline installation/update instructions. Use after a plugin builds or when reviewing a plugin package."
 metadata:
-  version: "0.2.7"
+  version: "0.2.8"
 ---
 
 # Package an SCO extension

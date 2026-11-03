@@ -1,9 +1,13 @@
 {
   "baseline_sdk": "2.4.0",
-  "bundle_version": "0.2.7",
+  "bundle_version": "0.2.8",
   "mcp": {
     "protocol": "2025-11-25",
-    "server_version": "1.0.0",
+    "server_version": "1.1.0",
+    "supported_protocols": [
+      "2026-07-28",
+      "2025-11-25"
+    ],
     "tools": {
       "build_plugin_project": "40da91b48e0dedd698ec564e815be9a3badfb6a4dce5b17f22d6740a614f0693",
       "check_compatibility": "0676e47af486cf33231eb83f82747e58570234472c8362d395bf7859611cc091",
@@ -23,7 +27,7 @@
       "validate_manifest_and_widgets": "4769b07d6aa29e83aa9219989b613c8820a42c1e6d53ef98d7e2ebd5d286a993"
     }
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "skills": [
     {
       "id": "sco-plan-sdk-work",

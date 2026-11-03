@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tools-only MCP 2025-11-25 server for SDK catalogue schemas 1-2; configured project roots enable local development tools.
+"""Tools-only dual-era MCP stdio server for SDK catalogue schemas 1-2; configured project roots enable local development tools.
 
 By default: no SDK invocation, subprocesses, network access, or filesystem writes.
 Stdout is reserved for newline-delimited UTF-8 JSON-RPC; diagnostics go to stderr.
@@ -41,8 +41,13 @@ import sys
 import threading
 import time
 
-PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "1.0.0"
+LEGACY_PROTOCOL_VERSION = "2025-11-25"
+MODERN_PROTOCOL_VERSION = "2026-07-28"
+# Keep the original public constant for callers and fixtures that exercise the
+# initialization-based protocol. New clients use MODERN_PROTOCOL_VERSION.
+PROTOCOL_VERSION = LEGACY_PROTOCOL_VERSION
+SUPPORTED_PROTOCOL_VERSIONS = (MODERN_PROTOCOL_VERSION, LEGACY_PROTOCOL_VERSION)
+SERVER_VERSION = "1.1.0"
 MAX_FRAME = 64 * 1024
 MAX_RESPONSE = 4 * 1024 * 1024
 MAX_CATALOGUE = 16 * 1024 * 1024
@@ -308,9 +313,10 @@ class ToolError(ValueError):
 
 
 class RpcError(ValueError):
-    def __init__(self, code, message):
+    def __init__(self, code, message, data=None):
         super().__init__(message)
         self.code = code
+        self.data = data
 
 
 def require(condition, message):
@@ -2194,6 +2200,51 @@ class Server:
         return {"content": [{"type": "text", "text": encoded(data).decode("utf-8")}],
                 "structuredContent": data, "isError": is_error}
 
+    def versioned_result(self, message, result):
+        """Add the 2026 result envelope while leaving legacy bytes unchanged."""
+        params = message.get("params")
+        if not isinstance(params, dict) or not isinstance(params.get("_meta"), dict):
+            return result
+        if params["_meta"].get("io.modelcontextprotocol/protocolVersion") != MODERN_PROTOCOL_VERSION:
+            return result
+        result = dict(result)
+        result["resultType"] = "complete"
+        metadata = result.get("_meta")
+        metadata = dict(metadata) if isinstance(metadata, dict) else {}
+        metadata["io.modelcontextprotocol/serverInfo"] = {
+            "name": "sco-core-mcp", "version": SERVER_VERSION,
+        }
+        result["_meta"] = metadata
+        if message.get("method") in {"server/discover", "tools/list"}:
+            # The full list is immutable for a process lifetime; zero avoids
+            # stale results when a client restarts with a different local profile.
+            result["ttlMs"] = 0
+            result["cacheScope"] = "public"
+        return result
+
+    def dispatch_modern(self, method, params):
+        if method == "server/discover":
+            if set(params) != {"_meta"}:
+                raise RpcError(-32602, "server/discover accepts only request metadata")
+            return {"supportedVersions": list(SUPPORTED_PROTOCOL_VERSIONS),
+                    "capabilities": {"tools": {}}}
+        if method not in {"tools/list", "tools/call"}:
+            raise RpcError(-32601, "Method not found")
+        if method == "tools/list":
+            if "cursor" in params:
+                raise RpcError(-32602, "No pagination cursor: the complete static tool list fits one response")
+            return {"tools": self.tools}
+        name = params.get("name")
+        if not isinstance(name, str) or name not in self.enabled:
+            raise RpcError(-32602, "Unknown tool")
+        args = params.get("arguments", {})
+        if not isinstance(args, dict):
+            raise RpcError(-32602, "Tool arguments must be an object")
+        try:
+            return self.tool_result(self.execute(name, args))
+        except ToolError as error:
+            return self.tool_result({"error": str(error)}, is_error=True)
+
     def execute(self, name, args):
         now = time.monotonic()
         while self.calls and self.calls[0] <= now - 60:
@@ -2344,6 +2395,29 @@ class Server:
         params = message.get("params", {})
         if not isinstance(params, dict):
             raise RpcError(-32602, "Parameters must be an object")
+        # 2026-07-28 has no initialize handshake: metadata travels with each
+        # request. Requiring it before tools/list or tools/call while new lets
+        # malformed modern requests fail as invalid params without changing the
+        # established initialized-state behavior of legacy clients.
+        if "_meta" in params or method == "server/discover" or (
+                method in {"tools/list", "tools/call"} and self.state == "new"):
+            metadata = params.get("_meta")
+            if not isinstance(metadata, dict):
+                raise RpcError(-32602, "Modern MCP requests require _meta protocolVersion and clientCapabilities")
+            version = metadata.get("io.modelcontextprotocol/protocolVersion")
+            capabilities = metadata.get("io.modelcontextprotocol/clientCapabilities")
+            if not nonempty(version) or not isinstance(capabilities, dict):
+                raise RpcError(-32602, "Modern MCP requests require _meta protocolVersion and clientCapabilities")
+            client_info = metadata.get("io.modelcontextprotocol/clientInfo")
+            if client_info is not None and (not isinstance(client_info, dict) or
+                    not nonempty(client_info.get("name")) or not nonempty(client_info.get("version"))):
+                raise RpcError(-32602, "clientInfo must contain name and version")
+            if version not in SUPPORTED_PROTOCOL_VERSIONS:
+                raise RpcError(-32022, "Unsupported protocol version",
+                               {"supported": list(SUPPORTED_PROTOCOL_VERSIONS), "requested": version})
+            if version != MODERN_PROTOCOL_VERSION:
+                raise RpcError(-32602, "2025-11-25 requires the initialize handshake")
+            return self.dispatch_modern(method, params)
         if method == "ping":
             return {}
         if method == "initialize":
@@ -2353,7 +2427,7 @@ class Server:
             if not nonempty(params.get("protocolVersion")) or not isinstance(params.get("capabilities"), dict) or not isinstance(info, dict) or not all(nonempty(info.get(k)) for k in ("name", "version")):
                 raise RpcError(-32602, "initialize requires protocolVersion, capabilities and clientInfo")
             self.state = "initializing"
-            return {"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {}},
+            return {"protocolVersion": LEGACY_PROTOCOL_VERSION, "capabilities": {"tools": {}},
                     "serverInfo": {"name": "sco-core-mcp", "version": SERVER_VERSION}}
         if method not in {"tools/list", "tools/call"}:
             raise RpcError(-32601, "Method not found")
@@ -2394,16 +2468,20 @@ class Server:
                 result = self.dispatch(message)
                 if result is None:
                     continue
-                response = {"jsonrpc": "2.0", "id": message["id"], "result": result}
+                response = {"jsonrpc": "2.0", "id": message["id"],
+                            "result": self.versioned_result(message, result)}
                 if len(encoded(response)) + 1 > MAX_RESPONSE:
-                    response["result"] = self.tool_result({"error": "Result exceeds 4 MiB; narrow the request"}, is_error=True)
+                    replacement = self.tool_result({"error": "Result exceeds 4 MiB; narrow the request"}, is_error=True)
+                    response["result"] = self.versioned_result(message, replacement)
             except RpcError as error:
                 # Invalid IDs cannot be echoed as response identifiers.
                 request_id = message.get("id") if isinstance(message, dict) else None
                 if type(request_id) not in (int, str):
                     request_id = None
-                response = {"jsonrpc": "2.0", "id": request_id,
-                            "error": {"code": error.code, "message": str(error)}}
+                details = {"code": error.code, "message": str(error)}
+                if error.data is not None:
+                    details["data"] = error.data
+                response = {"jsonrpc": "2.0", "id": request_id, "error": details}
             target.write(encoded(response) + b"\n")
             target.flush()
 
