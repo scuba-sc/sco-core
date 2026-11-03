@@ -13,6 +13,41 @@ permissions:
   contents: read
 
 jobs:
+  issue302-valid-input-parity:
+    name: Issue #302 synthetic valid-input parity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # tests/issue302_valid_parity.py archives its pinned baseline commit.
+
+      - name: Install explicit GCC 14 compiler
+        run: |
+          apt_log="${RUNNER_TEMP}/issue302-gcc-install.log"
+          if ! { sudo apt-get update && sudo apt-get install -y --no-install-recommends g++-14; } > "$apt_log" 2>&1; then
+            tail -n 80 "$apt_log"
+            exit 1
+          fi
+          g++-14 --version | head -n 1
+
+      - name: Run synthetic all-row parity (no game data)
+        timeout-minutes: 10
+        env:
+          CXX: g++-14
+        run: |
+          report="${RUNNER_TEMP}/issue302-valid-parity"
+          log="${RUNNER_TEMP}/issue302-valid-parity.log"
+          if python3 tests/issue302_valid_parity.py --out "$report" > "$log" 2>&1; then
+            status=0
+          else
+            status=$?
+          fi
+          head -c 4096 "$log" || true
+          printf '\n'
+          exit "$status"
+
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
