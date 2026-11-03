@@ -40,6 +40,13 @@ static std::string ReadWholeFile(const fs::path& path) {
     return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 }
 
+static void CheckNonCompleteContract(const PS::Record& record, const char* state) {
+    std::string json;
+    CHECK(PS::Serialize(record, json));
+    CHECK(json.find(std::string("\"record_state\":\"") + state + "\"") != std::string::npos);
+    CHECK(json.find("\"plugin_count\":null,\"loaded_count\":null,\"plugins\":null}") != std::string::npos);
+}
+
 static void TestProjection() {
     std::vector<P::Plugin> list;
     list.push_back(Plugin("off_one", P::State::Off));
@@ -89,17 +96,21 @@ static void TestProjection() {
 
     PS::Record starting = PS::StartingRecord(session, started, false);
     CHECK(PS::Serialize(starting, json) && json.find("\"record_state\":\"starting\"") != std::string::npos &&
-          json.find("\"completed_at_utc\":null") != std::string::npos && json.ends_with("\"plugins\":null}"));
+          json.find("\"completed_at_utc\":null") != std::string::npos &&
+          json.find("\"plugin_count\":null,\"loaded_count\":null,\"plugins\":null}") != std::string::npos);
+    CheckNonCompleteContract(starting, "starting");
     PS::Record failed = PS::FailedRecord(list, true, session, started, completed);
     CHECK(PS::Serialize(failed, json) && json.find("\"record_state\":\"failed\"") != std::string::npos &&
-          json.ends_with("\"plugins\":null}"));
+          json.find("\"plugin_count\":null,\"loaded_count\":null,\"plugins\":null}") != std::string::npos);
+    CheckNonCompleteContract(failed, "failed");
 
     auto unsupported = list;
     unsupported[0].manifest.version = "release candidate";
     PS::Record incomplete = PS::Project(unsupported, true, session, started, completed);
     CHECK(incomplete.state == PS::RecordState::Incomplete && !incomplete.plugins &&
           PS::Serialize(incomplete, json) && json.find("\"record_state\":\"incomplete\"") != std::string::npos &&
-          json.ends_with("\"plugins\":null}"));
+          json.find("\"plugin_count\":null,\"loaded_count\":null,\"plugins\":null}") != std::string::npos);
+    CheckNonCompleteContract(incomplete, "incomplete");
     auto overLimit = list;
     overLimit.resize(PS::kMaxRows, Plugin("within_limit", P::State::Loaded));
     PS::Record atLimit = PS::Project(overLimit, true, session, started, completed);
@@ -110,6 +121,7 @@ static void TestProjection() {
     incomplete = PS::Project(overLimit, true, session, started, completed);
     CHECK(incomplete.state == PS::RecordState::Incomplete && incomplete.pluginCount == PS::kMaxRows + 1 &&
           !incomplete.plugins && PS::Serialize(incomplete, json));
+    CHECK(json.find("\"plugin_count\":null,\"loaded_count\":null,\"plugins\":null}") != std::string::npos);
 
     record.loadedCount = 2;
     CHECK(!PS::Serialize(record, json));
