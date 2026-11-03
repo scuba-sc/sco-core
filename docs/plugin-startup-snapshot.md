@@ -26,10 +26,21 @@ Each publication is written to a same-directory, session-specific temporary file
 atomically renamed over the target while the lock is held. Readers should open only the exact
 `plugin-startup.json` path, cap reads at 65,536 bytes, and close promptly. On Windows, readers that
 keep a handle open across replacement must allow delete sharing; otherwise replacement can fail
-cleanly and the previous complete `starting` record remains. Crash-left temporary files are ignored
-by readers. The lock file is persistent: deleting it after unlock could split the cross-process
-lock among two inodes. After acquiring the lock, the next writer removes only regular files whose
-names exactly match this writer's session-temporary format.
+before publication and the prior record remains. A POSIX directory-flush error can occur after the
+rename already published a complete JSON record, so it reports a write failure with durability
+uncertain; it still cannot fail startup. A final update failure can leave the earlier `starting`
+record even after the load pass returns, so readers must not interpret `starting` as proof of a
+crash. Crash-left temporary files are ignored by readers. The lock file is persistent: deleting it
+after unlock could split the cross-process lock among two inodes. After acquiring the lock, the
+next writer removes only regular files whose names exactly match this writer's session-temporary
+format.
+
+The lock and temporary-file leaf names reject symlinks/reparse points where the platform supports
+that check, and cleanup skips non-regular entries. On Windows, an existing target reparse point or
+directory is rejected before replacement; on POSIX, rename replaces the final symlink entry rather
+than following it. The configured parent directory is resolved by the operating system normally;
+point `dataRoot` at a host-controlled directory if untrusted users can create or replace path
+components.
 
 The lock coordinates cooperating writers that use the same data root and OS lock path. A process
 with write access to the data directory can forge or replace this file. Do not treat it as
@@ -60,11 +71,14 @@ The JSON object contains exactly these fields:
 - An invalid manifest carries a collision-free session-local `unknown_N` alias, `version: null`,
   and `kind: "unknown"`. The raw folder name and parse error are not published.
 - States are `off`, `disabled`, `refused`, `ready`, `loaded`, `crashed`, `unloaded`, or `faulted`.
-- Reasons are fixed codes only. The core's existing diagnostic projection gives
-  `invalid_manifest` precedence when manifest metadata is invalid; otherwise `off` maps to
-  `plugins_off`, `disabled` to `plugin_disabled`, `refused` to `plugin_refused`, `crashed` to
-  `plugin_crashed`, and `faulted` to `provider_fault_restart_required`. The remaining states have
-  `reason_code: null`. `restart_required` is true exactly for `faulted`.
+- Reasons are fixed codes only and agree with the state: `off` maps to `plugins_off`, `disabled` to
+  `plugin_disabled`, `refused` to `invalid_manifest` for an invalid manifest or `plugin_refused`
+  otherwise, `crashed` to `plugin_crashed`, and `faulted` to `provider_fault_restart_required`.
+  The remaining states have `reason_code: null`. Invalid manifests in `off` or `disabled` retain
+  those state-consistent reasons; `manifest_valid`, the alias, and the `unknown` kind carry the
+  manifest status. The broader runtime-diagnostics projection currently gives invalid manifests
+  reason-code precedence over state; this file intentionally follows the v1 launcher's
+  state-consistency rule. `restart_required` is true exactly for `faulted`.
 - IDs, versions and reason codes are ASCII-validated before serialization. No free-form reason,
   author, display name, filesystem path, or plugin log is included.
 

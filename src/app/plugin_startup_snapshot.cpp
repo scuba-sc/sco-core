@@ -115,13 +115,10 @@ const char* PluginKindName(plugins::Kind kind) {
 }
 
 std::optional<std::string> ReasonCode(plugins::State state, bool manifestValid) {
-    // Match the host's existing diagnostic projection: an invalid manifest is the primary reason
-    // even if the global or per-plugin switch also prevents loading.
-    if (!manifestValid) return "invalid_manifest";
     switch (state) {
     case plugins::State::Off: return "plugins_off";
     case plugins::State::Disabled: return "plugin_disabled";
-    case plugins::State::Refused: return "plugin_refused";
+    case plugins::State::Refused: return manifestValid ? "plugin_refused" : "invalid_manifest";
     case plugins::State::Crashed: return "plugin_crashed";
     case plugins::State::Faulted: return "provider_fault_restart_required";
     case plugins::State::Ready:
@@ -157,7 +154,7 @@ bool ValidRow(const Row& row) {
     else if (row.state == "refused") expected = "plugin_refused";
     else if (row.state == "crashed") expected = "plugin_crashed";
     else if (row.state == "faulted") expected = "provider_fault_restart_required";
-    if (!row.manifestValid) expected = "invalid_manifest";
+    if (row.state == "refused" && !row.manifestValid) expected = "invalid_manifest";
     if (expected) return row.reasonCode && *row.reasonCode == expected;
     return !row.reasonCode;
 }
@@ -370,6 +367,24 @@ bool WriteAllAndFlush(const std::filesystem::path& temporary, std::string_view b
 
 bool ReplaceAtomically(const std::filesystem::path& temporary, const std::filesystem::path& target) noexcept {
 #ifdef _WIN32
+    // Inspect the final path component itself, not a possible reparse target. The parent
+    // directory is host-controlled; rejecting a static reparse point here prevents replacing
+    // through an existing target link. A hostile concurrent parent-directory mutation is outside
+    // this best-effort snapshot's ownership model.
+    HANDLE existing = CreateFileW(target.c_str(), FILE_READ_ATTRIBUTES,
+                                  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                  nullptr, OPEN_EXISTING,
+                                  FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (existing != INVALID_HANDLE_VALUE) {
+        BY_HANDLE_FILE_INFORMATION info{};
+        const bool inspected = GetFileInformationByHandle(existing, &info) != 0;
+        CloseHandle(existing);
+        if (!inspected || (info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)))
+            return false;
+    } else {
+        const DWORD error = GetLastError();
+        if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND) return false;
+    }
     return MoveFileExW(temporary.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
 #else
     if (rename(temporary.c_str(), target.c_str()) != 0) return false;
